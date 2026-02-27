@@ -39,6 +39,7 @@ import { ThemeToggle } from "./components/common/ThemeToggle";
 import { LanguageToggle } from "./components/common/LanguageToggle";
 import { AgentSelector } from "./components/agent/AgentSelector";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { useSettingsContext } from "./contexts/SettingsContext";
 import { useAgent } from "./hooks/useAgent";
 import { useApprovals } from "./hooks/useApprovals";
 import { useAuth } from "./hooks/useAuth";
@@ -582,19 +583,21 @@ function ProfileModal({
 function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
   const { t } = useTranslation();
   const { logout, hasAnyPermission, user } = useAuth();
+  const { enableMcp, enableSkills } = useSettingsContext();
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
-  const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
+  const canReadSkills =
+    hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
   const canManageUsers = hasAnyPermission([
     Permission.USER_READ,
     Permission.USER_WRITE,
   ]);
   const canManageRoles = hasAnyPermission([Permission.ROLE_MANAGE]);
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
-  const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
+  const canReadMCP = hasAnyPermission([Permission.MCP_READ]) && enableMcp;
 
   // 更新菜单位置
   const updateMenuPosition = useCallback(() => {
@@ -761,6 +764,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const navigate = useNavigate();
+  const { enableMcp, enableSkills } = useSettingsContext();
 
   // 获取 approvals hook 的 addApproval 方法
   const {
@@ -781,7 +785,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
-  } = useTools();
+  } = useTools({ enabled: enableMcp });
 
   // Skills 选择器 hook
   const {
@@ -792,7 +796,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
     toggleSkillWrapper,
     toggleCategory: toggleSkillCategory,
     toggleAll: toggleAllSkills,
-  } = useSkills();
+  } = useSkills({ enabled: enableSkills });
 
   const {
     messages,
@@ -1215,6 +1219,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                 toolsLoading={toolsLoading}
                 enabledToolsCount={enabledToolsCount}
                 totalToolsCount={totalToolsCount}
+                enableMcp={enableMcp}
                 skills={skills}
                 onToggleSkill={toggleSkillWrapper}
                 onToggleSkillCategory={toggleSkillCategory}
@@ -1222,6 +1227,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                 skillsLoading={skillsLoading}
                 enabledSkillsCount={enabledSkillsCount}
                 totalSkillsCount={totalSkillsCount}
+                enableSkills={enableSkills}
                 agentOptions={currentAgentOptions}
                 agentOptionValues={agentOptionValues}
                 onToggleAgentOption={handleToggleAgentOption}

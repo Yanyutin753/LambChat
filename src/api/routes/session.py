@@ -402,7 +402,13 @@ async def generate_session_title(
 
     # 使用 LLM 生成标题
     try:
-        model = LLMClient.get_model(model=title_model, temperature=0.3, max_tokens=50)
+        model = LLMClient.get_model(
+            model=title_model,
+            temperature=0.7,
+            max_tokens=50,
+            api_base=settings.LLM_API_BASE,
+            api_key=settings.LLM_API_KEY,
+        )
         prompt = prompt_template.format(message=message[:500])
 
         response = await model.ainvoke(prompt)

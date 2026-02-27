@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Permission } from "../../types";
 import type {
   MCPServerResponse,
   MCPServerCreate,
@@ -12,6 +13,7 @@ interface MCPServerFormProps {
   onSave: (data: MCPServerCreate) => Promise<boolean>;
   onCancel: () => void;
   isLoading?: boolean;
+  allowedTransports?: Permission[]; // Permissions for allowed transport types
 }
 
 interface KeyValuePair {
@@ -24,13 +26,47 @@ export function MCPServerForm({
   onSave,
   onCancel,
   isLoading = false,
+  allowedTransports = [
+    Permission.MCP_ADMIN,
+    Permission.MCP_WRITE_STDIO,
+    Permission.MCP_WRITE_SSE,
+    Permission.MCP_WRITE_HTTP,
+  ],
 }: MCPServerFormProps) {
   const { t } = useTranslation();
   const isEditing = !!server;
 
+  // Determine available transport types based on permissions
+  const allTransports: {
+    value: MCPTransport;
+    label: string;
+    permission: Permission;
+  }[] = [
+    {
+      value: "stdio" as MCPTransport,
+      label: t("mcp.form.transportStdio"),
+      permission: Permission.MCP_WRITE_STDIO,
+    },
+    {
+      value: "sse" as MCPTransport,
+      label: t("mcp.form.transportSse"),
+      permission: Permission.MCP_WRITE_SSE,
+    },
+    {
+      value: "streamable_http" as MCPTransport,
+      label: t("mcp.form.transportHttp"),
+      permission: Permission.MCP_WRITE_HTTP,
+    },
+  ];
+  const availableTransports = allTransports.filter((t) =>
+    allowedTransports.includes(t.permission),
+  );
+
+  const defaultTransport = availableTransports[0]?.value ?? "sse";
+
   const [name, setName] = useState(server?.name ?? "");
   const [transport, setTransport] = useState<MCPTransport>(
-    server?.transport ?? "stdio",
+    server?.transport ?? defaultTransport,
   );
   const [enabled, setEnabled] = useState(server?.enabled ?? true);
 
@@ -242,9 +278,11 @@ export function MCPServerForm({
           disabled={isEditing}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
         >
-          <option value="stdio">{t("mcp.form.transportStdio")}</option>
-          <option value="sse">{t("mcp.form.transportSse")}</option>
-          <option value="streamable_http">{t("mcp.form.transportHttp")}</option>
+          {availableTransports.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
         </select>
         {isEditing && (
           <p className="mt-1 text-xs text-gray-500 dark:text-stone-500">

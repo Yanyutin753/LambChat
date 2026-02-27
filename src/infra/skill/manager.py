@@ -27,7 +27,7 @@ class SkillManager:
             user_id: 用户 ID，用于获取用户级别的技能
         """
         self.user_id = user_id
-        self.storage = SkillStorage() if settings.SKILLS_MONGODB_ENABLED else None
+        self.storage = SkillStorage() if settings.ENABLE_SKILLS else None
         self._loaded_skills: dict = {}
 
     def list_skills(self) -> list[dict]:
@@ -52,7 +52,7 @@ class SkillManager:
                         "description": s.description,
                         "content": s.content,
                         "enabled": s.enabled,
-                        "source": s.source.value if hasattr(s.source, "value") else s.source,
+                        "source": (s.source.value if hasattr(s.source, "value") else s.source),
                         "github_url": s.github_url,
                         "version": s.version,
                         "is_system": s.is_system,
@@ -104,9 +104,9 @@ class SkillManager:
                         "description": skill.description,
                         "content": skill.content,
                         "enabled": skill.enabled,
-                        "source": skill.source.value
-                        if hasattr(skill.source, "value")
-                        else skill.source,
+                        "source": (
+                            skill.source.value if hasattr(skill.source, "value") else skill.source
+                        ),
                         "github_url": skill.github_url,
                         "version": skill.version,
                         "is_system": False,
@@ -123,9 +123,9 @@ class SkillManager:
                         "description": skill.description,
                         "content": skill.content,
                         "enabled": skill.enabled,
-                        "source": skill.source.value
-                        if hasattr(skill.source, "value")
-                        else skill.source,
+                        "source": (
+                            skill.source.value if hasattr(skill.source, "value") else skill.source
+                        ),
                         "github_url": skill.github_url,
                         "version": skill.version,
                         "is_system": True,

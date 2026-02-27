@@ -43,6 +43,7 @@ interface ChatInputProps {
   toolsLoading?: boolean;
   enabledToolsCount?: number;
   totalToolsCount?: number;
+  enableMcp?: boolean;
   // Skills
   skills?: SkillResponse[];
   onToggleSkill?: (name: string) => Promise<void>;
@@ -54,6 +55,7 @@ interface ChatInputProps {
   skillsLoading?: boolean;
   enabledSkillsCount?: number;
   totalSkillsCount?: number;
+  enableSkills?: boolean;
   // Agent options
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
@@ -202,6 +204,7 @@ export const ChatInput = memo(function ChatInput({
   toolsLoading: _toolsLoading,
   enabledToolsCount = 0,
   totalToolsCount = 0,
+  enableMcp = true,
   // Skills
   skills = [],
   onToggleSkill,
@@ -210,6 +213,7 @@ export const ChatInput = memo(function ChatInput({
   skillsLoading: _skillsLoading,
   enabledSkillsCount = 0,
   totalSkillsCount = 0,
+  enableSkills = true,
   // Agent options
   agentOptions,
   agentOptionValues = {},
@@ -358,7 +362,7 @@ export const ChatInput = memo(function ChatInput({
             {/* Left side - Tool buttons */}
             <div className="ml-2 self-end flex items-center max-w-[80%] gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
               {/* Tool selector button */}
-              {onToggleTool && onToggleCategory && onToggleAll && (
+              {enableMcp && onToggleTool && onToggleCategory && onToggleAll && (
                 <ToolSelector
                   tools={tools}
                   onToggleTool={onToggleTool}
@@ -369,16 +373,19 @@ export const ChatInput = memo(function ChatInput({
                 />
               )}
               {/* Skill selector button */}
-              {onToggleSkill && onToggleSkillCategory && onToggleAllSkills && (
-                <SkillSelector
-                  skills={skills}
-                  onToggleSkill={onToggleSkill}
-                  onToggleCategory={onToggleSkillCategory}
-                  onToggleAll={onToggleAllSkills}
-                  enabledCount={enabledSkillsCount}
-                  totalCount={totalSkillsCount}
-                />
-              )}
+              {enableSkills &&
+                onToggleSkill &&
+                onToggleSkillCategory &&
+                onToggleAllSkills && (
+                  <SkillSelector
+                    skills={skills}
+                    onToggleSkill={onToggleSkill}
+                    onToggleCategory={onToggleSkillCategory}
+                    onToggleAll={onToggleAllSkills}
+                    enabledCount={enabledSkillsCount}
+                    totalCount={totalSkillsCount}
+                  />
+                )}
               {/* Agent options - Multiple options support */}
               {agentOptions &&
                 onToggleAgentOption &&

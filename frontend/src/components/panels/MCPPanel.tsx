@@ -7,6 +7,7 @@ import {
   Upload,
   FolderOpen,
   Check,
+  ServerOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -16,11 +17,13 @@ import { MCPServerForm } from "../mcp/MCPServerForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { useMCP } from "../../hooks/useMcp";
 import { useAuth } from "../../hooks/useAuth";
+import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import type { MCPServerResponse, MCPServerCreate } from "../../types";
 
 export function MCPPanel() {
   const { t } = useTranslation();
+  const { enableMcp } = useSettingsContext();
   const {
     servers,
     isLoading,
@@ -34,7 +37,7 @@ export function MCPPanel() {
     promoteServer,
     demoteServer,
     clearError,
-  } = useMCP();
+  } = useMCP({ enabled: enableMcp });
   const { hasAnyPermission, user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -61,8 +64,26 @@ export function MCPPanel() {
   } | null>(null);
 
   const canRead = hasAnyPermission([Permission.MCP_READ]);
-  const canWrite = hasAnyPermission([Permission.MCP_WRITE]);
+  const canWrite = hasAnyPermission([
+    Permission.MCP_ADMIN,
+    Permission.MCP_WRITE_STDIO,
+    Permission.MCP_WRITE_SSE,
+    Permission.MCP_WRITE_HTTP,
+  ]);
   const canAdmin = hasAnyPermission([Permission.MCP_ADMIN]);
+
+  // 动态生成用户可以使用的传输类型权限
+  const allowedTransports = [
+    hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_STDIO])
+      ? Permission.MCP_WRITE_STDIO
+      : null,
+    hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_SSE])
+      ? Permission.MCP_WRITE_SSE
+      : null,
+    hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_HTTP])
+      ? Permission.MCP_WRITE_HTTP
+      : null,
+  ].filter(Boolean) as Permission[];
   // Note: canDelete permission is checked server-side
   // Client-side uses canWrite for UI actions, server validates actual permissions
 
@@ -283,6 +304,18 @@ export function MCPPanel() {
     );
   }
 
+  if (!enableMcp) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400">
+        <ServerOff
+          size={48}
+          className="mb-3 text-stone-300 dark:text-stone-600"
+        />
+        <p className="text-center">{t("mcp.featureDisabled")}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
@@ -461,6 +494,7 @@ export function MCPPanel() {
                   onSave={handleSave}
                   onCancel={handleCancel}
                   isLoading={isLoading}
+                  allowedTransports={allowedTransports}
                 />
               </div>
             </div>

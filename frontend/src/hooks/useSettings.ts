@@ -191,6 +191,26 @@ export function useSettings() {
     setError(null);
   }, []);
 
+  // Get a specific setting value by key
+  const getSettingValue = useCallback(
+    (key: string): boolean | string | number | object | undefined => {
+      if (!settings) return undefined;
+      const allSettings = Object.values(settings.settings).flat();
+      const setting = allSettings.find((s) => s.key === key);
+      return setting?.value;
+    },
+    [settings],
+  );
+
+  // Get a boolean setting value (returns false if not found or while loading)
+  const getBooleanSetting = useCallback(
+    (key: string): boolean => {
+      const value = getSettingValue(key);
+      return value === true || value === "true";
+    },
+    [getSettingValue],
+  );
+
   return {
     settings,
     isLoading,
@@ -203,5 +223,7 @@ export function useSettings() {
     clearError,
     exportSettings,
     importSettings,
+    getSettingValue,
+    getBooleanSetting,
   };
 }

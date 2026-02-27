@@ -378,18 +378,53 @@ class MCPClientManager:
         # 创建 MultiServerMCPClient
         client = MultiServerMCPClient(server_configs)
 
-        # 获取所有工具（带错误处理，跳过失败的服务器）
-        try:
-            tools = await client.get_tools()
-            logger.info(
-                f"MCP client initialized with {len(tools)} tools from {len(mcp_servers)} servers"
-            )
-            return tools, client
-        except Exception as e:
+        # 并行加载所有服务器的工具，失败的服务器不影响其他服务器
+        async def _load_server_tools(server_name: str) -> tuple[str, list[BaseTool] | Exception]:
+            """加载单个服务器的工具，返回 (server_name, tools) 或 (server_name, exception)"""
+            try:
+                async with client.session(server_name) as session:
+                    from langchain_mcp_adapters.tools import load_mcp_tools
+
+                    tools = await load_mcp_tools(session, server_name=server_name)
+                    return (server_name, tools)
+            except Exception as e:
+                return (server_name, e)
+
+        # 并行执行
+        results = await asyncio.gather(*[_load_server_tools(name) for name in server_configs])
+
+        # 处理结果
+        all_tools: list[BaseTool] = []
+        failed_servers: list[str] = []
+
+        for server_name, result in results:
+            if isinstance(result, Exception):
+                failed_servers.append(server_name)
+                error_msg = str(result)
+                if "ValidationError" in error_msg or "JSONRPCMessage" in error_msg:
+                    logger.warning(
+                        f"[MCP] Server '{server_name}' returned invalid JSON-RPC response. "
+                        f"This server may not be MCP-compliant."
+                    )
+                else:
+                    logger.warning(
+                        f"[MCP] Failed to load tools from server '{server_name}': {result}"
+                    )
+            else:
+                all_tools.extend(result)
+                logger.info(f"[MCP] Loaded {len(result)} tools from server '{server_name}'")
+
+        if failed_servers:
             logger.warning(
-                f"Some MCP servers failed to initialize, partial tools may be available: {e}"
+                f"[MCP] {len(failed_servers)} server(s) failed: {failed_servers}. "
+                f"Loaded {len(all_tools)} tools from {len(server_configs) - len(failed_servers)} server(s)."
             )
-            return [], client
+        else:
+            logger.info(
+                f"[MCP] Successfully loaded {len(all_tools)} tools from {len(server_configs)} server(s)"
+            )
+
+        return all_tools, client
 
     async def _connect_server(self, name: str, config: dict) -> None:
         """连接到单个 MCP 服务器（已弃用，由 MultiServerMCPClient 统一管理）"""

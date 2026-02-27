@@ -135,6 +135,24 @@ REVEAL_FILE_TOOLS = [
     ),
 ]
 
+# Sync Conversation 工具定义 - 恢复 write_file 创建的文件
+SYNC_CONVERSATION_TOOLS = [
+    ToolInfo(
+        name="sync_conversation",
+        description="恢复对话历史中使用 write_file 工具创建的文件到沙箱。由于每次对话沙箱会被重新初始化，使用此工具可以恢复之前写入的文件。",
+        category="builtin",
+        parameters=[
+            ToolParamInfo(
+                name="target_dir",
+                type="string",
+                description="恢复文件的目标目录，默认为 'restored_files'。文件将被恢复到: {target_dir}/{原始路径}",
+                required=False,
+                default="restored_files",
+            ),
+        ],
+    ),
+]
+
 
 def extract_tool_parameters(tool) -> list[ToolParamInfo]:
     """从 LangChain 工具中提取参数信息"""
@@ -266,7 +284,10 @@ async def list_tools(
     # 2. Reveal File 工具
     tools.extend(REVEAL_FILE_TOOLS)
 
-    # 3. MCP 工具（实际连接获取工具列表）
+    # 3. Sync Conversation 工具
+    tools.extend(SYNC_CONVERSATION_TOOLS)
+
+    # 4. MCP 工具（实际连接获取工具列表）
     if settings.ENABLE_MCP:
         mcp_manager = None
         try:

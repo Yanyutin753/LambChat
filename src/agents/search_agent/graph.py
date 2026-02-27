@@ -19,7 +19,9 @@ import logging
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import BaseGraphAgent, GraphBuilder, register_agent
-from src.agents.search_agent.nodes import AgentContext, SearchAgentState, agent_node
+from src.agents.search_agent.context import AgentContext
+from src.agents.search_agent.nodes import agent_node
+from src.agents.search_agent.state import SearchAgentState
 
 # 设置用户上下文，供 backend 使用
 from src.infra.backend.context import set_user_context
@@ -28,6 +30,7 @@ from src.infra.storage.checkpoint import get_checkpointer
 # 导入中断异常类型（cancel 走 CancelledError，这里只用于类型）
 from src.infra.task.manager import TaskInterruptedError
 from src.infra.writer.present import Presenter, PresenterConfig
+from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -102,14 +105,19 @@ class SearchAgent(BaseGraphAgent):
         self.build_graph(builder)
         self._graph = builder.compile(
             checkpointer=self._checkpointer,
-            recursion_limit=self.recursion_limit,
+            recursion_limit=settings.SESSION_MAX_RUNS_PER_SESSION,
         )
 
         self._initialized = True
         logger.info(f"{self.name} initialized")
 
     async def _stream(
-        self, message: str, session_id: str, user_id: str | None = None, presenter=None, **kwargs
+        self,
+        message: str,
+        session_id: str,
+        user_id: str | None = None,
+        presenter=None,
+        **kwargs,
     ):
         """
         内部流式实现

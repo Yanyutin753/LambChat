@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getAccessToken } from "../services/api";
 import type {
   SkillResponse,
@@ -51,13 +51,17 @@ async function authFetch<T>(
   return text ? JSON.parse(text) : (null as T);
 }
 
-export function useSkills() {
+export function useSkills(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled === true; // Must be explicitly true to fetch
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const [skills, setSkills] = useState<SkillResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch all skills
   const fetchSkills = useCallback(async () => {
+    if (!enabledRef.current) return; // Skip if feature is disabled
     setIsLoading(true);
     setError(null);
     try {
@@ -433,10 +437,12 @@ export function useSkills() {
   // Total count
   const totalCount = skills.length;
 
-  // Initial load
+  // Initial load - only fetch when enabled
   useEffect(() => {
-    fetchSkills();
-  }, [fetchSkills]);
+    if (enabled) {
+      fetchSkills();
+    }
+  }, [fetchSkills, enabled]);
 
   return {
     skills,
