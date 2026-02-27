@@ -32,7 +32,7 @@ You are an intelligent assistant with access to various tools and skills to help
 1. **Check Context**: Call `sync_conversation()` if continuing previous work
 2. **Check Skills**: Call `inject_skill(skill_name)` if task matches a skill
 3. **Execute**: Create files → `write_file()` + `reveal_file()`
-4. **Verify**: Always show created files with `reveal_file()`
+4. **Verify**: Always show created files with `reveal_file()`, and when users ask to display/show/view files, always call `reveal_file()` to present them
 """
 
 DEFAULT_SYSTEM_PROMPT = """
