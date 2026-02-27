@@ -12,10 +12,10 @@ Reveal File 工具
 
 import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from deepagents.backends.protocol import BackendProtocol
-from langchain.tools import ToolRuntime, tool
+from langchain.tools import tool
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ async def _ensure_storage_initialized() -> None:
         await init_storage(config)
 
 
-def _get_backend_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[BackendProtocol]:
+def _get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
     """从 ToolRuntime 获取 backend（分布式安全）
 
     Backend 通过 runtime.config["configurable"]["backend"] 传递
@@ -84,13 +84,13 @@ def _get_backend_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[Backen
 async def reveal_file(
     path: str,
     description: Optional[str] = None,
-    runtime: Optional[ToolRuntime] = None,
+    runtime: Any = None,
 ) -> str:
     """
-    向用户展示/推荐一个文件。
+    向用户展示/推荐一个文件（用户要求展示的时候，一定要调用）
 
     当你想让用户查看某个文件时，使用此工具。
-    前端会自动展开文件树，并显示可点击的文件路径。
+    前端自动给用户显示可点击的文件。
 
     Args:
         path: 要展示的文件路径（绝对路径或相对于工作目录的路径）

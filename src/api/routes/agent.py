@@ -163,7 +163,12 @@ def extract_tool_parameters(tool) -> list[ToolParamInfo]:
             if isinstance(tool.args_schema, dict):
                 schema = tool.args_schema
             else:
-                schema = tool.args_schema.schema()
+                try:
+                    schema = tool.args_schema.schema()
+                except Exception as e:
+                    # Pydantic may fail to generate schema for types like Callable
+                    logger.warning(f"Failed to generate schema for tool {tool.name}: {e}")
+                    return parameters
             properties = schema.get("properties", {})
             required = set(schema.get("required", []))
 

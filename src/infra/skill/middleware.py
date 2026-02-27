@@ -221,20 +221,31 @@ class SkillsMiddleware:
             logger.warning(f"Skill '{skill_name}' not found")
             return result
 
+        logger.info(f"Skill '{skill_name}' raw data keys: {list(skill_data.keys())}")
+        logger.info(
+            f"Skill '{skill_name}' has 'files': {bool(skill_data.get('files'))}, 'content': {bool(skill_data.get('content'))}"
+        )
+
         # 准备文件写入列表
         files_to_write: list[tuple[str, str]] = []
         skill_files = skill_data.get("files", {})
         skill_content = skill_data.get("content", "")
 
         if skill_files:
+            file_count = len(skill_files)
+            logger.info(
+                f"Skill '{skill_name}' files: {list(skill_files.keys())} ({file_count} files)"
+            )
             for file_name, file_content in skill_files.items():
                 path = f"skills/{skill_name}/{file_name}"
                 files_to_write.append((path, file_content))
         elif skill_content:
+            logger.info(f"Skill '{skill_name}' has content (no files dict)")
             path = f"skills/{skill_name}/SKILL.md"
             files_to_write.append((path, skill_content))
 
         if not files_to_write:
+            logger.warning(f"No files to write for skill '{skill_name}' - skill_data: {skill_data}")
             result["error"] = f"No files to write for skill '{skill_name}'"
             return result
 
@@ -250,33 +261,60 @@ class SkillsMiddleware:
                 result["error"] = f"Failed to create directory: {mkdir_result.output}"
                 return result
 
-            # 写入文件
-            script_parts = ["#!/bin/bash", "set -e", ""]
-            for path, content in files_to_write:
+            # 并发写入文件 (每批 5 个)
+            import asyncio
+
+            async def write_single_file(path: str, content: str) -> tuple[str, bool, str]:
                 full_path = f"{workspace_dir}/{path}"
-                content_b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-                script_parts.append(f"echo '{content_b64}' | base64 -d > '{full_path}'")
+                write_result = await self._sandbox.awrite(full_path, content)
+                if write_result.error:
+                    return (path, False, write_result.error)
+                return (path, True, "")
 
-            script = "\n".join(script_parts)
-            script_b64 = base64.b64encode(script.encode("utf-8")).decode("ascii")
-            write_result = await self._sandbox.aexecute(f"echo '{script_b64}' | base64 -d | bash")
+            # 分批处理
+            batch_size = 5
+            written_files = []
+            failed_files = []
 
-            if write_result.exit_code == 0:
-                # 标记为已加载
-                self._loaded_skills.add(skill_name)
+            for i in range(0, len(files_to_write), batch_size):
+                batch = files_to_write[i : i + batch_size]
+                logger.info(f"Writing batch {i // batch_size + 1}: {len(batch)} files")
 
-                # 获取 SKILL.md 内容作为 skill_instructions
-                skill_instructions = skill_files.get("SKILL.md", skill_content)
-
-                result["success"] = True
-                result["skill_path"] = f"{workspace_dir}/skills/{skill_name}"
-                result["skill_instructions"] = skill_instructions
-
-                logger.info(
-                    f"Successfully injected skill '{skill_name}' with {len(files_to_write)} files"
+                results = await asyncio.gather(
+                    *[write_single_file(path, content) for path, content in batch],
+                    return_exceptions=True,
                 )
-            else:
-                result["error"] = f"Failed to write files: {write_result.output}"
+
+                for r in results:
+                    if isinstance(r, Exception):
+                        failed_files.append(("exception", str(r)))
+                    else:
+                        path, success, error = r
+                        if success:
+                            written_files.append(path)
+                        else:
+                            failed_files.append((path, error))
+                            logger.error(f"Failed to write file '{path}': {error}")
+
+            if failed_files:
+                result["error"] = (
+                    f"Failed to write {len(failed_files)} files: {[f[0] for f in failed_files]}"
+                )
+                return result
+
+            # 标记为已加载
+            self._loaded_skills.add(skill_name)
+
+            # 获取 SKILL.md 内容作为 skill_instructions
+            skill_instructions = skill_files.get("SKILL.md", skill_content)
+
+            result["success"] = True
+            result["skill_path"] = f"{workspace_dir}/skills/{skill_name}"
+            result["skill_instructions"] = skill_instructions
+
+            logger.info(
+                f"Successfully injected skill '{skill_name}' with {len(written_files)} files"
+            )
 
         except Exception as e:
             result["error"] = str(e)

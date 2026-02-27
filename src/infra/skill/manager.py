@@ -108,22 +108,27 @@ class SkillManager:
         获取指定技能（异步版本）
 
         如果提供了 user_id，会先检查用户技能，然后检查系统技能。
+        同时从 MongoDB 获取 files 字段。
         """
         if skill_name in self._loaded_skills:
             return self._loaded_skills[skill_name]
 
         # 如果有 user_id 且有 MongoDB，使用新的存储方法
-        if self.user_id and self.storage:
+        user_id = self.user_id
+        if user_id and self.storage:
             try:
                 # 先检查用户技能
                 user_skill: Optional[UserSkill] = await self.storage.get_user_skill(
-                    skill_name, self.user_id
+                    skill_name, user_id
                 )
                 if user_skill:
+                    # 获取文件
+                    skill_files = await self.storage.get_skill_files(skill_name, user_id)
                     return {
                         "name": user_skill.name,
                         "description": user_skill.description,
                         "content": user_skill.content,
+                        "files": skill_files,
                         "enabled": user_skill.enabled,
                         "source": (
                             user_skill.source.value
@@ -143,10 +148,13 @@ class SkillManager:
                     skill_name
                 )
                 if system_skill:
+                    # 获取文件 (系统技能 user_id 为 None)
+                    skill_files = await self.storage.get_skill_files(skill_name, None)
                     return {
                         "name": system_skill.name,
                         "description": system_skill.description,
                         "content": system_skill.content,
+                        "files": skill_files,
                         "enabled": system_skill.enabled,
                         "source": (
                             system_skill.source.value
@@ -166,18 +174,21 @@ class SkillManager:
         # 回退到旧的逻辑（兼容模式）
         if self.storage:
             try:
-                if self.user_id:
+                if user_id:
                     skill: Optional[UserSkill] = await self.storage.get_user_skill(
-                        skill_name, self.user_id
+                        skill_name, user_id
                     )
                 else:
                     system_skill = await self.storage.get_system_skill(skill_name)
                     skill = system_skill  # type: ignore[assignment]
                 if skill:
+                    # 获取文件
+                    skill_files = await self.storage.get_skill_files(skill_name, user_id)
                     return {
                         "name": skill.name,
                         "description": skill.description,
                         "content": skill.content,
+                        "files": skill_files,
                         "enabled": skill.enabled,
                         "source": skill.source,
                         "github_url": skill.github_url,

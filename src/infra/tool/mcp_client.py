@@ -447,11 +447,27 @@ class MCPClientManager:
         for tool in self._tools:
             if tool.name in CONFLICTING_TOOL_NAMES:
                 skipped_tools.append(tool.name)
-            else:
-                filtered_tools.append(tool)
+                continue
+
+            # 验证工具的 args_schema 是否可以生成 JSON schema
+            # 如果工具的参数 schema 包含 Pydantic 无法处理的类型（如 Callable），则会失败
+            try:
+                if hasattr(tool, "args_schema") and tool.args_schema:
+                    if not isinstance(tool.args_schema, dict):
+                        # 尝试生成 schema，如果失败则跳过该工具
+                        tool.args_schema.schema()
+            except Exception as e:
+                # Pydantic 无法为该工具生成 schema，跳过该工具
+                logger.warning(
+                    f"[MCP] Skipping tool '{tool.name}' due to schema generation error: {e}"
+                )
+                skipped_tools.append(tool.name)
+                continue
+
+            filtered_tools.append(tool)
 
         if skipped_tools:
-            logger.info(f"[MCP] Filtered out conflicting tools: {skipped_tools}")
+            logger.info(f"[MCP] Filtered out {len(skipped_tools)} tools: {skipped_tools}")
 
         # 包装工具以添加重试逻辑
         return [MCPToolWithRetry(tool) for tool in filtered_tools]
