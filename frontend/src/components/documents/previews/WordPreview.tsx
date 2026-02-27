@@ -256,15 +256,18 @@ const WordPreview = memo(function WordPreview({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-full min-h-[300px] p-6">
-        <div className="max-w-md w-full">
-          <div className="flex items-center gap-3 p-4 mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <AlertCircle size={24} className="text-red-500 flex-shrink-0" />
-            <div>
+      <div className="flex flex-col items-center justify-center h-full min-h-[300px] p-4 sm:p-6">
+        <div className="max-w-sm sm:max-w-md w-full">
+          <div className="flex items-start gap-3 p-3 sm:p-4 mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+            <AlertCircle
+              size={24}
+              className="text-red-500 flex-shrink-0 mt-0.5"
+            />
+            <div className="min-w-0">
               <p className="text-sm font-medium text-red-600 dark:text-red-400">
                 {t("documents.wordPreviewError")}
               </p>
-              <p className="text-xs text-red-500 dark:text-red-400/80 mt-1">
+              <p className="text-xs text-red-500 dark:text-red-400/80 mt-1 break-words">
                 {error}
               </p>
             </div>

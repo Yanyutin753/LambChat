@@ -1460,8 +1460,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "langchain" },
+    { name = "langchain-anthropic" },
     { name = "langchain-core" },
-    { name = "langchain-daytona" },
     { name = "langchain-mcp-adapters" },
     { name = "langchain-modal" },
     { name = "langchain-mongodb" },
@@ -1510,8 +1510,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "langchain", specifier = ">=0.3.0" },
+    { name = "langchain-anthropic", specifier = ">=1.3.3" },
     { name = "langchain-core", specifier = ">=0.3.0" },
-    { name = "langchain-daytona", specifier = ">=0.0.2" },
     { name = "langchain-mcp-adapters", specifier = ">=0.1.0" },
     { name = "langchain-modal", specifier = ">=0.0.1" },
     { name = "langchain-mongodb", specifier = ">=0.1.0" },
@@ -1608,19 +1608,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fb/bb/c501ca60556c11ac80d1454bdcac63cb33583ce4e64fc4535ad5a7d5c6ba/langchain_core-1.2.13.tar.gz", hash = "sha256:d2773d0d0130a356378db9a858cfeef64c3d64bc03722f1d4d6c40eb46fdf01b", size = 831612, upload-time = "2026-02-15T07:45:57.014Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/12/ab/60fd69e5d55f67d422baefddaaca523c42cd7510ab6aeb17db6ae57fb107/langchain_core-1.2.13-py3-none-any.whl", hash = "sha256:b31823e28d3eff1e237096d0bd3bf80c6f9624eb471a9496dbfbd427779f8d82", size = 500485, upload-time = "2026-02-15T07:45:55.422Z" },
-]
-
-[[package]]
-name = "langchain-daytona"
-version = "0.0.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "daytona" },
-    { name = "deepagents" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/84/f1/0440d3bf4c49ca7e07dd42a5756bc73500b4a41e49ba49c15b9c8f927eb0/langchain_daytona-0.0.2.tar.gz", hash = "sha256:0a849a4a27776434c9c29d40d3c2161f6e6354bcd30e11014c72023dc94107f5", size = 188358, upload-time = "2026-02-09T20:26:17.587Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/af/92/1d3af3134e79bb0f19b9c12bdf987b0e786084b948584c51b9328cd3cf2a/langchain_daytona-0.0.2-py3-none-any.whl", hash = "sha256:cc3cf13cc7c2558f22cc255ffed3be6726e860756e15232799524b7ec0f92091", size = 4065, upload-time = "2026-02-09T20:26:16.141Z" },
 ]
 
 [[package]]

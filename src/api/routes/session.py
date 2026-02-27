@@ -404,15 +404,29 @@ async def generate_session_title(
     try:
         model = LLMClient.get_model(
             model=title_model,
-            temperature=0.7,
-            max_tokens=50,
             api_base=settings.LLM_API_BASE,
             api_key=settings.LLM_API_KEY,
         )
-        prompt = prompt_template.format(message=message[:500])
+        prompt = prompt_template.format(message=message[:800])
 
         response = await model.ainvoke(prompt)
-        title = str(response.content).strip().strip('"').strip("'")
+        print("LLM 生成标题响应:", response)
+
+        # 提取标题，兼容新旧格式
+        content = response.content
+        if isinstance(content, list):
+            # 新格式：content 是列表，提取 type 为 'text' 的部分
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    title = str(item.get("text", "")).strip()
+                    break
+            else:
+                title = str(content[0]).strip() if content else ""
+        else:
+            # 旧格式：content 直接是字符串
+            title = str(content).strip()
+
+        title = title.strip('"').strip("'")
 
         # 限制标题长度
         if len(title) > 30:

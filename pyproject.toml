@@ -32,8 +32,6 @@ dependencies = [
     "langchain-mongodb>=0.1.0",
     "boto3>=1.35.0",
     "botocore>=1.35.0",
-    # Sandbox (optional - uncomment if using AIO Sandbox)
-    # "agent-sandbox>=0.1.0",
     # Utilities
     "python-dotenv>=1.0.0",
     "colorama>=0.4.6",
@@ -46,7 +44,7 @@ dependencies = [
     "langchain-modal>=0.0.1",
     "daytona>=0.18.1",
     "minio>=7.2.20",
-    "langchain-daytona>=0.0.2"
+    "langchain-anthropic>=1.3.3",
 ]
 
 [dependency-groups]
