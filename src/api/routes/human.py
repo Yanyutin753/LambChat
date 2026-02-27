@@ -119,9 +119,7 @@ async def create_approval(
     return approval
 
 
-async def wait_for_response(
-    approval_id: str, timeout: float = 300
-) -> Optional[ApprovalResponse]:
+async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[ApprovalResponse]:
     """
     等待审批响应 (供 Agent 调用)
 

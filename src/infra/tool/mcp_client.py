@@ -72,9 +72,7 @@ class MCPToolWithRetry(BaseTool):
         """同步运行（不支持重试，直接调用原始工具）"""
         return self._original_tool._run(*args, **kwargs)
 
-    async def _arun(
-        self, *args, config: Optional[RunnableConfig] = None, **kwargs
-    ) -> Any:
+    async def _arun(self, *args, config: Optional[RunnableConfig] = None, **kwargs) -> Any:
         """
         异步运行（带超时和重试，失败时返回错误信息而不是抛出异常）
 
@@ -102,7 +100,9 @@ class MCPToolWithRetry(BaseTool):
                 if attempt < self._max_retries - 1:
                     await asyncio.sleep(self._retry_delay)
                 else:
-                    error_msg = f"[MCP Tool Error] {self.name} timed out after {self._max_retries} attempts"
+                    error_msg = (
+                        f"[MCP Tool Error] {self.name} timed out after {self._max_retries} attempts"
+                    )
                     logger.error(error_msg)
                     return error_msg
             except Exception as e:
@@ -295,9 +295,7 @@ class MCPClientManager:
 
         # 检查命令是否存在
         if not shutil.which(command):
-            logger.warning(
-                f"MCP stdio command '{command}' not found in PATH, skipping this server"
-            )
+            logger.warning(f"MCP stdio command '{command}' not found in PATH, skipping this server")
             return command, args, False
 
         return command, args, True
@@ -354,13 +352,9 @@ class MCPClientManager:
                 args = server_config.get("args", [])
 
                 # 转换命令以适应当前平台，并检查命令是否存在
-                command, args, is_valid = self._convert_stdio_command_for_platform(
-                    command, args
-                )
+                command, args, is_valid = self._convert_stdio_command_for_platform(command, args)
                 if not is_valid:
-                    logger.warning(
-                        f"Skipping MCP server '{server_name}': command not found"
-                    )
+                    logger.warning(f"Skipping MCP server '{server_name}': command not found")
                     continue
 
                 server_configs[server_name] = {
@@ -454,10 +448,7 @@ class MCPClientManager:
                         return await tool.ainvoke(arguments)
                     except Exception as e:
                         last_error = e
-                        if (
-                            self._is_mcp_retryable_error(e)
-                            and attempt < MCP_MAX_RETRIES - 1
-                        ):
+                        if self._is_mcp_retryable_error(e) and attempt < MCP_MAX_RETRIES - 1:
                             logger.warning(
                                 f"MCP tool '{tool_name}' failed (attempt {attempt + 1}/{MCP_MAX_RETRIES}): {e}. "
                                 f"Retrying in {MCP_RETRY_DELAY}s..."

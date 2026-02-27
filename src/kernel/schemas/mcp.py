@@ -97,14 +97,14 @@ class MCPImportRequest(BaseModel):
     servers: Optional[dict[str, dict[str, Any]]] = Field(
         None, description="MCP servers config (native format)"
     )
-    mcpServers: Optional[dict[str, dict[str, Any]]] = Field(
+    mcp_servers: Optional[dict[str, dict[str, Any]]] = Field(
         None, description="MCP servers config (studio/Claude Desktop format)"
     )
     overwrite: bool = Field(False, description="Overwrite existing servers with same name")
 
     def get_servers(self) -> dict[str, dict[str, Any]]:
-        """Return servers from whichever key was provided, preferring mcpServers"""
-        return self.mcpServers or self.servers or {}
+        """Return servers from whichever key was provided, preferring mcp_servers"""
+        return self.mcp_servers or self.servers or {}
 
 
 class MCPImportResponse(BaseModel):

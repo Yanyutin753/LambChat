@@ -11,7 +11,6 @@ import logging
 from typing import TYPE_CHECKING, Optional
 
 from src.infra.skill.manager import SkillManager
-from src.kernel.config import settings
 
 if TYPE_CHECKING:
     from deepagents.backends.protocol import SandboxBackendProtocol
