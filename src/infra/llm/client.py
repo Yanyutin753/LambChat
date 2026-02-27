@@ -126,14 +126,14 @@ class LLMClient:
         model_name = model.split("/")[-1] if "/" in model else model
         provider = model.split("/")[0] if "/" in model else "openai"
 
-        # 从模型名��断提供商
+        # 从模型名推断提供商
         if provider == model_name:
             if model_name.startswith("claude"):
                 provider = "anthropic"
             elif model_name.startswith("gpt"):
                 provider = "openai"
             else:
-                provider = "openai"  # 默认使用 OpenAI 兼容
+                provider = "openai"
 
         # 构建缓存 key（thinking dict 转 tuple 以便 hash）
         thinking_key = tuple(sorted(thinking.items())) if thinking else None
@@ -181,7 +181,7 @@ class LLMClient:
 
         # 优先使用显式传入的参数，其次使用 settings（已在 initialize_settings 时从数据库加载）
         api_key = api_key or settings.ANTHROPIC_API_KEY or settings.LLM_API_KEY
-        api_base = api_base or os.getenv("ANTHROPIC_BASE_URL") or settings.LLM_API_BASE
+        api_base = api_base or settings.ANTHROPIC_BASE_URL or settings.LLM_API_BASE
 
         return ChatAnthropic(
             model_name=model_name,
@@ -204,7 +204,7 @@ class LLMClient:
     ) -> BaseChatModel:
         """创建 OpenAI 或 OpenAI 兼容模型"""
         # settings 已在 initialize_settings 时从数据库加载
-        api_key = api_key or settings.OPENAI_API_KEY or settings.LLM_API_KEY or "sk-placeholder"
+        api_key = api_key or settings.LLM_API_KEY or "sk-placeholder"
         api_base = api_base or settings.LLM_API_BASE
 
         return ChatOpenAI(
