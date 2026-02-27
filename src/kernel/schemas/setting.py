@@ -29,7 +29,7 @@ class SettingCategory(str, Enum):
     SECURITY = "security"
     S3 = "s3"
     SANDBOX = "sandbox"
-    FEATURES = "features"
+    SKILLS = "skills"
     TOOLS = "tools"
     TRACING = "tracing"
     USER = "user"

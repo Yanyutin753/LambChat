@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getAccessToken } from "../services/api";
 import type {
   MCPServerResponse,
@@ -44,13 +44,17 @@ async function authFetch<T>(
   return text ? JSON.parse(text) : (null as T);
 }
 
-export function useMCP() {
+export function useMCP(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled === true; // Must be explicitly true to fetch
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const [servers, setServers] = useState<MCPServerResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch all MCP servers
   const fetchServers = useCallback(async () => {
+    if (!enabledRef.current) return; // Skip if feature is disabled
     setIsLoading(true);
     setError(null);
     try {
@@ -291,10 +295,12 @@ export function useMCP() {
     [fetchServers],
   );
 
-  // Initial load
+  // Initial load - only fetch when enabled
   useEffect(() => {
-    fetchServers();
-  }, [fetchServers]);
+    if (enabled) {
+      fetchServers();
+    }
+  }, [fetchServers, enabled]);
 
   return {
     servers,

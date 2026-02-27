@@ -131,18 +131,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "LLM API base URL",
         "default": "",
     },
-    "ANTHROPIC_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "Anthropic API key (for LangChain)",
-        "default": "",
-    },
-    "ANTHROPIC_BASE_URL": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "Anthropic API base URL",
-        "default": "",
-    },
     # ============================================
     # Session Settings
     # ============================================
@@ -197,23 +185,14 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "frontend_visible": False,
     },
     # ============================================
-    # Feature Flags
-    # ============================================
-    "ENABLE_MCP": {
-        "type": SettingType.BOOLEAN,
-        "category": SettingCategory.FEATURES,
-        "description": "Enable MCP integration",
-        "default": False,
-    },
-    "ENABLE_SKILLS": {
-        "type": SettingType.BOOLEAN,
-        "category": SettingCategory.FEATURES,
-        "description": "Enable skills feature",
-        "default": True,
-    },
-    # ============================================
     # Sandbox Settings
     # ============================================
+    "ENABLE_SANDBOX": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SANDBOX,
+        "description": "Enable sandbox environment for running code",
+        "default": False,
+    },
     "SANDBOX_PLATFORM": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
@@ -259,11 +238,21 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # Skills Settings
     # ============================================
-    "SKILLS_MONGODB_ENABLED": {
+    "ENABLE_SKILLS": {
         "type": SettingType.BOOLEAN,
-        "category": SettingCategory.FEATURES,
-        "description": "Use MongoDB for skills storage",
-        "default": False,
+        "category": SettingCategory.SKILLS,
+        "description": "Enable skills feature",
+        "default": True,
+        "frontend_visible": True,
+    },
+    # ============================================
+    # Mcp Settings
+    # ============================================
+    "ENABLE_MCP": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.TOOLS,
+        "description": "Enable MCP feature",
+        "default": True,
     },
     # ============================================
     # Database Settings (MongoDB)
@@ -558,9 +547,8 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_BASE_URL: Optional[str] = None
 
-    # Feature Flags
-    ENABLE_MCP: bool = False
-    ENABLE_SKILLS: bool = True
+    # MCP Settings
+    ENABLE_MCP: bool = True
 
     # Session Settings
     SESSION_BACKEND: str = "redis"
@@ -588,6 +576,7 @@ class Settings(BaseSettings):
     MONGODB_TRACES_COLLECTION: str = "traces"
 
     # Sandbox Settings
+    ENABLE_SANDBOX: bool = False
     SANDBOX_PLATFORM: str = "runloop"  # runloop, daytona, modal
     RUNLOOP_API_KEY: str = ""
     RUNLOOP_BASE_URL: str = "https://api.runloop.ai"
@@ -597,7 +586,7 @@ class Settings(BaseSettings):
     MODAL_APP_NAME: str = ""
 
     # Skills Settings
-    SKILLS_MONGODB_ENABLED: bool = False
+    ENABLE_SKILLS: bool = True
 
     # LangSmith Tracing Settings
     LANGSMITH_TRACING: bool = False

@@ -310,28 +310,38 @@ class SkillsMiddleware:
             return []
 
     async def _build_skills_prompt(self, skills: list[dict]) -> str:
-        """Build skills prompt text (metadata only, full content loaded via inject_skill tool)"""
+        """
+        Build skills prompt text with enhanced matching hints.
+
+        Includes skill descriptions, usage triggers, and matching guidance
+        to help the LLM select the most relevant skill for user queries.
+        """
         if not skills:
             return ""
 
-        lines = ["# Available Skills", ""]
+        lines = ["## Available Skills", ""]
         lines.append(
-            "The following skills are available. To use a skill, call `inject_skill` with the skill name."
-        )
-        lines.append(
-            "This will load the skill files into the sandbox and return the full SKILL.md content."
+            "The following skills are available. Call `inject_skill(skill_name)` "
+            "to load skill files into the sandbox."
         )
         lines.append("")
 
+        # Categorize skills by their domain/type for better organization
         for skill in skills:
             name = skill.get("name", "unnamed skill")
             description = skill.get("description", "no description")
-            lines.append(f"- **{name}**: {description}")
 
-        lines.append("")
-        lines.append(
-            "**Important**: Always call `inject_skill(skill_name)` before using a skill to ensure it's loaded."
-        )
+            # Build skill entry with matching hints
+            lines.append(f"### {name}")
+            lines.append(f"**Description**: {description}")
+            lines.append("")
+
+        lines.append("### Skill Selection Strategy")
+        lines.append("1. Analyze the user's request for key intent and domain")
+        lines.append("2. Match intent with skill descriptions above")
+        lines.append("3. Call `inject_skill(skill_name)` for the best matching skill")
+        lines.append("4. Read the returned SKILL.md for detailed instructions")
+        lines.append("5. If multiple skills might apply, ask the user to clarify")
         lines.append("")
 
         return "\n".join(lines)

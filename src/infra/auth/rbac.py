@@ -148,7 +148,8 @@ class RBACManager:
                     Permission.SKILL_DELETE.value,
                     # MCP
                     Permission.MCP_READ.value,
-                    Permission.MCP_WRITE.value,
+                    Permission.MCP_WRITE_SSE.value,
+                    Permission.MCP_WRITE_HTTP.value,
                     Permission.MCP_DELETE.value,
                 ],
                 "is_system": False,

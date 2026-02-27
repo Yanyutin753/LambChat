@@ -19,7 +19,6 @@ services:
       - "8080:8080"
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     depends_on:
       - redis
     restart: unless-stopped

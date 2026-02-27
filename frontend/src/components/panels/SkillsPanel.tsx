@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Check,
   Github,
+  PackageX,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -17,6 +18,7 @@ import { SkillForm } from "../skill/SkillForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { useSkills } from "../../hooks/useSkills";
 import { useAuth } from "../../hooks/useAuth";
+import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import type {
   SkillResponse,
@@ -26,6 +28,7 @@ import type {
 
 export function SkillsPanel() {
   const { t } = useTranslation();
+  const { enableSkills } = useSettingsContext();
   const {
     skills,
     isLoading,
@@ -41,7 +44,7 @@ export function SkillsPanel() {
     promoteSkill,
     demoteSkill,
     clearError,
-  } = useSkills();
+  } = useSkills({ enabled: enableSkills });
   const { hasAnyPermission, user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -347,6 +350,18 @@ export function SkillsPanel() {
     return (
       <div className="flex h-full items-center justify-center text-stone-500 dark:text-stone-400">
         {t("skills.noPermission")}
+      </div>
+    );
+  }
+
+  if (!enableSkills) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400">
+        <PackageX
+          size={48}
+          className="mb-3 text-stone-300 dark:text-stone-600"
+        />
+        <p className="text-center">{t("skills.featureDisabled")}</p>
       </div>
     );
   }

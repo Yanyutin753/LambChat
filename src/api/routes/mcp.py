@@ -36,6 +36,31 @@ def _is_admin(user: TokenPayload) -> bool:
     return "mcp:admin" in (user.permissions or [])
 
 
+def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
+    """
+    Check if user has permission for a specific transport type.
+
+    Permissions:
+    - mcp:admin: can create any transport type
+    - mcp:write_sse: can create SSE transport
+    - mcp:write_http: can create HTTP/streamable_http transport
+    - mcp:write_stdio: can create stdio transport (should be admin only)
+    """
+    if _is_admin(user):
+        return True
+
+    permissions = user.permissions or []
+
+    if transport == "sse":
+        return "mcp:write_sse" in permissions
+    elif transport in ("streamable_http", "http"):
+        return "mcp:write_http" in permissions
+    elif transport == "stdio":
+        return "mcp:write_stdio" in permissions
+
+    return False
+
+
 # ==========================================
 # User API Endpoints - Static routes first
 # ==========================================
@@ -55,10 +80,17 @@ async def list_servers(
 @router.post("/", response_model=MCPServerResponse, status_code=201)
 async def create_server(
     data: MCPServerCreate,
-    user: TokenPayload = Depends(require_permissions("mcp:write")),
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Create a new user MCP server"""
+    """Create a new MCP server (requires transport-specific permission)"""
+    # Check permission for specific transport type
+    if not _has_permission_for_transport(user, data.transport.value):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Permission denied. Requires 'mcp:write_{data.transport.value}' or 'mcp:admin' permission.",
+        )
+
     # Check if name already exists in user's servers
     existing = await storage.get_user_server(data.name, user.sub)
     if existing:
@@ -92,10 +124,20 @@ async def create_server(
 @router.post("/import", response_model=MCPImportResponse)
 async def import_servers(
     data: MCPImportRequest,
-    user: TokenPayload = Depends(require_permissions("mcp:write")),
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Import MCP servers from JSON configuration"""
+    """Import MCP servers from JSON configuration (requires transport-specific permission)"""
+    # Check permissions for each server's transport type
+    servers = data.get_servers()
+    for server_name, server_config in servers.items():
+        transport = server_config.get("transport", "stdio")
+        if not _has_permission_for_transport(user, transport):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied for server '{server_name}'. Requires 'mcp:write_{transport}' or 'mcp:admin' permission.",
+            )
+
     imported, skipped, errors = await storage.import_servers(data, user.sub, is_admin=False)
 
     message = f"Imported {imported} server(s)"
@@ -177,10 +219,10 @@ async def get_server(
 async def update_server(
     name: str,
     data: MCPServerUpdate,
-    user: TokenPayload = Depends(require_permissions("mcp:write")),
+    user: TokenPayload = Depends(require_permissions("mcp:admin")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Update a user MCP server"""
+    """Update an MCP server (admin only)"""
     server = await storage.update_user_server(name, data, user.sub)
     if not server:
         raise HTTPException(
@@ -206,10 +248,10 @@ async def update_server(
 @router.delete("/{name}")
 async def delete_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:delete")),
+    user: TokenPayload = Depends(require_permissions("mcp:admin")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Delete a user MCP server"""
+    """Delete an MCP server (admin only)"""
     deleted = await storage.delete_user_server(name, user.sub)
     if not deleted:
         raise HTTPException(
@@ -221,10 +263,10 @@ async def delete_server(
 @router.patch("/{name}/toggle", response_model=MCPServerToggleResponse)
 async def toggle_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:write")),
+    user: TokenPayload = Depends(require_permissions("mcp:admin")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Toggle a server's enabled status (user preferences for system servers)"""
+    """Toggle a server's enabled status (admin only)"""
     server = await storage.toggle_server(name, user.sub)
 
     if not server:
@@ -402,7 +444,8 @@ async def promote_server(
     """
     if not data.target_user_id:
         raise HTTPException(
-            status_code=400, detail="target_user_id is required to identify the user server"
+            status_code=400,
+            detail="target_user_id is required to identify the user server",
         )
 
     server = await storage.promote_to_system_server(name, data.target_user_id, user.sub)
@@ -448,7 +491,8 @@ async def demote_server(
     """
     if not data.target_user_id:
         raise HTTPException(
-            status_code=400, detail="target_user_id is required to specify the new owner"
+            status_code=400,
+            detail="target_user_id is required to specify the new owner",
         )
 
     server = await storage.demote_to_user_server(name, data.target_user_id, user.sub)

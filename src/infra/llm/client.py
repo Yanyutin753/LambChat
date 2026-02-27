@@ -137,7 +137,15 @@ class LLMClient:
 
         # 构建缓存 key（thinking dict 转 tuple 以便 hash）
         thinking_key = tuple(sorted(thinking.items())) if thinking else None
-        cache_key = (provider, model_name, temperature, max_tokens, api_key, api_base, thinking_key)
+        cache_key = (
+            provider,
+            model_name,
+            temperature,
+            max_tokens,
+            api_key,
+            api_base,
+            thinking_key,
+        )
 
         if cache_key in LLMClient._model_cache:
             return LLMClient._model_cache[cache_key]

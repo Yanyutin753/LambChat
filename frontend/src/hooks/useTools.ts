@@ -36,7 +36,10 @@ function saveDisabledTools(disabledTools: Set<string>): void {
   }
 }
 
-export function useTools() {
+export function useTools(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled === true; // Must be explicitly true to fetch
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const [tools, setTools] = useState<ToolState[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +47,7 @@ export function useTools() {
 
   // 获取工具列表
   const fetchTools = useCallback(async () => {
+    if (!enabledRef.current) return; // Skip if feature is disabled
     setIsLoading(true);
     setError(null);
     try {
@@ -149,10 +153,12 @@ export function useTools() {
   // 获取启用的工具数量
   const enabledCount = tools.filter((t) => t.enabled).length;
 
-  // 初始加载
+  // 初始加载 - only fetch when enabled
   useEffect(() => {
-    fetchTools();
-  }, [fetchTools]);
+    if (enabled) {
+      fetchTools();
+    }
+  }, [fetchTools, enabled]);
 
   return {
     tools,
