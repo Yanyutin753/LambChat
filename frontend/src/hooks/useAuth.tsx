@@ -233,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 // useAuth Hook
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (!context) {
@@ -242,4 +243,5 @@ export function useAuth(): AuthContextType {
 }
 
 // 默认导出
+// eslint-disable-next-line react-refresh/only-export-components
 export default useAuth;

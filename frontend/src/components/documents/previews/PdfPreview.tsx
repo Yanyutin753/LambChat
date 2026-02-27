@@ -1,12 +1,7 @@
 import { memo, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ZoomIn,
-  ZoomOut,
-  Loader2,
-} from "lucide-react";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -87,9 +82,9 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
       <div className="flex-1 overflow-auto flex items-start justify-center p-4">
         {loading && (
           <div className="flex items-center justify-center h-full">
-            <Loader2
-              className="animate-spin text-stone-400 dark:text-stone-500"
-              size={32}
+            <LoadingSpinner
+              className="text-stone-400 dark:text-stone-500"
+              size="lg"
             />
           </div>
         )}

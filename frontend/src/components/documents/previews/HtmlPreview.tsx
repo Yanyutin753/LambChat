@@ -1,5 +1,6 @@
 import { memo, useState, useEffect } from "react";
-import { Loader2, Code, Eye } from "lucide-react";
+import { Code, Eye } from "lucide-react";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { useTranslation } from "react-i18next";
 
 interface HtmlPreviewProps {
@@ -25,7 +26,7 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
     return (
       <div className="h-full w-full flex flex-col bg-white dark:bg-stone-900">
         <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="animate-spin text-blue-500" size={32} />
+          <LoadingSpinner size="lg" className="text-blue-500" />
           <span className="ml-2 text-stone-500 dark:text-stone-400">
             {t("documents.loadingFileContent")}
           </span>

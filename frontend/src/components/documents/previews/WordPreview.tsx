@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { FileText, Loader2, AlertCircle } from "lucide-react";
+import { FileText, AlertCircle } from "lucide-react";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import mammoth from "mammoth";
 
 interface WordPreviewProps {
@@ -241,9 +242,9 @@ const WordPreview = memo(function WordPreview({
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[300px] gap-4">
         <div className="relative">
-          <Loader2 size={40} className="animate-spin text-amber-500" />
+          <LoadingSpinner size="lg" />
           <div className="absolute inset-0 animate-ping opacity-20">
-            <Loader2 size={40} className="text-amber-500" />
+            <LoadingSpinner size="lg" static />
           </div>
         </div>
         <p className="text-sm text-stone-500 dark:text-stone-400">

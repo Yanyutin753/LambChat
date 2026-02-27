@@ -4,7 +4,6 @@ import {
   Routes,
   Route,
   Navigate,
-  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
@@ -62,7 +61,7 @@ function ProfileModal({
 }) {
   const { t } = useTranslation();
   const { versionInfo } = useVersion();
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [userData, setUserData] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState<"info" | "password">("info");
   const [isLoading, setIsLoading] = useState(false);
@@ -86,18 +85,16 @@ function ProfileModal({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch user info and storage config
+  // Sync user data when modal opens or user changes
+  useEffect(() => {
+    if (showProfileModal && user) {
+      setUserData(user);
+    }
+  }, [showProfileModal, user]);
+
+  // Fetch storage config when modal opens
   useEffect(() => {
     if (showProfileModal) {
-      const fetchUserInfo = async () => {
-        try {
-          const user = await authApi.getProfile();
-          setUserData(user);
-        } catch (error) {
-          console.error("Failed to fetch user info:", error);
-        }
-      };
-
       const fetchStorageConfig = async () => {
         try {
           const config = await uploadApi.getConfig();
@@ -107,9 +104,8 @@ function ProfileModal({
         }
       };
 
-      fetchUserInfo();
       fetchStorageConfig();
-    } else {
+
       // Reset state when closing
       setActiveTab("info");
       setIsEditingUsername(false);
@@ -590,7 +586,6 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
-  const location = useLocation();
 
   const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
   const canManageUsers = hasAnyPermission([
@@ -687,7 +682,7 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
         {showMenu &&
           createPortal(
             <div
-              className="fixed z-[100] w-64 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden animate-scale-in"
+              className="fixed z-[100] w-48 sm:w-52 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden animate-scale-in"
               style={{
                 top: `${menuPosition.top}px`,
                 right: `${menuPosition.right}px`,
@@ -724,16 +719,11 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
                   .filter((item) => item.show)
                   .map((item) => {
                     const Icon = item.icon;
-                    const isActive = location.pathname === item.path;
                     return (
                       <button
                         key={item.path}
                         onClick={() => handleNavigate(item.path)}
-                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
-                          isActive
-                            ? "bg-gray-100 dark:bg-stone-700 text-gray-900 dark:text-stone-100"
-                            : "text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
-                        }`}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
                       >
                         <Icon size={18} />
                         {item.label}

@@ -5,7 +5,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, ChevronDown, X, Search, Loader2 } from "lucide-react";
+import { Plus, Trash2, ChevronDown, X, Search } from "lucide-react";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useInView } from "react-intersection-observer";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -132,6 +133,7 @@ export function SessionSidebar({
     if (hasMore && !isLoadingMore && !isLoading) {
       loadSessions(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, isLoadingMore, isLoading]);
 
   useEffect(() => {
@@ -418,7 +420,7 @@ export function SessionSidebar({
             style={{ height: isLoadingMore ? 40 : pullDistance * 0.5 }}
           >
             {isLoadingMore ? (
-              <Loader2 size={20} className="animate-spin" />
+              <LoadingSpinner size="sm" />
             ) : (
               <ChevronDown
                 size={20}
@@ -431,7 +433,7 @@ export function SessionSidebar({
         )}
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 dark:border-stone-700 border-t-gray-500 dark:border-t-stone-400" />
+            <LoadingSpinner size="sm" />
           </div>
         ) : error ? (
           <div className="py-6 text-center">
@@ -497,7 +499,7 @@ export function SessionSidebar({
             <div ref={loadMoreRef} className="flex justify-center py-2">
               {isLoadingMore && (
                 <div className="flex items-center gap-2 text-gray-400 dark:text-stone-500">
-                  <Loader2 size={14} className="animate-spin" />
+                  <LoadingSpinner size="xs" />
                   <span className="text-xs">{t("common.loading")}</span>
                 </div>
               )}

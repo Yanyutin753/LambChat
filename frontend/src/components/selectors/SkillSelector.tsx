@@ -139,6 +139,7 @@ export function SkillSelector({
         </button>
         <div className="flex-1" />
         <button
+          type="button"
           onClick={() => {
             setIsOpen(false);
             navigate("/skills");
@@ -303,7 +304,11 @@ export function SkillSelector({
     <div className="relative" onClick={(e) => e.stopPropagation()}>
       {/* Trigger - ChatGPT style circular button */}
       <button
-        onClick={() => setIsOpen(true)}
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          setIsOpen(true);
+        }}
         className="flex items-center justify-center rounded-full p-2 border border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-amber-300 transition-all duration-300"
         title={`${enabledCount}/${totalCount} ${t(
           "skillSelector.skillsEnabled",

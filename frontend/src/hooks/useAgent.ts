@@ -684,6 +684,8 @@ export function useAgent(options?: UseAgentOptions) {
         }
       }
     },
+    // Intentionally omit deps to avoid infinite re-render loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [options?.onApprovalRequired],
   );
 
@@ -1681,6 +1683,8 @@ export function useAgent(options?: UseAgentOptions) {
         setIsLoading(false);
       }
     },
+    // Intentionally omit deps to avoid infinite re-render loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [connectToSSE, clearReconnectTimeout],
   );
 
@@ -1860,6 +1864,8 @@ export function useAgent(options?: UseAgentOptions) {
         setIsLoading(false);
       }
     },
+    // Intentionally omit deps to avoid infinite re-render loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [sessionId, currentAgent, connectToSSE, clearReconnectTimeout],
   );
 

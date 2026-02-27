@@ -6,11 +6,11 @@ import {
   Download,
   Upload,
   FolderOpen,
-  Loader2,
   Check,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { MCPServerCard } from "../mcp/MCPServerCard";
 import { MCPServerForm } from "../mcp/MCPServerForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -269,7 +269,7 @@ export function MCPPanel() {
           toast.error(result.errors.join(", "));
         }
       }
-    } catch (error) {
+    } catch {
       setImportResult({ success: false, message: "Invalid JSON format" });
       toast.error(t("mcp.invalidJson"));
     }
@@ -357,7 +357,7 @@ export function MCPPanel() {
       <div className="flex-1 overflow-y-auto p-3 sm:p-4">
         {isLoading && servers.length === 0 ? (
           <div className="flex h-full items-center justify-center text-stone-500 dark:text-stone-400">
-            <Loader2 size={24} className="animate-spin" />
+            <LoadingSpinner size="sm" />
             <span className="ml-2">{t("mcp.loading")}</span>
           </div>
         ) : filteredServers.length === 0 ? (
@@ -562,7 +562,7 @@ export function MCPPanel() {
                     >
                       {isLoading ? (
                         <>
-                          <Loader2 size={18} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                           {t("common.importing")}
                         </>
                       ) : (

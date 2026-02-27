@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import { roleApi, authApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import type {
   Role,
   RoleCreate,
@@ -464,7 +465,7 @@ export function RolesPanel() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-stone-400 border-t-transparent dark:border-stone-500"></div>
+          <LoadingSpinner size="lg" className="mx-auto mb-4" />
           <p className="text-stone-500 dark:text-stone-400">
             {t("common.loading")}
           </p>

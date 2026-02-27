@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { LoadingSpinner } from "../../common/LoadingSpinner";
 import * as XLSX from "xlsx";
 
 interface ExcelPreviewProps {
@@ -50,9 +50,9 @@ const ExcelPreview = memo(function ExcelPreview({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2
-          size={32}
-          className="animate-spin text-stone-400 dark:text-stone-500"
+        <LoadingSpinner
+          size="lg"
+          className="text-stone-400 dark:text-stone-500"
         />
       </div>
     );

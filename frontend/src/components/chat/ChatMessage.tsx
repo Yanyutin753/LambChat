@@ -12,12 +12,12 @@ import {
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 import toast from "react-hot-toast";
 import mermaid from "mermaid";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import {
   Bot,
   Wrench,
   CheckCircle,
   XCircle,
-  Loader2,
   Copy,
   Check,
   ChevronDown,
@@ -191,19 +191,14 @@ function MermaidDiagram({
         setError(null);
 
         // Validate mermaid syntax before rendering
-        try {
-          await mermaid.parse(chart);
-        } catch (parseError) {
-          // If parse fails, show error immediately
-          throw parseError;
-        }
+        await mermaid.parse(chart);
 
         // Render the diagram
         const { svg } = await mermaid.render(idRef.current, chart);
 
         // Fix SVG: remove width="100%" which causes display issues
         // Keep the original width/height values from mermaid to preserve text rendering
-        let processedSvg = svg.replace(/\swidth="100%"/g, "");
+        const processedSvg = svg.replace(/\swidth="100%"/g, "");
 
         // Check if the SVG contains error indicators
         if (
@@ -698,7 +693,7 @@ function ToolCallItem({
       >
         {/* 状态指示器 */}
         {isPending ? (
-          <Loader2 size={12} className="animate-spin shrink-0" />
+          <LoadingSpinner size="sm" className="shrink-0" />
         ) : success ? (
           <CheckCircle size={12} className="shrink-0" />
         ) : hasResult ? (
@@ -744,7 +739,7 @@ function ToolCallItem({
           {/* Pending state */}
           {isPending && (
             <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400">
-              <Loader2 size={10} className="animate-spin" />
+              <LoadingSpinner size="xs" />
               <span>{t("chat.message.running")}</span>
             </div>
           )}
@@ -905,7 +900,7 @@ function FileRevealItem({
     return (
       <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900">
         <div className={`p-2.5 rounded-lg ${bg}`}>
-          <Loader2 size={20} className={`animate-spin ${color}`} />
+          <LoadingSpinner size="sm" className={color} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
@@ -1113,9 +1108,9 @@ function SubagentBlock({
           )}
         >
           {isPending ? (
-            <Loader2
-              size={14}
-              className="animate-spin text-blue-600 dark:text-blue-400"
+            <LoadingSpinner
+              size="sm"
+              className="text-blue-600 dark:text-blue-400"
             />
           ) : success ? (
             <CheckCircle
@@ -1199,7 +1194,7 @@ function SubagentBlock({
           {/* 等待状态 */}
           {isPending && !parts?.length && (
             <div className="flex items-center gap-2 py-2 text-stone-500 dark:text-stone-400">
-              <Loader2 size={14} className="animate-spin" />
+              <LoadingSpinner size="sm" />
               <span className="text-sm">{t("chat.message.executing")}</span>
             </div>
           )}
@@ -1231,7 +1226,7 @@ function SubagentToolItem({
         )}
       >
         {part.isPending ? (
-          <Loader2 size={12} className="animate-spin text-amber-500 shrink-0" />
+          <LoadingSpinner size="xs" className="shrink-0" />
         ) : part.success ? (
           <CheckCircle size={12} className="text-emerald-500 shrink-0" />
         ) : (

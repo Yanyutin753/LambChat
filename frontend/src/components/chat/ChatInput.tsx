@@ -231,7 +231,7 @@ export const ChatInput = memo(function ChatInput({
 
   // Handle paste to convert rich text to plain text
   const handlePaste = (e: React.ClipboardEvent) => {
-    const clipboardData = e.clipboardData || (window as any).clipboardData;
+    const clipboardData = e.clipboardData;
     if (!clipboardData) return;
 
     // Get rich text (HTML)

@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import {
   X,
-  Loader2,
   AlertCircle,
   Copy,
   Check,
@@ -41,6 +41,7 @@ import ExcelPreview from "./previews/ExcelPreview";
 import HtmlPreview from "./previews/HtmlPreview";
 
 // Re-export utilities for external use
+/* eslint-disable react-refresh/only-export-components */
 export {
   getFileExtension,
   isBinaryFile,
@@ -56,6 +57,7 @@ export {
   getFileTypeColor,
   detectLanguage,
 } from "./utils";
+/* eslint-enable react-refresh/only-export-components */
 
 // Export components for external use
 export { default as CodeRenderer } from "./previews/CodeRenderer";
@@ -251,19 +253,8 @@ export default function DocumentPreview({
     };
 
     loadContent();
-  }, [
-    path,
-    content,
-    s3Key,
-    imageFile,
-    pdfFile,
-    pptFile,
-    htmlFile,
-    binaryFile,
-    wordFile,
-    excelFile,
-    t,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path, content, s3Key]);
 
   // Handle ESC key
   useEffect(() => {
@@ -469,9 +460,9 @@ export default function DocumentPreview({
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4">
               <div className="relative">
-                <Loader2 size={32} className="animate-spin text-amber-500" />
+                <LoadingSpinner size="lg" />
                 <div className="absolute inset-0 animate-ping">
-                  <Loader2 size={32} className="text-amber-500/30" />
+                  <LoadingSpinner size="lg" static />
                 </div>
               </div>
               <p className="text-sm text-stone-500 dark:text-stone-400 font-medium">

@@ -6,12 +6,12 @@ import {
   Download,
   Upload,
   FolderOpen,
-  Loader2,
   Check,
   Github,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { SkillCard } from "../skill/SkillCard";
 import { SkillForm } from "../skill/SkillForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -271,7 +271,7 @@ export function SkillsPanel() {
           }, 1500);
         }
       }
-    } catch (error) {
+    } catch {
       setImportResult({ success: false, message: "Invalid JSON format" });
       toast.error(t("skills.invalidJson"));
     }
@@ -438,7 +438,7 @@ export function SkillsPanel() {
       <div className="flex-1 overflow-y-auto p-2 sm:p-4">
         {isLoading && skills.length === 0 ? (
           <div className="flex h-full items-center justify-center text-stone-500 dark:text-stone-400">
-            <Loader2 size={24} className="animate-spin" />
+            <LoadingSpinner size="sm" />
             <span className="ml-2">{t("skills.loading")}</span>
           </div>
         ) : filteredSkills.length === 0 ? (
@@ -604,7 +604,7 @@ export function SkillsPanel() {
                     >
                       {isLoading ? (
                         <>
-                          <Loader2 size={18} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                           {t("common.importing")}
                         </>
                       ) : (
@@ -673,7 +673,7 @@ export function SkillsPanel() {
                         className="btn-secondary disabled:opacity-50"
                       >
                         {githubLoading ? (
-                          <Loader2 size={18} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                         ) : (
                           <Search size={18} />
                         )}
@@ -756,7 +756,7 @@ export function SkillsPanel() {
                     >
                       {githubLoading ? (
                         <>
-                          <Loader2 size={18} className="animate-spin" />
+                          <LoadingSpinner size="sm" />
                           {t("skills.installing")}
                         </>
                       ) : (
