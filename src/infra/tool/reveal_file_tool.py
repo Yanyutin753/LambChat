@@ -48,7 +48,7 @@ def _get_backend_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[Backen
             if isinstance(config, dict):
                 configurable = config.get("configurable", {})
                 if isinstance(configurable, dict):
-                    backend = configurable.get("backend")
+                    backend: Optional[BackendProtocol] = configurable.get("backend")
                     if backend is not None:
                         logger.debug("Got backend from runtime.config['configurable']['backend']")
                         return backend
@@ -60,7 +60,7 @@ def _get_backend_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[Backen
 
         # 方式2: 从 runtime 的 attributes 中获取
         if hasattr(runtime, "attributes"):
-            backend = runtime.attributes.get("backend")
+            backend: Optional[BackendProtocol] = runtime.attributes.get("backend")
             if backend is not None:
                 logger.debug("Got backend from runtime.attributes['backend']")
                 return backend
@@ -84,7 +84,7 @@ def _get_backend_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[Backen
 async def reveal_file(
     path: str,
     description: Optional[str] = None,
-    runtime: ToolRuntime = None,
+    runtime: Optional[ToolRuntime] = None,
 ) -> str:
     """
     向用户展示/推荐一个文件。

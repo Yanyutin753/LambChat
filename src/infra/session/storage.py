@@ -3,7 +3,7 @@
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from bson import ObjectId
 
@@ -159,7 +159,7 @@ class SessionStorage:
             user_id: 用户ID，如果提供则只返回该用户的会话
                      None 表示不过滤（仅管理员使用）
         """
-        query = {}
+        query: dict[str, Any] = {}
         if user_id is not None:
             # 严格匹配用户ID，空字符串也会被当作过滤条件
             query["user_id"] = user_id

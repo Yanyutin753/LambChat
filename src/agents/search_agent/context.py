@@ -112,11 +112,12 @@ class AgentContext:
         self.tools.append(human_tool)
         logger.info("[AgentContext] Added human tool")
 
-        reveal_file_tool = get_reveal_file_tool()
-        self.tools.append(reveal_file_tool)
-        logger.info("[AgentContext] Added reveal_file tool")
+        if settings.ENABLE_SANDBOX:
+            reveal_file_tool = get_reveal_file_tool()
+            self.tools.append(reveal_file_tool)
+            logger.info("[AgentContext] Added reveal_file tool")
 
-        if settings.ENABLE_SKILLS:
+        if settings.ENABLE_SKILLS and settings.ENABLE_SANDBOX:
             inject_skill_tool = get_inject_skill_tool()
             self.tools.append(inject_skill_tool)
             logger.info("[AgentContext] Added inject_skill tool")

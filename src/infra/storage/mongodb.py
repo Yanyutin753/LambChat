@@ -13,7 +13,7 @@ from src.infra.storage.base import StorageBase
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorClient
+    from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 
 
 @lru_cache
@@ -49,7 +49,7 @@ def get_mongo_client() -> "AsyncIOMotorClient":
         else:
             connection_string = base_url
 
-        client = AsyncIOMotorClient(connection_string)
+        client: AsyncIOMotorClient = AsyncIOMotorClient(connection_string)
         return client
     except ImportError:
         raise ImportError("请安装 motor: pip install motor")
@@ -62,7 +62,7 @@ class MongoDBStorage(StorageBase):
 
     def __init__(self, collection_name: str = "storage"):
         self.collection_name = collection_name
-        self._collection = None
+        self._collection: "AsyncIOMotorCollection[Any] | None" = None
 
     @property
     def collection(self):
@@ -146,7 +146,7 @@ class ApprovalStorage:
 
     def __init__(self, collection_name: str = "approvals"):
         self.collection_name = collection_name
-        self._collection = None
+        self._collection: "AsyncIOMotorCollection[Any] | None" = None
 
     @property
     def collection(self):

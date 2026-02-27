@@ -8,6 +8,7 @@ from typing import Optional
 
 from src.infra.skill.storage import SkillStorage
 from src.kernel.config import settings
+from src.kernel.schemas.skill import SystemSkill, UserSkill
 
 
 class SkillManager:
@@ -44,7 +45,7 @@ class SkillManager:
         # 如果有 user_id 且有 MongoDB，使用新的存储方法
         if self.user_id and self.storage:
             try:
-                skills = await self.storage.get_visible_skills(self.user_id, is_admin=False)
+                visible_skills = await self.storage.get_visible_skills(self.user_id, is_admin=False)
                 # 转换为 dict 格式以保持兼容性
                 return [
                     {
@@ -60,23 +61,41 @@ class SkillManager:
                         "created_at": s.created_at,
                         "updated_at": s.updated_at,
                     }
-                    for s in skills
+                    for s in visible_skills
                 ]
             except Exception:
                 pass
 
         # 回退到旧的逻辑（兼容模式）
-        skills = []
+        fallback_skills: list[dict] = []
 
         # 从 MongoDB 加载
         if self.storage:
             try:
-                mongo_skills = await self.storage.list_skills()
-                skills.extend(mongo_skills)
+                if self.user_id:
+                    mongo_skills: list[UserSkill] = await self.storage.list_user_skills(
+                        self.user_id
+                    )
+                else:
+                    mongo_skills = await self.storage.list_system_skills()
+                for s in mongo_skills:
+                    fallback_skills.append(
+                        {
+                            "name": s.name,
+                            "description": s.description,
+                            "content": s.content,
+                            "enabled": s.enabled,
+                            "source": s.source,
+                            "github_url": s.github_url,
+                            "version": s.version,
+                            "created_at": s.created_at,
+                            "updated_at": s.updated_at,
+                        }
+                    )
             except Exception:
                 pass
 
-        return skills
+        return fallback_skills
 
     def get_skill(self, skill_name: str) -> Optional[dict]:
         """获取指定技能（同步版本，仅 MongoDB）"""
@@ -97,41 +116,49 @@ class SkillManager:
         if self.user_id and self.storage:
             try:
                 # 先检查用户技能
-                skill = await self.storage.get_user_skill(skill_name, self.user_id)
-                if skill:
+                user_skill: Optional[UserSkill] = await self.storage.get_user_skill(
+                    skill_name, self.user_id
+                )
+                if user_skill:
                     return {
-                        "name": skill.name,
-                        "description": skill.description,
-                        "content": skill.content,
-                        "enabled": skill.enabled,
+                        "name": user_skill.name,
+                        "description": user_skill.description,
+                        "content": user_skill.content,
+                        "enabled": user_skill.enabled,
                         "source": (
-                            skill.source.value if hasattr(skill.source, "value") else skill.source
+                            user_skill.source.value
+                            if hasattr(user_skill.source, "value")
+                            else user_skill.source
                         ),
-                        "github_url": skill.github_url,
-                        "version": skill.version,
+                        "github_url": user_skill.github_url,
+                        "version": user_skill.version,
                         "is_system": False,
                         "can_edit": True,
-                        "created_at": skill.created_at,
-                        "updated_at": skill.updated_at,
+                        "created_at": user_skill.created_at,
+                        "updated_at": user_skill.updated_at,
                     }
 
                 # 再检查系统技能
-                skill = await self.storage.get_system_skill(skill_name)
-                if skill:
+                system_skill: Optional[SystemSkill] = await self.storage.get_system_skill(
+                    skill_name
+                )
+                if system_skill:
                     return {
-                        "name": skill.name,
-                        "description": skill.description,
-                        "content": skill.content,
-                        "enabled": skill.enabled,
+                        "name": system_skill.name,
+                        "description": system_skill.description,
+                        "content": system_skill.content,
+                        "enabled": system_skill.enabled,
                         "source": (
-                            skill.source.value if hasattr(skill.source, "value") else skill.source
+                            system_skill.source.value
+                            if hasattr(system_skill.source, "value")
+                            else system_skill.source
                         ),
-                        "github_url": skill.github_url,
-                        "version": skill.version,
+                        "github_url": system_skill.github_url,
+                        "version": system_skill.version,
                         "is_system": True,
                         "can_edit": False,
-                        "created_at": skill.created_at,
-                        "updated_at": skill.updated_at,
+                        "created_at": system_skill.created_at,
+                        "updated_at": system_skill.updated_at,
                     }
             except Exception:
                 pass
@@ -139,9 +166,24 @@ class SkillManager:
         # 回退到旧的逻辑（兼容模式）
         if self.storage:
             try:
-                skill = await self.storage.get_skill(skill_name)
+                if self.user_id:
+                    skill: Optional[UserSkill] = await self.storage.get_user_skill(
+                        skill_name, self.user_id
+                    )
+                else:
+                    skill: Optional[SystemSkill] = await self.storage.get_system_skill(skill_name)
                 if skill:
-                    return skill
+                    return {
+                        "name": skill.name,
+                        "description": skill.description,
+                        "content": skill.content,
+                        "enabled": skill.enabled,
+                        "source": skill.source,
+                        "github_url": skill.github_url,
+                        "version": skill.version,
+                        "created_at": skill.created_at,
+                        "updated_at": skill.updated_at,
+                    }
             except Exception:
                 pass
 

@@ -86,7 +86,7 @@ class BaseGraphAgent(ABC):
         self.recursion_limit = recursion_limit
         self.enable_checkpointer = enable_checkpointer
         self._graph: Any = None
-        self._checkpointer = None
+        self._checkpointer: MemorySaver | None = None
         self._initialized = False
         self._stream_tasks: Dict[str, asyncio.Task] = {}  # run_id -> Task
 
@@ -453,7 +453,7 @@ class GraphBuilder:
 
     def compile(self, checkpointer=None, recursion_limit: int = 100) -> Any:
         """编译 graph"""
-        graph = StateGraph(self._state_class)
+        graph: StateGraph = StateGraph(self._state_class)
 
         # 添加节点
         for name, func in self._nodes.items():

@@ -194,7 +194,7 @@ class LLMClient:
         return ChatAnthropic(
             model_name=model_name,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=max_tokens,  # type: ignore[arg-type]
             api_key=SecretStr(api_key) if api_key else None,  # type: ignore[arg-type]
             thinking=thinking,
             base_url=api_base if api_base else None,

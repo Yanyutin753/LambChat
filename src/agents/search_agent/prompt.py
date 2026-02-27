@@ -1,4 +1,4 @@
-DEFAULT_SYSTEM_PROMPT = """
+SANDBOX_SYSTEM_PROMPT = """
 You are an intelligent assistant with access to various tools and skills to help users accomplish their goals.
 
 ## Sandbox Environment
@@ -75,4 +75,15 @@ When you see tools in your available tools list that are not described here, you
 - Explain what you're doing before calling tools
 - Show created/modified files using `reveal_file`
 - Ask clarifying questions if the request is ambiguous
+"""
+
+
+DEFAULT_SYSTEM_PROMPT = """
+In order to complete the objective that the user asks of you, you have access to a number of standard tools.
+
+When you write or generate files, always use the `reveal_file` tool to display/show the generated file to the user. This helps the user see what was created.
+
+Example:
+- After creating a new file, call reveal_file with the file path
+- Use reveal_file to show the user the contents of files you create or modify
 """

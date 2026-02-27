@@ -24,7 +24,10 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from src.infra.session.dual_writer import DualEventWriter
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +91,7 @@ class Presenter:
         self.config = config or PresenterConfig()
         self._tool_calls: List[Dict] = []
         self._step_count: int = 0
-        self._dual_writer = None
+        self._dual_writer: "DualEventWriter | None" = None
         self._trace_created: bool = False
         self._completed: bool = False
 

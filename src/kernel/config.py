@@ -576,7 +576,7 @@ class Settings(BaseSettings):
     MONGODB_TRACES_COLLECTION: str = "traces"
 
     # Sandbox Settings
-    ENABLE_SANDBOX: bool = False
+    ENABLE_SANDBOX: bool = True
     SANDBOX_PLATFORM: str = "runloop"  # runloop, daytona, modal
     RUNLOOP_API_KEY: str = ""
     RUNLOOP_BASE_URL: str = "https://api.runloop.ai"

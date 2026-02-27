@@ -16,7 +16,7 @@ dependencies = [
     "langchain-core>=0.3.0",
     "langchain-openai>=0.3.0",  # OpenAI integration for LangGraph/DeepAgent
     "langchain-mcp-adapters>=0.1.0",  # MCP integration
-    "langgraph>=0.3.0",
+    "langgraph>=1.0.9",
     "langsmith>=0.2.0",
     "deepagents>=0.4.0",  # Deep Agent framework
     "deepagents-backends>=0.1.0",
@@ -46,7 +46,7 @@ dependencies = [
     "langchain-modal>=0.0.1",
     "daytona>=0.18.1",
     "minio>=7.2.20",
-    "langchain-daytona>=0.0.2",
+    "langchain-daytona>=0.0.2"
 ]
 
 [dependency-groups]
@@ -89,6 +89,7 @@ warn_unused_ignores = false
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 check_untyped_defs = true
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

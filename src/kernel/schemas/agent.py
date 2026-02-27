@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.kernel.schemas.message import ToolCall
 
@@ -65,6 +65,8 @@ class HealthResponse(BaseModel):
 class ToolParamInfo(BaseModel):
     """Information about a tool parameter."""
 
+    model_config = ConfigDict(extra="ignore")
+
     name: str = Field(..., description="Parameter name")
     type: str = Field(default="string", description="Parameter type")
     description: str = Field(default="", description="Parameter description")
@@ -74,6 +76,8 @@ class ToolParamInfo(BaseModel):
 
 class ToolInfo(BaseModel):
     """Information about a single tool."""
+
+    model_config = ConfigDict(extra="ignore")
 
     name: str = Field(..., description="Tool name")
     description: str = Field(default="", description="Tool description")

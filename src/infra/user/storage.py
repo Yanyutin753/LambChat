@@ -5,7 +5,7 @@
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from src.infra.auth.password import hash_password, verify_password
 from src.kernel.config import settings
@@ -58,7 +58,7 @@ class UserStorage:
             raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
 
         now = datetime.now()
-        user_dict = {
+        user_dict: dict[str, Any] = {
             "username": user_data.username,
             "email": user_data.email,
             "password_hash": hash_password(user_data.password),

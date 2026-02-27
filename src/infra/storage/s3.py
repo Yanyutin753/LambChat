@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, BinaryIO, Optional
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    pass
+    import minio
 
 # Log configuration for debugging
 logger = logging.getLogger(__name__)
@@ -210,7 +210,7 @@ class MinioS3Backend(S3StorageBackend):
 
     def __init__(self, config: S3Config):
         self.config = config
-        self._client = None
+        self._client: minio.Minio | None = None
         self._loop = None
 
     def _get_client(self):
@@ -218,10 +218,12 @@ class MinioS3Backend(S3StorageBackend):
         if self._client is None:
             import minio
 
-            endpoint = self.config.endpoint_url or self.config.get_endpoint_url()
+            endpoint: str = self.config.endpoint_url or self.config.get_endpoint_url()
             if endpoint:
                 # Remove protocol if present
                 endpoint = endpoint.replace("https://", "").replace("http://", "")
+            else:
+                endpoint = "localhost:9000"  # Default MinIO endpoint
 
             logger.info(
                 f"Minio client config: endpoint={endpoint}, bucket={self.config.bucket_name}, region={self.config.region}, access_key length={len(self.config.access_key)}"

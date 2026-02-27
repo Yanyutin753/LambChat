@@ -18,7 +18,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from src.agents.core.base import get_presenter
 from src.agents.search_agent.context import AgentContext
-from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT
+from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.llm.client import LLMClient
 from src.infra.sandbox import get_sandbox_from_settings
 
@@ -73,16 +73,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         # 创建 sandbox backend (langchain-daytona/runloop/modal)
         # 每次请求创建新的 sandbox，函数结束时关闭
         sandbox_id = None  # Initialize before the if block
+
         if settings.ENABLE_SANDBOX:
             backend = get_sandbox_from_settings()
             sandbox_id = SandboxFactory.get_sandbox_id(backend)
 
-            # 注意：backend 和 messages 通过 create_deep_agent 的 config 传递给工具
-            # 使用 try-finally 确保 sandbox 在任何情况下都能正确关闭
-            # 避免中间过程报错导致没有正常关闭
-
-            # 技能：只注入系统提示元数据，不再预加载文件到沙箱
-            # 技能文件通过 inject_skill 工具按需加载
             if settings.ENABLE_SKILLS:
                 # 创建 SkillsMiddleware 并设置为全局实例
                 skills_middleware = SkillsMiddleware(
@@ -95,11 +90,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
                     # 只注入技能元数据到系统提示（不预加载文件到沙箱）
                     context.system_prompt = await skills_middleware.inject_skills_async(
-                        DEFAULT_SYSTEM_PROMPT
+                        SANDBOX_SYSTEM_PROMPT
                     )
+
         else:
-            backend = StateBackend()
-            logger.warning("Sandbox is disabled (ENABLE_SANDBOX=False), running without sandbox")
+
+            def backend(rt):
+                return StateBackend(rt)
+
+            context.system_prompt = DEFAULT_SYSTEM_PROMPT
+            logger.warning(
+                "Sandbox is disabled (ENABLE_SANDBOX=False), using CompositeBackend: 临时"
+            )
 
         # 过滤工具（根据用户选择的 enabled_tools）
         if settings.ENABLE_MCP:
@@ -112,7 +114,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             backend=backend,
             tools=filtered_tools if filtered_tools and settings.ENABLE_MCP else None,
             checkpointer=MemorySaver(),
-        ).with_config({"recursion_limit": 100})
+        ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
 
         inner_config: RunnableConfig = {
             "configurable": {
@@ -120,7 +122,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 "backend": backend,  # 传递 backend 给工具使用
                 "messages": existing_messages,  # 传递 messages 给 sync_conversation 工具使用
             },
-            "recursion_limit": config.get("recursion_limit", 100),
+            "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
         }
 
         async def emit_event(event_data: Dict[str, Any]) -> None:
@@ -162,7 +164,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             # 检测 task 工具的开始和结束，用于跟踪子代理执行状态
             if evt_type == "on_tool_start" and tool_name == "task":
                 # 发送 agent:call 事件
-                inp = event.get("data", {}).get("input", {})
+                inp: Dict[str, Any] = event.get("data", {}).get("input", {})
                 subagent_type = (
                     inp.get("subagent_type", "unknown") if isinstance(inp, dict) else "unknown"
                 )

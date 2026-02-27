@@ -159,7 +159,7 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
             # 获取结果
             for task in done:
                 try:
-                    result = task.result()
+                    result: Optional[ApprovalResponse] = task.result()
                     if result:
                         return result
                 except asyncio.TimeoutError:

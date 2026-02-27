@@ -67,7 +67,7 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints"):
             connection_string = base_url
 
         # 创建同步客户端（MongoDBSaver 需要）
-        client = MongoClient(connection_string)
+        client: MongoClient = MongoClient(connection_string)
 
         # 创建 checkpointer
         _mongo_checkpointer = MongoDBSaver(

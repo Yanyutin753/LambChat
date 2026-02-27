@@ -66,7 +66,7 @@ class AgentGraphBuilder:
 
     def build(self) -> Any:
         """构建并编译图"""
-        graph = StateGraph(self._state_class)
+        graph: StateGraph = StateGraph(self._state_class)
 
         # 添加节点
         for name, function in self._nodes.items():

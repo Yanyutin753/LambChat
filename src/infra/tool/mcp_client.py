@@ -84,7 +84,7 @@ class MCPToolWithRetry(BaseTool):
             config: LangChain RunnableConfig（可选）
             **kwargs: 关键字参数
         """
-        last_error = None
+        last_error: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 # 使用 wait_for 添加超时
@@ -235,11 +235,12 @@ class MCPClientManager:
 
     def _load_config_from_file(self) -> Optional[dict]:
         """从文件加载 MCP 配置"""
-        if not os.path.exists(self._config_path):
-            logger.warning(f"MCP config file not found: {self._config_path}")
+        config_path = self._config_path
+        if not config_path or not os.path.exists(config_path):
+            logger.warning(f"MCP config file not found: {config_path}")
             return None
 
-        with open(self._config_path, "r", encoding="utf-8") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
 
         if not config.get("mcpServers"):
@@ -376,7 +377,7 @@ class MCPClientManager:
                     server_configs[server_name]["headers"] = server_config["headers"]
 
         # 创建 MultiServerMCPClient
-        client = MultiServerMCPClient(server_configs)
+        client = MultiServerMCPClient(server_configs)  # type: ignore[arg-type]
 
         # 并行加载所有服务器的工具，失败的服务器不影响其他服务器
         async def _load_server_tools(server_name: str) -> tuple[str, list[BaseTool] | Exception]:

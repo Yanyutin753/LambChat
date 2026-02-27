@@ -67,6 +67,8 @@ class TraceStorage:
 
     async def _ensure_indexes(self):
         """确保必要的索引存在"""
+        if self._collection is None:
+            return
         try:
             # 复合索引：用于 get_session_events 查询
             # 查询模式: session_id + run_id (可选) + status (可选)
@@ -116,7 +118,7 @@ class TraceStorage:
             是否创建成功
         """
         now = _utc_now()
-        doc = {
+        doc: Dict[str, Any] = {
             "trace_id": trace_id,
             "session_id": session_id,
             "agent_id": agent_id,

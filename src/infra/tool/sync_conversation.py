@@ -135,7 +135,7 @@ def extract_write_operations_from_messages(messages: list) -> list[dict]:
 @tool
 async def sync_conversation(
     target_dir: str = "restored_files",
-    runtime: ToolRuntime = None,
+    runtime: Optional[ToolRuntime] = None,
 ) -> str:
     """
     Restore files created by write_file tool from conversation history to sandbox.

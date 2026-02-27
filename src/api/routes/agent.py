@@ -282,10 +282,12 @@ async def list_tools(
     tools.extend(HUMAN_TOOLS)
 
     # 2. Reveal File 工具
-    tools.extend(REVEAL_FILE_TOOLS)
+    if settings.ENABLE_SANDBOX:
+        tools.extend(REVEAL_FILE_TOOLS)
 
     # 3. Sync Conversation 工具
-    tools.extend(SYNC_CONVERSATION_TOOLS)
+    if settings.ENABLE_SANDBOX:
+        tools.extend(SYNC_CONVERSATION_TOOLS)
 
     # 4. MCP 工具（实际连接获取工具列表）
     if settings.ENABLE_MCP:

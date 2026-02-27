@@ -364,7 +364,7 @@ class GitHubSyncService:
         branch: str,
     ) -> dict[str, str]:
         """Fetch all files from a directory recursively"""
-        files = {}
+        files: dict[str, str] = {}
         try:
             contents_url = f"{self.GITHUB_API_BASE}/repos/{owner}/{repo}/contents/{path}"
             contents = await self._fetch_json(session, contents_url)

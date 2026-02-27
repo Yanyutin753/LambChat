@@ -317,7 +317,6 @@ async def update_skill(
                 status_code=404, detail=f"Skill '{name}' not found or not owned by user"
             )
 
-    # Sync files to PostgreSQL if provided
     # Determine the correct user_id for file sync
     final_system_skill = await storage.get_system_skill(skill.name)
     file_user_id = "system" if final_system_skill else user.sub
@@ -554,7 +553,6 @@ async def admin_update_skill(
     if not skill:
         raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
 
-    # Sync files to PostgreSQL if provided
     if data.files is not None:
         await storage.sync_skill_files(skill.name, data.files, user_id="system")
     elif data.content is not None:

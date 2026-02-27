@@ -289,7 +289,7 @@ class SkillsMiddleware:
         return skill_name in self._loaded_skills
 
     async def load_all_skills_async(self) -> list[dict]:
-        """加载所有技能（PostgreSQL/MongoDB）"""
+        """加载所有技能（/MongoDB）"""
         if not self._user_id:
             logger.warning("No user_id provided, cannot load skills")
             return []

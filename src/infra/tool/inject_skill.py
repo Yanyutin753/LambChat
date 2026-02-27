@@ -39,7 +39,7 @@ def get_skills_middleware() -> Optional["SkillsMiddleware"]:
 @tool
 async def inject_skill(
     skill_name: str,
-    runtime: ToolRuntime = None,
+    runtime: Optional[ToolRuntime] = None,
 ) -> str:
     """
     Load a skill into sandbox and return its SKILL.md content.

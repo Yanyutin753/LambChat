@@ -602,6 +602,7 @@ class SkillStorage:
                 )
 
                 # Check if exists
+                existing: Optional[SystemSkill | UserSkill] = None
                 if is_admin:
                     existing = await self.get_system_skill(name)
                 else:
@@ -621,6 +622,7 @@ class SkillStorage:
                                 content=skill.content,
                                 enabled=skill.enabled,
                                 version=skill.version,
+                                is_system=True,
                             ),
                             user_id,
                         )
@@ -635,6 +637,7 @@ class SkillStorage:
                                 content=skill.content,
                                 enabled=skill.enabled,
                                 version=skill.version,
+                                is_system=False,
                             ),
                             user_id,
                         )
@@ -728,6 +731,7 @@ class SkillStorage:
                 )
 
                 # Check if exists
+                existing: Optional[SystemSkill | UserSkill] = None
                 if is_admin:
                     existing = await self.get_system_skill(name)
                 else:

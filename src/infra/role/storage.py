@@ -5,7 +5,7 @@
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, ValidationError
@@ -53,7 +53,7 @@ class RoleStorage:
             raise ValidationError(f"角色 '{role_data.name}' 已存在")
 
         now = datetime.now()
-        role_dict = {
+        role_dict: dict[str, Any] = {
             "name": role_data.name,
             "description": role_data.description,
             "permissions": [p.value for p in role_data.permissions],
