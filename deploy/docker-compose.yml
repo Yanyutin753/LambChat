@@ -1,0 +1,16 @@
+services:
+  lamb-agent:
+    container_name: lamb-agent
+    image: ghcr.io/yanyutin753/lambagent:latest
+    restart: always
+    network_mode: host
+    env_file:
+      - /home/yangyang/LambAgent/deploy/.env.example
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - lamb-data:/app/data
+      - ./workspace:/app/workspace
+
+volumes:
+  lamb-data:

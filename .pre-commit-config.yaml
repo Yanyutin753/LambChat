@@ -1,0 +1,28 @@
+repos:
+  # Python formatting and linting with ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        args: [--fix, --config, pyproject.toml]
+        exclude: ^verify_setup\.py$
+      - id: ruff-format
+        args: [--config, pyproject.toml]
+
+  # Frontend formatting with prettier
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or: [javascript, jsx, ts, tsx, json, css, html, markdown]
+        files: ^frontend/
+
+  # General checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files

@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv/
+ENV/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Node
+frontend/node_modules
+frontend/.npm
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Tests
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Docs & misc
+docs/
+*.md
+!README.md
+.env*
+*.log
+.claude/

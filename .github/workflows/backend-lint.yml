@@ -1,0 +1,70 @@
+name: Backend Lint
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/backend-lint.yml'
+      - 'main.py'
+      - 'run.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/backend-lint.yml'
+      - 'main.py'
+      - 'run.py'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ruff:
+    name: Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Load cached venv
+        uses: uv/cache-action@v1
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run Ruff
+        run: uv run ruff check src/
+
+  mypy:
+    name: MyPy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Load cached venv
+        uses: uv/cache-action@v1
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Run MyPy
+        run: uv run mypy src/

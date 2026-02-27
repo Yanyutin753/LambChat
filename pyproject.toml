@@ -1,0 +1,96 @@
+[project]
+name = "lamb-agent"
+version = "1.0.0"
+description = "Full-featured AI Agent system with FastAPI, LangGraph, and LangSmith"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Core
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "python-multipart>=0.0.18",
+    # LangChain Ecosystem
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.3.0",  # OpenAI integration for LangGraph/DeepAgent
+    "langchain-mcp-adapters>=0.1.0",  # MCP integration
+    "langgraph>=0.3.0",
+    "langsmith>=0.2.0",
+    "deepagents>=0.4.0",  # Deep Agent framework
+    "deepagents-backends>=0.1.0",
+    "tiktoken>=0.9.0",
+    # Async & Streaming
+    "sse-starlette>=2.2.0",
+    "httpx>=0.28.0",
+    "aiofiles>=24.1.0",
+    # Storage
+    "redis>=5.2.0",
+    "asyncpg>=0.30.0",
+    "pymongo>=4.10.0",
+    "langchain-mongodb>=0.1.0",
+    "boto3>=1.35.0",
+    "botocore>=1.35.0",
+    # Sandbox (optional - uncomment if using AIO Sandbox)
+    # "agent-sandbox>=0.1.0",
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "colorama>=0.4.6",
+    "orjson>=3.10.0",
+    "email-validator>=2.3.0",
+    "bcrypt>=4.0.0",
+    "motor>=3.7.1",
+    "langgraph-checkpoint-mongodb>=0.3.1",
+    "langchain-runloop>=0.0.2",
+    "langchain-modal>=0.0.1",
+    "daytona>=0.18.1",
+    "minio>=7.2.20",
+    "langchain-daytona>=0.0.2",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/omni_agent"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["verify_setup.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402"]
+"tests/*" = ["E402", "F841"]
+"src/kernel/config.py" = ["F821"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_return_any = false
+warn_unused_ignores = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]

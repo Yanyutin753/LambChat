@@ -1,0 +1,82 @@
+"""
+角色路由
+"""
+
+from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException
+
+from src.api.deps import get_current_user_required, require_permissions
+from src.infra.role.manager import RoleManager
+from src.kernel.exceptions import ValidationError
+from src.kernel.schemas.role import Role, RoleCreate, RoleUpdate
+from src.kernel.schemas.user import TokenPayload
+
+router = APIRouter()
+
+
+@router.get("/", response_model=List[Role])
+async def list_roles(
+    skip: int = 0,
+    limit: int = 100,
+    _: TokenPayload = Depends(get_current_user_required),
+):
+    """列出角色（只需登录）"""
+    manager = RoleManager()
+    return await manager.list_roles(skip, limit)
+
+
+@router.post("/", response_model=Role)
+async def create_role(
+    role_data: RoleCreate,
+    _: None = Depends(require_permissions("role:manage")),
+):
+    """创建角色"""
+    manager = RoleManager()
+    return await manager.create_role(role_data)
+
+
+@router.get("/{role_id}", response_model=Role)
+async def get_role(
+    role_id: str,
+    _: None = Depends(require_permissions("role:manage")),
+):
+    """获取角色"""
+    manager = RoleManager()
+    role = await manager.get_role(role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    return role
+
+
+@router.put("/{role_id}", response_model=Role)
+async def update_role(
+    role_id: str,
+    role_data: RoleUpdate,
+    _: None = Depends(require_permissions("role:manage")),
+):
+    """更新角色"""
+    manager = RoleManager()
+    try:
+        role = await manager.update_role(role_id, role_data)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    return role
+
+
+@router.delete("/{role_id}")
+async def delete_role(
+    role_id: str,
+    _: None = Depends(require_permissions("role:manage")),
+):
+    """删除角色"""
+    manager = RoleManager()
+    try:
+        success = await manager.delete_role(role_id)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not success:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    return {"status": "deleted"}
