@@ -204,7 +204,7 @@ class LLMClient:
     ) -> BaseChatModel:
         """创建 OpenAI 或 OpenAI 兼容模型"""
         # settings 已在 initialize_settings 时从数据库加载
-        api_key = api_key or settings.OPENAI_API_KEY or settings.LLM_API_KEY or "sk-placeholder"
+        api_key = api_key or settings.LLM_API_KEY or "sk-placeholder"
         api_base = api_base or settings.LLM_API_BASE
 
         return ChatOpenAI(
