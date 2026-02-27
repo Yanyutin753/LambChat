@@ -30,7 +30,7 @@ class SandboxConfig:
     """Sandbox 配置基类"""
 
     platform: str  # "runloop" | "daytona" | "modal"
-    ttl_seconds: int = 3600
+    ttl_seconds: int = 1800
 
 
 @dataclass
@@ -82,7 +82,7 @@ class SandboxFactory:
     def create_runloop(
         cls,
         api_key: str,
-        ttl_seconds: int = 3600,
+        ttl_seconds: int = 1800,
     ) -> "SandboxBackendProtocol":
         """
         创建 Runloop Sandbox
@@ -120,7 +120,7 @@ class SandboxFactory:
         cls,
         api_key: str,
         server_url: str = "",
-        ttl_seconds: int = 3600,
+        ttl_seconds: int = 1800,
     ) -> "SandboxBackendProtocol":
         """
         创建 Daytona Sandbox
@@ -165,7 +165,7 @@ class SandboxFactory:
     def create_modal(
         cls,
         app_name: str,
-        ttl_seconds: int = 3600,
+        ttl_seconds: int = 1800,
     ) -> "SandboxBackendProtocol":
         """
         创建 Modal Sandbox

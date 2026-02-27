@@ -11,13 +11,13 @@ import json
 import logging
 from typing import Any, Optional
 
-from langchain.tools import ToolRuntime, tool
+from langchain.tools import tool
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 
 
-def _get_from_config(runtime: Optional[ToolRuntime], key: str) -> Optional[Any]:
+def _get_from_config(runtime: Any, key: str) -> Optional[Any]:
     """
     从 runtime.config 中获取配置值
 
@@ -135,7 +135,7 @@ def extract_write_operations_from_messages(messages: list) -> list[dict]:
 @tool
 async def sync_conversation(
     target_dir: str = "restored_files",
-    runtime: Optional[ToolRuntime] = None,
+    runtime: Any = None,
 ) -> str:
     """
     Restore files created by write_file tool from conversation history to sandbox.

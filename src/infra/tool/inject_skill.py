@@ -13,7 +13,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from langchain.tools import ToolRuntime, tool
+from langchain.tools import tool
 from langchain_core.tools import BaseTool
 
 if TYPE_CHECKING:
@@ -39,7 +39,6 @@ def get_skills_middleware() -> Optional["SkillsMiddleware"]:
 @tool
 async def inject_skill(
     skill_name: str,
-    runtime: Optional[ToolRuntime] = None,
 ) -> str:
     """
     Load a skill into sandbox and return its SKILL.md content.
