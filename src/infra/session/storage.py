@@ -5,8 +5,9 @@
 from datetime import datetime
 from typing import Optional
 
-from src.kernel.config import settings
 from bson import ObjectId
+
+from src.kernel.config import settings
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 
 
@@ -72,13 +73,8 @@ class SessionStorage:
             return None
 
         # 优先使用自定义 session_id 作为 id
-        session_dict["id"] = session_dict.get("session_id") or str(
-            session_dict.pop("_id")
-        )
-        if (
-            "session_id" in session_dict
-            and session_dict["id"] == session_dict["session_id"]
-        ):
+        session_dict["id"] = session_dict.get("session_id") or str(session_dict.pop("_id"))
+        if "session_id" in session_dict and session_dict["id"] == session_dict["session_id"]:
             session_dict.pop("_id", None)
         return Session(**session_dict)
 
@@ -103,9 +99,7 @@ class SessionStorage:
         session_dict["id"] = str(session_dict.pop("_id"))
         return Session(**session_dict)
 
-    async def update(
-        self, session_id: str, session_data: SessionUpdate
-    ) -> Optional[Session]:
+    async def update(self, session_id: str, session_data: SessionUpdate) -> Optional[Session]:
         """更新会话（支持自定义 session_id 或 ObjectId）"""
         update_dict: dict = {"updated_at": datetime.now()}
 
@@ -175,16 +169,12 @@ class SessionStorage:
         # Get total count
         total = await self.collection.count_documents(query)
 
-        cursor = (
-            self.collection.find(query).skip(skip).limit(limit).sort("updated_at", -1)
-        )
+        cursor = self.collection.find(query).skip(skip).limit(limit).sort("updated_at", -1)
         sessions = []
 
         for session_dict in await cursor.to_list(length=limit):
             # 优先使用自定义 session_id 作为 id
-            session_dict["id"] = session_dict.get("session_id") or str(
-                session_dict.pop("_id")
-            )
+            session_dict["id"] = session_dict.get("session_id") or str(session_dict.pop("_id"))
             sessions.append(Session(**session_dict))
 
         return sessions, total

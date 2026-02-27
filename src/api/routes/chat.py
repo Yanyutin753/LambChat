@@ -7,8 +7,8 @@
 
 import asyncio
 import json
-import uuid
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -23,6 +23,8 @@ from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
 async def _execute_agent_stream(
     session_id: str,
     agent_id: str,
@@ -135,9 +137,7 @@ async def session_stream(
         raise HTTPException(status_code=404, detail="会话不存在")
     verify_session_ownership(session, user)
 
-    logger.info(
-        f"[SSE] New connection: session={session_id}, run_id={run_id}"
-    )
+    logger.info(f"[SSE] New connection: session={session_id}, run_id={run_id}")
 
     dual_writer = get_dual_writer()
 

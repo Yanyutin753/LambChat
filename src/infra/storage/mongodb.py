@@ -157,9 +157,7 @@ class ApprovalStorage:
             self._collection = db[self.collection_name]
         return self._collection
 
-    async def create(
-        self, approval: PendingApproval, ttl: int = APPROVAL_TTL
-    ) -> PendingApproval:
+    async def create(self, approval: PendingApproval, ttl: int = APPROVAL_TTL) -> PendingApproval:
         """创建审批记录"""
         now = datetime.now()
         doc = approval.model_dump()
@@ -191,9 +189,7 @@ class ApprovalStorage:
         if response:
             update_doc["response"] = response.model_dump()
 
-        result = await self.collection.update_one(
-            {"_id": approval_id}, {"$set": update_doc}
-        )
+        result = await self.collection.update_one({"_id": approval_id}, {"$set": update_doc})
         return result.modified_count > 0
 
     async def delete(self, approval_id: str) -> bool:
@@ -201,9 +197,7 @@ class ApprovalStorage:
         result = await self.collection.delete_one({"_id": approval_id})
         return result.deleted_count > 0
 
-    async def list_pending(
-        self, session_id: Optional[str] = None
-    ) -> List[PendingApproval]:
+    async def list_pending(self, session_id: Optional[str] = None) -> List[PendingApproval]:
         """获取待处理审批列表"""
         query = {"status": "pending", "expires_at": {"$gt": datetime.now()}}
         if session_id:
@@ -265,6 +259,7 @@ async def notify_approval_response(approval_id: str, response: ApprovalResponse)
     except Exception as e:
         # Redis 不可用时降级为 MongoDB 轮询
         import logging
+
         logging.getLogger(__name__).warning(
             f"Redis notification failed, falling back to MongoDB polling: {e}"
         )
@@ -337,6 +332,7 @@ async def wait_for_response_distributed(
     except Exception as e:
         # 方式 2: 降级为 MongoDB 轮询
         import logging
+
         logging.getLogger(__name__).warning(
             f"Redis Stream wait failed, falling back to MongoDB polling: {e}"
         )

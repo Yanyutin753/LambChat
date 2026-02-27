@@ -17,15 +17,17 @@ import json
 import logging
 
 from langchain_core.runnables import RunnableConfig
-from src.infra.storage.checkpoint import get_checkpointer
 
 from src.agents.core.base import BaseGraphAgent, GraphBuilder, register_agent
 from src.agents.search_agent.nodes import AgentContext, SearchAgentState, agent_node
+
+# 设置用户上下文，供 backend 使用
+from src.infra.backend.context import set_user_context
+from src.infra.storage.checkpoint import get_checkpointer
+
 # 导入中断异常类型（cancel 走 CancelledError，这里只用于类型）
 from src.infra.task.manager import TaskInterruptedError
 from src.infra.writer.present import Presenter, PresenterConfig
-# 设置用户上下文，供 backend 使用
-from src.infra.backend.context import set_user_context
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +123,6 @@ class SearchAgent(BaseGraphAgent):
         if not self._initialized:
             await self.initialize()
 
-
         set_user_context(user_id or "default", session_id)
 
         # 创建事件队列
@@ -129,7 +130,6 @@ class SearchAgent(BaseGraphAgent):
 
         # 如果没有传入 presenter，创建一个仅用于生成事件的
         if presenter is None:
-
             presenter = Presenter(
                 PresenterConfig(
                     session_id=session_id,

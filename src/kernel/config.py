@@ -497,9 +497,7 @@ def _get_git_info() -> tuple[str | None, str | None]:
             text=True,
             cwd=PROJECT_ROOT,
         )
-        commit_hash = (
-            hash_result.stdout.strip() if hash_result.returncode == 0 else None
-        )
+        commit_hash = hash_result.stdout.strip() if hash_result.returncode == 0 else None
 
         # If describe looks like a tag (starts with v), use it as tag
         git_tag = describe if describe and describe.startswith("v") else None
@@ -572,9 +570,7 @@ class Settings(BaseSettings):
     SSE_CACHE_TTL: int = 3600
     MAX_EVENTS_PER_SESSION: int = 10000
     SESSION_TITLE_MODEL: str = "claude-3-5-haiku-20241022"
-    SESSION_TITLE_PROMPT: str = (
-        "Generate a short title (max 10 words) for this conversation."
-    )
+    SESSION_TITLE_PROMPT: str = "Generate a short title (max 10 words) for this conversation."
 
     # Redis Settings
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -729,9 +725,7 @@ async def initialize_settings() -> None:
     logger.info("[Settings] SettingsService initialized")
 
     # Load all settings from database and update the global settings object
-    all_settings = await _settings_service.get_all(
-        admin_mode=True, mask_sensitive=False
-    )
+    all_settings = await _settings_service.get_all(admin_mode=True, mask_sensitive=False)
     logger.info(f"[Settings] Loaded {len(all_settings)} categories from database")
 
     # Flatten the settings dict and cache them
@@ -774,9 +768,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
             setattr(settings, key, setting.value)
     else:
         # Refresh all settings
-        all_settings = await _settings_service.get_all(
-            admin_mode=True, mask_sensitive=False
-        )
+        all_settings = await _settings_service.get_all(admin_mode=True, mask_sensitive=False)
         for items in all_settings.values():
             for item in items:
                 if item and item.value is not None:
