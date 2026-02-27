@@ -17,7 +17,7 @@ from langchain_core.tools import BaseTool
 logger = logging.getLogger(__name__)
 
 
-def _get_from_config(runtime: ToolRuntime, key: str) -> Optional[Any]:
+def _get_from_config(runtime: Optional[ToolRuntime], key: str) -> Optional[Any]:
     """
     从 runtime.config 中获取配置值
 

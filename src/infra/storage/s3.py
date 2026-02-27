@@ -218,7 +218,7 @@ class MinioS3Backend(S3StorageBackend):
         if self._client is None:
             import minio
 
-            endpoint: str = self.config.endpoint_url or self.config.get_endpoint_url()
+            endpoint: str | None = self.config.endpoint_url or self.config.get_endpoint_url()
             if endpoint:
                 # Remove protocol if present
                 endpoint = endpoint.replace("https://", "").replace("http://", "")

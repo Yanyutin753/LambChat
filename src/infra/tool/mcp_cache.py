@@ -10,7 +10,7 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -193,7 +193,7 @@ def get_cache_stats() -> dict:
         dict: 包含缓存统计的字典
     """
     now = time.time()
-    stats = {
+    stats: dict[str, Any] = {
         "total_entries": len(_tools_cache),
         "entries": [],
     }

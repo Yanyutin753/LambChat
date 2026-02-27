@@ -648,6 +648,7 @@ class MCPStorage:
                 )
 
                 # Check if exists
+                existing: Optional[SystemMCPServer] | Optional[UserMCPServer] = None
                 if is_admin:
                     existing = await self.get_system_server(name)
                 else:

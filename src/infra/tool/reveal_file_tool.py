@@ -48,19 +48,19 @@ def _get_backend_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[Backen
             if isinstance(config, dict):
                 configurable = config.get("configurable", {})
                 if isinstance(configurable, dict):
-                    backend: Optional[BackendProtocol] = configurable.get("backend")
+                    backend: Optional[BackendProtocol] = configurable.get("backend")  # type: ignore[assignment]
                     if backend is not None:
                         logger.debug("Got backend from runtime.config['configurable']['backend']")
                         return backend
                 # 也检查直接的 backend 键
-                backend = config.get("backend")
+                backend = config.get("backend")  # type: ignore[assignment]
                 if backend is not None:
                     logger.debug("Got backend from runtime.config['backend']")
                     return backend
 
         # 方式2: 从 runtime 的 attributes 中获取
         if hasattr(runtime, "attributes"):
-            backend: Optional[BackendProtocol] = runtime.attributes.get("backend")
+            backend = runtime.attributes.get("backend")  # type: ignore[assignment]
             if backend is not None:
                 logger.debug("Got backend from runtime.attributes['backend']")
                 return backend
@@ -69,7 +69,7 @@ def _get_backend_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[Backen
         if hasattr(runtime, "configurable"):
             config = runtime.configurable
             if isinstance(config, dict):
-                backend = config.get("backend")
+                backend = config.get("backend")  # type: ignore[assignment]
                 if backend is not None:
                     logger.debug("Got backend from runtime.configurable['backend']")
                     return backend

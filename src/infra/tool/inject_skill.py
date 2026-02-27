@@ -100,7 +100,7 @@ async def inject_skill(
         available_skills: list[str] = []
         try:
             skills = await middleware.load_all_skills_async()
-            available_skills = [s.get("name") for s in skills if s.get("name")]
+            available_skills = [s["name"] for s in skills if s.get("name")]
         except Exception:
             pass
 

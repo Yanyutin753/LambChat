@@ -41,7 +41,7 @@ class AgentContext:
         self.user_id = user_id
         self.disabled_tools = disabled_tools  # 用户禁用的工具列表
         self.skills_middleware = None
-        self.mcp_manager = None
+        self.mcp_manager: Optional[MCPClientManager] = None
         self.tools: List[Any] = []
         self.system_prompt = DEFAULT_SYSTEM_PROMPT
 

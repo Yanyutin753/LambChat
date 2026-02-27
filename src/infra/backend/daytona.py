@@ -5,6 +5,7 @@
 支持客户端侧强制超时，通过 DAYTONA_TIMEOUT 配置（settings > 环境变量 > 默认值）。
 """
 
+import asyncio
 import concurrent.futures
 import logging
 import os
@@ -17,6 +18,7 @@ from deepagents.backends.protocol import (
     FileInfo,
     FileUploadResponse,
     GrepMatch,
+    WriteResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
 
@@ -193,10 +195,12 @@ class DaytonaBackend(BaseSandbox):
                     )
                 )
             else:
+                # Ensure content is bytes
+                content_bytes: bytes = content.encode() if isinstance(content, str) else content
                 mapped_responses.append(
                     FileDownloadResponse(
                         path=resp.source,
-                        content=content,
+                        content=content_bytes,
                         error=None,
                     )
                 )
@@ -228,3 +232,41 @@ class DaytonaBackend(BaseSandbox):
             self._sandbox.fs.upload_files(upload_requests)
 
         return responses
+
+    # ── write (create new file) ───────────────────────────────────────
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        """Write content to a new file in the filesystem, error if file exists.
+
+        Args:
+            file_path: Absolute path where the file should be created. Must start with '/'.
+            content: String content to write to the file.
+
+        Returns:
+            WriteResult
+        """
+        # Validate path
+        if not file_path.startswith("/"):
+            return WriteResult(error="invalid_path: path must start with '/'")
+
+        try:
+            # Check if file already exists
+            existing = self._sandbox.fs.find_files(
+                os.path.dirname(file_path) or "/", os.path.basename(file_path)
+            )
+            if existing:
+                return WriteResult(error=f"File '{file_path}' already exists")
+
+            # Upload the new file
+            upload_request = FileUpload(source=content.encode("utf-8"), destination=file_path)
+            self._sandbox.fs.upload_files([upload_request])
+
+            return WriteResult(path=file_path, files_update=None)
+
+        except Exception as e:
+            logger.error(f"Failed to write file {file_path}: {e}")
+            return WriteResult(error=str(e))
+
+    async def awrite(self, file_path: str, content: str) -> WriteResult:
+        """Async version of write."""
+        return await asyncio.to_thread(self.write, file_path, content)

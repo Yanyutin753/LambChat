@@ -11,7 +11,7 @@ Human Input 路由
 
 import asyncio
 import uuid
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -159,7 +159,7 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
             # 获取结果
             for task in done:
                 try:
-                    result: Optional[ApprovalResponse] = task.result()
+                    result: Any = task.result()
                     if result:
                         return result
                 except asyncio.TimeoutError:

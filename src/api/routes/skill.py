@@ -5,11 +5,13 @@ Provides endpoints for managing skill configurations.
 Follows the same pattern as MCP routes for consistency.
 """
 
+from typing import Optional, cast
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.deps import require_permissions
 from src.infra.skill.github_sync import GitHubSyncService
-from src.infra.skill.storage import SkillStorage
+from src.infra.skill.storage import SkillStorage, SystemSkill, UserSkill
 from src.kernel.schemas.skill import (
     GitHubInstallRequest,
     GitHubPreviewResponse,
@@ -262,7 +264,9 @@ async def update_skill(
 
         if current_is_system and not new_is_system:
             # Demote system skill to user skill
-            skill = await storage.demote_to_user_skill(name, user.sub, user.sub)
+            skill: Optional[UserSkill] | Optional[SystemSkill] = await storage.demote_to_user_skill(
+                name, user.sub, user.sub
+            )
             if not skill:
                 raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
             # Apply remaining updates to the new user skill
@@ -317,6 +321,9 @@ async def update_skill(
                 status_code=404, detail=f"Skill '{name}' not found or not owned by user"
             )
 
+    # After this point, skill is guaranteed to be not None
+    skill = cast(UserSkill | SystemSkill, skill)
+
     # Determine the correct user_id for file sync
     final_system_skill = await storage.get_system_skill(skill.name)
     file_user_id = "system" if final_system_skill else user.sub
@@ -343,18 +350,20 @@ async def update_skill(
             updated_at=final_system_skill.updated_at,
         )
     else:
+        # Cast to UserSkill since we know it's a user skill here
+        user_skill = cast(UserSkill, skill)
         return SkillResponse(
-            name=skill.name,
-            description=skill.description,
-            content=skill.content,
-            enabled=skill.enabled,
-            source=skill.source,
-            github_url=skill.github_url,
-            version=skill.version,
+            name=user_skill.name,
+            description=user_skill.description,
+            content=user_skill.content,
+            enabled=user_skill.enabled,
+            source=user_skill.source,
+            github_url=user_skill.github_url,
+            version=user_skill.version,
             is_system=False,
             can_edit=True,
-            created_at=skill.created_at,
-            updated_at=skill.updated_at,
+            created_at=user_skill.created_at,
+            updated_at=user_skill.updated_at,
         )
 
 

@@ -95,7 +95,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
         else:
 
-            def backend(rt):
+            def backend(rt):  # type: ignore[misc]
                 return StateBackend(rt)
 
             context.system_prompt = DEFAULT_SYSTEM_PROMPT

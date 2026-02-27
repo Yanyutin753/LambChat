@@ -101,7 +101,7 @@ class SandboxFactory:
             client = RunloopSDK(bearer_token=api_key)
             # Runloop API 使用 lifetime_minutes 参数
             lifetime_minutes = ttl_seconds // 60
-            devbox = client.devbox.create(lifetime_minutes=lifetime_minutes)
+            devbox = client.devbox.create(lifetime_minutes=lifetime_minutes)  # type: ignore[call-arg]
             backend = RunloopSandbox(devbox=devbox)
 
             # 注册以便追踪和关闭
@@ -147,6 +147,7 @@ class SandboxFactory:
             # 创建带 TTL 的 sandbox
             params = CreateSandboxFromSnapshotParams(
                 auto_delete_interval=ttl_seconds,  # 自动删除间隔
+                language="python",
             )
             sandbox = client.create(params)
             backend = DaytonaBackend(sandbox=sandbox)

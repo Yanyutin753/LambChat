@@ -73,9 +73,9 @@ class SkillManager:
         if self.storage:
             try:
                 if self.user_id:
-                    mongo_skills: list[UserSkill] = await self.storage.list_user_skills(
-                        self.user_id
-                    )
+                    mongo_skills: (
+                        list[UserSkill] | list[SystemSkill]
+                    ) = await self.storage.list_user_skills(self.user_id)
                 else:
                     mongo_skills = await self.storage.list_system_skills()
                 for s in mongo_skills:
@@ -171,7 +171,8 @@ class SkillManager:
                         skill_name, self.user_id
                     )
                 else:
-                    skill: Optional[SystemSkill] = await self.storage.get_system_skill(skill_name)
+                    system_skill = await self.storage.get_system_skill(skill_name)
+                    skill = system_skill  # type: ignore[assignment]
                 if skill:
                     return {
                         "name": skill.name,
