@@ -7,6 +7,7 @@ Session-Sandbox 绑定管理器
 - 下次对话时从 stopped/archived 状态恢复
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
@@ -22,6 +23,9 @@ if TYPE_CHECKING:
     from deepagents.backends.protocol import SandboxBackendProtocol
 
 logger = logging.getLogger(__name__)
+
+# Daytona API 操作的默认超时（秒）
+DEFAULT_DAYTONA_TIMEOUT = 120
 
 
 class SessionSandboxManager:
@@ -124,25 +128,43 @@ class SessionSandboxManager:
         else:
             sandbox_id, _ = self._cache[session_id]
 
-        try:
+        def _sync_stop():
             client = self._get_daytona_client()
             sandbox = client.get(sandbox_id)
             sandbox.stop(timeout=30)
+
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(_sync_stop),
+                timeout=DEFAULT_DAYTONA_TIMEOUT,
+            )
             await self._update_session_metadata(session_id, sandbox_id, "stopped")
             logger.info(f"[SessionSandboxManager] Stopped sandbox {sandbox_id}")
             return True
+        except asyncio.TimeoutError:
+            logger.error(f"[SessionSandboxManager] Timeout stopping sandbox {sandbox_id}")
+            return False
         except Exception as e:
             logger.error(f"[SessionSandboxManager] Failed to stop sandbox {sandbox_id}: {e}")
             return False
 
     async def _get_sandbox_state(self, sandbox_id: str) -> str:
         """查询沙箱状态: running / stopped / archived / destroyed"""
-        try:
+
+        def _sync_get_state():
             client = self._get_daytona_client()
             sandbox = client.get(sandbox_id)
             # state 是 SandboxState 枚举，转换为小写字符串
-            state = str(sandbox.state).lower()
-            return state
+            return str(sandbox.state).lower()
+
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(_sync_get_state),
+                timeout=DEFAULT_DAYTONA_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"[SessionSandboxManager] Timeout getting sandbox {sandbox_id} state")
+            return "unknown"
         except Exception as e:
             # 如果沙箱不存在，返回 destroyed
             if "not found" in str(e).lower():
@@ -151,15 +173,29 @@ class SessionSandboxManager:
 
     async def _start_sandbox(self, sandbox_id: str) -> None:
         """启动沙箱"""
-        client = self._get_daytona_client()
-        sandbox = client.get(sandbox_id)
-        sandbox.start(timeout=60)
+
+        def _sync_start():
+            client = self._get_daytona_client()
+            sandbox = client.get(sandbox_id)
+            sandbox.start(timeout=60)
+
+        await asyncio.wait_for(
+            asyncio.to_thread(_sync_start),
+            timeout=DEFAULT_DAYTONA_TIMEOUT,
+        )
 
     async def _create_backend(self, sandbox_id: str) -> "SandboxBackendProtocol":
         """为已存在的沙箱创建 backend 包装"""
-        client = self._get_daytona_client()
-        sandbox = client.get(sandbox_id)
-        return DaytonaBackend(sandbox=sandbox)
+
+        def _sync_create_backend():
+            client = self._get_daytona_client()
+            sandbox = client.get(sandbox_id)
+            return DaytonaBackend(sandbox=sandbox)
+
+        return await asyncio.wait_for(
+            asyncio.to_thread(_sync_create_backend),
+            timeout=DEFAULT_DAYTONA_TIMEOUT,
+        )
 
     async def _create_and_bind(
         self,
@@ -167,24 +203,32 @@ class SessionSandboxManager:
         user_id: str,
     ) -> "SandboxBackendProtocol":
         """创建新沙箱并绑定到 session（替换旧的）"""
-        client = self._get_daytona_client()
 
-        # 创建带 auto_stop_interval 的沙箱
-        params = CreateSandboxFromSnapshotParams(
-            auto_stop_interval=settings.SANDBOX_AUTO_STOP_INTERVAL,
-            language="python",
+        def _sync_create():
+            client = self._get_daytona_client()
+            params = CreateSandboxFromSnapshotParams(
+                auto_stop_interval=settings.SANDBOX_AUTO_STOP_INTERVAL,
+                language="python",
+            )
+            sandbox = client.create(params)
+            return DaytonaBackend(sandbox=sandbox)
+
+        backend = await asyncio.wait_for(
+            asyncio.to_thread(_sync_create),
+            timeout=DEFAULT_DAYTONA_TIMEOUT,
         )
-        sandbox = client.create(params)
-        backend = DaytonaBackend(sandbox=sandbox)
+
+        # 获取 sandbox_id
+        sandbox_id = backend.id
 
         # 更新 session metadata（覆盖旧的 sandbox_id）
-        await self._update_session_metadata(session_id, sandbox.id, "running", is_new=True)
+        await self._update_session_metadata(session_id, sandbox_id, "running", is_new=True)
 
         # 更新内存缓存
-        self._cache[session_id] = (sandbox.id, backend)
+        self._cache[session_id] = (sandbox_id, backend)
 
         logger.info(
-            f"[SessionSandboxManager] Created sandbox {sandbox.id} for session {session_id}"
+            f"[SessionSandboxManager] Created sandbox {sandbox_id} for session {session_id}"
         )
 
         return backend
