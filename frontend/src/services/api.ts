@@ -336,6 +336,9 @@ export const authApi = {
     // 保存 tokens
     setTokens(response.access_token, response.refresh_token);
 
+    // 通知登录成功
+    window.dispatchEvent(new CustomEvent("auth:login"));
+
     return response;
   },
 
@@ -703,6 +706,18 @@ export const sessionApi = {
       params.set("token", token);
     }
     return `${API_BASE}/api/chat/sessions/${sessionId}/stream?${params.toString()}`;
+  },
+
+  /**
+   * Get sandbox init stream URL for SSE
+   */
+  getSandboxInitUrl(sessionId: string) {
+    const token = getAccessToken();
+    const params = new URLSearchParams();
+    if (token) {
+      params.set("token", token);
+    }
+    return `${API_BASE}/api/sessions/${sessionId}/sandbox/init?${params.toString()}`;
   },
 
   /**

@@ -1,5 +1,4 @@
 {
-  "appName": "LambChat",
   "about": {
     "appVersion": "版本",
     "buildTime": "构建时间",
@@ -13,6 +12,7 @@
       "label": "启用思考"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "批准",
     "enterResponse": "请输入回复...",
@@ -64,13 +64,13 @@
   "categories": {
     "agent": "代理",
     "database": "数据库",
-    "skills": "技能",
     "frontend": "前端",
     "llm": "大语言模型",
     "s3": "S3 存储",
     "sandbox": "沙盒",
     "security": "安全",
     "session": "会话",
+    "skills": "技能",
     "tools": "工具",
     "tracing": "追踪",
     "user": "用户管理"
@@ -97,6 +97,11 @@
     "noPermission": "没有发送消息的权限",
     "noPermissionHint": "您没有发送消息的权限",
     "placeholder": "问我任何问题...",
+    "sandbox": {
+      "error": "初始化失败",
+      "initializing": "正在初始化环境...",
+      "ready": "环境已就绪"
+    },
     "send": "发送消息",
     "shiftEnterNewLine": "换行",
     "stop": "停止生成",
@@ -218,6 +223,7 @@
     "exportFailed": "导出 MCP 服务器失败",
     "exportSuccess": "MCP 服务器导出成功",
     "exportToJSON": "导出为 JSON",
+    "featureDisabled": "MCP 功能已禁用，请联系管理员启用。",
     "form": {
       "add": "添加",
       "args": "参数（逗号分隔）",
@@ -260,7 +266,6 @@
     "loading": "加载 MCP 服务器中...",
     "noMatchingServers": "没有匹配的 MCP 服务器",
     "noPermission": "您没有权限查看 MCP 服务器。",
-    "featureDisabled": "MCP 功能已禁用，请联系管理员启用。",
     "noServers": "未配置 MCP 服务器",
     "operationFailed": "操作失败",
     "overwriteExisting": "覆盖同名服务器",
@@ -412,6 +417,7 @@
     "exportFailed": "导出技能失败",
     "exportSuccess": "技能导出成功",
     "exportToJSON": "导出为 JSON",
+    "featureDisabled": "技能功能已禁用，请联系管理员启用。",
     "form": {
       "content": "内容（支持 Markdown 和可选的 YAML frontmatter）",
       "contentPlaceholder": "# 技能指令...",
@@ -449,7 +455,6 @@
     "noDescription": "无描述",
     "noMatchingSkills": "没有匹配的技能",
     "noPermission": "您没有权限查看技能。",
-    "featureDisabled": "技能功能已禁用，请联系管理员启用。",
     "noSkills": "暂无技能",
     "operationFailed": "操作失败",
     "overwriteExisting": "覆盖同名技能",

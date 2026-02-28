@@ -5,30 +5,61 @@ Human Input 工具
 """
 
 import logging
+from enum import Enum
 from typing import Optional, Type
 
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.api.routes.human import create_approval, wait_for_response
 
 logger = logging.getLogger(__name__)
 
 
+class QuestionType(str, Enum):
+    """问题类型枚举"""
+
+    TEXT = "text"
+    CONFIRM = "confirm"
+    CHOICE = "choice"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 class AskHumanInput(BaseModel):
     """ask_human 工具的输入参数"""
 
-    question: str = Field(description="向用户提出的问题")
-    question_type: str = Field(
-        default="text",
-        description="问题类型：text（文本输入）、confirm（确认）、choice（选择）",
+    question: str = Field(
+        ...,
+        description="向用户提出的问题",
+    )
+    question_type: QuestionType = Field(
+        default=QuestionType.TEXT,
+        description="问题类型：text（文本输入）、confirm（确认）、choice（多选一）",
     )
     choices: Optional[str] = Field(
         default=None,
-        description="当 question_type 为 choice 时，用逗号分隔的选项列表，如 '选项1,选项2,选项3'",
+        description="选项列表（仅 question_type=choice 时使用，用逗号分隔）",
     )
-    default: Optional[str] = Field(default=None, description="默认值或默认选项")
-    timeout: int = Field(default=300, description="等待用户响应的超时时间（秒），默认 300秒")
+    default: Optional[str] = Field(
+        default=None,
+        description="默认值（用户未响应时使用）",
+    )
+    timeout: int = Field(
+        default=300,
+        ge=10,
+        le=3600,
+        description="等待响应的超时时间（秒）",
+    )
+
+    @field_validator("choices")
+    @classmethod
+    def parse_choices(cls, v: Optional[str]) -> Optional[list[str]]:
+        """解析 choices 为列表"""
+        if v:
+            return [c.strip() for c in v.split(",")]
+        return None
 
 
 class AskHumanTool(BaseTool):
@@ -75,7 +106,7 @@ class AskHumanTool(BaseTool):
     def _run(
         self,
         question: str,
-        question_type: str = "text",
+        question_type: QuestionType = QuestionType.TEXT,
         choices: Optional[str] = None,
         default: Optional[str] = None,
         timeout: int = 300,
@@ -86,7 +117,7 @@ class AskHumanTool(BaseTool):
     async def _arun(
         self,
         question: str,
-        question_type: str = "text",
+        question_type: QuestionType = QuestionType.TEXT,
         choices: Optional[str] = None,
         default: Optional[str] = None,
         timeout: int = 300,
@@ -94,17 +125,27 @@ class AskHumanTool(BaseTool):
         """
         异步执行：创建审批请求并等待响应
 
+        Args:
+            question: 向用户提出的问题
+            question_type: 问题类型 - text（文本输入）、confirm（确认）、choice（选择）
+            choices: 当类型为 choice 时，用逗号分隔的选项
+            default: 默认值（超时或用户未输入时使用）
+            timeout: 超时时间（秒），范围 10-3600
+
         Returns:
             用户的响应内容，或超时/拒绝的错误消息
         """
         # 解析选项
-        choices_list = None
-        if question_type == "choice" and choices:
+        choices_list: Optional[list[str]] = None
+        if question_type == QuestionType.CHOICE and choices:
             choices_list = [c.strip() for c in choices.split(",")]
+            # 如果没有设置默认值，默认使用第一个选项
+            if not default and choices_list:
+                default = choices_list[0]
 
-        # 验证 question_type
-        if question_type not in ["text", "confirm", "choice"]:
-            question_type = "text"
+        # confirm 类型设置默认值
+        if question_type == QuestionType.CONFIRM and default is None:
+            default = "false"
 
         # 获取当前请求上下文
         from src.infra.logging.context import TraceContext
@@ -113,10 +154,10 @@ class AskHumanTool(BaseTool):
         session_id = self.session_id or ctx.session_id
         run_id = ctx.run_id
 
-        # 创建审批请求（现在是异步函数）
+        # 创建审批请求
         approval = await create_approval(
             message=question,
-            approval_type=question_type,
+            approval_type=question_type.value,
             choices=choices_list,
             default=default,
             session_id=session_id or None,
@@ -129,6 +170,9 @@ class AskHumanTool(BaseTool):
         response = await wait_for_response(approval.id, timeout=timeout)
 
         if response is None:
+            # 超时：如果有默认值，使用默认值；否则返回超时消息
+            if default is not None:
+                return f"等待用户响应超时，已使用默认值：{default}"
             return f"等待用户响应超时（{timeout}秒）。请重新表述你的问题或尝试其他方案。"
 
         if not response.approved:

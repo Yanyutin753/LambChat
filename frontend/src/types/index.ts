@@ -11,7 +11,22 @@ export interface Message {
 }
 
 // 消息内容块类型
-export type MessagePart = TextPart | ToolPart | SubagentPart | ThinkingPart;
+export type MessagePart =
+  | TextPart
+  | ToolPart
+  | SubagentPart
+  | ThinkingPart
+  | SandboxPart;
+
+// Sandbox 状态块类型（用于渲染沙箱初始化状态）
+export interface SandboxPart {
+  type: "sandbox";
+  status: "starting" | "ready" | "error";
+  sandbox_id?: string;
+  work_dir?: string;
+  error?: string;
+  timestamp?: string;
+}
 
 export interface TextPart {
   type: "text";

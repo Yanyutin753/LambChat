@@ -1,5 +1,4 @@
 {
-  "appName": "LambChat",
   "about": {
     "appVersion": "버전",
     "buildTime": "빌드 시간",
@@ -13,6 +12,7 @@
       "label": "사고 활성화"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "승인",
     "enterResponse": "응답 입력...",
@@ -64,13 +64,13 @@
   "categories": {
     "agent": "에이전트",
     "database": "데이터베이스",
-    "skills": "스킬",
     "frontend": "프론트엔드",
     "llm": "LLM",
     "s3": "S3 스토리지",
     "sandbox": "샌드박스",
     "security": "보안",
     "session": "세션",
+    "skills": "스킬",
     "tools": "도구",
     "tracing": "추적",
     "user": "사용자 관리"
@@ -96,6 +96,11 @@
     "noPermission": "메시지를 보낼 권한이 없습니다",
     "noPermissionHint": "메시지를 보낼 권한이 없습니다",
     "placeholder": "무엇이든 물어보세요...",
+    "sandbox": {
+      "error": "초기화 실패",
+      "initializing": "환경 초기화 중...",
+      "ready": "환경 준비 완료"
+    },
     "send": "메시지 보내기",
     "shiftEnterNewLine": "로 줄바꿈",
     "stop": "생성 중지",
@@ -217,6 +222,7 @@
     "exportFailed": "MCP 서버 내보내기에 실패했습니다",
     "exportSuccess": "MCP 서버가 성공적으로 내보내졌습니다",
     "exportToJSON": "JSON으로 내보내기",
+    "featureDisabled": "MCP 기능이 비활성화되어 있습니다. 관리자에게 문의하여 활성화해 주세요.",
     "form": {
       "add": "추가",
       "args": "인수 (쉼표로 구분)",
@@ -259,7 +265,6 @@
     "loading": "MCP 서버 로딩 중...",
     "noMatchingServers": "일치하는 MCP 서버가 없습니다",
     "noPermission": "MCP 서버를 볼 권한이 없습니다.",
-    "featureDisabled": "MCP 기능이 비활성화되어 있습니다. 관리자에게 문의하여 활성화해 주세요.",
     "noServers": "구성된 MCP 서버가 없습니다",
     "operationFailed": "작업에 실패했습니다",
     "overwriteExisting": "동일한 이름의 기존 서버 덮어쓰기",
@@ -408,6 +413,7 @@
     "exportFailed": "스킬 내보내기에 실패했습니다",
     "exportSuccess": "스킬이 성공적으로 내보내졌습니다",
     "exportToJSON": "JSON으로 내보내기",
+    "featureDisabled": "스킬 기능이 비활성화되어 있습니다. 관리자에게 문의하여 활성화해 주세요.",
     "form": {
       "content": "내용 (Markdown 및 선택적 YAML frontmatter 지원)",
       "contentPlaceholder": "# 스킬 지침...",
@@ -445,7 +451,6 @@
     "noDescription": "설명 없음",
     "noMatchingSkills": "일치하는 스킬이 없습니다",
     "noPermission": "스킬을 볼 권한이 없습니다.",
-    "featureDisabled": "스킬 기능이 비활성화되어 있습니다. 관리자에게 문의하여 활성화해 주세요.",
     "noSkills": "스킬이 없습니다",
     "operationFailed": "작업에 실패했습니다",
     "overwriteExisting": "동일한 이름의 기존 스킬 덮어쓰기",

@@ -5,6 +5,7 @@
 管理员可以访问所有会话。
 """
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,6 +17,7 @@ from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # 管理员角色
 ADMIN_ROLES = {"admin", "administrator"}
@@ -27,8 +29,8 @@ def is_admin(user: TokenPayload) -> bool:
 
 
 def verify_session_ownership(session: Session, user: TokenPayload) -> None:
-    """验证会话所有权，非所有者或管理员抛出异常"""
-    if session.user_id != user.sub and not is_admin(user):
+    """验证会话所有权，仅允许会话所有者访问"""
+    if session.user_id != user.sub:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="无权访问此会话",

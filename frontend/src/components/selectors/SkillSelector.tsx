@@ -106,7 +106,7 @@ export function SkillSelector({
             <h2 className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100">
               {t("skillSelector.title")}
             </h2>
-            <p className="text-[11px] sm:text-xs text-stone-500 dark:text-stone-400">
+            <p className="text-xs sm:text-xs text-stone-500 dark:text-stone-400">
               {t("skillSelector.selected", {
                 enabled: enabledCount,
                 total: totalCount,
@@ -189,7 +189,7 @@ export function SkillSelector({
                     <span className="text-[13px] sm:text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t(`skillSelector.sources.${cat}`)}
                     </span>
-                    <span className="ml-1.5 sm:ml-2 text-[11px] sm:text-xs text-stone-400 dark:text-stone-500 tabular-nums">
+                    <span className="ml-1.5 sm:ml-2 text-xs sm:text-xs text-stone-400 dark:text-stone-500 tabular-nums">
                       {enabledInCategory}/{categorySkills.length}
                     </span>
                   </div>
@@ -238,12 +238,12 @@ export function SkillSelector({
                                   {skill.name}
                                 </span>
                                 {skill.is_system && (
-                                  <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
+                                  <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
                                     {t("skillSelector.system")}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[10px] sm:text-[11px] text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed">
+                              <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed">
                                 {skill.description ||
                                   t("skillSelector.noDescription")}
                               </p>

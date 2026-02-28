@@ -1,5 +1,4 @@
 {
-  "appName": "LambChat",
   "about": {
     "appVersion": "Version",
     "buildTime": "Build Time",
@@ -13,6 +12,7 @@
       "label": "Enable Thinking"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "Approve",
     "enterResponse": "Enter your response...",
@@ -64,13 +64,13 @@
   "categories": {
     "agent": "Agent",
     "database": "Database",
-    "skills": "Skills",
     "frontend": "Frontend",
     "llm": "LLM",
     "s3": "S3 Storage",
     "sandbox": "Sandbox",
     "security": "Security",
     "session": "Session",
+    "skills": "Skills",
     "tools": "Tools",
     "tracing": "Tracing",
     "user": "User Management"
@@ -97,6 +97,11 @@
     "noPermission": "No permission to send messages",
     "noPermissionHint": "You don't have permission to send messages",
     "placeholder": "Ask me anything...",
+    "sandbox": {
+      "error": "initialization failed",
+      "initializing": "initializing environment...",
+      "ready": "ready"
+    },
     "send": "Send message",
     "shiftEnterNewLine": "for new line",
     "stop": "Stop generating",
@@ -218,6 +223,7 @@
     "exportFailed": "Failed to export MCP servers",
     "exportSuccess": "MCP servers exported successfully",
     "exportToJSON": "Export to JSON",
+    "featureDisabled": "MCP feature is disabled. Please contact administrator to enable it.",
     "form": {
       "add": "Add",
       "args": "Arguments (comma-separated)",
@@ -260,7 +266,6 @@
     "loading": "Loading MCP servers...",
     "noMatchingServers": "No MCP servers match your search",
     "noPermission": "You don't have permission to view MCP servers.",
-    "featureDisabled": "MCP feature is disabled. Please contact administrator to enable it.",
     "noServers": "No MCP servers configured",
     "operationFailed": "Operation failed",
     "overwriteExisting": "Overwrite existing servers with the same name",
@@ -412,6 +417,7 @@
     "exportFailed": "Failed to export skills",
     "exportSuccess": "Skills exported successfully",
     "exportToJSON": "Export to JSON",
+    "featureDisabled": "Skills feature is disabled. Please contact administrator to enable it.",
     "form": {
       "content": "Content (Markdown with optional YAML frontmatter)",
       "contentPlaceholder": "# Skill instructions...",
@@ -449,7 +455,6 @@
     "noDescription": "No description",
     "noMatchingSkills": "No skills match your search",
     "noPermission": "You don't have permission to view skills.",
-    "featureDisabled": "Skills feature is disabled. Please contact administrator to enable it.",
     "noSkills": "No skills yet",
     "operationFailed": "Operation failed",
     "overwriteExisting": "Overwrite existing skills with the same name",

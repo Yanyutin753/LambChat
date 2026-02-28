@@ -351,11 +351,11 @@ export default function DocumentPreview({
             </h3>
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-stone-500 dark:text-stone-400 flex-wrap">
               {codeFile && (
-                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-mono text-[10px] sm:text-xs">
+                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-mono text-xs sm:text-xs">
                   {language}
                 </span>
               )}
-              <span className="text-[11px] sm:text-xs">
+              <span className="text-xs sm:text-xs">
                 {!hasTextContent
                   ? t("documents.binary")
                   : t("documents.chars", { count: displaySize })}
@@ -553,12 +553,12 @@ export default function DocumentPreview({
 
         {/* Footer - simplified on mobile */}
         <div className="px-3 sm:px-5 py-2 sm:py-3 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900">
-          <div className="flex items-center justify-between text-[10px] sm:text-xs text-stone-400 dark:text-stone-500">
+          <div className="flex items-center justify-between text-xs sm:text-xs text-stone-400 dark:text-stone-500">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
               <span className="font-medium text-stone-500 dark:text-stone-400 hidden xs:inline">
                 {t("documents.path")}:
               </span>
-              <span className="font-mono text-stone-600 dark:text-stone-300 truncate text-[11px] sm:text-xs">
+              <span className="font-mono text-stone-600 dark:text-stone-300 truncate text-xs sm:text-xs">
                 {path}
               </span>
             </div>

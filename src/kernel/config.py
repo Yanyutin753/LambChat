@@ -276,6 +276,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.TOOLS,
         "description": "Enable MCP feature",
         "default": True,
+        "frontend_visible": True,
     },
     # ============================================
     # Database Settings (MongoDB)

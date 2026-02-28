@@ -76,7 +76,6 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
   );
 
   // 初始加载时获取一次（用于页面刷新后恢复状态）
-  // 之后不再轮询，依赖 SSE 推送新的 approval
   useEffect(() => {
     if (!sessionId) return;
     fetchApprovals();

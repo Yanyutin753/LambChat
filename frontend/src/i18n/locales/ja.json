@@ -1,5 +1,4 @@
 {
-  "appName": "LambChat",
   "about": {
     "appVersion": "バージョン",
     "buildTime": "ビルド時刻",
@@ -13,6 +12,7 @@
       "label": "思考を有効化"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "承認",
     "enterResponse": "返信を入力...",
@@ -64,13 +64,13 @@
   "categories": {
     "agent": "エージェント",
     "database": "データベース",
-    "skills": "スキル",
     "frontend": "フロントエンド",
     "llm": "LLM",
     "s3": "S3 ストレージ",
     "sandbox": "サンドボックス",
     "security": "セキュリティ",
     "session": "セッション",
+    "skills": "スキル",
     "tools": "ツール",
     "tracing": "トレース",
     "user": "ユーザー管理"
@@ -96,6 +96,11 @@
     "noPermission": "メッセージを送信する権限がありません",
     "noPermissionHint": "メッセージを送信する権限がありません",
     "placeholder": "何でも質問してください...",
+    "sandbox": {
+      "error": "初期化に失敗しました",
+      "initializing": "環境を初期化中...",
+      "ready": "準備完了"
+    },
     "send": "メッセージを送信",
     "shiftEnterNewLine": "で改行",
     "stop": "生成を停止",
@@ -217,6 +222,7 @@
     "exportFailed": "MCPサーバーのエクスポートに失敗しました",
     "exportSuccess": "MCPサーバーが正常にエクスポートされました",
     "exportToJSON": "JSONにエクスポート",
+    "featureDisabled": "MCP機能が無効です。管理者に連絡して有効にしてください。",
     "form": {
       "add": "追加",
       "args": "引数（カンマ区切り）",
@@ -259,7 +265,6 @@
     "loading": "MCPサーバーを読み込み中...",
     "noMatchingServers": "一致するMCPサーバーがありません",
     "noPermission": "MCPサーバーを表示する権限がありません。",
-    "featureDisabled": "MCP機能が無効です。管理者に連絡して有効にしてください。",
     "noServers": "MCPサーバーが設定されていません",
     "operationFailed": "操作に失敗しました",
     "overwriteExisting": "同名の既存サーバーを上書き",
@@ -408,6 +413,7 @@
     "exportFailed": "スキルのエクスポートに失敗しました",
     "exportSuccess": "スキルが正常にエクスポートされました",
     "exportToJSON": "JSONにエクスポート",
+    "featureDisabled": "スキル機能が無効です。管理者に連絡して有効にしてください。",
     "form": {
       "content": "コンテンツ（MarkdownとオプションのYAML frontmatterに対応）",
       "contentPlaceholder": "# スキル指示...",
@@ -445,7 +451,6 @@
     "noDescription": "説明なし",
     "noMatchingSkills": "一致するスキルがありません",
     "noPermission": "スキルを表示する権限がありません。",
-    "featureDisabled": "スキル機能が無効です。管理者に連絡して有効にしてください。",
     "noSkills": "スキルがありません",
     "operationFailed": "操作に失敗しました",
     "overwriteExisting": "同名の既存スキルを上書き",

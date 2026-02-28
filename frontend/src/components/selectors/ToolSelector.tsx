@@ -118,7 +118,7 @@ export function ToolSelector({
             <h2 className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100">
               {t("tools.title")}
             </h2>
-            <p className="text-[11px] sm:text-xs text-stone-500 dark:text-stone-400">
+            <p className="text-xs sm:text-xs text-stone-500 dark:text-stone-400">
               {t("tools.selected", {
                 enabled: enabledCount,
                 total: totalCount,
@@ -201,7 +201,7 @@ export function ToolSelector({
                     <span className="text-[13px] sm:text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t(`tools.categories.${cat}`)}
                     </span>
-                    <span className="ml-1.5 sm:ml-2 text-[11px] sm:text-xs text-stone-400 dark:text-stone-500 tabular-nums">
+                    <span className="ml-1.5 sm:ml-2 text-xs sm:text-xs text-stone-400 dark:text-stone-500 tabular-nums">
                       {enabledInCategory}/{categoryTools.length}
                     </span>
                   </div>
@@ -274,12 +274,12 @@ export function ToolSelector({
                                     {tool.name}
                                   </span>
                                   {tool.server && (
-                                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
+                                    <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
                                       {tool.server}
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-[10px] sm:text-[11px] text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed">
+                                <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed">
                                   {tool.description || t("tools.noDescription")}
                                 </p>
                               </div>
@@ -315,13 +315,13 @@ export function ToolSelector({
                                       size={10}
                                       className="text-stone-400 dark:text-stone-500 sm:w-[11px] sm:h-[11px]"
                                     />
-                                    <span className="text-[10px] sm:text-[11px] font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
+                                    <span className="text-xs sm:text-xs font-medium text-stone-500 dark:text-stone-400 uppercase tracking-wide">
                                       {t("tools.parameters")}
                                     </span>
                                   </div>
                                   {/* Table Body */}
                                   <div className="bg-white dark:bg-stone-800">
-                                    <table className="w-full text-[11px] sm:text-xs">
+                                    <table className="w-full text-xs sm:text-xs">
                                       <thead>
                                         <tr className="border-b border-stone-100 dark:border-stone-700">
                                           <th className="px-2.5 sm:px-3 py-1.5 text-left font-medium text-stone-400 dark:text-stone-500 uppercase tracking-wide w-auto">
@@ -355,7 +355,7 @@ export function ToolSelector({
                                                 </div>
                                               </td>
                                               <td className="px-2.5 sm:px-3 py-1.5">
-                                                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300 font-mono text-[10px]">
+                                                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-600 dark:text-stone-300 font-mono text-xs">
                                                   {param.type}
                                                 </span>
                                               </td>

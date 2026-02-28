@@ -212,10 +212,13 @@ class ApprovalStorage:
 
     async def get_response(self, approval_id: str) -> Optional[ApprovalResponse]:
         """获取审批响应"""
-        doc = await self.collection.find_one({"_id": approval_id}, {"response": 1})
+        doc = await self.collection.find_one({"_id": approval_id})
         if not doc or "response" not in doc:
             return None
-        return ApprovalResponse(**doc["response"])
+        response_data = doc["response"]
+        if not isinstance(response_data, dict):
+            return None
+        return ApprovalResponse(**response_data)
 
 
 @lru_cache
@@ -225,44 +228,19 @@ def get_approval_storage() -> ApprovalStorage:
 
 
 # ============================================================================
-# 分布式通知 (使用 Redis Stream)
+# 分布式通知 (仅使用 MongoDB 轮询)
 # ============================================================================
-
-# Redis Stream key 前缀
-APPROVAL_STREAM_PREFIX = "approval:response:"
-
-
-async def _get_redis_storage():
-    """获取 Redis 存储实例"""
-    from src.infra.storage.redis import RedisStorage
-
-    return RedisStorage()
 
 
 async def notify_approval_response(approval_id: str, response: ApprovalResponse) -> None:
     """
-    通知等待的 Agent 审批已响应（分布式支持）
+    通知等待的 Agent 审批已响应
 
-    通过 Redis Stream 发布响应消息，支持跨进程/跨机器通知。
+    仅使用 MongoDB 存储响应，wait_for_response 通过轮询检测变化。
     """
-    try:
-        redis_storage = await _get_redis_storage()
-        stream_key = f"{APPROVAL_STREAM_PREFIX}{approval_id}"
-        await redis_storage.xadd(
-            stream_key,
-            {
-                "approved": str(response.approved),
-                "response": response.response,
-            },
-            maxlen=10,  # 只保留最近 10 条消息
-        )
-    except Exception as e:
-        # Redis 不可用时降级为 MongoDB 轮询
-        import logging
-
-        logging.getLogger(__name__).warning(
-            f"Redis notification failed, falling back to MongoDB polling: {e}"
-        )
+    # MongoDB 存储响应在 update_status 时已完成
+    # 这里保留空实现以保持接口兼容性
+    pass
 
 
 async def wait_for_response_distributed(
@@ -271,81 +249,26 @@ async def wait_for_response_distributed(
     poll_interval: float = 0.5,
 ) -> Optional[ApprovalResponse]:
     """
-    分布式等待审批响应
-
-    优先使用 Redis Stream 等待通知，如果 Redis 不可用则降级为 MongoDB 轮询。
+    等待审批响应 (仅使用 MongoDB 轮询)
 
     Args:
         approval_id: 审批 ID
         timeout: 超时时间（秒）
-        poll_interval: MongoDB 轮询间隔（秒），仅当 Redis 不可用时使用
+        poll_interval: MongoDB 轮询间隔（秒）
 
     Returns:
         ApprovalResponse 或 None (超时)
     """
     storage = get_approval_storage()
-    stream_key = f"{APPROVAL_STREAM_PREFIX}{approval_id}"
+    start_time = asyncio.get_event_loop().time()
 
-    try:
-        # 方式 1: 使用 Redis Stream 等待（推荐）
-        redis_storage = await _get_redis_storage()
+    while True:
+        elapsed = asyncio.get_event_loop().time() - start_time
+        if elapsed >= timeout:
+            return None
 
-        # 先检查是否已有响应
         response = await storage.get_response(approval_id)
         if response:
             return response
 
-        # 使用 XREAD 阻塞等待新消息
-        start_time = asyncio.get_event_loop().time()
-        last_id = "0"  # 从头开始读取
-
-        while True:
-            elapsed = asyncio.get_event_loop().time() - start_time
-            if elapsed >= timeout:
-                return None
-
-            remaining = timeout - elapsed
-            block_ms = min(int(remaining * 1000), 5000)  # 最多阻塞 5 秒
-
-            try:
-                result = await redis_storage.xread(
-                    {stream_key: last_id},
-                    count=1,
-                    block=block_ms,
-                )
-
-                if result:
-                    for stream_name, entries in result:
-                        for entry_id, fields in entries:
-                            last_id = entry_id
-                            approved = fields.get("approved", "false").lower() == "true"
-                            response_text = fields.get("response", "")
-                            return ApprovalResponse(approved=approved, response=response_text)
-            except Exception:
-                pass
-
-            # 每次循环检查 MongoDB（双重保障）
-            response = await storage.get_response(approval_id)
-            if response:
-                return response
-
-    except Exception as e:
-        # 方式 2: 降级为 MongoDB 轮询
-        import logging
-
-        logging.getLogger(__name__).warning(
-            f"Redis Stream wait failed, falling back to MongoDB polling: {e}"
-        )
-
-        start_time = asyncio.get_event_loop().time()
-
-        while True:
-            elapsed = asyncio.get_event_loop().time() - start_time
-            if elapsed >= timeout:
-                return None
-
-            response = await storage.get_response(approval_id)
-            if response:
-                return response
-
-            await asyncio.sleep(poll_interval)
+        await asyncio.sleep(poll_interval)

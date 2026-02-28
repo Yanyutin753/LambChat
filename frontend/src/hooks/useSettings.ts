@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import { settingsApi } from "../services/api";
+import { settingsApi, getAccessToken } from "../services/api";
 import type { SettingsResponse } from "../types";
 
 export function useSettings() {
@@ -9,6 +9,10 @@ export function useSettings() {
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
 
   const fetchSettings = useCallback(async () => {
+    // 没有 token 时不请求 settings
+    if (!getAccessToken()) {
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -23,6 +27,19 @@ export function useSettings() {
 
   useEffect(() => {
     fetchSettings();
+  }, [fetchSettings]);
+
+  // 监听登录成功事件，重新加载 settings
+  useEffect(() => {
+    const handleAuthChange = () => {
+      fetchSettings();
+    };
+
+    window.addEventListener("auth:login", handleAuthChange);
+
+    return () => {
+      window.removeEventListener("auth:login", handleAuthChange);
+    };
   }, [fetchSettings]);
 
   const updateSetting = useCallback(

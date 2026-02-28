@@ -11,7 +11,7 @@ Human Input 路由
 
 import asyncio
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -123,10 +123,9 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
     """
     等待审批响应 (供 Agent 调用)
 
-    支持分布式部署：
-    1. 优先使用本地 asyncio.Event（单进程内快速响应）
-    2. 使用 Redis Stream 等待（跨进程通知）
-    3. 降级为 MongoDB 轮询（Redis 不可用时）
+    使用本地 asyncio.Event + MongoDB 轮询：
+    1. 优先使用本地 Event（单进程内快速响应）
+    2. 使用 MongoDB 轮询作为后备
 
     Args:
         approval_id: 审批 ID
@@ -138,16 +137,21 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
     local_event = _local_events.get(approval_id)
 
     if local_event:
-        # 单进程内：同时等待本地 Event 和分布式通知
+        # 单进程内：同时等待本地 Event 和 MongoDB 轮询
         try:
-            # 创建两个任务：本地 Event 和分布式等待
+            # 先检查是否已有响应
+            response = await _approval_storage.get_response(approval_id)
+            if response:
+                return response
+
+            # 创建两个任务：本地 Event 和 MongoDB 轮询
             local_wait = asyncio.wait_for(local_event.wait(), timeout=timeout)
-            distributed_wait = wait_for_response_distributed(approval_id, timeout)
+            mongo_wait = wait_for_response_distributed(approval_id, timeout)
 
             done, pending = await asyncio.wait(
                 [
                     asyncio.create_task(local_wait),
-                    asyncio.create_task(distributed_wait),
+                    asyncio.create_task(mongo_wait),
                 ],
                 return_when=asyncio.FIRST_COMPLETED,
             )
@@ -156,12 +160,11 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
             for task in pending:
                 task.cancel()
 
-            # 获取结果
+            # 获取结果（local_event.wait() 返回 True，需要从 MongoDB 获取实际响应）
             for task in done:
                 try:
-                    result: Any = task.result()
-                    if result:
-                        return result
+                    # local_event.wait() 返回 True，表示事件被触发，但实际响应在 MongoDB 中
+                    task.result()
                 except asyncio.TimeoutError:
                     pass
                 except Exception as e:
@@ -173,7 +176,7 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
         finally:
             _local_events.pop(approval_id, None)
     else:
-        # 跨进程：直接使用分布式等待
+        # 跨进程：直接使用 MongoDB 轮询
         return await wait_for_response_distributed(approval_id, timeout)
 
 

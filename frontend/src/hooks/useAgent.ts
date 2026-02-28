@@ -11,6 +11,7 @@ import type {
   SubagentPart,
   ThinkingPart,
   MessagePart,
+  SandboxPart,
 } from "../types";
 import {
   sessionApi,
@@ -43,6 +44,10 @@ type EventType =
   | "workflow:step_start"
   | "workflow:step_end"
   | "approval_required"
+  | "sandbox:starting"
+  | "sandbox:state"
+  | "sandbox:ready"
+  | "sandbox:error"
   | "done"
   | "error";
 
@@ -72,6 +77,11 @@ interface EventData {
   message?: string;
   choices?: string[];
   default?: string;
+  // sandbox event fields
+  state?: string;
+  sandbox_id?: string;
+  work_dir?: string;
+  timestamp?: string;
 }
 
 interface UseAgentOptions {
@@ -99,6 +109,10 @@ export function useAgent(options?: UseAgentOptions) {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [newlyCreatedSession, setNewlyCreatedSession] =
     useState<BackendSession | null>(null);
+
+  // Sandbox initialization state
+  const [isInitializingSandbox, setIsInitializingSandbox] = useState(false);
+  const [sandboxError, setSandboxError] = useState<string | null>(null);
 
   // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -680,6 +694,102 @@ export function useAgent(options?: UseAgentOptions) {
               "[SSE] approval_required event NOT processed - missing id or callback",
             );
           }
+          break;
+        }
+
+        case "sandbox:starting": {
+          console.log("[SSE] sandbox:starting event received");
+          setIsInitializingSandbox(true);
+          setSandboxError(null);
+          // 同时添加到消息中显示
+          const startingPart: SandboxPart = {
+            type: "sandbox",
+            status: "starting",
+            timestamp: data.timestamp,
+          };
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== messageId) return m;
+              const parts = m.parts || [];
+              // 替换任何现有的 sandbox 状态为 starting
+              const newParts = parts.some((p) => p.type === "sandbox")
+                ? parts.map((p) => (p.type === "sandbox" ? startingPart : p))
+                : [...parts, startingPart];
+              return { ...m, parts: newParts };
+            }),
+          );
+          break;
+        }
+
+        case "sandbox:state": {
+          console.log("[SSE] sandbox:state event received:", data.state);
+          // 更新 sandbox 状态到消息中显示
+          const statePart: SandboxPart = {
+            type: "sandbox",
+            status: data.state as "starting" | "ready" | "error",
+            timestamp: data.timestamp,
+          };
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== messageId) return m;
+              const parts = m.parts || [];
+              // 替换任何现有的 sandbox 状态
+              const newParts = parts.some((p) => p.type === "sandbox")
+                ? parts.map((p) => (p.type === "sandbox" ? statePart : p))
+                : [...parts, statePart];
+              return { ...m, parts: newParts };
+            }),
+          );
+          break;
+        }
+
+        case "sandbox:ready": {
+          console.log("[SSE] sandbox:ready event received:", data.sandbox_id);
+          setIsInitializingSandbox(false);
+          // 同时添加到消息中显示
+          const readyPart: SandboxPart = {
+            type: "sandbox",
+            status: "ready",
+            sandbox_id: data.sandbox_id,
+            work_dir: data.work_dir,
+            timestamp: data.timestamp,
+          };
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== messageId) return m;
+              const parts = m.parts || [];
+              // 替换任何现有的 sandbox 状态为 ready
+              const newParts = parts.some((p) => p.type === "sandbox")
+                ? parts.map((p) => (p.type === "sandbox" ? readyPart : p))
+                : [...parts, readyPart];
+              return { ...m, parts: newParts };
+            }),
+          );
+          break;
+        }
+
+        case "sandbox:error": {
+          console.log("[SSE] sandbox:error event received:", data.error);
+          setIsInitializingSandbox(false);
+          setSandboxError(data.error || "沙箱初始化失败");
+          // 同时添加到消息中显示
+          const errorPart: SandboxPart = {
+            type: "sandbox",
+            status: "error",
+            error: data.error,
+            timestamp: data.timestamp,
+          };
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== messageId) return m;
+              const parts = m.parts || [];
+              // 替换任何现有的 sandbox 状态为 error
+              const newParts = parts.some((p) => p.type === "sandbox")
+                ? parts.map((p) => (p.type === "sandbox" ? errorPart : p))
+                : [...parts, errorPart];
+              return { ...m, parts: newParts };
+            }),
+          );
           break;
         }
       }
@@ -1293,6 +1403,10 @@ export function useAgent(options?: UseAgentOptions) {
                 agent_id?: string;
                 agent_name?: string;
                 input?: string;
+                timestamp?: string;
+                sandbox_id?: string;
+                work_dir?: string;
+                error?: string;
               };
               const depth = eventData.depth || 0;
               const agentId = eventData.agent_id;
@@ -1579,6 +1693,76 @@ export function useAgent(options?: UseAgentOptions) {
                     toolResult,
                   ];
                 }
+              } else if (eventType === "sandbox:starting") {
+                // Sandbox 开始初始化
+                if (!currentAssistantMessage) {
+                  currentAssistantMessage = {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    content: "",
+                    timestamp: new Date(event.timestamp || Date.now()),
+                    parts: [],
+                    isStreaming: false,
+                  };
+                }
+                const sandboxPart: SandboxPart = {
+                  type: "sandbox",
+                  status: "starting",
+                  timestamp: eventData.timestamp,
+                };
+                const parts = currentAssistantMessage.parts || [];
+                currentAssistantMessage.parts = [...parts, sandboxPart];
+              } else if (eventType === "sandbox:ready") {
+                // Sandbox 就绪
+                if (!currentAssistantMessage) {
+                  currentAssistantMessage = {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    content: "",
+                    timestamp: new Date(event.timestamp || Date.now()),
+                    parts: [],
+                    isStreaming: false,
+                  };
+                }
+                const sandboxPart: SandboxPart = {
+                  type: "sandbox",
+                  status: "ready",
+                  sandbox_id: eventData.sandbox_id,
+                  work_dir: eventData.work_dir,
+                  timestamp: eventData.timestamp,
+                };
+                const parts = currentAssistantMessage.parts || [];
+                // 替换 starting 为 ready
+                const newParts = parts.map((p) =>
+                  p.type === "sandbox" && p.status === "starting"
+                    ? sandboxPart
+                    : p,
+                );
+                currentAssistantMessage.parts = newParts;
+              } else if (eventType === "sandbox:error") {
+                // Sandbox 错误
+                if (!currentAssistantMessage) {
+                  currentAssistantMessage = {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    content: "",
+                    timestamp: new Date(event.timestamp || Date.now()),
+                    parts: [],
+                    isStreaming: false,
+                  };
+                }
+                const sandboxPart: SandboxPart = {
+                  type: "sandbox",
+                  status: "error",
+                  error: eventData.error,
+                  timestamp: eventData.timestamp,
+                };
+                const parts = currentAssistantMessage.parts || [];
+                // 替换任何 sandbox 状态为 error
+                const newParts = parts.map((p) =>
+                  p.type === "sandbox" ? sandboxPart : p,
+                );
+                currentAssistantMessage.parts = newParts;
               }
             }
 
@@ -1983,6 +2167,8 @@ export function useAgent(options?: UseAgentOptions) {
     isReconnecting: connectionStatus === "reconnecting",
     connectionStatus,
     newlyCreatedSession,
+    isInitializingSandbox,
+    sandboxError,
     sendMessage,
     stopGeneration,
     clearMessages,

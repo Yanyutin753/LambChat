@@ -5,7 +5,6 @@ LangGraph 节点函数，使用 deep agent 执行任务。
 后续可扩展：retrieve_node, summarize_node 等。
 """
 
-import asyncio
 import logging
 import uuid
 from typing import Any, Dict, Optional
@@ -46,7 +45,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     presenter = get_presenter(config)
     configurable = config.get("configurable", {})
     context: AgentContext = configurable.get("context", AgentContext())
-    event_queue: Optional[asyncio.Queue] = configurable.get("event_queue")
 
     # 获取 agent_options（支持所有选项）
     agent_options = configurable.get("agent_options") or {}
@@ -70,30 +68,70 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 使用 SessionSandboxManager 管理 session-sandbox 绑定
     # 对话结束时 stop 而非 delete，下次对话可恢复
     sandbox_manager = None
+    workflow_path = None
+
+    # 发送用户消息事件
+    await presenter.emit(
+        presenter._build_event(
+            "user:message",
+            {"content": state.get("input", ""), "timestamp": _get_timestamp()},
+        )
+    )
 
     if settings.ENABLE_SANDBOX:
         sandbox_manager = SessionSandboxManager()
-        backend, workflow_path = await sandbox_manager.get_or_create(
-            session_id=state.get("session_id", str(uuid.uuid4())),
-            user_id=context.user_id or "default",
-        )
 
-        if settings.ENABLE_SKILLS:
-            # 创建 SkillsMiddleware 并设置为全局实例
-            skills_middleware = SkillsMiddleware(
-                user_id=context.user_id,
-                sandbox=backend,
+        # 发送沙箱开始初始化事件
+        try:
+            await presenter.emit(await presenter.emit_sandbox_starting())
+        except Exception as e:
+            logger.warning(f"Failed to emit sandbox:starting event: {e}")
+
+        try:
+            backend, workflow_path = await sandbox_manager.get_or_create(
+                session_id=state.get("session_id", str(uuid.uuid4())),
+                user_id=context.user_id or "default",
             )
 
-            if skills_middleware:
-                set_skills_middleware(skills_middleware)
-
-                # 只注入技能元数据到系统提示（不预加载文件到沙箱）
-                context.system_prompt = await skills_middleware.inject_skills_async(
-                    SANDBOX_SYSTEM_PROMPT.replace("{workflow_path}", workflow_path)
+            # 发送沙箱就绪事件
+            try:
+                await presenter.emit(
+                    await presenter.emit_sandbox_ready(
+                        sandbox_id=backend.id,
+                        work_dir=workflow_path,
+                    )
                 )
-        else:
-            context.system_prompt = SANDBOX_SYSTEM_PROMPT.replace("{workflow_path}", workflow_path)
+            except Exception as e:
+                logger.warning(f"Failed to emit sandbox:ready event: {e}")
+
+            if settings.ENABLE_SKILLS:
+                # 创建 SkillsMiddleware 并设置为全局实例
+                skills_middleware = SkillsMiddleware(
+                    user_id=context.user_id,
+                    sandbox=backend,
+                )
+
+                if skills_middleware:
+                    set_skills_middleware(skills_middleware)
+
+                    # 只注入技能元数据到系统提示（不预加载文件到沙箱）
+                    context.system_prompt = await skills_middleware.inject_skills_async(
+                        SANDBOX_SYSTEM_PROMPT.replace("{workflow_path}", workflow_path)
+                    )
+            else:
+                context.system_prompt = SANDBOX_SYSTEM_PROMPT.replace(
+                    "{workflow_path}", workflow_path
+                )
+
+        except Exception as e:
+            # 发送沙箱初始化失败事件
+            try:
+                await presenter.emit(
+                    await presenter.emit_sandbox_error(f"沙箱初始化失败: {str(e)}")
+                )
+            except Exception as emit_err:
+                logger.warning(f"Failed to emit sandbox:error event: {emit_err}")
+            raise
 
     else:
 
@@ -124,19 +162,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         },
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
-
-    async def emit_event(event_data: Dict[str, Any]) -> None:
-        """发送事件到队列（事件会在 graph.py 中统一保存）"""
-        if event_queue:
-            await event_queue.put(("event", event_data))
-
-    # 发送用户消息事件
-    await emit_event(
-        presenter._build_event(
-            "user:message",
-            {"content": state.get("input", ""), "timestamp": _get_timestamp()},
-        )
-    )
 
     # 构建传入的消息列表 - 包含历史
     all_messages = existing_messages + [new_message]
@@ -196,7 +221,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 run_id,
                 current_depth,
             )
-            await emit_event(
+            await presenter.emit(
                 presenter.present_agent_call(
                     agent_id=instance_id,  # 使用唯一实例 ID
                     agent_name=subagent_type,  # 显示名称为类型
@@ -232,7 +257,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 current_instance_id,
                 current_depth,
             )
-            await emit_event(
+            await presenter.emit(
                 presenter.present_agent_result(
                     agent_id=current_instance_id,  # 使用唯一实例 ID
                     result=result_text,
@@ -279,7 +304,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                     # 只累计主代理的输出
                     if current_depth == 0:
                         output_text += content
-                    await emit_event(
+                    await presenter.emit(
                         presenter.present_text(
                             content,
                             depth=current_depth,
@@ -300,7 +325,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                                 thinking_key = f"{current_depth}:{current_agent_id}"
                                 if thinking_ids.get(thinking_key) is None:
                                     thinking_ids[thinking_key] = f"thinking_{uuid.uuid4().hex[:8]}"
-                                await emit_event(
+                                await presenter.emit(
                                     presenter.present_thinking(
                                         thinking_text,
                                         thinking_id=thinking_ids[thinking_key],
@@ -320,7 +345,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                                 # 只累计主代理的输出
                                 if current_depth == 0:
                                     output_text += text
-                                await emit_event(
+                                await presenter.emit(
                                     presenter.present_text(
                                         text,
                                         depth=current_depth,
@@ -334,7 +359,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
         elif evt_type == "on_tool_start":
             inp = event.get("data", {}).get("input", {})
-            await emit_event(
+            await presenter.emit(
                 presenter.present_tool_start(
                     tool_name,
                     inp,
@@ -345,7 +370,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
         elif evt_type == "on_tool_end":
             out = event.get("data", {}).get("output", "")
-            await emit_event(
+            await presenter.emit(
                 presenter.present_tool_result(
                     tool_name,
                     str(out),

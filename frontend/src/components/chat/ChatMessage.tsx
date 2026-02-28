@@ -29,6 +29,8 @@ import {
   ExternalLink,
   FileCode,
   Image as ImageIcon,
+  Loader2,
+  Box,
 } from "lucide-react";
 import type { Message, MessagePart, ToolCall, ToolResult } from "../../types";
 import { useTranslation } from "react-i18next";
@@ -715,10 +717,10 @@ function ToolCallItem({
           {/* Arguments */}
           {hasArgs && (
             <div className="p-2 rounded-md bg-stone-50/80 dark:bg-stone-800/50">
-              <div className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
+              <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                 {t("chat.message.args")}
               </div>
-              <pre className="text-[11px] text-stone-600 dark:text-stone-300 overflow-x-auto">
+              <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto">
                 {JSON.stringify(args, null, 2)}
               </pre>
             </div>
@@ -727,10 +729,10 @@ function ToolCallItem({
           {/* Result */}
           {hasResult && (
             <div className="p-2 rounded-md bg-stone-50/80 dark:bg-stone-800/50">
-              <div className="text-[10px] uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
+              <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                 {t("chat.message.result")}
               </div>
-              <pre className="text-[11px] text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+              <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
                 {result}
               </pre>
             </div>
@@ -738,7 +740,7 @@ function ToolCallItem({
 
           {/* Pending state */}
           {isPending && (
-            <div className="flex items-center gap-2 text-[11px] text-amber-600 dark:text-amber-400">
+            <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
               <LoadingSpinner size="xs" />
               <span>{t("chat.message.running")}</span>
             </div>
@@ -992,9 +994,15 @@ function FileRevealItem({
 function ThinkingBlock({
   content,
   isStreaming,
+  isPending,
+  success,
+  hasResult,
 }: {
   content: string;
   isStreaming?: boolean;
+  isPending?: boolean;
+  success?: boolean;
+  hasResult?: boolean;
 }) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -1010,10 +1018,21 @@ function ThinkingBlock({
           "hover:bg-stone-300 dark:hover:bg-stone-600 cursor-pointer",
         )}
       >
+        {/* 状态指示器 */}
+        {isPending ? (
+          <LoadingSpinner size="sm" className="shrink-0" />
+        ) : success ? (
+          <CheckCircle size={12} className="shrink-0" />
+        ) : hasResult ? (
+          <XCircle size={12} className="shrink-0" />
+        ) : null}
+
+        {/* 思考图标 */}
         <Brain
           size={12}
           className="shrink-0 text-stone-500 dark:text-stone-400"
         />
+
         <span className="font-mono">{t("chat.message.thinking")}</span>
         {isStreaming && (
           <span className="flex items-center gap-[2px] ml-1">
@@ -1115,7 +1134,7 @@ function SubagentBlock({
           ) : success ? (
             <CheckCircle
               size={14}
-              className="text-emerald-600 dark:text-emerald-400"
+              className="text-stone-600 dark:text-stone-300"
             />
           ) : (
             <Users size={14} className="text-stone-500 dark:text-stone-400" />
@@ -1128,7 +1147,7 @@ function SubagentBlock({
               {agent_name}
             </span>
             {isPending && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium">
                 {t("chat.message.running")}
               </span>
             )}
@@ -1182,7 +1201,7 @@ function SubagentBlock({
           {/* 结果 */}
           {result && !isPending && (
             <div className="p-3 rounded-lg bg-stone-50 dark:bg-stone-800/50 border border-stone-100 dark:border-stone-700">
-              <div className="text-[11px] text-stone-500 dark:text-stone-400 mb-1.5 font-medium">
+              <div className="text-xs text-stone-500 dark:text-stone-400 mb-1.5 font-medium">
                 {t("chat.message.result")}
               </div>
               <div className="text-xs text-stone-700 dark:text-stone-300 max-h-48 overflow-y-auto leading-relaxed">
@@ -1248,20 +1267,20 @@ function SubagentToolItem({
         <div className="px-3 pb-2 space-y-2 border-t border-stone-200/50 dark:border-stone-600/50">
           {part.args && Object.keys(part.args).length > 0 && (
             <div>
-              <div className="text-[10px] text-stone-400 dark:text-stone-500 mb-1">
+              <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
                 {t("chat.message.parameters")}
               </div>
-              <pre className="text-[11px] text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 overflow-auto">
+              <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 overflow-auto">
                 {JSON.stringify(part.args, null, 2)}
               </pre>
             </div>
           )}
           {part.result && (
             <div>
-              <div className="text-[10px] text-stone-400 dark:text-stone-500 mb-1">
+              <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
                 {t("chat.message.result")}
               </div>
-              <pre className="text-[11px] text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 max-h-24 overflow-auto">
+              <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 max-h-24 overflow-auto">
                 {truncateText(part.result, 500)}
               </pre>
             </div>
@@ -1282,6 +1301,9 @@ function SubagentContentRenderer({
   isStreaming?: boolean;
   isLast: boolean;
 }) {
+  const { t } = useTranslation();
+  const [isExpanded, setIsExpanded] = useState(false);
+
   // 文本 - 使用 markdown 渲染
   if (part.type === "text") {
     return (
@@ -1321,6 +1343,76 @@ function SubagentContentRenderer({
         isPending={part.isPending}
         parts={part.parts}
       />
+    );
+  }
+
+  // Sandbox 状态块 - 使用和 tool 成功时一样的绿色圆角胶囊样式，点击展开详情
+  if (part.type === "sandbox") {
+    const hasDetails =
+      (part.status === "ready" && part.sandbox_id) ||
+      (part.status === "error" && part.error);
+
+    const statusInfo = {
+      starting: {
+        icon: <Loader2 size={12} className="animate-spin" />,
+        iconColor: "text-emerald-600",
+        label: "sandbox",
+      },
+      ready: {
+        icon: <CheckCircle size={12} className="text-emerald-600 shrink-0" />,
+        iconColor: "text-emerald-600",
+        label: "sandbox",
+      },
+      error: {
+        icon: <XCircle size={12} className="text-red-500 shrink-0" />,
+        iconColor: "text-red-500",
+        label: "sandbox",
+      },
+    };
+    const info = statusInfo[part.status] || statusInfo.starting;
+
+    return (
+      <div>
+        <button
+          onClick={() => hasDetails && setIsExpanded(!isExpanded)}
+          className={clsx(
+            "inline-flex items-center gap-1.5 px-2.5 py-2 rounded-full text-xs font-medium",
+            "transition-all",
+            part.status === "error"
+              ? "bg-red-100/80 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+              : "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+            hasDetails && "hover:shadow-sm cursor-pointer",
+          )}
+        >
+          <div className={clsx("shrink-0", info.iconColor)}>{info.icon}</div>
+          <Box size={10} className="shrink-0 opacity-50" />
+          <span className="font-mono">{info.label}</span>
+          {part.status === "starting" && (
+            <span className="ml-1">{t("chat.sandbox.initializing")}</span>
+          )}
+          {hasDetails &&
+            (isExpanded ? (
+              <ChevronDown size={10} className="shrink-0 opacity-50" />
+            ) : (
+              <ChevronRight size={10} className="shrink-0 opacity-50" />
+            ))}
+        </button>
+
+        {isExpanded && hasDetails && (
+          <div className="mt-1 ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600">
+            {part.status === "ready" && part.sandbox_id && (
+              <div className="text-xs text-stone-600 dark:text-stone-300 pl-1 py-1 font-mono">
+                ID: {part.sandbox_id}
+              </div>
+            )}
+            {part.status === "error" && part.error && (
+              <div className="text-xs text-red-600 dark:text-red-400 pl-1 py-1">
+                {part.error}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -1498,6 +1590,9 @@ function MessagePartRenderer({
   isStreaming?: boolean;
   isLast: boolean;
 }) {
+  const { t } = useTranslation();
+  const [isExpanded, setIsExpanded] = useState(false);
+
   if (part.type === "text") {
     // 子代理内部的文本使用简单渲染，主代理使用 Markdown
     if (part.depth && part.depth > 0) {
@@ -1561,6 +1656,76 @@ function MessagePartRenderer({
         isPending={part.isPending}
         parts={part.parts}
       />
+    );
+  }
+
+  // Sandbox 状态块 - 使用和 tool 成功时一样的绿色圆角胶囊样式，点击展开详情
+  if (part.type === "sandbox") {
+    const hasDetails =
+      (part.status === "ready" && part.sandbox_id) ||
+      (part.status === "error" && part.error);
+
+    const statusInfo = {
+      starting: {
+        icon: <Loader2 size={12} className="animate-spin" />,
+        iconColor: "text-emerald-600",
+        label: "sandbox",
+      },
+      ready: {
+        icon: <CheckCircle size={12} className="text-emerald-600 shrink-0" />,
+        iconColor: "text-emerald-600",
+        label: "sandbox",
+      },
+      error: {
+        icon: <XCircle size={12} className="text-red-500 shrink-0" />,
+        iconColor: "text-red-500",
+        label: "sandbox",
+      },
+    };
+    const info = statusInfo[part.status] || statusInfo.starting;
+
+    return (
+      <div>
+        <button
+          onClick={() => hasDetails && setIsExpanded(!isExpanded)}
+          className={clsx(
+            "inline-flex items-center gap-1.5 px-2.5 py-2 rounded-full text-xs font-medium",
+            "transition-all",
+            part.status === "error"
+              ? "bg-red-100/80 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+              : "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+            hasDetails && "hover:shadow-sm cursor-pointer",
+          )}
+        >
+          <div className={clsx("shrink-0", info.iconColor)}>{info.icon}</div>
+          <Box size={10} className="shrink-0 opacity-50" />
+          <span className="font-mono">{info.label}</span>
+          {part.status === "starting" && (
+            <span className="ml-1">{t("chat.sandbox.initializing")}</span>
+          )}
+          {hasDetails &&
+            (isExpanded ? (
+              <ChevronDown size={10} className="shrink-0 opacity-50" />
+            ) : (
+              <ChevronRight size={10} className="shrink-0 opacity-50" />
+            ))}
+        </button>
+
+        {isExpanded && hasDetails && (
+          <div className="mt-1 ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600">
+            {part.status === "ready" && part.sandbox_id && (
+              <div className="text-xs text-stone-600 dark:text-stone-300 pl-1 py-1 font-mono">
+                ID: {part.sandbox_id}
+              </div>
+            )}
+            {part.status === "error" && part.error && (
+              <div className="text-xs text-red-600 dark:text-red-400 pl-1 py-1">
+                {part.error}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     );
   }
 

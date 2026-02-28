@@ -278,23 +278,10 @@ class Presenter:
             except Exception as e:
                 logger.warning("Failed to complete trace %s: %s", self.trace_id, e)
 
-    async def save_events(self, events: List[Dict[str, Any]]) -> None:
-        """批量保存多个事件"""
-        for event in events:
-            await self.save_event(event)
-
     async def emit(self, event: Dict[str, Any]) -> Dict[str, Any]:
         """发送单个事件（自动保存）"""
         await self.save_event(event)
         return event
-
-    async def stream_events(
-        self, events: List[Dict[str, Any]]
-    ) -> AsyncGenerator[Dict[str, Any], None]:
-        """流式发送事件（自动保存）"""
-        for event in events:
-            await self.save_event(event)
-            yield event
 
     # ==================== 核心输出方法 (同步构建) ====================
 
@@ -625,6 +612,55 @@ class Presenter:
             agent_id=agent_id,
         )
 
+    def present_sandbox_starting(self) -> Dict[str, Any]:
+        """输出沙箱开始初始化"""
+        return self._build_event(
+            "sandbox:starting",
+            {"timestamp": _get_timestamp()},
+        )
+
+    def present_sandbox_state(self, state: str) -> Dict[str, Any]:
+        """输出沙箱状态更新
+
+        Args:
+            state: 沙箱状态（如 creating, restoring, starting, running 等）
+        """
+        return self._build_event(
+            "sandbox:state",
+            {"state": state, "timestamp": _get_timestamp()},
+        )
+
+    def present_sandbox_ready(
+        self,
+        sandbox_id: str,
+        work_dir: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出沙箱就绪
+
+        Args:
+            sandbox_id: 沙箱ID
+            work_dir: 工作目录
+        """
+        return self._build_event(
+            "sandbox:ready",
+            {
+                "sandbox_id": sandbox_id,
+                "work_dir": work_dir,
+                "timestamp": _get_timestamp(),
+            },
+        )
+
+    def present_sandbox_error(self, error: str) -> Dict[str, Any]:
+        """输出沙箱初始化错误
+
+        Args:
+            error: 错误信息
+        """
+        return self._build_event(
+            "sandbox:error",
+            {"error": error, "timestamp": _get_timestamp()},
+        )
+
     def done(self) -> Dict[str, Any]:
         """输出流结束标记"""
         return self._build_event(
@@ -693,58 +729,30 @@ class Presenter:
     async def emit_thinking(self, content: str) -> Dict[str, Any]:
         """输出思考过程并保存"""
         event = self.present_thinking(content)
-        await self.save_event(event)
         return event
 
-    async def emit_observation(
+    async def emit_sandbox_starting(self) -> Dict[str, Any]:
+        """输出沙箱开始初始化并保存"""
+        event = self.present_sandbox_starting()
+        return event
+
+    async def emit_sandbox_state(self, state: str) -> Dict[str, Any]:
+        """输出沙箱状态更新并保存"""
+        event = self.present_sandbox_state(state)
+        return event
+
+    async def emit_sandbox_ready(
         self,
-        title: str,
-        content: Any,
-        observation_type: str = "info",
+        sandbox_id: str,
+        work_dir: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """输出观察并保存"""
-        event = self.present_observation(title, content, observation_type)
-        await self.save_event(event)
+        """输出沙箱就绪并保存"""
+        event = self.present_sandbox_ready(sandbox_id, work_dir)
         return event
 
-    async def emit_tool_start(
-        self,
-        tool_name: str,
-        tool_input: Any,
-    ) -> Dict[str, Any]:
-        """输出工具调用开始并保存"""
-        event = self.present_tool_start(tool_name, tool_input)
-        await self.save_event(event)
-        return event
-
-    async def emit_tool_result(
-        self,
-        tool_name: str,
-        result: Any,
-        success: bool = True,
-    ) -> Dict[str, Any]:
-        """输出工具调用结果并保存"""
-        event = self.present_tool_result(tool_name, result, success)
-        await self.save_event(event)
-        return event
-
-    async def emit_done(self) -> Dict[str, Any]:
-        """输出流结束标记并保存，同时完成 trace"""
-        event = self.done()
-        await self.save_event(event)
-        await self.complete("completed")
-        return event
-
-    async def emit_error(
-        self,
-        message: str,
-        error_type: str = "Error",
-        details: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
-        """输出错误并保存，同时完成 trace"""
-        event = self.error(message, error_type, details)
-        await self.save_event(event)
-        await self.complete("error")
+    async def emit_sandbox_error(self, error: str) -> Dict[str, Any]:
+        """输出沙箱初始化错误并保存"""
+        event = self.present_sandbox_error(error)
         return event
 
 
