@@ -229,6 +229,12 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Daytona command timeout in seconds",
         "default": 180,
     },
+    "SANDBOX_AUTO_STOP_INTERVAL": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SANDBOX,
+        "description": "Sandbox auto-stop interval in minutes (stopped sandbox will be archived after this time)",
+        "default": 5,
+    },
     "MODAL_APP_NAME": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
@@ -583,6 +589,7 @@ class Settings(BaseSettings):
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180  # 3 minutes
+    SANDBOX_AUTO_STOP_INTERVAL: int = 5  # minutes
     MODAL_APP_NAME: str = ""
 
     # Skills Settings
