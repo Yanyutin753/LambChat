@@ -20,10 +20,7 @@ from src.agents.core.base import get_presenter
 from src.agents.search_agent.context import AgentContext
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.llm.client import LLMClient
-from src.infra.sandbox import get_sandbox_from_settings
-
-# 获取 sandbox_id 用于关闭
-from src.infra.sandbox.base import SandboxFactory
+from src.infra.sandbox import SessionSandboxManager
 from src.infra.skill.middleware import SkillsMiddleware
 
 # 设置全局 middleware 供 inject_skill 工具使用
@@ -71,12 +68,16 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     try:
         # 创建 sandbox backend (langchain-daytona/runloop/modal)
-        # 每次请求创建新的 sandbox，函数结束时关闭
-        sandbox_id = None  # Initialize before the if block
+        # 使用 SessionSandboxManager 管理 session-sandbox 绑定
+        # 对话结束时 stop 而非 delete，下次对话可恢复
+        sandbox_manager = None
 
         if settings.ENABLE_SANDBOX:
-            backend = get_sandbox_from_settings()
-            sandbox_id = SandboxFactory.get_sandbox_id(backend)
+            sandbox_manager = SessionSandboxManager()
+            backend = await sandbox_manager.get_or_create(
+                session_id=state.get("session_id", str(uuid.uuid4())),
+                user_id=context.user_id or "default",
+            )
 
             if settings.ENABLE_SKILLS:
                 # 创建 SkillsMiddleware 并设置为全局实例
@@ -373,9 +374,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "messages": trimmed_messages,
         }
     finally:
-        # 关闭 sandbox（无论成功失败都要关闭）
+        # 停止 sandbox（无论成功失败都要停止，但保留状态以便下次恢复）
         try:
-            if sandbox_id:
-                await SandboxFactory.close_sandbox(sandbox_id)
+            if sandbox_manager and state.get("session_id"):
+                await sandbox_manager.stop(state.get("session_id"))
         except Exception as e:
-            logger.warning(f"Failed to close sandbox: {e}")
+            logger.warning(f"Failed to stop sandbox: {e}")
