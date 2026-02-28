@@ -6,7 +6,7 @@ interface UseVersionReturn {
   versionInfo: VersionInfo | null;
   isLoading: boolean;
   error: string | null;
-  refetch: () => Promise<void>;
+  checkForUpdates: () => Promise<void>;
 }
 
 export function useVersion(): UseVersionReturn {
@@ -27,6 +27,21 @@ export function useVersion(): UseVersionReturn {
     }
   }, []);
 
+  const checkForUpdates = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const info = await versionApi.checkForUpdates();
+      setVersionInfo(info);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to check for updates",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchVersion();
   }, [fetchVersion]);
@@ -35,6 +50,6 @@ export function useVersion(): UseVersionReturn {
     versionInfo,
     isLoading,
     error,
-    refetch: fetchVersion,
+    checkForUpdates,
   };
 }
