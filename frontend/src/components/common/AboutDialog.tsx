@@ -1,4 +1,13 @@
-import { X, Tag, GitCommit, Clock, Info } from "lucide-react";
+import {
+  X,
+  Tag,
+  GitCommit,
+  Info,
+  Clock,
+  RefreshCw,
+  ExternalLink,
+  ArrowDownCircle,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
 
@@ -9,7 +18,7 @@ interface AboutDialogProps {
 
 export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
   const { t } = useTranslation();
-  const { versionInfo, isLoading, error } = useVersion();
+  const { versionInfo, isLoading, error, checkForUpdates } = useVersion();
 
   if (!isOpen) return null;
 
@@ -19,6 +28,16 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
       return new Date(buildTime).toLocaleString();
     } catch {
       return buildTime;
+    }
+  };
+
+  const handleCheckUpdates = async () => {
+    await checkForUpdates();
+  };
+
+  const handleGoToRelease = () => {
+    if (versionInfo?.release_url) {
+      window.open(versionInfo.release_url, "_blank");
     }
   };
 
@@ -103,6 +122,87 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                     {formatBuildTime(versionInfo.build_time)}
                   </div>
                 </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-gray-200 dark:border-stone-600" />
+
+              {/* GitHub Latest Info */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-600 dark:text-stone-400">
+                    {t("about.latestFromGitHub", "Latest from GitHub")}
+                  </span>
+                  <button
+                    onClick={handleCheckUpdates}
+                    disabled={isLoading}
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                  >
+                    <RefreshCw
+                      className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`}
+                    />
+                    {t("about.checkUpdate", "Check Update")}
+                  </button>
+                </div>
+
+                {/* Latest Version */}
+                <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-stone-700/50">
+                  <ArrowDownCircle className="h-4 w-4 text-gray-400 dark:text-stone-500" />
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-500 dark:text-stone-400">
+                      {t("about.latestVersion", "Latest Version")}
+                    </div>
+                    <div className="font-mono text-sm font-medium text-gray-900 dark:text-stone-100">
+                      {versionInfo.latest_version || "-"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Published At */}
+                {versionInfo.published_at && (
+                  <div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-stone-700/50">
+                    <Clock className="h-4 w-4 text-gray-400 dark:text-stone-500" />
+                    <div className="flex-1">
+                      <div className="text-xs text-gray-500 dark:text-stone-400">
+                        {t("about.publishedAt", "Published")}
+                      </div>
+                      <div className="font-mono text-sm font-medium text-gray-900 dark:text-stone-100">
+                        {formatBuildTime(versionInfo.published_at)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Update Available Banner */}
+                {versionInfo.has_update && (
+                  <div className="flex items-center justify-between rounded-lg bg-green-50 p-3 dark:bg-green-900/30">
+                    <div className="flex items-center gap-2">
+                      <ArrowDownCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <div>
+                        <div className="text-sm font-medium text-green-800 dark:text-green-200">
+                          {t("about.updateAvailable", "New version available!")}
+                        </div>
+                        <div className="text-xs text-green-600 dark:text-green-400">
+                          {versionInfo.latest_version}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleGoToRelease}
+                      className="flex items-center gap-1 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      {t("about.viewUpdate", "View")}
+                    </button>
+                  </div>
+                )}
+
+                {/* No Update Message */}
+                {versionInfo.latest_version && !versionInfo.has_update && (
+                  <div className="rounded-lg bg-gray-50 p-3 text-center text-sm text-gray-500 dark:bg-stone-700/50 dark:text-stone-400">
+                    {t("about.upToDate", "You're up to date!")}
+                  </div>
+                )}
               </div>
             </>
           ) : null}
