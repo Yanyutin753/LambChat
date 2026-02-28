@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query
 from src.infra.github_client import github_client
 from src.kernel.config import settings
 from src.kernel.schemas.agent import VersionResponse
-from src.kernel.version_utils import has_new_version
+from src.kernel.version_utils import has_new_version, normalize_version
 
 router = APIRouter()
 
@@ -28,7 +28,7 @@ async def get_version(
         git_tag=settings.GIT_TAG,
         commit_hash=settings.COMMIT_HASH,
         build_time=settings.BUILD_TIME,
-        latest_version=latest_release.tag_name if latest_release else None,
+        latest_version=normalize_version(latest_release.tag_name) if latest_release else None,
         release_url=latest_release.html_url if latest_release else None,
         has_update=has_update,
         published_at=latest_release.published_at if latest_release else None,
