@@ -1191,4 +1191,16 @@ export const versionApi = {
       skipAuth: true,
     });
   },
+
+  /**
+   * Check for updates (force refresh from GitHub)
+   */
+  async checkForUpdates(): Promise<VersionInfo> {
+    return authFetch<VersionInfo>(
+      `${API_BASE}/api/version?force_refresh=true`,
+      {
+        skipAuth: true,
+      },
+    );
+  },
 };
