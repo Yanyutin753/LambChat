@@ -24,6 +24,7 @@ import {
   Loader2,
   X,
   Pencil,
+  User,
 } from "lucide-react";
 import { ChatMessage } from "./components/chat/ChatMessage";
 import { ChatInput } from "./components/chat/ChatInput";
@@ -43,10 +44,10 @@ import { useSettingsContext } from "./contexts/SettingsContext";
 import { useAgent } from "./hooks/useAgent";
 import { useApprovals } from "./hooks/useApprovals";
 import { useAuth } from "./hooks/useAuth";
-import { useSettings } from "./hooks/useSettings";
 import { useTools } from "./hooks/useTools";
 import { useSkills } from "./hooks/useSkills";
 import { useVersion } from "./hooks/useVersion";
+import { usePageTitle } from "./hooks/usePageTitle";
 import { Permission, User as UserType } from "./types";
 import { authApi, uploadApi } from "./services/api";
 
@@ -56,12 +57,13 @@ type TabType = "chat" | "skills" | "users" | "roles" | "settings" | "mcp";
 function ProfileModal({
   showProfileModal,
   onCloseProfileModal,
+  versionInfo,
 }: {
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
+  versionInfo: ReturnType<typeof useVersion>["versionInfo"];
 }) {
   const { t } = useTranslation();
-  const { versionInfo } = useVersion();
   const { user, refreshUser } = useAuth();
   const [userData, setUserData] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState<"info" | "password">("info");
@@ -699,20 +701,7 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
                 }}
                 className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50 transition-colors"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                  className="w-[18px] h-[18px]"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                  />
-                </svg>
+                <User size={18} />
                 {t("users.user")}
               </button>
 
@@ -765,6 +754,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const navigate = useNavigate();
   const { enableMcp, enableSkills } = useSettingsContext();
+  const { versionInfo } = useVersion();
 
   // 获取 approvals hook 的 addApproval 方法
   const {
@@ -864,7 +854,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
     [],
   );
 
-  const { settings } = useSettings();
+  const { settings } = useSettingsContext();
   const { hasPermission } = useAuth();
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -962,6 +952,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
       <ProfileModal
         showProfileModal={showProfileModal}
         onCloseProfileModal={() => setShowProfileModal(false)}
+        versionInfo={versionInfo}
       />
 
       <div className="flex h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-900">
@@ -1123,14 +1114,14 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center px-4 py-8">
                     {/* Title */}
-                    <div className="flex items-center gap-3 mb-6">
-                      <h1 className="text-3xl font-semibold text-gray-700 dark:text-stone-200">
+                    <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                      <h1 className="text-3xl sm:text-4xl font-semibold text-gray-700 dark:text-stone-200">
                         LambChat
                       </h1>
                     </div>
 
                     {/* Suggestion Cards */}
-                    <div className="w-full max-w-lg space-y-3">
+                    <div className="w-full max-w-lg space-y-3 px-4">
                       {(
                         settings?.settings.frontend.find(
                           (s) => s.key === "WELCOME_SUGGESTIONS",
@@ -1141,12 +1132,21 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                         <button
                           key={suggestion.text}
                           onClick={() => sendMessage(suggestion.text)}
-                          className="w-full flex items-center gap-3 rounded-lg border border-gray-200 dark:border-stone-700 px-4 py-3 text-left text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
+                          className="w-full flex items-center gap-3 rounded-xl border border-gray-200 dark:border-stone-700 px-4 py-3 text-left text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
                         >
                           <span className="text-lg">{suggestion.icon}</span>
                           <span>{suggestion.text}</span>
                         </button>
                       ))}
+                    </div>
+                    <div className="mt-4 sm:mt-6 flex items-center gap-2 text-xs text-gray-400 dark:text-stone-500">
+                      <span className="font-medium">LambChat</span>
+                      {versionInfo?.app_version && (
+                        <>
+                          <span>·</span>
+                          <span>v{versionInfo.app_version}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -1262,6 +1262,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
 
 // 404 Not Found Page
 function NotFoundPage() {
+  usePageTitle("404");
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -1306,26 +1307,32 @@ function NotFoundPage() {
 
 // Page Components
 function ChatPage() {
+  usePageTitle("nav.chat");
   return <AppContent activeTab="chat" />;
 }
 
 function SkillsPage() {
+  usePageTitle("nav.skills");
   return <AppContent activeTab="skills" />;
 }
 
 function UsersPage() {
+  usePageTitle("nav.users");
   return <AppContent activeTab="users" />;
 }
 
 function RolesPage() {
+  usePageTitle("nav.roles");
   return <AppContent activeTab="roles" />;
 }
 
 function SettingsPage() {
+  usePageTitle("nav.settings");
   return <AppContent activeTab="settings" />;
 }
 
 function MCPPage() {
+  usePageTitle("nav.mcp");
   return <AppContent activeTab="mcp" />;
 }
 

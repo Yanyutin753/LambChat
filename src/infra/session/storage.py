@@ -107,7 +107,9 @@ class SessionStorage:
             update_dict["name"] = session_data.name
 
         if session_data.metadata is not None:
-            update_dict["metadata"] = session_data.metadata
+            # 使用深度合并而非直接覆盖，保留未指定的 metadata 字段
+            for key, value in session_data.metadata.items():
+                update_dict[f"metadata.{key}"] = value
 
         # 优先使用自定义 session_id 查询
         result = await self.collection.find_one_and_update(

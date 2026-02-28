@@ -266,6 +266,7 @@ class SkillsMiddleware:
 
             async def write_single_file(path: str, content: str) -> tuple[str, bool, str]:
                 full_path = f"{workspace_dir}/{path}"
+                assert self._sandbox is not None  # Already checked above
                 write_result = await self._sandbox.awrite(full_path, content)
                 if write_result.error:
                     return (path, False, write_result.error)
@@ -288,7 +289,7 @@ class SkillsMiddleware:
                 for r in results:
                     if isinstance(r, Exception):
                         failed_files.append(("exception", str(r)))
-                    else:
+                    elif isinstance(r, tuple):
                         path, success, error = r
                         if success:
                             written_files.append(path)

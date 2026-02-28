@@ -54,6 +54,13 @@ class DaytonaBackend(BaseSandbox):
     def id(self) -> str:
         return self._sandbox.id
 
+    @property
+    def work_dir(self) -> str:
+        """获取沙箱工作目录"""
+        if not hasattr(self, "_work_dir"):
+            self._work_dir = self._sandbox.get_work_dir()
+        return self._work_dir
+
     # ── execute (shell) ──────────────────────────────────────────────
 
     # 重试配置

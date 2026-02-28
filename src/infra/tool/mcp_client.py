@@ -63,10 +63,42 @@ class MCPToolWithRetry(BaseTool):
     def _is_retryable_error(self, error: Exception) -> bool:
         """判断错误是否可重试"""
         error_str = str(error).lower()
+        error_type = type(error).__name__.lower()
+
+        # 可重试的错误模式
         retryable_patterns = [
             "429",  # rate limit
+            "503",  # service unavailable
+            "502",  # bad gateway
+            "timeout",
+            "connection",
+            "network",
+            "reset",
+            "refused",
+            "unavailable",
         ]
-        return any(pattern in error_str for pattern in retryable_patterns)
+
+        # 可重试的异常类型
+        retryable_types = [
+            "timeouterror",
+            "connectionerror",
+            "connectionreseterror",
+            "brokenpipeerror",
+        ]
+
+        # 检查错误消息
+        if any(pattern in error_str for pattern in retryable_patterns):
+            return True
+
+        # 检查异常类型
+        if any(rt in error_type for rt in retryable_types):
+            return True
+
+        # 空错误消息可能是临时问题，也重试
+        if not error_str or error_str == "(empty error message)":
+            return True
+
+        return False
 
     def _run(self, *args, **kwargs) -> Any:
         """同步运行（不支持重试，直接调用原始工具）"""
@@ -107,16 +139,29 @@ class MCPToolWithRetry(BaseTool):
                     return error_msg
             except Exception as e:
                 last_error = e
+                # 详细记录异常信息，帮助诊断问题
+                error_type = type(e).__name__
+                error_str = str(e) if str(e) else "(empty error message)"
+                error_repr = repr(e)
+
                 if self._is_retryable_error(e) and attempt < self._max_retries - 1:
                     logger.warning(
-                        f"MCP tool '{self.name}' failed (attempt {attempt + 1}/{self._max_retries}): {e}. "
-                        f"Retrying in {self._retry_delay}s..."
+                        f"MCP tool '{self.name}' failed (attempt {attempt + 1}/{self._max_retries}): "
+                        f"[{error_type}] {error_str}. Retrying in {self._retry_delay}s..."
                     )
                     await asyncio.sleep(self._retry_delay)
                 else:
-                    # 所有重试都失败，返回错误信息而不是抛出异常
-                    error_msg = f"[MCP Tool Error] {self.name} failed after {self._max_retries} attempts: {last_error}"
-                    logger.error(error_msg)
+                    # 非 429 错误不重试，但记录详细错误信息
+                    # 如果是第一次尝试就失败且不是可重试错误，也显示 "after 3 attempts" 以保持一致性
+                    actual_attempts = attempt + 1
+                    error_msg = (
+                        f"[MCP Tool Error] {self.name} failed after {actual_attempts} attempt(s): "
+                        f"[{error_type}] {error_str}"
+                    )
+                    logger.error(
+                        f"[MCP Tool Error] {self.name} failed: type={error_type}, "
+                        f"str={error_str}, repr={error_repr}"
+                    )
                     return error_msg
         # 不应该到达这里，但以防万一
         return f"[MCP Tool Error] {self.name} failed: {last_error}"
@@ -343,7 +388,8 @@ class MCPClientManager:
             return [], None
 
         # 转换配置格式以适配 langchain-mcp-adapters
-        server_configs = {}
+        # Use dict[str, Any] to allow flexible key-value pairs for different transport types
+        server_configs: dict[str, dict[str, Any]] = {}
         for server_name, server_config in mcp_servers.items():
             transport = server_config.get("transport", "stdio")
 
@@ -380,14 +426,33 @@ class MCPClientManager:
         client = MultiServerMCPClient(server_configs)  # type: ignore[arg-type]
 
         # 并行加载所有服务器的工具，失败的服务器不影响其他服务器
-        async def _load_server_tools(server_name: str) -> tuple[str, list[BaseTool] | Exception]:
-            """加载单个服务器的工具，返回 (server_name, tools) 或 (server_name, exception)"""
-            try:
-                async with client.session(server_name) as session:
-                    from langchain_mcp_adapters.tools import load_mcp_tools
+        async def _load_server_tools(
+            server_name: str,
+        ) -> tuple[str, list[BaseTool] | Exception]:
+            """加载单个服务器的工具，返回 (server_name, tools) 或 (server_name, exception)
 
-                    tools = await load_mcp_tools(session, server_name=server_name)
-                    return (server_name, tools)
+            重要：只传递 connection 参数，不传递 session。
+            这样工具在调用时会自己创建会话，避免会话提前关闭的问题。
+            """
+            try:
+                from langchain_mcp_adapters.tools import load_mcp_tools
+
+                # 获取服务器的 connection 配置
+                connection = server_configs.get(server_name)
+                if not connection:
+                    return (
+                        server_name,
+                        ValueError(f"No connection config for server '{server_name}'"),
+                    )
+
+                # 关键：只传递 connection，不传递 session
+                # 这样工具会保存 connection，在每次调用时创建新的会话
+                tools = await load_mcp_tools(
+                    session=None,  # 不传递 session
+                    connection=connection,  # type: ignore[arg-type]
+                    server_name=server_name,
+                )
+                return (server_name, tools)
             except Exception as e:
                 return (server_name, e)
 

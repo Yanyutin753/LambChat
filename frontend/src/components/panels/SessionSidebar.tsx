@@ -72,6 +72,16 @@ export function SessionSidebar({
 
   const loadSessions = async (reset = false) => {
     console.log("[loadSessions] reset:", reset, "current skip:", skip);
+    // 防止在加载中或没有更多数据时重复请求
+    if (!reset && (isLoading || isLoadingMore)) {
+      console.log("[loadSessions] skipping - already loading or no more data");
+      return;
+    }
+    if (!reset && !hasMore) {
+      console.log("[loadSessions] skipping - no more data");
+      return;
+    }
+
     if (reset) {
       setIsLoading(true);
       setSkip(0);
@@ -335,13 +345,13 @@ export function SessionSidebar({
     <>
       {/* Header with brand */}
       <div className="flex items-center justify-between px-3 pt-4 pb-2 sm:px-4">
-        <div className="flex h-8 items-center gap-2">
+        <div className="flex h-6 items-center gap-2">
           <img
             src="/icons/icon.svg"
             alt="LambChat"
             className="size-6 rounded-full object-cover"
           />
-          <span className="text-base font-bold text-gray-700 dark:text-stone-200">
+          <span className="text-base font-semibold leading-none text-gray-700 dark:text-stone-200">
             LambChat
           </span>
         </div>

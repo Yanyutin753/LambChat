@@ -1,4 +1,5 @@
 {
+  "appName": "LambChat",
   "about": {
     "appVersion": "버전",
     "buildTime": "빌드 시간",

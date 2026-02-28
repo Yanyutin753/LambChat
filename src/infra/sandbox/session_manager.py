@@ -27,6 +27,34 @@ logger = logging.getLogger(__name__)
 # Daytona API 操作的默认超时（秒）
 DEFAULT_DAYTONA_TIMEOUT = 120
 
+# 等待沙箱状态轮询间隔（秒）
+STATE_POLL_INTERVAL = 3
+
+# 等待中间状态完成的最大等待时间（秒）
+STATE_WAIT_TIMEOUT = 180
+
+# 需要等待的中间状态
+TRANSITIONAL_STATES = {
+    "creating",
+    "restoring",
+    "starting",
+    "stopping",
+    "building_snapshot",
+    "pulling_snapshot",
+    "pending_build",
+    "archiving",
+    "resizing",
+}
+
+# 可用的最终状态
+READY_STATES = {"running", "started"}
+
+# 需要恢复的暂停状态
+RESUMABLE_STATES = {"stopped", "archived"}
+
+# 不可用状态
+UNAVAILABLE_STATES = {"destroyed", "destroying", "error", "build_failed", "unknown"}
+
 
 class SessionSandboxManager:
     """管理 Session 与 Sandbox 的绑定关系"""
@@ -51,7 +79,7 @@ class SessionSandboxManager:
         self,
         session_id: str,
         user_id: str,
-    ) -> "SandboxBackendProtocol":
+    ) -> tuple["SandboxBackendProtocol", str]:
         """
         获取或创建沙箱
 
@@ -61,6 +89,9 @@ class SessionSandboxManager:
         3. 如果存在，查询 Daytona 状态
         4. Stopped/Archived → start() 恢复
         5. 不存在或恢复失败 → 创建新沙箱，覆盖绑定
+
+        Returns:
+            tuple[SandboxBackendProtocol, str]: (backend, work_dir)
         """
         # 1. 检查内存缓存
         if session_id in self._cache:
@@ -68,21 +99,32 @@ class SessionSandboxManager:
             logger.debug(
                 f"[SessionSandboxManager] Cache hit: session={session_id}, sandbox={sandbox_id}"
             )
-            return backend
+            work_dir = await self._get_work_dir(sandbox_id)
+            return backend, work_dir
 
         # 2. 从 session.metadata 获取 sandbox_id
         session = await self._session_manager.get_session(session_id)
         if not session:
             raise ValueError(f"Session not found: {session_id}")
 
-        sandbox_id = session.metadata.get("sandbox_id") if session.metadata else None
+        metadata_sandbox_id: str | None = (
+            session.metadata.get("sandbox_id") if session.metadata else None
+        )
 
-        if sandbox_id:
+        if metadata_sandbox_id:
+            sandbox_id = metadata_sandbox_id
             # 3. 查询 Daytona 状态
             state = await self._get_sandbox_state(sandbox_id)
             logger.info(f"[SessionSandboxManager] Found sandbox {sandbox_id} with state={state}")
 
-            if state in ("stopped", "archived"):
+            # 3.1 如果处于中间状态，等待完成
+            if state in TRANSITIONAL_STATES:
+                state = await self._wait_for_final_state(sandbox_id, state)
+                logger.info(
+                    f"[SessionSandboxManager] Sandbox {sandbox_id} transitioned to state={state}"
+                )
+
+            if state in RESUMABLE_STATES:
                 # 4. 尝试恢复
                 try:
                     await self._start_sandbox(sandbox_id)
@@ -90,22 +132,26 @@ class SessionSandboxManager:
                     self._cache[session_id] = (sandbox_id, backend)
                     await self._update_session_metadata(session_id, sandbox_id, "running")
                     logger.info(f"[SessionSandboxManager] Resumed sandbox {sandbox_id}")
-                    return backend
+                    work_dir = await self._get_work_dir(sandbox_id)
+                    return backend, work_dir
                 except Exception as e:
                     logger.warning(
                         f"[SessionSandboxManager] Failed to resume sandbox {sandbox_id}: {e}"
                     )
                     # 恢复失败，创建新沙箱
 
-            elif state == "running":
+            elif state in READY_STATES:
                 # 沙箱已在运行，直接使用
                 backend = await self._create_backend(sandbox_id)
                 self._cache[session_id] = (sandbox_id, backend)
-                return backend
+                work_dir = await self._get_work_dir(sandbox_id)
+                return backend, work_dir
 
-            elif state == "destroyed":
-                logger.info(f"[SessionSandboxManager] Sandbox {sandbox_id} was destroyed")
-                # 沙箱已销毁，创建新沙箱
+            elif state in UNAVAILABLE_STATES:
+                logger.info(
+                    f"[SessionSandboxManager] Sandbox {sandbox_id} is unavailable (state={state})"
+                )
+                # 沙箱不可用，创建新沙箱
 
         # 5. 创建新沙箱并绑定
         return await self._create_and_bind(session_id, user_id)
@@ -154,8 +200,14 @@ class SessionSandboxManager:
         def _sync_get_state():
             client = self._get_daytona_client()
             sandbox = client.get(sandbox_id)
-            # state 是 SandboxState 枚举，转换为小写字符串
-            return str(sandbox.state).lower()
+            # state 是 SandboxState 枚举，提取枚举名称并转小写
+            # 例如 SandboxState.STARTED -> "started"
+            state = sandbox.state
+            if state is not None and hasattr(state, "name"):
+                return state.name.lower()
+            elif state is not None and hasattr(state, "value"):
+                return str(state.value).lower()
+            return str(state).lower() if state else "unknown"
 
         try:
             return await asyncio.wait_for(
@@ -171,6 +223,39 @@ class SessionSandboxManager:
                 return "destroyed"
             raise
 
+    async def _wait_for_final_state(self, sandbox_id: str, initial_state: str) -> str:
+        """
+        等待沙箱从中间状态过渡到最终状态
+
+        Args:
+            sandbox_id: 沙箱 ID
+            initial_state: 初始状态
+
+        Returns:
+            最终状态
+        """
+        state = initial_state
+        elapsed = 0.0
+
+        while state in TRANSITIONAL_STATES and elapsed < STATE_WAIT_TIMEOUT:
+            logger.debug(
+                f"[SessionSandboxManager] Waiting for sandbox {sandbox_id} "
+                f"state={state}, elapsed={elapsed:.1f}s"
+            )
+            await asyncio.sleep(STATE_POLL_INTERVAL)
+            elapsed += STATE_POLL_INTERVAL
+            state = await self._get_sandbox_state(sandbox_id)
+
+        if state in TRANSITIONAL_STATES:
+            logger.warning(
+                f"[SessionSandboxManager] Timeout waiting for sandbox {sandbox_id} "
+                f"to transition from {initial_state}, current state={state}"
+            )
+            # 超时后返回 unknown，触发创建新沙箱
+            return "unknown"
+
+        return state
+
     async def _start_sandbox(self, sandbox_id: str) -> None:
         """启动沙箱"""
 
@@ -181,6 +266,19 @@ class SessionSandboxManager:
 
         await asyncio.wait_for(
             asyncio.to_thread(_sync_start),
+            timeout=DEFAULT_DAYTONA_TIMEOUT,
+        )
+
+    async def _get_work_dir(self, sandbox_id: str) -> str:
+        """获取沙箱工作目录"""
+
+        def _sync_get_work_dir():
+            client = self._get_daytona_client()
+            sandbox = client.get(sandbox_id)
+            return sandbox.get_work_dir()
+
+        return await asyncio.wait_for(
+            asyncio.to_thread(_sync_get_work_dir),
             timeout=DEFAULT_DAYTONA_TIMEOUT,
         )
 
@@ -201,19 +299,24 @@ class SessionSandboxManager:
         self,
         session_id: str,
         user_id: str,
-    ) -> "SandboxBackendProtocol":
-        """创建新沙箱并绑定到 session（替换旧的）"""
+    ) -> tuple["SandboxBackendProtocol", str]:
+        """创建新沙箱并绑定到 session（替换旧的）
+
+        Returns:
+            tuple[SandboxBackendProtocol, str]: (backend, work_dir)
+        """
 
         def _sync_create():
             client = self._get_daytona_client()
             params = CreateSandboxFromSnapshotParams(
                 auto_stop_interval=settings.SANDBOX_AUTO_STOP_INTERVAL,
+                auto_archive_interval=settings.SANDBOX_AUTO_ARCHIVE_INTERVAL,
                 language="python",
             )
             sandbox = client.create(params)
-            return DaytonaBackend(sandbox=sandbox)
+            return DaytonaBackend(sandbox=sandbox), sandbox.get_work_dir()
 
-        backend = await asyncio.wait_for(
+        backend, work_dir = await asyncio.wait_for(
             asyncio.to_thread(_sync_create),
             timeout=DEFAULT_DAYTONA_TIMEOUT,
         )
@@ -231,7 +334,7 @@ class SessionSandboxManager:
             f"[SessionSandboxManager] Created sandbox {sandbox_id} for session {session_id}"
         )
 
-        return backend
+        return backend, work_dir
 
     async def _update_session_metadata(
         self,

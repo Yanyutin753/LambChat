@@ -20,7 +20,6 @@ from src.infra.tool.mcp_client import MCPClientManager
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
 
 # Sync Conversation 工具 - 恢复 write_file 创建的文件到沙箱
-from src.infra.tool.sync_conversation import get_sync_conversation_tool
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -122,10 +121,11 @@ class AgentContext:
             self.tools.append(inject_skill_tool)
             logger.info("[AgentContext] Added inject_skill tool")
 
-        if settings.ENABLE_SANDBOX:
-            sync_conversation_tool = get_sync_conversation_tool()
-            self.tools.append(sync_conversation_tool)
-            logger.info("[AgentContext] Added sync_conversation tool")
+        # 沙箱持久化，已禁用
+        # if settings.ENABLE_SANDBOX:
+        #     sync_conversation_tool = get_sync_conversation_tool()
+        #     self.tools.append(sync_conversation_tool)
+        #     logger.info("[AgentContext] Added sync_conversation tool")
 
         # MCP 工具
         if settings.ENABLE_MCP:

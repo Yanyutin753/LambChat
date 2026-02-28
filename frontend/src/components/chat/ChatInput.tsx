@@ -336,7 +336,7 @@ export const ChatInput = memo(function ChatInput({
   const canSubmit = hasContent && canSend;
 
   return (
-    <div className="px-3 sm:px-4 pb-3 sm:pb-4 dark:bg-stone-900">
+    <div className="px-3 sm:px-4 pb-4 sm:pb-5 dark:bg-stone-900">
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* ChatGPT-style container */}
         <div className="flex flex-col relative w-full rounded-3xl px-1 bg-white dark:bg-stone-800 border border-gray-200/50 dark:border-stone-700/50 shadow-[0_0_10px_rgba(0,0,0,0.05)] dark:shadow-[0_0_10px_rgba(0,0,0,0.1)]">

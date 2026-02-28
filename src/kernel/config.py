@@ -2,26 +2,37 @@
 
 from __future__ import annotations
 
+import logging
 import os
-from typing import TYPE_CHECKING
+import subprocess
+import tomllib
+from functools import lru_cache
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Optional
+
+from pydantic_settings import BaseSettings
 
 if TYPE_CHECKING:
     from src.infra.settings.service import SettingsService
     from src.infra.storage.s3 import S3Config
-
-import logging
-import subprocess
-from functools import lru_cache
-from pathlib import Path
-from typing import Any, Optional
-
-from pydantic_settings import BaseSettings
 
 from src.kernel.schemas.setting import SettingCategory, SettingType
 
 logger = logging.getLogger(__name__)
 # Project root directory (where pyproject.toml is)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+def _get_app_version() -> str:
+    """Read version from pyproject.toml."""
+    pyproject_path = PROJECT_ROOT / "pyproject.toml"
+    try:
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+            return data.get("project", {}).get("version", "1.0.0")
+    except Exception as e:
+        logger.warning(f"Failed to read version from pyproject.toml: {e}")
+        return "1.0.0"
 
 
 # ============================================
@@ -233,6 +244,12 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "type": SettingType.NUMBER,
         "category": SettingCategory.SANDBOX,
         "description": "Sandbox auto-stop interval in minutes (stopped sandbox will be archived after this time)",
+        "default": 5,
+    },
+    "SANDBOX_AUTO_ARCHIVE_INTERVAL": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SANDBOX,
+        "description": "Sandbox auto-archive interval in minutes (archived sandbox will be deleted after this time)",
         "default": 5,
     },
     "MODAL_APP_NAME": {
@@ -505,6 +522,8 @@ def _get_git_info() -> tuple[str | None, str | None]:
 # Get git info at module load time
 _GIT_TAG, _COMMIT_HASH = _get_git_info()
 
+# Import BaseSettings here to avoid forward reference issues
+
 
 class Settings(BaseSettings):
     """
@@ -517,7 +536,7 @@ class Settings(BaseSettings):
 
     # Application (not in SETTING_DEFINITIONS - internal use only)
     APP_NAME: str = "LambChat"
-    APP_VERSION: str = "1.0.0"
+    APP_VERSION: str = _get_app_version()
 
     # Version Info (populated at startup)
     GIT_TAG: Optional[str] = None
@@ -590,6 +609,7 @@ class Settings(BaseSettings):
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180  # 3 minutes
     SANDBOX_AUTO_STOP_INTERVAL: int = 5  # minutes
+    SANDBOX_AUTO_ARCHIVE_INTERVAL: int = 5  # minutes
     MODAL_APP_NAME: str = ""
 
     # Skills Settings

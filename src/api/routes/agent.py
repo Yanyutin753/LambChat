@@ -156,7 +156,7 @@ SYNC_CONVERSATION_TOOLS = [
 
 def extract_tool_parameters(tool) -> list[ToolParamInfo]:
     """从 LangChain 工具中提取参数信息"""
-    parameters = []
+    parameters: list[ToolParamInfo] = []
     try:
         if hasattr(tool, "args_schema") and tool.args_schema:
             # MCP tools may have args_schema as a dict directly, while LangChain tools have Pydantic models

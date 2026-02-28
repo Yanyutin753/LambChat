@@ -1,10 +1,25 @@
 import { createContext, useContext, ReactNode } from "react";
 import { useSettings } from "../hooks/useSettings";
+import type { SettingsResponse } from "../types";
 
 interface SettingsContextValue {
+  settings: SettingsResponse | null;
   enableMcp: boolean;
   enableSkills: boolean;
   isLoading: boolean;
+  error: string | null;
+  savingKeys: Set<string>;
+  updateSetting: (
+    key: string,
+    value: string | number | boolean | object,
+  ) => Promise<boolean>;
+  resetSetting: (key: string) => Promise<boolean>;
+  resetAllSettings: () => Promise<boolean>;
+  clearError: () => void;
+  exportSettings: () => void;
+  importSettings: (
+    file: File,
+  ) => Promise<{ success: boolean; updatedCount: number; errors: string[] }>;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(
@@ -12,12 +27,33 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(
 );
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const { isLoading, getBooleanSetting } = useSettings();
+  const {
+    settings,
+    isLoading,
+    error,
+    savingKeys,
+    getBooleanSetting,
+    updateSetting,
+    resetSetting,
+    resetAllSettings,
+    clearError,
+    exportSettings,
+    importSettings,
+  } = useSettings();
 
   const value: SettingsContextValue = {
+    settings,
     enableMcp: getBooleanSetting("ENABLE_MCP"),
     enableSkills: getBooleanSetting("ENABLE_SKILLS"),
     isLoading,
+    error,
+    savingKeys,
+    updateSetting,
+    resetSetting,
+    resetAllSettings,
+    clearError,
+    exportSettings,
+    importSettings,
   };
 
   return (

@@ -15,7 +15,7 @@ import { AboutDialog } from "../common/AboutDialog";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { useSettings } from "../../hooks/useSettings";
+import { useSettingsContext } from "../../contexts/SettingsContext";
 import { useAuth } from "../../hooks/useAuth";
 import { roleApi } from "../../services/api";
 import { Permission } from "../../types";
@@ -64,7 +64,7 @@ export function SettingsPanel() {
     clearError,
     exportSettings,
     importSettings,
-  } = useSettings();
+  } = useSettingsContext();
   const { hasPermission } = useAuth();
 
   const CATEGORY_LABELS: Record<SettingCategory, string> = {
