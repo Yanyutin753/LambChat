@@ -132,6 +132,22 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "上传文件",
         "description": "上传文件和头像",
     },
+    Permission.FILE_UPLOAD_IMAGE.value: {
+        "label": "上传图片",
+        "description": "允许上传图片文件（jpg, png, gif 等）",
+    },
+    Permission.FILE_UPLOAD_VIDEO.value: {
+        "label": "上传视频",
+        "description": "允许上传视频文件（mp4, webm 等）",
+    },
+    Permission.FILE_UPLOAD_AUDIO.value: {
+        "label": "上传音频",
+        "description": "允许上传音频文件（mp3, wav 等）",
+    },
+    Permission.FILE_UPLOAD_DOCUMENT.value: {
+        "label": "上传文档",
+        "description": "允许上传文档文件（pdf, word, excel 等）",
+    },
 }
 
 # 权限分组配置
@@ -192,9 +208,13 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
         ],
     },
     {
-        "name": "文件管理",
+        "name": "文件上传",
         "permissions": [
             Permission.FILE_UPLOAD.value,
+            Permission.FILE_UPLOAD_IMAGE.value,
+            Permission.FILE_UPLOAD_VIDEO.value,
+            Permission.FILE_UPLOAD_AUDIO.value,
+            Permission.FILE_UPLOAD_DOCUMENT.value,
         ],
     },
 ]
