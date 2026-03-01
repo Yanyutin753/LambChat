@@ -208,6 +208,23 @@
     "pageNotFound": "页面未找到",
     "pageNotFoundDesc": "抱歉，您访问的页面不存在或已被移除。请检查网址是否正确，或返回首页继续使用。"
   },
+  "fileUpload": {
+    "title": "上传文件",
+    "dragDrop": "拖拽文件到这里或点击上传",
+    "uploading": "上传中...",
+    "uploadSuccess": "上传成功",
+    "uploadFailed": "上传失败",
+    "noPermission": "没有权限上传{{type}}文件",
+    "fileTooLarge": "文件大小超过限制",
+    "tooManyFiles": "一次最多上传{{count}}个文件",
+    "removeAttachment": "移除附件",
+    "categories": {
+      "image": "图片",
+      "video": "视频",
+      "audio": "音频",
+      "document": "文档"
+    }
+  },
   "mcp": {
     "addFirst": "添加您的第一个 MCP 服务器",
     "addNew": "添加新 MCP 服务器",

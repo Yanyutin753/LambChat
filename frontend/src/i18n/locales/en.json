@@ -208,6 +208,23 @@
     "pageNotFound": "Page Not Found",
     "pageNotFoundDesc": "Sorry, the page you are looking for doesn't exist or has been removed. Please check the URL or return to home."
   },
+  "fileUpload": {
+    "title": "Upload file",
+    "dragDrop": "Drag and drop files here or click to upload",
+    "uploading": "Uploading...",
+    "uploadSuccess": "Upload successful",
+    "uploadFailed": "Upload failed",
+    "noPermission": "No permission to upload {{type}} files",
+    "fileTooLarge": "File size exceeds limit",
+    "tooManyFiles": "Maximum {{count}} files per upload",
+    "removeAttachment": "Remove attachment",
+    "categories": {
+      "image": "image",
+      "video": "video",
+      "audio": "audio",
+      "document": "document"
+    }
+  },
   "mcp": {
     "addFirst": "Add your first MCP server",
     "addNew": "Add New MCP Server",
