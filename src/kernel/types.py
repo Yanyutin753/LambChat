@@ -55,6 +55,10 @@ class Permission(str, Enum):
 
     # File
     FILE_UPLOAD = "file:upload"
+    FILE_UPLOAD_IMAGE = "file:upload:image"
+    FILE_UPLOAD_VIDEO = "file:upload:video"
+    FILE_UPLOAD_AUDIO = "file:upload:audio"
+    FILE_UPLOAD_DOCUMENT = "file:upload:document"
 
 
 class MessageType(str, Enum):
