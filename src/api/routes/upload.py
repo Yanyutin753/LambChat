@@ -368,20 +368,36 @@ async def delete_file(
 @router.get("/config")
 async def get_storage_config() -> dict:
     """
-    Get storage configuration status
+    Get storage configuration status and file upload limits
 
     Returns:
-        Storage configuration (without sensitive data)
+        Storage configuration and upload limits
     """
+    from src.infra.settings.service import get_settings_service
+
     s3_enabled = await get_s3_enabled()
-    # settings 已在 initialize_settings 时从数据库加载
-    s3_provider = settings.S3_PROVIDER
-    s3_max_size = settings.S3_MAX_FILE_SIZE
+    settings_service = get_settings_service()
+
+    # Get upload limits from settings
+    max_size_image = await settings_service.get("FILE_UPLOAD_MAX_SIZE_IMAGE") or 10
+    max_size_video = await settings_service.get("FILE_UPLOAD_MAX_SIZE_VIDEO") or 100
+    max_size_audio = await settings_service.get("FILE_UPLOAD_MAX_SIZE_AUDIO") or 50
+    max_size_document = await settings_service.get("FILE_UPLOAD_MAX_SIZE_DOCUMENT") or 50
+    max_files = await settings_service.get("FILE_UPLOAD_MAX_FILES") or 10
 
     return {
         "enabled": s3_enabled,
-        "provider": s3_provider if s3_enabled else None,
-        "max_file_size": int(s3_max_size) if s3_enabled and s3_max_size else None,
+        "provider": settings.S3_PROVIDER if s3_enabled else None,
+        "max_file_size": settings.S3_MAX_FILE_SIZE
+        if s3_enabled and settings.S3_MAX_FILE_SIZE
+        else None,
+        "uploadLimits": {
+            "image": max_size_image,
+            "video": max_size_video,
+            "audio": max_size_audio,
+            "document": max_size_document,
+            "maxFiles": max_files,
+        },
     }
 
 
