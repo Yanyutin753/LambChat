@@ -30,7 +30,6 @@ import {
   ExternalLink,
   FileCode,
   Image as ImageIcon,
-  Loader2,
   Box,
   Info,
 } from "lucide-react";
@@ -1379,6 +1378,55 @@ function SubagentToolItem({
   );
 }
 
+// Sandbox 状态块组件
+function SandboxItem({
+  status,
+  sandboxId,
+  error,
+}: {
+  status: "starting" | "ready" | "error";
+  sandboxId?: string;
+  error?: string;
+}) {
+  const { t } = useTranslation();
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const hasDetails =
+    (status === "ready" && sandboxId) || (status === "error" && error);
+
+  const pillStatus: CollapsibleStatus =
+    status === "starting"
+      ? "loading"
+      : status === "ready"
+        ? "success"
+        : "error";
+
+  return (
+    <CollapsiblePill
+      status={pillStatus}
+      icon={<Box size={10} className="shrink-0 opacity-50" />}
+      label={t("chat.sandbox.name")}
+      expandable={!!hasDetails}
+      onExpandChange={setIsExpanded}
+    >
+      {isExpanded && hasDetails && (
+        <div className="mt-1 ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600">
+          {status === "ready" && sandboxId && (
+            <div className="text-xs text-stone-600 dark:text-stone-300 pl-1 py-1 font-mono">
+              ID: {sandboxId}
+            </div>
+          )}
+          {status === "error" && error && (
+            <div className="text-xs text-red-600 dark:text-red-400 pl-1 py-1">
+              {error}
+            </div>
+          )}
+        </div>
+      )}
+    </CollapsiblePill>
+  );
+}
+
 // 子代理内部内容渲染器（独立于主代理的渲染逻辑）
 function SubagentContentRenderer({
   part,
@@ -1389,9 +1437,6 @@ function SubagentContentRenderer({
   isStreaming?: boolean;
   isLast: boolean;
 }) {
-  const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(false);
-
   // 文本 - 使用 markdown 渲染
   if (part.type === "text") {
     return (
@@ -1434,75 +1479,14 @@ function SubagentContentRenderer({
     );
   }
 
-  // Sandbox 状态块 - 使用和 tool 成功时一样的绿色圆角胶囊样式，点击展开详情
+  // Sandbox 状态块
   if (part.type === "sandbox") {
-    const hasDetails =
-      (part.status === "ready" && part.sandbox_id) ||
-      (part.status === "error" && part.error);
-
-    const statusInfo = {
-      starting: {
-        icon: <Loader2 size={12} className="animate-spin" />,
-        iconColor: "text-emerald-600",
-        label: "sandbox",
-      },
-      ready: {
-        icon: <CheckCircle size={12} className="text-emerald-600 shrink-0" />,
-        iconColor: "text-emerald-600",
-        label: "sandbox",
-      },
-      error: {
-        icon: <XCircle size={12} className="text-red-500 shrink-0" />,
-        iconColor: "text-red-500",
-        label: "sandbox",
-      },
-    };
-    const info = statusInfo[part.status] || statusInfo.starting;
-
     return (
-      <div>
-        <button
-          onClick={() => hasDetails && setIsExpanded(!isExpanded)}
-          className={clsx(
-            "inline-flex items-center gap-1.5 px-2.5 py-2 rounded-full text-xs font-medium",
-            "transition-all",
-            part.status === "error"
-              ? "bg-red-100/80 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-              : "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
-            hasDetails && "hover:shadow-sm cursor-pointer",
-          )}
-        >
-          <div className={clsx("shrink-0", info.iconColor)}>{info.icon}</div>
-          <Box size={10} className="shrink-0 opacity-50" />
-          <span className="font-mono">{t("chat.sandbox.name")}</span>
-          {part.status === "starting" && (
-            <span className="ml-0.5 font-mono">
-              {t("chat.sandbox.initializing")}
-            </span>
-          )}
-          {hasDetails &&
-            (isExpanded ? (
-              <ChevronDown size={10} className="shrink-0 opacity-50" />
-            ) : (
-              <ChevronRight size={10} className="shrink-0 opacity-50" />
-            ))}
-        </button>
-
-        {isExpanded && hasDetails && (
-          <div className="mt-1 ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600">
-            {part.status === "ready" && part.sandbox_id && (
-              <div className="text-xs text-stone-600 dark:text-stone-300 pl-1 py-1 font-mono">
-                ID: {part.sandbox_id}
-              </div>
-            )}
-            {part.status === "error" && part.error && (
-              <div className="text-xs text-red-600 dark:text-red-400 pl-1 py-1">
-                {part.error}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SandboxItem
+        status={part.status}
+        sandboxId={part.sandbox_id}
+        error={part.error}
+      />
     );
   }
 
@@ -1689,9 +1673,6 @@ function MessagePartRenderer({
   isStreaming?: boolean;
   isLast: boolean;
 }) {
-  const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(false);
-
   if (part.type === "text") {
     // 子代理内部的文本使用简单渲染，主代理使用 Markdown
     if (part.depth && part.depth > 0) {
@@ -1758,75 +1739,14 @@ function MessagePartRenderer({
     );
   }
 
-  // Sandbox 状态块 - 使用和 tool 成功时一样的绿色圆角胶囊样式，点击展开详情
+  // Sandbox 状态块
   if (part.type === "sandbox") {
-    const hasDetails =
-      (part.status === "ready" && part.sandbox_id) ||
-      (part.status === "error" && part.error);
-
-    const statusInfo = {
-      starting: {
-        icon: <Loader2 size={12} className="animate-spin" />,
-        iconColor: "text-emerald-600",
-        label: "sandbox",
-      },
-      ready: {
-        icon: <CheckCircle size={12} className="text-emerald-600 shrink-0" />,
-        iconColor: "text-emerald-600",
-        label: "sandbox",
-      },
-      error: {
-        icon: <XCircle size={12} className="text-red-500 shrink-0" />,
-        iconColor: "text-red-500",
-        label: "sandbox",
-      },
-    };
-    const info = statusInfo[part.status] || statusInfo.starting;
-
     return (
-      <div>
-        <button
-          onClick={() => hasDetails && setIsExpanded(!isExpanded)}
-          className={clsx(
-            "inline-flex items-center gap-1.5 px-2.5 py-2 rounded-full text-xs font-medium",
-            "transition-all",
-            part.status === "error"
-              ? "bg-red-100/80 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-              : "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
-            hasDetails && "hover:shadow-sm cursor-pointer",
-          )}
-        >
-          <div className={clsx("shrink-0", info.iconColor)}>{info.icon}</div>
-          <Box size={10} className="shrink-0 opacity-50" />
-          <span className="font-mono">{t("chat.sandbox.name")}</span>
-          {part.status === "starting" && (
-            <span className="ml-0.5 font-mono">
-              {t("chat.sandbox.initializing")}
-            </span>
-          )}
-          {hasDetails &&
-            (isExpanded ? (
-              <ChevronDown size={10} className="shrink-0 opacity-50" />
-            ) : (
-              <ChevronRight size={10} className="shrink-0 opacity-50" />
-            ))}
-        </button>
-
-        {isExpanded && hasDetails && (
-          <div className="mt-1 ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600">
-            {part.status === "ready" && part.sandbox_id && (
-              <div className="text-xs text-stone-600 dark:text-stone-300 pl-1 py-1 font-mono">
-                ID: {part.sandbox_id}
-              </div>
-            )}
-            {part.status === "error" && part.error && (
-              <div className="text-xs text-red-600 dark:text-red-400 pl-1 py-1">
-                {part.error}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SandboxItem
+        status={part.status}
+        sandboxId={part.sandbox_id}
+        error={part.error}
+      />
     );
   }
 
