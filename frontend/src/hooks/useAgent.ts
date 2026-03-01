@@ -63,6 +63,7 @@ export function useAgent(options?: UseAgentOptions) {
   // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
   const isConnectingRef = useRef(false);
+  const isLoadingHistoryRef = useRef(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -799,6 +800,13 @@ export function useAgent(options?: UseAgentOptions) {
   // Load message history from backend
   const loadHistory = useCallback(
     async (targetSessionId: string, targetRunId?: string) => {
+      // Prevent concurrent loadHistory calls
+      if (isLoadingHistoryRef.current) {
+        console.log("[loadHistory] Already loading, skipping...");
+        return;
+      }
+      isLoadingHistoryRef.current = true;
+
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -908,6 +916,7 @@ export function useAgent(options?: UseAgentOptions) {
         setError("Failed to load session");
       } finally {
         setIsLoading(false);
+        isLoadingHistoryRef.current = false;
       }
     },
     [connectToSSE, clearReconnectTimeout, options],
