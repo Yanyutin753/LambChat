@@ -923,17 +923,20 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
 
   // Handle session selection from sidebar
   const handleSelectSession = useCallback(
-    (selectedSessionId: string) => {
+    async (selectedSessionId: string) => {
+      // Prevent duplicate calls while syncing
+      if (isSyncingRef.current) return;
       // Directly load history without going through URL sync
       isSyncingRef.current = true;
-      loadHistory(selectedSessionId);
-      // Update URL
-      navigate(`/chat/${selectedSessionId}`);
-      // Scroll to top after loading history
-      setTimeout(() => {
+      try {
+        await loadHistory(selectedSessionId);
+        // Update URL
+        navigate(`/chat/${selectedSessionId}`);
+        // Scroll to top after loading history
         messagesContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      } finally {
         isSyncingRef.current = false;
-      }, 100);
+      }
     },
     [navigate, loadHistory],
   );
