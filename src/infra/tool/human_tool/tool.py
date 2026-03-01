@@ -132,25 +132,17 @@ class AskHumanTool(BaseTool):
         session_id = self.session_id or ctx.session_id
         run_id = ctx.run_id
 
-        # 构建审批类型和选项
-        # 如果只有一个字段且是简单类型，使用传统格式以兼容旧前端
-        approval_type = "form"  # 新的表单类型
-        choices: Optional[List[str]] = None
-        default: Optional[str] = None
+        # 构建审批类型和字段列表
+        approval_type = "form"
 
-        # 将字段序列化为 JSON 存储到 choices 中（临时方案）
-        # TODO: 后续可以扩展 PendingApproval 模型直接支持 fields
-        if parsed_fields:
-            field_dicts = [f.model_dump() for f in parsed_fields]
-            # 使用特殊前缀标识这是表单数据
-            choices = [json.dumps(field_dicts, ensure_ascii=False)]
+        # 将字段序列化为 dict 列表
+        field_dicts = [f.model_dump() for f in parsed_fields] if parsed_fields else []
 
         # 创建审批请求
         approval = await create_approval(
             message=message,
             approval_type=approval_type,
-            choices=choices,
-            default=default,
+            fields=field_dicts,
             session_id=session_id or None,
         )
 
@@ -179,27 +171,18 @@ class AskHumanTool(BaseTool):
             return json.dumps(result, ensure_ascii=False)
 
         # 成功：解析用户响应
-        try:
-            # 响应应该是 JSON 格式的字段值
-            if response.response:
-                values = json.loads(response.response)
-            else:
-                values = self._get_default_values(parsed_fields)
+        # response.response 现在是 dict 类型
+        if response.response and isinstance(response.response, dict):
+            values = response.response
+        else:
+            values = self._get_default_values(parsed_fields)
 
-            result = {
-                "status": "success",
-                "message": "用户已响应",
-                "values": values,
-            }
-            return json.dumps(result, ensure_ascii=False)
-        except json.JSONDecodeError:
-            # 兼容旧的文本响应格式
-            result = {
-                "status": "success",
-                "message": "用户已响应",
-                "values": {"response": response.response},
-            }
-            return json.dumps(result, ensure_ascii=False)
+        result = {
+            "status": "success",
+            "message": "用户已响应",
+            "values": values,
+        }
+        return json.dumps(result, ensure_ascii=False)
 
     def _parse_fields(self, fields: List[Any]) -> List[FormField]:
         """
