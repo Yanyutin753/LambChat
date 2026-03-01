@@ -21,10 +21,12 @@
   },
   "approvals": {
     "approve": "批准",
+    "cancel": "取消",
     "enterResponse": "请输入回复...",
     "needsConfirmation": "需要确认",
     "reject": "拒绝",
-    "send": "发送"
+    "send": "发送",
+    "submit": "提交"
   },
   "auth": {
     "account": "账号",

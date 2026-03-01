@@ -21,10 +21,12 @@
   },
   "approvals": {
     "approve": "Approve",
+    "cancel": "Cancel",
     "enterResponse": "Enter your response...",
-    "needsConfirmation": "Confirmation Required",
+    "needsConfirmation": "Needs Confirmation",
     "reject": "Reject",
-    "send": "Send"
+    "send": "Send",
+    "submit": "Submit"
   },
   "auth": {
     "account": "Account",

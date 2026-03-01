@@ -4,7 +4,6 @@ import {
   Check,
   X,
   Send,
-  CornerDownLeft,
   ChevronLeft,
   ChevronRight,
   ListOrdered,
@@ -13,12 +12,154 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import type { PendingApproval } from "../../types";
+import type { PendingApproval, FormField } from "../../types";
 
 interface ApprovalPanelProps {
   approvals: PendingApproval[];
-  onRespond: (id: string, response: string, approved: boolean) => void;
+  onRespond: (
+    id: string,
+    response: Record<string, unknown>,
+    approved: boolean,
+  ) => void;
   isLoading: boolean;
+}
+
+// Form field renderer component
+function FormFieldRenderer({
+  field,
+  value,
+  onChange,
+  disabled,
+}: {
+  field: FormField;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  disabled: boolean;
+}) {
+  const baseInputClasses =
+    "w-full rounded-xl border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50 dark:bg-stone-700 dark:text-stone-100 dark:placeholder-stone-500 dark:border-stone-600 dark:focus:border-stone-500 dark:focus:ring-stone-500/20";
+
+  switch (field.type) {
+    case "text":
+      return (
+        <input
+          type="text"
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          disabled={disabled}
+          className={baseInputClasses}
+        />
+      );
+
+    case "textarea":
+      return (
+        <textarea
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          disabled={disabled}
+          rows={3}
+          className={`${baseInputClasses} resize-none`}
+        />
+      );
+
+    case "number":
+      return (
+        <input
+          type="number"
+          value={(value as number) ?? ""}
+          onChange={(e) =>
+            onChange(e.target.value ? Number(e.target.value) : "")
+          }
+          placeholder={field.placeholder}
+          disabled={disabled}
+          className={baseInputClasses}
+        />
+      );
+
+    case "checkbox":
+      return (
+        <label className="flex items-center gap-3 cursor-pointer">
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={(value as boolean) ?? false}
+              onChange={(e) => onChange(e.target.checked)}
+              disabled={disabled}
+              className="sr-only"
+            />
+            <div
+              className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${
+                (value as boolean) ?? false
+                  ? "bg-black border-black dark:bg-white dark:border-white"
+                  : "border-gray-300 bg-white dark:border-stone-600 dark:bg-stone-700"
+              } ${disabled ? "opacity-50" : ""}`}
+            >
+              {(value as boolean) ?? false ? (
+                <Check size={14} className="text-white dark:text-black" />
+              ) : null}
+            </div>
+          </div>
+          <span className="text-sm text-gray-700 dark:text-stone-300">
+            {field.label}
+          </span>
+        </label>
+      );
+
+    case "select":
+      return (
+        <select
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className={baseInputClasses}
+        >
+          <option value="" disabled>
+            {field.placeholder || "Select an option"}
+          </option>
+          {field.options?.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+
+    case "multi_select":
+      const selectedValues = (value as string[]) ?? [];
+      return (
+        <div className="flex flex-wrap gap-2">
+          {field.options?.map((option) => {
+            const isSelected = selectedValues.includes(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  if (isSelected) {
+                    onChange(selectedValues.filter((v) => v !== option));
+                  } else {
+                    onChange([...selectedValues, option]);
+                  }
+                }}
+                disabled={disabled}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  isSelected
+                    ? "bg-black text-white dark:bg-white dark:text-black"
+                    : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600"
+                } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      );
+
+    default:
+      return null;
+  }
 }
 
 export function ApprovalPanel({
@@ -27,25 +168,67 @@ export function ApprovalPanel({
   isLoading,
 }: ApprovalPanelProps) {
   const { t } = useTranslation();
-  const [responses, setResponses] = useState<Record<string, string>>({});
-  const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [formValues, setFormValues] = useState<
+    Record<string, Record<string, unknown>>
+  >({});
 
-  // 当 approvals 数量减少时，自动调整 currentIndex
+  // Initialize form values from field defaults when approvals change
+  useEffect(() => {
+    setFormValues((prev) => {
+      const newValues = { ...prev };
+      approvals.forEach((approval) => {
+        if (!newValues[approval.id]) {
+          const initialValues: Record<string, unknown> = {};
+          approval.fields.forEach((field) => {
+            initialValues[field.name] =
+              field.default ?? getDefaultValue(field.type);
+          });
+          newValues[approval.id] = initialValues;
+        }
+      });
+      // Remove values for approvals that no longer exist
+      Object.keys(newValues).forEach((id) => {
+        if (!approvals.find((a) => a.id === id)) {
+          delete newValues[id];
+        }
+      });
+      return newValues;
+    });
+  }, [approvals]);
+
+  // Get default value based on field type
+  function getDefaultValue(type: FormField["type"]): unknown {
+    switch (type) {
+      case "text":
+      case "textarea":
+        return "";
+      case "number":
+        return 0;
+      case "checkbox":
+        return false;
+      case "select":
+        return "";
+      case "multi_select":
+        return [];
+      default:
+        return null;
+    }
+  }
+
+  // Adjust currentIndex when approvals count changes
   useEffect(() => {
     if (currentIndex >= approvals.length) {
       setCurrentIndex(Math.max(0, approvals.length - 1));
     }
   }, [approvals.length, currentIndex]);
 
-  // 只显示当前索引的 approval
   if (approvals.length === 0) return null;
 
-  // 边界保护：确保 currentIndex 不超出范围
+  // Boundary protection
   const safeIndex = Math.min(currentIndex, approvals.length - 1);
   const currentApproval = approvals[safeIndex];
 
-  // 额外保护：确保 currentApproval 存在且有 message
   if (!currentApproval || !currentApproval.message) {
     return null;
   }
@@ -58,10 +241,47 @@ export function ApprovalPanel({
     setCurrentIndex((prev) => Math.min(approvals.length - 1, prev + 1));
   };
 
+  const currentFormValues = formValues[currentApproval.id] ?? {};
+
+  const handleFieldChange = (fieldName: string, value: unknown) => {
+    setFormValues((prev) => ({
+      ...prev,
+      [currentApproval.id]: {
+        ...(prev[currentApproval.id] ?? {}),
+        [fieldName]: value,
+      },
+    }));
+  };
+
+  const handleSubmit = () => {
+    onRespond(currentApproval.id, currentFormValues, true);
+  };
+
+  const handleCancel = () => {
+    onRespond(currentApproval.id, {}, false);
+  };
+
+  const isSubmitDisabled =
+    isLoading || !isFormValid(currentApproval.fields, currentFormValues);
+
+  function isFormValid(
+    fields: FormField[],
+    values: Record<string, unknown>,
+  ): boolean {
+    return fields.every((field) => {
+      if (!field.required) return true;
+      const value = values[field.name];
+      if (value === undefined || value === null) return false;
+      if (typeof value === "string" && value.trim() === "") return false;
+      if (Array.isArray(value) && value.length === 0) return false;
+      return true;
+    });
+  }
+
   return (
     <div className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white dark:bg-stone-900">
       <div className="mx-auto max-w-3xl xl:max-w-5xl">
-        {/* 导航控制栏 */}
+        {/* Navigation control bar */}
         {approvals.length > 1 && (
           <div className="mb-2 flex items-center justify-between px-1">
             <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-stone-400">
@@ -115,114 +335,50 @@ export function ApprovalPanel({
             </div>
           </div>
 
+          {/* Form fields */}
+          {currentApproval.fields.length > 0 && (
+            <div className="px-4 py-3 sm:px-5 space-y-4 border-t border-gray-100 dark:border-stone-700">
+              {currentApproval.fields.map((field) => (
+                <div key={field.name} className="space-y-1.5">
+                  {field.type !== "checkbox" && (
+                    <label className="block text-sm font-medium text-gray-700 dark:text-stone-300">
+                      {field.label}
+                      {field.required && (
+                        <span className="text-red-500 ml-1">*</span>
+                      )}
+                    </label>
+                  )}
+                  <FormFieldRenderer
+                    field={field}
+                    value={currentFormValues[field.name]}
+                    onChange={(value) => handleFieldChange(field.name, value)}
+                    disabled={isLoading}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Actions */}
           <div className="px-4 py-3 sm:px-5 bg-gray-100/50 dark:bg-stone-800/50">
-            {/* Confirm type */}
-            {currentApproval.type === "confirm" && (
-              <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-                <button
-                  onClick={() => onRespond(currentApproval.id, "yes", true)}
-                  disabled={isLoading}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-black dark:hover:bg-gray-100"
-                >
-                  <Check size={18} />
-                  <span>{t("approvals.approve")}</span>
-                </button>
-                <button
-                  onClick={() => onRespond(currentApproval.id, "no", false)}
-                  disabled={isLoading}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:border-stone-600 dark:bg-transparent dark:text-stone-200 dark:hover:bg-stone-700"
-                >
-                  <X size={18} />
-                  <span>{t("approvals.reject")}</span>
-                </button>
-              </div>
-            )}
-
-            {/* Text input type */}
-            {currentApproval.type === "text" && (
-              <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-                <div
-                  className={`relative flex-1 flex items-center rounded-xl border bg-white transition-all duration-200 dark:bg-stone-700 ${
-                    focusedInput === currentApproval.id
-                      ? "border-gray-400 shadow-sm dark:border-stone-500"
-                      : "border-gray-200 dark:border-stone-600"
-                  }`}
-                >
-                  <input
-                    type="text"
-                    value={responses[currentApproval.id] || ""}
-                    onChange={(e) =>
-                      setResponses((prev) => ({
-                        ...prev,
-                        [currentApproval.id]: e.target.value,
-                      }))
-                    }
-                    onFocus={() => setFocusedInput(currentApproval.id)}
-                    onBlur={() => setFocusedInput(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        onRespond(
-                          currentApproval.id,
-                          responses[currentApproval.id] ||
-                            currentApproval.default ||
-                            "",
-                          true,
-                        );
-                      }
-                    }}
-                    placeholder={
-                      currentApproval.default || t("approvals.enterResponse")
-                    }
-                    disabled={isLoading}
-                    className="w-full bg-transparent px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-50 dark:text-stone-100 dark:placeholder-stone-500"
-                  />
-                  <kbd className="mr-3 hidden rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-400 dark:bg-stone-600 dark:text-stone-400 sm:inline-flex items-center gap-1">
-                    <CornerDownLeft size={8} />
-                  </kbd>
-                </div>
-                <button
-                  onClick={() =>
-                    onRespond(
-                      currentApproval.id,
-                      responses[currentApproval.id] ||
-                        currentApproval.default ||
-                        "",
-                      true,
-                    )
-                  }
-                  disabled={isLoading || !responses[currentApproval.id]}
-                  className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium shadow-sm transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
-                    responses[currentApproval.id]
-                      ? "bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-100"
-                      : "bg-gray-200 text-gray-400 dark:bg-stone-700 dark:text-stone-500"
-                  }`}
-                >
-                  <Send size={18} />
-                  <span className="sm:hidden">{t("approvals.send")}</span>
-                </button>
-              </div>
-            )}
-
-            {/* Choice type */}
-            {currentApproval.type === "choice" &&
-              currentApproval.choices.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {currentApproval.choices.map((choice: string) => (
-                    <button
-                      key={choice}
-                      onClick={() =>
-                        onRespond(currentApproval.id, choice, true)
-                      }
-                      disabled={isLoading}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 dark:hover:border-stone-500 dark:hover:bg-stone-600"
-                    >
-                      {choice}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitDisabled}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-black dark:hover:bg-gray-100"
+              >
+                <Send size={18} />
+                <span>{t("approvals.submit")}</span>
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={isLoading}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:border-stone-600 dark:bg-transparent dark:text-stone-200 dark:hover:bg-stone-700"
+              >
+                <X size={18} />
+                <span>{t("approvals.cancel")}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

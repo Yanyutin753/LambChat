@@ -13,6 +13,7 @@ import type {
   MessagePart,
   SandboxPart,
   TokenUsagePart,
+  FormField,
 } from "../types";
 import {
   sessionApi,
@@ -96,8 +97,7 @@ interface UseAgentOptions {
     id: string;
     message: string;
     type: string;
-    choices?: string[];
-    default?: string;
+    fields?: FormField[];
   }) => void;
   onClearApprovals?: () => void; // 清除所有 approvals 的回调
   getEnabledTools?: () => string[]; // 获取启用的工具列表
@@ -680,9 +680,8 @@ export function useAgent(options?: UseAgentOptions) {
                   options?.onApprovalRequired?.({
                     id: data.id!,
                     message: approval.message || "",
-                    type: approval.type || "text",
-                    choices: approval.choices || [],
-                    default: approval.default ?? null,
+                    type: approval.type || "form",
+                    fields: approval.fields || [],
                   });
                 } else {
                   console.log(
@@ -1453,8 +1452,7 @@ export function useAgent(options?: UseAgentOptions) {
                   id?: string;
                   message?: string;
                   type?: string;
-                  choices?: string[];
-                  default?: string;
+                  fields?: FormField[];
                 };
                 if (approvalData.id && options?.onApprovalRequired) {
                   // 检查 approval 状态
@@ -1471,9 +1469,8 @@ export function useAgent(options?: UseAgentOptions) {
                         options.onApprovalRequired({
                           id: approvalData.id,
                           message: approvalData.message || "",
-                          type: approvalData.type || "text",
-                          choices: approvalData.choices,
-                          default: approvalData.default,
+                          type: approvalData.type || "form",
+                          fields: approvalData.fields,
                         });
                       } else {
                         console.log(

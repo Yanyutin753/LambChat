@@ -123,13 +123,34 @@ export interface StreamEventData {
   session_id?: string;
 }
 
+// ============================================
+// Form Field Types (Human Tool)
+// ============================================
+
+export type FormFieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "checkbox"
+  | "select"
+  | "multi_select";
+
+export interface FormField {
+  name: string;
+  label: string;
+  type: FormFieldType;
+  placeholder?: string;
+  default?: unknown;
+  required: boolean;
+  options?: string[];
+}
+
 export interface PendingApproval {
   id: string;
   message: string;
-  type: "text" | "confirm" | "choice";
-  choices: string[];
-  default: string | null;
-  status: string;
+  type: "form";
+  fields: FormField[];
+  status: "pending" | "approved" | "rejected";
   session_id?: string | null;
 }
 

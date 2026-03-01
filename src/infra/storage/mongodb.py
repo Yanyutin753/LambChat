@@ -123,18 +123,18 @@ class PendingApproval(BaseModel):
 
     id: str
     message: str
-    type: str = "text"  # text, confirm, choice
-    choices: List[str] = []
-    default: Optional[str] = None
+    type: str = "form"  # form-based approval
+    fields: List[dict] = []  # 表单字段列表
     status: str = "pending"
     session_id: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class ApprovalResponse(BaseModel):
     """审批响应"""
 
     approved: bool
-    response: str = ""
+    response: dict = {}  # 改为 dict 类型
 
 
 class ApprovalStorage:

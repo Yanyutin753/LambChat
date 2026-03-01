@@ -809,9 +809,8 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
       addApproval({
         id: approval.id,
         message: approval.message,
-        type: approval.type as "text" | "confirm" | "choice",
-        choices: approval.choices || [],
-        default: approval.default ?? null,
+        type: "form",
+        fields: approval.fields || [],
         status: "pending",
         session_id: sessionId,
       });
