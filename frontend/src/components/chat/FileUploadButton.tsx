@@ -8,6 +8,7 @@ import type {
   MessageAttachment,
   FileCategory,
   UploadResult,
+  Permission,
 } from "../../types";
 
 interface FileUploadButtonProps {
@@ -15,11 +16,11 @@ interface FileUploadButtonProps {
 }
 
 // Permission mapping
-const CATEGORY_PERMISSIONS: Record<FileCategory, string> = {
-  image: "file:upload:image",
-  video: "file:upload:video",
-  audio: "file:upload:audio",
-  document: "file:upload:document",
+const CATEGORY_PERMISSIONS: Record<FileCategory, Permission> = {
+  image: Permission.FILE_UPLOAD_IMAGE,
+  video: Permission.FILE_UPLOAD_VIDEO,
+  audio: Permission.FILE_UPLOAD_AUDIO,
+  document: Permission.FILE_UPLOAD_DOCUMENT,
 };
 
 function getFileCategory(file: File): FileCategory {
@@ -42,7 +43,7 @@ export const FileUploadButton = memo(function FileUploadButton({
 
   // Check if user has any upload permission
   const canUpload = Object.values(CATEGORY_PERMISSIONS).some((perm) =>
-    hasPermission(perm as any),
+    hasPermission(perm),
   );
 
   const handleFileSelect = useCallback(
@@ -58,7 +59,7 @@ export const FileUploadButton = memo(function FileUploadButton({
 
           // Check permission
           const requiredPerm = CATEGORY_PERMISSIONS[category];
-          if (!hasPermission(requiredPerm as any)) {
+          if (!hasPermission(requiredPerm)) {
             alert(
               t("fileUpload.noPermission", {
                 type: t(`fileUpload.categories.${category}`),
