@@ -12,19 +12,21 @@
       "label": "사고 활성화"
     }
   },
-  "appName": "LambChat",
   "agents": {
     "search": {
-      "name": "Search Agent",
-      "description": "LangGraph 기반 검색 및 실행 에이전트"
+      "description": "LangGraph 기반 검색 및 실행 에이전트",
+      "name": "Search Agent"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "승인",
+    "cancel": "[TODO]approvals.cancel",
     "enterResponse": "응답 입력...",
     "needsConfirmation": "확인 필요",
     "reject": "거부",
-    "send": "전송"
+    "send": "전송",
+    "submit": "[TODO]approvals.submit"
   },
   "auth": {
     "account": "계정",
@@ -98,6 +100,7 @@
       "result": "결과",
       "running": "실행 중...",
       "thinking": "생각 중",
+      "thought": "생각 완료",
       "tokenInput": "입력",
       "tokenOutput": "출력",
       "tokenTotal": "총계",

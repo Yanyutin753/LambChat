@@ -12,13 +12,13 @@
       "label": "启用思考"
     }
   },
-  "appName": "LambChat",
   "agents": {
     "search": {
-      "name": "Search Agent",
-      "description": "基于 LangGraph 的搜索和执行代理"
+      "description": "基于 LangGraph 的搜索和执行代理",
+      "name": "Search Agent"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "批准",
     "cancel": "取消",
@@ -87,7 +87,7 @@
     "attachFile": "附件",
     "enterToSend": "发送",
     "message": {
-      "args": "Args",
+      "args": "参数",
       "assistant": "Assistant",
       "copied": "已复制!",
       "copy": "复制",
@@ -98,13 +98,14 @@
       "filePath": "文件路径",
       "mermaidError": "Mermaid 错误",
       "parameters": "参数",
-      "result": "Result",
+      "result": "结果",
       "running": "运行中...",
-      "thinking": "thinking",
+      "thinking": "思考中...",
+      "thought": "已思考",
       "tokenInput": "输入",
       "tokenOutput": "输出",
       "tokenTotal": "总计",
-      "toolCalls": "Tool Calls"
+      "toolCalls": "工具调用"
     },
     "noPermission": "没有发送消息的权限",
     "noPermissionHint": "您没有发送消息的权限",

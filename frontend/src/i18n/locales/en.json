@@ -12,13 +12,13 @@
       "label": "Enable Thinking"
     }
   },
-  "appName": "LambChat",
   "agents": {
     "search": {
-      "name": "Search Agent",
-      "description": "Search and execution agent based on LangGraph"
+      "description": "Search and execution agent based on LangGraph",
+      "name": "Search Agent"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "Approve",
     "cancel": "Cancel",
@@ -101,6 +101,7 @@
       "result": "Result",
       "running": "Running...",
       "thinking": "Thinking",
+      "thought": "Thought",
       "tokenInput": "Input",
       "tokenOutput": "Output",
       "tokenTotal": "Total",

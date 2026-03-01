@@ -126,7 +126,7 @@ function FormFieldRenderer({
         </select>
       );
 
-    case "multi_select":
+    case "multi_select": {
       const selectedValues = (value as string[]) ?? [];
       return (
         <div className="flex flex-wrap gap-2">
@@ -156,6 +156,7 @@ function FormFieldRenderer({
           })}
         </div>
       );
+    }
 
     default:
       return null;

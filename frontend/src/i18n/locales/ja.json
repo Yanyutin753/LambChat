@@ -12,19 +12,21 @@
       "label": "思考を有効化"
     }
   },
-  "appName": "LambChat",
   "agents": {
     "search": {
-      "name": "Search Agent",
-      "description": "LangGraphベースの検索・実行エージェント"
+      "description": "LangGraphベースの検索・実行エージェント",
+      "name": "Search Agent"
     }
   },
+  "appName": "LambChat",
   "approvals": {
     "approve": "承認",
+    "cancel": "[TODO]approvals.cancel",
     "enterResponse": "返信を入力...",
     "needsConfirmation": "確認が必要です",
     "reject": "拒否",
-    "send": "送信"
+    "send": "送信",
+    "submit": "[TODO]approvals.submit"
   },
   "auth": {
     "account": "アカウント",
@@ -98,6 +100,7 @@
       "result": "結果",
       "running": "実行中...",
       "thinking": "思考中",
+      "thought": "思考済み",
       "tokenInput": "入力",
       "tokenOutput": "出力",
       "tokenTotal": "合計",
