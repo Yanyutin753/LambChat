@@ -352,7 +352,7 @@
   },
   "settings": {
     "exportSuccess": "설정 내보내기 완료",
-    "importSuccess": "{count}개 설정 가져오기 완료",
+    "importSuccess": "{{count}}개 설정 가져오기 완료",
     "loading": "설정 로딩 중...",
     "noMatch": "검색과 일치하는 설정이 없습니다",
     "noSettings": "이 카테고리에 설정이 없습니다",
