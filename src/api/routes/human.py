@@ -10,7 +10,9 @@ Human Input 路由
 """
 
 import asyncio
+import json
 import uuid
+from datetime import datetime
 from typing import Callable, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -78,9 +80,8 @@ _approval_storage = get_approval_storage()
 
 async def create_approval(
     message: str,
-    approval_type: str = "text",
-    choices: Optional[List[str]] = None,
-    default: Optional[str] = None,
+    approval_type: str = "form",
+    fields: Optional[List[dict]] = None,
     session_id: Optional[str] = None,
 ) -> PendingApproval:
     """
@@ -88,9 +89,8 @@ async def create_approval(
 
     Args:
         message: 提示消息
-        approval_type: 类型 (text, confirm, choice)
-        choices: 选项列表 (choice 类型时使用)
-        default: 默认值
+        approval_type: 类型 (form, confirm)
+        fields: 表单字段列表
         session_id: 关联的会话 ID
 
     Returns:
@@ -101,10 +101,10 @@ async def create_approval(
         id=approval_id,
         message=message,
         type=approval_type,
-        choices=choices or [],
-        default=default,
+        fields=fields or [],
         status="pending",
         session_id=session_id,
+        created_at=datetime.now(),
     )
 
     # 存储到 MongoDB
@@ -205,7 +205,7 @@ async def get_pending_approvals():
 async def respond_to_approval(
     approval_id: str,
     approved: bool = Query(..., description="是否批准"),
-    response: str = Query("", description="响应内容"),
+    response: str = Query("{}", description="响应数据（JSON 字符串）"),
 ):
     """
     响应审批请求
@@ -219,8 +219,14 @@ async def respond_to_approval(
     if approval.status != "pending":
         raise HTTPException(status_code=400, detail="审批请求已处理")
 
+    # 解析 JSON 响应数据
+    try:
+        response_data = json.loads(response) if response else {}
+    except json.JSONDecodeError:
+        response_data = {}
+
     # 记录响应并更新状态
-    approval_response = ApprovalResponse(approved=approved, response=response)
+    approval_response = ApprovalResponse(approved=approved, response=response_data)
     status = "approved" if approved else "rejected"
     await _approval_storage.update_status(approval_id, status, approval_response)
 

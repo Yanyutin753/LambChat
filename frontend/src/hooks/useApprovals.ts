@@ -45,13 +45,18 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
   }, []);
 
   const respondToApproval = useCallback(
-    async (approvalId: string, response: string, approved: boolean = true) => {
+    async (
+      approvalId: string,
+      response: Record<string, unknown>,
+      approved: boolean = true,
+    ) => {
       setIsLoading(true);
       try {
-        // Backend uses Query parameters, not JSON body
+        // 将响应对象序列化为 JSON 字符串
+        const responseJson = JSON.stringify(response);
         const params = new URLSearchParams({
           approved: String(approved),
-          response: response || "",
+          response: responseJson,
         });
         const res = await fetch(
           `${API_BASE}/human/${approvalId}/respond?${params}`,

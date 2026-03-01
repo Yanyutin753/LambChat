@@ -12,13 +12,21 @@
       "label": "Enable Thinking"
     }
   },
+  "agents": {
+    "search": {
+      "description": "Search and execution agent based on LangGraph",
+      "name": "Search Agent"
+    }
+  },
   "appName": "LambChat",
   "approvals": {
     "approve": "Approve",
+    "cancel": "Cancel",
     "enterResponse": "Enter your response...",
-    "needsConfirmation": "Confirmation Required",
+    "needsConfirmation": "Needs Confirmation",
     "reject": "Reject",
-    "send": "Send"
+    "send": "Send",
+    "submit": "Submit"
   },
   "auth": {
     "account": "Account",
@@ -85,13 +93,18 @@
       "copy": "Copy",
       "copyCode": "Copy code",
       "download": "Download",
+      "duration": "Duration",
       "executing": "Executing...",
       "filePath": "File Path",
       "mermaidError": "Mermaid Error",
       "parameters": "Parameters",
       "result": "Result",
       "running": "Running...",
-      "thinking": "thinking",
+      "thinking": "Thinking",
+      "thought": "Thought",
+      "tokenInput": "Input",
+      "tokenOutput": "Output",
+      "tokenTotal": "Total",
       "toolCalls": "Tool Calls"
     },
     "noPermission": "No permission to send messages",
@@ -100,6 +113,7 @@
     "sandbox": {
       "error": "initialization failed",
       "initializing": "initializing environment...",
+      "name": "Sandbox",
       "ready": "ready"
     },
     "send": "Send message",
@@ -193,6 +207,32 @@
     "noPermissionTitle": "Permission Denied",
     "pageNotFound": "Page Not Found",
     "pageNotFoundDesc": "Sorry, the page you are looking for doesn't exist or has been removed. Please check the URL or return to home."
+  },
+  "fileUpload": {
+    "categories": {
+      "${category}": "fileUpload.categories.${category}",
+      "audio": "audio",
+      "document": "document",
+      "image": "image",
+      "video": "video"
+    },
+    "dragDrop": "Drag and drop files here or click to upload",
+    "fileTooLarge": "File size exceeds limit",
+    "noPermission": "No permission to upload {{type}} files",
+    "removeAttachment": "Remove attachment",
+    "title": "Upload file",
+    "tooManyFiles": "Maximum {{count}} files per upload",
+    "uploadFailed": "Upload failed",
+    "uploadSuccess": "Upload successful",
+    "uploading": "Uploading..."
+  },
+  "imageViewer": {
+    "hint": "Scroll to zoom · Drag to move · ESC to close",
+    "reset": "Reset",
+    "rotateLeft": "Rotate Left",
+    "rotateRight": "Rotate Right",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
   },
   "mcp": {
     "addFirst": "Add your first MCP server",
@@ -342,7 +382,7 @@
   },
   "settings": {
     "exportSuccess": "Settings exported successfully",
-    "importSuccess": "Imported {count} settings",
+    "importSuccess": "Imported {{count}} settings",
     "loading": "Loading settings...",
     "noMatch": "No settings match your search",
     "noSettings": "No settings in this category",

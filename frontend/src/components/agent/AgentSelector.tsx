@@ -1,5 +1,6 @@
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { Bot, ChevronDown, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { AgentInfo } from "../../types";
 
 interface AgentItemProps {
@@ -17,6 +18,7 @@ const AgentItem = memo(function AgentItem({
   isSelected,
   onSelect,
 }: AgentItemProps) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={onSelect}
@@ -28,10 +30,10 @@ const AgentItem = memo(function AgentItem({
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-gray-700 dark:text-stone-200">
-            {agent.name}
+            {t(agent.name)}
           </div>
           <div className="text-xs text-gray-400 dark:text-stone-500 truncate">
-            {agent.description}
+            {t(agent.description)}
           </div>
         </div>
         {isSelected && (
@@ -67,6 +69,7 @@ const AgentSelector = memo(function AgentSelector({
   agentsLoading,
   onSelectAgent,
 }: AgentSelectorProps) {
+  const { t } = useTranslation();
   const [showSelector, setShowSelector] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +127,7 @@ const AgentSelector = memo(function AgentSelector({
         className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
       >
         <span className="text-base font-semibold text-gray-700 dark:text-stone-200">
-          {currentAgentInfo?.name || currentAgent}
+          {t(currentAgentInfo?.name || currentAgent)}
         </span>
         <ChevronDown
           size={18}

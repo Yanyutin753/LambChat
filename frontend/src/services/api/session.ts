@@ -1,0 +1,229 @@
+/**
+ * Session API - 会话管理
+ */
+
+import type { SessionEventsResponse, RunSummary } from "../../types";
+import { API_BASE } from "./config";
+import { authFetch } from "./fetch";
+import { getAccessToken } from "./token";
+
+// Backend Session type (matches backend Session schema)
+export interface BackendSession {
+  id: string;
+  user_id?: string;
+  agent_id: string;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  name?: string;
+  metadata: Record<string, unknown>;
+}
+
+// Session list response type
+export interface SessionListResponse {
+  sessions: BackendSession[];
+  total: number;
+  skip: number;
+  limit: number;
+  has_more: boolean;
+}
+
+export const sessionApi = {
+  /**
+   * List all sessions with pagination
+   */
+  async list(params?: {
+    status?: string;
+    limit?: number;
+    skip?: number;
+  }): Promise<SessionListResponse | BackendSession[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set("status", params.status);
+    if (params?.limit) searchParams.set("limit", params.limit.toString());
+    if (params?.skip) searchParams.set("skip", params.skip.toString());
+
+    const url = `${API_BASE}/api/sessions${
+      searchParams.toString() ? `?${searchParams}` : ""
+    }`;
+    return authFetch<SessionListResponse | BackendSession[]>(url);
+  },
+
+  /**
+   * Get a session
+   */
+  async get(sessionId: string): Promise<BackendSession | null> {
+    try {
+      return await authFetch<BackendSession>(
+        `${API_BASE}/api/sessions/${sessionId}`,
+      );
+    } catch (error) {
+      if ((error as Error).message.includes("404")) {
+        return null;
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Get all session events
+   */
+  async getEvents(
+    sessionId: string,
+    options?: {
+      event_types?: string[];
+      run_id?: string;
+      exclude_run_id?: string;
+    },
+  ): Promise<SessionEventsResponse & { run_id?: string }> {
+    const searchParams = new URLSearchParams();
+    if (options?.event_types && options.event_types.length > 0) {
+      searchParams.set("event_types", options.event_types.join(","));
+    }
+    if (options?.run_id) {
+      searchParams.set("run_id", options.run_id);
+    }
+    if (options?.exclude_run_id) {
+      searchParams.set("exclude_run_id", options.exclude_run_id);
+    }
+
+    const url = `${API_BASE}/api/sessions/${sessionId}/events${
+      searchParams.toString() ? `?${searchParams}` : ""
+    }`;
+    return authFetch<SessionEventsResponse & { run_id?: string }>(url);
+  },
+
+  /**
+   * Get all runs for a session
+   */
+  async getRuns(
+    sessionId: string,
+  ): Promise<{ session_id: string; runs: RunSummary[]; count: number }> {
+    return authFetch(`${API_BASE}/api/sessions/${sessionId}/runs`);
+  },
+
+  /**
+   * Delete a session
+   */
+  async delete(sessionId: string) {
+    return authFetch(`${API_BASE}/api/sessions/${sessionId}`, {
+      method: "DELETE",
+    });
+  },
+
+  /**
+   * Update session status
+   */
+  async updateStatus(sessionId: string, status: "active" | "archived") {
+    return authFetch(
+      `${API_BASE}/api/sessions/${sessionId}/status?status=${status}`,
+      {
+        method: "PATCH",
+      },
+    );
+  },
+
+  /**
+   * Clear messages for a session
+   */
+  async clearMessages(sessionId: string) {
+    return authFetch(`${API_BASE}/api/sessions/${sessionId}/clear-messages`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Generate title for session using LLM
+   */
+  async generateTitle(
+    sessionId: string,
+    message: string,
+  ): Promise<{ title: string; session_id: string }> {
+    return authFetch(
+      `${API_BASE}/api/sessions/${sessionId}/generate-title?message=${encodeURIComponent(
+        message,
+      )}`,
+      {
+        method: "POST",
+      },
+    );
+  },
+
+  /**
+   * Get session stream URL for SSE
+   */
+  getStreamUrl(sessionId: string, runId: string) {
+    const token = getAccessToken();
+    const params = new URLSearchParams();
+    params.set("run_id", runId);
+    if (token) {
+      params.set("token", token);
+    }
+    return `${API_BASE}/api/chat/sessions/${sessionId}/stream?${params.toString()}`;
+  },
+
+  /**
+   * Get sandbox init stream URL for SSE
+   */
+  getSandboxInitUrl(sessionId: string) {
+    const token = getAccessToken();
+    const params = new URLSearchParams();
+    if (token) {
+      params.set("token", token);
+    }
+    return `${API_BASE}/api/sessions/${sessionId}/sandbox/init?${params.toString()}`;
+  },
+
+  /**
+   * Get session task status
+   */
+  async getStatus(
+    sessionId: string,
+    runId?: string,
+  ): Promise<{
+    session_id: string;
+    run_id?: string;
+    status: string;
+    error?: string;
+  }> {
+    const params = runId ? `?run_id=${runId}` : "";
+    return authFetch(
+      `${API_BASE}/api/chat/sessions/${sessionId}/status${params}`,
+    );
+  },
+
+  /**
+   * Cancel running task for a session
+   */
+  async cancel(sessionId: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    return authFetch(`${API_BASE}/api/chat/sessions/${sessionId}/cancel`, {
+      method: "POST",
+    });
+  },
+
+  /**
+   * Submit a chat message (returns immediately)
+   */
+  async submitChat(
+    agentId: string,
+    message: string,
+    sessionId?: string,
+    agentOptions?: Record<string, boolean | string | number>,
+  ): Promise<{
+    session_id: string;
+    run_id: string;
+    trace_id: string;
+    status: string;
+  }> {
+    return authFetch(`${API_BASE}/api/chat/stream?agent_id=${agentId}`, {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+        session_id: sessionId,
+        agent_options: agentOptions,
+      }),
+    });
+  },
+};

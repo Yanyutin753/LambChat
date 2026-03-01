@@ -31,9 +31,6 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints"):
     if _mongo_checkpointer is not None:
         return _mongo_checkpointer
 
-    if not settings.MONGODB_ENABLED:
-        return None
-
     try:
         from urllib.parse import quote_plus
 
@@ -97,10 +94,9 @@ def get_checkpointer():
         Checkpointer 实例
     """
     # 优先尝试 MongoDB
-    if settings.MONGODB_ENABLED:
-        checkpointer = get_mongo_checkpointer()
-        if checkpointer is not None:
-            return checkpointer
+    checkpointer = get_mongo_checkpointer()
+    if checkpointer is not None:
+        return checkpointer
 
     # 回退到 Memory
     from langgraph.checkpoint.memory import MemorySaver

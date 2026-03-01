@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { ImageViewer } from "../common/ImageViewer";
 import {
   X,
   AlertCircle,
@@ -27,7 +28,7 @@ import {
   isCodeFile,
   isMarkdownFile,
   isPreviewableFile,
-  getFileTypeColor,
+  getFileTypeInfo,
   detectLanguage,
 } from "./utils";
 
@@ -54,7 +55,7 @@ export {
   isPreviewableFile,
   isCodeFile,
   isMarkdownFile,
-  getFileTypeColor,
+  getFileTypeInfo,
   detectLanguage,
 } from "./utils";
 /* eslint-enable react-refresh/only-export-components */
@@ -72,7 +73,9 @@ interface DocumentPreviewProps {
   path: string;
   content?: string; // File content passed from parent (from agent events)
   s3Key?: string; // S3 object key for fetching content via signed URL
+  signedUrl?: string; // Pre-signed URL (if available, skips getSignedUrl call)
   fileSize?: number; // File size in bytes
+  imageUrl?: string; // Direct image URL for previewing image attachments
   onClose: () => void;
 }
 
@@ -80,7 +83,9 @@ export default function DocumentPreview({
   path,
   content,
   s3Key,
+  signedUrl,
   fileSize,
+  imageUrl: externalImageUrl,
   onClose,
 }: DocumentPreviewProps) {
   const { t } = useTranslation();
@@ -97,6 +102,7 @@ export default function DocumentPreview({
   const [htmlContent, setHtmlContent] = useState<string>("");
   const [arrayBuffer, setArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showImageViewer, setShowImageViewer] = useState(false);
 
   const fileName = path.split("/").pop() || path;
   const ext = getFileExtension(fileName);
@@ -145,6 +151,14 @@ export default function DocumentPreview({
     setArrayBuffer(null);
 
     const loadContent = async () => {
+      // 如果传入了外部图片 URL，直接使用
+      if (externalImageUrl) {
+        setImageUrl(externalImageUrl);
+        setData({ content: "", path });
+        setLoading(false);
+        return;
+      }
+
       // 优先使用传入的 content
       if (content !== undefined) {
         // HTML 文件创建 blob URL 用于 iframe 渲染
@@ -161,14 +175,20 @@ export default function DocumentPreview({
         return;
       }
 
-      // 如果有 s3Key，从 S3 获取内容
-      if (s3Key) {
+      // 如果有 s3Key 或 signedUrl，从 S3 获取内容
+      if (s3Key || signedUrl) {
         try {
-          const signedUrl = await uploadApi.getSignedUrl(s3Key);
+          // 优先使用传入的 signedUrl，否则通过 s3Key 获取
+          const url =
+            signedUrl || (s3Key ? await uploadApi.getSignedUrl(s3Key) : null);
+
+          if (!url) {
+            throw new Error("No URL available");
+          }
 
           // 图片文件直接使用签名 URL
           if (imageFile) {
-            setImageUrl(signedUrl);
+            setImageUrl(url);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -176,7 +196,7 @@ export default function DocumentPreview({
 
           // PDF 文件使用 iframe 嵌入
           if (pdfFile) {
-            setPdfUrl(signedUrl);
+            setPdfUrl(url);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -184,7 +204,7 @@ export default function DocumentPreview({
 
           // PPT 文件使用 Office Online viewer 嵌入
           if (pptFile) {
-            setPptUrl(signedUrl);
+            setPptUrl(url);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -192,10 +212,10 @@ export default function DocumentPreview({
 
           // HTML 文件使用 iframe 嵌入
           if (htmlFile) {
-            setHtmlUrl(signedUrl);
+            setHtmlUrl(url);
             // 同时获取内容用于查看源代码
             try {
-              const response = await fetch(signedUrl);
+              const response = await fetch(url);
               if (response.ok) {
                 const text = await response.text();
                 setHtmlContent(text);
@@ -209,7 +229,7 @@ export default function DocumentPreview({
           }
 
           // 其他文件获取内容
-          const response = await fetch(signedUrl);
+          const response = await fetch(url);
           if (!response.ok) {
             throw new Error(`Failed to fetch file: ${response.status}`);
           }
@@ -229,7 +249,7 @@ export default function DocumentPreview({
             // 延迟一下再下载，让UI先渲染
             setTimeout(() => {
               const a = document.createElement("a");
-              a.href = signedUrl;
+              a.href = url;
               a.download = fileName;
               a.click();
             }, 100);
@@ -254,7 +274,7 @@ export default function DocumentPreview({
 
     loadContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, content, s3Key]);
+  }, [path, content, s3Key, signedUrl, externalImageUrl]);
 
   // Handle ESC key
   useEffect(() => {
@@ -314,8 +334,8 @@ export default function DocumentPreview({
     }
   };
 
-  const colors = getFileTypeColor(fileName);
-  const Icon = colors.icon;
+  const fileInfo = getFileTypeInfo(fileName);
+  const Icon = fileInfo.icon;
 
   return createPortal(
     <div
@@ -334,11 +354,11 @@ export default function DocumentPreview({
         <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-800 shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-900 dark:to-stone-900">
           {/* File Icon */}
           <div
-            className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${colors.bg}`}
+            className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${fileInfo.bg}`}
           >
             <Icon
               size={20}
-              className={`sm:w-[22px] sm:h-[22px] ${colors.color}`}
+              className={`sm:w-[22px] sm:h-[22px] ${fileInfo.color}`}
             />
           </div>
           {/* File Info */}
@@ -486,9 +506,9 @@ export default function DocumentPreview({
           ) : binaryFile && !imageFile && !pdfFile ? (
             <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4 px-4">
               <div
-                className={`flex items-center justify-center w-20 h-20 rounded-2xl ${colors.bg}`}
+                className={`flex items-center justify-center w-20 h-20 rounded-2xl ${fileInfo.bg}`}
               >
-                <Icon size={36} className={colors.color} />
+                <Icon size={36} className={fileInfo.color} />
               </div>
               <div className="text-center">
                 <p className="text-sm text-stone-700 dark:text-stone-300 font-medium mb-2">
@@ -525,19 +545,31 @@ export default function DocumentPreview({
             <WordPreview arrayBuffer={arrayBuffer} t={t} />
           ) : excelFile && arrayBuffer ? (
             <ExcelPreview arrayBuffer={arrayBuffer} fileName={fileName} t={t} />
-          ) : imageFile ? (
-            <div className="flex items-center justify-center p-4 sm:p-8 bg-stone-50 dark:bg-stone-800/50 min-h-[200px] overflow-auto">
-              <img
-                src={imageUrl || `data:image/${ext};base64,${data?.content}`}
-                alt={fileName}
-                className={`rounded-lg shadow-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${
-                  isFullscreen
-                    ? "max-w-full max-h-full"
-                    : "max-w-full max-h-[50vh] sm:max-h-[60vh]"
-                }`}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
+          ) : imageFile || imageUrl ? (
+            <>
+              <div className="flex items-center justify-center p-4 sm:p-8 bg-stone-50 dark:bg-stone-800/50 min-h-[200px] overflow-auto">
+                <img
+                  src={imageUrl || `data:image/${ext};base64,${data?.content}`}
+                  alt={fileName}
+                  className={`rounded-lg shadow-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${
+                    isFullscreen
+                      ? "max-w-full max-h-full"
+                      : "max-w-full max-h-[50vh] sm:max-h-[60vh]"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowImageViewer(true);
+                  }}
+                />
+              </div>
+              {showImageViewer && (
+                <ImageViewer
+                  isOpen={showImageViewer}
+                  src={imageUrl || `data:image/${ext};base64,${data?.content}`}
+                  onClose={() => setShowImageViewer(false)}
+                />
+              )}
+            </>
           ) : markdownFile ? (
             <div className="p-4 sm:p-6 lg:p-8">
               <MarkdownRenderer content={data?.content || ""} t={t} />

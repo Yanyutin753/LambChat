@@ -8,6 +8,12 @@ export interface Message {
   isStreaming?: boolean;
   // 有序内容块 - 用于按顺序渲染文本和工具调用
   parts?: MessagePart[];
+  // Token 使用统计
+  tokenUsage?: TokenUsagePart;
+  // 对话耗时（毫秒）
+  duration?: number;
+  // 用户消息附件
+  attachments?: MessageAttachment[];
 }
 
 // 消息内容块类型
@@ -16,7 +22,8 @@ export type MessagePart =
   | ToolPart
   | SubagentPart
   | ThinkingPart
-  | SandboxPart;
+  | SandboxPart
+  | TokenUsagePart;
 
 // Sandbox 状态块类型（用于渲染沙箱初始化状态）
 export interface SandboxPart {
@@ -26,6 +33,14 @@ export interface SandboxPart {
   work_dir?: string;
   error?: string;
   timestamp?: string;
+}
+
+// Token 使用统计块类型
+export interface TokenUsagePart {
+  type: "token_usage";
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
 }
 
 export interface TextPart {
@@ -110,13 +125,34 @@ export interface StreamEventData {
   session_id?: string;
 }
 
+// ============================================
+// Form Field Types (Human Tool)
+// ============================================
+
+export type FormFieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "checkbox"
+  | "select"
+  | "multi_select";
+
+export interface FormField {
+  name: string;
+  label: string;
+  type: FormFieldType;
+  placeholder?: string;
+  default?: unknown;
+  required: boolean;
+  options?: string[];
+}
+
 export interface PendingApproval {
   id: string;
   message: string;
-  type: "text" | "confirm" | "choice";
-  choices: string[];
-  default: string | null;
-  status: string;
+  type: "form";
+  fields: FormField[];
+  status: "pending" | "approved" | "rejected";
   session_id?: string | null;
 }
 
@@ -417,6 +453,10 @@ export enum Permission {
   MCP_ADMIN = "mcp:admin",
   // File
   FILE_UPLOAD = "file:upload",
+  FILE_UPLOAD_IMAGE = "file:upload:image",
+  FILE_UPLOAD_VIDEO = "file:upload:video",
+  FILE_UPLOAD_AUDIO = "file:upload:audio",
+  FILE_UPLOAD_DOCUMENT = "file:upload:document",
 }
 
 // 用户信息
@@ -749,4 +789,42 @@ export interface VersionInfo {
   has_update?: boolean;
   published_at?: string;
   last_checked?: string;
+}
+
+// ============================================
+// File Upload Types
+// ============================================
+
+export type FileCategory = "image" | "video" | "audio" | "document";
+
+export interface MessageAttachment {
+  id: string;
+  key: string;
+  name: string;
+  type: FileCategory;
+  mimeType: string;
+  size: number;
+  url: string;
+}
+
+export interface UploadConfig {
+  enabled: boolean;
+  provider?: string;
+  max_file_size?: number;
+  uploadLimits: {
+    image: number;
+    video: number;
+    audio: number;
+    document: number;
+    maxFiles: number;
+  };
+}
+
+export interface UploadResult {
+  key: string;
+  url: string;
+  name: string;
+  type: FileCategory;
+  mimeType: string;
+  size: number;
 }
