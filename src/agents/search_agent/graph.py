@@ -185,12 +185,17 @@ class SearchAgent(BaseGraphAgent):
         history_messages = current_state.values.get("messages", [])
 
         # 初始状态 - 使用历史消息
+        attachments = kwargs.get("attachments", [])
         initial_state = {
             "input": message,
             "session_id": session_id,
             "messages": history_messages,  # 复用历史消息
             "output": "",
+            "attachments": attachments,  # 文件附件
         }
+        logger.info(
+            f"[SearchAgent] initial_state attachments: {len(attachments) if attachments else 0} items"
+        )
 
         async def run_graph():
             """后台执行 graph"""

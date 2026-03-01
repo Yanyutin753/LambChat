@@ -13,12 +13,17 @@ import { useTranslation } from "react-i18next";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { FileUploadButton } from "./FileUploadButton";
+import { uploadApi, getFullUrl } from "../../services/api";
+import DocumentPreview from "../documents/DocumentPreview";
+import { AttachmentCard } from "../common/AttachmentCard";
+import { ImageViewer } from "../common";
 import type {
   ToolState,
   ToolCategory,
   SkillResponse,
   SkillSource,
   AgentOption,
+  MessageAttachment,
 } from "../../types";
 
 // Icon mapping for dynamic icon rendering
@@ -32,6 +37,7 @@ interface ChatInputProps {
   onSend: (
     message: string,
     options?: Record<string, boolean | string | number>,
+    attachments?: MessageAttachment[],
   ) => void;
   onStop: () => void;
   isLoading: boolean;
@@ -222,6 +228,10 @@ export const ChatInput = memo(function ChatInput({
 }: ChatInputProps) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [previewAttachment, setPreviewAttachment] =
+    useState<MessageAttachment | null>(null);
+  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -321,8 +331,9 @@ export const ChatInput = memo(function ChatInput({
     e.preventDefault();
     if (!canSend) return;
     if (input.trim() && !isLoading && !disabled) {
-      onSend(input.trim(), agentOptionValues);
+      onSend(input.trim(), agentOptionValues, attachments);
       setInput("");
+      setAttachments([]); // 发送后清空附件
     }
   };
 
@@ -341,6 +352,44 @@ export const ChatInput = memo(function ChatInput({
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* ChatGPT-style container */}
         <div className="flex flex-col relative w-full rounded-3xl px-1 bg-white dark:bg-stone-800 border border-gray-200/50 dark:border-stone-700/50 shadow-[0_0_10px_rgba(0,0,0,0.05)] dark:shadow-[0_0_10px_rgba(0,0,0,0.1)]">
+          {/* Attachment preview - top area (ChatGPT style) */}
+          {attachments.length > 0 && (
+            <div className="mx-2 mt-2 -mb-1 flex flex-wrap gap-2">
+              {attachments.map((attachment) => {
+                const isImage =
+                  attachment.mimeType?.startsWith("image/") && attachment.url;
+
+                const handleRemove = () => {
+                  // Immediately remove from local state for better UX
+                  setAttachments((prev) =>
+                    prev.filter((a) => a.id !== attachment.id),
+                  );
+                  // Async delete from server (non-blocking)
+                  uploadApi.deleteFile(attachment.key).catch((error) => {
+                    console.error("Failed to delete file from server:", error);
+                  });
+                };
+
+                return (
+                  <AttachmentCard
+                    key={attachment.id}
+                    attachment={attachment}
+                    variant="editable"
+                    size="compact"
+                    onClick={() => {
+                      if (isImage && attachment.url) {
+                        setImageViewerSrc(getFullUrl(attachment.url) ?? null);
+                      } else {
+                        setPreviewAttachment(attachment);
+                      }
+                    }}
+                    onRemove={handleRemove}
+                  />
+                );
+              })}
+            </div>
+          )}
+
           {/* Textarea section */}
           <div className="px-2.5 py-2 flex items-start gap-2">
             <textarea
@@ -363,7 +412,10 @@ export const ChatInput = memo(function ChatInput({
             {/* Left side - Tool buttons */}
             <div className="ml-2 self-end flex items-center max-w-[80%] gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
               {/* File upload button */}
-              <FileUploadButton />
+              <FileUploadButton
+                attachments={attachments}
+                onAttachmentsChange={setAttachments}
+              />
               {/* Tool selector button */}
               {enableMcp && onToggleTool && onToggleCategory && onToggleAll && (
                 <ToolSelector
@@ -443,6 +495,30 @@ export const ChatInput = memo(function ChatInput({
           </div>
         </div>
       </form>
+
+      {/* 文件预览弹窗 */}
+      {previewAttachment && (
+        <DocumentPreview
+          path={previewAttachment.name}
+          s3Key={previewAttachment.key}
+          fileSize={previewAttachment.size}
+          imageUrl={
+            previewAttachment.type === "image"
+              ? getFullUrl(previewAttachment.url)
+              : undefined
+          }
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
+
+      {/* 图片预览器 - 直接预览图片 */}
+      {imageViewerSrc && (
+        <ImageViewer
+          src={imageViewerSrc}
+          isOpen={!!imageViewerSrc}
+          onClose={() => setImageViewerSrc(null)}
+        />
+      )}
     </div>
   );
 });

@@ -18,10 +18,34 @@ export interface CollapsiblePillProps {
   expandable?: boolean;
 }
 
+// Get spinner color based on variant
+function getSpinnerColor(variant: CollapsibleVariant): string {
+  if (variant === "tool") {
+    return "text-amber-500 dark:text-amber-400";
+  }
+  if (variant === "thinking") {
+    return "text-stone-500 dark:text-stone-400";
+  }
+  // default (sandbox) - use emerald
+  return "text-emerald-500 dark:text-emerald-400";
+}
+
 // StatusIndicator component
-function StatusIndicator({ status }: { status: CollapsibleStatus }) {
+function StatusIndicator({
+  status,
+  variant,
+}: {
+  status: CollapsibleStatus;
+  variant: CollapsibleVariant;
+}) {
   if (status === "loading") {
-    return <LoadingSpinner size="sm" className="shrink-0" />;
+    return (
+      <LoadingSpinner
+        size="xs"
+        className="shrink-0"
+        color={getSpinnerColor(variant)}
+      />
+    );
   }
   if (status === "success") {
     return <CheckCircle size={12} className="shrink-0" />;
@@ -119,7 +143,7 @@ export function CollapsiblePill({
           !canExpand && "cursor-default",
         )}
       >
-        <StatusIndicator status={status} />
+        <StatusIndicator status={status} variant={variant} />
         {icon}
         <span className="font-mono">{label}</span>
         {suffix}

@@ -12,6 +12,8 @@ export interface Message {
   tokenUsage?: TokenUsagePart;
   // 对话耗时（毫秒）
   duration?: number;
+  // 用户消息附件
+  attachments?: MessageAttachment[];
 }
 
 // 消息内容块类型

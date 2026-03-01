@@ -3,8 +3,7 @@ import { Paperclip, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { uploadApi } from "../../services/api";
-import { AttachmentPreview } from "./AttachmentPreview";
-import type {
+import {
   MessageAttachment,
   FileCategory,
   UploadResult,
@@ -12,6 +11,7 @@ import type {
 } from "../../types";
 
 interface FileUploadButtonProps {
+  attachments?: MessageAttachment[];
   onAttachmentsChange?: (attachments: MessageAttachment[]) => void;
 }
 
@@ -32,14 +32,17 @@ function getFileCategory(file: File): FileCategory {
 }
 
 export const FileUploadButton = memo(function FileUploadButton({
+  attachments: externalAttachments = [],
   onAttachmentsChange,
 }: FileUploadButtonProps) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Use external attachments if provided, otherwise use internal state (for backward compatibility)
+  const attachments = externalAttachments;
 
   // Check if user has any upload permission
   const canUpload = Object.values(CATEGORY_PERMISSIONS).some((perm) =>
@@ -70,6 +73,7 @@ export const FileUploadButton = memo(function FileUploadButton({
 
           // Upload file
           const result: UploadResult = await uploadApi.uploadFile(file);
+          console.log("Upload result:", result);
 
           newAttachments.push({
             id: crypto.randomUUID(),
@@ -82,11 +86,9 @@ export const FileUploadButton = memo(function FileUploadButton({
           });
         }
 
-        setAttachments((prev) => {
-          const updated = [...prev, ...newAttachments];
-          onAttachmentsChange?.(updated);
-          return updated;
-        });
+        const updated = [...attachments, ...newAttachments];
+        console.log("Attachments updated:", updated);
+        onAttachmentsChange?.(updated);
       } catch (error) {
         console.error("Upload failed:", error);
         alert(t("fileUpload.uploadFailed"));
@@ -94,18 +96,7 @@ export const FileUploadButton = memo(function FileUploadButton({
         setIsUploading(false);
       }
     },
-    [hasPermission, isUploading, onAttachmentsChange, t],
-  );
-
-  const handleRemove = useCallback(
-    (id: string) => {
-      setAttachments((prev) => {
-        const updated = prev.filter((a) => a.id !== id);
-        onAttachmentsChange?.(updated);
-        return updated;
-      });
-    },
-    [onAttachmentsChange],
+    [attachments, hasPermission, isUploading, onAttachmentsChange, t],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -137,12 +128,17 @@ export const FileUploadButton = memo(function FileUploadButton({
       onDrop={handleDrop}
     >
       <input
+        key={attachments.length === 0 ? "empty" : "has-files"}
         ref={fileInputRef}
         type="file"
         multiple
         className="hidden"
         accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv"
-        onChange={(e) => handleFileSelect(e.target.files)}
+        onChange={(e) => {
+          handleFileSelect(e.target.files);
+          // Reset input value to allow selecting the same file again after deletion
+          e.target.value = "";
+        }}
       />
 
       <button
@@ -175,15 +171,7 @@ export const FileUploadButton = memo(function FileUploadButton({
         </div>
       )}
 
-      {/* Attachment preview */}
-      {attachments.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 w-64">
-          <AttachmentPreview
-            attachments={attachments}
-            onRemove={handleRemove}
-          />
-        </div>
-      )}
+      {/* Attachment preview - moved to ChatInput for better layout */}
     </div>
   );
 });

@@ -58,8 +58,13 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     existing_messages = state.get("messages", [])
     new_message = HumanMessage(content=state.get("input", ""))
 
-    # 发送用户消息事件
-    await presenter.emit_user_message(state.get("input", ""))
+    # 获取附件
+    attachments = state.get("attachments", [])
+
+    # 发送用户消息事件（包含附件）
+    await presenter.emit_user_message(
+        state.get("input", ""), attachments=attachments if attachments else None
+    )
 
     llm = LLMClient.get_deep_agent_model(
         api_base=settings.LLM_API_BASE,

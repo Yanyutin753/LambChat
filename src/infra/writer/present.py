@@ -612,12 +612,14 @@ class Presenter:
             agent_id=agent_id,
         )
 
-    def present_user_message(self, content: str) -> Dict[str, Any]:
+    def present_user_message(
+        self, content: str, attachments: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
         """输出用户消息"""
-        return self._build_event(
-            "user:message",
-            {"content": content, "timestamp": _get_timestamp()},
-        )
+        data: Dict[str, Any] = {"content": content, "timestamp": _get_timestamp()}
+        if attachments:
+            data["attachments"] = attachments
+        return self._build_event("user:message", data)
 
     def present_sandbox_starting(self) -> Dict[str, Any]:
         """输出沙箱开始初始化"""
@@ -765,9 +767,11 @@ class Presenter:
         await self.save_event(event)
         return event
 
-    async def emit_user_message(self, content: str) -> Dict[str, Any]:
+    async def emit_user_message(
+        self, content: str, attachments: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
         """输出用户消息并保存"""
-        event = self.present_user_message(content)
+        event = self.present_user_message(content, attachments)
         await self.save_event(event)
         return event
 
