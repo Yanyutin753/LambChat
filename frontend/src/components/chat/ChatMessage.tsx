@@ -1326,63 +1326,55 @@ function SubagentToolItem({
   part: Extract<MessagePart, { type: "tool" }>;
 }) {
   const { t } = useTranslation();
-  const [showDetails, setShowDetails] = useState(false);
-  const hasDetails =
-    (part.args && Object.keys(part.args).length > 0) || part.result;
+
+  // Determine status based on part state
+  let status: CollapsibleStatus = "idle";
+  if (part.isPending) {
+    status = "loading";
+  } else if (part.success) {
+    status = "success";
+  } else if (part.result) {
+    status = "error";
+  }
+
+  const hasArgs = part.args && Object.keys(part.args).length > 0;
+  const hasResult = !!part.result;
+  const canExpand = hasArgs || hasResult;
 
   return (
     <div className="rounded-lg bg-stone-100/80 dark:bg-stone-700/50 overflow-hidden">
-      <button
-        onClick={() => hasDetails && setShowDetails(!showDetails)}
-        className={clsx(
-          "w-full flex items-center gap-2 px-3 py-2 text-left transition-colors",
-          hasDetails &&
-            "hover:bg-stone-200/50 dark:hover:bg-stone-600/50 cursor-pointer",
-        )}
+      <CollapsiblePill
+        status={status}
+        icon={<Wrench size={12} className="shrink-0 opacity-50" />}
+        label={part.name}
+        variant="tool"
+        expandable={canExpand}
       >
-        {part.isPending ? (
-          <LoadingSpinner size="xs" className="shrink-0" />
-        ) : part.success ? (
-          <CheckCircle size={12} className="text-emerald-500 shrink-0" />
-        ) : (
-          <XCircle size={12} className="text-red-500 shrink-0" />
+        {canExpand && (
+          <div className="px-3 pb-2 space-y-2 border-t border-stone-200/50 dark:border-stone-600/50">
+            {hasArgs && (
+              <div>
+                <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
+                  {t("chat.message.parameters")}
+                </div>
+                <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 overflow-auto">
+                  {JSON.stringify(part.args, null, 2)}
+                </pre>
+              </div>
+            )}
+            {hasResult && (
+              <div>
+                <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
+                  {t("chat.message.result")}
+                </div>
+                <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 max-h-24 overflow-auto">
+                  {truncateText(part.result || "", 500)}
+                </pre>
+              </div>
+            )}
+          </div>
         )}
-        <Wrench size={10} className="text-stone-400 shrink-0" />
-        <span className="text-xs font-mono font-medium text-stone-700 dark:text-stone-200">
-          {part.name}
-        </span>
-        {hasDetails &&
-          (showDetails ? (
-            <ChevronDown size={10} className="text-stone-400 ml-auto" />
-          ) : (
-            <ChevronRight size={10} className="text-stone-400 ml-auto" />
-          ))}
-      </button>
-
-      {showDetails && hasDetails && (
-        <div className="px-3 pb-2 space-y-2 border-t border-stone-200/50 dark:border-stone-600/50">
-          {part.args && Object.keys(part.args).length > 0 && (
-            <div>
-              <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
-                {t("chat.message.parameters")}
-              </div>
-              <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 overflow-auto">
-                {JSON.stringify(part.args, null, 2)}
-              </pre>
-            </div>
-          )}
-          {part.result && (
-            <div>
-              <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
-                {t("chat.message.result")}
-              </div>
-              <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 max-h-24 overflow-auto">
-                {truncateText(part.result, 500)}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
+      </CollapsiblePill>
     </div>
   );
 }
