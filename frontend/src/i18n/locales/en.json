@@ -373,7 +373,7 @@
   },
   "settings": {
     "exportSuccess": "Settings exported successfully",
-    "importSuccess": "Imported {count} settings",
+    "importSuccess": "Imported {{count}} settings",
     "loading": "Loading settings...",
     "noMatch": "No settings match your search",
     "noSettings": "No settings in this category",

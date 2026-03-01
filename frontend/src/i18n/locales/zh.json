@@ -373,7 +373,7 @@
   },
   "settings": {
     "exportSuccess": "设置导出成功",
-    "importSuccess": "已导入 {count} 项设置",
+    "importSuccess": "已导入 {{count}} 项设置",
     "loading": "加载设置中...",
     "noMatch": "没有匹配的设置项",
     "noSettings": "此分类没有设置项",
