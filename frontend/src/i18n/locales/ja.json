@@ -352,7 +352,7 @@
   },
   "settings": {
     "exportSuccess": "設定をエクスポートしました",
-    "importSuccess": "{count}件の設定をインポートしました",
+    "importSuccess": "{{count}}件の設定をインポートしました",
     "loading": "設定を読み込み中...",
     "noMatch": "検索条件に一致する設定がありません",
     "noSettings": "このカテゴリに設定はありません",
