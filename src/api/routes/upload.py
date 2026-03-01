@@ -12,6 +12,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.api.routes.file_type import (
+    FILE_EXTENSIONS,
+    FileCategory,
+    get_file_category,
+    get_permission_for_category,
+)
+from src.infra.auth.rbac import check_permission
 from src.infra.settings.service import get_settings_service
 from src.infra.storage.s3 import S3Config, S3Provider, get_storage_service, init_storage
 from src.kernel.config import settings
@@ -130,7 +137,7 @@ async def get_or_init_storage():
     return get_storage_service()
 
 
-@router.post("/upload", dependencies=[Depends(require_permissions("file:upload"))])
+@router.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -138,7 +145,7 @@ async def upload_file(
     """
     Upload a file to S3
 
-    Requires: file:upload permission
+    Requires: file:upload:{type} permission based on file type
     Files are stored in folders organized by user_id.
 
     Args:
@@ -156,11 +163,55 @@ async def upload_file(
 
     storage = await get_or_init_storage()
 
-    # Validate file
+    # Read file content first for validation
     content = await file.read()
-    is_valid, error_msg = storage.validate_file(file.filename or "", len(content))
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_msg)
+
+    # Determine file category
+    category = get_file_category(file.filename or "", file.content_type)
+    permission = get_permission_for_category(category)
+
+    # Check permission
+    has_specific = False
+    has_general = False
+
+    if permission:
+        has_specific = check_permission(current_user.permissions, permission)
+    has_general = check_permission(current_user.permissions, "file:upload")
+
+    if not (has_specific or has_general):
+        category_label = category.value if category != FileCategory.UNKNOWN else "未知"
+        raise HTTPException(
+            status_code=403,
+            detail=f"No permission to upload {category_label} files",
+        )
+
+    # Validate file size based on category
+    settings_service = get_settings_service()
+
+    size_limits = {
+        FileCategory.IMAGE: await settings_service.get("FILE_UPLOAD_MAX_SIZE_IMAGE") or 10,
+        FileCategory.VIDEO: await settings_service.get("FILE_UPLOAD_MAX_SIZE_VIDEO") or 100,
+        FileCategory.AUDIO: await settings_service.get("FILE_UPLOAD_MAX_SIZE_AUDIO") or 50,
+        FileCategory.DOCUMENT: await settings_service.get("FILE_UPLOAD_MAX_SIZE_DOCUMENT") or 50,
+        FileCategory.UNKNOWN: 10,
+    }
+    max_size_mb = size_limits.get(category, 10)
+    max_size_bytes = max_size_mb * 1024 * 1024
+
+    if len(content) > max_size_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File size exceeds maximum of {max_size_mb}MB",
+        )
+
+    # Validate file extension
+    ext = (file.filename or "").lower().split(".")[-1]
+    allowed_exts = FILE_EXTENSIONS.get(category, set())
+    if category != FileCategory.UNKNOWN and ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File extension '.{ext}' is not allowed for {category.value} files",
+        )
 
     # Reset file position after reading
     await file.seek(0)
@@ -175,11 +226,16 @@ async def upload_file(
             metadata={"uploaded_by": current_user.sub},
         )
 
+        # Return proxy URL instead of direct S3 URL
+        proxy_url = f"/api/upload/file/{result.key}"
+
         return {
             "key": result.key,
-            "url": result.url,
+            "url": proxy_url,
+            "name": file.filename,
+            "type": category.value,
+            "mimeType": file.content_type,
             "size": result.size,
-            "content_type": result.content_type,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
