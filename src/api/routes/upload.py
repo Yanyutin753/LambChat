@@ -8,7 +8,7 @@ import base64
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required, require_permissions
@@ -510,3 +510,55 @@ async def get_signed_url_simple(
     except Exception as e:
         logger.warning(f"Failed to generate signed URL for {key}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/file/{key:path}")
+async def get_file_proxy(
+    key: str,
+    current_user: TokenPayload = Depends(get_current_user_required),
+) -> Response:
+    """
+    Dynamic proxy endpoint for file access
+
+    Generates a short-lived presigned URL and redirects to it.
+    This ensures the URL never expires from the user's perspective.
+
+    Args:
+        key: S3 object key
+        current_user: Current authenticated user
+
+    Returns:
+        302 redirect to presigned URL
+    """
+    if not await get_s3_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="File storage is not enabled.",
+        )
+
+    storage = await get_or_init_storage()
+
+    # Verify file exists
+    try:
+        exists = await storage.file_exists(key)
+        if not exists:
+            raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        logger.warning(f"Failed to check file existence for {key}: {e}")
+        # Continue anyway - let S3 handle the error
+
+    # Generate short-lived presigned URL (5 minutes)
+    try:
+        if storage._config.public_bucket:
+            url = await storage.get_file_url(key)
+        else:
+            url = await storage.get_presigned_url(key, 300)  # 5 minutes
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL for {key}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate file URL")
+
+    # Redirect to presigned URL
+    return Response(
+        status_code=302,
+        headers={"Location": url},
+    )
