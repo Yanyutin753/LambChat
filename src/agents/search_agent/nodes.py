@@ -6,6 +6,7 @@ LangGraph 节点函数，使用 deep agent 执行任务。
 """
 
 import logging
+import time
 import uuid
 from typing import Any, Dict, Optional
 
@@ -24,7 +25,6 @@ from src.infra.skill.middleware import SkillsMiddleware
 
 # 设置全局 middleware 供 inject_skill 工具使用
 from src.infra.tool.inject_skill import set_skills_middleware
-from src.infra.writer.present import _get_timestamp
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     创建 deep agent (内层 graph) 并执行，通过事件队列流式发送事件。
     支持会话上下文：传递历史消息给 inner_graph，并在执行后保存消息。
     """
+    # 记录开始时间
+    start_time = time.time()
+
     presenter = get_presenter(config)
     configurable = config.get("configurable", {})
     context: AgentContext = configurable.get("context", AgentContext())
@@ -54,6 +57,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 获取历史消息
     existing_messages = state.get("messages", [])
     new_message = HumanMessage(content=state.get("input", ""))
+
+    # 发送用户消息事件
+    await presenter.emit_user_message(state.get("input", ""))
 
     llm = LLMClient.get_deep_agent_model(
         api_base=settings.LLM_API_BASE,
@@ -70,20 +76,12 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     sandbox_manager = None
     workflow_path = None
 
-    # 发送用户消息事件
-    await presenter.emit(
-        presenter._build_event(
-            "user:message",
-            {"content": state.get("input", ""), "timestamp": _get_timestamp()},
-        )
-    )
-
     if settings.ENABLE_SANDBOX:
         sandbox_manager = SessionSandboxManager()
 
         # 发送沙箱开始初始化事件
         try:
-            await presenter.emit(await presenter.emit_sandbox_starting())
+            await presenter.emit_sandbox_starting()
         except Exception as e:
             logger.warning(f"Failed to emit sandbox:starting event: {e}")
 
@@ -95,11 +93,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
             # 发送沙箱就绪事件
             try:
-                await presenter.emit(
-                    await presenter.emit_sandbox_ready(
-                        sandbox_id=backend.id,
-                        work_dir=workflow_path,
-                    )
+                await presenter.emit_sandbox_ready(
+                    sandbox_id=backend.id,
+                    work_dir=workflow_path,
                 )
             except Exception as e:
                 logger.warning(f"Failed to emit sandbox:ready event: {e}")
@@ -126,9 +122,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         except Exception as e:
             # 发送沙箱初始化失败事件
             try:
-                await presenter.emit(
-                    await presenter.emit_sandbox_error(f"沙箱初始化失败: {str(e)}")
-                )
+                await presenter.emit_sandbox_error(f"沙箱初始化失败: {str(e)}")
             except Exception as emit_err:
                 logger.warning(f"Failed to emit sandbox:error event: {emit_err}")
             raise
@@ -174,12 +168,17 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 收集输出文本
     output_text = ""
 
+    # Token 统计
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_tokens = 0
+
     # 跟踪每个 (depth, agent_id) 组合的 thinking 块 ID
     # 用于合并同一块的多个 thinking 事件
     thinking_ids: Dict[str, Optional[str]] = {}  # key: f"{depth}:{agent_id}"
 
     async for event in inner_graph.astream_events(
-        {"messages": all_messages},  # 传入完整历史
+        {"messages": all_messages},
         inner_config,
         version="v2",
     ):
@@ -294,6 +293,41 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                 parent_ids[:2] if parent_ids else [],  # 只显示前2个避免日志过长
             )
 
+        # 获取 token 使用统计 (on_chat_model_end 事件)
+        # 注意：LangChain 的 usage_metadata 在 on_chat_model_end 事件中提供
+        if evt_type == "on_chat_model_end":
+            response = event.get("data", {}).get("output")
+            if response:
+                # 尝试从 response.usage_metadata 获取 (AIMessage)
+                usage = getattr(response, "usage_metadata", None)
+                if usage:
+                    # usage_metadata 包含 input_tokens, output_tokens, total_tokens
+                    input_tok = usage.get("input_tokens", 0)
+                    output_tok = usage.get("output_tokens", 0)
+                    total_tok = usage.get("total_tokens", 0)
+                    if isinstance(input_tok, int):
+                        total_input_tokens += input_tok
+                    if isinstance(output_tok, int):
+                        total_output_tokens += output_tok
+                    if isinstance(total_tok, int):
+                        total_tokens += total_tok
+                else:
+                    # 备选：从 response.metadata 中获取
+                    metadata = getattr(response, "metadata", {})
+                    if metadata:
+                        usage = metadata.get("usage")
+                        if usage:
+                            input_tok = usage.get("input_tokens", 0)
+                            output_tok = usage.get("output_tokens", 0)
+                            total_tok = usage.get("total_tokens", 0)
+                            if isinstance(input_tok, int):
+                                total_input_tokens += input_tok
+                            if isinstance(output_tok, int):
+                                total_output_tokens += output_tok
+                            if isinstance(total_tok, int):
+                                total_tokens += total_tok
+            continue
+
         if evt_type == "on_chat_model_stream":
             chunk = event["data"].get("chunk")
             if chunk:
@@ -378,6 +412,25 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
                     agent_id=current_agent_id,
                 )
             )
+
+    # 发送 token 使用统计事件
+    if total_input_tokens > 0 or total_output_tokens > 0 or total_tokens > 0:
+        # 如果 total_tokens 为 0，但有其他 token 数，则计算 total
+        if total_tokens == 0:
+            total_tokens = total_input_tokens + total_output_tokens
+        # 计算耗时
+        duration = time.time() - start_time
+        try:
+            await presenter.emit(
+                presenter.present_token_usage(
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                    total_tokens=total_tokens,
+                    duration=duration,
+                )
+            )
+        except Exception as e:
+            logger.warning(f"Failed to emit token:usage event: {e}")
 
     # 获取内层 graph 的最终状态（包含所有生成的消息）
     inner_state = await inner_graph.aget_state(inner_config)

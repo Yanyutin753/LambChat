@@ -13,6 +13,12 @@
     }
   },
   "appName": "LambChat",
+  "agents": {
+    "search": {
+      "name": "Search Agent",
+      "description": "基于 LangGraph 的搜索和执行代理"
+    }
+  },
   "approvals": {
     "approve": "批准",
     "enterResponse": "请输入回复...",
@@ -85,6 +91,7 @@
       "copy": "复制",
       "copyCode": "复制代码",
       "download": "下载",
+      "duration": "耗时",
       "executing": "正在执行...",
       "filePath": "文件路径",
       "mermaidError": "Mermaid 错误",
@@ -92,6 +99,9 @@
       "result": "Result",
       "running": "运行中...",
       "thinking": "thinking",
+      "tokenInput": "输入",
+      "tokenOutput": "输出",
+      "tokenTotal": "总计",
       "toolCalls": "Tool Calls"
     },
     "noPermission": "没有发送消息的权限",
@@ -100,6 +110,7 @@
     "sandbox": {
       "error": "初始化失败",
       "initializing": "正在初始化环境...",
+      "name": "沙箱",
       "ready": "环境已就绪"
     },
     "send": "发送消息",

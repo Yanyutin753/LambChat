@@ -1114,7 +1114,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center px-4 py-8">
                     {/* Title */}
-                    <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                    <div className="flex items-center gap-3 mb-7 sm:mb-9">
                       <h1 className="text-3xl sm:text-4xl font-semibold text-gray-700 dark:text-stone-200">
                         LambChat
                       </h1>

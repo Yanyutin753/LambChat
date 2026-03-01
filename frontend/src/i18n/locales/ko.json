@@ -13,6 +13,12 @@
     }
   },
   "appName": "LambChat",
+  "agents": {
+    "search": {
+      "name": "Search Agent",
+      "description": "LangGraph 기반 검색 및 실행 에이전트"
+    }
+  },
   "approvals": {
     "approve": "승인",
     "enterResponse": "응답 입력...",
@@ -85,12 +91,16 @@
       "copy": "복사",
       "copyCode": "코드 복사",
       "download": "다운로드",
+      "duration": "소요 시간",
       "executing": "실행 중...",
       "mermaidError": "Mermaid 오류",
       "parameters": "매개변수",
       "result": "결과",
       "running": "실행 중...",
       "thinking": "생각 중",
+      "tokenInput": "입력",
+      "tokenOutput": "출력",
+      "tokenTotal": "총계",
       "toolCalls": "도구 호출"
     },
     "noPermission": "메시지를 보낼 권한이 없습니다",
@@ -99,6 +109,7 @@
     "sandbox": {
       "error": "초기화 실패",
       "initializing": "환경 초기화 중...",
+      "name": "샌드박스",
       "ready": "환경 준비 완료"
     },
     "send": "메시지 보내기",

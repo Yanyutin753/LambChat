@@ -31,8 +31,15 @@ import {
   Image as ImageIcon,
   Loader2,
   Box,
+  Info,
 } from "lucide-react";
-import type { Message, MessagePart, ToolCall, ToolResult } from "../../types";
+import type {
+  Message,
+  MessagePart,
+  ToolCall,
+  ToolResult,
+  TokenUsagePart,
+} from "../../types";
 import { useTranslation } from "react-i18next";
 import DocumentPreview from "../documents/DocumentPreview";
 
@@ -528,6 +535,108 @@ function MermaidDiagram({
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       </div>
+    </div>
+  );
+}
+
+// Token 使用统计按钮组件 - 类 ChatGPT 风格
+function TokenDetailsButton({
+  tokenUsage,
+  duration,
+}: {
+  tokenUsage?: TokenUsagePart;
+  duration?: number;
+}) {
+  const { t } = useTranslation();
+  const [showDetails, setShowDetails] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // 点击外部关闭详情
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setShowDetails(false);
+      }
+    };
+    if (showDetails) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showDetails]);
+
+  return (
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        onClick={() => setShowDetails(!showDetails)}
+        className={clsx(
+          "p-1.5 rounded-md transition-all",
+          "opacity-0 group-hover:opacity-100",
+          "hover:bg-gray-200 dark:hover:bg-stone-700",
+          "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
+        )}
+        title="Token usage"
+      >
+        <Info size={14} />
+      </button>
+      {/* ChatGPT 风格的详情弹窗 */}
+      {showDetails && (
+        <div
+          className={clsx(
+            "absolute bottom-full mb-2 left-0 z-50",
+            "min-w-[150px] w-auto p-3 rounded-lg shadow-lg",
+            "bg-white dark:bg-stone-800",
+            "border border-gray-200 dark:border-stone-700",
+            "whitespace-nowrap",
+          )}
+        >
+          <div className="text-xs space-y-1.5">
+            {tokenUsage && (
+              <>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500 dark:text-stone-400">
+                    {t("chat.message.tokenInput")}
+                  </span>
+                  <span className="text-gray-700 dark:text-stone-200 font-medium">
+                    {tokenUsage.input_tokens?.toLocaleString()} tokens
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500 dark:text-stone-400">
+                    {t("chat.message.tokenOutput")}
+                  </span>
+                  <span className="text-gray-700 dark:text-stone-200 font-medium">
+                    {tokenUsage.output_tokens?.toLocaleString()} tokens
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5">
+                  <span className="text-gray-500 dark:text-stone-400">
+                    {t("chat.message.tokenTotal")}
+                  </span>
+                  <span className="text-gray-700 dark:text-stone-200 font-medium">
+                    {tokenUsage.total_tokens?.toLocaleString()} tokens
+                  </span>
+                </div>
+              </>
+            )}
+            {duration && (
+              <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5">
+                <span className="text-gray-500 dark:text-stone-400">
+                  {t("chat.message.duration")}
+                </span>
+                <span className="text-gray-700 dark:text-stone-200 font-medium">
+                  {(duration / 1000).toFixed(2)}s
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1386,7 +1495,7 @@ function SubagentContentRenderer({
         >
           <div className={clsx("shrink-0", info.iconColor)}>{info.icon}</div>
           <Box size={10} className="shrink-0 opacity-50" />
-          <span className="font-mono">{info.label}</span>
+          <span className="font-mono">{t("chat.sandbox.name")}</span>
           {part.status === "starting" && (
             <span className="ml-1">{t("chat.sandbox.initializing")}</span>
           )}
@@ -1554,26 +1663,35 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </>
           )}
         </div>
-        {/* 复制按钮 - 底部独立，悬停消息时显示（仅消息完成后） */}
+        {/* 复制按钮和 Token 按钮 - 底部同一水平线，悬停消息时显示（仅消息完成后） */}
         {!message.isStreaming && (
-          <button
-            onClick={() => {
-              const textContent = getAssistantTextContent();
-              if (textContent) {
-                navigator.clipboard.writeText(textContent);
-                toast.success(t("chat.message.copied"));
-              }
-            }}
-            className={clsx(
-              "mt-2 p-1.5 ml-1 rounded-md transition-all self-start",
-              "opacity-0 group-hover:opacity-100",
-              "hover:bg-gray-200 dark:hover:bg-stone-700",
-              "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
+          <div className="mt-2 flex items-center gap-1">
+            <button
+              onClick={() => {
+                const textContent = getAssistantTextContent();
+                if (textContent) {
+                  navigator.clipboard.writeText(textContent);
+                  toast.success(t("chat.message.copied"));
+                }
+              }}
+              className={clsx(
+                "p-1.5 rounded-md transition-all",
+                "opacity-0 group-hover:opacity-100",
+                "hover:bg-gray-200 dark:hover:bg-stone-700",
+                "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
+              )}
+              title={t("chat.message.copy")}
+            >
+              <Copy size={14} />
+            </button>
+            {/* Token 使用统计按钮 */}
+            {(message.tokenUsage || message.duration) && (
+              <TokenDetailsButton
+                tokenUsage={message.tokenUsage}
+                duration={message.duration}
+              />
             )}
-            title={t("chat.message.copy")}
-          >
-            <Copy size={14} />
-          </button>
+          </div>
         )}
       </div>
     </div>
@@ -1699,7 +1817,7 @@ function MessagePartRenderer({
         >
           <div className={clsx("shrink-0", info.iconColor)}>{info.icon}</div>
           <Box size={10} className="shrink-0 opacity-50" />
-          <span className="font-mono">{info.label}</span>
+          <span className="font-mono">{t("chat.sandbox.name")}</span>
           {part.status === "starting" && (
             <span className="ml-1">{t("chat.sandbox.initializing")}</span>
           )}

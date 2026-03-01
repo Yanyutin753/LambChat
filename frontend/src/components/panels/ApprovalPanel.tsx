@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AlertCircle,
   Check,
@@ -31,10 +31,24 @@ export function ApprovalPanel({
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // 当 approvals 数量减少时，自动调整 currentIndex
+  useEffect(() => {
+    if (currentIndex >= approvals.length) {
+      setCurrentIndex(Math.max(0, approvals.length - 1));
+    }
+  }, [approvals.length, currentIndex]);
+
   // 只显示当前索引的 approval
   if (approvals.length === 0) return null;
 
-  const currentApproval = approvals[currentIndex];
+  // 边界保护：确保 currentIndex 不超出范围
+  const safeIndex = Math.min(currentIndex, approvals.length - 1);
+  const currentApproval = approvals[safeIndex];
+
+  // 额外保护：确保 currentApproval 存在且有 message
+  if (!currentApproval || !currentApproval.message) {
+    return null;
+  }
 
   const goToPrev = () => {
     setCurrentIndex((prev) => Math.max(0, prev - 1));

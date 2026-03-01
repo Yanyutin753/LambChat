@@ -8,6 +8,10 @@ export interface Message {
   isStreaming?: boolean;
   // 有序内容块 - 用于按顺序渲染文本和工具调用
   parts?: MessagePart[];
+  // Token 使用统计
+  tokenUsage?: TokenUsagePart;
+  // 对话耗时（毫秒）
+  duration?: number;
 }
 
 // 消息内容块类型
@@ -16,7 +20,8 @@ export type MessagePart =
   | ToolPart
   | SubagentPart
   | ThinkingPart
-  | SandboxPart;
+  | SandboxPart
+  | TokenUsagePart;
 
 // Sandbox 状态块类型（用于渲染沙箱初始化状态）
 export interface SandboxPart {
@@ -26,6 +31,14 @@ export interface SandboxPart {
   work_dir?: string;
   error?: string;
   timestamp?: string;
+}
+
+// Token 使用统计块类型
+export interface TokenUsagePart {
+  type: "token_usage";
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
 }
 
 export interface TextPart {

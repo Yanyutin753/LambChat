@@ -13,6 +13,12 @@
     }
   },
   "appName": "LambChat",
+  "agents": {
+    "search": {
+      "name": "Search Agent",
+      "description": "Search and execution agent based on LangGraph"
+    }
+  },
   "approvals": {
     "approve": "Approve",
     "enterResponse": "Enter your response...",
@@ -85,13 +91,17 @@
       "copy": "Copy",
       "copyCode": "Copy code",
       "download": "Download",
+      "duration": "Duration",
       "executing": "Executing...",
       "filePath": "File Path",
       "mermaidError": "Mermaid Error",
       "parameters": "Parameters",
       "result": "Result",
       "running": "Running...",
-      "thinking": "thinking",
+      "thinking": "Thinking",
+      "tokenInput": "Input",
+      "tokenOutput": "Output",
+      "tokenTotal": "Total",
       "toolCalls": "Tool Calls"
     },
     "noPermission": "No permission to send messages",
@@ -100,6 +110,7 @@
     "sandbox": {
       "error": "initialization failed",
       "initializing": "initializing environment...",
+      "name": "Sandbox",
       "ready": "ready"
     },
     "send": "Send message",

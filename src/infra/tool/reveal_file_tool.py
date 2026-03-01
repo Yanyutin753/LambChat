@@ -82,7 +82,7 @@ def _get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
 
 @tool
 async def reveal_file(
-    path: str,
+    file_path: str,
     description: Optional[str] = None,
     runtime: Any = None,
 ) -> str:
@@ -93,7 +93,7 @@ async def reveal_file(
     前端自动给用户显示可点击的文件。
 
     Args:
-        path: 要展示的文件路径（绝对路径或相对于工作目录的路径）
+        file_path: 要展示的文件路径（绝对路径或相对于工作目录的路径）
         description: 对文件内容的简要描述，帮助用户理解为什么要查看这个文件（可选）
 
     Returns:
@@ -114,7 +114,7 @@ async def reveal_file(
         result = {
             "type": "file_reveal",
             "file": {
-                "path": path,
+                "path": file_path,
                 "description": description or "",
             },
         }
@@ -126,7 +126,7 @@ async def reveal_file(
         result = {
             "type": "file_reveal",
             "file": {
-                "path": path,
+                "path": file_path,
                 "description": description or "",
             },
         }
@@ -135,17 +135,17 @@ async def reveal_file(
     try:
         # 1. 从 sandbox 下载文件
         if hasattr(backend, "adownload_files"):
-            download_responses = await backend.adownload_files([path])
+            download_responses = await backend.adownload_files([file_path])
         else:
-            download_responses = backend.download_files([path])
+            download_responses = backend.download_files([file_path])
         download_response = download_responses[0]
 
         if download_response.error:
-            logger.error(f"Failed to download file {path}: {download_response.error}")
+            logger.error(f"Failed to download file {file_path}: {download_response.error}")
             result = {
                 "type": "file_reveal",
                 "file": {
-                    "path": path,
+                    "path": file_path,
                     "description": description or "",
                     "error": download_response.error,
                 },
@@ -153,11 +153,11 @@ async def reveal_file(
             return json.dumps(result, ensure_ascii=False)
 
         if download_response.content is None:
-            logger.error(f"File content is None for {path}")
+            logger.error(f"File content is None for {file_path}")
             result = {
                 "type": "file_reveal",
                 "file": {
-                    "path": path,
+                    "path": file_path,
                     "description": description or "",
                     "error": "empty_content",
                 },
@@ -165,7 +165,7 @@ async def reveal_file(
             return json.dumps(result, ensure_ascii=False)
 
         # 2. 从路径提取文件名
-        filename = path.split("/")[-1]
+        filename = file_path.split("/")[-1]
 
         # 3. 上传到 S3 (使用已初始化的 storage)
         upload_result = await storage.upload_bytes(
@@ -178,23 +178,23 @@ async def reveal_file(
         result = {
             "type": "file_reveal",
             "file": {
-                "path": path,
+                "path": file_path,
                 "description": description or "",
                 "s3_url": upload_result.url,
                 "s3_key": upload_result.key,
                 "size": upload_result.size,
             },
         }
-        logger.info(f"Successfully uploaded {path} to S3: {upload_result.url}")
+        logger.info(f"Successfully uploaded {file_path} to S3: {upload_result.url}")
         return json.dumps(result, ensure_ascii=False)
 
     except Exception as e:
-        logger.error(f"Error processing file {path}: {e}")
+        logger.error(f"Error processing file {file_path}: {e}")
         # 出错时返回原始路径信息
         result = {
             "type": "file_reveal",
             "file": {
-                "path": path,
+                "path": file_path,
                 "description": description or "",
                 "error": str(e),
             },

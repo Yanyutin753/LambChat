@@ -12,6 +12,7 @@ import type {
   ThinkingPart,
   MessagePart,
   SandboxPart,
+  TokenUsagePart,
 } from "../types";
 import {
   sessionApi,
@@ -48,6 +49,7 @@ type EventType =
   | "sandbox:state"
   | "sandbox:ready"
   | "sandbox:error"
+  | "token:usage"
   | "done"
   | "error";
 
@@ -81,6 +83,11 @@ interface EventData {
   state?: string;
   sandbox_id?: string;
   work_dir?: string;
+  // token:usage event fields
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  duration?: number;
   timestamp?: string;
 }
 
@@ -672,10 +679,10 @@ export function useAgent(options?: UseAgentOptions) {
                   console.log("[SSE] Approval is pending, calling callback");
                   options?.onApprovalRequired?.({
                     id: data.id!,
-                    message: data.message || "",
-                    type: data.type || "text",
-                    choices: data.choices,
-                    default: data.default,
+                    message: approval.message || "",
+                    type: approval.type || "text",
+                    choices: approval.choices || [],
+                    default: approval.default ?? null,
                   });
                 } else {
                   console.log(
@@ -788,6 +795,28 @@ export function useAgent(options?: UseAgentOptions) {
                 ? parts.map((p) => (p.type === "sandbox" ? errorPart : p))
                 : [...parts, errorPart];
               return { ...m, parts: newParts };
+            }),
+          );
+          break;
+        }
+
+        case "token:usage": {
+          console.log("[SSE] token:usage event received:", data);
+          // 更新消息的 tokenUsage 和 duration
+          const tokenUsage: TokenUsagePart = {
+            type: "token_usage",
+            input_tokens: data.input_tokens || 0,
+            output_tokens: data.output_tokens || 0,
+            total_tokens: data.total_tokens || 0,
+          };
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== messageId) return m;
+              return {
+                ...m,
+                tokenUsage,
+                duration: data.duration ? data.duration * 1000 : undefined, // 转换为毫秒
+              };
             }),
           );
           break;
@@ -1763,6 +1792,26 @@ export function useAgent(options?: UseAgentOptions) {
                   p.type === "sandbox" ? sandboxPart : p,
                 );
                 currentAssistantMessage.parts = newParts;
+              } else if (eventType === "token:usage") {
+                // Token 使用统计
+                // 从 event.data 中获取
+                const tokenData = event.data as {
+                  input_tokens?: number;
+                  output_tokens?: number;
+                  total_tokens?: number;
+                  duration?: number;
+                };
+                if (currentAssistantMessage) {
+                  currentAssistantMessage.tokenUsage = {
+                    type: "token_usage",
+                    input_tokens: tokenData.input_tokens || 0,
+                    output_tokens: tokenData.output_tokens || 0,
+                    total_tokens: tokenData.total_tokens || 0,
+                  };
+                  currentAssistantMessage.duration = tokenData.duration
+                    ? tokenData.duration * 1000
+                    : undefined;
+                }
               }
             }
 

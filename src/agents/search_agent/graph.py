@@ -50,7 +50,9 @@ class SearchAgent(BaseGraphAgent):
 
     _agent_id = "search"
     _agent_name = "Search Agent"
+    _name_key = "agents.search.name"
     _description = "基于 LangGraph 的搜索和执行 Agent"
+    _description_key = "agents.search.description"
     _version = "1.0.0"
     # Agent 选项配置（供前端渲染）
     # 支持的字段：

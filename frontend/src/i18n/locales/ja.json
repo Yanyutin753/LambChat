@@ -13,6 +13,12 @@
     }
   },
   "appName": "LambChat",
+  "agents": {
+    "search": {
+      "name": "Search Agent",
+      "description": "LangGraphベースの検索・実行エージェント"
+    }
+  },
   "approvals": {
     "approve": "承認",
     "enterResponse": "返信を入力...",
@@ -85,12 +91,16 @@
       "copy": "コピー",
       "copyCode": "コードをコピー",
       "download": "ダウンロード",
+      "duration": "所要時間",
       "executing": "実行中...",
       "mermaidError": "Mermaidエラー",
       "parameters": "パラメータ",
       "result": "結果",
       "running": "実行中...",
       "thinking": "思考中",
+      "tokenInput": "入力",
+      "tokenOutput": "出力",
+      "tokenTotal": "合計",
       "toolCalls": "ツール呼び出し"
     },
     "noPermission": "メッセージを送信する権限がありません",
@@ -99,6 +109,7 @@
     "sandbox": {
       "error": "初期化に失敗しました",
       "initializing": "環境を初期化中...",
+      "name": "サンドボックス",
       "ready": "準備完了"
     },
     "send": "メッセージを送信",

@@ -612,6 +612,13 @@ class Presenter:
             agent_id=agent_id,
         )
 
+    def present_user_message(self, content: str) -> Dict[str, Any]:
+        """输出用户消息"""
+        return self._build_event(
+            "user:message",
+            {"content": content, "timestamp": _get_timestamp()},
+        )
+
     def present_sandbox_starting(self) -> Dict[str, Any]:
         """输出沙箱开始初始化"""
         return self._build_event(
@@ -659,6 +666,32 @@ class Presenter:
         return self._build_event(
             "sandbox:error",
             {"error": error, "timestamp": _get_timestamp()},
+        )
+
+    def present_token_usage(
+        self,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        total_tokens: int = 0,
+        duration: float = 0.0,
+    ) -> Dict[str, Any]:
+        """输出 Token 使用统计
+
+        Args:
+            input_tokens: 输入 token 数
+            output_tokens: 输出 token 数
+            total_tokens: 总 token 数
+            duration: 对话耗时（秒）
+        """
+        return self._build_event(
+            "token:usage",
+            {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "duration": duration,
+                "timestamp": _get_timestamp(),
+            },
         )
 
     def done(self) -> Dict[str, Any]:
@@ -729,16 +762,25 @@ class Presenter:
     async def emit_thinking(self, content: str) -> Dict[str, Any]:
         """输出思考过程并保存"""
         event = self.present_thinking(content)
+        await self.save_event(event)
+        return event
+
+    async def emit_user_message(self, content: str) -> Dict[str, Any]:
+        """输出用户消息并保存"""
+        event = self.present_user_message(content)
+        await self.save_event(event)
         return event
 
     async def emit_sandbox_starting(self) -> Dict[str, Any]:
         """输出沙箱开始初始化并保存"""
         event = self.present_sandbox_starting()
+        await self.save_event(event)
         return event
 
     async def emit_sandbox_state(self, state: str) -> Dict[str, Any]:
         """输出沙箱状态更新并保存"""
         event = self.present_sandbox_state(state)
+        await self.save_event(event)
         return event
 
     async def emit_sandbox_ready(
@@ -748,11 +790,25 @@ class Presenter:
     ) -> Dict[str, Any]:
         """输出沙箱就绪并保存"""
         event = self.present_sandbox_ready(sandbox_id, work_dir)
+        await self.save_event(event)
         return event
 
     async def emit_sandbox_error(self, error: str) -> Dict[str, Any]:
         """输出沙箱初始化错误并保存"""
         event = self.present_sandbox_error(error)
+        await self.save_event(event)
+        return event
+
+    async def emit_token_usage(
+        self,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        total_tokens: int = 0,
+        duration: float = 0.0,
+    ) -> Dict[str, Any]:
+        """输出 Token 使用统计并保存"""
+        event = self.present_token_usage(input_tokens, output_tokens, total_tokens, duration)
+        await self.save_event(event)
         return event
 
 
