@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { ImageViewer } from "../common/ImageViewer";
 import {
   X,
   AlertCircle,
@@ -73,6 +74,7 @@ interface DocumentPreviewProps {
   content?: string; // File content passed from parent (from agent events)
   s3Key?: string; // S3 object key for fetching content via signed URL
   fileSize?: number; // File size in bytes
+  imageUrl?: string; // Direct image URL for previewing image attachments
   onClose: () => void;
 }
 
@@ -81,6 +83,7 @@ export default function DocumentPreview({
   content,
   s3Key,
   fileSize,
+  imageUrl: externalImageUrl,
   onClose,
 }: DocumentPreviewProps) {
   const { t } = useTranslation();
@@ -97,6 +100,7 @@ export default function DocumentPreview({
   const [htmlContent, setHtmlContent] = useState<string>("");
   const [arrayBuffer, setArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showImageViewer, setShowImageViewer] = useState(false);
 
   const fileName = path.split("/").pop() || path;
   const ext = getFileExtension(fileName);
@@ -145,6 +149,14 @@ export default function DocumentPreview({
     setArrayBuffer(null);
 
     const loadContent = async () => {
+      // 如果传入了外部图片 URL，直接使用
+      if (externalImageUrl) {
+        setImageUrl(externalImageUrl);
+        setData({ content: "", path });
+        setLoading(false);
+        return;
+      }
+
       // 优先使用传入的 content
       if (content !== undefined) {
         // HTML 文件创建 blob URL 用于 iframe 渲染
@@ -254,7 +266,7 @@ export default function DocumentPreview({
 
     loadContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, content, s3Key]);
+  }, [path, content, s3Key, externalImageUrl]);
 
   // Handle ESC key
   useEffect(() => {
@@ -525,19 +537,31 @@ export default function DocumentPreview({
             <WordPreview arrayBuffer={arrayBuffer} t={t} />
           ) : excelFile && arrayBuffer ? (
             <ExcelPreview arrayBuffer={arrayBuffer} fileName={fileName} t={t} />
-          ) : imageFile ? (
-            <div className="flex items-center justify-center p-4 sm:p-8 bg-stone-50 dark:bg-stone-800/50 min-h-[200px] overflow-auto">
-              <img
-                src={imageUrl || `data:image/${ext};base64,${data?.content}`}
-                alt={fileName}
-                className={`rounded-lg shadow-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${
-                  isFullscreen
-                    ? "max-w-full max-h-full"
-                    : "max-w-full max-h-[50vh] sm:max-h-[60vh]"
-                }`}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
+          ) : imageFile || imageUrl ? (
+            <>
+              <div className="flex items-center justify-center p-4 sm:p-8 bg-stone-50 dark:bg-stone-800/50 min-h-[200px] overflow-auto">
+                <img
+                  src={imageUrl || `data:image/${ext};base64,${data?.content}`}
+                  alt={fileName}
+                  className={`rounded-lg shadow-lg object-contain cursor-pointer hover:opacity-90 transition-opacity ${
+                    isFullscreen
+                      ? "max-w-full max-h-full"
+                      : "max-w-full max-h-[50vh] sm:max-h-[60vh]"
+                  }`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowImageViewer(true);
+                  }}
+                />
+              </div>
+              {showImageViewer && (
+                <ImageViewer
+                  isOpen={showImageViewer}
+                  src={imageUrl || `data:image/${ext};base64,${data?.content}`}
+                  onClose={() => setShowImageViewer(false)}
+                />
+              )}
+            </>
           ) : markdownFile ? (
             <div className="p-4 sm:p-6 lg:p-8">
               <MarkdownRenderer content={data?.content || ""} t={t} />

@@ -12,3 +12,12 @@ export { ThemeToggle } from "./ThemeToggle";
 export { LanguageToggle } from "./LanguageToggle";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { AboutDialog } from "./AboutDialog";
+
+export { ImageViewer } from "./ImageViewer";
+
+export {
+  AttachmentCard,
+  getAttachmentIconInfo,
+  formatFileSize,
+} from "./AttachmentCard";
+export type { AttachmentCardProps } from "./AttachmentCard";

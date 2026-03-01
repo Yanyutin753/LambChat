@@ -209,21 +209,30 @@
     "pageNotFoundDesc": "抱歉，您访问的页面不存在或已被移除。请检查网址是否正确，或返回首页继续使用。"
   },
   "fileUpload": {
-    "title": "上传文件",
-    "dragDrop": "拖拽文件到这里或点击上传",
-    "uploading": "上传中...",
-    "uploadSuccess": "上传成功",
-    "uploadFailed": "上传失败",
-    "noPermission": "没有权限上传{{type}}文件",
-    "fileTooLarge": "文件大小超过限制",
-    "tooManyFiles": "一次最多上传{{count}}个文件",
-    "removeAttachment": "移除附件",
     "categories": {
-      "image": "图片",
-      "video": "视频",
+      "${category}": "fileUpload.categories.${category}",
       "audio": "音频",
-      "document": "文档"
-    }
+      "document": "文档",
+      "image": "图片",
+      "video": "视频"
+    },
+    "dragDrop": "拖拽文件到这里或点击上传",
+    "fileTooLarge": "文件大小超过限制",
+    "noPermission": "没有权限上传{{type}}文件",
+    "removeAttachment": "移除附件",
+    "title": "上传文件",
+    "tooManyFiles": "一次最多上传{{count}}个文件",
+    "uploadFailed": "上传失败",
+    "uploadSuccess": "上传成功",
+    "uploading": "上传中..."
+  },
+  "imageViewer": {
+    "hint": "滚轮缩放 · 拖拽移动 · ESC 关闭",
+    "reset": "重置",
+    "rotateLeft": "向左旋转",
+    "rotateRight": "向右旋转",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
   },
   "mcp": {
     "addFirst": "添加您的第一个 MCP 服务器",

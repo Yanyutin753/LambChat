@@ -207,6 +207,32 @@
     "pageNotFound": "ページが見つかりません",
     "pageNotFoundDesc": "申し訳ございません。お探しのページは存在しないか削除されました。URLを確認するか、ホームに戻ってください。"
   },
+  "fileUpload": {
+    "categories": {
+      "${category}": "fileUpload.categories.${category}",
+      "audio": "音声",
+      "document": "ドキュメント",
+      "image": "画像",
+      "video": "動画"
+    },
+    "dragDrop": "ドラッグ＆ドロップまたはクリックしてアップロード",
+    "fileTooLarge": "ファイルサイズが制限を超えています",
+    "noPermission": "{{type}}ファイルをアップロードする権限がありません",
+    "removeAttachment": "添付ファイルを削除",
+    "title": "ファイルをアップロード",
+    "tooManyFiles": "一度にアップロードできるファイルは{{count}}個までです",
+    "uploadFailed": "アップロードに失敗しました",
+    "uploadSuccess": "アップロードに成功しました",
+    "uploading": "アップロード中..."
+  },
+  "imageViewer": {
+    "hint": "スクロールでズーム · ドラッグで移動 · ESCで閉じる",
+    "reset": "リセット",
+    "rotateLeft": "左に回転",
+    "rotateRight": "右に回転",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小"
+  },
   "mcp": {
     "addFirst": "最初のMCPサーバーを追加",
     "addNew": "新しいMCPサーバーを追加",

@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 import toast from "react-hot-toast";
 import mermaid from "mermaid";
-import { LoadingSpinner, CollapsiblePill } from "../common";
+import { LoadingSpinner, CollapsiblePill, AttachmentCard } from "../common";
 import type { CollapsibleStatus } from "../common";
 import {
   Bot,
@@ -39,9 +39,12 @@ import type {
   ToolCall,
   ToolResult,
   TokenUsagePart,
+  MessageAttachment,
 } from "../../types";
 import { useTranslation } from "react-i18next";
 import DocumentPreview from "../documents/DocumentPreview";
+import { ImageViewer } from "../common/ImageViewer";
+import { getFullUrl } from "../../services/api";
 
 // Initialize mermaid
 mermaid.initialize({
@@ -1493,10 +1496,79 @@ function SubagentContentRenderer({
   return null;
 }
 
-// 用户消息气泡组件（带复制功能，支持 markdown 渲染）
-function UserMessageBubble({ content }: { content?: string }) {
+// 格式化文件大小
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// 根据文件类型获取图标和颜色信息
+function getAttachmentIconInfo(mimeType: string): {
+  icon: React.ElementType;
+  bgColor: string;
+  iconColor: string;
+  label: string;
+} {
+  // 图片
+  if (mimeType.startsWith("image/")) {
+    return {
+      icon: ImageIcon,
+      bgColor: "bg-emerald-500",
+      iconColor: "text-white",
+      label: "image",
+    };
+  }
+  // PDF
+  if (mimeType === "application/pdf") {
+    return {
+      icon: FileText,
+      bgColor: "bg-red-400",
+      iconColor: "text-white",
+      label: "PDF",
+    };
+  }
+  // 代码文件
+  if (
+    mimeType.startsWith("text/") ||
+    mimeType.includes("javascript") ||
+    mimeType.includes("json") ||
+    mimeType.includes("xml")
+  ) {
+    return {
+      icon: FileCode,
+      bgColor: "bg-blue-500",
+      iconColor: "text-white",
+      label: "text",
+    };
+  }
+  // 默认文件
+  return {
+    icon: FileText,
+    bgColor: "bg-gray-400",
+    iconColor: "text-white",
+    label: "file",
+  };
+}
+
+// 用户消息气泡组件（带复制功能，支持 markdown 渲染）- ChatGPT 风格
+function UserMessageBubble({
+  content,
+  attachments,
+}: {
+  content?: string;
+  attachments?: MessageAttachment[];
+}) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [previewAttachment, setPreviewAttachment] =
+    useState<MessageAttachment | null>(null);
+  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
+
+  // Debug log for attachments
+  useEffect(() => {
+    console.log("[UserMessageBubble] Rendering with attachments:", attachments);
+  }, [attachments]);
 
   const handleCopy = async () => {
     if (!content) return;
@@ -1505,34 +1577,98 @@ function UserMessageBubble({ content }: { content?: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // 渲染附件预览 - 统一使用文件卡片样式
+  const renderAttachments = () => {
+    if (!attachments || attachments.length === 0) return null;
+
+    return (
+      <div className="flex flex-row justify-end flex-wrap gap-2 sm:gap-3 mb-2">
+        {attachments.map((attachment) => {
+          const isImage =
+            attachment.mimeType?.startsWith("image/") && attachment.url;
+
+          return (
+            <AttachmentCard
+              key={attachment.id}
+              attachment={attachment}
+              variant="preview"
+              size="default"
+              onClick={() => {
+                if (isImage && attachment.url) {
+                  setImageViewerSrc(getFullUrl(attachment.url) ?? null);
+                } else {
+                  setPreviewAttachment(attachment);
+                }
+              }}
+            />
+          );
+        })}
+      </div>
+    );
+  };
+
+  const hasAttachments = attachments && attachments.length > 0;
+  const hasContent = content && content.trim().length > 0;
+
   return (
-    <div className="w-full px-2 py-1 sm:px-3 group">
-      <div className="mx-auto flex max-w-3xl xl:max-w-5xl xl:max-w-5xl justify-end px-2">
-        <div className="flex flex-col items-end max-w-[85%]">
-          <div className="rounded-3xl bg-gray-50 dark:bg-stone-800 shadow-sm overflow-hidden">
-            {content && (
-              <div className="px-5 py-2.5 leading-relaxed text-sm sm:text-base">
-                <MarkdownContent content={content} />
+    <div className="w-full px-2 py-1.5 sm:px-4 group">
+      <div className="mx-auto flex max-w-3xl xl:max-w-5xl justify-end px-2">
+        <div className="flex flex-col items-end max-w-[90%]">
+          {/* 附件预览 - 在消息气泡外部 */}
+          {hasAttachments && renderAttachments()}
+
+          {/* 消息气泡 */}
+          {hasContent && (
+            <div className="rounded-3xl max-w-full px-5 py-3 bg-gray-50 dark:bg-stone-800 shadow-sm">
+              <div className="leading-relaxed text-[15px] sm:text-base text-stone-700 dark:text-stone-300">
+                <MarkdownContent content={content!} />
               </div>
-            )}
+            </div>
+          )}
+
+          {/* 操作按钮 - 悬停时显示 */}
+          <div className="flex justify-end mt-1 gap-1">
+            <button
+              onClick={handleCopy}
+              className={clsx(
+                "p-1.5 rounded-lg transition-all duration-200",
+                "opacity-0 group-hover:opacity-100",
+                "hover:bg-black/5 dark:hover:bg-white/5",
+                copied
+                  ? "text-emerald-500 dark:text-emerald-400"
+                  : "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
+              )}
+              title={copied ? t("chat.message.copied") : t("chat.message.copy")}
+            >
+              {copied ? <Check size={16} /> : <Copy size={16} />}
+            </button>
           </div>
-          {/* 复制按钮 - 底部独立，悬停消息时显示 */}
-          <button
-            onClick={handleCopy}
-            className={clsx(
-              "mt-2 p-1.5 rounded-md transition-all",
-              "opacity-0 group-hover:opacity-100",
-              "hover:bg-gray-200 dark:hover:bg-stone-700",
-              copied
-                ? "text-green-600 dark:text-green-400"
-                : "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
-            )}
-            title={copied ? t("chat.message.copied") : t("chat.message.copy")}
-          >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-          </button>
         </div>
       </div>
+
+      {/* 文件预览弹窗 */}
+      {previewAttachment && (
+        <DocumentPreview
+          path={previewAttachment.name}
+          s3Key={previewAttachment.key}
+          fileSize={previewAttachment.size}
+          onClose={() => setPreviewAttachment(null)}
+          imageUrl={
+            previewAttachment.type === "image"
+              ? getFullUrl(previewAttachment.url)
+              : undefined
+          }
+        />
+      )}
+
+      {/* Image viewer for direct image preview */}
+      {imageViewerSrc && (
+        <ImageViewer
+          src={imageViewerSrc}
+          isOpen={!!imageViewerSrc}
+          onClose={() => setImageViewerSrc(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1547,7 +1683,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   // 用户消息：气泡样式，右对齐
   if (isUser) {
-    return <UserMessageBubble content={message.content} />;
+    console.log("[ChatMessage] Rendering user message with attachments:", {
+      messageId: message.id,
+      attachments: message.attachments,
+    });
+    return (
+      <UserMessageBubble
+        content={message.content}
+        attachments={message.attachments}
+      />
+    );
   }
 
   // 获取助手消息的纯文本内容用于复制

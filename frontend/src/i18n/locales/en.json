@@ -209,21 +209,30 @@
     "pageNotFoundDesc": "Sorry, the page you are looking for doesn't exist or has been removed. Please check the URL or return to home."
   },
   "fileUpload": {
-    "title": "Upload file",
-    "dragDrop": "Drag and drop files here or click to upload",
-    "uploading": "Uploading...",
-    "uploadSuccess": "Upload successful",
-    "uploadFailed": "Upload failed",
-    "noPermission": "No permission to upload {{type}} files",
-    "fileTooLarge": "File size exceeds limit",
-    "tooManyFiles": "Maximum {{count}} files per upload",
-    "removeAttachment": "Remove attachment",
     "categories": {
-      "image": "image",
-      "video": "video",
+      "${category}": "fileUpload.categories.${category}",
       "audio": "audio",
-      "document": "document"
-    }
+      "document": "document",
+      "image": "image",
+      "video": "video"
+    },
+    "dragDrop": "Drag and drop files here or click to upload",
+    "fileTooLarge": "File size exceeds limit",
+    "noPermission": "No permission to upload {{type}} files",
+    "removeAttachment": "Remove attachment",
+    "title": "Upload file",
+    "tooManyFiles": "Maximum {{count}} files per upload",
+    "uploadFailed": "Upload failed",
+    "uploadSuccess": "Upload successful",
+    "uploading": "Uploading..."
+  },
+  "imageViewer": {
+    "hint": "Scroll to zoom · Drag to move · ESC to close",
+    "reset": "Reset",
+    "rotateLeft": "Rotate Left",
+    "rotateRight": "Rotate Right",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
   },
   "mcp": {
     "addFirst": "Add your first MCP server",
