@@ -12,13 +12,21 @@
       "label": "启用思考"
     }
   },
+  "agents": {
+    "search": {
+      "description": "基于 LangGraph 的搜索和执行代理",
+      "name": "Search Agent"
+    }
+  },
   "appName": "LambChat",
   "approvals": {
     "approve": "批准",
+    "cancel": "取消",
     "enterResponse": "请输入回复...",
     "needsConfirmation": "需要确认",
     "reject": "拒绝",
-    "send": "发送"
+    "send": "发送",
+    "submit": "提交"
   },
   "auth": {
     "account": "账号",
@@ -79,20 +87,25 @@
     "attachFile": "附件",
     "enterToSend": "发送",
     "message": {
-      "args": "Args",
+      "args": "参数",
       "assistant": "Assistant",
       "copied": "已复制!",
       "copy": "复制",
       "copyCode": "复制代码",
       "download": "下载",
+      "duration": "耗时",
       "executing": "正在执行...",
       "filePath": "文件路径",
       "mermaidError": "Mermaid 错误",
       "parameters": "参数",
-      "result": "Result",
+      "result": "结果",
       "running": "运行中...",
-      "thinking": "thinking",
-      "toolCalls": "Tool Calls"
+      "thinking": "思考中...",
+      "thought": "已思考",
+      "tokenInput": "输入",
+      "tokenOutput": "输出",
+      "tokenTotal": "总计",
+      "toolCalls": "工具调用"
     },
     "noPermission": "没有发送消息的权限",
     "noPermissionHint": "您没有发送消息的权限",
@@ -100,6 +113,7 @@
     "sandbox": {
       "error": "初始化失败",
       "initializing": "正在初始化环境...",
+      "name": "沙箱",
       "ready": "环境已就绪"
     },
     "send": "发送消息",
@@ -193,6 +207,32 @@
     "noPermissionTitle": "权限不足",
     "pageNotFound": "页面未找到",
     "pageNotFoundDesc": "抱歉，您访问的页面不存在或已被移除。请检查网址是否正确，或返回首页继续使用。"
+  },
+  "fileUpload": {
+    "categories": {
+      "${category}": "fileUpload.categories.${category}",
+      "audio": "音频",
+      "document": "文档",
+      "image": "图片",
+      "video": "视频"
+    },
+    "dragDrop": "拖拽文件到这里或点击上传",
+    "fileTooLarge": "文件大小超过限制",
+    "noPermission": "没有权限上传{{type}}文件",
+    "removeAttachment": "移除附件",
+    "title": "上传文件",
+    "tooManyFiles": "一次最多上传{{count}}个文件",
+    "uploadFailed": "上传失败",
+    "uploadSuccess": "上传成功",
+    "uploading": "上传中..."
+  },
+  "imageViewer": {
+    "hint": "滚轮缩放 · 拖拽移动 · ESC 关闭",
+    "reset": "重置",
+    "rotateLeft": "向左旋转",
+    "rotateRight": "向右旋转",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
   },
   "mcp": {
     "addFirst": "添加您的第一个 MCP 服务器",
@@ -342,7 +382,7 @@
   },
   "settings": {
     "exportSuccess": "设置导出成功",
-    "importSuccess": "已导入 {count} 项设置",
+    "importSuccess": "已导入 {{count}} 项设置",
     "loading": "加载设置中...",
     "noMatch": "没有匹配的设置项",
     "noSettings": "此分类没有设置项",

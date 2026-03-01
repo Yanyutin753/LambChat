@@ -43,7 +43,6 @@ RESTART_REQUIRED_SETTINGS = {
     "PORT",
     "MONGODB_URL",
     "MONGODB_DB",
-    "MONGODB_ENABLED",
     "REDIS_URL",
     "REDIS_PASSWORD",
     "JWT_SECRET_KEY",
@@ -80,6 +79,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.FRONTEND,
         "description": "Default agent type for new sessions",
         "default": "default",
+        "frontend_visible": True,
+    },
+    "API_BASE_URL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.FRONTEND,
+        "description": "Backend API base URL for file URLs (e.g., http://localhost:8000)",
+        "default": "",
         "frontend_visible": True,
     },
     "WELCOME_SUGGESTIONS": {
@@ -145,18 +151,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # Session Settings
     # ============================================
-    "SESSION_BACKEND": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SESSION,
-        "description": "Session storage backend (redis, postgres)",
-        "default": "redis",
-    },
-    "SESSION_MAX_AGE_DAYS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.SESSION,
-        "description": "Maximum session age in days",
-        "default": 7,
-    },
     "SESSION_MAX_RUNS_PER_SESSION": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.SESSION,
@@ -174,12 +168,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.SESSION,
         "description": "Redis TTL for SSE events in seconds",
         "default": 3600,
-    },
-    "MAX_EVENTS_PER_SESSION": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.SESSION,
-        "description": "Maximum events to store per session",
-        "default": 10000,
     },
     "SESSION_TITLE_MODEL": {
         "type": SettingType.STRING,
@@ -292,12 +280,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.SESSION,
         "description": "MongoDB database name",
         "default": "agent_state",
-    },
-    "MONGODB_ENABLED": {
-        "type": SettingType.BOOLEAN,
-        "category": SettingCategory.SESSION,
-        "description": "Enable MongoDB for state persistence",
-        "default": True,
     },
     "MONGODB_USERNAME": {
         "type": SettingType.STRING,
@@ -577,12 +559,9 @@ class Settings(BaseSettings):
     ENABLE_MCP: bool = True
 
     # Session Settings
-    SESSION_BACKEND: str = "redis"
-    SESSION_MAX_AGE_DAYS: int = 7
     SESSION_MAX_RUNS_PER_SESSION: int = 100
     ENABLE_MESSAGE_HISTORY: bool = True
     SSE_CACHE_TTL: int = 3600
-    MAX_EVENTS_PER_SESSION: int = 10000
     SESSION_TITLE_MODEL: str = "claude-3-5-haiku-20241022"
     SESSION_TITLE_PROMPT: str = "Generate a short title (max 10 words) for this conversation."
 
@@ -593,7 +572,6 @@ class Settings(BaseSettings):
     # MongoDB Settings
     MONGODB_URL: str = "mongodb://localhost:27017"
     MONGODB_DB: str = "agent_state"
-    MONGODB_ENABLED: bool = True
     MONGODB_USERNAME: str = ""
     MONGODB_PASSWORD: str = ""
     MONGODB_AUTH_SOURCE: str = "admin"
@@ -645,6 +623,7 @@ class Settings(BaseSettings):
 
     # Frontend Settings
     DEFAULT_AGENT: str = "default"
+    API_BASE_URL: str = ""
     WELCOME_SUGGESTIONS: list = [
         {"icon": "🐍", "text": "Create a Python hello world script"},
         {"icon": "📁", "text": "List files in the workspace directory"},

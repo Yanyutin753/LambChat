@@ -256,6 +256,7 @@ class BaseGraphAgent(ABC):
             "session_id": session_id,
             "messages": [],
             "context": kwargs,
+            "attachments": kwargs.get("attachments", []),
         }
 
         try:
@@ -527,8 +528,9 @@ class AgentFactory:
         return [
             {
                 "id": aid,
-                "name": getattr(cls, "_agent_name", aid.title()),
-                "description": getattr(cls, "_description", ""),
+                "name": getattr(cls, "_name_key", None) or getattr(cls, "_agent_name", aid.title()),
+                "description": getattr(cls, "_description_key", None)
+                or getattr(cls, "_description", ""),
                 "version": getattr(cls, "_version", "0.1.0"),
                 "options": getattr(cls, "_options", {}),
             }

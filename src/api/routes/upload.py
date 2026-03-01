@@ -4,14 +4,22 @@ File upload API routes
 Provides endpoints for file uploads to S3-compatible storage.
 """
 
+import asyncio
 import base64
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.api.routes.file_type import (
+    FILE_EXTENSIONS,
+    FileCategory,
+    get_file_category,
+    get_permission_for_category,
+)
+from src.infra.auth.rbac import check_permission
 from src.infra.settings.service import get_settings_service
 from src.infra.storage.s3 import S3Config, S3Provider, get_storage_service, init_storage
 from src.kernel.config import settings
@@ -130,7 +138,7 @@ async def get_or_init_storage():
     return get_storage_service()
 
 
-@router.post("/upload", dependencies=[Depends(require_permissions("file:upload"))])
+@router.post("/file")
 async def upload_file(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -138,7 +146,7 @@ async def upload_file(
     """
     Upload a file to S3
 
-    Requires: file:upload permission
+    Requires: file:upload:{type} permission based on file type
     Files are stored in folders organized by user_id.
 
     Args:
@@ -156,11 +164,55 @@ async def upload_file(
 
     storage = await get_or_init_storage()
 
-    # Validate file
+    # Read file content first for validation
     content = await file.read()
-    is_valid, error_msg = storage.validate_file(file.filename or "", len(content))
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_msg)
+
+    # Determine file category
+    category = get_file_category(file.filename or "", file.content_type)
+    permission = get_permission_for_category(category)
+
+    # Check permission
+    has_specific = False
+    has_general = False
+
+    if permission:
+        has_specific = check_permission(current_user.permissions, permission)
+    has_general = check_permission(current_user.permissions, "file:upload")
+
+    if not (has_specific or has_general):
+        category_label = category.value if category != FileCategory.UNKNOWN else "未知"
+        raise HTTPException(
+            status_code=403,
+            detail=f"No permission to upload {category_label} files",
+        )
+
+    # Validate file size based on category
+    settings_service = get_settings_service()
+
+    size_limits = {
+        FileCategory.IMAGE: await settings_service.get("FILE_UPLOAD_MAX_SIZE_IMAGE") or 10,
+        FileCategory.VIDEO: await settings_service.get("FILE_UPLOAD_MAX_SIZE_VIDEO") or 100,
+        FileCategory.AUDIO: await settings_service.get("FILE_UPLOAD_MAX_SIZE_AUDIO") or 50,
+        FileCategory.DOCUMENT: await settings_service.get("FILE_UPLOAD_MAX_SIZE_DOCUMENT") or 50,
+        FileCategory.UNKNOWN: 10,
+    }
+    max_size_mb = size_limits.get(category, 10)
+    max_size_bytes = max_size_mb * 1024 * 1024
+
+    if len(content) > max_size_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File size exceeds maximum of {max_size_mb}MB",
+        )
+
+    # Validate file extension
+    ext = (file.filename or "").lower().split(".")[-1]
+    allowed_exts = FILE_EXTENSIONS.get(category, set())
+    if category != FileCategory.UNKNOWN and ext not in allowed_exts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File extension '.{ext}' is not allowed for {category.value} files",
+        )
 
     # Reset file position after reading
     await file.seek(0)
@@ -175,11 +227,16 @@ async def upload_file(
             metadata={"uploaded_by": current_user.sub},
         )
 
+        # Return proxy URL (no auth required now)
+        proxy_url = f"/api/upload/file/{result.key}"
+
         return {
             "key": result.key,
-            "url": result.url,
+            "url": f"{settings.API_BASE_URL.strip('/')}{proxy_url}",
+            "name": file.filename,
+            "type": category.value,
+            "mimeType": file.content_type,
             "size": result.size,
-            "content_type": result.content_type,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
@@ -202,7 +259,7 @@ def _get_image_content_type(data: bytes) -> str:
         return "image/png"  # Default to PNG
 
 
-@router.post("/upload/avatar", dependencies=[Depends(require_permissions("file:upload"))])
+@router.post("/avatar", dependencies=[Depends(require_permissions("file:upload"))])
 async def upload_avatar(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -302,30 +359,52 @@ async def delete_file(
 
     storage = await get_or_init_storage()
 
-    try:
-        deleted = await storage.delete_file(key)
-        return {"deleted": deleted, "key": key}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+    # Async delete - return immediately, delete in background
+    async def background_delete():
+        try:
+            await storage.delete_file(key)
+            logger.info(f"Background delete completed for key: {key}")
+        except Exception as e:
+            logger.error(f"Background delete failed for key {key}: {e}")
+
+    # Create task and return immediately (non-blocking)
+    asyncio.create_task(background_delete())
+    return {"deleted": True, "key": key, "status": "deleting"}
 
 
 @router.get("/config")
 async def get_storage_config() -> dict:
     """
-    Get storage configuration status
+    Get storage configuration status and file upload limits
 
     Returns:
-        Storage configuration (without sensitive data)
+        Storage configuration and upload limits
     """
+    from src.infra.settings.service import get_settings_service
+
     s3_enabled = await get_s3_enabled()
-    # settings 已在 initialize_settings 时从数据库加载
-    s3_provider = settings.S3_PROVIDER
-    s3_max_size = settings.S3_MAX_FILE_SIZE
+    settings_service = get_settings_service()
+
+    # Get upload limits from settings
+    max_size_image = await settings_service.get("FILE_UPLOAD_MAX_SIZE_IMAGE") or 10
+    max_size_video = await settings_service.get("FILE_UPLOAD_MAX_SIZE_VIDEO") or 100
+    max_size_audio = await settings_service.get("FILE_UPLOAD_MAX_SIZE_AUDIO") or 50
+    max_size_document = await settings_service.get("FILE_UPLOAD_MAX_SIZE_DOCUMENT") or 50
+    max_files = await settings_service.get("FILE_UPLOAD_MAX_FILES") or 10
 
     return {
         "enabled": s3_enabled,
-        "provider": s3_provider if s3_enabled else None,
-        "max_file_size": int(s3_max_size) if s3_enabled and s3_max_size else None,
+        "provider": settings.S3_PROVIDER if s3_enabled else None,
+        "max_file_size": (
+            settings.S3_MAX_FILE_SIZE if s3_enabled and settings.S3_MAX_FILE_SIZE else None
+        ),
+        "uploadLimits": {
+            "image": max_size_image,
+            "video": max_size_video,
+            "audio": max_size_audio,
+            "document": max_size_document,
+            "maxFiles": max_files,
+        },
     }
 
 
@@ -510,3 +589,54 @@ async def get_signed_url_simple(
     except Exception as e:
         logger.warning(f"Failed to generate signed URL for {key}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/file/{key:path}")
+async def get_file_proxy(
+    key: str,
+) -> Response:
+    """
+    Dynamic proxy endpoint for file access
+
+    Generates a short-lived presigned URL and redirects to it.
+    This ensures the URL never expires from the user's perspective.
+    No authentication required - uses presigned URLs for access.
+
+    Args:
+        key: S3 object key
+
+    Returns:
+        302 redirect to presigned URL
+    """
+    if not await get_s3_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="File storage is not enabled.",
+        )
+
+    storage = await get_or_init_storage()
+
+    # Verify file exists
+    try:
+        exists = await storage.file_exists(key)
+        if not exists:
+            raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        logger.warning(f"Failed to check file existence for {key}: {e}")
+        # Continue anyway - let S3 handle the error
+
+    # Generate short-lived presigned URL (5 minutes)
+    try:
+        if storage._config.public_bucket:
+            url = await storage.get_file_url(key)
+        else:
+            url = await storage.get_presigned_url(key, 300)  # 5 minutes
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL for {key}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate file URL")
+
+    # Redirect to presigned URL
+    return Response(
+        status_code=302,
+        headers={"Location": url},
+    )

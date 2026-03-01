@@ -15,11 +15,10 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from src.infra.session.trace_storage import TraceStorage, get_trace_storage
 from src.infra.storage.redis import RedisStorage
+from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Redis Stream TTL (24 hours)
-STREAM_TTL = 24 * 60 * 60
 
 # MongoDB 批量写入配置
 _MONGO_FLUSH_INTERVAL = 1.0  # 每 1000ms 刷新一次
@@ -232,7 +231,7 @@ class DualEventWriter:
             if stream_key not in self._ttl_set_keys:
                 ttl = await self.redis.ttl(stream_key)
                 if ttl == -1:
-                    await self.redis.expire(stream_key, STREAM_TTL)
+                    await self.redis.expire(stream_key, settings.SSE_CACHE_TTL)
                 self._ttl_set_keys.add(stream_key)
             return True
         except Exception as e:

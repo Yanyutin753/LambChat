@@ -12,13 +12,21 @@
       "label": "思考を有効化"
     }
   },
+  "agents": {
+    "search": {
+      "description": "LangGraphベースの検索・実行エージェント",
+      "name": "Search Agent"
+    }
+  },
   "appName": "LambChat",
   "approvals": {
     "approve": "承認",
+    "cancel": "キャンセル",
     "enterResponse": "返信を入力...",
     "needsConfirmation": "確認が必要です",
     "reject": "拒否",
-    "send": "送信"
+    "send": "送信",
+    "submit": "確定"
   },
   "auth": {
     "account": "アカウント",
@@ -85,12 +93,17 @@
       "copy": "コピー",
       "copyCode": "コードをコピー",
       "download": "ダウンロード",
+      "duration": "所要時間",
       "executing": "実行中...",
       "mermaidError": "Mermaidエラー",
       "parameters": "パラメータ",
       "result": "結果",
       "running": "実行中...",
       "thinking": "思考中",
+      "thought": "思考済み",
+      "tokenInput": "入力",
+      "tokenOutput": "出力",
+      "tokenTotal": "合計",
       "toolCalls": "ツール呼び出し"
     },
     "noPermission": "メッセージを送信する権限がありません",
@@ -99,6 +112,7 @@
     "sandbox": {
       "error": "初期化に失敗しました",
       "initializing": "環境を初期化中...",
+      "name": "サンドボックス",
       "ready": "準備完了"
     },
     "send": "メッセージを送信",
@@ -192,6 +206,32 @@
     "noPermissionTitle": "アクセス拒否",
     "pageNotFound": "ページが見つかりません",
     "pageNotFoundDesc": "申し訳ございません。お探しのページは存在しないか削除されました。URLを確認するか、ホームに戻ってください。"
+  },
+  "fileUpload": {
+    "categories": {
+      "${category}": "fileUpload.categories.${category}",
+      "audio": "音声",
+      "document": "ドキュメント",
+      "image": "画像",
+      "video": "動画"
+    },
+    "dragDrop": "ドラッグ＆ドロップまたはクリックしてアップロード",
+    "fileTooLarge": "ファイルサイズが制限を超えています",
+    "noPermission": "{{type}}ファイルをアップロードする権限がありません",
+    "removeAttachment": "添付ファイルを削除",
+    "title": "ファイルをアップロード",
+    "tooManyFiles": "一度にアップロードできるファイルは{{count}}個までです",
+    "uploadFailed": "アップロードに失敗しました",
+    "uploadSuccess": "アップロードに成功しました",
+    "uploading": "アップロード中..."
+  },
+  "imageViewer": {
+    "hint": "スクロールでズーム · ドラッグで移動 · ESCで閉じる",
+    "reset": "リセット",
+    "rotateLeft": "左に回転",
+    "rotateRight": "右に回転",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小"
   },
   "mcp": {
     "addFirst": "最初のMCPサーバーを追加",
@@ -338,7 +378,7 @@
   },
   "settings": {
     "exportSuccess": "設定をエクスポートしました",
-    "importSuccess": "{count}件の設定をインポートしました",
+    "importSuccess": "{{count}}件の設定をインポートしました",
     "loading": "設定を読み込み中...",
     "noMatch": "検索条件に一致する設定がありません",
     "noSettings": "このカテゴリに設定はありません",

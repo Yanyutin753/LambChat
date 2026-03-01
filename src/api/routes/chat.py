@@ -33,6 +33,7 @@ async def _execute_agent_stream(
     presenter=None,
     disabled_tools: list[str] | None = None,
     agent_options: dict | None = None,
+    attachments: list[dict] | None = None,
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
     from src.infra.task.manager import TaskInterruptedError
@@ -48,6 +49,7 @@ async def _execute_agent_stream(
             presenter=presenter,
             disabled_tools=disabled_tools,
             agent_options=agent_options,
+            attachments=attachments,
         ):
             yield event
     except (asyncio.CancelledError, TaskInterruptedError):
@@ -98,6 +100,9 @@ async def chat_stream(
         executor=_execute_agent_stream,
         disabled_tools=request.disabled_tools,  # 传递用户禁用的工具
         agent_options=request.agent_options,  # 传递 agent 选项
+        attachments=[a.model_dump() for a in request.attachments]
+        if request.attachments
+        else None,  # 传递附件
     )
 
     # 获取 trace_id（任务启动后会有）

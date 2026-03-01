@@ -8,6 +8,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from src.kernel.schemas.message import ToolCall
 
 
+class AttachmentSchema(BaseModel):
+    """Attachment schema for file uploads."""
+
+    id: str = Field(..., description="Unique attachment ID")
+    key: str = Field(..., description="Storage key")
+    name: str = Field(..., description="Original filename")
+    type: str = Field(..., description="File category: image, video, audio, document")
+    mime_type: str = Field(..., description="MIME type")
+    size: int = Field(..., description="File size in bytes")
+    url: str = Field(..., description="Accessible URL")
+
+
 class AgentRequest(BaseModel):
     """Request to run the agent."""
 
@@ -21,6 +33,7 @@ class AgentRequest(BaseModel):
     agent_options: Optional[dict[str, Any]] = Field(
         None, description="Agent options (e.g., enable_thinking)"
     )
+    attachments: Optional[list[AttachmentSchema]] = Field(None, description="File attachments")
     context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
 
 
