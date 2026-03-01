@@ -21,12 +21,12 @@
   "appName": "LambChat",
   "approvals": {
     "approve": "승인",
-    "cancel": "[TODO]approvals.cancel",
+    "cancel": "취소",
     "enterResponse": "응답 입력...",
     "needsConfirmation": "확인 필요",
     "reject": "거부",
     "send": "전송",
-    "submit": "[TODO]approvals.submit"
+    "submit": "확인"
   },
   "auth": {
     "account": "계정",
