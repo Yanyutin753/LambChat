@@ -12,6 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
+import { FileUploadButton } from "./FileUploadButton";
 import type {
   ToolState,
   ToolCategory,
@@ -361,6 +362,8 @@ export const ChatInput = memo(function ChatInput({
           <div className="flex justify-between pt-3 pb-3 mx-0.5 max-w-full">
             {/* Left side - Tool buttons */}
             <div className="ml-2 self-end flex items-center max-w-[80%] gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
+              {/* File upload button */}
+              <FileUploadButton />
               {/* Tool selector button */}
               {enableMcp && onToggleTool && onToggleCategory && onToggleAll && (
                 <ToolSelector
