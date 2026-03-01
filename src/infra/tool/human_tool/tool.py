@@ -184,16 +184,29 @@ class AskHumanTool(BaseTool):
         }
         return json.dumps(result, ensure_ascii=False)
 
-    def _parse_fields(self, fields: List[Any]) -> List[FormField]:
+    def _parse_fields(self, fields: Any) -> List[FormField]:
         """
         解析字段列表并设置默认值
 
         Args:
-            fields: 字段列表（可能是 FormField 对象或字典）
+            fields: 字段列表（可能是 FormField 对象、字典或 JSON 字符串）
 
         Returns:
             解析后的 FormField 列表
         """
+        # 处理 fields 是 JSON 字符串的情况（LLM 有时会这样传参）
+        if isinstance(fields, str):
+            try:
+                fields = json.loads(fields)
+            except json.JSONDecodeError:
+                logger.warning(f"Failed to parse fields as JSON: {fields[:100]}...")
+                fields = []
+
+        # 确保 fields 是列表
+        if not isinstance(fields, list):
+            logger.warning(f"fields is not a list: {type(fields)}")
+            fields = []
+
         parsed = []
         for field in fields:
             if isinstance(field, FormField):
