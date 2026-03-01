@@ -42,7 +42,7 @@ export const FileUploadButton = memo(function FileUploadButton({
 
   // Check if user has any upload permission
   const canUpload = Object.values(CATEGORY_PERMISSIONS).some((perm) =>
-    hasPermission(perm as keyof typeof Permission),
+    hasPermission(perm as any),
   );
 
   const handleFileSelect = useCallback(
@@ -58,7 +58,7 @@ export const FileUploadButton = memo(function FileUploadButton({
 
           // Check permission
           const requiredPerm = CATEGORY_PERMISSIONS[category];
-          if (!hasPermission(requiredPerm as keyof typeof Permission)) {
+          if (!hasPermission(requiredPerm as any)) {
             alert(
               t("fileUpload.noPermission", {
                 type: t(`fileUpload.categories.${category}`),
@@ -81,9 +81,11 @@ export const FileUploadButton = memo(function FileUploadButton({
           });
         }
 
-        const updated = [...attachments, ...newAttachments];
-        setAttachments(updated);
-        onAttachmentsChange?.(updated);
+        setAttachments((prev) => {
+          const updated = [...prev, ...newAttachments];
+          onAttachmentsChange?.(updated);
+          return updated;
+        });
       } catch (error) {
         console.error("Upload failed:", error);
         alert(t("fileUpload.uploadFailed"));
@@ -91,16 +93,18 @@ export const FileUploadButton = memo(function FileUploadButton({
         setIsUploading(false);
       }
     },
-    [attachments, hasPermission, isUploading, onAttachmentsChange, t],
+    [hasPermission, isUploading, onAttachmentsChange, t],
   );
 
   const handleRemove = useCallback(
     (id: string) => {
-      const updated = attachments.filter((a) => a.id !== id);
-      setAttachments(updated);
-      onAttachmentsChange?.(updated);
+      setAttachments((prev) => {
+        const updated = prev.filter((a) => a.id !== id);
+        onAttachmentsChange?.(updated);
+        return updated;
+      });
     },
-    [attachments, onAttachmentsChange],
+    [onAttachmentsChange],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -125,7 +129,12 @@ export const FileUploadButton = memo(function FileUploadButton({
   if (!canUpload) return null;
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <input
         ref={fileInputRef}
         type="file"
