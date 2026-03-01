@@ -15,6 +15,7 @@ class SearchAgentState(TypedDict):
         messages: 消息历史
         output: 输出结果
         context: Agent 上下文（运行时注入）
+        attachments: 用户上传的附件列表
     """
 
     input: str
@@ -22,3 +23,4 @@ class SearchAgentState(TypedDict):
     messages: List[Any]
     output: str
     context: Optional[Dict[str, Any]]
+    attachments: Optional[List[Dict[str, Any]]]

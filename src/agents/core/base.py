@@ -256,6 +256,7 @@ class BaseGraphAgent(ABC):
             "session_id": session_id,
             "messages": [],
             "context": kwargs,
+            "attachments": kwargs.get("attachments", []),
         }
 
         try:

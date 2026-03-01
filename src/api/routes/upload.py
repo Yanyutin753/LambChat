@@ -4,6 +4,7 @@ File upload API routes
 Provides endpoints for file uploads to S3-compatible storage.
 """
 
+import asyncio
 import base64
 import logging
 from typing import Any
@@ -137,7 +138,7 @@ async def get_or_init_storage():
     return get_storage_service()
 
 
-@router.post("/upload")
+@router.post("/file")
 async def upload_file(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -226,12 +227,12 @@ async def upload_file(
             metadata={"uploaded_by": current_user.sub},
         )
 
-        # Return proxy URL instead of direct S3 URL
+        # Return proxy URL (no auth required now)
         proxy_url = f"/api/upload/file/{result.key}"
 
         return {
             "key": result.key,
-            "url": proxy_url,
+            "url": f"{settings.API_BASE_URL.strip('/')}{proxy_url}",
             "name": file.filename,
             "type": category.value,
             "mimeType": file.content_type,
@@ -258,7 +259,7 @@ def _get_image_content_type(data: bytes) -> str:
         return "image/png"  # Default to PNG
 
 
-@router.post("/upload/avatar", dependencies=[Depends(require_permissions("file:upload"))])
+@router.post("/avatar", dependencies=[Depends(require_permissions("file:upload"))])
 async def upload_avatar(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -358,11 +359,17 @@ async def delete_file(
 
     storage = await get_or_init_storage()
 
-    try:
-        deleted = await storage.delete_file(key)
-        return {"deleted": deleted, "key": key}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+    # Async delete - return immediately, delete in background
+    async def background_delete():
+        try:
+            await storage.delete_file(key)
+            logger.info(f"Background delete completed for key: {key}")
+        except Exception as e:
+            logger.error(f"Background delete failed for key {key}: {e}")
+
+    # Create task and return immediately (non-blocking)
+    asyncio.create_task(background_delete())
+    return {"deleted": True, "key": key, "status": "deleting"}
 
 
 @router.get("/config")
@@ -388,9 +395,9 @@ async def get_storage_config() -> dict:
     return {
         "enabled": s3_enabled,
         "provider": settings.S3_PROVIDER if s3_enabled else None,
-        "max_file_size": settings.S3_MAX_FILE_SIZE
-        if s3_enabled and settings.S3_MAX_FILE_SIZE
-        else None,
+        "max_file_size": (
+            settings.S3_MAX_FILE_SIZE if s3_enabled and settings.S3_MAX_FILE_SIZE else None
+        ),
         "uploadLimits": {
             "image": max_size_image,
             "video": max_size_video,
@@ -587,17 +594,16 @@ async def get_signed_url_simple(
 @router.get("/file/{key:path}")
 async def get_file_proxy(
     key: str,
-    current_user: TokenPayload = Depends(get_current_user_required),
 ) -> Response:
     """
     Dynamic proxy endpoint for file access
 
     Generates a short-lived presigned URL and redirects to it.
     This ensures the URL never expires from the user's perspective.
+    No authentication required - uses presigned URLs for access.
 
     Args:
         key: S3 object key
-        current_user: Current authenticated user
 
     Returns:
         302 redirect to presigned URL

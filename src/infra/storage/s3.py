@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import io
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, BinaryIO, Optional
 
+import oss2
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
@@ -236,7 +238,7 @@ class MinioS3Backend(S3StorageBackend):
                 access_key=self.config.access_key,
                 secret_key=self.config.secret_key,
                 secure=True,  # Use HTTPS
-                region=self.config.region if self.config.provider != S3Provider.AWS else None,
+                region=(self.config.region if self.config.provider != S3Provider.AWS else None),
             )
 
         return self._client
@@ -412,6 +414,169 @@ class MinioS3Backend(S3StorageBackend):
         self._client = None
 
 
+class AliyunOssBackend(S3StorageBackend):
+    """Aliyun OSS storage backend using official oss2 library"""
+
+    def __init__(self, config: S3Config):
+        self.config = config
+        self._bucket = None
+
+    def _get_bucket(self):
+        """Get or create Aliyun OSS bucket"""
+        if self._bucket is None:
+            import oss2
+
+            # Build endpoint based on region
+            endpoint = self.config.endpoint_url or f"oss-{self.config.region}.aliyuncs.com"
+            # Remove protocol if present
+            endpoint = endpoint.replace("https://", "").replace("http://", "")
+
+            # Authenticate using access key and secret key
+            auth = oss2.Auth(self.config.access_key, self.config.secret_key)
+
+            logger.info(
+                f"Aliyun OSS client config: endpoint={endpoint}, bucket={self.config.bucket_name}, region={self.config.region}"
+            )
+
+            # Create bucket with virtual-hosted style
+            self._bucket = oss2.Bucket(
+                auth,
+                f"https://{endpoint}",
+                self.config.bucket_name,
+                connect_timeout=30,
+            )
+
+        return self._bucket
+
+    async def upload(
+        self,
+        file: BinaryIO,
+        key: str,
+        content_type: Optional[str] = None,
+        metadata: Optional[dict[str, str]] = None,
+    ) -> UploadResult:
+        """Upload a file to Aliyun OSS"""
+        import asyncio
+
+        # Read file content
+        content = file.read()
+        file_size = len(content)
+        file.seek(0)
+
+        loop = asyncio.get_event_loop()
+        bucket = self._get_bucket()
+
+        def _put_object():
+            # Aliyun OSS requires content_type for proper handling
+            headers = {}
+            if content_type:
+                headers["Content-Type"] = content_type
+            if metadata:
+                headers.update(metadata)
+
+            result = bucket.put_object(key, content, headers=headers)
+            return result
+
+        result = await loop.run_in_executor(None, _put_object)
+
+        # Generate public URL
+        file_url = self.config.get_public_url(key)
+
+        return UploadResult(
+            key=key,
+            url=file_url,
+            size=file_size,
+            content_type=content_type or "application/octet-stream",
+            etag=result.etag,
+            last_modified=datetime.now(timezone.utc),
+        )
+
+    async def upload_bytes(
+        self,
+        data: bytes,
+        key: str,
+        content_type: Optional[str] = None,
+        metadata: Optional[dict[str, str]] = None,
+    ) -> UploadResult:
+        """Upload bytes to Aliyun OSS"""
+        file_obj = io.BytesIO(data)
+        return await self.upload(file_obj, key, content_type, metadata)
+
+    async def download(self, key: str) -> bytes:
+        """Download a file from Aliyun OSS"""
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        bucket = self._get_bucket()
+
+        def _get_object():
+            result = bucket.get_object(key)
+            return result.read()
+
+        return await loop.run_in_executor(None, _get_object)
+
+    async def delete(self, key: str) -> bool:
+        """Delete a file from Aliyun OSS"""
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        bucket = self._get_bucket()
+
+        def _delete_object():
+            bucket.delete_object(key)
+            return True
+
+        return await loop.run_in_executor(None, _delete_object)
+
+    async def exists(self, key: str) -> bool:
+        """Check if a file exists in Aliyun OSS"""
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        bucket = self._get_bucket()
+
+        def _exists():
+            return bucket.object_exists(key)
+
+        return await loop.run_in_executor(None, _exists)
+
+    async def get_url(self, key: str) -> str:
+        """Get public URL for a file"""
+        return self.config.get_public_url(key)
+
+    async def get_presigned_url(self, key: str, expires: int = 3600) -> str:
+        """Get presigned URL for a file (for private buckets)"""
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        bucket = self._get_bucket()
+
+        def _get_url():
+            # Aliyun OSS presigned URL
+            return bucket.sign_url("GET", key, expires)
+
+        return await loop.run_in_executor(None, _get_url)
+
+    async def list_objects(self, prefix: str = "") -> list[str]:
+        """List objects with given prefix"""
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        bucket = self._get_bucket()
+
+        def _list_objects():
+            objects = []
+            for obj in oss2.ObjectIterator(bucket, prefix=prefix):
+                objects.append(obj.key)
+            return objects
+
+        return await loop.run_in_executor(None, _list_objects)
+
+    async def close(self) -> None:
+        """Close the backend connection"""
+        self._bucket = None
+
+
 class MockS3Backend(S3StorageBackend):
     """Mock S3 backend for testing/development"""
 
@@ -520,14 +685,32 @@ class S3StorageService:
     def _get_backend(self) -> S3StorageBackend:
         """Get or create the storage backend"""
         if self._backend is None:
-            # Try minio library first (better S3-compatible support)
-            try:
-                import minio  # noqa: F401
+            # Use Aliyun OSS SDK for Aliyun provider
+            if self._config.provider == S3Provider.ALIYUN:
+                try:
+                    import oss2  # noqa: F401
 
-                self._backend = MinioS3Backend(self._config)
-            except ImportError:
-                # Fall back to mock backend
-                self._backend = MockS3Backend(self._config)
+                    self._backend = AliyunOssBackend(self._config)
+                except ImportError:
+                    # Fall back to minio for Aliyun (may have signature issues)
+                    logger.warning(
+                        "Aliyun OSS SDK not available, falling back to minio (may have compatibility issues)"
+                    )
+                    try:
+                        import minio  # noqa: F401
+
+                        self._backend = MinioS3Backend(self._config)
+                    except ImportError:
+                        self._backend = MockS3Backend(self._config)
+            else:
+                # Try minio library for other S3-compatible providers
+                try:
+                    import minio  # noqa: F401
+
+                    self._backend = MinioS3Backend(self._config)
+                except ImportError:
+                    # Fall back to mock backend
+                    self._backend = MockS3Backend(self._config)
 
         return self._backend
 
@@ -552,11 +735,12 @@ class S3StorageService:
         Returns:
             UploadResult with key and URL
         """
-        # Generate unique key with timestamp
+
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         # Sanitize filename
         safe_filename = self._sanitize_filename(filename)
-        key = f"{folder}/{timestamp}_{safe_filename}"
+        unique_suffix = uuid.uuid4().hex[:8]  # 8-char UUID for uniqueness
+        key = f"{folder}/{timestamp}_{unique_suffix}_{safe_filename}"
 
         backend = self._get_backend()
         return await backend.upload(file, key, content_type, metadata)
@@ -570,10 +754,12 @@ class S3StorageService:
         metadata: Optional[dict[str, str]] = None,
     ) -> UploadResult:
         """Upload bytes to S3"""
-        # Generate unique key with timestamp
+        # Generate unique key with timestamp and UUID suffix
+
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safe_filename = self._sanitize_filename(filename)
-        key = f"{folder}/{timestamp}_{safe_filename}"
+        unique_suffix = uuid.uuid4().hex[:8]  # 8-char UUID for uniqueness
+        key = f"{folder}/{timestamp}_{unique_suffix}_{safe_filename}"
 
         backend = self._get_backend()
         result = await backend.upload_bytes(data, key, content_type, metadata)

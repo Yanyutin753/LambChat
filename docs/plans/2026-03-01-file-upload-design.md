@@ -98,7 +98,7 @@ PERMISSION_METADATA = {
 
 ### 3.2 上传接口改动
 
-**端点**: `POST /api/upload/upload`
+**端点**: `POST /api/upload`
 
 **改动点**:
 1. 根据 MIME 类型判断文件类别

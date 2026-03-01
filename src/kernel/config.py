@@ -81,6 +81,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "default",
         "frontend_visible": True,
     },
+    "API_BASE_URL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.FRONTEND,
+        "description": "Backend API base URL for file URLs (e.g., http://localhost:8000)",
+        "default": "",
+        "frontend_visible": True,
+    },
     "WELCOME_SUGGESTIONS": {
         "type": SettingType.JSON,
         "category": SettingCategory.FRONTEND,
@@ -616,6 +623,7 @@ class Settings(BaseSettings):
 
     # Frontend Settings
     DEFAULT_AGENT: str = "default"
+    API_BASE_URL: str = ""
     WELCOME_SUGGESTIONS: list = [
         {"icon": "🐍", "text": "Create a Python hello world script"},
         {"icon": "📁", "text": "List files in the workspace directory"},

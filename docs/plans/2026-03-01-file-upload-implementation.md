@@ -528,7 +528,7 @@ export const uploadApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetchWithAuth("/api/upload/upload", {
+    const response = await fetchWithAuth("/api/upload", {
       method: "POST",
       body: formData,
     });
@@ -965,7 +965,7 @@ cd /home/yangyang/LambChat && uvicorn src.api.main:app --reload
 
 **Step 2: Test upload endpoint**
 ```bash
-curl -X POST http://localhost:8000/api/upload/upload \
+curl -X POST http://localhost:8000/api/upload \
   -H "Authorization: Bearer <token>" \
   -F "file=@test.jpg"
 ```

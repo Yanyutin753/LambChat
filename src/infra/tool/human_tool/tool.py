@@ -95,7 +95,7 @@ class AskHumanTool(BaseTool):
     def _run(
         self,
         message: str,
-        fields: List[FormField] = None,
+        fields: Optional[List[FormField]] = None,
         timeout: int = 300,
     ) -> str:
         """同步执行（不支持，返回错误）"""
@@ -104,7 +104,7 @@ class AskHumanTool(BaseTool):
     async def _arun(
         self,
         message: str,
-        fields: List[FormField] = None,
+        fields: Optional[List[FormField]] = None,
         timeout: int = 300,
     ) -> str:
         """

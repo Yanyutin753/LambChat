@@ -93,6 +93,7 @@ class BackgroundTaskManager:
         executor: Callable[[str, str, str, str], Any],
         disabled_tools: Optional[List[str]] = None,
         agent_options: Optional[Dict[str, Any]] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -105,6 +106,7 @@ class BackgroundTaskManager:
             executor: 执行函数 (session_id, agent_id, message, user_id) -> AsyncGenerator
             disabled_tools: 用户禁用的工具列表（可选）
             agent_options: Agent 选项（可选，如 enable_thinking）
+            attachments: 文件附件列表（可选）
 
         Returns:
             (run_id, trace_id) 元组
@@ -133,6 +135,7 @@ class BackgroundTaskManager:
                     executor,
                     disabled_tools,
                     agent_options,
+                    attachments,
                 )
             )
             self._tasks[run_id] = task
@@ -194,6 +197,7 @@ class BackgroundTaskManager:
         executor: Callable,
         disabled_tools: Optional[List[str]] = None,
         agent_options: Optional[Dict[str, Any]] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -253,9 +257,10 @@ class BackgroundTaskManager:
                 agent_id,
                 message,
                 user_id,
-                presenter,
-                disabled_tools,
-                agent_options,
+                presenter=presenter,
+                disabled_tools=disabled_tools,
+                agent_options=agent_options,
+                attachments=attachments,
             ):
                 await presenter.save_event(event)
 

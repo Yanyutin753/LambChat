@@ -4,6 +4,16 @@ Reveal File 工具
 让 Agent 可以向用户展示/推荐文件，前端会自动展开文件树并可以点击查看内容。
 文件会自动从 sandbox 下载并上传到 S3，返回 S3 URL。
 
+返回格式与前端 UploadResult 一致：
+{
+    "key": "...",
+    "url": "...",
+    "name": "...",
+    "type": "image" | "video" | "audio" | "document",
+    "mimeType": "...",
+    "size": ...
+}
+
 分布式安全设计：
 - 不依赖 ContextVar（无法跨进程/Worker 工作）
 - 通过 ToolRuntime 注入 backend
@@ -12,13 +22,67 @@ Reveal File 工具
 
 import json
 import logging
-from typing import Any, Optional
+import mimetypes
+from typing import Any, Literal, Optional
 
 from deepagents.backends.protocol import BackendProtocol
 from langchain.tools import tool
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
+
+# 文件类型分类
+FileCategory = Literal["image", "video", "audio", "document"]
+
+# MIME 类型到文件类别的映射
+MIME_TYPE_CATEGORIES: dict[str, FileCategory] = {
+    # 图片
+    "image/jpeg": "image",
+    "image/png": "image",
+    "image/gif": "image",
+    "image/webp": "image",
+    "image/svg+xml": "image",
+    "image/bmp": "image",
+    "image/x-icon": "image",
+    # 视频
+    "video/mp4": "video",
+    "video/mpeg": "video",
+    "video/webm": "video",
+    "video/quicktime": "video",
+    "video/x-msvideo": "video",
+    "video/x-ms-wmv": "video",
+    # 音频
+    "audio/mpeg": "audio",
+    "audio/wav": "audio",
+    "audio/ogg": "audio",
+    "audio/aac": "audio",
+    "audio/flac": "audio",
+    "audio/x-m4a": "audio",
+}
+
+
+def get_file_category(mime_type: str) -> FileCategory:
+    """根据 MIME 类型获取文件类别"""
+    # 精确匹配
+    if mime_type in MIME_TYPE_CATEGORIES:
+        return MIME_TYPE_CATEGORIES[mime_type]
+
+    # 前缀匹配
+    if mime_type.startswith("image/"):
+        return "image"
+    if mime_type.startswith("video/"):
+        return "video"
+    if mime_type.startswith("audio/"):
+        return "audio"
+
+    # 默认为文档
+    return "document"
+
+
+def get_mime_type(filename: str) -> str:
+    """根据文件名获取 MIME 类型"""
+    mime_type, _ = mimetypes.guess_type(filename)
+    return mime_type or "application/octet-stream"
 
 
 async def _ensure_storage_initialized() -> None:
@@ -111,7 +175,7 @@ async def reveal_file(
     # 如果获取不到 backend，返回原始路径信息
     if backend is None:
         logger.warning("Backend not available from runtime, returning raw path")
-        result = {
+        result: dict[str, Any] = {
             "type": "file_reveal",
             "file": {
                 "path": file_path,
@@ -167,22 +231,38 @@ async def reveal_file(
         # 2. 从路径提取文件名
         filename = file_path.split("/")[-1]
 
-        # 3. 上传到 S3 (使用已初始化的 storage)
+        # 3. 获取 MIME 类型
+        mime_type = get_mime_type(filename)
+
+        # 4. 上传到 S3 (使用已初始化的 storage)
         upload_result = await storage.upload_bytes(
             data=download_response.content,
             folder="revealed_files",
             filename=filename,
+            content_type=mime_type,
         )
 
-        # 4. 返回 S3 URL
+        # 5. 获取文件类别
+        file_category = get_file_category(upload_result.content_type or mime_type)
+
+        # 6. 生成后端代理 URL（与 /api/upload 返回格式一致）
+        from src.kernel.config import settings
+
+        proxy_url = f"/api/upload/file/{upload_result.key}"
+        file_url = f"{settings.API_BASE_URL.rstrip('/')}{proxy_url}"
+
+        # 7. 返回与前端 UploadResult 一致的格式
         result = {
-            "type": "file_reveal",
-            "file": {
+            "key": upload_result.key,
+            "url": file_url,
+            "name": filename,
+            "type": file_category,
+            "mimeType": upload_result.content_type or mime_type,
+            "size": upload_result.size,
+            # 保留额外信息供前端参考
+            "_meta": {
                 "path": file_path,
                 "description": description or "",
-                "s3_url": upload_result.url,
-                "s3_key": upload_result.key,
-                "size": upload_result.size,
             },
         }
         logger.info(f"Successfully uploaded {file_path} to S3: {upload_result.url}")

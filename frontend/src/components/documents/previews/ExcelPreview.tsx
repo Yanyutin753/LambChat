@@ -93,41 +93,39 @@ const ExcelPreview = memo(function ExcelPreview({
 
       {/* Table */}
       <div className="flex-1 overflow-auto p-4">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-stone-200 dark:divide-stone-700">
-            <thead className="bg-stone-50 dark:bg-stone-800">
-              {currentSheet.data.slice(0, 1).map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {row.map((cell, cellIndex) => (
-                    <th
-                      key={cellIndex}
-                      className="px-4 py-2 text-left text-xs font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider bg-stone-100 dark:bg-stone-800"
-                    >
-                      {String(cell ?? "")}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-stone-200 dark:divide-stone-700 bg-white dark:bg-stone-900">
-              {currentSheet.data.slice(1).map((row, rowIndex) => (
-                <tr
-                  key={rowIndex}
-                  className="hover:bg-stone-50 dark:hover:bg-stone-800/50"
-                >
-                  {row.map((cell, cellIndex) => (
-                    <td
-                      key={cellIndex}
-                      className="px-4 py-2 text-sm text-stone-600 dark:text-stone-400 whitespace-nowrap"
-                    >
-                      {String(cell ?? "")}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <table className="border-collapse">
+          <thead className="bg-stone-50 dark:bg-stone-800">
+            {currentSheet.data.slice(0, 1).map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <th
+                    key={cellIndex}
+                    className="px-4 py-2 text-left text-xs font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider bg-stone-100 dark:bg-stone-800 whitespace-nowrap border-b border-r last:border-r-0 border-stone-200 dark:border-stone-700"
+                  >
+                    {String(cell ?? "")}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody className="bg-white dark:bg-stone-900">
+            {currentSheet.data.slice(1).map((row, rowIndex) => (
+              <tr
+                key={rowIndex}
+                className="hover:bg-stone-50 dark:hover:bg-stone-800/50"
+              >
+                {row.map((cell, cellIndex) => (
+                  <td
+                    key={cellIndex}
+                    className="px-4 py-2 text-sm text-stone-600 dark:text-stone-400 whitespace-nowrap border-b border-r last:border-r-0 border-stone-200 dark:border-stone-700"
+                  >
+                    {String(cell ?? "")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
