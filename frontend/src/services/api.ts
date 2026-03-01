@@ -27,6 +27,8 @@ import type {
   MCPExportResponse,
   PermissionsResponse,
   VersionInfo,
+  UploadConfig,
+  UploadResult,
 } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -1075,19 +1077,6 @@ export const mcpApi = {
 // Upload API - 文件上传
 // ============================================
 
-interface UploadResult {
-  key: string;
-  url: string;
-  size: number;
-  content_type: string;
-}
-
-interface StorageConfig {
-  enabled: boolean;
-  provider: string | null;
-  max_file_size: number | null;
-}
-
 interface SignedUrlItem {
   key: string;
   url: string | null;
@@ -1162,16 +1151,18 @@ export const uploadApi = {
   /**
    * 获取存储配置
    */
-  async getConfig(): Promise<StorageConfig> {
-    return authFetch<StorageConfig>(`${API_BASE}/api/upload/config`);
+  async getConfig(): Promise<UploadConfig> {
+    return authFetch<UploadConfig>(`${API_BASE}/api/upload/config`);
   },
 
   /**
    * 获取 S3 签名 URL（用于访问私有文件）
    */
-  async getSignedUrl(key: string): Promise<string> {
+  async getSignedUrl(key: string, expires: number = 3600): Promise<string> {
     const result = await authFetch<SignedUrlItem>(
-      `${API_BASE}/api/upload/signed-url?key=${encodeURIComponent(key)}`,
+      `${API_BASE}/api/upload/signed-url?key=${encodeURIComponent(
+        key,
+      )}&expires=${expires}`,
     );
     if (result.error || !result.url) {
       throw new Error(result.error || "Failed to get signed URL");
