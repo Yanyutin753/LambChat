@@ -12,7 +12,8 @@ import {
 import { useCallback, useEffect, useRef, useState, memo } from "react";
 import toast from "react-hot-toast";
 import mermaid from "mermaid";
-import { LoadingSpinner } from "../common/LoadingSpinner";
+import { LoadingSpinner, CollapsiblePill } from "../common";
+import type { CollapsibleStatus } from "../common";
 import {
   Bot,
   Wrench,
@@ -780,48 +781,30 @@ function ToolCallItem({
   isPending?: boolean;
 }) {
   const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(false);
   const hasResult = result !== undefined;
   const hasArgs = Object.keys(args).length > 0;
 
+  // Map props to CollapsibleStatus
+  let status: CollapsibleStatus = "idle";
+  if (isPending) {
+    status = "loading";
+  } else if (success) {
+    status = "success";
+  } else if (hasResult) {
+    status = "error";
+  }
+
+  const canExpand = hasArgs || hasResult;
+
   return (
-    <div className="my-2 sm:my-3">
-      {/* Header - 紧凑的 pill 设计 */}
-      <button
-        onClick={() => (hasArgs || hasResult) && setIsExpanded(!isExpanded)}
-        className={clsx(
-          "inline-flex items-center gap-1.5 px-2.5 py-2 rounded-full text-xs font-medium transition-all",
-          isPending
-            ? "bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-            : success
-              ? "bg-emerald-100/80 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-              : hasResult
-                ? "bg-red-100/80 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                : "bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400",
-          (hasArgs || hasResult) && "hover:shadow-sm cursor-pointer",
-          !(hasArgs || hasResult) && "cursor-default",
-        )}
-      >
-        {/* 状态指示器 */}
-        {isPending ? (
-          <LoadingSpinner size="sm" className="shrink-0" />
-        ) : success ? (
-          <CheckCircle size={12} className="shrink-0" />
-        ) : hasResult ? (
-          <XCircle size={12} className="shrink-0" />
-        ) : (
-          <Wrench size={12} className="shrink-0 opacity-60" />
-        )}
-
-        <Wrench size={10} className="shrink-0 opacity-50" />
-        <span className="font-mono">{name}</span>
-
-        {(hasArgs || hasResult) &&
-          (isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />)}
-      </button>
-
-      {/* 展开内容 */}
-      {isExpanded && (hasArgs || hasResult) && (
+    <CollapsiblePill
+      status={status}
+      icon={<Wrench size={12} className="shrink-0 opacity-50" />}
+      label={name}
+      variant="tool"
+      expandable={canExpand}
+    >
+      {canExpand && (
         <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2">
           {/* Arguments */}
           {hasArgs && (
@@ -856,7 +839,7 @@ function ToolCallItem({
           )}
         </div>
       )}
-    </div>
+    </CollapsiblePill>
   );
 }
 
@@ -1142,7 +1125,11 @@ function ThinkingBlock({
           className="shrink-0 text-stone-500 dark:text-stone-400"
         />
 
-        <span className="font-mono">{t("chat.message.thinking")}</span>
+        <span className="font-mono">
+          {isStreaming || isPending
+            ? t("chat.message.thinking")
+            : t("chat.message.thought")}
+        </span>
         {isStreaming && (
           <span className="flex items-center gap-[2px] ml-1">
             <span className="w-0.5 h-1 bg-stone-500 dark:bg-stone-400 rounded-full animate-[wave_0.6s_ease-in-out_infinite]" />
@@ -1497,7 +1484,9 @@ function SubagentContentRenderer({
           <Box size={10} className="shrink-0 opacity-50" />
           <span className="font-mono">{t("chat.sandbox.name")}</span>
           {part.status === "starting" && (
-            <span className="ml-1">{t("chat.sandbox.initializing")}</span>
+            <span className="ml-0.5 font-mono">
+              {t("chat.sandbox.initializing")}
+            </span>
           )}
           {hasDetails &&
             (isExpanded ? (
@@ -1819,7 +1808,9 @@ function MessagePartRenderer({
           <Box size={10} className="shrink-0 opacity-50" />
           <span className="font-mono">{t("chat.sandbox.name")}</span>
           {part.status === "starting" && (
-            <span className="ml-1">{t("chat.sandbox.initializing")}</span>
+            <span className="ml-0.5 font-mono">
+              {t("chat.sandbox.initializing")}
+            </span>
           )}
           {hasDetails &&
             (isExpanded ? (
