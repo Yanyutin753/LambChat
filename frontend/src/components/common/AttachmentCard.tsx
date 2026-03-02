@@ -41,6 +41,10 @@ export interface AttachmentCardProps {
   variant?: "editable" | "preview";
   /** 尺寸：compact 更紧凑，适合输入框区域 */
   size?: "default" | "compact";
+  /** Upload progress 0-100 */
+  uploadProgress?: number;
+  /** Whether upload is in progress */
+  isUploading?: boolean;
 }
 
 export const AttachmentCard = memo(function AttachmentCard({
@@ -49,6 +53,8 @@ export const AttachmentCard = memo(function AttachmentCard({
   onRemove,
   variant = "preview",
   size = "default",
+  uploadProgress,
+  isUploading = false,
 }: AttachmentCardProps) {
   const {
     icon: FileIcon,
@@ -68,6 +74,9 @@ export const AttachmentCard = memo(function AttachmentCard({
     onRemove?.();
   };
 
+  // Progress display helper
+  const progressPercent = Math.min(100, Math.max(0, uploadProgress ?? 0));
+
   // 紧凑模式样式（用于 ChatInput）
   if (isCompact) {
     return (
@@ -83,6 +92,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           "hover:border-gray-300/70 dark:hover:border-stone-600/70",
           "hover:-translate-y-0.5",
           "active:scale-[0.98]",
+          isUploading && "pointer-events-none",
         )}
       >
         {/* 图标/图片 */}
@@ -110,12 +120,14 @@ export const AttachmentCard = memo(function AttachmentCard({
             {attachment.name}
           </span>
           <span className="text-[11px] text-gray-400 dark:text-stone-500 mt-0.5">
-            {formatFileSize(attachment.size)}
+            {isUploading
+              ? `${progressPercent}%`
+              : formatFileSize(attachment.size)}
           </span>
         </div>
 
         {/* 删除按钮 */}
-        {variant === "editable" && onRemove && (
+        {variant === "editable" && onRemove && !isUploading && (
           <button
             type="button"
             onClick={handleRemove}
@@ -131,6 +143,16 @@ export const AttachmentCard = memo(function AttachmentCard({
           >
             <X size={12} />
           </button>
+        )}
+
+        {/* Progress bar - at the bottom of the card */}
+        {isUploading && (
+          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-200 dark:bg-stone-700 rounded-b-xl overflow-hidden">
+            <div
+              className="h-full bg-purple-500 transition-all duration-300 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         )}
       </div>
     );
@@ -154,6 +176,7 @@ export const AttachmentCard = memo(function AttachmentCard({
         "hover:border-gray-300/80 dark:hover:border-stone-600/80",
         "hover:-translate-y-0.5 hover:scale-[1.02]",
         "active:scale-[0.98] active:shadow-sm",
+        isUploading && "pointer-events-none",
       )}
       type="button"
     >
@@ -195,10 +218,22 @@ export const AttachmentCard = memo(function AttachmentCard({
         <div className="flex items-center justify-between mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-gray-400 dark:text-stone-500">
           <span className="capitalize truncate">{label}</span>
           <span className="shrink-0 ml-2">
-            {formatFileSize(attachment.size)}
+            {isUploading
+              ? `${progressPercent}%`
+              : formatFileSize(attachment.size)}
           </span>
         </div>
       </div>
+
+      {/* Progress bar - at the bottom of the card */}
+      {isUploading && (
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-200 dark:bg-stone-700 rounded-b-2xl sm:rounded-b-xl overflow-hidden">
+          <div
+            className="h-full bg-purple-500 transition-all duration-300 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      )}
     </button>
   );
 });
