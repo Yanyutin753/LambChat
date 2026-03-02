@@ -259,7 +259,7 @@ def _get_image_content_type(data: bytes) -> str:
         return "image/png"  # Default to PNG
 
 
-@router.post("/avatar", dependencies=[Depends(require_permissions("file:upload"))])
+@router.post("/avatar", dependencies=[Depends(require_permissions("avatar:upload"))])
 async def upload_avatar(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
