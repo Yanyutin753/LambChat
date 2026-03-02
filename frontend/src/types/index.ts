@@ -806,7 +806,11 @@ export interface MessageAttachment {
   type: FileCategory;
   mimeType: string;
   size: number;
-  url: string;
+  url?: string;
+  /** Upload progress (0-100) */
+  uploadProgress?: number;
+  /** Whether upload is in progress */
+  isUploading?: boolean;
 }
 
 // Upload state for tracking progress
