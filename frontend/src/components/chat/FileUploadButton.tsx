@@ -197,22 +197,20 @@ export const FileUploadButton = memo(function FileUploadButton({
       {/* Dropdown menu */}
       {showDropdown && (
         <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[140px] rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <div className="py-1">
-            {availableCategories.map((category) => {
-              const Icon = CATEGORY_ICONS[category];
-              return (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => handleCategorySelect(category)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-700 transition-colors"
-                >
-                  <Icon size={16} />
-                  {t(`fileUpload.categories.${category}`)}
-                </button>
-              );
-            })}
-          </div>
+          {availableCategories.map((category) => {
+            const Icon = CATEGORY_ICONS[category];
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => handleCategorySelect(category)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-700 transition-colors"
+              >
+                <Icon size={16} />
+                {t(`fileUpload.categories.${category}`)}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
