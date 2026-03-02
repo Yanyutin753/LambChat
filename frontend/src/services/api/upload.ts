@@ -132,6 +132,31 @@ export const uploadApi = {
   },
 
   /**
+   * 删除头像
+   */
+  async deleteAvatar(): Promise<{ deleted: boolean }> {
+    const token = getAccessToken();
+    const response = await fetch(`${API_BASE}/api/upload/avatar`, {
+      method: "DELETE",
+      headers: token
+        ? {
+            Authorization: `Bearer ${token}`,
+          }
+        : {},
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.detail || `Delete failed: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  },
+
+  /**
    * 获取存储配置
    */
   async getConfig(): Promise<UploadConfig> {
