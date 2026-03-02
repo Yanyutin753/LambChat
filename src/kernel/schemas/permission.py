@@ -148,6 +148,11 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "上传文档",
         "description": "允许上传文档文件（pdf, word, excel 等）",
     },
+    # Avatar
+    Permission.AVATAR_UPLOAD.value: {
+        "label": "上传头像",
+        "description": "允许上传和删除用户头像",
+    },
 }
 
 # 权限分组配置
@@ -215,6 +220,12 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.FILE_UPLOAD_VIDEO.value,
             Permission.FILE_UPLOAD_AUDIO.value,
             Permission.FILE_UPLOAD_DOCUMENT.value,
+        ],
+    },
+    {
+        "name": "头像",
+        "permissions": [
+            Permission.AVATAR_UPLOAD.value,
         ],
     },
 ]
