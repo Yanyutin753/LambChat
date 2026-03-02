@@ -339,7 +339,7 @@ export function SandboxItem({
   return (
     <CollapsiblePill
       status={pillStatus}
-      icon={<Box size={10} className="shrink-0 opacity-50" />}
+      icon={<Box size={12} className="shrink-0 opacity-50" />}
       label={t("chat.sandbox.name")}
       expandable={!!hasDetails}
       onExpandChange={setIsExpanded}
