@@ -1,18 +1,18 @@
-import { useRef, useState, useCallback, memo } from "react";
-import { Paperclip, Upload } from "lucide-react";
+import { useState, useRef, useCallback, memo, useEffect } from "react";
+import { Paperclip, Image, Video, Music, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { uploadApi } from "../../services/api";
-import {
-  MessageAttachment,
-  FileCategory,
-  UploadResult,
-  Permission,
-} from "../../types";
+import type { MessageAttachment, FileCategory } from "../../types";
+import { Permission } from "../../types";
 
 interface FileUploadButtonProps {
   attachments?: MessageAttachment[];
-  onAttachmentsChange?: (attachments: MessageAttachment[]) => void;
+  onAttachmentsChange?: (
+    attachments:
+      | MessageAttachment[]
+      | ((prev: MessageAttachment[]) => MessageAttachment[]),
+  ) => void;
 }
 
 // Permission mapping
@@ -21,6 +21,22 @@ const CATEGORY_PERMISSIONS: Record<FileCategory, Permission> = {
   video: Permission.FILE_UPLOAD_VIDEO,
   audio: Permission.FILE_UPLOAD_AUDIO,
   document: Permission.FILE_UPLOAD_DOCUMENT,
+};
+
+// Accept filters
+const CATEGORY_ACCEPT_MAP: Record<FileCategory, string> = {
+  image: "image/*",
+  video: "video/*",
+  audio: "audio/*",
+  document: ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv",
+};
+
+// Icons
+const CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
+  image: Image,
+  video: Video,
+  audio: Music,
+  document: FileText,
 };
 
 function getFileCategory(file: File): FileCategory {
@@ -38,44 +54,80 @@ export const FileUploadButton = memo(function FileUploadButton({
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Use external attachments if provided, otherwise use internal state (for backward compatibility)
-  const attachments = externalAttachments;
-
-  // Check if user has any upload permission
-  const canUpload = Object.values(CATEGORY_PERMISSIONS).some((perm) =>
-    hasPermission(perm),
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<FileCategory | null>(
+    null,
   );
 
-  const handleFileSelect = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0 || isUploading) return;
+  // Get available categories based on permissions
+  const availableCategories = Object.keys(CATEGORY_PERMISSIONS).filter((cat) =>
+    hasPermission(CATEGORY_PERMISSIONS[cat as FileCategory]),
+  ) as FileCategory[];
 
-      setIsUploading(true);
-      const newAttachments: MessageAttachment[] = [];
+  // Check if user has any upload permission
+  const canUpload = availableCategories.length > 0;
 
-      try {
-        for (const file of Array.from(files)) {
-          const category = getFileCategory(file);
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-          // Check permission
-          const requiredPerm = CATEGORY_PERMISSIONS[category];
-          if (!hasPermission(requiredPerm)) {
-            alert(
-              t("fileUpload.noPermission", {
-                type: t(`fileUpload.categories.${category}`),
-              }),
-            );
-            continue;
-          }
+  // Handle file selection - immediately adds attachment card with progress
+  const handleFiles = useCallback(
+    async (files: FileList | null, category?: FileCategory) => {
+      if (!files || files.length === 0) return;
 
-          // Upload file
-          const result: UploadResult = await uploadApi.uploadFile(file);
-          console.log("Upload result:", result);
+      const fileArray = Array.from(files);
 
-          newAttachments.push({
+      for (const file of fileArray) {
+        const fileCategory = category || getFileCategory(file);
+        const perm = CATEGORY_PERMISSIONS[fileCategory];
+
+        if (!hasPermission(perm)) {
+          console.warn(`No permission to upload ${fileCategory} files`);
+          continue;
+        }
+
+        const tempId = `temp-${crypto.randomUUID()}`;
+
+        // Immediately add temp attachment to show progress card
+        const tempAttachment: MessageAttachment = {
+          id: tempId,
+          key: "",
+          name: file.name,
+          type: fileCategory,
+          mimeType: file.type,
+          size: file.size,
+          url: "",
+        };
+
+        onAttachmentsChange?.([...externalAttachments, tempAttachment]);
+
+        try {
+          const result = await uploadApi.uploadFile(file, {
+            onProgress: (progress) => {
+              // Update attachment with progress - use functional update pattern
+              onAttachmentsChange?.((prev: MessageAttachment[]) =>
+                prev.map((a) =>
+                  a.id === tempId
+                    ? { ...a, uploadProgress: progress, isUploading: true }
+                    : a,
+                ),
+              );
+            },
+          });
+
+          const finalAttachment: MessageAttachment = {
             id: crypto.randomUUID(),
             key: result.key,
             name: result.name || file.name,
@@ -83,95 +135,84 @@ export const FileUploadButton = memo(function FileUploadButton({
             mimeType: result.mimeType,
             size: result.size,
             url: result.url,
-          });
-        }
+          };
 
-        const updated = [...attachments, ...newAttachments];
-        console.log("Attachments updated:", updated);
-        onAttachmentsChange?.(updated);
-      } catch (error) {
-        console.error("Upload failed:", error);
-        alert(t("fileUpload.uploadFailed"));
-      } finally {
-        setIsUploading(false);
+          // Replace temp with final attachment
+          onAttachmentsChange?.((prev: MessageAttachment[]) =>
+            prev.map((a) => (a.id === tempId ? finalAttachment : a)),
+          );
+        } catch (error) {
+          console.error("Upload failed:", error);
+          // Remove temp attachment on error
+          onAttachmentsChange?.((prev: MessageAttachment[]) =>
+            prev.filter((a) => a.id !== tempId),
+          );
+        }
       }
     },
-    [attachments, hasPermission, isUploading, onAttachmentsChange, t],
+    [externalAttachments, hasPermission, onAttachmentsChange],
   );
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
+  // Handle category selection from dropdown
+  const handleCategorySelect = (category: FileCategory) => {
+    setSelectedCategory(category);
+    setShowDropdown(false);
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
+    // Update file input accept filter and click
+    if (fileInputRef.current) {
+      fileInputRef.current.accept = CATEGORY_ACCEPT_MAP[category];
+      fileInputRef.current.click();
+    }
+  };
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragging(false);
-      handleFileSelect(e.dataTransfer.files);
-    },
-    [handleFileSelect],
-  );
+  // Handle file input change
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files, selectedCategory || undefined);
+    e.target.value = "";
+  };
 
   if (!canUpload) return null;
 
   return (
-    <div
-      className="relative"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div className="relative" ref={dropdownRef}>
+      {/* Hidden file input */}
       <input
-        key={attachments.length === 0 ? "empty" : "has-files"}
         ref={fileInputRef}
         type="file"
         multiple
         className="hidden"
-        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv"
-        onChange={(e) => {
-          handleFileSelect(e.target.files);
-          // Reset input value to allow selecting the same file again after deletion
-          e.target.value = "";
-        }}
+        onChange={handleFileChange}
       />
 
+      {/* Upload button */}
       <button
         type="button"
-        onClick={() => fileInputRef.current?.click()}
-        disabled={isUploading}
-        className={`flex items-center justify-center rounded-full p-2 border transition-all duration-300 ${
-          isDragging
-            ? "border-purple-500 bg-purple-50 dark:border-purple-700 dark:bg-purple-900/30"
-            : "border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700"
-        } text-stone-500 dark:text-stone-300`}
+        onClick={() => setShowDropdown(!showDropdown)}
+        className="flex items-center justify-center rounded-full p-2 border border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 transition-all duration-300"
         title={t("fileUpload.title")}
       >
-        {isUploading ? (
-          <Upload size={18} className="animate-pulse" />
-        ) : (
-          <Paperclip size={18} />
-        )}
+        <Paperclip size={18} />
       </button>
 
-      {/* Drag overlay */}
-      {isDragging && (
-        <div
-          className="absolute inset-0 rounded-full border-2 border-dashed border-purple-400 bg-purple-50/80 dark:bg-purple-900/30 flex items-center justify-center -m-1"
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <Paperclip size={18} className="text-purple-500" />
+      {/* Dropdown menu */}
+      {showDropdown && (
+        <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[140px] rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+          {availableCategories.map((category) => {
+            const Icon = CATEGORY_ICONS[category];
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => handleCategorySelect(category)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-700 transition-colors"
+              >
+                <Icon size={16} />
+                {t(`fileUpload.categories.${category}`)}
+              </button>
+            );
+          })}
         </div>
       )}
-
-      {/* Attachment preview - moved to ChatInput for better layout */}
     </div>
   );
 });

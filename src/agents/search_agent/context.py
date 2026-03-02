@@ -10,16 +10,10 @@ from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT
 
 # Human-in-the-loop 工具
 from src.infra.tool.human_tool import get_human_tool
-
-# Inject Skill 工具 - 按需加载技能到沙箱
-# 设置全局 middleware 供 inject_skill 工具使用
-from src.infra.tool.inject_skill import get_inject_skill_tool
 from src.infra.tool.mcp_client import MCPClientManager
 
 # Reveal File 工具 - 向用户展示文件
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
-
-# Sync Conversation 工具 - 恢复 write_file 创建的文件到沙箱
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -111,21 +105,9 @@ class AgentContext:
         self.tools.append(human_tool)
         logger.info("[AgentContext] Added human tool")
 
-        if settings.ENABLE_SANDBOX:
-            reveal_file_tool = get_reveal_file_tool()
-            self.tools.append(reveal_file_tool)
-            logger.info("[AgentContext] Added reveal_file tool")
-
-        if settings.ENABLE_SKILLS and settings.ENABLE_SANDBOX:
-            inject_skill_tool = get_inject_skill_tool()
-            self.tools.append(inject_skill_tool)
-            logger.info("[AgentContext] Added inject_skill tool")
-
-        # 沙箱持久化，已禁用
-        # if settings.ENABLE_SANDBOX:
-        #     sync_conversation_tool = get_sync_conversation_tool()
-        #     self.tools.append(sync_conversation_tool)
-        #     logger.info("[AgentContext] Added sync_conversation tool")
+        reveal_file_tool = get_reveal_file_tool()
+        self.tools.append(reveal_file_tool)
+        logger.info("[AgentContext] Added reveal_file tool")
 
         # MCP 工具
         if settings.ENABLE_MCP:

@@ -166,7 +166,8 @@ class UserStorage:
         if user_data.password is not None:
             update_dict["password_hash"] = hash_password(user_data.password)
 
-        if user_data.avatar_url is not None:
+        # Check if avatar_url was explicitly set (even to None) using model_fields_set
+        if "avatar_url" in user_data.model_fields_set:
             update_dict["avatar_url"] = user_data.avatar_url
 
         if user_data.roles is not None:

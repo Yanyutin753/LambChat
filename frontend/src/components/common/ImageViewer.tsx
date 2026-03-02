@@ -36,6 +36,15 @@ export function ImageViewer({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Touch gesture state
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [initialPinchDistance, setInitialPinchDistance] = useState<
+    number | null
+  >(null);
+  const [initialScale, setInitialScale] = useState(1);
+
   // Reset state when opening
   useEffect(() => {
     if (isOpen) {
@@ -86,6 +95,70 @@ export function ImageViewer({
     },
     [position],
   );
+
+  // Calculate distance between two touch points
+  const getPinchDistance = (touches: React.TouchList): number => {
+    return Math.hypot(
+      touches[0].clientX - touches[1].clientX,
+      touches[0].clientY - touches[1].clientY,
+    );
+  };
+
+  // Handle touch start
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 1) {
+        // Single finger - prepare for drag
+        const touch = e.touches[0];
+        setTouchStart({
+          x: touch.clientX - position.x,
+          y: touch.clientY - position.y,
+        });
+        setIsDragging(true);
+      } else if (e.touches.length === 2) {
+        // Two fingers - prepare for pinch zoom
+        setIsDragging(false);
+        setTouchStart(null);
+        const distance = getPinchDistance(e.touches);
+        setInitialPinchDistance(distance);
+        setInitialScale(scale);
+      }
+    },
+    [position, scale],
+  );
+
+  // Handle touch move
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+
+      if (e.touches.length === 1 && touchStart) {
+        // Single finger drag
+        const touch = e.touches[0];
+        setPosition({
+          x: touch.clientX - touchStart.x,
+          y: touch.clientY - touchStart.y,
+        });
+      } else if (e.touches.length === 2 && initialPinchDistance !== null) {
+        // Two finger pinch zoom
+        const currentDistance = getPinchDistance(e.touches);
+        const scaleFactor = currentDistance / initialPinchDistance;
+        const newScale = Math.min(
+          MAX_SCALE,
+          Math.max(MIN_SCALE, initialScale * scaleFactor),
+        );
+        setScale(newScale);
+      }
+    },
+    [touchStart, initialPinchDistance, initialScale],
+  );
+
+  // Handle touch end
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+    setTouchStart(null);
+    setInitialPinchDistance(null);
+  }, []);
 
   // Handle drag move
   useEffect(() => {
@@ -257,8 +330,12 @@ export function ImageViewer({
             style={{
               transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
               transition: isDragging ? "none" : "transform 0.1s ease-out",
+              touchAction: "none", // Prevent default touch behaviors
             }}
             onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             draggable={false}
           />
         </div>

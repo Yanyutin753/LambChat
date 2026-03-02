@@ -232,7 +232,7 @@ async def upload_file(
 
         return {
             "key": result.key,
-            "url": f"{settings.API_BASE_URL.strip('/')}{proxy_url}",
+            "url": proxy_url,
             "name": file.filename,
             "type": category.value,
             "mimeType": file.content_type,
@@ -259,7 +259,7 @@ def _get_image_content_type(data: bytes) -> str:
         return "image/png"  # Default to PNG
 
 
-@router.post("/avatar", dependencies=[Depends(require_permissions("file:upload"))])
+@router.post("/avatar", dependencies=[Depends(require_permissions("avatar:upload"))])
 async def upload_avatar(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -332,6 +332,40 @@ async def upload_avatar(
     except Exception as e:
         logger.exception("Avatar upload failed")
         raise HTTPException(status_code=500, detail=f"Avatar upload failed: {str(e)}")
+
+
+@router.delete("/avatar", dependencies=[Depends(require_permissions("avatar:upload"))])
+async def delete_avatar(
+    current_user: TokenPayload = Depends(get_current_user_required),
+) -> dict:
+    """
+    Delete user avatar
+
+    Removes the avatar_url from the user's profile.
+    Requires: avatar:upload permission
+
+    Args:
+        current_user: Current authenticated user
+
+    Returns:
+        Deletion status
+    """
+    try:
+        from src.infra.user.storage import UserStorage
+        from src.kernel.schemas.user import UserUpdate
+
+        logger.info(f"Deleting avatar for user: {current_user.sub}")
+        storage = UserStorage()
+        await storage.update(
+            current_user.sub,
+            UserUpdate(avatar_url=None),
+        )
+        logger.info(f"Avatar deleted successfully for user: {current_user.sub}")
+
+        return {"deleted": True}
+    except Exception as e:
+        logger.exception("Avatar deletion failed")
+        raise HTTPException(status_code=500, detail=f"Avatar deletion failed: {str(e)}")
 
 
 @router.delete("/{key:path}", dependencies=[Depends(require_permissions("file:upload"))])

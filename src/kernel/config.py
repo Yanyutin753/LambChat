@@ -65,6 +65,7 @@ SENSITIVE_SETTINGS = {
     "MILVUS_PASSWORD",
     "S3_ACCESS_KEY",
     "S3_SECRET_KEY",
+    "POSTGRES_PASSWORD",
 }
 
 # ============================================
@@ -79,13 +80,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.FRONTEND,
         "description": "Default agent type for new sessions",
         "default": "default",
-        "frontend_visible": True,
-    },
-    "API_BASE_URL": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.FRONTEND,
-        "description": "Backend API base URL for file URLs (e.g., http://localhost:8000)",
-        "default": "",
         "frontend_visible": True,
     },
     "WELCOME_SUGGESTIONS": {
@@ -313,6 +307,39 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.DATABASE,
         "description": "Redis password",
         "default": "",
+    },
+    # ============================================
+    # PostgreSQL Settings (for LangGraph Store)
+    # ============================================
+    "POSTGRES_HOST": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.DATABASE,
+        "description": "PostgreSQL host",
+        "default": "localhost",
+    },
+    "POSTGRES_PORT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.DATABASE,
+        "description": "PostgreSQL port",
+        "default": 5432,
+    },
+    "POSTGRES_USER": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.DATABASE,
+        "description": "PostgreSQL username",
+        "default": "postgres",
+    },
+    "POSTGRES_PASSWORD": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.DATABASE,
+        "description": "PostgreSQL password",
+        "default": "postgres",
+    },
+    "POSTGRES_DB": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.DATABASE,
+        "description": "PostgreSQL database name",
+        "default": "langgraph",
     },
     # ============================================
     # LangSmith Tracing Settings
@@ -579,6 +606,15 @@ class Settings(BaseSettings):
     MONGODB_SESSIONS_COLLECTION: str = "sessions"
     MONGODB_TRACES_COLLECTION: str = "traces"
 
+    # PostgreSQL Settings (for LangGraph Store - persistent memory/files)
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "langgraph"
+    POSTGRES_POOL_MIN_SIZE: int = 5
+    POSTGRES_POOL_MAX_SIZE: int = 50
+
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
     SANDBOX_PLATFORM: str = "runloop"  # runloop, daytona, modal
@@ -623,7 +659,6 @@ class Settings(BaseSettings):
 
     # Frontend Settings
     DEFAULT_AGENT: str = "default"
-    API_BASE_URL: str = ""
     WELCOME_SUGGESTIONS: list = [
         {"icon": "🐍", "text": "Create a Python hello world script"},
         {"icon": "📁", "text": "List files in the workspace directory"},
@@ -687,6 +722,11 @@ class Settings(BaseSettings):
             max_file_size=self.S3_MAX_FILE_SIZE,
             presigned_url_expires=self.S3_PRESIGNED_URL_EXPIRES,
         )
+
+    @property
+    def postgres_url(self) -> str:
+        """Construct PostgreSQL connection URL from components."""
+        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
 
 @lru_cache

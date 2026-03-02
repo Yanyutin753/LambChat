@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import type { MessageAttachment } from "../../types";
 import {
@@ -41,6 +42,8 @@ export interface AttachmentCardProps {
   variant?: "editable" | "preview";
   /** 尺寸：compact 更紧凑，适合输入框区域 */
   size?: "default" | "compact";
+  /** Whether upload is in progress */
+  isUploading?: boolean;
 }
 
 export const AttachmentCard = memo(function AttachmentCard({
@@ -49,7 +52,9 @@ export const AttachmentCard = memo(function AttachmentCard({
   onRemove,
   variant = "preview",
   size = "default",
+  isUploading = false,
 }: AttachmentCardProps) {
+  const { t } = useTranslation();
   const {
     icon: FileIcon,
     bgColor,
@@ -83,17 +88,21 @@ export const AttachmentCard = memo(function AttachmentCard({
           "hover:border-gray-300/70 dark:hover:border-stone-600/70",
           "hover:-translate-y-0.5",
           "active:scale-[0.98]",
+          isUploading && "pointer-events-none",
         )}
       >
         {/* 图标/图片 */}
         <div
           className={clsx(
             "shrink-0 flex items-center justify-center rounded-lg overflow-hidden",
-            "transition-transform duration-200 group-hover:scale-105",
+            "transition-transform duration-200",
+            !isUploading && "group-hover:scale-105",
             isImage ? "size-10" : clsx("size-10", bgColor),
           )}
         >
-          {isImage ? (
+          {isUploading ? (
+            <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
+          ) : isImage ? (
             <img
               src={attachment.url}
               alt={attachment.name}
@@ -110,12 +119,14 @@ export const AttachmentCard = memo(function AttachmentCard({
             {attachment.name}
           </span>
           <span className="text-[11px] text-gray-400 dark:text-stone-500 mt-0.5">
-            {formatFileSize(attachment.size)}
+            {isUploading
+              ? t("fileUpload.uploading")
+              : formatFileSize(attachment.size)}
           </span>
         </div>
 
         {/* 删除按钮 */}
-        {variant === "editable" && onRemove && (
+        {variant === "editable" && onRemove && !isUploading && (
           <button
             type="button"
             onClick={handleRemove}
@@ -154,6 +165,7 @@ export const AttachmentCard = memo(function AttachmentCard({
         "hover:border-gray-300/80 dark:hover:border-stone-600/80",
         "hover:-translate-y-0.5 hover:scale-[1.02]",
         "active:scale-[0.98] active:shadow-sm",
+        isUploading && "pointer-events-none",
       )}
       type="button"
     >
@@ -161,13 +173,16 @@ export const AttachmentCard = memo(function AttachmentCard({
       <div
         className={clsx(
           "shrink-0 flex items-center justify-center",
-          "transition-transform duration-300 group-hover:scale-105",
+          "transition-transform duration-300",
+          !isUploading && "group-hover:scale-105",
           isImage
             ? "size-12 sm:size-14 rounded-l-2xl sm:rounded-l-xl overflow-hidden"
             : clsx("size-12 sm:size-14 rounded-l-2xl sm:rounded-l-xl", bgColor),
         )}
       >
-        {isImage ? (
+        {isUploading ? (
+          <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
+        ) : isImage ? (
           <>
             <img
               src={attachment.url}
@@ -195,7 +210,9 @@ export const AttachmentCard = memo(function AttachmentCard({
         <div className="flex items-center justify-between mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-gray-400 dark:text-stone-500">
           <span className="capitalize truncate">{label}</span>
           <span className="shrink-0 ml-2">
-            {formatFileSize(attachment.size)}
+            {isUploading
+              ? t("fileUpload.uploading")
+              : formatFileSize(attachment.size)}
           </span>
         </div>
       </div>

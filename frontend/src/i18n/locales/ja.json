@@ -226,7 +226,7 @@
     "uploading": "アップロード中..."
   },
   "imageViewer": {
-    "hint": "スクロールでズーム · ドラッグで移動 · ESCで閉じる",
+    "hint": "スクロール/ピンチでズーム · ドラッグ/スワイプで移動 · ESCで閉じる",
     "reset": "リセット",
     "rotateLeft": "左に回転",
     "rotateRight": "右に回転",
@@ -327,9 +327,11 @@
     "users": "ユーザー"
   },
   "profile": {
+    "avatarDeleted": "アバターが削除されました",
     "changeAvatar": "アバターを変更",
     "changePassword": "パスワードを変更",
     "confirmPassword": "パスワードを確認",
+    "deleteAvatar": "アバターを削除",
     "email": "メール",
     "newPassword": "新しいパスワード",
     "oldPassword": "現在のパスワード",

@@ -18,7 +18,6 @@ import {
   Menu,
   Settings,
   Server,
-  Camera,
   Eye,
   EyeOff,
   Loader2,
@@ -64,11 +63,10 @@ function ProfileModal({
   versionInfo: ReturnType<typeof useVersion>["versionInfo"];
 }) {
   const { t } = useTranslation();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, hasPermission } = useAuth();
   const [userData, setUserData] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState<"info" | "password">("info");
   const [isLoading, setIsLoading] = useState(false);
-  const [storageEnabled, setStorageEnabled] = useState(false);
 
   // Username change state
   const [isEditingUsername, setIsEditingUsername] = useState(false);
@@ -86,7 +84,9 @@ function ProfileModal({
 
   // Avatar upload state
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Permission check for avatar upload
+  const canUploadAvatar = hasPermission(Permission.AVATAR_UPLOAD);
 
   // Sync user data when modal opens or user changes
   useEffect(() => {
@@ -95,21 +95,9 @@ function ProfileModal({
     }
   }, [showProfileModal, user]);
 
-  // Fetch storage config when modal opens
+  // Reset state when modal opens
   useEffect(() => {
     if (showProfileModal) {
-      const fetchStorageConfig = async () => {
-        try {
-          const config = await uploadApi.getConfig();
-          setStorageEnabled(config.enabled);
-        } catch {
-          setStorageEnabled(false);
-        }
-      };
-
-      fetchStorageConfig();
-
-      // Reset state when closing
       setActiveTab("info");
       setIsEditingUsername(false);
       setNewUsername("");
@@ -212,6 +200,26 @@ function ProfileModal({
     } catch (error) {
       console.error("Failed to upload avatar:", error);
       const message = error instanceof Error ? error.message : "Upload failed";
+      toast.error(message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle avatar delete
+  const handleAvatarDelete = async () => {
+    setIsUploading(true);
+    try {
+      await uploadApi.deleteAvatar();
+      // Refresh user data in both local state and global auth context
+      const user = await authApi.getProfile();
+      setUserData(user);
+      // Update global auth context to refresh avatar in header/sidebar
+      refreshUser();
+      toast.success(t("profile.avatarDeleted"));
+    } catch (error) {
+      console.error("Failed to delete avatar:", error);
+      const message = error instanceof Error ? error.message : "Delete failed";
       toast.error(message);
     } finally {
       setIsUploading(false);
@@ -351,39 +359,42 @@ function ProfileModal({
                     />
                   ) : (
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-md">
-                      <span className="text-3xl font-bold text-white">
+                      <span className="text-2xl font-bold text-white">
                         {userData?.username?.charAt(0).toUpperCase() || "U"}
                       </span>
                     </div>
                   )}
-                  {storageEnabled && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploading}
-                      className="absolute bottom-0 right-0 p-1.5 bg-amber-500 text-white rounded-full shadow-md hover:bg-amber-600 transition-colors disabled:opacity-50"
-                    >
-                      {isUploading ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Camera size={14} />
-                      )}
-                    </button>
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                      <Loader2 size={24} className="animate-spin text-white" />
+                    </div>
                   )}
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleAvatarUpload(file);
-                  }}
-                />
-                {storageEnabled && (
-                  <p className="mt-2 text-xs text-gray-500 dark:text-stone-400">
-                    {t("profile.changeAvatar")}
-                  </p>
+                {canUploadAvatar && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <label className="cursor-pointer rounded-lg bg-stone-100 dark:bg-stone-700 px-3 py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-600 transition-colors">
+                      {t("profile.changeAvatar")}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleAvatarUpload(file);
+                        }}
+                      />
+                    </label>
+                    {userData?.avatar_url && (
+                      <button
+                        onClick={handleAvatarDelete}
+                        disabled={isUploading}
+                        className="rounded-lg bg-red-50 dark:bg-red-900/30 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50"
+                      >
+                        {t("profile.deleteAvatar")}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

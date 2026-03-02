@@ -24,7 +24,17 @@ import type {
   SkillSource,
   AgentOption,
   MessageAttachment,
+  FileCategory,
 } from "../../types";
+
+// Helper to get file category from MIME type
+function getFileCategory(file: File): FileCategory {
+  const type = file.type.toLowerCase();
+  if (type.startsWith("image/")) return "image";
+  if (type.startsWith("video/")) return "video";
+  if (type.startsWith("audio/")) return "audio";
+  return "document";
+}
 
 // Icon mapping for dynamic icon rendering
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -232,6 +242,7 @@ export const ChatInput = memo(function ChatInput({
   const [previewAttachment, setPreviewAttachment] =
     useState<MessageAttachment | null>(null);
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -347,11 +358,95 @@ export const ChatInput = memo(function ChatInput({
   const hasContent = input.trim() && !disabled;
   const canSubmit = hasContent && canSend;
 
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    // Upload files directly with progress tracking
+    for (const file of Array.from(files)) {
+      const uploadId = crypto.randomUUID();
+      const tempId = `temp-${uploadId}`;
+
+      // Add temporary attachment to show progress immediately
+      const tempAttachment: MessageAttachment = {
+        id: tempId,
+        key: "",
+        name: file.name,
+        type: getFileCategory(file),
+        mimeType: file.type,
+        size: file.size,
+        url: "",
+      };
+
+      setAttachments((prev) => [...prev, tempAttachment]);
+
+      try {
+        const result = await uploadApi.uploadFile(file, {
+          onProgress: (progress) => {
+            // Update attachment with progress
+            setAttachments((prev) =>
+              prev.map((a) =>
+                a.id === tempId
+                  ? { ...a, uploadProgress: progress, isUploading: true }
+                  : a,
+              ),
+            );
+          },
+        });
+
+        const finalAttachment: MessageAttachment = {
+          id: crypto.randomUUID(),
+          key: result.key,
+          name: result.name || file.name,
+          type: result.type as FileCategory,
+          mimeType: result.mimeType,
+          size: result.size,
+          url: result.url,
+        };
+
+        // Replace temp with final attachment
+        setAttachments((prev) =>
+          prev.map((a) => (a.id === tempId ? finalAttachment : a)),
+        );
+      } catch (error) {
+        console.error("Upload failed:", error);
+        // Remove temp attachment on error
+        setAttachments((prev) => prev.filter((a) => a.id !== tempId));
+      }
+    }
+  };
+
   return (
     <div className="px-3 sm:px-4 pb-4 sm:pb-5 dark:bg-stone-900">
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* ChatGPT-style container */}
-        <div className="flex flex-col relative w-full rounded-3xl px-1 bg-white dark:bg-stone-800 border border-gray-200/50 dark:border-stone-700/50 shadow-[0_0_10px_rgba(0,0,0,0.05)] dark:shadow-[0_0_10px_rgba(0,0,0,0.1)]">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`flex flex-col relative w-full rounded-3xl px-1 bg-white dark:bg-stone-800 border shadow-[0_0_10px_rgba(0,0,0,0.05)] dark:shadow-[0_0_10px_rgba(0,0,0,0.1)] transition-all duration-200 ${
+            isDraggingOver
+              ? "border-purple-400 dark:border-purple-500 border-2 border-dashed"
+              : "border-gray-200/50 dark:border-stone-700/50"
+          }`}
+        >
           {/* Attachment preview - top area (ChatGPT style) */}
           {attachments.length > 0 && (
             <div className="mx-2 mt-2 -mb-1 flex flex-wrap gap-2">
@@ -376,6 +471,7 @@ export const ChatInput = memo(function ChatInput({
                     attachment={attachment}
                     variant="editable"
                     size="compact"
+                    isUploading={attachment.isUploading}
                     onClick={() => {
                       if (isImage && attachment.url) {
                         setImageViewerSrc(getFullUrl(attachment.url) ?? null);
@@ -408,59 +504,65 @@ export const ChatInput = memo(function ChatInput({
           </div>
 
           {/* Bottom toolbar */}
-          <div className="flex justify-between pt-3 pb-3 mx-0.5 max-w-full">
-            {/* Left side - Tool buttons */}
-            <div className="ml-2 self-end flex items-center max-w-[80%] gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
+          <div className="flex justify-between pt-3 pb-3 px-2 mx-0.5 max-w-full">
+            {/* Left side - Tool buttons grouped together */}
+            <div className="flex items-center gap-2 self-end flex-1 min-w-0">
               {/* File upload button */}
               <FileUploadButton
                 attachments={attachments}
                 onAttachmentsChange={setAttachments}
               />
-              {/* Tool selector button */}
-              {enableMcp && onToggleTool && onToggleCategory && onToggleAll && (
-                <ToolSelector
-                  tools={tools}
-                  onToggleTool={onToggleTool}
-                  onToggleCategory={onToggleCategory}
-                  onToggleAll={onToggleAll}
-                  enabledCount={enabledToolsCount}
-                  totalCount={totalToolsCount}
-                />
-              )}
-              {/* Skill selector button */}
-              {enableSkills &&
-                onToggleSkill &&
-                onToggleSkillCategory &&
-                onToggleAllSkills && (
-                  <SkillSelector
-                    skills={skills}
-                    onToggleSkill={onToggleSkill}
-                    onToggleCategory={onToggleSkillCategory}
-                    onToggleAll={onToggleAllSkills}
-                    enabledCount={enabledSkillsCount}
-                    totalCount={totalSkillsCount}
-                  />
-                )}
-              {/* Agent options - Multiple options support */}
-              {agentOptions &&
-                onToggleAgentOption &&
-                Object.keys(agentOptions).length > 0 && (
-                  <>
-                    {Object.entries(agentOptions).map(([key, option]) => (
-                      <AgentOptionButton
-                        key={key}
-                        optionKey={key}
-                        option={option}
-                        value={agentOptionValues[key] ?? option.default}
-                        onChange={(value) => onToggleAgentOption(key, value)}
-                      />
-                    ))}
-                  </>
-                )}
+              {/* Other tool buttons in scrollable container */}
+              <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
+                {/* Tool selector button */}
+                {enableMcp &&
+                  onToggleTool &&
+                  onToggleCategory &&
+                  onToggleAll && (
+                    <ToolSelector
+                      tools={tools}
+                      onToggleTool={onToggleTool}
+                      onToggleCategory={onToggleCategory}
+                      onToggleAll={onToggleAll}
+                      enabledCount={enabledToolsCount}
+                      totalCount={totalToolsCount}
+                    />
+                  )}
+                {/* Skill selector button */}
+                {enableSkills &&
+                  onToggleSkill &&
+                  onToggleSkillCategory &&
+                  onToggleAllSkills && (
+                    <SkillSelector
+                      skills={skills}
+                      onToggleSkill={onToggleSkill}
+                      onToggleCategory={onToggleSkillCategory}
+                      onToggleAll={onToggleAllSkills}
+                      enabledCount={enabledSkillsCount}
+                      totalCount={totalSkillsCount}
+                    />
+                  )}
+                {/* Agent options - Multiple options support */}
+                {agentOptions &&
+                  onToggleAgentOption &&
+                  Object.keys(agentOptions).length > 0 && (
+                    <>
+                      {Object.entries(agentOptions).map(([key, option]) => (
+                        <AgentOptionButton
+                          key={key}
+                          optionKey={key}
+                          option={option}
+                          value={agentOptionValues[key] ?? option.default}
+                          onChange={(value) => onToggleAgentOption(key, value)}
+                        />
+                      ))}
+                    </>
+                  )}
+              </div>
             </div>
 
             {/* Right side - Send/Stop button */}
-            <div className="self-end flex space-x-1.5 mr-2 flex-shrink-0">
+            <div className="self-end flex space-x-1.5 flex-shrink-0">
               {!canSend ? (
                 <div
                   className="flex items-center justify-center rounded-full p-2 bg-gray-100 text-gray-400 dark:bg-stone-700 dark:text-stone-500"

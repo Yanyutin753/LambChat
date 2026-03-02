@@ -226,7 +226,7 @@
     "uploading": "업로드 중..."
   },
   "imageViewer": {
-    "hint": "스크롤로 확대 · 드래그로 이동 · ESC로 닫기",
+    "hint": "스크롤/핀치로 확대 · 드래그/스와이프로 이동 · ESC로 닫기",
     "reset": "재설정",
     "rotateLeft": "왼쪽 회전",
     "rotateRight": "오른쪽 회전",
@@ -327,9 +327,11 @@
     "users": "사용자"
   },
   "profile": {
+    "avatarDeleted": "아바타가 삭제되었습니다",
     "changeAvatar": "아바타 변경",
     "changePassword": "비밀번호 변경",
     "confirmPassword": "비밀번호 확인",
+    "deleteAvatar": "아바타 삭제",
     "email": "이메일",
     "newPassword": "새 비밀번호",
     "oldPassword": "현재 비밀번호",

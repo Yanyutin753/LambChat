@@ -106,6 +106,11 @@ async def lifespan(app: FastAPI):
     await SandboxFactory.close_all()
 
     await AgentFactory.close_all()
+
+    # 关闭 PostgreSQL 连接池
+    from src.infra.storage.postgres import close_connection_pool
+
+    close_connection_pool()
     logger.info("Shutting down...")
 
 
