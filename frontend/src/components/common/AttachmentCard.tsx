@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import type { MessageAttachment } from "../../types";
 import {
@@ -41,8 +42,6 @@ export interface AttachmentCardProps {
   variant?: "editable" | "preview";
   /** 尺寸：compact 更紧凑，适合输入框区域 */
   size?: "default" | "compact";
-  /** Upload progress 0-100 */
-  uploadProgress?: number;
   /** Whether upload is in progress */
   isUploading?: boolean;
 }
@@ -53,9 +52,9 @@ export const AttachmentCard = memo(function AttachmentCard({
   onRemove,
   variant = "preview",
   size = "default",
-  uploadProgress,
   isUploading = false,
 }: AttachmentCardProps) {
+  const { t } = useTranslation();
   const {
     icon: FileIcon,
     bgColor,
@@ -73,9 +72,6 @@ export const AttachmentCard = memo(function AttachmentCard({
     e.stopPropagation();
     onRemove?.();
   };
-
-  // Progress display helper
-  const progressPercent = Math.min(100, Math.max(0, uploadProgress ?? 0));
 
   // 紧凑模式样式（用于 ChatInput）
   if (isCompact) {
@@ -99,11 +95,14 @@ export const AttachmentCard = memo(function AttachmentCard({
         <div
           className={clsx(
             "shrink-0 flex items-center justify-center rounded-lg overflow-hidden",
-            "transition-transform duration-200 group-hover:scale-105",
+            "transition-transform duration-200",
+            !isUploading && "group-hover:scale-105",
             isImage ? "size-10" : clsx("size-10", bgColor),
           )}
         >
-          {isImage ? (
+          {isUploading ? (
+            <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
+          ) : isImage ? (
             <img
               src={attachment.url}
               alt={attachment.name}
@@ -121,7 +120,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           </span>
           <span className="text-[11px] text-gray-400 dark:text-stone-500 mt-0.5">
             {isUploading
-              ? `${progressPercent}%`
+              ? t("fileUpload.uploading")
               : formatFileSize(attachment.size)}
           </span>
         </div>
@@ -143,16 +142,6 @@ export const AttachmentCard = memo(function AttachmentCard({
           >
             <X size={12} />
           </button>
-        )}
-
-        {/* Progress bar - at the bottom of the card */}
-        {isUploading && (
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-200 dark:bg-stone-700 rounded-b-xl overflow-hidden">
-            <div
-              className="h-full bg-purple-500 transition-all duration-300 ease-out"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
         )}
       </div>
     );
@@ -184,13 +173,16 @@ export const AttachmentCard = memo(function AttachmentCard({
       <div
         className={clsx(
           "shrink-0 flex items-center justify-center",
-          "transition-transform duration-300 group-hover:scale-105",
+          "transition-transform duration-300",
+          !isUploading && "group-hover:scale-105",
           isImage
             ? "size-12 sm:size-14 rounded-l-2xl sm:rounded-l-xl overflow-hidden"
             : clsx("size-12 sm:size-14 rounded-l-2xl sm:rounded-l-xl", bgColor),
         )}
       >
-        {isImage ? (
+        {isUploading ? (
+          <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
+        ) : isImage ? (
           <>
             <img
               src={attachment.url}
@@ -219,21 +211,11 @@ export const AttachmentCard = memo(function AttachmentCard({
           <span className="capitalize truncate">{label}</span>
           <span className="shrink-0 ml-2">
             {isUploading
-              ? `${progressPercent}%`
+              ? t("fileUpload.uploading")
               : formatFileSize(attachment.size)}
           </span>
         </div>
       </div>
-
-      {/* Progress bar - at the bottom of the card */}
-      {isUploading && (
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-200 dark:bg-stone-700 rounded-b-2xl sm:rounded-b-xl overflow-hidden">
-          <div
-            className="h-full bg-purple-500 transition-all duration-300 ease-out"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-      )}
     </button>
   );
 });

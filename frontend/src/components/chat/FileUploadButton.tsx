@@ -3,13 +3,16 @@ import { Paperclip, Image, Video, Music, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { uploadApi } from "../../services/api";
-import type { MessageAttachment, FileCategory, UploadState } from "../../types";
+import type { MessageAttachment, FileCategory } from "../../types";
 import { Permission } from "../../types";
 
 interface FileUploadButtonProps {
   attachments?: MessageAttachment[];
-  onAttachmentsChange?: (attachments: MessageAttachment[]) => void;
-  onUploadStateChange?: (uploads: UploadState[]) => void;
+  onAttachmentsChange?: (
+    attachments:
+      | MessageAttachment[]
+      | ((prev: MessageAttachment[]) => MessageAttachment[]),
+  ) => void;
 }
 
 // Permission mapping
@@ -47,7 +50,6 @@ function getFileCategory(file: File): FileCategory {
 export const FileUploadButton = memo(function FileUploadButton({
   attachments: externalAttachments = [],
   onAttachmentsChange,
-  onUploadStateChange,
 }: FileUploadButtonProps) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
@@ -57,7 +59,6 @@ export const FileUploadButton = memo(function FileUploadButton({
   const [selectedCategory, setSelectedCategory] = useState<FileCategory | null>(
     null,
   );
-  const [uploads, setUploads] = useState<UploadState[]>([]);
 
   // Get available categories based on permissions
   const availableCategories = Object.keys(CATEGORY_PERMISSIONS).filter((cat) =>
@@ -81,12 +82,7 @@ export const FileUploadButton = memo(function FileUploadButton({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Sync upload state to parent
-  useEffect(() => {
-    onUploadStateChange?.(uploads);
-  }, [uploads, onUploadStateChange]);
-
-  // Handle file selection
+  // Handle file selection - immediately adds attachment card with progress
   const handleFiles = useCallback(
     async (files: FileList | null, category?: FileCategory) => {
       if (!files || files.length === 0) return;
@@ -102,33 +98,36 @@ export const FileUploadButton = memo(function FileUploadButton({
           continue;
         }
 
-        const uploadId = crypto.randomUUID();
+        const tempId = `temp-${crypto.randomUUID()}`;
 
-        // Add to uploads with pending status
-        setUploads((prev) => [
-          ...prev,
-          {
-            id: uploadId,
-            file,
-            progress: 0,
-            loaded: 0,
-            total: file.size,
-            status: "uploading",
-          },
-        ]);
+        // Immediately add temp attachment to show progress card
+        const tempAttachment: MessageAttachment = {
+          id: tempId,
+          key: "",
+          name: file.name,
+          type: fileCategory,
+          mimeType: file.type,
+          size: file.size,
+          url: "",
+        };
+
+        onAttachmentsChange?.([...externalAttachments, tempAttachment]);
 
         try {
           const result = await uploadApi.uploadFile(file, {
-            onProgress: (progress, loaded, total) => {
-              setUploads((prev) =>
-                prev.map((u) =>
-                  u.id === uploadId ? { ...u, progress, loaded, total } : u,
+            onProgress: (progress) => {
+              // Update attachment with progress - use functional update pattern
+              onAttachmentsChange?.((prev: MessageAttachment[]) =>
+                prev.map((a) =>
+                  a.id === tempId
+                    ? { ...a, uploadProgress: progress, isUploading: true }
+                    : a,
                 ),
               );
             },
           });
 
-          const attachment: MessageAttachment = {
+          const finalAttachment: MessageAttachment = {
             id: crypto.randomUUID(),
             key: result.key,
             name: result.name || file.name,
@@ -138,27 +137,15 @@ export const FileUploadButton = memo(function FileUploadButton({
             url: result.url,
           };
 
-          // Update upload status to completed
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === uploadId ? { ...u, status: "completed", attachment } : u,
-            ),
+          // Replace temp with final attachment
+          onAttachmentsChange?.((prev: MessageAttachment[]) =>
+            prev.map((a) => (a.id === tempId ? finalAttachment : a)),
           );
-
-          // Add to external attachments
-          onAttachmentsChange?.([...externalAttachments, attachment]);
         } catch (error) {
-          setUploads((prev) =>
-            prev.map((u) =>
-              u.id === uploadId
-                ? {
-                    ...u,
-                    status: "error",
-                    error:
-                      error instanceof Error ? error.message : "Upload failed",
-                  }
-                : u,
-            ),
+          console.error("Upload failed:", error);
+          // Remove temp attachment on error
+          onAttachmentsChange?.((prev: MessageAttachment[]) =>
+            prev.filter((a) => a.id !== tempId),
           );
         }
       }
@@ -225,18 +212,6 @@ export const FileUploadButton = memo(function FileUploadButton({
                 </button>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Upload progress indicators - shown near button */}
-      {uploads.filter((u) => u.status === "uploading").length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 z-40 pointer-events-none">
-          <div className="flex items-center gap-1 px-2 py-1 bg-purple-500 text-white text-xs rounded-full animate-pulse">
-            <span>
-              {t("fileUpload.uploading")}{" "}
-              {uploads.filter((u) => u.status === "uploading").length}
-            </span>
           </div>
         </div>
       )}

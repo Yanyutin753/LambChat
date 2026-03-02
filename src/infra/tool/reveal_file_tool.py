@@ -2,7 +2,11 @@
 Reveal File 工具
 
 让 Agent 可以向用户展示/推荐文件，前端会自动展开文件树并可以点击查看内容。
-文件会自动从 sandbox 下载并上传到 S3，返回 S3 URL。
+文件会自动从 backend 下载并上传到 S3，返回 S3 URL。
+
+支持两种模式：
+1. 沙箱模式：使用 download_files 方法下载文件
+2. 非沙箱模式（PostgreSQL）：使用 read 方法读取文件内容
 
 返回格式与前端 UploadResult 一致：
 {
@@ -26,7 +30,7 @@ import mimetypes
 from typing import Any, Literal, Optional
 
 from deepagents.backends.protocol import BackendProtocol
-from langchain.tools import tool
+from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -100,6 +104,7 @@ def _get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
     """从 ToolRuntime 获取 backend（分布式安全）
 
     Backend 通过 runtime.config["configurable"]["backend"] 传递
+    注意：config 中存的是 backend_factory（函数），需要调用 factory(runtime) 获取实例
     """
     if runtime is None:
         return None
@@ -112,34 +117,127 @@ def _get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
             if isinstance(config, dict):
                 configurable = config.get("configurable", {})
                 if isinstance(configurable, dict):
-                    backend: Optional[BackendProtocol] = configurable.get("backend")  # type: ignore[assignment]
-                    if backend is not None:
-                        logger.debug("Got backend from runtime.config['configurable']['backend']")
-                        return backend
+                    backend_or_factory = configurable.get("backend")
+                    if backend_or_factory is not None:
+                        # 如果是工厂函数，调用它获取 backend 实例
+                        if callable(backend_or_factory):
+                            logger.debug("Calling backend_factory to get backend instance")
+                            return backend_or_factory(runtime)
+                        else:
+                            logger.debug(
+                                "Got backend instance from runtime.config['configurable']['backend']"
+                            )
+                            return backend_or_factory
                 # 也检查直接的 backend 键
-                backend = config.get("backend")  # type: ignore[assignment]
-                if backend is not None:
-                    logger.debug("Got backend from runtime.config['backend']")
-                    return backend
+                backend_or_factory = config.get("backend")
+                if backend_or_factory is not None:
+                    if callable(backend_or_factory):
+                        logger.debug("Calling backend_factory from config['backend']")
+                        return backend_or_factory(runtime)
+                    else:
+                        return backend_or_factory
 
         # 方式2: 从 runtime 的 attributes 中获取
         if hasattr(runtime, "attributes"):
-            backend = runtime.attributes.get("backend")  # type: ignore[assignment]
-            if backend is not None:
-                logger.debug("Got backend from runtime.attributes['backend']")
-                return backend
+            backend_or_factory = runtime.attributes.get("backend")
+            if backend_or_factory is not None:
+                if callable(backend_or_factory):
+                    logger.debug("Calling backend_factory from attributes")
+                    return backend_or_factory(runtime)
+                else:
+                    return backend_or_factory
 
         # 方式3: 从 configurable 属性获取
         if hasattr(runtime, "configurable"):
-            config = runtime.configurable
-            if isinstance(config, dict):
-                backend = config.get("backend")  # type: ignore[assignment]
-                if backend is not None:
-                    logger.debug("Got backend from runtime.configurable['backend']")
-                    return backend
+            configurable = runtime.configurable
+            if isinstance(configurable, dict):
+                backend_or_factory = configurable.get("backend")
+                if backend_or_factory is not None:
+                    if callable(backend_or_factory):
+                        logger.debug("Calling backend_factory from configurable")
+                        return backend_or_factory(runtime)
+                    else:
+                        return backend_or_factory
 
     except Exception as e:
         logger.warning(f"Failed to get backend from runtime: {e}")
+
+    return None
+
+
+async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[bytes]:
+    """
+    从 backend 读取文件内容
+
+    支持两种模式：
+    1. 沙箱模式：使用 download_files 方法
+    2. 非沙箱模式（StoreBackend/CompositeBackend）：使用 read 方法
+
+    Args:
+        backend: Backend 实例
+        file_path: 文件路径
+
+    Returns:
+        文件内容的字节，如果失败返回 None
+    """
+    # 方式1: 沙箱模式 - 使用 download_files
+    if hasattr(backend, "adownload_files"):
+        try:
+            download_responses = await backend.adownload_files([file_path])
+            if download_responses and download_responses[0].content:
+                logger.debug(f"Read file {file_path} via adownload_files")
+                return download_responses[0].content
+        except Exception as e:
+            logger.debug(f"adownload_files failed for {file_path}: {e}")
+
+    if hasattr(backend, "download_files"):
+        try:
+            download_responses = backend.download_files([file_path])
+            if download_responses and download_responses[0].content:
+                logger.debug(f"Read file {file_path} via download_files")
+                return download_responses[0].content
+        except Exception as e:
+            logger.debug(f"download_files failed for {file_path}: {e}")
+
+    # 方式2: 非沙箱模式 - 使用 read 方法 (StoreBackend/CompositeBackend)
+    if hasattr(backend, "read"):
+        try:
+            # read 方法返回文件内容（字符串或对象）
+            content = backend.read(file_path)
+            if content is not None:
+                # 如果是字符串，转换为字节
+                if isinstance(content, str):
+                    logger.debug(f"Read file {file_path} via read (string)")
+                    return content.encode("utf-8")
+                # 如果是字节，直接返回
+                elif isinstance(content, bytes):
+                    logger.debug(f"Read file {file_path} via read (bytes)")
+                    return content
+                # 如果是字典（文件信息），尝试获取内容
+                elif isinstance(content, dict):
+                    # 可能是文件信息对象
+                    if "content" in content:
+                        file_content = content["content"]
+                        if isinstance(file_content, str):
+                            return file_content.encode("utf-8")
+                        elif isinstance(file_content, bytes):
+                            return file_content
+        except Exception as e:
+            logger.debug(f"read failed for {file_path}: {e}")
+
+    # 方式3: 尝试 aread 方法（异步版本）
+    if hasattr(backend, "aread"):
+        try:
+            content = await backend.aread(file_path)
+            if content is not None:
+                if isinstance(content, str):
+                    logger.debug(f"Read file {file_path} via aread (string)")
+                    return content.encode("utf-8")
+                elif isinstance(content, bytes):
+                    logger.debug(f"Read file {file_path} via aread (bytes)")
+                    return content
+        except Exception as e:
+            logger.debug(f"aread failed for {file_path}: {e}")
 
     return None
 
@@ -148,7 +246,7 @@ def _get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
 async def reveal_file(
     file_path: str,
     description: Optional[str] = None,
-    runtime: Any = None,
+    runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
     向用户展示/推荐一个文件（用户要求展示的时候，一定要调用）
@@ -184,77 +282,46 @@ async def reveal_file(
         }
         return json.dumps(result, ensure_ascii=False)
 
-    # 检查 backend 是否支持 download_files
-    if not hasattr(backend, "download_files") and not hasattr(backend, "adownload_files"):
-        logger.warning("Backend does not support download_files, returning raw path")
-        result = {
-            "type": "file_reveal",
-            "file": {
-                "path": file_path,
-                "description": description or "",
-            },
-        }
-        return json.dumps(result, ensure_ascii=False)
-
     try:
-        # 1. 从 sandbox 下载文件
-        if hasattr(backend, "adownload_files"):
-            download_responses = await backend.adownload_files([file_path])
-        else:
-            download_responses = backend.download_files([file_path])
-        download_response = download_responses[0]
+        # 从 backend 读取文件内容（支持沙箱和非沙箱模式）
+        file_content = await _read_file_from_backend(backend, file_path)
 
-        if download_response.error:
-            logger.error(f"Failed to download file {file_path}: {download_response.error}")
+        if file_content is None:
+            logger.error(f"Failed to read file {file_path} from backend")
             result = {
                 "type": "file_reveal",
                 "file": {
                     "path": file_path,
                     "description": description or "",
-                    "error": download_response.error,
+                    "error": "file_not_found_or_empty",
                 },
             }
             return json.dumps(result, ensure_ascii=False)
 
-        if download_response.content is None:
-            logger.error(f"File content is None for {file_path}")
-            result = {
-                "type": "file_reveal",
-                "file": {
-                    "path": file_path,
-                    "description": description or "",
-                    "error": "empty_content",
-                },
-            }
-            return json.dumps(result, ensure_ascii=False)
-
-        # 2. 从路径提取文件名
+        # 从路径提取文件名
         filename = file_path.split("/")[-1]
 
-        # 3. 获取 MIME 类型
+        # 获取 MIME 类型
         mime_type = get_mime_type(filename)
 
-        # 4. 上传到 S3 (使用已初始化的 storage)
+        # 上传到 S3
         upload_result = await storage.upload_bytes(
-            data=download_response.content,
+            data=file_content,
             folder="revealed_files",
             filename=filename,
             content_type=mime_type,
         )
 
-        # 5. 获取文件类别
+        # 获取文件类别
         file_category = get_file_category(upload_result.content_type or mime_type)
 
-        # 6. 生成后端代理 URL（与 /api/upload 返回格式一致）
-        from src.kernel.config import settings
-
+        # 生成后端代理 URL（与 /api/upload 返回格式一致）
         proxy_url = f"/api/upload/file/{upload_result.key}"
-        file_url = f"{settings.API_BASE_URL.rstrip('/')}{proxy_url}"
 
-        # 7. 返回与前端 UploadResult 一致的格式
+        # 返回与前端 UploadResult 一致的格式
         result = {
             "key": upload_result.key,
-            "url": file_url,
+            "url": proxy_url,
             "name": filename,
             "type": file_category,
             "mimeType": upload_result.content_type or mime_type,

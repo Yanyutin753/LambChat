@@ -6,12 +6,7 @@
  */
 
 // Config
-export {
-  API_BASE,
-  setDynamicApiBaseUrl,
-  getApiBaseUrl,
-  getFullUrl,
-} from "./api/config";
+export { API_BASE, getFullUrl } from "./api/config";
 
 // Token management
 export {

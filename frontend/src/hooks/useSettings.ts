@@ -1,9 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import {
-  settingsApi,
-  getAccessToken,
-  setDynamicApiBaseUrl,
-} from "../services/api";
+import { settingsApi, getAccessToken } from "../services/api";
 import type { SettingsResponse } from "../types";
 
 export function useSettings() {
@@ -22,15 +18,6 @@ export function useSettings() {
     try {
       const data = await settingsApi.list();
       setSettings(data);
-
-      // 更新动态 API Base URL
-      const frontendSettings = data.settings?.frontend || [];
-      const apiBaseUrlSetting = frontendSettings.find(
-        (s) => s.key === "API_BASE_URL",
-      );
-      if (apiBaseUrlSetting?.value) {
-        setDynamicApiBaseUrl(apiBaseUrlSetting.value as string);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load settings");
     } finally {

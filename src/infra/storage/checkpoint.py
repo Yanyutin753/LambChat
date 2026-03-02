@@ -2,6 +2,7 @@
 Checkpoint 存储实现
 
 提供 LangGraph checkpointer 的工厂函数，支持 MongoDB 持久化。
+使用同步版本 MongoDBSaver（在异步环境中也能正常工作）。
 """
 
 import logging
@@ -18,8 +19,6 @@ _mongo_checkpointer: Optional[object] = None
 def get_mongo_checkpointer(collection_name: str = "checkpoints"):
     """
     获取 MongoDB checkpointer 单例
-
-    使用 pymongo 同步客户端创建 checkpointer，支持异步操作。
 
     Args:
         collection_name: MongoDB collection 名称，默认为 "checkpoints"
@@ -63,7 +62,7 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints"):
         else:
             connection_string = base_url
 
-        # 创建同步客户端（MongoDBSaver 需要）
+        # 创建同步客户端（MongoDBSaver 会内部处理异步）
         client: MongoClient = MongoClient(connection_string)
 
         # 创建 checkpointer
@@ -84,11 +83,12 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints"):
         return None
 
 
-def get_checkpointer():
+async def get_async_checkpointer():
     """
-    获取 checkpointer 实例
+    获取 checkpointer 实例（兼容异步调用）
 
     优先使用 MongoDB（持久化），如果不可用则返回 MemorySaver。
+    MongoDBSaver 虽然是同步客户端，但可以在异步环境中正常工作。
 
     Returns:
         Checkpointer 实例
@@ -103,3 +103,10 @@ def get_checkpointer():
 
     logger.warning("Using MemorySaver (data will be lost on restart)")
     return MemorySaver()
+
+
+def get_checkpointer():
+    """
+    获取 checkpointer 实例（同步版本，向后兼容）
+    """
+    return get_mongo_checkpointer() or __import__("langgraph.checkpoint.memory").MemorySaver()
