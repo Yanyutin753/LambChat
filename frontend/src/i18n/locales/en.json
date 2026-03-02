@@ -335,8 +335,10 @@
   },
   "profile": {
     "avatar": "Avatar",
+    "avatarDeleted": "Avatar deleted",
     "avatarUrl": "Avatar URL",
     "changeAvatar": "Change Avatar",
+    "deleteAvatar": "Delete Avatar",
     "changePassword": "Change Password",
     "confirmPassword": "Confirm Password",
     "email": "Email",

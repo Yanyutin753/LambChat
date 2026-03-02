@@ -335,8 +335,10 @@
   },
   "profile": {
     "avatar": "头像",
+    "avatarDeleted": "头像已删除",
     "avatarUrl": "头像URL",
     "changeAvatar": "更换头像",
+    "deleteAvatar": "删除头像",
     "changePassword": "修改密码",
     "confirmPassword": "确认密码",
     "email": "邮箱",
