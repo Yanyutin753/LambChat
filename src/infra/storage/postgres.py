@@ -5,8 +5,10 @@ PostgreSQL 存储实现
 """
 
 import logging
+from typing import Any
 
 from langgraph.store.postgres import PostgresStore
+from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
@@ -15,10 +17,10 @@ from src.kernel.config import settings
 logger = logging.getLogger(__name__)
 
 # 全局连接池（所有 agent 共享）
-_connection_pool: ConnectionPool | None = None
+_connection_pool: ConnectionPool[Connection[dict[str, Any]]] | None = None
 
 
-def get_connection_pool() -> ConnectionPool:
+def get_connection_pool() -> ConnectionPool[Connection[dict[str, Any]]]:
     """
     获取或创建全局连接池
 
@@ -29,7 +31,7 @@ def get_connection_pool() -> ConnectionPool:
     """
     global _connection_pool
     if _connection_pool is None:
-        _connection_pool = ConnectionPool(
+        _connection_pool = ConnectionPool[Connection[dict[str, Any]]](
             settings.postgres_url,
             min_size=settings.POSTGRES_POOL_MIN_SIZE,
             max_size=settings.POSTGRES_POOL_MAX_SIZE,
