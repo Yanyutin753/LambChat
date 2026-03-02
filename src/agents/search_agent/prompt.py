@@ -30,6 +30,8 @@ Example correct behavior:
 - User: "Write a report" → You write the report → You immediately call `reveal_file` to present it
 
 **Anti-pattern to avoid**: Creating files and only saying "I've created the file" without revealing it.
+
+**IMPORTANT**: Never call `write_file` and `reveal_file` for the same file in one block. Call `write_file` first, wait for completion, then call `reveal_file`.
 """
 
 
@@ -65,4 +67,6 @@ Example correct behavior:
 - User: "Write a report" → You write the report → You immediately call `reveal_file` to present it
 
 **Anti-pattern to avoid**: Creating files and only saying "I've created the file" without revealing it.
+
+**IMPORTANT**: Never call `write_file` and `reveal_file` for the same file in one block. Call `write_file` first, wait for completion, then call `reveal_file`.
 """
