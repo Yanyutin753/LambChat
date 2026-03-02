@@ -809,6 +809,18 @@ export interface MessageAttachment {
   url: string;
 }
 
+// Upload state for tracking progress
+export interface UploadState {
+  id: string;
+  file: File;
+  progress: number;
+  loaded: number;
+  total: number;
+  status: "pending" | "uploading" | "completed" | "error";
+  attachment?: MessageAttachment;
+  error?: string;
+}
+
 export interface UploadConfig {
   enabled: boolean;
   provider?: string;
