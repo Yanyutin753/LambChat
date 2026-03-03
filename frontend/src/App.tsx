@@ -947,18 +947,15 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
   // Handle session selection from sidebar
   const handleSelectSession = useCallback(
     async (selectedSessionId: string) => {
-      // Prevent duplicate calls while syncing
-      if (isSyncingRef.current) return;
-      // Directly load history without going through URL sync
-      isSyncingRef.current = true;
+      // loadHistory has its own isLoadingHistoryRef guard, no need to check here
       try {
         await loadHistory(selectedSessionId);
         // Update URL
         navigate(`/chat/${selectedSessionId}`);
         // Scroll to top after loading history
         messagesContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-      } finally {
-        isSyncingRef.current = false;
+      } catch (err) {
+        console.error("[handleSelectSession] Error:", err);
       }
     },
     [navigate, loadHistory],

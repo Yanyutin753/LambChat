@@ -161,6 +161,7 @@ class SearchAgent(BaseGraphAgent):
                 "context": context,
                 "agent_options": agent_options,
                 "disabled_tools": disabled_tools,
+                "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
             },
             "recursion_limit": self.recursion_limit,
         }

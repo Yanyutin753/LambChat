@@ -69,62 +69,11 @@ def _parse_skill_metadata(content: str) -> tuple[str, str]:
     return name, description
 
 
-async def _read_file_content(backend: BackendProtocol, file_path: str) -> Optional[str]:
-    """
-    从 backend 读取单个文件内容。
-
-    Args:
-        backend: Backend 实例
-        file_path: 文件路径
-
-    Returns:
-        文件内容字符串，如果失败返回 None
-    """
-    try:
-        # 尝试 read 方法
-        if hasattr(backend, "read"):
-            content = backend.read(file_path)
-            if content is not None:
-                if isinstance(content, str):
-                    return content
-                elif isinstance(content, bytes):
-                    return content.decode("utf-8")
-                elif isinstance(content, dict) and "content" in content:
-                    return content["content"]
-
-        # 尝试 aread 方法（异步）
-        if hasattr(backend, "aread"):
-            content = await backend.aread(file_path)
-            if content is not None:
-                if isinstance(content, str):
-                    return content
-                elif isinstance(content, bytes):
-                    return content.decode("utf-8")
-
-        # 尝试 download_files 方法（沙箱模式）
-        if hasattr(backend, "adownload_files"):
-            responses = await backend.adownload_files([file_path])
-            if responses and responses[0].content:
-                return responses[0].content.decode("utf-8")
-
-        if hasattr(backend, "download_files"):
-            responses = backend.download_files([file_path])
-            if responses and responses[0].content:
-                return responses[0].content.decode("utf-8")
-
-    except Exception as e:
-        logger.debug(f"Failed to read file {file_path}: {e}")
-
-    return None
-
-
 async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict[str, str]:
     """
     从 backend 读取目录中的所有文件。
 
-    支持多种 backend 模式：
-    1. 沙箱模式（DaytonaBackend）：使用 glob_info 或 execute ls
-    2. 非沙箱模式（StoreBackend）：使用 list 方法
+    流程：列出文件路径 -> download_files 批量下载
 
     Args:
         backend: Backend 实例
@@ -133,114 +82,72 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
     Returns:
         文件相对路径到内容的映射
     """
-    files = {}
+    files: dict[str, str] = {}
 
     # 规范化目录路径
     dir_path = dir_path.rstrip("/")
 
     try:
-        # 方式1: 沙箱模式 - 使用 glob_info 搜索目录下所有文件
-        if hasattr(backend, "glob_info"):
-            # 使用 **/* 模式搜索所有文件（递归）
-            file_infos = backend.glob_info("**/*", path=dir_path)
-            logger.info(
-                f"[add_skill] glob_info returned {len(file_infos)} entries for dir_path={dir_path}"
-            )
-            # 打印前10个条目的详细信息
-            for i, info in enumerate(file_infos[:10]):
-                logger.info(f"[add_skill] glob_info entry[{i}]: {info!r}")
+        file_paths: list[str] = []
 
-            for info in file_infos:
-                if isinstance(info, dict):
-                    file_path = info.get("path", "")
-                    is_dir = info.get("is_dir", False)
-                    logger.debug(f"[add_skill] dict entry: path={file_path}, is_dir={is_dir}")
-                    # 跳过目录
-                    if is_dir or file_path.endswith("/"):
-                        continue
-                elif isinstance(info, str):
-                    file_path = info
-                    logger.debug(f"[add_skill] str entry: {file_path}")
-                    if file_path.endswith("/"):
-                        continue
-                else:
-                    logger.warning(f"[add_skill] unknown entry type: {type(info)}")
-                    continue
+        # 步骤1: 获取文件列表
+        # 沙箱模式：使用 find 命令
+        if hasattr(backend, "execute"):
+            # 检查目录是否存在
+            check_result = backend.execute(f"test -d {dir_path} && echo 'exists'")
+            if check_result.exit_code != 0 or not check_result.output.strip():
+                logger.warning(f"[add_skill] Directory does not exist: {dir_path}")
+                return files
 
-                # 处理路径：确保是完整路径
-                # glob_info 可能返回相对路径或完整路径
-                if not file_path.startswith("/"):
-                    # 相对路径，转换为完整路径
-                    full_path = f"{dir_path}/{file_path}"
-                else:
-                    full_path = file_path
-
-                logger.debug(
-                    f"[add_skill] Processing: file_path={file_path} -> full_path={full_path}"
-                )
-
-                # 确保文件在目标目录内（防止读取其他目录的文件）
-                if not full_path.startswith(f"{dir_path}/"):
-                    logger.warning(f"[add_skill] Skipping file outside target dir: {full_path}")
-                    continue
-
-                # 读取文件内容
-                content = await _read_file_content(backend, full_path)
-                if content is not None:
-                    # 使用相对路径作为 key
-                    relative_path = full_path.replace(f"{dir_path}/", "", 1)
-                    files[relative_path] = content
-                    logger.debug(f"[add_skill] Read file: {relative_path} ({len(content)} chars)")
-
-            logger.info(f"[add_skill] Total files read via glob_info: {len(files)}")
-
-        # 方式2: 使用 list 方法（同步）
-        elif hasattr(backend, "list"):
-            entries = backend.list(dir_path)
-            for entry in entries:
-                if isinstance(entry, str):
-                    file_path = f"{dir_path}/{entry}"
-                elif isinstance(entry, dict):
-                    file_path = entry.get("path", "")
-                else:
-                    continue
-
-                # 读取文件内容
-                content = await _read_file_content(backend, file_path)
-                if content is not None:
-                    # 使用相对路径作为 key
-                    relative_path = file_path.replace(f"{dir_path}/", "", 1)
-                    files[relative_path] = content
-
-        # 方式3: 使用 alist 方法（异步）
-        elif hasattr(backend, "alist"):
-            entries = await backend.alist(dir_path)
-            for entry in entries:
-                if isinstance(entry, str):
-                    file_path = f"{dir_path}/{entry}"
-                elif isinstance(entry, dict):
-                    file_path = entry.get("path", "")
-                else:
-                    continue
-
-                content = await _read_file_content(backend, file_path)
-                if content is not None:
-                    relative_path = file_path.replace(f"{dir_path}/", "", 1)
-                    files[relative_path] = content
-
-        # 方式4: 使用 execute 命令列出目录（最后的备选方案）
-        elif hasattr(backend, "execute"):
-            # 使用 find 命令列出所有文件
+            # 使用 find 命令列出所有文件（递归）
             result = backend.execute(f"find {dir_path} -type f 2>/dev/null")
+            logger.info(f"[add_skill] find returned exit_code={result.exit_code}")
+
             if result.exit_code == 0 and result.output:
                 file_paths = [
                     line.strip() for line in result.output.strip().split("\n") if line.strip()
                 ]
-                for file_path in file_paths:
-                    content = await _read_file_content(backend, file_path)
-                    if content is not None:
-                        relative_path = file_path.replace(f"{dir_path}/", "", 1)
-                        files[relative_path] = content
+
+        # 非沙箱模式：使用 list 方法
+        elif hasattr(backend, "list"):
+            entries = backend.list(dir_path)
+            file_paths = [
+                f"{dir_path}/{entry}" if isinstance(entry, str) else entry.get("path", "")
+                for entry in entries
+                if isinstance(entry, str) or isinstance(entry, dict)
+            ]
+
+        elif hasattr(backend, "alist"):
+            entries = await backend.alist(dir_path)
+            file_paths = [
+                f"{dir_path}/{entry}" if isinstance(entry, str) else entry.get("path", "")
+                for entry in entries
+                if isinstance(entry, str) or isinstance(entry, dict)
+            ]
+
+        logger.info(f"[add_skill] Found {len(file_paths)} files in {dir_path}")
+
+        # 步骤2: 批量下载所有文件
+        if file_paths and hasattr(backend, "download_files"):
+            responses = backend.download_files(file_paths)
+            logger.info(f"[add_skill] download_files returned {len(responses)} responses")
+
+            for response in responses:
+                if response.content:
+                    relative_path = response.path.replace(f"{dir_path}/", "", 1)
+                    content = (
+                        response.content.decode("utf-8")
+                        if isinstance(response.content, bytes)
+                        else response.content
+                    )
+                    files[relative_path] = content
+                    logger.info(f"[add_skill] Downloaded: {relative_path} ({len(content)} chars)")
+                elif response.error:
+                    logger.warning(
+                        f"[add_skill] Failed to download {response.path}: {response.error}"
+                    )
+
+        logger.info(f"[add_skill] Total files downloaded: {len(files)}")
 
     except Exception as e:
         logger.error(f"Failed to list directory {dir_path}: {e}")

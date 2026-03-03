@@ -56,19 +56,19 @@ class MCPStorage:
         self._user_collection: Optional["AsyncIOMotorCollection"] = None
         self._preferences_collection: Optional["AsyncIOMotorCollection"] = None
 
-    def _invalidate_user_cache(self, user_id: str) -> None:
-        """Invalidate MCP tools cache for a specific user"""
+    async def _invalidate_user_cache(self, user_id: str) -> None:
+        """Invalidate MCP tools Redis cache for a specific user"""
         from src.infra.tool.mcp_cache import invalidate_user_cache
 
-        invalidate_user_cache(user_id)
-        logger.info(f"[MCP Storage] Invalidated cache for user {user_id}")
+        await invalidate_user_cache(user_id)
+        logger.info(f"[MCP Storage] Invalidated Redis cache for user {user_id}")
 
-    def _invalidate_all_cache(self) -> None:
-        """Invalidate MCP tools cache for all users (system config changed)"""
+    async def _invalidate_all_cache(self) -> None:
+        """Invalidate MCP tools Redis cache for all users (system config changed)"""
         from src.infra.tool.mcp_cache import invalidate_all_cache
 
-        count = invalidate_all_cache()
-        logger.info(f"[MCP Storage] Invalidated all cache, {count} entries")
+        count = await invalidate_all_cache()
+        logger.info(f"[MCP Storage] Invalidated all Redis cache, {count} entries")
 
     def _get_system_collection(self) -> "AsyncIOMotorCollection":
         """Get system MCP servers collection lazily"""
@@ -142,7 +142,7 @@ class MCPStorage:
         await collection.insert_one(doc)
 
         # Invalidate all caches since system server affects all users
-        self._invalidate_all_cache()
+        await self._invalidate_all_cache()
 
         return self._doc_to_system_server(doc)
 
@@ -181,7 +181,7 @@ class MCPStorage:
         await collection.update_one({"name": name}, {"$set": update_data})
 
         # Invalidate all caches since system server affects all users
-        self._invalidate_all_cache()
+        await self._invalidate_all_cache()
 
         updated_doc = await collection.find_one({"name": name})
         return self._doc_to_system_server(updated_doc) if updated_doc else None
@@ -193,7 +193,7 @@ class MCPStorage:
 
         # Invalidate all caches since system server affects all users
         if result.deleted_count > 0:
-            self._invalidate_all_cache()
+            await self._invalidate_all_cache()
 
         return result.deleted_count > 0
 
@@ -243,7 +243,7 @@ class MCPStorage:
         await collection.insert_one(doc)
 
         # Invalidate cache for this user
-        self._invalidate_user_cache(user_id)
+        await self._invalidate_user_cache(user_id)
 
         return self._doc_to_user_server(doc)
 
@@ -279,7 +279,7 @@ class MCPStorage:
         await collection.update_one({"name": name, "user_id": user_id}, {"$set": update_data})
 
         # Invalidate cache for this user
-        self._invalidate_user_cache(user_id)
+        await self._invalidate_user_cache(user_id)
 
         updated_doc = await collection.find_one({"name": name, "user_id": user_id})
         return self._doc_to_user_server(updated_doc) if updated_doc else None
@@ -291,7 +291,7 @@ class MCPStorage:
 
         # Invalidate cache for this user
         if result.deleted_count > 0:
-            self._invalidate_user_cache(user_id)
+            await self._invalidate_user_cache(user_id)
 
         return result.deleted_count > 0
 
@@ -345,7 +345,7 @@ class MCPStorage:
         await self.delete_user_server(name, user_id)
 
         # Invalidate all caches since system server now exists
-        self._invalidate_all_cache()
+        await self._invalidate_all_cache()
 
         return self._doc_to_system_server(doc)
 
@@ -395,7 +395,7 @@ class MCPStorage:
         await self.delete_system_server(name)
 
         # Invalidate cache for target user
-        self._invalidate_user_cache(target_user_id)
+        await self._invalidate_user_cache(target_user_id)
 
         return self._doc_to_user_server(doc)
 
@@ -430,7 +430,7 @@ class MCPStorage:
         )
 
         # Invalidate cache for this user
-        self._invalidate_user_cache(user_id)
+        await self._invalidate_user_cache(user_id)
 
     # ==========================================
     # Combined Operations (for runtime)
@@ -542,7 +542,7 @@ class MCPStorage:
             )
 
             # Invalidate cache for this user
-            self._invalidate_user_cache(user_id)
+            await self._invalidate_user_cache(user_id)
 
             updated_doc = await user_collection.find_one({"name": name, "user_id": user_id})
             if updated_doc:
@@ -591,7 +591,7 @@ class MCPStorage:
             )
 
             # Invalidate all caches since system server affects all users
-            self._invalidate_all_cache()
+            await self._invalidate_all_cache()
 
             updated_doc = await system_collection.find_one({"name": name})
             if updated_doc:
@@ -702,7 +702,7 @@ class MCPStorage:
         # Cache invalidation is handled by create/update methods
         # But if admin import, we should invalidate all caches at the end
         if is_admin and imported > 0:
-            self._invalidate_all_cache()
+            await self._invalidate_all_cache()
 
         return imported, skipped, errors
 

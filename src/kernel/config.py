@@ -142,6 +142,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "LLM API base URL",
         "default": "",
     },
+    "LLM_MAX_RETRIES": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LLM,
+        "description": "LLM API 最大重试次数（用于处理 429 等错误）",
+        "default": 3,
+        "frontend_visible": True,
+    },
     # ============================================
     # Session Settings
     # ============================================
@@ -579,6 +586,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "anthropic/claude-3-5-sonnet-20241022"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 4096
+    LLM_MAX_RETRIES: int = 3
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_BASE_URL: Optional[str] = None
 

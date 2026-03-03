@@ -20,7 +20,7 @@ export {
   updateSubagentResult,
   updateSubagentResultInParts,
   updateToolResultInDepth,
-  updateToolResultInParts,
+  updateToolResultInPartsById,
   createToolPart,
   createThinkingPart,
   createSubagentPart,

@@ -99,8 +99,16 @@ class SessionSandboxManager:
             logger.debug(
                 f"[SessionSandboxManager] Cache hit: session={session_id}, sandbox={sandbox_id}"
             )
-            work_dir = await self._get_work_dir(sandbox_id)
-            return backend, work_dir
+            try:
+                work_dir = await self._get_work_dir(sandbox_id)
+                return backend, work_dir
+            except Exception as e:
+                logger.warning(
+                    f"[SessionSandboxManager] Failed to get work_dir from cached sandbox {sandbox_id}: {e}. "
+                    "Creating new sandbox."
+                )
+                # 清除缓存，创建新沙箱
+                del self._cache[session_id]
 
         # 2. 从 session.metadata 获取 sandbox_id
         session = await self._session_manager.get_session(session_id)
@@ -136,16 +144,28 @@ class SessionSandboxManager:
                     return backend, work_dir
                 except Exception as e:
                     logger.warning(
-                        f"[SessionSandboxManager] Failed to resume sandbox {sandbox_id}: {e}"
+                        f"[SessionSandboxManager] Failed to resume sandbox {sandbox_id}: {e}. "
+                        "Creating new sandbox."
                     )
-                    # 恢复失败，创建新沙箱
+                    # 恢复失败，清除缓存，创建新沙箱
+                    if session_id in self._cache:
+                        del self._cache[session_id]
 
             elif state in READY_STATES:
                 # 沙箱已在运行，直接使用
-                backend = await self._create_backend(sandbox_id)
-                self._cache[session_id] = (sandbox_id, backend)
-                work_dir = await self._get_work_dir(sandbox_id)
-                return backend, work_dir
+                try:
+                    backend = await self._create_backend(sandbox_id)
+                    self._cache[session_id] = (sandbox_id, backend)
+                    work_dir = await self._get_work_dir(sandbox_id)
+                    return backend, work_dir
+                except Exception as e:
+                    logger.warning(
+                        f"[SessionSandboxManager] Failed to get work_dir from sandbox {sandbox_id}: {e}. "
+                        "Creating new sandbox."
+                    )
+                    # 清除缓存，创建新沙箱
+                    if session_id in self._cache:
+                        del self._cache[session_id]
 
             elif state in UNAVAILABLE_STATES:
                 logger.info(
@@ -270,7 +290,11 @@ class SessionSandboxManager:
         )
 
     async def _get_work_dir(self, sandbox_id: str) -> str:
-        """获取沙箱工作目录"""
+        """获取沙箱工作目录
+
+        Raises:
+            Exception: 如果获取工作目录失败（沙箱不存在、认证失败等）
+        """
 
         def _sync_get_work_dir():
             client = self._get_daytona_client()

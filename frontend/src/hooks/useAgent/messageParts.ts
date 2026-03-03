@@ -74,12 +74,24 @@ export function addPartToDepth(
         }
       } else if (part.type === "thinking") {
         const thinkingId = part.thinking_id;
-        const existingIndex = existingParts.findIndex(
-          (p) =>
-            p.type === "thinking" &&
-            p.thinking_id === thinkingId &&
-            thinkingId !== undefined,
-        );
+        let existingIndex = -1;
+
+        // 如果有 thinking_id，精确匹配
+        if (thinkingId !== undefined) {
+          existingIndex = existingParts.findIndex(
+            (p) => p.type === "thinking" && p.thinking_id === thinkingId,
+          );
+        } else {
+          // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
+          for (let i = existingParts.length - 1; i >= 0; i--) {
+            const p = existingParts[i];
+            if (p.type === "thinking" && p.thinking_id === undefined) {
+              existingIndex = i;
+              break;
+            }
+          }
+        }
+
         if (existingIndex >= 0) {
           const existing = existingParts[existingIndex] as ThinkingPart;
           newSubagentParts = [...existingParts];
@@ -117,13 +129,17 @@ export function addPartToDepth(
   }
 
   // If no matching subagent found, add to top level
-  console.warn(
-    "[addPartToDepth] No matching subagent found for depth:",
-    targetDepth,
-    "agent_id:",
-    effectiveAgentId,
-    "adding to top level",
-  );
+  // Only warn for non-subagent parts (text, thinking, tool) - subagent parts themselves
+  // are expected to be added at the root level when no parent exists
+  if (part.type !== "subagent") {
+    console.warn(
+      "[addPartToDepth] No matching subagent found for depth:",
+      targetDepth,
+      "agent_id:",
+      effectiveAgentId,
+      "adding to top level",
+    );
+  }
   return [...parts, part];
 }
 
@@ -157,12 +173,24 @@ export function findAndAddToSubagent(
         }
       } else if (part.type === "thinking") {
         const thinkingId = part.thinking_id;
-        const existingIndex = existingParts.findIndex(
-          (p) =>
-            p.type === "thinking" &&
-            p.thinking_id === thinkingId &&
-            thinkingId !== undefined,
-        );
+        let existingIndex = -1;
+
+        // 如果有 thinking_id，精确匹配
+        if (thinkingId !== undefined) {
+          existingIndex = existingParts.findIndex(
+            (p) => p.type === "thinking" && p.thinking_id === thinkingId,
+          );
+        } else {
+          // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
+          for (let i = existingParts.length - 1; i >= 0; i--) {
+            const p = existingParts[i];
+            if (p.type === "thinking" && p.thinking_id === undefined) {
+              existingIndex = i;
+              break;
+            }
+          }
+        }
+
         if (existingIndex >= 0) {
           const existing = existingParts[existingIndex] as ThinkingPart;
           newParts = [...existingParts];
@@ -296,27 +324,58 @@ export function updateSubagentResultInParts(
 
 /**
  * Update tool result at specified depth. Returns new parts array.
+ * 直接在 parts 中查找匹配的 tool 并更新（支持 depth=0 的顶级工具）
  */
 export function updateToolResultInDepth(
   parts: MessagePart[],
-  toolName: string,
+  toolCallId: string,
   result: string,
   success: boolean,
-  targetDepth: number,
+  error?: string,
+  _targetDepth?: number,
   targetAgentId?: string,
 ): MessagePart[] {
+  // 先尝试直接匹配顶级的 tool
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    if (p.type === "tool" && p.id === toolCallId && p.isPending) {
+      const newParts = [...parts];
+      newParts[i] = {
+        ...p,
+        result,
+        success,
+        error,
+        isPending: false,
+      };
+      return newParts;
+    }
+    // 向后兼容：没有 id 时按 name 匹配
+    if (p.type === "tool" && !p.id && p.isPending) {
+      const newParts = [...parts];
+      newParts[i] = {
+        ...p,
+        result,
+        success,
+        error,
+        isPending: false,
+      };
+      return newParts;
+    }
+  }
+
+  // 再尝试在 subagent 内部查找
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (p.type === "subagent" && p.parts) {
       if (targetAgentId && p.agent_id !== targetAgentId) {
         continue;
       }
-      const updatedParts = updateToolResultInParts(
+      const updatedParts = updateToolResultInPartsById(
         p.parts,
-        toolName,
+        toolCallId,
         result,
         success,
-        targetDepth,
+        error,
       );
       if (updatedParts) {
         const newParts = [...parts];
@@ -329,34 +388,48 @@ export function updateToolResultInDepth(
 }
 
 /**
- * Recursively update tool result in parts.
+ * Recursively update tool result in parts by tool_call_id.
  */
-export function updateToolResultInParts(
+export function updateToolResultInPartsById(
   parts: MessagePart[],
-  toolName: string,
+  toolCallId: string,
   result: string,
   success: boolean,
-  targetDepth: number,
+  error?: string,
 ): MessagePart[] | null {
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
-    if (p.type === "tool" && p.name === toolName && p.isPending) {
+    // 优先使用 tool_call_id 匹配
+    if (p.type === "tool" && p.id === toolCallId && p.isPending) {
       const newParts = [...parts];
       newParts[i] = {
         ...p,
         result,
         success,
+        error,
+        isPending: false,
+      };
+      return newParts;
+    }
+    // 向后兼容：如果没有 id，则按 name 匹配
+    if (p.type === "tool" && !p.id && p.isPending) {
+      const newParts = [...parts];
+      newParts[i] = {
+        ...p,
+        result,
+        success,
+        error,
         isPending: false,
       };
       return newParts;
     }
     if (p.type === "subagent" && p.parts) {
-      const updatedParts = updateToolResultInParts(
+      const updatedParts = updateToolResultInPartsById(
         p.parts,
-        toolName,
+        toolCallId,
         result,
         success,
-        targetDepth,
+        error,
       );
       if (updatedParts) {
         const newParts = [...parts];
@@ -376,9 +449,11 @@ export function createToolPart(
   args: Record<string, unknown>,
   depth: number,
   agentId?: string,
+  toolCallId?: string,
 ): ToolPart {
   return {
     type: "tool",
+    id: toolCallId,
     name: toolName,
     args: args,
     isPending: true,

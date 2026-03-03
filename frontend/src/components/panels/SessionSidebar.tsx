@@ -5,12 +5,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, ChevronDown, X, Search } from "lucide-react";
+import { Plus, Trash2, ChevronDown, X, Search, Share2 } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useInView } from "react-intersection-observer";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { ConfirmDialog } from "../common/ConfirmDialog";
+import { ShareDialog } from "../share/ShareDialog";
+import { Permission } from "../../types";
 
 const PAGE_SIZE = 20;
 
@@ -65,6 +67,18 @@ export function SessionSidebar({
     isOpen: boolean;
     sessionId: string | null;
   }>({ isOpen: false, sessionId: null });
+
+  // Share dialog state
+  const [shareDialog, setShareDialog] = useState<{
+    isOpen: boolean;
+    sessionId: string | null;
+    sessionName: string;
+  }>({ isOpen: false, sessionId: null, sessionName: "" });
+
+  // Check if user has share permission
+  const hasSharePermission = user?.permissions?.includes(
+    Permission.SESSION_SHARE,
+  );
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.1,
@@ -196,29 +210,12 @@ export function SessionSidebar({
   const handleMouseDown = (e: React.MouseEvent) => {
     touchStartRef.current = e.clientY;
     isPullingRef.current = true;
-    console.log("[MouseDown] startY:", e.clientY);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    console.log(
-      "[MouseMove] buttons:",
-      e.buttons,
-      "isPulling:",
-      isPullingRef.current,
-      "isLoadingMore:",
-      isLoadingMore,
-    );
     if (e.buttons !== 1) return;
     if (!isPullingRef.current || isLoadingMore) return;
     const distance = e.clientY - touchStartRef.current;
-    console.log(
-      "[MouseMove] distance:",
-      distance,
-      "currentY:",
-      e.clientY,
-      "startY:",
-      touchStartRef.current,
-    );
     // 往上拉(distance < 0)才触发
     if (distance < 0) {
       setPullDistance(Math.min(Math.abs(distance), 80));
@@ -228,7 +225,6 @@ export function SessionSidebar({
   };
 
   const handleMouseUp = () => {
-    console.log("[MouseUp] pullDistance:", pullDistance, "hasMore:", hasMore);
     if (pullDistance > 60 && hasMore && !isLoadingMore) {
       loadMoreSessions();
     }
@@ -491,6 +487,25 @@ export function SessionSidebar({
                             {getSessionTitle(session)}
                           </div>
                         </div>
+                        {hasSharePermission && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShareDialog({
+                                isOpen: true,
+                                sessionId: session.id,
+                                sessionName: getSessionTitle(session),
+                              });
+                            }}
+                            className="flex-shrink-0 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-stone-700 transition-all"
+                            title={t("share.title")}
+                          >
+                            <Share2
+                              size={14}
+                              className="text-gray-400 hover:text-blue-500 dark:text-stone-500 dark:hover:text-blue-400"
+                            />
+                          </button>
+                        )}
                         <button
                           onClick={(e) => deleteSession(session.id, e)}
                           className="flex-shrink-0 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-stone-700 transition-all"
@@ -575,6 +590,16 @@ export function SessionSidebar({
         onConfirm={confirmDeleteSession}
         onCancel={() => setDeleteConfirm({ isOpen: false, sessionId: null })}
         variant="danger"
+      />
+
+      {/* Share Dialog */}
+      <ShareDialog
+        isOpen={shareDialog.isOpen}
+        onClose={() =>
+          setShareDialog({ isOpen: false, sessionId: null, sessionName: "" })
+        }
+        sessionId={shareDialog.sessionId || ""}
+        sessionName={shareDialog.sessionName}
       />
     </>
   );

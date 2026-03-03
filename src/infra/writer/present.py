@@ -435,6 +435,7 @@ class Presenter:
         self,
         tool_name: str,
         tool_input: Any,
+        tool_call_id: Optional[str] = None,
         depth: int = 0,
         agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -443,6 +444,7 @@ class Presenter:
         Args:
             tool_name: 工具名称
             tool_input: 工具输入
+            tool_call_id: 工具调用唯一ID
             depth: 层级深度（0=主代理，1+=子代理）
             agent_id: 代理ID（用于子代理事件）
         """
@@ -452,6 +454,7 @@ class Presenter:
             {
                 "tool": tool_name,
                 "args": (tool_input if isinstance(tool_input, dict) else {"input": tool_input}),
+                "tool_call_id": tool_call_id,
                 "timestamp": _get_timestamp(),
             },
             depth=depth,
@@ -462,7 +465,9 @@ class Presenter:
         self,
         tool_name: str,
         result: Any,
+        tool_call_id: Optional[str] = None,
         success: bool = True,
+        error: Optional[str] = None,
         depth: int = 0,
         agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -471,18 +476,25 @@ class Presenter:
         Args:
             tool_name: 工具名称
             result: 工具结果
+            tool_call_id: 工具调用唯一ID
             success: 是否成功
+            error: 错误信息（如果有）
             depth: 层级深度（0=主代理，1+=子代理）
             agent_id: 代理ID（用于子代理事件）
         """
+        data: Dict[str, Any] = {
+            "tool": tool_name,
+            "result": result,
+            "success": success,
+            "timestamp": _get_timestamp(),
+        }
+        if tool_call_id:
+            data["tool_call_id"] = tool_call_id
+        if error:
+            data["error"] = error
         return self._build_event(
             "tool:result",
-            {
-                "tool": tool_name,
-                "result": result,
-                "success": success,
-                "timestamp": _get_timestamp(),
-            },
+            data,
             depth=depth,
             agent_id=agent_id,
         )

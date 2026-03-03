@@ -259,13 +259,14 @@ class RoleStorage:
                     }
                 )
             elif role_data.get("is_system", False):
-                # 系统角色：更新权限列表以包含新权限
+                # 系统角色：更新权限列表和is_system标记
                 now = datetime.now()
                 await self.collection.update_one(
                     {"name": role_data["name"]},
                     {
                         "$set": {
                             "permissions": role_data["permissions"],
+                            "is_system": True,  # 确保is_system被更新
                             "updated_at": now,
                         }
                     },

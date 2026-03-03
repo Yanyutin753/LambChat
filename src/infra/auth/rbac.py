@@ -142,6 +142,7 @@ class RBACManager:
                     Permission.SESSION_READ.value,
                     Permission.SESSION_WRITE.value,
                     Permission.SESSION_DELETE.value,
+                    Permission.SESSION_SHARE.value,
                     # Skill
                     Permission.SKILL_READ.value,
                     Permission.SKILL_WRITE.value,
@@ -152,7 +153,7 @@ class RBACManager:
                     Permission.MCP_WRITE_HTTP.value,
                     Permission.MCP_DELETE.value,
                 ],
-                "is_system": False,
+                "is_system": True,  # 设为系统角色，自动更新权限
             },
             {
                 "name": "guest",

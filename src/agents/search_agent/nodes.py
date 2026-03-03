@@ -77,7 +77,7 @@ async def _run_with_retry(
     input_data: dict,
     config: RunnableConfig,
     event_processor: AgentEventProcessor,
-    max_retries: int = None,
+    max_retries: int | None = None,
     base_delay: float = 1.0,
 ) -> None:
     """
@@ -96,7 +96,7 @@ async def _run_with_retry(
     if max_retries is None:
         max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
 
-    last_error = None
+    last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
             async for event in graph.astream_events(input_data, config, version="v2"):
@@ -115,6 +115,8 @@ async def _run_with_retry(
                 raise
 
     # 不应该到达这里
+    if last_error is None:
+        raise RuntimeError("Unexpected state: no error but loop exhausted")
     raise last_error
 
 
@@ -208,6 +210,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "thread_id": state.get("session_id", str(uuid.uuid4())),
             "backend": backend_factory,
             "context": context,  # 传递 context 以便工具访问 user_id
+            "base_url": configurable.get("base_url", ""),  # 传递 base_url 给工具使用
         },
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }

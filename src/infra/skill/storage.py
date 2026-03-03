@@ -7,10 +7,13 @@ Follows the same pattern as MCP storage for consistency.
 """
 
 import copy
+import json
+import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
 from src.infra.storage.mongodb import get_mongo_client
+from src.infra.storage.redis import get_redis_client
 from src.kernel.config import settings
 from src.kernel.schemas.skill import (
     GitHubInstallRequest,
@@ -24,6 +27,17 @@ from src.kernel.schemas.skill import (
     SystemSkill,
     UserSkill,
 )
+
+logger = logging.getLogger(__name__)
+
+# Redis 缓存 TTL（秒），默认 30 分钟
+SKILLS_CACHE_TTL = 1800
+MCP_TOOLS_METADATA_CACHE_TTL = 1800
+
+# Redis 缓存键前缀
+SKILLS_CACHE_KEY_PREFIX = "user_skills:"
+MCP_TOOLS_METADATA_KEY_PREFIX = "mcp_tools_metadata:"
+
 
 if TYPE_CHECKING:
     from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
@@ -42,6 +56,35 @@ class SkillStorage:
         self._system_collection: Optional["AsyncIOMotorCollection"] = None
         self._user_collection: Optional["AsyncIOMotorCollection"] = None
         self._preferences_collection: Optional["AsyncIOMotorCollection"] = None
+
+    # ==========================================
+    # Redis Cache
+    # ==========================================
+
+    async def _invalidate_user_skills_cache(self, user_id: str) -> None:
+        """Invalidate skills Redis cache for a specific user"""
+        cache_key = f"{SKILLS_CACHE_KEY_PREFIX}{user_id}"
+        try:
+            redis_client = get_redis_client()
+            result = await redis_client.delete(cache_key)
+            if result > 0:
+                logger.info(f"[Skills Cache] Invalidated Redis cache for user {user_id}")
+        except Exception as e:
+            logger.warning(f"[Skills Cache] Redis delete failed for user {user_id}: {e}")
+
+    async def _invalidate_all_skills_cache(self) -> None:
+        """Invalidate all skills Redis cache (system config changed)"""
+        try:
+            redis_client = get_redis_client()
+            keys = await redis_client.keys(f"{SKILLS_CACHE_KEY_PREFIX}*")
+            if keys:
+                deleted = 0
+                for key in keys:
+                    if await redis_client.delete(key) > 0:
+                        deleted += 1
+                logger.info(f"[Skills Cache] Invalidated {deleted} Redis cache entries")
+        except Exception as e:
+            logger.warning(f"[Skills Cache] Redis keys/delete failed: {e}")
 
     def _get_system_collection(self) -> "AsyncIOMotorCollection":
         """Get system skills collection lazily"""
@@ -115,6 +158,9 @@ class SkillStorage:
         elif skill.content:
             await self.sync_skill_files(skill.name, {"SKILL.md": skill.content}, user_id="system")
 
+        # Invalidate all users' cache since system skill affects everyone
+        await self._invalidate_all_skills_cache()
+
         return self._doc_to_system_skill(doc)
 
     async def update_system_skill(
@@ -154,6 +200,10 @@ class SkillStorage:
             await collection.update_one({"name": name}, {"$set": update_data})
 
         updated_doc = await collection.find_one({"name": query_name})
+
+        # Invalidate all users' cache since system skill affects everyone
+        await self._invalidate_all_skills_cache()
+
         return self._doc_to_system_skill(updated_doc) if updated_doc else None
 
     async def delete_system_skill(self, name: str) -> bool:
@@ -164,6 +214,8 @@ class SkillStorage:
         # Delete files from PostgreSQL with "system" user_id
         if result.deleted_count > 0:
             await self.delete_skill_files(name, user_id="system")
+            # Invalidate all users' cache since system skill affects everyone
+            await self._invalidate_all_skills_cache()
 
         return result.deleted_count > 0
 
@@ -217,6 +269,9 @@ class SkillStorage:
         if files_to_sync:
             await self.sync_skill_files(skill.name, files_to_sync, user_id=user_id)
 
+        # Invalidate cache for this user
+        await self._invalidate_user_skills_cache(user_id)
+
         return self._doc_to_user_skill(doc)
 
     async def update_user_skill(
@@ -253,6 +308,10 @@ class SkillStorage:
             await collection.update_one({"name": name, "user_id": user_id}, {"$set": update_data})
 
         updated_doc = await collection.find_one({"name": query_name, "user_id": user_id})
+
+        # Invalidate cache for this user
+        await self._invalidate_user_skills_cache(user_id)
+
         return self._doc_to_user_skill(updated_doc) if updated_doc else None
 
     async def delete_user_skill(self, name: str, user_id: str) -> bool:
@@ -263,6 +322,8 @@ class SkillStorage:
         # Delete files from PostgreSQL with user_id
         if result.deleted_count > 0:
             await self.delete_skill_files(name, user_id=user_id)
+            # Invalidate cache for this user
+            await self._invalidate_user_skills_cache(user_id)
 
         return result.deleted_count > 0
 
@@ -401,19 +462,40 @@ class SkillStorage:
             upsert=True,
         )
 
+        # Invalidate cache for this user
+        await self._invalidate_user_skills_cache(user_id)
+
     # ==========================================
     # Combined Operations (for runtime)
     # ==========================================
 
     async def get_effective_skills(self, user_id: str) -> dict[str, Any]:
         """
-        Get effective skills for a user.
+        Get effective skills for a user (with Redis cache).
 
         Merges system and user configurations, with user preferences taking precedence.
         Only includes skills that are enabled (after applying user preferences).
 
         文件直接从 MongoDB 技能文档的 files 字段加载。
         """
+        cache_key = f"{SKILLS_CACHE_KEY_PREFIX}{user_id}"
+
+        # 尝试从 Redis 获取缓存
+        try:
+            redis_client = get_redis_client()
+            cached_data = await redis_client.get(cache_key)
+            if cached_data:
+                result = json.loads(cached_data)
+                logger.info(
+                    f"[Skills Cache] Hit for user {user_id}, {len(result.get('skills', {}))} skills"
+                )
+                return result
+        except Exception as e:
+            logger.warning(f"[Skills Cache] Redis get failed for user {user_id}: {e}")
+
+        # 缓存未命中，从 MongoDB 加载
+        logger.info(f"[Skills Cache] Miss for user {user_id}")
+
         # Get user preferences for system skills
         user_preferences = await self._get_user_preferences(user_id)
 
@@ -429,7 +511,7 @@ class SkillStorage:
                 is_enabled = doc.get("enabled", True)
 
             if is_enabled:
-                skill_data = self._doc_to_effective_dict(doc)
+                skill_data = self._doc_to_effective_dict(doc, is_system=True)
                 # 直接从 MongoDB 文档的 files 字段获取文件
                 skill_files = doc.get("files", {})
                 if skill_files:
@@ -443,7 +525,7 @@ class SkillStorage:
         user_collection = self._get_user_collection()
         user_skills = {}
         async for doc in user_collection.find({"user_id": user_id, "enabled": True}):
-            skill_data = self._doc_to_effective_dict(doc)
+            skill_data = self._doc_to_effective_dict(doc, is_system=False)
             # 直接从 MongoDB 文档的 files 字段获取文件
             skill_files = doc.get("files", {})
             if skill_files:
@@ -455,8 +537,17 @@ class SkillStorage:
 
         # Merge (user skills override system skills with same name)
         result = {**system_skills, **user_skills}
+        response = {"skills": result}
 
-        return {"skills": result}
+        # 存入 Redis 缓存
+        try:
+            redis_client = get_redis_client()
+            await redis_client.set(cache_key, json.dumps(response), ex=SKILLS_CACHE_TTL)
+            logger.info(f"[Skills Cache] Cached {len(result)} skills for user {user_id}")
+        except Exception as e:
+            logger.warning(f"[Skills Cache] Redis set failed for user {user_id}: {e}")
+
+        return response
 
     async def get_visible_skills(
         self,
@@ -515,6 +606,9 @@ class SkillStorage:
                     }
                 },
             )
+            # Invalidate cache for this user
+            await self._invalidate_user_skills_cache(user_id)
+
             updated_doc = await user_collection.find_one({"name": name, "user_id": user_id})
             if updated_doc:
                 return self._doc_to_response(updated_doc, is_system=False, can_edit=True)
@@ -556,6 +650,9 @@ class SkillStorage:
                     }
                 },
             )
+            # Invalidate all users' cache since system skill affects everyone
+            await self._invalidate_all_skills_cache()
+
             updated_doc = await system_collection.find_one({"name": name})
             if updated_doc:
                 return self._doc_to_response(updated_doc, is_system=True, can_edit=True)
@@ -844,12 +941,13 @@ class SkillStorage:
             updated_at=updated_at,
         )
 
-    def _doc_to_effective_dict(self, doc: dict[str, Any]) -> dict[str, Any]:
+    def _doc_to_effective_dict(self, doc: dict[str, Any], is_system: bool = True) -> dict[str, Any]:
         """Convert MongoDB document to effective dict format"""
         result = {
             "name": doc["name"],
             "description": doc.get("description", ""),
             "content": doc.get("content", ""),
+            "is_system": is_system,
         }
         if doc.get("github_url"):
             result["github_url"] = doc["github_url"]
@@ -967,6 +1065,90 @@ class SkillStorage:
                 }
             },
         )
+
+    # ==========================================
+    # MCP Tools Cache (Redis)
+    # ==========================================
+
+    async def get_mcp_tools(
+        self,
+        user_id: str,
+        fetch_func,
+        cache_key_suffix: Optional[str] = None,
+        ttl: int = MCP_TOOLS_METADATA_CACHE_TTL,
+    ) -> list[dict[str, Any]]:
+        """
+        获取 MCP 工具（带 Redis 缓存）
+
+        先检查 Redis 缓存，有缓存就返回，没有就调用 fetch_func 获取并存入缓存。
+
+        Args:
+            user_id: 用户 ID
+            fetch_func: 异步函数，用于获取 MCP 工具，签名: async def fetch_func() -> list[dict]
+            cache_key_suffix: 缓存键后缀（可选，用于区分不同类型的工具）
+            ttl: 缓存过期时间（秒），默认 30 分钟
+
+        Returns:
+            MCP 工具列表
+        """
+        # 构建缓存键
+        cache_key = f"{MCP_TOOLS_METADATA_KEY_PREFIX}{user_id}"
+        if cache_key_suffix:
+            cache_key = f"{cache_key}:{cache_key_suffix}"
+
+        # 尝试从 Redis 获取缓存
+        try:
+            redis_client = get_redis_client()
+            cached_data = await redis_client.get(cache_key)
+
+            if cached_data:
+                tools = json.loads(cached_data)
+                logger.info(f"[MCP Tools Cache] Hit for user {user_id}, {len(tools)} tools")
+                return tools
+        except Exception as e:
+            logger.warning(f"[MCP Tools Cache] Redis get failed for user {user_id}: {e}")
+
+        # 缓存未命中，调用 fetch_func 获取数据
+        logger.info(f"[MCP Tools Cache] Miss for user {user_id}")
+        tools = await fetch_func()
+
+        # 存入 Redis 缓存
+        try:
+            redis_client = get_redis_client()
+            await redis_client.set(cache_key, json.dumps(tools), ex=ttl)
+            logger.info(f"[MCP Tools Cache] Cached {len(tools)} tools for user {user_id}")
+        except Exception as e:
+            logger.warning(f"[MCP Tools Cache] Redis set failed for user {user_id}: {e}")
+
+        return tools
+
+    async def invalidate_mcp_tools_cache(
+        self, user_id: str, cache_key_suffix: Optional[str] = None
+    ) -> bool:
+        """
+        使 MCP 工具缓存失效
+
+        Args:
+            user_id: 用户 ID
+            cache_key_suffix: 缓存键后缀（可选）
+
+        Returns:
+            是否成功删除缓存
+        """
+        cache_key = f"{MCP_TOOLS_METADATA_KEY_PREFIX}{user_id}"
+        if cache_key_suffix:
+            cache_key = f"{cache_key}:{cache_key_suffix}"
+
+        try:
+            redis_client = get_redis_client()
+            result = await redis_client.delete(cache_key)
+            if result > 0:
+                logger.info(f"[MCP Tools Cache] Invalidated cache for user {user_id}")
+                return True
+        except Exception as e:
+            logger.warning(f"[MCP Tools Cache] Redis delete failed for user {user_id}: {e}")
+
+        return False
 
     async def close(self):
         """Close MongoDB connection"""

@@ -251,8 +251,27 @@ async def reveal_file(
         # 获取文件类别
         file_category = get_file_category(upload_result.content_type or mime_type)
 
+        # 从 configurable 中获取 base_url
+        base_url = ""
+        if runtime:
+            logger.info(f"[reveal_file] runtime type: {type(runtime)}")
+            logger.info(f"[reveal_file] runtime attributes: {dir(runtime)}")
+
+            if hasattr(runtime, "config"):
+                config = runtime.config
+                logger.info(f"[reveal_file] config type: {type(config)}")
+                logger.info(f"[reveal_file] config: {config}")
+                if isinstance(config, dict):
+                    configurable = config.get("configurable", {})
+                    logger.info(f"[reveal_file] configurable: {configurable}")
+                    base_url = configurable.get("base_url", "")
+                    logger.info(f"[reveal_file] base_url from configurable: '{base_url}'")
+            else:
+                logger.warning("[reveal_file] runtime has no 'config' attribute")
+
         # 生成后端代理 URL（与 /api/upload 返回格式一致）
-        proxy_url = f"/api/upload/file/{upload_result.key}"
+        proxy_path = f"/api/upload/file/{upload_result.key}"
+        proxy_url = f"{base_url}{proxy_path}" if base_url else proxy_path
 
         # 返回与前端 UploadResult 一致的格式
         result = {

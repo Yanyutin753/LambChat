@@ -168,7 +168,9 @@ class DaytonaBackend(BaseSandbox):
             if files is None:
                 files = []
         except Exception as e:
-            logger.warning("search_files failed: %s", e)
+            # Daytona API sometimes returns None for files instead of [], causing validation error
+            # This is expected when no matches are found, so log at DEBUG level
+            logger.debug("search_files failed (returning empty list): %s", e)
             return []
 
         return [{"path": f, "is_dir": f.endswith("/")} for f in files]

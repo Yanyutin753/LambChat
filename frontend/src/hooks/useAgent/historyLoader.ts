@@ -3,6 +3,7 @@ import type {
   ToolCall,
   ToolResult,
   ToolPart,
+  ThinkingPart,
   SandboxPart,
   FormField,
   MessageAttachment,
@@ -164,9 +165,10 @@ function processHistoryEvent(
     }
 
     case "thinking": {
+      const thinkingId = eventData.thinking_id;
       const thinkingPart = createThinkingPart(
         eventData.content || "",
-        undefined,
+        thinkingId,
         depth,
         agentId,
         false,
@@ -182,11 +184,29 @@ function processHistoryEvent(
         );
       } else {
         const newParts = [...parts];
-        const lastPart = newParts[newParts.length - 1];
-        if (lastPart?.type === "thinking") {
-          newParts[newParts.length - 1] = {
-            ...lastPart,
-            content: lastPart.content + (eventData.content || ""),
+        let existingIndex = -1;
+
+        // 如果有 thinking_id，精确匹配
+        if (thinkingId !== undefined) {
+          existingIndex = newParts.findIndex(
+            (p) => p.type === "thinking" && p.thinking_id === thinkingId,
+          );
+        } else {
+          // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
+          for (let i = newParts.length - 1; i >= 0; i--) {
+            const p = newParts[i];
+            if (p.type === "thinking" && p.thinking_id === undefined) {
+              existingIndex = i;
+              break;
+            }
+          }
+        }
+
+        if (existingIndex >= 0) {
+          const existing = newParts[existingIndex] as ThinkingPart;
+          newParts[existingIndex] = {
+            ...existing,
+            content: existing.content + (eventData.content || ""),
           };
         } else {
           newParts.push(thinkingPart);
@@ -232,8 +252,9 @@ function processHistoryEvent(
     }
 
     case "tool:start": {
+      const toolCallId = eventData.tool_call_id;
       const toolCall: ToolCall = {
-        id: undefined,
+        id: toolCallId,
         name: eventData.tool || "",
         args: eventData.args || {},
       };
@@ -242,6 +263,7 @@ function processHistoryEvent(
         eventData.args || {},
         depth,
         agentId,
+        toolCallId,
       );
       const parts = msg.parts || [];
       if (depth > 0) {
@@ -260,23 +282,30 @@ function processHistoryEvent(
     }
 
     case "tool:result": {
+      const toolCallId = eventData.tool_call_id;
+      const isSuccess =
+        eventData.success !== false &&
+        !eventData.result?.toString().startsWith("Error:");
       const toolResult: ToolResult = {
+        id: toolCallId,
         name: eventData.tool || "",
         result: eventData.result || "",
-        success: !eventData.result?.toString().startsWith("Error:"),
+        success: isSuccess,
       };
-      const toolName = eventData.tool || "";
       const parts = msg.parts || [];
-      if (depth > 0) {
+      if (depth > 0 || toolCallId) {
         msg.parts = updateToolResultInDepth(
           parts,
-          toolName,
+          toolCallId || "",
           eventData.result || "",
-          eventData.success !== false,
+          isSuccess,
+          eventData.error,
           depth,
           agentId,
         );
       } else {
+        // 向后兼容：按 name 匹配
+        const toolName = eventData.tool || "";
         let updated = false;
         const newParts = parts.map((p) => {
           if (
@@ -289,7 +318,8 @@ function processHistoryEvent(
             return {
               ...p,
               result: eventData.result || "",
-              success: eventData.success !== false,
+              success: isSuccess,
+              error: eventData.error,
               isPending: false,
             } as ToolPart;
           }

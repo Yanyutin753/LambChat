@@ -8,7 +8,7 @@ Agent 路由
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from src.agents.core.base import AgentFactory
@@ -245,7 +245,8 @@ async def chat(
 @router.post("/{agent_id}/stream")
 async def chat_stream(
     agent_id: str,
-    request: AgentRequest,
+    request_body: AgentRequest,
+    request: Request,
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -256,22 +257,27 @@ async def chat_stream(
     需要认证，session 会绑定到当前用户。
     """
     agent = await AgentFactory.get(agent_id)
-    session_id = request.session_id or str(uuid.uuid4())
+    session_id = request_body.session_id or str(uuid.uuid4())
     user_id = user.sub  # 在闭包外部捕获
 
+    # 获取 base_url（用于生成完整的文件 URL）
+    # request.base_url 返回的是 base URL（如 http://localhost:8000/），需要去掉末尾的 /
+    base_url = str(request.base_url).rstrip("/")
+
     # Pass all agent_options to the agent
-    agent_options = request.agent_options or {}
-    logger.info(f"[API] request.agent_options: {request.agent_options}")
+    agent_options = request_body.agent_options or {}
+    logger.info(f"[API] request.agent_options: {request_body.agent_options}")
     logger.info(f"[API] agent_options to pass: {agent_options}")
-    logger.info(f"[API] disabled_tools: {request.disabled_tools}")
+    logger.info(f"[API] disabled_tools: {request_body.disabled_tools}")
 
     async def event_generator():
         async for event in agent.stream(
-            request.message,
+            request_body.message,
             session_id,
             user_id=user_id,
-            disabled_tools=request.disabled_tools,
+            disabled_tools=request_body.disabled_tools,
             agent_options=agent_options,
+            base_url=base_url,
         ):
             # event 格式: {"event": "xxx", "data": {...}}
             yield f"event: {event['event']}\ndata: {event['data']}\n\n"

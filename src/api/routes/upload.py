@@ -9,7 +9,7 @@ import base64
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required, require_permissions
@@ -140,6 +140,7 @@ async def get_or_init_storage():
 
 @router.post("/file")
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> dict:
@@ -150,6 +151,7 @@ async def upload_file(
     Files are stored in folders organized by user_id.
 
     Args:
+        request: FastAPI request object (for base_url)
         file: File to upload
         current_user: Current authenticated user
 
@@ -227,8 +229,10 @@ async def upload_file(
             metadata={"uploaded_by": current_user.sub},
         )
 
-        # Return proxy URL (no auth required now)
-        proxy_url = f"/api/upload/file/{result.key}"
+        # 获取 base_url 并生成完整 URL
+        base_url = str(request.base_url).rstrip("/")
+        proxy_path = f"/api/upload/file/{result.key}"
+        proxy_url = f"{base_url}{proxy_path}"
 
         return {
             "key": result.key,

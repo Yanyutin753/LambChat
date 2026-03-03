@@ -27,6 +27,8 @@ class Permission(str, Enum):
     SESSION_READ = "session:read"
     SESSION_WRITE = "session:write"
     SESSION_DELETE = "session:delete"
+    SESSION_ADMIN = "session:admin"
+    SESSION_SHARE = "session:share"
 
     # Skill
     SKILL_READ = "skill:read"

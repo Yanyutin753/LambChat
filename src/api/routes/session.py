@@ -5,8 +5,9 @@
 管理员可以访问所有会话。
 """
 
+import asyncio
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -21,6 +22,47 @@ logger = logging.getLogger(__name__)
 
 # 管理员角色
 ADMIN_ROLES = {"admin", "administrator"}
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """判断错误是否可重试（429、网络错误等）"""
+    error_str = str(error).lower()
+    retryable_patterns = [
+        "429",  # rate limit
+        "503",  # service unavailable
+        "502",  # bad gateway
+        "504",  # gateway timeout
+        "timeout",
+        "connection",
+        "overloaded",
+    ]
+    return any(pattern in error_str for pattern in retryable_patterns)
+
+
+async def _ainvoke_with_retry(model, prompt: str, max_retries: int | None = None) -> Any:
+    """带重试的 LLM 调用"""
+
+    if max_retries is None:
+        max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
+
+    last_error: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            return await model.ainvoke(prompt)
+        except Exception as e:
+            last_error = e
+            if _is_retryable_error(e) and attempt < max_retries - 1:
+                delay = 1.0 * (2**attempt)  # 指数退避
+                logger.warning(
+                    f"LLM call failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                    f"Retrying in {delay}s..."
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
+    if last_error is None:
+        raise RuntimeError("Unexpected state: no error but loop exhausted")
+    raise last_error
 
 
 def is_admin(user: TokenPayload) -> bool:
@@ -411,7 +453,7 @@ async def generate_session_title(
         )
         prompt = prompt_template.format(message=message[:800])
 
-        response = await model.ainvoke(prompt)
+        response = await _ainvoke_with_retry(model, prompt)
         print("LLM 生成标题响应:", response)
 
         # 提取标题，兼容新旧格式

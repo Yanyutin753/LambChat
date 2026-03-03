@@ -414,8 +414,9 @@ export function useAgent(options?: UseAgentOptions) {
         }
 
         case "tool:start": {
+          const toolCallId = data.tool_call_id as string | undefined;
           const toolCall: ToolCall = {
-            id: undefined,
+            id: toolCallId,
             name: data.tool || "",
             args: data.args || {},
           };
@@ -423,7 +424,8 @@ export function useAgent(options?: UseAgentOptions) {
             data.tool || "",
             data.args || {},
             depth,
-            data.agent_id,
+            data.agent_id as string | undefined,
+            toolCallId,
           );
           setMessages((prev) =>
             prev.map((m) => {
@@ -457,28 +459,37 @@ export function useAgent(options?: UseAgentOptions) {
         }
 
         case "tool:result": {
+          const toolCallId = data.tool_call_id as string | undefined;
+          const isSuccess =
+            data.success !== false &&
+            !data.result?.toString().startsWith("Error:");
           const toolResult: ToolResult = {
+            id: toolCallId,
             name: data.tool || "",
             result: data.result || "",
-            success: !data.result?.startsWith("Error:"),
+            success: isSuccess,
           };
-          const toolName = data.tool || "";
+          const errorMsg = data.error as string | undefined;
           setMessages((prev) =>
             prev.map((m) => {
               if (m.id !== messageId) return m;
               const parts = m.parts || [];
 
-              if (depth > 0) {
+              if (depth > 0 || toolCallId) {
+                // 优先使用 tool_call_id 匹配
                 const newParts = updateToolResultInDepth(
                   parts,
-                  toolName,
+                  toolCallId || "",
                   toolResult.result,
                   toolResult.success,
+                  errorMsg,
                   depth,
                   data.agent_id as string,
                 );
                 return { ...m, parts: newParts };
               } else {
+                // 向后兼容：按 name 匹配
+                const toolName = data.tool || "";
                 let updated = false;
                 const newParts = parts.map((p) => {
                   if (
@@ -492,6 +503,7 @@ export function useAgent(options?: UseAgentOptions) {
                       ...p,
                       result: toolResult.result,
                       success: toolResult.success,
+                      error: errorMsg,
                       isPending: false,
                     };
                   }
@@ -829,10 +841,11 @@ export function useAgent(options?: UseAgentOptions) {
   // Load message history from backend
   const loadHistory = useCallback(
     async (targetSessionId: string, targetRunId?: string) => {
-      // Prevent concurrent loadHistory calls
+      // Allow switching sessions anytime - abort previous loading
       if (isLoadingHistoryRef.current) {
-        console.log("[loadHistory] Already loading, skipping...");
-        return;
+        console.log(
+          "[loadHistory] Switching to new session, aborting previous load...",
+        );
       }
       isLoadingHistoryRef.current = true;
 

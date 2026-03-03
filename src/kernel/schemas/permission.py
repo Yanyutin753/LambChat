@@ -62,6 +62,14 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "删除会话",
         "description": "删除会话",
     },
+    Permission.SESSION_ADMIN.value: {
+        "label": "管理所有会话",
+        "description": "查看和管理所有用户的会话（管理员权限）",
+    },
+    Permission.SESSION_SHARE.value: {
+        "label": "分享会话",
+        "description": "创建和管理会话分享链接",
+    },
     # Skill
     Permission.SKILL_READ.value: {
         "label": "读取技能",
@@ -170,6 +178,8 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.SESSION_READ.value,
             Permission.SESSION_WRITE.value,
             Permission.SESSION_DELETE.value,
+            Permission.SESSION_ADMIN.value,
+            Permission.SESSION_SHARE.value,
         ],
     },
     {

@@ -45,6 +45,7 @@ export interface EventData {
   agent_id?: string;
   agent_name?: string;
   tool?: string;
+  tool_call_id?: string;
   args?: Record<string, unknown>;
   result?: string;
   success?: boolean;
@@ -114,9 +115,11 @@ export interface SubagentStackItem {
 export interface HistoryEventData {
   content?: string;
   tool?: string;
+  tool_call_id?: string;
   args?: Record<string, unknown>;
   result?: string;
   success?: boolean;
+  error?: string;
   depth?: number;
   agent_id?: string;
   agent_name?: string;
@@ -124,7 +127,6 @@ export interface HistoryEventData {
   timestamp?: string;
   sandbox_id?: string;
   work_dir?: string;
-  error?: string;
   thinking_id?: string;
   attachments?: Array<{
     id: string;

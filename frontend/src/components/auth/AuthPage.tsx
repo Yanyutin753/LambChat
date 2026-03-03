@@ -11,11 +11,14 @@ import {
   EyeOff,
   AlertCircle,
   AtSign,
+  MessageSquare,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { ThemeToggle } from "../common/ThemeToggle";
+import { LanguageToggle } from "../common/LanguageToggle";
 
 type AuthMode = "login" | "register";
 
@@ -104,11 +107,30 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white dark:bg-stone-950">
-      <div className="w-full max-w-md px-6">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      {/* 左上角 Logo */}
+      <div className="absolute left-4 top-4 flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-stone-100 dark:hover:bg-stone-800">
+          <img src="/icons/icon.svg" alt="LambChat" className="h-5 w-5" />
+        </div>
+      </div>
+
+      {/* 右上角按钮 */}
+      <div className="absolute right-4 top-4 flex items-center gap-2">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+
+      {/* 背景装饰 */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
+        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
+      </div>
+
+      <div className="relative w-full max-w-md px-6">
         {/* Logo 和标题 */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold text-gray-900 dark:text-stone-100 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-stone-100 mb-2 tracking-tight">
             LambChat
           </h1>
           <p className="mt-2 text-sm text-gray-500 dark:text-stone-400">
@@ -117,7 +139,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
         </div>
 
         {/* 表单卡片 */}
-        <div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-stone-800 dark:bg-stone-900">
+        <div className="rounded-2xl border border-gray-200/60 bg-white/80 p-8 shadow-xl backdrop-blur-sm dark:border-stone-700/60 dark:bg-stone-900/80">
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* 错误提示 */}
             {error && (
@@ -140,7 +162,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white py-3 pl-10 pr-4 text-gray-900 placeholder-gray-400 transition-colors focus:border-gray-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500"
+                  className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-3.5 pl-11 pr-4 text-gray-900 placeholder-gray-400 transition-all focus:border-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-100 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500 dark:focus:bg-stone-800 dark:focus:ring-stone-700/50"
                   placeholder={
                     mode === "login"
                       ? t("auth.usernameOrEmailPlaceholder")
@@ -170,7 +192,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white py-3 pl-10 pr-4 text-gray-900 placeholder-gray-400 transition-colors focus:border-gray-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500"
+                    className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-3.5 pl-11 pr-4 text-gray-900 placeholder-gray-400 transition-all focus:border-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-100 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500 dark:focus:bg-stone-800 dark:focus:ring-stone-700/50"
                     placeholder={t("auth.emailPlaceholder")}
                     autoComplete="email"
                   />
@@ -191,7 +213,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-white py-3 pl-10 pr-10 text-gray-900 placeholder-gray-400 transition-colors focus:border-gray-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500"
+                  className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-3.5 pl-11 pr-11 text-gray-900 placeholder-gray-400 transition-all focus:border-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-100 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500 dark:focus:bg-stone-800 dark:focus:ring-stone-700/50"
                   placeholder={t("auth.passwordPlaceholder")}
                   autoComplete={
                     mode === "login" ? "current-password" : "new-password"
@@ -221,7 +243,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                     type={showPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white py-3 pl-10 pr-4 text-gray-900 placeholder-gray-400 transition-colors focus:border-gray-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500"
+                    className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-3.5 pl-11 pr-4 text-gray-900 placeholder-gray-400 transition-all focus:border-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-stone-100 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-stone-500 dark:focus:bg-stone-800 dark:focus:ring-stone-700/50"
                     placeholder={t("auth.confirmPasswordPlaceholder")}
                     autoComplete="new-password"
                   />
@@ -233,7 +255,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-lg bg-black py-3 font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-gray-100"
+              className="w-full rounded-xl bg-gradient-to-r from-stone-800 to-stone-900 py-3.5 font-medium text-white transition-all hover:shadow-lg hover:shadow-stone-500/20 hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 dark:from-stone-100 dark:to-stone-200 dark:text-stone-900 dark:hover:shadow-stone-500/10"
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-2">

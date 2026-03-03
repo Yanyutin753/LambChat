@@ -90,9 +90,9 @@ export function ThinkingBlock({
       >
         <div className="overflow-hidden">
           <div className="ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600">
-            <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap font-mono leading-relaxed pl-1 pt-2">
-              {content}
-            </pre>
+            <div className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed pl-1 pt-2">
+              <MarkdownContent content={content} isStreaming={isStreaming} />
+            </div>
           </div>
         </div>
       </div>
@@ -276,7 +276,7 @@ function SubagentToolItem({
   const canExpand = hasArgs || hasResult;
 
   return (
-    <div className="rounded-lg bg-stone-100/80 dark:bg-stone-700/50 overflow-hidden">
+    <div className="rounded-lg overflow-hidden">
       <CollapsiblePill
         status={status}
         icon={<Wrench size={12} className="shrink-0 opacity-50" />}

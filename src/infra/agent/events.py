@@ -310,10 +310,15 @@ class AgentEventProcessor:
     ) -> None:
         """处理工具调用开始"""
         inp: Any = event.get("data", {}).get("input", {})
+        # 使用 run_id 作为 tool_call_id，保证 start/end 一致
+        run_id = event.get("run_id", "")
+        tool_call_id = run_id or f"tool_{uuid.uuid4().hex[:8]}"
+
         await self.presenter.emit(
             self.presenter.present_tool_start(
                 tool_name,
                 inp,
+                tool_call_id=tool_call_id,
                 depth=current_depth,
                 agent_id=current_agent_id,
             )
@@ -328,9 +333,35 @@ class AgentEventProcessor:
     ) -> None:
         """处理工具调用结束"""
         out = event.get("data", {}).get("output", "")
+        # 使用 run_id 作为 tool_call_id，保证与 start 一致
+        run_id = event.get("run_id", "")
+        tool_call_id = run_id or f"tool_{uuid.uuid4().hex[:8]}"
+
+        # 检测是否是错误
+        is_error = False
+        error_message = None
+        if isinstance(out, dict):
+            # 检查是否有错误标记
+            if out.get("error") or out.get("status") == "error":
+                is_error = True
+                error_message = out.get("error") or out.get("message") or str(out)
+        elif isinstance(out, str):
+            # 检测各种错误格式
+            error_indicators = [
+                "Error:",
+                "ValidationError",
+                "[MCP Tool Error]",
+                "failed",
+                "error",
+                "exception",
+                "Traceback",
+            ]
+            if any(indicator.lower() in out.lower() for indicator in error_indicators):
+                is_error = True
+                error_message = out
 
         # 检测 add_skill_from_path 工具的成功结果，发送 skill:added 事件
-        if tool_name == "add_skill_from_path" and isinstance(out, str):
+        if tool_name == "add_skill_from_path" and isinstance(out, str) and not is_error:
             try:
                 result = json.loads(out)
                 if result.get("type") == "skill_added" and result.get("success"):
@@ -358,6 +389,9 @@ class AgentEventProcessor:
             self.presenter.present_tool_result(
                 tool_name,
                 str(out),
+                tool_call_id=tool_call_id,
+                success=not is_error,
+                error=error_message,
                 depth=current_depth,
                 agent_id=current_agent_id,
             )
