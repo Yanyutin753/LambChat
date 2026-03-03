@@ -607,7 +607,7 @@ export default function DocumentPreview({
                 </div>
               }
             >
-              <div className="h-full min-h-[400px]">
+              <div className="h-full min-h-[400px] max-h-full overflow-hidden">
                 <ExcalidrawPreview data={excalidrawData} />
               </div>
             </Suspense>
