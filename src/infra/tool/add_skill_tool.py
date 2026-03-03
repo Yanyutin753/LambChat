@@ -9,78 +9,20 @@ Add Skill 工具
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from deepagents.backends.protocol import BackendProtocol
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
+from src.infra.skill.storage import SkillStorage
+from src.infra.tool.backend_utils import get_backend_from_runtime
+from src.kernel.schemas.skill import SkillCreate, SkillSource
+
 logger = logging.getLogger(__name__)
 
-
-def _get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
-    """从 ToolRuntime 获取 backend（分布式安全）
-
-    Backend 通过 runtime.config["configurable"]["backend"] 传递
-    注意：config 中存的是 backend_factory（函数），需要调用 factory(runtime) 获取实例
-    """
-    if runtime is None:
-        return None
-
-    try:
-        # 方式1: 从 runtime.config["configurable"]["backend"] 获取（主要方式）
-        if hasattr(runtime, "config") and runtime.config:
-            config = runtime.config
-            # 检查 configurable 字典
-            if isinstance(config, dict):
-                configurable = config.get("configurable", {})
-                if isinstance(configurable, dict):
-                    backend_or_factory = configurable.get("backend")
-                    if backend_or_factory is not None:
-                        # 如果是工厂函数，调用它获取 backend 实例
-                        if callable(backend_or_factory):
-                            logger.debug("Calling backend_factory to get backend instance")
-                            return backend_or_factory(runtime)
-                        else:
-                            logger.debug(
-                                "Got backend instance from runtime.config['configurable']['backend']"
-                            )
-                            return backend_or_factory
-                # 也检查直接的 backend 键
-                backend_or_factory = config.get("backend")
-                if backend_or_factory is not None:
-                    if callable(backend_or_factory):
-                        logger.debug("Calling backend_factory from config['backend']")
-                        return backend_or_factory(runtime)
-                    else:
-                        return backend_or_factory
-
-        # 方式2: 从 runtime 的 attributes 中获取
-        if hasattr(runtime, "attributes"):
-            backend_or_factory = runtime.attributes.get("backend")
-            if backend_or_factory is not None:
-                if callable(backend_or_factory):
-                    logger.debug("Calling backend_factory from attributes")
-                    return backend_or_factory(runtime)
-                else:
-                    return backend_or_factory
-
-        # 方式3: 从 configurable 属性获取
-        if hasattr(runtime, "configurable"):
-            configurable = runtime.configurable
-            if isinstance(configurable, dict):
-                backend_or_factory = configurable.get("backend")
-                if backend_or_factory is not None:
-                    if callable(backend_or_factory):
-                        logger.debug("Calling backend_factory from configurable")
-                        return backend_or_factory(runtime)
-                    else:
-                        return backend_or_factory
-
-    except Exception as e:
-        logger.warning(f"Failed to get backend from runtime: {e}")
-
-    return None
+# Skill name maximum length
+MAX_SKILL_NAME_LENGTH = 100
 
 
 def _parse_skill_metadata(content: str) -> tuple[str, str]:
@@ -259,11 +201,8 @@ async def add_skill_from_path(
     Returns:
         JSON 格式结果，包含 skill 信息或错误信息
     """
-    from src.infra.skill.storage import SkillStorage
-    from src.kernel.schemas.skill import SkillCreate, SkillSource
-
     # 获取 backend
-    backend = _get_backend_from_runtime(runtime)
+    backend = get_backend_from_runtime(runtime)
 
     if backend is None:
         logger.warning("Backend not available from runtime")
@@ -277,6 +216,16 @@ async def add_skill_from_path(
 
     # 规范化路径
     skill_path = skill_path.rstrip("/")
+
+    # 基本路径遍历检查
+    if ".." in skill_path:
+        result = {
+            "type": "skill_added",
+            "success": False,
+            "error": "invalid_path",
+            "message": "Path traversal not allowed in skill_path.",
+        }
+        return json.dumps(result, ensure_ascii=False)
 
     try:
         # 读取目录中的所有文件
@@ -321,6 +270,16 @@ async def add_skill_from_path(
                 "success": False,
                 "error": "invalid_skill_name",
                 "message": "Could not determine skill name. Please provide skill_name parameter.",
+            }
+            return json.dumps(result, ensure_ascii=False)
+
+        # 验证 skill name 长度
+        if len(skill_name) > MAX_SKILL_NAME_LENGTH:
+            result = {
+                "type": "skill_added",
+                "success": False,
+                "error": "skill_name_too_long",
+                "message": f"Skill name exceeds maximum length of {MAX_SKILL_NAME_LENGTH} characters.",
             }
             return json.dumps(result, ensure_ascii=False)
 
