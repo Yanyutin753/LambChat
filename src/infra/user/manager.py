@@ -11,7 +11,7 @@ from src.infra.role.storage import RoleStorage
 from src.infra.settings.service import SettingsService
 from src.infra.user.storage import UserStorage
 from src.kernel.config import settings
-from src.kernel.schemas.user import Token, User, UserCreate, UserUpdate
+from src.kernel.schemas.user import Token, User, UserCreate, UserListResponse, UserUpdate
 
 
 class UserManager:
@@ -156,18 +156,28 @@ class UserManager:
     async def list_users(
         self,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 20,
+        search: Optional[str] = None,
         is_active: Optional[bool] = None,
-    ) -> list[User]:
+    ) -> UserListResponse:
         """
-        列出用户
+        列出用户（分页）
 
         Args:
             skip: 跳过数量
-            limit: 返回数量
+            limit: 返回数量（默认20）
+            search: 搜索字符串（用户名/邮箱模糊匹配）
             is_active: 是否激活
 
         Returns:
-            用户列表
+            分页用户列表响应
         """
-        return await self.storage.list_users(skip, limit, is_active)
+        users = await self.storage.list_users(skip, limit, is_active, search)
+        total = await self.storage.count_users(search, is_active)
+        return UserListResponse(
+            users=users,
+            total=total,
+            skip=skip,
+            limit=limit,
+            has_more=skip + limit < total,
+        )
