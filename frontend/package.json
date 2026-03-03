@@ -11,6 +11,7 @@
     "i18n:extract": "npx tsx scripts/extract-i18n.ts"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.0",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@types/react-syntax-highlighter": "^15.5.13",
     "clsx": "^2.1.1",

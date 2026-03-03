@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../common/LoadingSpinner";
@@ -28,6 +28,7 @@ import {
   isCodeFile,
   isMarkdownFile,
   isPreviewableFile,
+  isExcalidrawFile,
   getFileTypeInfo,
   detectLanguage,
 } from "./utils";
@@ -40,6 +41,9 @@ import PptPreview from "./previews/PptPreview";
 import WordPreview from "./previews/WordPreview";
 import ExcelPreview from "./previews/ExcelPreview";
 import HtmlPreview from "./previews/HtmlPreview";
+
+// Lazy load Excalidraw preview (large library ~500KB)
+const ExcalidrawPreview = lazy(() => import("./previews/ExcalidrawPreview"));
 
 // Re-export utilities for external use
 /* eslint-disable react-refresh/only-export-components */
@@ -103,6 +107,7 @@ export default function DocumentPreview({
   const [arrayBuffer, setArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
+  const [excalidrawData, setExcalidrawData] = useState<string>("");
 
   const fileName = path.split("/").pop() || path;
   const ext = getFileExtension(fileName);
@@ -116,6 +121,7 @@ export default function DocumentPreview({
   const codeFile = isCodeFile(ext);
   const markdownFile = isMarkdownFile(fileName);
   const previewable = isPreviewableFile(ext);
+  const excalidrawFile = isExcalidrawFile(ext);
 
   // Memoize language detection for performance
   const language = useMemo(() => detectLanguage(fileName), [fileName]);
@@ -128,9 +134,18 @@ export default function DocumentPreview({
       !wordFile &&
       !excelFile &&
       !pptFile &&
-      !htmlFile
+      !htmlFile &&
+      !excalidrawFile
     );
-  }, [data?.content, binaryFile, wordFile, excelFile, pptFile, htmlFile]);
+  }, [
+    data?.content,
+    binaryFile,
+    wordFile,
+    excelFile,
+    pptFile,
+    htmlFile,
+    excalidrawFile,
+  ]);
 
   // Memoize char count - show file size for binary files
   const displaySize = useMemo(() => {
@@ -223,6 +238,19 @@ export default function DocumentPreview({
             } catch (e) {
               console.error("Failed to fetch HTML content:", e);
             }
+            setData({ content: "", path });
+            setLoading(false);
+            return;
+          }
+
+          // Excalidraw files - load as text and pass to preview
+          if (excalidrawFile) {
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch file: ${response.status}`);
+            }
+            const text = await response.text();
+            setExcalidrawData(text);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -570,6 +598,18 @@ export default function DocumentPreview({
                 />
               )}
             </>
+          ) : excalidrawFile && excalidrawData ? (
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full">
+                  <LoadingSpinner size="lg" />
+                </div>
+              }
+            >
+              <div className="h-full min-h-[400px]">
+                <ExcalidrawPreview data={excalidrawData} />
+              </div>
+            </Suspense>
           ) : markdownFile ? (
             <div className="p-4 sm:p-6 lg:p-8">
               <MarkdownRenderer content={data?.content || ""} t={t} />

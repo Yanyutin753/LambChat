@@ -145,7 +145,8 @@ export function isPreviewableFile(ext: string): boolean {
     isPptFile(ext) ||
     isHtmlFile(ext) ||
     isCodeFile(ext) ||
-    isMarkdownFile(ext)
+    isMarkdownFile(ext) ||
+    isExcalidrawFile(ext)
   );
 }
 
@@ -187,6 +188,11 @@ export function isCodeFile(ext: string): boolean {
 export function isMarkdownFile(fileName: string): boolean {
   const ext = getFileExtension(fileName);
   return ext === "md" || ext === "markdown";
+}
+
+// Check if file is Excalidraw
+export function isExcalidrawFile(ext: string): boolean {
+  return ext === "excalidraw" || ext === "exdraw";
 }
 
 // Get file type for react-file-icon
@@ -1362,6 +1368,22 @@ const FILE_TYPE_MAP: Record<
     bg: "bg-yellow-100 dark:bg-yellow-900/40",
     label: "Lock",
     category: "config",
+  },
+
+  // ===== Excalidraw =====
+  excalidraw: {
+    icon: Blocks,
+    color: "text-violet-600 dark:text-violet-400",
+    bg: "bg-violet-100 dark:bg-violet-900/40",
+    label: "Excalidraw",
+    category: "document",
+  },
+  exdraw: {
+    icon: Blocks,
+    color: "text-violet-600 dark:text-violet-400",
+    bg: "bg-violet-100 dark:bg-violet-900/40",
+    label: "Excalidraw",
+    category: "document",
   },
 };
 
