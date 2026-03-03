@@ -48,6 +48,16 @@ class User(UserBase):
         from_attributes = True
 
 
+class UserListResponse(BaseModel):
+    """Paginated user list response."""
+
+    users: List[User]
+    total: int
+    skip: int
+    limit: int
+    has_more: bool
+
+
 class UserInDB(User):
     """User model with sensitive data (database view)."""
 
