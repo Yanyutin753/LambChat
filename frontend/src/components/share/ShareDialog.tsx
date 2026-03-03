@@ -2,7 +2,7 @@
  * ShareDialog - Dialog for creating and managing session shares
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Share2,
@@ -48,15 +48,7 @@ export function ShareDialog({
   const [isCreating, setIsCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Load existing shares and runs when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      loadExistingShares();
-      loadRuns();
-    }
-  }, [isOpen, sessionId]);
-
-  const loadExistingShares = async () => {
+  const loadExistingShares = useCallback(async () => {
     setIsLoading(true);
     try {
       const shares = await shareApi.listBySession(sessionId);
@@ -66,9 +58,9 @@ export function ShareDialog({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sessionId]);
 
-  const loadRuns = async () => {
+  const loadRuns = useCallback(async () => {
     setIsLoadingRuns(true);
     try {
       const response = await sessionApi.getRuns(sessionId);
@@ -78,7 +70,15 @@ export function ShareDialog({
     } finally {
       setIsLoadingRuns(false);
     }
-  };
+  }, [sessionId]);
+
+  // Load existing shares and runs when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      loadExistingShares();
+      loadRuns();
+    }
+  }, [isOpen, loadExistingShares, loadRuns]);
 
   const handleCreateShare = async () => {
     setIsCreating(true);

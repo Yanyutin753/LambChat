@@ -11,7 +11,6 @@ import {
   EyeOff,
   AlertCircle,
   AtSign,
-  MessageSquare,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";

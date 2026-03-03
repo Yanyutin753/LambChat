@@ -38,7 +38,7 @@ export function ThinkingBlock({
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={clsx(
-          "inline-flex items-center gap-1.5 px-2.5 py-2 rounded-full text-xs font-medium",
+          "inline-flex items-center gap-1 px-2.5 py-2 rounded-full text-xs font-medium",
           "transition-all bg-stone-200 dark:bg-stone-700",
           "text-stone-600 dark:text-stone-300",
           "hover:bg-stone-300 dark:hover:bg-stone-600 cursor-pointer",

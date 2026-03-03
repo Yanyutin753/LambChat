@@ -36,6 +36,67 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# 消息构建工具
+# ============================================================================
+
+
+def _build_human_message(text: str, attachments: list[dict] | None) -> HumanMessage:
+    """
+    构建 HumanMessage，将附件信息以文本形式附加到消息中
+
+    Args:
+        text: 用户输入的文本
+        attachments: 附件列表，每个附件包含:
+            - url: 文件访问链接
+            - type: 文件类型 (image/video/audio/document)
+            - name: 文件名
+            - mime_type: MIME 类型 (可选)
+            - size: 文件大小 (可选)
+
+    Returns:
+        HumanMessage: 包含文本和附件信息的消息
+    """
+    # 如果没有附件，直接返回纯文本消息
+    if not attachments:
+        return HumanMessage(content=text)
+
+    # 构建包含附件信息的文本
+    enhanced_text = text
+    enhanced_text += "\n\n---\n**用户上传的附件:**"
+
+    for attachment in attachments:
+        url = attachment.get("url", "")
+        name = attachment.get("name", "未知文件")
+        file_type = attachment.get("type", "document")
+        mime_type = attachment.get("mime_type", "")
+        size = attachment.get("size", 0)
+
+        if not url:
+            continue
+
+        # 格式化文件大小
+        size_str = ""
+        if size:
+            if size < 1024:
+                size_str = f"{size} B"
+            elif size < 1024 * 1024:
+                size_str = f"{size / 1024:.1f} KB"
+            else:
+                size_str = f"{size / (1024 * 1024):.1f} MB"
+
+        # 构建附件信息
+        enhanced_text += f"\n\n**[{name}]**"
+        enhanced_text += f"\n- 类型: {file_type}"
+        if mime_type:
+            enhanced_text += f" ({mime_type})"
+        if size_str:
+            enhanced_text += f"\n- 大小: {size_str}"
+        enhanced_text += f"\n- 链接: {url}"
+
+    return HumanMessage(content=enhanced_text)
+
+
+# ============================================================================
 # LLM 重试工具
 # ============================================================================
 
@@ -219,8 +280,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     existing_messages = inner_state.values.get("messages", [])
 
-    # 构建传入的消息列表
-    new_message = HumanMessage(content=state.get("input", ""))
+    # 构建传入的消息列表（包含附件）
+    new_message = _build_human_message(state.get("input", ""), attachments)
     all_messages = existing_messages + [new_message]
 
     # 传递 messages

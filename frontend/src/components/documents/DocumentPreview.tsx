@@ -592,6 +592,7 @@ export default function DocumentPreview({
                 url={pptUrl || ""}
                 arrayBuffer={pptxBuffer}
                 fileName={fileName}
+                t={t}
               />
             </div>
           ) : htmlFile && htmlUrl ? (
