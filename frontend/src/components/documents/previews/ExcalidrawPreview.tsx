@@ -2,8 +2,8 @@ import {
   memo,
   useEffect,
   useState,
-  Suspense,
-  lazy,
+  useRef,
+  useCallback,
   ComponentType,
 } from "react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
@@ -25,70 +25,150 @@ interface ExcalidrawInitialData {
   appState?: ExcalidrawAppState;
 }
 
+interface ExcalidrawPreviewProps {
+  data: string; // JSON string of excalidraw file content
+}
+
+interface ExcalidrawAPI {
+  updateScene: (scene: {
+    elements: readonly ExcalidrawElement[];
+    appState?: ExcalidrawAppState;
+  }) => void;
+  scrollToContent: (
+    elements?: readonly ExcalidrawElement[],
+    opts?: { fitToViewport?: boolean; animate?: boolean },
+  ) => void;
+}
+
 interface ExcalidrawComponentProps {
-  initialData?: ExcalidrawInitialData | null;
+  excalidrawAPI?: (api: ExcalidrawAPI) => void;
+  initialData?: ExcalidrawInitialData;
   viewModeEnabled?: boolean;
   zenModeEnabled?: boolean;
   gridModeEnabled?: boolean;
 }
 
-interface ExcalidrawPreviewProps {
-  data: string; // JSON string of excalidraw file content
-}
+type ExcalidrawComponent = ComponentType<ExcalidrawComponentProps>;
 
-// Lazy load Excalidraw component
-const ExcalidrawComponent = lazy(() =>
-  import("@excalidraw/excalidraw").then((mod) => ({
-    default: (
-      mod as unknown as { Excalidraw: ComponentType<ExcalidrawComponentProps> }
-    ).Excalidraw,
-  })),
-);
+// Cache the loaded module globally
+let ExcalidrawModuleCache: ExcalidrawComponent | null = null;
 
 const ExcalidrawPreview = memo(function ExcalidrawPreview({
   data,
 }: ExcalidrawPreviewProps) {
-  const [initialData, setInitialData] = useState<ExcalidrawInitialData | null>(
-    null,
+  const [Excalidraw, setExcalidraw] = useState<ExcalidrawComponent | null>(
+    ExcalidrawModuleCache,
   );
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!ExcalidrawModuleCache);
 
-  // Parse excalidraw data on mount
+  const excalidrawAPIRef = useRef<ExcalidrawAPI | null>(null);
+  const lastDataRef = useRef<string>("");
+  const isInitialMount = useRef(true);
+  const parsedDataRef = useRef<ExcalidrawInitialData | null>(null);
+
+  // Load Excalidraw module once
   useEffect(() => {
-    if (!data) {
-      setLoading(false);
+    if (ExcalidrawModuleCache) {
       return;
     }
 
-    try {
-      const parsed = JSON.parse(data);
+    setIsLoading(true);
+    import("@excalidraw/excalidraw")
+      .then((mod) => {
+        const ExcalidrawFromModule = (
+          mod as unknown as { Excalidraw: ExcalidrawComponent }
+        ).Excalidraw;
+        ExcalidrawModuleCache = ExcalidrawFromModule;
+        setExcalidraw(() => ExcalidrawFromModule);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load Excalidraw:", err);
+        setError("Failed to load Excalidraw library");
+        setIsLoading(false);
+      });
+  }, []);
 
-      // Handle both old and new excalidraw formats
+  // Parse and update data
+  const parseAndUpdateData = useCallback((rawData: string) => {
+    if (!rawData) return null;
+
+    try {
+      const parsed = JSON.parse(rawData);
       const elements = parsed.elements || parsed;
       const appState = parsed.appState || {};
 
-      if (Array.isArray(elements)) {
-        setInitialData({
-          elements: elements as ExcalidrawElement[],
-          appState: {
-            ...appState,
-            viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
-          },
-        });
-        setLoading(false);
-      } else {
+      if (!Array.isArray(elements)) {
         console.error("Invalid excalidraw file: elements is not an array");
         setError("Invalid Excalidraw file format");
-        setLoading(false);
+        return null;
       }
+
+      return {
+        elements: elements as ExcalidrawElement[],
+        appState: {
+          ...appState,
+          viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
+        },
+      };
     } catch (e) {
       console.error("Failed to parse excalidraw file:", e);
       setError("Failed to parse Excalidraw file");
-      setLoading(false);
+      return null;
     }
-  }, [data]);
+  }, []);
 
+  // Handle data changes
+  useEffect(() => {
+    if (!data || data === lastDataRef.current) {
+      return;
+    }
+    lastDataRef.current = data;
+
+    const parsed = parseAndUpdateData(data);
+    if (!parsed) {
+      return;
+    }
+
+    parsedDataRef.current = parsed;
+    setError(null);
+
+    // If API is already available, update the scene immediately
+    if (excalidrawAPIRef.current) {
+      excalidrawAPIRef.current.updateScene({
+        elements: parsed.elements,
+        appState: parsed.appState,
+      });
+      excalidrawAPIRef.current.scrollToContent(
+        parsed.elements as ExcalidrawElement[],
+        { fitToViewport: true, animate: false },
+      );
+    }
+  }, [data, parseAndUpdateData]);
+
+  // Handle API ready
+  const handleAPIReady = useCallback((api: ExcalidrawAPI) => {
+    excalidrawAPIRef.current = api;
+
+    // If we already have data, apply it now
+    if (parsedDataRef.current && isInitialMount.current) {
+      isInitialMount.current = false;
+      api.updateScene({
+        elements: parsedDataRef.current.elements,
+        appState: parsedDataRef.current.appState,
+      });
+      api.scrollToContent(
+        parsedDataRef.current.elements as ExcalidrawElement[],
+        {
+          fitToViewport: true,
+          animate: false,
+        },
+      );
+    }
+  }, []);
+
+  // Error state
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
@@ -107,36 +187,42 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
     );
   }
 
-  if (loading) {
+  // Loading state
+  if (isLoading || !Excalidraw) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <LoadingSpinner size="lg" />
         <p className="text-sm text-stone-500 dark:text-stone-400">
-          Loading Excalidraw...
+          {isLoading ? "Loading Excalidraw library..." : "Loading drawing..."}
         </p>
       </div>
     );
   }
 
+  // Parse initial data for first render
+  const initialData = parsedDataRef.current || parseAndUpdateData(data);
+
+  // Render the Excalidraw component
+  const ExcalidrawComponent = Excalidraw;
+
   return (
-    <div className="h-full w-full">
-      <Suspense
-        fallback={
-          <div className="flex flex-col items-center justify-center h-full gap-4">
-            <LoadingSpinner size="lg" />
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              Loading Excalidraw library...
-            </p>
-          </div>
-        }
-      >
-        <ExcalidrawComponent
-          initialData={initialData}
-          viewModeEnabled={true}
-          zenModeEnabled={false}
-          gridModeEnabled={false}
-        />
-      </Suspense>
+    <div
+      className="excalidraw-preview-container"
+      style={{
+        height: "100%",
+        width: "100%",
+        maxHeight: "100%",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      <ExcalidrawComponent
+        excalidrawAPI={handleAPIReady}
+        initialData={initialData ?? undefined}
+        viewModeEnabled={true}
+        zenModeEnabled={false}
+        gridModeEnabled={false}
+      />
     </div>
   );
 });
