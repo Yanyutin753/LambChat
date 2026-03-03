@@ -135,19 +135,30 @@ REVEAL_FILE_TOOLS = [
     ),
 ]
 
-# Sync Conversation 工具定义 - 恢复 write_file 创建的文件
-SYNC_CONVERSATION_TOOLS = [
+# Add Skill 工具定义
+ADD_SKILL_TOOLS = [
     ToolInfo(
-        name="sync_conversation",
-        description="恢复对话历史中使用 write_file 工具创建的文件到沙箱。由于每次对话沙箱会被重新初始化，使用此工具可以恢复之前写入的文件。",
+        name="add_skill_from_path",
+        description="从 backend 目录导入 skill 到用户的 skill 列表。读取指定目录中的所有文件（包括 SKILL.md 和依赖文件），创建为用户的 skill。导入成功后，前端会自动刷新 skill 列表。",
         category="builtin",
         parameters=[
             ToolParamInfo(
-                name="target_dir",
+                name="skill_path",
                 type="string",
-                description="恢复文件的目标目录，默认为 'restored_files'。文件将被恢复到: {target_dir}/{原始路径}",
+                description="skill 目录路径（相对于工作目录或绝对路径），目录中应该包含 SKILL.md 文件作为主文件",
+                required=True,
+            ),
+            ToolParamInfo(
+                name="skill_name",
+                type="string",
+                description="自定义 skill 名称（可选，默认从 SKILL.md 解析）",
                 required=False,
-                default="restored_files",
+            ),
+            ToolParamInfo(
+                name="description",
+                type="string",
+                description="skill 描述（可选，默认从 SKILL.md 解析）",
+                required=False,
             ),
         ],
     ),
@@ -290,9 +301,9 @@ async def list_tools(
     if settings.ENABLE_SANDBOX:
         tools.extend(REVEAL_FILE_TOOLS)
 
-    # 3. Sync Conversation 工具
+    # 3. Add Skill 工具
     if settings.ENABLE_SANDBOX:
-        tools.extend(SYNC_CONVERSATION_TOOLS)
+        tools.extend(ADD_SKILL_TOOLS)
 
     # 4. MCP 工具（实际连接获取工具列表）
     if settings.ENABLE_MCP:
