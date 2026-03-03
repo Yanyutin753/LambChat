@@ -19,6 +19,7 @@ import {
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Pagination } from "../common/Pagination";
 import { userApi, roleApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -28,6 +29,48 @@ import type {
   UserUpdate,
   Role,
 } from "../../types";
+
+// User avatar display component
+interface UserAvatarProps {
+  user: UserType;
+  size?: "sm" | "md";
+}
+
+function UserAvatar({ user, size = "sm" }: UserAvatarProps) {
+  const sizeClasses = size === "sm" ? "h-8 w-8 text-sm" : "h-10 w-10 text-base";
+
+  if (user.avatar_url) {
+    return (
+      <img
+        src={user.avatar_url}
+        alt={user.username}
+        className={`rounded-full object-cover ${sizeClasses}`}
+      />
+    );
+  }
+
+  // Fallback to initial letter
+  const initial = user.username.charAt(0).toUpperCase();
+  return (
+    <div
+      className={`flex items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium ${sizeClasses}`}
+    >
+      {initial}
+    </div>
+  );
+}
+
+// Debounce hook for search
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 // 用户表单模态框
 interface UserFormModalProps {
@@ -354,6 +397,14 @@ export function UsersPanel() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 20;
+
+  // Debounced search
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
   // 模态框状态
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
@@ -370,9 +421,14 @@ export function UsersPanel() {
     setIsLoading(true);
     setError(null);
     try {
-      // 分别加载，避免一个失败影响另一个
-      const usersData = await userApi.list();
-      setUsers(usersData);
+      const skip = (page - 1) * pageSize;
+      const response = await userApi.list({
+        skip,
+        limit: pageSize,
+        search: debouncedSearch || undefined,
+      });
+      setUsers(response.users);
+      setTotal(response.total);
     } catch (err) {
       const errorMsg = (err as Error).message || t("users.loadFailed");
       setError(errorMsg);
@@ -389,32 +445,31 @@ export function UsersPanel() {
     }
 
     setIsLoading(false);
-  }, [t]);
+  }, [page, debouncedSearch, t]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // 保存用户
   const handleSaveUser = async (data: UserCreate | UserUpdate) => {
     setIsSaving(true);
     try {
       if (editingUser) {
-        const updated = await userApi.update(
-          editingUser.id,
-          data as UserUpdate,
-        );
-        setUsers((prev) =>
-          prev.map((u) => (u.id === editingUser.id ? updated : u)),
-        );
+        await userApi.update(editingUser.id, data as UserUpdate);
         toast.success(t("users.updateSuccess"));
       } else {
-        const created = await userApi.create(data as UserCreate);
-        setUsers((prev) => [...prev, created]);
+        await userApi.create(data as UserCreate);
         toast.success(t("users.createSuccess"));
       }
       setShowFormModal(false);
       setEditingUser(null);
+      loadData();
     } catch (error) {
       toast.error((error as Error).message || t("users.operationFailed"));
     } finally {
@@ -428,22 +483,15 @@ export function UsersPanel() {
     setIsSaving(true);
     try {
       await userApi.delete(deleteUser.id);
-      setUsers((prev) => prev.filter((u) => u.id !== deleteUser.id));
       setDeleteUser(null);
       toast.success(t("users.deleteSuccess"));
+      loadData();
     } catch (error) {
       toast.error((error as Error).message || t("users.deleteFailed"));
     } finally {
       setIsSaving(false);
     }
   };
-
-  // 过滤用户
-  const filteredUsers = users.filter(
-    (u) =>
-      u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
 
   // 打开编辑模态框
   const openEditModal = (user: UserType) => {
@@ -525,14 +573,16 @@ export function UsersPanel() {
 
       {/* 用户列表 */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-        {filteredUsers.length === 0 ? (
+        {users.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Users
               size={48}
               className="mb-4 text-stone-300 dark:text-stone-600"
             />
             <p className="text-stone-500 dark:text-stone-400">
-              {searchQuery ? t("users.noMatchingUsers") : t("users.noUsers")}
+              {debouncedSearch
+                ? t("users.noMatchingUsers")
+                : t("users.noUsers")}
             </p>
           </div>
         ) : (
@@ -565,19 +615,14 @@ export function UsersPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-200 dark:divide-stone-700">
-                  {filteredUsers.map((user) => (
+                  {users.map((user) => (
                     <tr
                       key={user.id}
                       className="hover:bg-stone-50 dark:hover:bg-stone-800"
                     >
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-700">
-                            <User
-                              size={14}
-                              className="text-stone-600 dark:text-stone-300"
-                            />
-                          </div>
+                          <UserAvatar user={user} />
                           <span className="font-medium text-stone-900 dark:text-stone-100">
                             {user.username}
                           </span>
@@ -646,16 +691,11 @@ export function UsersPanel() {
 
             {/* Mobile card view */}
             <div className="space-y-3 sm:hidden">
-              {filteredUsers.map((user) => (
+              {users.map((user) => (
                 <div key={user.id} className="panel-card">
                   {/* User info: avatar, username, email */}
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-700">
-                      <User
-                        size={20}
-                        className="text-stone-600 dark:text-stone-300"
-                      />
-                    </div>
+                    <UserAvatar user={user} size="md" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-stone-900 dark:text-stone-100">
                         {user.username}
@@ -725,6 +765,27 @@ export function UsersPanel() {
           </>
         )}
       </div>
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-6">
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+            <p className="text-sm text-stone-500 dark:text-stone-400">
+              {t("users.paginationInfo", {
+                start: (page - 1) * pageSize + 1,
+                end: Math.min(page * pageSize, total),
+                total,
+              })}
+            </p>
+            <Pagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onChange={setPage}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 模态框 */}
       {showFormModal && (
