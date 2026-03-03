@@ -294,6 +294,27 @@ const PptPreview = memo(function PptPreview({
     initPreview();
   }, [isPptx, arrayBuffer, t]);
 
+  // Auto-fit on load and resize (especially helpful for mobile)
+  useEffect(() => {
+    if (isLoading || error) return;
+
+    // Initial fit
+    const timer = setTimeout(() => {
+      fitToScreen();
+    }, 100);
+
+    // Refit on resize
+    const handleResize = () => {
+      fitToScreen();
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [isLoading, error, fitToScreen]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
