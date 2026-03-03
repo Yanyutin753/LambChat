@@ -143,19 +143,28 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
         if hasattr(backend, "glob_info"):
             # 使用 **/* 模式搜索所有文件（递归）
             file_infos = backend.glob_info("**/*", path=dir_path)
-            logger.info(f"[add_skill] glob_info returned {len(file_infos)} entries for {dir_path}")
+            logger.info(
+                f"[add_skill] glob_info returned {len(file_infos)} entries for dir_path={dir_path}"
+            )
+            # 打印前10个条目的详细信息
+            for i, info in enumerate(file_infos[:10]):
+                logger.info(f"[add_skill] glob_info entry[{i}]: {info!r}")
+
             for info in file_infos:
                 if isinstance(info, dict):
                     file_path = info.get("path", "")
                     is_dir = info.get("is_dir", False)
+                    logger.debug(f"[add_skill] dict entry: path={file_path}, is_dir={is_dir}")
                     # 跳过目录
                     if is_dir or file_path.endswith("/"):
                         continue
                 elif isinstance(info, str):
                     file_path = info
+                    logger.debug(f"[add_skill] str entry: {file_path}")
                     if file_path.endswith("/"):
                         continue
                 else:
+                    logger.warning(f"[add_skill] unknown entry type: {type(info)}")
                     continue
 
                 # 处理路径：确保是完整路径
@@ -165,6 +174,10 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
                     full_path = f"{dir_path}/{file_path}"
                 else:
                     full_path = file_path
+
+                logger.debug(
+                    f"[add_skill] Processing: file_path={file_path} -> full_path={full_path}"
+                )
 
                 # 确保文件在目标目录内（防止读取其他目录的文件）
                 if not full_path.startswith(f"{dir_path}/"):
@@ -177,6 +190,9 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
                     # 使用相对路径作为 key
                     relative_path = full_path.replace(f"{dir_path}/", "", 1)
                     files[relative_path] = content
+                    logger.debug(f"[add_skill] Read file: {relative_path} ({len(content)} chars)")
+
+            logger.info(f"[add_skill] Total files read via glob_info: {len(files)}")
 
         # 方式2: 使用 list 方法（同步）
         elif hasattr(backend, "list"):
