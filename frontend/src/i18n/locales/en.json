@@ -563,6 +563,7 @@
     "noRolesAvailable": "No roles available",
     "noUsers": "No users yet",
     "operationFailed": "Operation failed",
+    "paginationInfo": "Showing {{start}}-{{end}} of {{total}}",
     "password": "Password",
     "passwordHint": "(leave blank to keep unchanged)",
     "passwordPlaceholder": "Enter password",

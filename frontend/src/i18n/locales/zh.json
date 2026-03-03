@@ -563,6 +563,7 @@
     "noRolesAvailable": "暂无可用角色",
     "noUsers": "暂无用户",
     "operationFailed": "操作失败",
+    "paginationInfo": "显示 {{start}}-{{end}} 条，共 {{total}} 条",
     "password": "密码",
     "passwordHint": "（留空则不修改）",
     "passwordPlaceholder": "请输入密码",
