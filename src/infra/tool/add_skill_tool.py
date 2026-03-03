@@ -143,6 +143,7 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
         if hasattr(backend, "glob_info"):
             # 使用 **/* 模式搜索所有文件（递归）
             file_infos = backend.glob_info("**/*", path=dir_path)
+            logger.info(f"[add_skill] glob_info returned {len(file_infos)} entries for {dir_path}")
             for info in file_infos:
                 if isinstance(info, dict):
                     file_path = info.get("path", "")
@@ -157,11 +158,24 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
                 else:
                     continue
 
+                # 处理路径：确保是完整路径
+                # glob_info 可能返回相对路径或完整路径
+                if not file_path.startswith("/"):
+                    # 相对路径，转换为完整路径
+                    full_path = f"{dir_path}/{file_path}"
+                else:
+                    full_path = file_path
+
+                # 确保文件在目标目录内（防止读取其他目录的文件）
+                if not full_path.startswith(f"{dir_path}/"):
+                    logger.warning(f"[add_skill] Skipping file outside target dir: {full_path}")
+                    continue
+
                 # 读取文件内容
-                content = await _read_file_content(backend, file_path)
+                content = await _read_file_content(backend, full_path)
                 if content is not None:
                     # 使用相对路径作为 key
-                    relative_path = file_path.replace(f"{dir_path}/", "", 1)
+                    relative_path = full_path.replace(f"{dir_path}/", "", 1)
                     files[relative_path] = content
 
         # 方式2: 使用 list 方法（同步）
