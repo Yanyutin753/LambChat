@@ -4,13 +4,14 @@ DeepAgent 事件处理模块
 处理 DeepAgent 的 astream_events 事件并转发到 Presenter。
 """
 
+import json
 import logging
 import uuid
 from typing import Any
 
 from langchain_core.runnables.schema import CustomStreamEvent, StandardStreamEvent
 
-from src.infra.writer.present import Presenter
+from src.infra.writer.present import Presenter, _get_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -327,6 +328,32 @@ class AgentEventProcessor:
     ) -> None:
         """处理工具调用结束"""
         out = event.get("data", {}).get("output", "")
+
+        # 检测 add_skill_from_path 工具的成功结果，发送 skill:added 事件
+        if tool_name == "add_skill_from_path" and isinstance(out, str):
+            try:
+                result = json.loads(out)
+                if result.get("type") == "skill_added" and result.get("success"):
+                    skill_info = result.get("skill", {})
+                    # 发送 skill:added 事件通知前端刷新
+                    await self.presenter.emit(
+                        self.presenter._build_event(
+                            "skill:added",
+                            {
+                                "name": skill_info.get("name", ""),
+                                "description": skill_info.get("description", ""),
+                                "files_count": skill_info.get("files_count", 0),
+                                "timestamp": _get_timestamp(),
+                            },
+                        )
+                    )
+                    logger.info(
+                        f"[AgentEventProcessor] Skill added: {skill_info.get('name')} "
+                        f"({skill_info.get('files_count', 0)} files)"
+                    )
+            except json.JSONDecodeError:
+                pass  # 不是 JSON，忽略
+
         await self.presenter.emit(
             self.presenter.present_tool_result(
                 tool_name,
