@@ -2,27 +2,28 @@
 用户路由
 """
 
-from typing import List
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from starlette.responses import Response
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.infra.user.manager import UserManager
-from src.kernel.schemas.user import TokenPayload, User, UserCreate, UserUpdate
+from src.kernel.schemas.user import TokenPayload, User, UserCreate, UserListResponse, UserUpdate
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[User])
+@router.get("/", response_model=UserListResponse)
 async def list_users(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 20,
+    search: Optional[str] = None,
     _: None = Depends(require_permissions("user:read")),
 ):
-    """列出用户"""
+    """列出用户（分页）"""
     manager = UserManager()
-    return await manager.list_users(skip, limit)
+    return await manager.list_users(skip, limit, search)
 
 
 @router.post("/", response_model=User)
