@@ -7,6 +7,7 @@ import uuid
 from typing import Any, List, Optional
 
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT
+from src.infra.tool.add_skill_tool import get_add_skill_tool
 
 # Human-in-the-loop 工具
 from src.infra.tool.human_tool import get_human_tool
@@ -53,7 +54,9 @@ class AgentContext:
             return self.tools
 
         # 内置工具，始终可用
-        builtin_tools = frozenset(["ask_human", "reveal_file", "inject_skill", "sync_conversation"])
+        builtin_tools = frozenset(
+            ["ask_human", "reveal_file", "inject_skill", "sync_conversation", "add_skill_from_path"]
+        )
 
         disabled_set = set(self.disabled_tools)
         mcp_servers = set()
@@ -108,6 +111,10 @@ class AgentContext:
         reveal_file_tool = get_reveal_file_tool()
         self.tools.append(reveal_file_tool)
         logger.info("[AgentContext] Added reveal_file tool")
+
+        add_skill_tool = get_add_skill_tool()
+        self.tools.append(add_skill_tool)
+        logger.info("[AgentContext] Added add_skill_from_path tool")
 
         # MCP 工具
         if settings.ENABLE_MCP:
