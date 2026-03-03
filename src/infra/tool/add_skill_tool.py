@@ -326,12 +326,19 @@ async def add_skill_from_path(
             }
             return json.dumps(result, ensure_ascii=False)
 
-        # 获取 user_id
+        # 获取 user_id - 从 configurable["context"] 获取
         user_id = None
         if runtime and hasattr(runtime, "config"):
             config = runtime.config
             if isinstance(config, dict):
-                user_id = config.get("configurable", {}).get("user_id")
+                configurable = config.get("configurable", {})
+                # 方式1: 从 context 对象获取
+                context = configurable.get("context")
+                if context and hasattr(context, "user_id"):
+                    user_id = context.user_id
+                # 方式2: 直接从 configurable 获取
+                if not user_id:
+                    user_id = configurable.get("user_id")
 
         if not user_id:
             result = {
