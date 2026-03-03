@@ -22,7 +22,7 @@ from src.kernel.schemas.skill import SkillCreate, SkillSource
 logger = logging.getLogger(__name__)
 
 # Skill name maximum length
-MAX_SKILL_NAME_LENGTH = 100
+MAX_SKILL_NAME_LENGTH = 2000
 
 
 def _parse_skill_metadata(content: str) -> tuple[str, str]:
@@ -122,6 +122,10 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
     """
     从 backend 读取目录中的所有文件。
 
+    支持多种 backend 模式：
+    1. 沙箱模式（DaytonaBackend）：使用 glob_info 或 execute ls
+    2. 非沙箱模式（StoreBackend）：使用 list 方法
+
     Args:
         backend: Backend 实例
         dir_path: 目录路径
@@ -135,8 +139,33 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
     dir_path = dir_path.rstrip("/")
 
     try:
-        # 方式1: 使用 list 方法（同步）
-        if hasattr(backend, "list"):
+        # 方式1: 沙箱模式 - 使用 glob_info 搜索目录下所有文件
+        if hasattr(backend, "glob_info"):
+            # 使用 **/* 模式搜索所有文件（递归）
+            file_infos = backend.glob_info("**/*", path=dir_path)
+            for info in file_infos:
+                if isinstance(info, dict):
+                    file_path = info.get("path", "")
+                    is_dir = info.get("is_dir", False)
+                    # 跳过目录
+                    if is_dir or file_path.endswith("/"):
+                        continue
+                elif isinstance(info, str):
+                    file_path = info
+                    if file_path.endswith("/"):
+                        continue
+                else:
+                    continue
+
+                # 读取文件内容
+                content = await _read_file_content(backend, file_path)
+                if content is not None:
+                    # 使用相对路径作为 key
+                    relative_path = file_path.replace(f"{dir_path}/", "", 1)
+                    files[relative_path] = content
+
+        # 方式2: 使用 list 方法（同步）
+        elif hasattr(backend, "list"):
             entries = backend.list(dir_path)
             for entry in entries:
                 if isinstance(entry, str):
@@ -153,7 +182,7 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
                     relative_path = file_path.replace(f"{dir_path}/", "", 1)
                     files[relative_path] = content
 
-        # 方式2: 使用 alist 方法（异步）
+        # 方式3: 使用 alist 方法（异步）
         elif hasattr(backend, "alist"):
             entries = await backend.alist(dir_path)
             for entry in entries:
@@ -168,6 +197,20 @@ async def _read_directory_files(backend: BackendProtocol, dir_path: str) -> dict
                 if content is not None:
                     relative_path = file_path.replace(f"{dir_path}/", "", 1)
                     files[relative_path] = content
+
+        # 方式4: 使用 execute 命令列出目录（最后的备选方案）
+        elif hasattr(backend, "execute"):
+            # 使用 find 命令列出所有文件
+            result = backend.execute(f"find {dir_path} -type f 2>/dev/null")
+            if result.exit_code == 0 and result.output:
+                file_paths = [
+                    line.strip() for line in result.output.strip().split("\n") if line.strip()
+                ]
+                for file_path in file_paths:
+                    content = await _read_file_content(backend, file_path)
+                    if content is not None:
+                        relative_path = file_path.replace(f"{dir_path}/", "", 1)
+                        files[relative_path] = content
 
     except Exception as e:
         logger.error(f"Failed to list directory {dir_path}: {e}")
