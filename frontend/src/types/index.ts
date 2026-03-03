@@ -491,6 +491,15 @@ export interface UserUpdate {
   is_active?: boolean;
 }
 
+// User list response (paginated)
+export interface UserListResponse {
+  users: User[];
+  total: number;
+  skip: number;
+  limit: number;
+  has_more: boolean;
+}
+
 // 角色信息
 export interface Role {
   id: string;
