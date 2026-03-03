@@ -17,6 +17,7 @@ export type EventType =
   | "todo:created"
   | "todo:updated"
   | "skill:loaded"
+  | "skill:added"
   | "agent:call"
   | "agent:result"
   | "observation"
@@ -80,6 +81,10 @@ export interface EventData {
     size: number;
     url: string;
   }>;
+  // skill:added event fields
+  name?: string;
+  description?: string;
+  files_count?: number;
 }
 
 export interface UseAgentOptions {
@@ -91,6 +96,11 @@ export interface UseAgentOptions {
   }) => void;
   onClearApprovals?: () => void;
   getEnabledTools?: () => string[];
+  onSkillAdded?: (
+    skillName: string,
+    description: string,
+    filesCount: number,
+  ) => void;
 }
 
 // Subagent tracking item
@@ -115,6 +125,7 @@ export interface HistoryEventData {
   sandbox_id?: string;
   work_dir?: string;
   error?: string;
+  thinking_id?: string;
   attachments?: Array<{
     id: string;
     key: string;

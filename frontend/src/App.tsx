@@ -38,6 +38,7 @@ import { MCPPanel } from "./components/panels/MCPPanel";
 import { ThemeToggle } from "./components/common/ThemeToggle";
 import { LanguageToggle } from "./components/common/LanguageToggle";
 import { AgentSelector } from "./components/agent/AgentSelector";
+import { SharedPage } from "./components/share/SharedPage";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useSettingsContext } from "./contexts/SettingsContext";
 import { useAgent } from "./hooks/useAgent";
@@ -797,6 +798,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
     toggleSkillWrapper,
     toggleCategory: toggleSkillCategory,
     toggleAll: toggleAllSkills,
+    fetchSkills,
   } = useSkills({ enabled: enableSkills });
 
   const {
@@ -830,6 +832,16 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
       clearApprovals();
     },
     getEnabledTools: getDisabledToolNames,
+    onSkillAdded: (
+      skillName: string,
+      _description: string,
+      filesCount: number,
+    ) => {
+      console.log(
+        `[App] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
+      );
+      fetchSkills();
+    },
   });
 
   // Agent options state
@@ -1429,6 +1441,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Public shared session page - no auth required */}
+        <Route path="/shared/:shareId" element={<SharedPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </ThemeProvider>

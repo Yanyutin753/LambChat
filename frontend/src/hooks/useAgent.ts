@@ -323,12 +323,28 @@ export function useAgent(options?: UseAgentOptions) {
                   return { ...m, parts: newParts };
                 } else {
                   const newParts = [...parts];
-                  const existingIndex = newParts.findIndex(
-                    (p) =>
-                      p.type === "thinking" &&
-                      p.thinking_id === thinkingId &&
-                      thinkingId !== undefined,
-                  );
+                  let existingIndex = -1;
+
+                  // 如果有 thinking_id，精确匹配
+                  if (thinkingId !== undefined) {
+                    existingIndex = newParts.findIndex(
+                      (p) =>
+                        p.type === "thinking" && p.thinking_id === thinkingId,
+                    );
+                  } else {
+                    // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
+                    for (let i = newParts.length - 1; i >= 0; i--) {
+                      const p = newParts[i];
+                      if (
+                        p.type === "thinking" &&
+                        p.thinking_id === undefined
+                      ) {
+                        existingIndex = i;
+                        break;
+                      }
+                    }
+                  }
+
                   if (existingIndex >= 0) {
                     const existing = newParts[existingIndex] as ThinkingPart;
                     newParts[existingIndex] = {
@@ -643,6 +659,19 @@ export function useAgent(options?: UseAgentOptions) {
               };
             }),
           );
+          break;
+        }
+
+        case "skill:added": {
+          const skillName = data.name || "";
+          const skillDescription = data.description || "";
+          const filesCount = data.files_count || 0;
+          console.log("[SSE] Skill added:", skillName, "files:", filesCount);
+
+          // 调用回调通知外部刷新 skills
+          if (options?.onSkillAdded) {
+            options.onSkillAdded(skillName, skillDescription, filesCount);
+          }
           break;
         }
       }
