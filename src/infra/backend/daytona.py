@@ -163,7 +163,10 @@ class DaytonaBackend(BaseSandbox):
         """使用 Daytona FS search_files 搜索文件名"""
         try:
             result = self._sandbox.fs.search_files(path, pattern)
-            files = getattr(result, "files", []) or []
+            # 安全获取 files 列表，处理 None 情况
+            files = getattr(result, "files", None)
+            if files is None:
+                files = []
         except Exception as e:
             logger.warning("search_files failed: %s", e)
             return []

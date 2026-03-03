@@ -5,6 +5,7 @@ LangGraph 节点函数，使用 deep agent 执行任务。
 后续可扩展：retrieve_node, summarize_node 等。
 """
 
+import asyncio
 import logging
 import time
 import uuid
@@ -32,6 +33,89 @@ from src.infra.writer.present import Presenter
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# LLM 重试工具
+# ============================================================================
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """判断错误是否可重试（429、网络错误等）"""
+    error_str = str(error).lower()
+    error_type = type(error).__name__.lower()
+
+    retryable_patterns = [
+        "429",  # rate limit
+        "503",  # service unavailable
+        "502",  # bad gateway
+        "504",  # gateway timeout
+        "timeout",
+        "connection",
+        "network",
+        "reset",
+        "refused",
+        "overloaded",
+    ]
+
+    retryable_types = [
+        "timeouterror",
+        "connectionerror",
+        "connectionreseterror",
+    ]
+
+    if any(pattern in error_str for pattern in retryable_patterns):
+        return True
+    if any(rt in error_type for rt in retryable_types):
+        return True
+
+    return False
+
+
+async def _run_with_retry(
+    graph,
+    input_data: dict,
+    config: RunnableConfig,
+    event_processor: AgentEventProcessor,
+    max_retries: int = None,
+    base_delay: float = 1.0,
+) -> None:
+    """
+    带重试的 LLM 流式执行
+
+    遇到 429 等可重试错误时，使用指数退避重试。
+
+    Args:
+        graph: LangGraph 实例
+        input_data: 输入数据
+        config: 运行配置
+        event_processor: 事件处理器
+        max_retries: 最大重试次数（默认从 settings 读取）
+        base_delay: 基础重试延迟（秒）
+    """
+    if max_retries is None:
+        max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            async for event in graph.astream_events(input_data, config, version="v2"):
+                await event_processor.process_event(event)
+            return  # 成功完成
+        except Exception as e:
+            last_error = e
+            if _is_retryable_error(e) and attempt < max_retries - 1:
+                delay = base_delay * (2**attempt)  # 指数退避
+                logger.warning(
+                    f"LLM call failed (attempt {attempt + 1}/{max_retries}): {e}. "
+                    f"Retrying in {delay}s..."
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
+
+    # 不应该到达这里
+    raise last_error
 
 
 # ============================================================================
@@ -123,6 +207,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         "configurable": {
             "thread_id": state.get("session_id", str(uuid.uuid4())),
             "backend": backend_factory,
+            "context": context,  # 传递 context 以便工具访问 user_id
         },
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
@@ -135,19 +220,19 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     new_message = HumanMessage(content=state.get("input", ""))
     all_messages = existing_messages + [new_message]
 
-    # 传递 messages 给 sync_conversation 工具使用
+    # 传递 messages
     inner_config["configurable"]["messages"] = existing_messages
 
     # 创建事件处理器
     event_processor = AgentEventProcessor(presenter)
 
-    # 流式处理事件
-    async for event in inner_graph.astream_events(
-        {"messages": all_messages, "files": initial_skill_files},
-        inner_config,
-        version="v2",
-    ):
-        await event_processor.process_event(event)
+    # 流式处理事件（带重试，处理 429 等错误）
+    await _run_with_retry(
+        graph=inner_graph,
+        input_data={"messages": all_messages, "files": initial_skill_files},
+        config=inner_config,
+        event_processor=event_processor,
+    )
 
     # 发送 token 使用统计事件
     await _emit_token_usage(event_processor, presenter, start_time)
