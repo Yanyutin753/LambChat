@@ -2,18 +2,37 @@
  * User API - 用户管理
  */
 
-import type { User, UserCreate, UserUpdate } from "../../types";
+import type {
+  User,
+  UserCreate,
+  UserUpdate,
+  UserListResponse,
+} from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 
 export const userApi = {
   /**
-   * 列出用户
+   * List users with pagination and search
    */
-  async list(skip = 0, limit = 100): Promise<User[]> {
-    return authFetch<User[]>(
-      `${API_BASE}/api/users/?skip=${skip}&limit=${limit}`,
-    );
+  async list(params?: {
+    skip?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<UserListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.skip !== undefined) {
+      searchParams.set("skip", params.skip.toString());
+    }
+    if (params?.limit !== undefined) {
+      searchParams.set("limit", params.limit.toString());
+    }
+    if (params?.search) {
+      searchParams.set("search", params.search);
+    }
+
+    const query = searchParams.toString() ? `?${searchParams}` : "";
+    return authFetch<UserListResponse>(`${API_BASE}/api/users/${query}`);
   },
 
   /**
