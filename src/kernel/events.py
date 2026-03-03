@@ -22,6 +22,7 @@ class EventBuilder:
     - todo:created: TodoList创建
     - todo:updated: TodoList更新
     - skill:loaded: 技能加载
+    - skill:added: 技能添加
     - done: 流结束
     - error: 错误
     """
@@ -164,6 +165,34 @@ class EventBuilder:
             {
                 "name": skill_name,
                 "description": description,
+                "timestamp": _get_timestamp(),
+            },
+        )
+
+    @classmethod
+    def skill_added(
+        cls, skill_name: str, description: str = "", files_count: int = 0
+    ) -> Dict[str, Any]:
+        """
+        构建 skill 添加事件
+
+        当 Agent 成功导入一个新 skill 时发送此事件，
+        前端收到后会自动刷新 skill 列表。
+
+        Args:
+            skill_name: skill 名称
+            description: skill 描述
+            files_count: 导入的文件数量
+
+        Returns:
+            SSE 事件字典
+        """
+        return cls._build_event(
+            "skill:added",
+            {
+                "name": skill_name,
+                "description": description,
+                "files_count": files_count,
                 "timestamp": _get_timestamp(),
             },
         )
