@@ -64,8 +64,12 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
             viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
           },
         });
+        setLoading(false);
+      } else {
+        console.error("Invalid excalidraw file: elements is not an array");
+        setError("Invalid Excalidraw file format");
+        setLoading(false);
       }
-      setLoading(false);
     } catch (e) {
       console.error("Failed to parse excalidraw file:", e);
       setError("Failed to parse Excalidraw file");

@@ -164,6 +164,7 @@ export default function DocumentPreview({
     setHtmlUrl(null);
     setHtmlContent("");
     setArrayBuffer(null);
+    setExcalidrawData("");
 
     const loadContent = async () => {
       // 如果传入了外部图片 URL，直接使用
