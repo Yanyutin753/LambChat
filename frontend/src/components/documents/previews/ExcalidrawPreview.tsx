@@ -2,7 +2,6 @@ import {
   memo,
   useEffect,
   useState,
-  useCallback,
   Suspense,
   lazy,
   ComponentType,
@@ -10,24 +9,34 @@ import {
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { AlertCircle } from "lucide-react";
 
-// Types for Excalidraw API - using minimal interface
-interface ExcalidrawAPI {
-  updateScene: (scene: { elements: unknown[]; appState?: unknown }) => void;
-  getSceneElements: () => unknown[];
+// Types for Excalidraw
+interface ExcalidrawElement {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface ExcalidrawAppState {
+  viewBackgroundColor?: string;
+  [key: string]: unknown;
+}
+
+interface ExcalidrawInitialData {
+  elements: readonly ExcalidrawElement[];
+  appState?: ExcalidrawAppState;
+}
+
+interface ExcalidrawComponentProps {
+  initialData?: ExcalidrawInitialData | null;
+  viewModeEnabled?: boolean;
+  zenModeEnabled?: boolean;
+  gridModeEnabled?: boolean;
 }
 
 interface ExcalidrawPreviewProps {
   data: string; // JSON string of excalidraw file content
 }
 
-// Props interface for the Excalidraw component
-interface ExcalidrawComponentProps {
-  excalidrawAPI: (api: ExcalidrawAPI) => void;
-  viewModeEnabled: boolean;
-}
-
-// Lazy load Excalidraw component using React.lazy
-// Use type assertion via unknown to bypass strict type checking from the excalidraw library
+// Lazy load Excalidraw component
 const ExcalidrawComponent = lazy(() =>
   import("@excalidraw/excalidraw").then((mod) => ({
     default: (
@@ -39,15 +48,18 @@ const ExcalidrawComponent = lazy(() =>
 const ExcalidrawPreview = memo(function ExcalidrawPreview({
   data,
 }: ExcalidrawPreviewProps) {
-  const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawAPI | null>(
+  const [initialData, setInitialData] = useState<ExcalidrawInitialData | null>(
     null,
   );
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Parse and load excalidraw data
+  // Parse excalidraw data on mount
   useEffect(() => {
-    if (!excalidrawAPI || !data) return;
+    if (!data) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const parsed = JSON.parse(data);
@@ -57,8 +69,8 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
       const appState = parsed.appState || {};
 
       if (Array.isArray(elements)) {
-        excalidrawAPI.updateScene({
-          elements,
+        setInitialData({
+          elements: elements as ExcalidrawElement[],
           appState: {
             ...appState,
             viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
@@ -75,11 +87,7 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
       setError("Failed to parse Excalidraw file");
       setLoading(false);
     }
-  }, [excalidrawAPI, data]);
-
-  const handleAPIReady = useCallback((api: ExcalidrawAPI) => {
-    setExcalidrawAPI(api);
-  }, []);
+  }, [data]);
 
   if (error) {
     return (
@@ -99,28 +107,34 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
     );
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <LoadingSpinner size="lg" />
+        <p className="text-sm text-stone-500 dark:text-stone-400">
+          Loading Excalidraw...
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full w-full relative">
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-stone-900 z-10">
-          <div className="flex flex-col items-center gap-4">
-            <LoadingSpinner size="lg" />
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              Loading Excalidraw...
-            </p>
-          </div>
-        </div>
-      )}
+    <div className="h-full w-full">
       <Suspense
         fallback={
-          <div className="flex items-center justify-center h-full">
+          <div className="flex flex-col items-center justify-center h-full gap-4">
             <LoadingSpinner size="lg" />
+            <p className="text-sm text-stone-500 dark:text-stone-400">
+              Loading Excalidraw library...
+            </p>
           </div>
         }
       >
         <ExcalidrawComponent
-          excalidrawAPI={handleAPIReady}
+          initialData={initialData}
           viewModeEnabled={true}
+          zenModeEnabled={false}
+          gridModeEnabled={false}
         />
       </Suspense>
     </div>
