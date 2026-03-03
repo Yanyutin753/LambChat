@@ -24,6 +24,7 @@ import {
   isWordFile,
   isExcelFile,
   isPptFile,
+  isPptxFile,
   isHtmlFile,
   isCodeFile,
   isMarkdownFile,
@@ -102,6 +103,7 @@ export default function DocumentPreview({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pptUrl, setPptUrl] = useState<string | null>(null);
+  const [pptxBuffer, setPptxBuffer] = useState<ArrayBuffer | null>(null);
   const [htmlUrl, setHtmlUrl] = useState<string | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>("");
   const [arrayBuffer, setArrayBuffer] = useState<ArrayBuffer | null>(null);
@@ -116,6 +118,8 @@ export default function DocumentPreview({
   const pdfFile = isPdfFile(ext);
   const wordFile = isWordFile(ext);
   const excelFile = isExcelFile(ext);
+  const pptxFile = isPptxFile(ext);
+  // Keep pptFile for backward compatibility
   const pptFile = isPptFile(ext);
   const htmlFile = isHtmlFile(ext);
   const codeFile = isCodeFile(ext);
@@ -161,6 +165,7 @@ export default function DocumentPreview({
     setImageUrl(null);
     setPdfUrl(null);
     setPptUrl(null);
+    setPptxBuffer(null);
     setHtmlUrl(null);
     setHtmlContent("");
     setArrayBuffer(null);
@@ -218,10 +223,29 @@ export default function DocumentPreview({
             return;
           }
 
-          // PPT 文件使用 Office Online viewer 嵌入
+          // PPT 文件处理
           if (pptFile) {
-            setPptUrl(url);
-            setData({ content: "", path });
+            if (pptxFile) {
+              // .pptx 文件获取 ArrayBuffer 用于本地预览
+              try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                  throw new Error(`Failed to fetch file: ${response.status}`);
+                }
+                const buffer = await response.arrayBuffer();
+                setPptxBuffer(buffer);
+                setData({ content: "", path });
+              } catch (e) {
+                console.error("Failed to fetch pptx:", e);
+                setError(
+                  t("documents.failedToLoadFromS3", "从存储加载文件失败"),
+                );
+              }
+            } else {
+              // .ppt 文件使用 Office Online viewer
+              setPptUrl(url);
+              setData({ content: "", path });
+            }
             setLoading(false);
             return;
           }
@@ -562,9 +586,13 @@ export default function DocumentPreview({
             <div className="h-full min-h-[400px]">
               {pdfUrl && <PdfPreview url={pdfUrl} />}
             </div>
-          ) : pptFile && pptUrl ? (
+          ) : pptFile && (pptUrl || pptxBuffer) ? (
             <div className="h-full min-h-[400px]">
-              <PptPreview url={pptUrl} />
+              <PptPreview
+                url={pptUrl || ""}
+                arrayBuffer={pptxBuffer}
+                fileName={fileName}
+              />
             </div>
           ) : htmlFile && htmlUrl ? (
             <div className="h-full min-h-[400px]">
