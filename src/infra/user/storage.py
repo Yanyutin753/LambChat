@@ -210,6 +210,7 @@ class UserStorage:
         skip: int = 0,
         limit: int = 100,
         is_active: Optional[bool] = None,
+        search: Optional[str] = None,
     ) -> list[User]:
         """
         列出用户
@@ -218,13 +219,19 @@ class UserStorage:
             skip: 跳过数量
             limit: 返回数量
             is_active: 是否激活
+            search: 搜索字符串（用户名/邮箱模糊匹配）
 
         Returns:
             用户列表
         """
-        query = {}
+        query: dict = {}
         if is_active is not None:
             query["is_active"] = is_active
+        if search:
+            query["$or"] = [
+                {"username": {"$regex": search, "$options": "i"}},
+                {"email": {"$regex": search, "$options": "i"}},
+            ]
 
         cursor = self.collection.find(query).skip(skip).limit(limit)
         users = []
@@ -234,6 +241,31 @@ class UserStorage:
             users.append(User(**user_dict))
 
         return users
+
+    async def count_users(
+        self,
+        search: Optional[str] = None,
+        is_active: Optional[bool] = None,
+    ) -> int:
+        """
+        统计用户数量
+
+        Args:
+            search: 搜索字符串（用户名/邮箱模糊匹配）
+            is_active: 是否激活
+
+        Returns:
+            匹配的用户总数
+        """
+        query: dict = {}
+        if is_active is not None:
+            query["is_active"] = is_active
+        if search:
+            query["$or"] = [
+                {"username": {"$regex": search, "$options": "i"}},
+                {"email": {"$regex": search, "$options": "i"}},
+            ]
+        return await self.collection.count_documents(query)
 
     async def authenticate(self, username_or_email: str, password: str) -> Optional[UserInDB]:
         """
