@@ -124,10 +124,19 @@ export function isExcelFile(ext: string): boolean {
   return excelExts.includes(ext);
 }
 
-// Check if file is PowerPoint presentation
+// Check if file is PowerPoint presentation (any format)
 export function isPptFile(ext: string): boolean {
-  const pptExts = ["ppt", "pptx"];
-  return pptExts.includes(ext);
+  return ext === "ppt" || ext === "pptx";
+}
+
+// Check if file is PowerPoint Open XML format (.pptx)
+export function isPptxFile(ext: string): boolean {
+  return ext === "pptx";
+}
+
+// Check if file is legacy PowerPoint format (.ppt)
+export function isLegacyPptFile(ext: string): boolean {
+  return ext === "ppt";
 }
 
 // Check if file is HTML
