@@ -80,7 +80,7 @@ def validate_skill(skill_path: Path) -> tuple[bool, str]:
     return True, "Skill is valid!"
 
 
-def package_skill(skill_path: Path, output_dir: Path = None) -> Path | None:
+def package_skill(skill_path: Path, output_dir: Path | None = None) -> Path | None:
     """
     将技能目录打包为 .skill 文件。
 
