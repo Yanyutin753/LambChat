@@ -110,7 +110,11 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       {/* 左上角 Logo */}
       <div className="absolute left-4 top-4 flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-stone-100 dark:hover:bg-stone-800">
-          <img src="/icons/icon.svg" alt="LambChat" className="h-5 w-5" />
+          <img
+            src="/icons/icon.svg"
+            alt="LambChat"
+            className="h-5 w-5 rounded-full"
+          />
         </div>
       </div>
 
