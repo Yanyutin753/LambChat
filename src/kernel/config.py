@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import secrets
@@ -18,6 +19,37 @@ if TYPE_CHECKING:
     from src.infra.storage.s3 import S3Config
 
 from src.kernel.schemas.setting import SettingCategory, SettingType
+
+# Minimum JWT secret key length (32 bytes for HS256)
+JWT_SECRET_KEY_MIN_LENGTH = 32
+
+
+def _expand_jwt_secret_key(key: str) -> str:
+    """Expand a short JWT secret key to the minimum required length.
+
+    Uses deterministic SHA-256 hashing to expand short keys to 32 bytes.
+    This ensures the same input always produces the same output.
+
+    Args:
+        key: The original secret key (can be any length)
+
+    Returns:
+        A 32-byte URL-safe base64-encoded key
+    """
+    import base64
+
+    if len(key) >= JWT_SECRET_KEY_MIN_LENGTH:
+        return key
+
+    # Use SHA-256 to deterministically expand the key
+    # Repeatedly hash until we get 32 bytes
+    result = key.encode("utf-8")
+    while len(result) < 32:
+        result = hashlib.sha256(result).digest()
+
+    # Encode to URL-safe base64 (produces ~43-44 characters)
+    return base64.urlsafe_b64encode(result).decode("utf-8").rstrip("=")
+
 
 logger = logging.getLogger(__name__)
 # Project root directory (where pyproject.toml is)
@@ -55,6 +87,7 @@ RESTART_REQUIRED_SETTINGS = {
 SENSITIVE_SETTINGS = {
     "LLM_API_KEY",
     "ANTHROPIC_API_KEY",
+    "SESSION_TITLE_API_KEY",
     "JWT_SECRET_KEY",
     "MONGODB_URL",
     "MONGODB_PASSWORD",
@@ -148,7 +181,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.LLM,
         "description": "LLM API 最大重试次数（用于处理 429 等错误）",
         "default": 3,
-        "frontend_visible": True,
     },
     # ============================================
     # Session Settings
@@ -174,16 +206,26 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     "SESSION_TITLE_MODEL": {
         "type": SettingType.STRING,
         "category": SettingCategory.SESSION,
-        "description": "LLM model for generating session titles (e.g., gpt-4o-mini, claude-3-haiku)",
+        "description": "LLM model identifier (e.g., anthropic/claude-3-5-sonnet)",
         "default": "claude-3-5-haiku-20241022",
-        "frontend_visible": False,
+    },
+    "SESSION_TITLE_API_BASE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SESSION,
+        "description": "LLM API base URL for title generation (leave empty to use main LLM API)",
+        "default": "",
+    },
+    "SESSION_TITLE_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SESSION,
+        "description": "LLM API key for title generation (leave empty to use main LLM API key)",
+        "default": "",
     },
     "SESSION_TITLE_PROMPT": {
         "type": SettingType.TEXT,
         "category": SettingCategory.SESSION,
-        "description": "Prompt template for generating session titles. Use {message} as placeholder for user message.",
-        "default": "Generate a short title (max 10 words) for this conversation based on the user message:\n\n{message}",
-        "frontend_visible": False,
+        "description": "Prompt template for generating session titles. Use {lang} and {message} as placeholders.",
+        "default": "请您用简短的3-5个字的标题加上一个表情符号作为用户对话的提示标题。请您选取适合用于总结的表情符号来增强理解，但请避免使用符号或特殊格式。请您根据提示回复一个提示标题文本。\n\n回复示例：\n\n📉 股市趋势\n\n🍪 完美巧克力曲奇食谱\n\n🎮 视频游戏开发洞察\n\n# 重要\n\n1. 请务必用{lang}回复我\n2. 回复字数控制在3-5个字\n\nPrompt: {message}",
     },
     # ============================================
     # Sandbox Settings
@@ -399,12 +441,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # JWT Authentication Settings
     # ============================================
-    "JWT_SECRET_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SECURITY,
-        "description": "JWT secret key for token signing (auto-generated if not set)",
-        "default": "",  # Will be set to random value at runtime if empty
-    },
     "JWT_ALGORITHM": {
         "type": SettingType.STRING,
         "category": SettingCategory.SECURITY,
@@ -518,7 +554,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.USER,
         "description": "Default role for newly registered users",
         "default": "user",
-        "frontend_visible": True,
     },
 }
 
@@ -625,7 +660,9 @@ class Settings(BaseSettings):
     ENABLE_MESSAGE_HISTORY: bool = True
     SSE_CACHE_TTL: int = 3600
     SESSION_TITLE_MODEL: str = "claude-3-5-haiku-20241022"
-    SESSION_TITLE_PROMPT: str = "Generate a short title (max 10 words) for this conversation."
+    SESSION_TITLE_API_BASE: str = ""
+    SESSION_TITLE_API_KEY: str = ""
+    SESSION_TITLE_PROMPT: str = "请您用简短的3-5个字的标题加上一个表情符号作为用户对话的提示标题。请您选取适合用于总结的表情符号来增强理解，但请避免使用符号或特殊格式。请您根据提示回复一个提示标题文本。\n\n回复示例：\n\n📉 股市趋势\n\n🍪 完美巧克力曲奇食谱\n\n🎮 视频游戏开发洞察\n\n# 重要\n\n1. 请务必用{lang}回复我\n2. 回复字数控制在3-5个字\n\nPrompt: {message}"
 
     # Redis Settings
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -717,6 +754,15 @@ class Settings(BaseSettings):
             logger.warning(
                 "JWT_SECRET_KEY not set or using placeholder value. "
                 f"Generated random secret key: {self.JWT_SECRET_KEY[:8]}..."
+            )
+        # Expand short JWT_SECRET_KEY to meet minimum length requirement
+        elif len(self.JWT_SECRET_KEY) < JWT_SECRET_KEY_MIN_LENGTH:
+            original_key = self.JWT_SECRET_KEY
+            self.JWT_SECRET_KEY = _expand_jwt_secret_key(self.JWT_SECRET_KEY)
+            logger.warning(
+                f"JWT_SECRET_KEY too short ({len(original_key)} bytes). "
+                f"Expanded to meet minimum {JWT_SECRET_KEY_MIN_LENGTH} bytes requirement. "
+                f"Expanded key prefix: {self.JWT_SECRET_KEY[:8]}..."
             )
 
         # Set version info from git (if not already set via env)
@@ -813,7 +859,9 @@ async def initialize_settings() -> None:
     for category, items in all_settings.items():
         logger.debug(f"[Settings] Category {category}: {len(items)} items")
         for item in items:
-            if item and item.value is not None:
+            # Only update if value is not None AND not an empty string
+            # This prevents empty DB values from overriding .env values
+            if item and item.value is not None and item.value != "":
                 _settings_cache[item.key] = item.value
                 # Only update if the field exists in Settings class
                 if hasattr(settings, item.key):
@@ -842,7 +890,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
     if key:
         # Refresh single setting
         setting = await _settings_service._storage.get_raw(key)
-        if setting and setting.value is not None:
+        # Only update if value is not None AND not an empty string
+        if setting and setting.value is not None and setting.value != "":
             _settings_cache[key] = setting.value
             setattr(settings, key, setting.value)
     else:
@@ -850,6 +899,7 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         all_settings = await _settings_service.get_all(admin_mode=True, mask_sensitive=False)
         for items in all_settings.values():
             for item in items:
-                if item and item.value is not None:
+                # Only update if value is not None AND not an empty string
+                if item and item.value is not None and item.value != "":
                     _settings_cache[item.key] = item.value
                     setattr(settings, item.key, item.value)

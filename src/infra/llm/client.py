@@ -162,6 +162,26 @@ class LLMClient:
                 thinking=thinking,
                 **kwargs,
             )
+        elif provider == "minimax":
+            instance = LLMClient._create_anthropic_model(
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=api_key,
+                api_base=api_base,
+                thinking=thinking,
+                **kwargs,
+            )
+        elif provider == "zai":
+            instance = LLMClient._create_anthropic_model(
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=api_key,
+                api_base=api_base,
+                thinking=thinking,
+                **kwargs,
+            )
         else:
             instance = LLMClient._create_openai_model(
                 model_name=model_name,
