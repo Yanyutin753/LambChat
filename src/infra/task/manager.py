@@ -68,8 +68,6 @@ class BackgroundTaskManager:
     def __init__(self):
         # 使用 run_id 作为 key 管理状态
         self._tasks: Dict[str, asyncio.Task] = {}  # run_id -> Task
-        self._statuses: Dict[str, TaskStatus] = {}  # run_id -> status
-        self._errors: Dict[str, str] = {}  # run_id -> error
         self._run_info: Dict[str, Dict[str, str]] = {}  # run_id -> {session_id, trace_id, agent_id}
         self._lock = asyncio.Lock()
         self._storage = None
@@ -115,9 +113,6 @@ class BackgroundTaskManager:
         run_id = _generate_run_id()
 
         async with self._lock:
-            # 设置初始状态（使用 run_id 作为 key）
-            self._statuses[run_id] = TaskStatus.PENDING
-
             # 确保 session 记录存在
             await self._ensure_session(session_id, agent_id, user_id)
 
@@ -206,7 +201,6 @@ class BackgroundTaskManager:
         dual_writer = None
 
         try:
-            self._statuses[run_id] = TaskStatus.RUNNING
             await self._update_session_status(session_id, TaskStatus.RUNNING, run_id=run_id)
 
             # 启动心跳
@@ -268,13 +262,10 @@ class BackgroundTaskManager:
             await presenter.complete("completed")
 
             # 标记完成
-            self._statuses[run_id] = TaskStatus.COMPLETED
             await self._update_session_status(session_id, TaskStatus.COMPLETED, run_id=run_id)
             logger.info(f"Task completed: session={session_id}, run_id={run_id}")
 
         except asyncio.CancelledError:
-            self._statuses[run_id] = TaskStatus.FAILED
-            self._errors[run_id] = "Task cancelled"
             await self._update_session_status(
                 session_id, TaskStatus.FAILED, "Task cancelled", run_id=run_id
             )
@@ -307,8 +298,6 @@ class BackgroundTaskManager:
 
         except TaskInterruptedError as e:
             # 任务被中断
-            self._statuses[run_id] = TaskStatus.FAILED
-            self._errors[run_id] = str(e)
             await self._update_session_status(session_id, TaskStatus.FAILED, str(e), run_id=run_id)
             # 先刷新所有缓冲，确保已产生的事件不丢失
             if dual_writer is not None:
@@ -338,8 +327,6 @@ class BackgroundTaskManager:
             raise
 
         except Exception as e:
-            self._statuses[run_id] = TaskStatus.FAILED
-            self._errors[run_id] = str(e)
             await self._update_session_status(session_id, TaskStatus.FAILED, str(e), run_id=run_id)
             logger.error(f"Task failed: session={session_id}, run_id={run_id}, error={e}")
 
@@ -443,25 +430,36 @@ class BackgroundTaskManager:
             logger.warning(f"Failed to ensure session: {e}")
 
     async def get_status(self, session_id: str) -> TaskStatus:
-        """获取 session 当前 run 的任务状态（向后兼容）"""
-        # 尝试从 session metadata 获取 current_run_id
+        """获取 session 当前 run 的任务状态（向后兼容）
+
+        直接从 MongoDB 读取，不使用本地内存缓存，支持分布式部署。
+        """
         try:
             session = await self.storage.get_by_session_id(session_id)
             if session and session.metadata:
-                run_id = session.metadata.get("current_run_id")
-                if run_id and run_id in self._statuses:
-                    return self._statuses[run_id]
-        except Exception:
-            pass
+                task_status = session.metadata.get("task_status")
+                if task_status:
+                    return TaskStatus(task_status)
+        except Exception as e:
+            logger.warning(f"Failed to get status from session storage: {e}")
         return TaskStatus.PENDING
 
     async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
-        """获取特定 run 的任务状态"""
-        # 先检查内存
-        if run_id in self._statuses:
-            return self._statuses[run_id]
+        """获取特定 run 的任务状态
 
-        # 从 trace storage 获取状态（最可靠）
+        直接从 MongoDB 读取，不使用本地内存缓存，支持分布式部署。
+        """
+        # 优先从 session metadata 获取（最权威，取消/失败时会更新）
+        try:
+            session = await self.storage.get_by_session_id(session_id)
+            if session and session.metadata:
+                task_status = session.metadata.get("task_status")
+                if task_status:
+                    return TaskStatus(task_status)
+        except Exception as e:
+            logger.warning(f"Failed to get run status from session storage: {e}")
+
+        # 回退到 trace storage 获取状态
         try:
             trace_storage = get_trace_storage()
             # 查询该 run_id 的 trace
@@ -484,39 +482,26 @@ class BackgroundTaskManager:
         except Exception as e:
             logger.warning(f"Failed to get run status from trace storage: {e}")
 
-        # 如果 trace storage 没有，从 session metadata 获取
-        try:
-            session = await self.storage.get_by_session_id(session_id)
-            if session and session.metadata:
-                # 检查 current_run_id 是否匹配
-                current_run_id = session.metadata.get("current_run_id")
-                if current_run_id == run_id:
-                    task_status = session.metadata.get("task_status")
-                    if task_status:
-                        return TaskStatus(task_status)
-        except Exception as e:
-            logger.warning(f"Failed to get run status from session storage: {e}")
-
         return TaskStatus.PENDING
 
     async def get_error(self, session_id: str) -> Optional[str]:
-        """获取任务错误信息（向后兼容）"""
+        """获取任务错误信息（向后兼容）
+
+        直接从 MongoDB 读取，不使用本地内存缓存，支持分布式部署。
+        """
         try:
             session = await self.storage.get_by_session_id(session_id)
             if session and session.metadata:
-                run_id = session.metadata.get("current_run_id")
-                if run_id and run_id in self._errors:
-                    return self._errors[run_id]
-        except Exception:
-            pass
+                return session.metadata.get("task_error")
+        except Exception as e:
+            logger.warning(f"Failed to get error from session storage: {e}")
         return None
 
     async def get_run_error(self, run_id: str) -> Optional[str]:
-        """获取特定 run 的错误信息"""
-        # 先检查内存
-        if run_id in self._errors:
-            return self._errors[run_id]
+        """获取特定 run 的错误信息
 
+        直接从 MongoDB 读取，不使用本地内存缓存，支持分布式部署。
+        """
         # 从 trace storage 获取错误信息
         try:
             trace_storage = get_trace_storage()
@@ -544,7 +529,7 @@ class BackgroundTaskManager:
         except Exception as e:
             logger.warning(f"Failed to get run error from trace storage: {e}")
 
-        # 如果 trace storage 没有，从 session metadata 获取
+        # 如果 trace storage 没有，尝试从 session metadata 获取
         run_info = self._run_info.get(run_id)
         if run_info:
             session_id = run_info.get("session_id")
@@ -552,9 +537,7 @@ class BackgroundTaskManager:
                 try:
                     session = await self.storage.get_by_session_id(session_id)
                     if session and session.metadata:
-                        current_run_id = session.metadata.get("current_run_id")
-                        if current_run_id == run_id:
-                            return session.metadata.get("task_error")
+                        return session.metadata.get("task_error")
                 except Exception as e:
                     logger.warning(f"Failed to get run error from session storage: {e}")
 
@@ -608,7 +591,25 @@ class BackgroundTaskManager:
         except Exception as e:
             logger.warning(f"Failed to set interrupt signal: {e}")
 
-        # 3. 调用 agent.close(run_id) 取消 graph 执行
+        # 3. 直接更新 MongoDB trace 状态为 error（确保 trace 状态被更新）
+        run_info = self._run_info.get(run_id)
+        if run_info:
+            trace_id = run_info.get("trace_id")
+            if trace_id:
+                try:
+                    trace_storage = get_trace_storage()
+                    success = await trace_storage.complete_trace(
+                        trace_id,
+                        status="error",
+                        metadata={"cancel_reason": "Task cancelled by user"},
+                    )
+                    logger.info(
+                        f"MongoDB trace status updated: trace_id={trace_id}, success={success}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update trace status: {e}")
+
+        # 4. 调用 agent.close(run_id) 取消 graph 执行
         run_info = self._run_info.get(run_id)
         if run_info:
             agent_id = run_info.get("agent_id")
@@ -856,8 +857,6 @@ class BackgroundTaskManager:
             for run_id, task in self._tasks.items():
                 if not task.done():
                     task.cancel()
-                    self._statuses[run_id] = TaskStatus.FAILED
-                    self._errors[run_id] = "Server shutdown"
 
                     # 获取 session_id 并更新状态
                     info = self._run_info.get(run_id)

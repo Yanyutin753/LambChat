@@ -21,8 +21,6 @@ class EventBuilder:
     - tool:result: 工具调用结果
     - todo:created: TodoList创建
     - todo:updated: TodoList更新
-    - skill:loaded: 技能加载
-    - skill:added: 技能添加
     - done: 流结束
     - error: 错误
     """
@@ -106,7 +104,7 @@ class EventBuilder:
             "tool:result",
             {
                 "tool": tool_name,
-                "result": str(result)[:1000],  # 限制结果长度
+                "result": str(result),
                 "timestamp": _get_timestamp(),
             },
         )
@@ -144,55 +142,6 @@ class EventBuilder:
             {
                 "todos": todos,
                 "updated_index": updated_index,
-                "timestamp": _get_timestamp(),
-            },
-        )
-
-    @classmethod
-    def skill_loaded(cls, skill_name: str, description: str = "") -> Dict[str, Any]:
-        """
-        构建技能加载事件
-
-        Args:
-            skill_name: 技能名称
-            description: 技能描述
-
-        Returns:
-            SSE 事件字典
-        """
-        return cls._build_event(
-            "skill:loaded",
-            {
-                "name": skill_name,
-                "description": description,
-                "timestamp": _get_timestamp(),
-            },
-        )
-
-    @classmethod
-    def skill_added(
-        cls, skill_name: str, description: str = "", files_count: int = 0
-    ) -> Dict[str, Any]:
-        """
-        构建 skill 添加事件
-
-        当 Agent 成功导入一个新 skill 时发送此事件，
-        前端收到后会自动刷新 skill 列表。
-
-        Args:
-            skill_name: skill 名称
-            description: skill 描述
-            files_count: 导入的文件数量
-
-        Returns:
-            SSE 事件字典
-        """
-        return cls._build_event(
-            "skill:added",
-            {
-                "name": skill_name,
-                "description": description,
-                "files_count": files_count,
                 "timestamp": _get_timestamp(),
             },
         )

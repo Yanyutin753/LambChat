@@ -18,6 +18,7 @@ import {
   getAccessToken,
   type BackendSession,
 } from "../services/api";
+import { feedbackApi } from "../services/api/feedback";
 import {
   API_BASE,
   DEFAULT_AGENT,
@@ -460,16 +461,44 @@ export function useAgent(options?: UseAgentOptions) {
 
         case "tool:result": {
           const toolCallId = data.tool_call_id as string | undefined;
+          const toolName = data.tool || "";
           const isSuccess =
             data.success !== false &&
             !data.result?.toString().startsWith("Error:");
           const toolResult: ToolResult = {
             id: toolCallId,
-            name: data.tool || "",
+            name: toolName,
             result: data.result || "",
             success: isSuccess,
           };
           const errorMsg = data.error as string | undefined;
+
+          // 通用处理 callback：工具返回结果中包含 callback 字段时触发对应回调
+          if (isSuccess && data.result) {
+            try {
+              const resultObj = JSON.parse(data.result as string);
+              if (resultObj.callback) {
+                const callback = resultObj.callback;
+                console.log(
+                  `[SSE] Callback triggered: ${callback.type}`,
+                  callback,
+                );
+
+                // 根据 callback.type 触发对应的回调
+                if (callback.type === "skill_added" && options?.onSkillAdded) {
+                  options.onSkillAdded(
+                    callback.name || "",
+                    callback.description || "",
+                    callback.files_count || 0,
+                  );
+                }
+                // 可以扩展其他 callback 类型...
+              }
+            } catch {
+              // JSON 解析失败，忽略
+            }
+          }
+
           setMessages((prev) =>
             prev.map((m) => {
               if (m.id !== messageId) return m;
@@ -489,7 +518,6 @@ export function useAgent(options?: UseAgentOptions) {
                 return { ...m, parts: newParts };
               } else {
                 // 向后兼容：按 name 匹配
-                const toolName = data.tool || "";
                 let updated = false;
                 const newParts = parts.map((p) => {
                   if (
@@ -671,19 +699,6 @@ export function useAgent(options?: UseAgentOptions) {
               };
             }),
           );
-          break;
-        }
-
-        case "skill:added": {
-          const skillName = data.name || "";
-          const skillDescription = data.description || "";
-          const filesCount = data.files_count || 0;
-          console.log("[SSE] Skill added:", skillName, "files:", filesCount);
-
-          // 调用回调通知外部刷新 skills
-          if (options?.onSkillAdded) {
-            options.onSkillAdded(skillName, skillDescription, filesCount);
-          }
           break;
         }
       }
@@ -892,11 +907,51 @@ export function useAgent(options?: UseAgentOptions) {
           const eventsData = await sessionApi.getEvents(targetSessionId);
 
           if (eventsData.events && eventsData.events.length > 0) {
-            const reconstructedMessages = reconstructMessagesFromEvents(
+            let reconstructedMessages = reconstructMessagesFromEvents(
               eventsData.events as HistoryEvent[],
               processedEventIdsRef.current,
               { options, activeSubagentStack: activeSubagentStackRef.current },
             );
+
+            // Load feedback for this session
+            try {
+              const feedbackList = await feedbackApi.list(
+                0,
+                100,
+                undefined,
+                undefined,
+                targetSessionId,
+              );
+              if (feedbackList && feedbackList.items.length > 0) {
+                // Create a map for quick lookup by run_id
+                const feedbackMap = new Map(
+                  feedbackList.items.map((f) => [
+                    f.run_id,
+                    { feedback: f.rating, feedbackId: f.id },
+                  ]),
+                );
+                // Merge feedback into messages
+                reconstructedMessages = reconstructedMessages.map((msg) => {
+                  if (msg.runId) {
+                    const feedbackInfo = feedbackMap.get(msg.runId);
+                    if (feedbackInfo) {
+                      return {
+                        ...msg,
+                        feedback: feedbackInfo.feedback,
+                        feedbackId: feedbackInfo.feedbackId,
+                      };
+                    }
+                  }
+                  return msg;
+                });
+              }
+            } catch (feedbackErr) {
+              console.warn(
+                "[loadHistory] Failed to load feedback:",
+                feedbackErr,
+              );
+              // Continue without feedback - not critical
+            }
 
             const lastTimestamp = getLastEventTimestamp(
               eventsData.events as HistoryEvent[],
@@ -1078,6 +1133,12 @@ export function useAgent(options?: UseAgentOptions) {
         }
         if (newRunId) {
           setCurrentRunId(newRunId);
+          // Update the assistant message with the runId
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMessage.id ? { ...m, runId: newRunId } : m,
+            ),
+          );
         }
 
         const streamSessionId = newSessionId || sessionId;

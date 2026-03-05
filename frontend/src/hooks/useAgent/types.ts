@@ -16,8 +16,6 @@ export type EventType =
   | "tool:result"
   | "todo:created"
   | "todo:updated"
-  | "skill:loaded"
-  | "skill:added"
   | "agent:call"
   | "agent:result"
   | "observation"
@@ -82,10 +80,6 @@ export interface EventData {
     size: number;
     url: string;
   }>;
-  // skill:added event fields
-  name?: string;
-  description?: string;
-  files_count?: number;
 }
 
 export interface UseAgentOptions {
@@ -145,6 +139,7 @@ export interface HistoryEvent {
   event_type: string;
   data: HistoryEventData | unknown;
   timestamp?: string;
+  run_id?: string;
 }
 
 // Return type for useAgent hook

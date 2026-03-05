@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 import subprocess
 import tomllib
 from functools import lru_cache
@@ -192,60 +193,70 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.SANDBOX,
         "description": "Enable sandbox environment for running code",
         "default": False,
+        "frontend_visible": True,
     },
     "SANDBOX_PLATFORM": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
         "description": "Sandbox platform: runloop, daytona, or modal",
         "default": "runloop",
+        "depends_on": "ENABLE_SANDBOX",
     },
     "RUNLOOP_API_KEY": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
         "description": "Runloop API Key",
         "default": "",
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "runloop"},
     },
     "RUNLOOP_BASE_URL": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
         "description": "Runloop API Base URL",
         "default": "https://api.runloop.ai",
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "runloop"},
     },
     "DAYTONA_API_KEY": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
         "description": "Daytona API Key",
         "default": "",
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "daytona"},
     },
     "DAYTONA_SERVER_URL": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
         "description": "Daytona Server URL",
         "default": "",
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "daytona"},
     },
     "DAYTONA_TIMEOUT": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.SANDBOX,
         "description": "Daytona command timeout in seconds",
         "default": 180,
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "daytona"},
     },
     "SANDBOX_AUTO_STOP_INTERVAL": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.SANDBOX,
         "description": "Sandbox auto-stop interval in minutes (stopped sandbox will be archived after this time)",
         "default": 5,
+        "depends_on": "ENABLE_SANDBOX",
     },
     "SANDBOX_AUTO_ARCHIVE_INTERVAL": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.SANDBOX,
         "description": "Sandbox auto-archive interval in minutes (archived sandbox will be deleted after this time)",
         "default": 5,
+        "depends_on": "ENABLE_SANDBOX",
     },
     "MODAL_APP_NAME": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
         "description": "Modal App Name",
         "default": "",
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "modal"},
     },
     # ============================================
     # Skills Settings
@@ -362,24 +373,28 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.TRACING,
         "description": "LangSmith API key",
         "default": "",
+        "depends_on": "LANGSMITH_TRACING",
     },
     "LANGSMITH_PROJECT": {
         "type": SettingType.STRING,
         "category": SettingCategory.TRACING,
         "description": "LangSmith project name",
         "default": "lamb-agent",
+        "depends_on": "LANGSMITH_TRACING",
     },
     "LANGSMITH_API_URL": {
         "type": SettingType.STRING,
         "category": SettingCategory.TRACING,
         "description": "LangSmith API URL",
         "default": "https://api.smith.langchain.com",
+        "depends_on": "LANGSMITH_TRACING",
     },
     "LANGSMITH_SAMPLE_RATE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.TRACING,
         "description": "LangSmith sample rate (0.0-1.0)",
         "default": 1.0,
+        "depends_on": "LANGSMITH_TRACING",
     },
     # ============================================
     # JWT Authentication Settings
@@ -387,8 +402,8 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     "JWT_SECRET_KEY": {
         "type": SettingType.STRING,
         "category": SettingCategory.SECURITY,
-        "description": "JWT secret key for token signing",
-        "default": "your-secret-key-change-in-production",
+        "description": "JWT secret key for token signing (auto-generated if not set)",
+        "default": "",  # Will be set to random value at runtime if empty
     },
     "JWT_ALGORITHM": {
         "type": SettingType.STRING,
@@ -416,72 +431,84 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.S3,
         "description": "Enable S3-compatible storage for file uploads",
         "default": False,
+        "frontend_visible": True,
     },
     "S3_PROVIDER": {
         "type": SettingType.STRING,
         "category": SettingCategory.S3,
         "description": "S3 provider: aws, aliyun, tencent, minio, custom",
         "default": "aws",
+        "depends_on": "S3_ENABLED",
     },
     "S3_ENDPOINT_URL": {
         "type": SettingType.STRING,
         "category": SettingCategory.S3,
         "description": "S3 endpoint URL (required for MinIO and custom providers)",
         "default": "",
+        "depends_on": "S3_ENABLED",
     },
     "S3_ACCESS_KEY": {
         "type": SettingType.STRING,
         "category": SettingCategory.S3,
         "description": "S3 access key",
         "default": "",
+        "depends_on": "S3_ENABLED",
     },
     "S3_SECRET_KEY": {
         "type": SettingType.STRING,
         "category": SettingCategory.S3,
         "description": "S3 secret key",
         "default": "",
+        "depends_on": "S3_ENABLED",
     },
     "S3_REGION": {
         "type": SettingType.STRING,
         "category": SettingCategory.S3,
         "description": "S3 region",
         "default": "us-east-1",
+        "depends_on": "S3_ENABLED",
     },
     "S3_BUCKET_NAME": {
         "type": SettingType.STRING,
         "category": SettingCategory.S3,
         "description": "S3 bucket name",
         "default": "",
+        "depends_on": "S3_ENABLED",
     },
     "S3_CUSTOM_DOMAIN": {
         "type": SettingType.STRING,
         "category": SettingCategory.S3,
         "description": "Custom CDN domain for S3 files",
         "default": "",
+        "depends_on": "S3_ENABLED",
     },
     "S3_PATH_STYLE": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.S3,
         "description": "Use path-style URLs (required for MinIO)",
         "default": False,
+        "depends_on": "S3_ENABLED",
     },
     "S3_MAX_FILE_SIZE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.S3,
         "description": "Maximum file size in bytes (default: 10MB)",
         "default": 10485760,
+        "depends_on": "S3_ENABLED",
     },
     "S3_PUBLIC_BUCKET": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.S3,
         "description": "Whether the S3 bucket is publicly readable",
         "default": False,
+        "depends_on": "S3_ENABLED",
     },
     "S3_PRESIGNED_URL_EXPIRES": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.S3,
         "description": "Presigned URL expiration time in seconds (default: 7 days)",
         "default": 604800,
+        "depends_on": "S3_ENABLED",
     },
     # ============================================
     # User Management Settings
@@ -646,7 +673,7 @@ class Settings(BaseSettings):
     LANGSMITH_SAMPLE_RATE: float = 1.0
 
     # JWT Authentication Settings
-    JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
+    JWT_SECRET_KEY: str = secrets.token_urlsafe(32)
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -683,6 +710,14 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
+
+        # Generate random JWT_SECRET_KEY if not set or using placeholder
+        if not self.JWT_SECRET_KEY or self.JWT_SECRET_KEY == "your-secret-key-change-in-production":
+            self.JWT_SECRET_KEY = secrets.token_urlsafe(32)
+            logger.warning(
+                "JWT_SECRET_KEY not set or using placeholder value. "
+                f"Generated random secret key: {self.JWT_SECRET_KEY[:8]}..."
+            )
 
         # Set version info from git (if not already set via env)
         if self.GIT_TAG is None:

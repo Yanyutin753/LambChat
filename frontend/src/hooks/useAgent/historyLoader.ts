@@ -123,14 +123,22 @@ function processHistoryEvent(
   // Ensure assistant message exists for other event types
   let msg = currentAssistantMessage;
   if (!msg) {
+    // Use run_id as message ID for persistence across page refreshes
+    // This ensures the same message gets the same ID, allowing ratings to be matched
+    const messageId = event.run_id || crypto.randomUUID();
     msg = {
-      id: crypto.randomUUID(),
+      id: messageId,
       role: "assistant",
       content: "",
       timestamp: new Date(event.timestamp || Date.now()),
       parts: [],
       isStreaming: false,
+      // Extract run_id from event for message rating
+      runId: event.run_id,
     };
+  } else if (event.run_id && !msg.runId) {
+    // Update existing message with run_id if not already set
+    msg = { ...msg, runId: event.run_id };
   }
 
   switch (eventType) {
@@ -425,6 +433,8 @@ export function reconstructMessagesFromEvents(
         content: eventData.content || "",
         timestamp: new Date(event.timestamp || Date.now()),
         attachments: userAttachments,
+        // Include run_id for message rating
+        runId: event.run_id,
       });
       continue;
     }

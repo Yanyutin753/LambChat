@@ -62,6 +62,11 @@ class Permission(str, Enum):
     FILE_UPLOAD_AUDIO = "file:upload:audio"
     FILE_UPLOAD_DOCUMENT = "file:upload:document"
 
+    # Feedback
+    FEEDBACK_WRITE = "feedback:write"
+    FEEDBACK_READ = "feedback:read"
+    FEEDBACK_ADMIN = "feedback:admin"
+
     # Avatar
     AVATAR_UPLOAD = "avatar:upload"
 

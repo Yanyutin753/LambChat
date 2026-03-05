@@ -159,7 +159,7 @@ function UserFormModal({
 
   return (
     <>
-      <div className="fixed inset-0 " onClick={onClose} />
+      <div className="fixed inset-0" onClick={onClose} />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
         <div className="modal-bottom-sheet-content sm:modal-centered-content">
           <div className="bottom-sheet-handle sm:hidden" />
@@ -343,7 +343,7 @@ function DeleteConfirmModal({
   const { t } = useTranslation();
   return (
     <>
-      <div className="fixed inset-0 " onClick={onClose} />
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
         <div className="modal-bottom-sheet-content sm:modal-centered-content">
           <div className="bottom-sheet-handle sm:hidden" />

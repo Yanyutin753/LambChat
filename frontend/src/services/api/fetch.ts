@@ -134,12 +134,12 @@ export async function authFetch<T>(
     ...headers,
   };
 
-  if (!skipAuth) {
-    const token = getAccessToken();
-    if (token) {
-      (finalHeaders as Record<string, string>)["Authorization"] =
-        `Bearer ${token}`;
-    }
+  // Always send token if available (even with skipAuth)
+  // skipAuth only controls error handling, not token inclusion
+  const token = getAccessToken();
+  if (token) {
+    (finalHeaders as Record<string, string>)["Authorization"] =
+      `Bearer ${token}`;
   }
 
   const response = await fetch(url, {

@@ -79,6 +79,7 @@ class SettingsStorage:
                 requires_restart=key in RESTART_REQUIRED_SETTINGS,
                 is_sensitive=key in SENSITIVE_SETTINGS,
                 frontend_visible=definition.get("frontend_visible", False),
+                depends_on=definition.get("depends_on"),
                 updated_at=db_doc.get("updated_at") if db_doc else None,
                 updated_by=db_doc.get("updated_by") if db_doc else None,
             )
@@ -122,6 +123,7 @@ class SettingsStorage:
             requires_restart=key in RESTART_REQUIRED_SETTINGS,
             is_sensitive=key in SENSITIVE_SETTINGS,
             frontend_visible=definition.get("frontend_visible", False),
+            depends_on=definition.get("depends_on"),
             updated_at=doc.get("updated_at") if doc else None,
             updated_by=doc.get("updated_by") if doc else None,
         )

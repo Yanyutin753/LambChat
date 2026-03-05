@@ -19,6 +19,7 @@ from src.api.routes import (
     agent,
     auth,
     chat,
+    feedback,
     health,
     human,
     mcp,
@@ -45,6 +46,13 @@ async def lifespan(app: FastAPI):
 
     # 初始化日志系统
     setup_logging()
+
+    # 初始化默认角色（更新系统角色权限）
+    from src.infra.role.storage import RoleStorage
+
+    role_storage = RoleStorage()
+    await role_storage.init_default_roles()
+    logger.info("Default roles initialized")
 
     # 配置 uvicorn 访问日志格式，与项目日志完全统一
     import logging
@@ -157,6 +165,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp.admin_router, prefix="/api/admin/mcp", tags=["MCP Admin"])
     app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
+    app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
 
     # Serve frontend static files
     static_dir = Path(__file__).parent.parent.parent / "static"

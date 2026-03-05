@@ -3,9 +3,16 @@ Setting schemas for API request/response
 """
 
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, Field
+
+
+class SettingDependsOn(BaseModel):
+    """Setting dependency condition"""
+
+    key: str  # Parent setting key
+    value: Any  # Expected value for visibility
 
 
 class SettingType(str, Enum):
@@ -47,6 +54,9 @@ class SettingItem(BaseModel):
     requires_restart: bool = False
     is_sensitive: bool = False
     frontend_visible: bool = False
+    depends_on: Optional[Union[str, SettingDependsOn]] = (
+        None  # Key or condition for visibility control
+    )
     updated_at: Optional[str] = None
     updated_by: Optional[str] = None
 

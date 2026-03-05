@@ -133,7 +133,7 @@ class RBACManager:
             },
             {
                 "name": "user",
-                "description": "普通用户 - 可使用聊天、会话、技能和MCP功能",
+                "description": "普通用户 - 可使用聊天、会话、技能、MCP、反馈功能",
                 "permissions": [
                     # Chat
                     Permission.CHAT_READ.value,
@@ -152,6 +152,9 @@ class RBACManager:
                     Permission.MCP_WRITE_SSE.value,
                     Permission.MCP_WRITE_HTTP.value,
                     Permission.MCP_DELETE.value,
+                    # Feedback
+                    Permission.FEEDBACK_WRITE.value,
+                    Permission.FEEDBACK_READ.value,
                 ],
                 "is_system": True,  # 设为系统角色，自动更新权限
             },

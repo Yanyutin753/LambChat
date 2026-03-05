@@ -68,6 +68,25 @@ class RoleStorage:
 
         return Role(**role_dict)
 
+    def _parse_permissions(self, permissions: list[str]) -> list[Permission]:
+        """
+        解析权限列表，过滤无效的权限字符串
+
+        Args:
+            permissions: 权限字符串列表
+
+        Returns:
+            有效的 Permission 枚举列表
+        """
+        valid_permissions = []
+        for p in permissions:
+            try:
+                valid_permissions.append(Permission(p))
+            except ValueError:
+                # 忽略无效的权限字符串
+                pass
+        return valid_permissions
+
     async def get_by_id(self, role_id: str) -> Optional[Role]:
         """
         通过 ID 获取角色
@@ -89,7 +108,7 @@ class RoleStorage:
             return None
 
         role_dict["id"] = str(role_dict.pop("_id"))
-        role_dict["permissions"] = [Permission(p) for p in role_dict.get("permissions", [])]
+        role_dict["permissions"] = self._parse_permissions(role_dict.get("permissions", []))
         return Role(**role_dict)
 
     async def get_by_name(self, name: str) -> Optional[Role]:
@@ -108,7 +127,7 @@ class RoleStorage:
             return None
 
         role_dict["id"] = str(role_dict.pop("_id"))
-        role_dict["permissions"] = [Permission(p) for p in role_dict.get("permissions", [])]
+        role_dict["permissions"] = self._parse_permissions(role_dict.get("permissions", []))
         return Role(**role_dict)
 
     async def update(self, role_id: str, role_data: RoleUpdate) -> Optional[Role]:
@@ -161,7 +180,7 @@ class RoleStorage:
             raise NotFoundError(f"角色 '{role_id}' 不存在")
 
         result["id"] = str(result.pop("_id"))
-        result["permissions"] = [Permission(p) for p in result.get("permissions", [])]
+        result["permissions"] = self._parse_permissions(result.get("permissions", []))
         return Role(**result)
 
     async def delete(self, role_id: str) -> bool:
@@ -207,7 +226,7 @@ class RoleStorage:
 
         async for role_dict in cursor:
             role_dict["id"] = str(role_dict.pop("_id"))
-            role_dict["permissions"] = [Permission(p) for p in role_dict.get("permissions", [])]
+            role_dict["permissions"] = self._parse_permissions(role_dict.get("permissions", []))
             roles.append(Role(**role_dict))
 
         return roles
@@ -230,7 +249,7 @@ class RoleStorage:
 
         async for role_dict in cursor:
             role_dict["id"] = str(role_dict.pop("_id"))
-            role_dict["permissions"] = [Permission(p) for p in role_dict.get("permissions", [])]
+            role_dict["permissions"] = self._parse_permissions(role_dict.get("permissions", []))
             roles.append(Role(**role_dict))
 
         return roles
