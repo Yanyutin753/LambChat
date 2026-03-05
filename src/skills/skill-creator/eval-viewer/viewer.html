@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>评估查看器</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --border: #dee2e6;
+      --text: #212529;
+      --text-muted: #6c757d;
+      --accent: #0d6efd;
+      --accent-hover: #0b5ed7;
+      --green: #198754;
+      --green-bg: #d1e7dd;
+      --red: #dc3545;
+      --red-bg: #f8d7da;
+      --header-bg: #343a40;
+      --header-text: #f8f9fa;
+      --radius: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 { font-size: 1.25rem; font-weight: 600; }
+    .header .progress { font-size: 0.875rem; opacity: 0.8; }
+
+    /* Tabs */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      padding: 0.625rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* Main content */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* Sections */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body { padding: 1rem; }
+
+    /* Config badge */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-left: 0.75rem;
+    }
+    .config-badge.config-primary { background: rgba(13, 110, 253, 0.12); color: #0d6efd; }
+    .config-badge.config-baseline { background: rgba(255, 193, 7, 0.15); color: #f57f17; }
+
+    /* Prompt & Output */
+    .prompt-text { white-space: pre-wrap; font-size: 0.9375rem; line-height: 1.6; }
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', Consolas, monospace;
+      display: flex;
+      justify-content: space-between;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', Consolas, monospace;
+    }
+    .output-file-content img { max-width: 100%; height: auto; border-radius: 4px; }
+    .empty-state { color: var(--text-muted); font-style: italic; padding: 2rem; text-align: center; }
+
+    /* Feedback */
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .feedback-textarea:focus { outline: none; border-color: var(--accent); }
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    /* Grades */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    .grades-toggle:hover { color: var(--accent); }
+    .grades-toggle .arrow { margin-right: 0.5rem; transition: transform 0.15s; }
+    .grades-toggle .arrow.open { transform: rotate(90deg); }
+    .grades-content { display: none; margin-top: 0.75rem; }
+    .grades-content.open { display: block; }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-item { padding: 0.625rem 0; border-bottom: 1px solid var(--border); font-size: 0.8125rem; }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status { font-weight: 600; margin-right: 0.5rem; }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence { color: var(--text-muted); font-size: 0.75rem; margin-top: 0.25rem; padding-left: 1.5rem; }
+
+    /* Benchmark */
+    .benchmark-view { padding: 1.5rem 2rem; overflow-y: auto; flex: 1; }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+
+    /* Navigation */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .nav-btn:hover:not(:disabled) { background: var(--bg); }
+    .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .done-btn {
+      padding: 0.5rem 1.5rem;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .done-btn:hover { background: var(--accent-hover); }
+
+    /* Done overlay */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible { display: flex; }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    .done-card h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .done-card p { color: var(--text-muted); margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>评估查看器: <span id="skill-name"></span></h1>
+    </div>
+    <div class="progress" id="progress"></div>
+  </div>
+
+  <div class="view-tabs">
+    <button class="view-tab active" data-view="outputs">输出</button>
+    <button class="view-tab" data-view="benchmark">基准测试</button>
+  </div>
+
+  <!-- Outputs View -->
+  <div class="view-panel active" id="outputs-view">
+    <div class="main" id="main-content"></div>
+    <div class="nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">← 上一个</button>
+      <button class="done-btn" onclick="submitAll()">提交所有评审</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">下一个 →</button>
+    </div>
+  </div>
+
+  <!-- Benchmark View -->
+  <div class="view-panel" id="benchmark-view">
+    <div class="benchmark-view" id="benchmark-content"></div>
+  </div>
+
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>评审完成!</h2>
+      <p>你的反馈已保存到 feedback.json</p>
+      <button class="done-btn" onclick="closeOverlay()">确定</button>
+    </div>
+  </div>
+
+  <script>
+    /*__EMBEDDED_DATA__*/
+    const EMBEDDED_DATA = {};
+
+    let currentRunIdx = 0;
+    let feedback = {};
+
+    function init() {
+      document.getElementById('skill-name').textContent = EMBEDDED_DATA.skill_name || 'Skill';
+      document.getElementById('progress').textContent = `${EMBEDDED_DATA.runs.length} 个运行`;
+
+      // Initialize feedback from previous
+      if (EMBEDDED_DATA.previous_feedback) {
+        feedback = { ...EMBEDDED_DATA.previous_feedback };
+      }
+
+      // Tab switching
+      document.querySelectorAll('.view-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+          tab.classList.add('active');
+          document.getElementById(tab.dataset.view + '-view').classList.add('active');
+        });
+      });
+
+      renderCurrentRun();
+      renderBenchmark();
+      document.addEventListener('keydown', handleKeydown);
+    }
+
+    function renderCurrentRun() {
+      const run = EMBEDDED_DATA.runs[currentRunIdx];
+      const main = document.getElementById('main-content');
+      const prevFeedback = EMBEDDED_DATA.previous_feedback?.[run.id] || '';
+      const prevOutputs = EMBEDDED_DATA.previous_outputs?.[run.id] || [];
+
+      main.innerHTML = `
+        <div class="section">
+          <div class="section-header">Prompt</div>
+          <div class="section-body">
+            <div class="prompt-text">${escapeHtml(run.prompt)}</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-header">
+            Outputs
+            ${run.id.includes('with_skill') ? '<span class="config-badge config-primary">with_skill</span>' : ''}
+            ${run.id.includes('without_skill') ? '<span class="config-badge config-baseline">without_skill</span>' : ''}
+          </div>
+          <div class="section-body">
+            ${run.outputs.length > 0 ? run.outputs.map(renderOutput).join('') : '<div class="empty-state">没有输出文件</div>'}
+          </div>
+        </div>
+
+        ${run.grading ? renderGrading(run.grading) : ''}
+
+        <div class="section">
+          <div class="section-header">反馈</div>
+          <div class="section-body">
+            <textarea class="feedback-textarea" id="feedback-input" placeholder="在这里输入你的反馈..."
+              onchange="saveFeedback('${run.id}', this.value)">${feedback[run.id] || ''}</textarea>
+            ${prevFeedback ? `<div class="prev-feedback"><strong>上次反馈:</strong><br>${escapeHtml(prevFeedback)}</div>` : ''}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('prev-btn').disabled = currentRunIdx === 0;
+      document.getElementById('next-btn').disabled = currentRunIdx === EMBEDDED_DATA.runs.length - 1;
+      document.getElementById('progress').textContent = `${currentRunIdx + 1} / ${EMBEDDED_DATA.runs.length}`;
+    }
+
+    function renderOutput(output) {
+      if (output.type === 'text') {
+        return `
+          <div class="output-file">
+            <div class="output-file-header">${escapeHtml(output.name)}</div>
+            <div class="output-file-content"><pre>${escapeHtml(output.content)}</pre></div>
+          </div>
+        `;
+      } else if (output.type === 'image') {
+        return `
+          <div class="output-file">
+            <div class="output-file-header">${escapeHtml(output.name)}</div>
+            <div class="output-file-content"><img src="${output.data_uri}" alt="${escapeHtml(output.name)}"></div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="output-file">
+            <div class="output-file-header">
+              ${escapeHtml(output.name)}
+              <a href="${output.data_uri}" download="${output.name}" style="color:var(--accent);text-decoration:none;font-size:0.75rem;">下载</a>
+            </div>
+            <div class="output-file-content"><span style="color:var(--text-muted)">[二进制文件]</span></div>
+          </div>
+        `;
+      }
+    }
+
+    function renderGrading(grading) {
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+      return `
+        <div class="section">
+          <div class="section-header grades-toggle" onclick="toggleGrades(this)">
+            <span class="arrow">▶</span> 正式评分
+            <span class="grade-badge ${summary.pass_rate >= 0.5 ? 'grade-pass' : 'grade-fail'}" style="margin-left:0.5rem">
+              ${summary.passed || 0}/${summary.total || 0} 通过 (${((summary.pass_rate || 0) * 100).toFixed(0)}%)
+            </span>
+          </div>
+          <div class="grades-content section-body">
+            ${expectations.map(e => `
+              <div class="assertion-item">
+                <span class="assertion-status ${e.passed ? 'pass' : 'fail'}">${e.passed ? '✓' : '✗'}</span>
+                ${escapeHtml(e.text)}
+                ${e.evidence ? `<div class="assertion-evidence">${escapeHtml(e.evidence)}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleGrades(el) {
+      el.querySelector('.arrow').classList.toggle('open');
+      el.nextElementSibling.classList.toggle('open');
+    }
+
+    function renderBenchmark() {
+      const benchmark = EMBEDDED_DATA.benchmark;
+      const container = document.getElementById('benchmark-content');
+
+      if (!benchmark) {
+        container.innerHTML = '<div class="empty-state">没有基准测试数据</div>';
+        return;
+      }
+
+      const summary = benchmark.run_summary || {};
+      const configs = Object.keys(summary).filter(k => k !== 'delta');
+
+      let html = '<table class="benchmark-table"><thead><tr><th>指标</th>';
+      configs.forEach(c => { html += `<th>${c}</th>`; });
+      html += '<th>Delta</th></tr></thead><tbody>';
+
+      const metrics = ['pass_rate', 'time_seconds', 'tokens'];
+      const labels = { pass_rate: '通过率', time_seconds: '时间 (秒)', tokens: 'Tokens' };
+
+      metrics.forEach(m => {
+        html += `<tr><td>${labels[m]}</td>`;
+        configs.forEach(c => {
+          const v = summary[c]?.[m] || {};
+          if (m === 'pass_rate') {
+            html += `<td>${((v.mean || 0) * 100).toFixed(0)}% ± ${((v.stddev || 0) * 100).toFixed(0)}%</td>`;
+          } else {
+            html += `<td>${(v.mean || 0).toFixed(1)} ± ${(v.stddev || 0).toFixed(1)}</td>`;
+          }
+        });
+        const delta = summary.delta?.[m] || '—';
+        const cls = delta.startsWith('+') ? 'benchmark-delta-positive' : delta.startsWith('-') ? 'benchmark-delta-negative' : '';
+        html += `<td class="${cls}">${delta}</td></tr>`;
+      });
+
+      html += '</tbody></table>';
+
+      if (benchmark.notes?.length) {
+        html += '<div class="section" style="margin-top:1rem"><div class="section-header">分析笔记</div><div class="section-body"><ul>';
+        benchmark.notes.forEach(n => { html += `<li>${escapeHtml(n)}</li>`; });
+        html += '</ul></div></div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    function saveFeedback(runId, value) {
+      feedback[runId] = value;
+    }
+
+    async function submitAll() {
+      const reviews = EMBEDDED_DATA.runs.map(run => ({
+        run_id: run.id,
+        feedback: feedback[run.id] || '',
+        timestamp: new Date().toISOString()
+      }));
+
+      try {
+        const res = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reviews, status: 'complete' })
+        });
+        if (res.ok) {
+          document.getElementById('done-overlay').classList.add('visible');
+        } else {
+          alert('保存失败: ' + (await res.text()));
+        }
+      } catch (e) {
+        // Static mode - download as file
+        const data = { reviews, status: 'complete' };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'feedback.json';
+        a.click();
+        document.getElementById('done-overlay').classList.add('visible');
+      }
+    }
+
+    function closeOverlay() {
+      document.getElementById('done-overlay').classList.remove('visible');
+    }
+
+    function navigate(delta) {
+      currentRunIdx = Math.max(0, Math.min(EMBEDDED_DATA.runs.length - 1, currentRunIdx + delta));
+      renderCurrentRun();
+    }
+
+    function handleKeydown(e) {
+      if (e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') navigate(-1);
+      if (e.key === 'ArrowRight') navigate(1);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>

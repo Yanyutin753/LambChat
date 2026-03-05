@@ -99,6 +99,11 @@ async def lifespan(app: FastAPI):
     await task_manager.cleanup_stale_tasks()
     logger.info("Stale tasks cleaned up")
 
+    # 初始化内置 skills
+    from src.infra.skill.builtin import init_builtin_skills
+
+    await init_builtin_skills()
+
     yield
 
     # 关闭时清理

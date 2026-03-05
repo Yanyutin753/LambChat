@@ -474,29 +474,39 @@ export function useAgent(options?: UseAgentOptions) {
           };
           const errorMsg = data.error as string | undefined;
 
-          // 通用处理 callback：工具返回结果中包含 callback 字段时触发对应回调
-          if (isSuccess && data.result) {
+          // 只针对 add_skill_from_path 工具处理 callback
+          if (toolName === "add_skill_from_path" && isSuccess && data.result) {
             try {
-              const resultObj = JSON.parse(data.result as string);
+              let jsonStr = data.result;
+
+              // 提取 content='...' 中的 JSON
+              const contentMatch = jsonStr.match(/content='((?:[^'\\]|\\.)*)'/);
+              if (contentMatch) {
+                jsonStr = contentMatch[1].replace(/\\'/g, "'");
+              }
+
+              const resultObj = JSON.parse(jsonStr) as Record<string, unknown>;
+
               if (resultObj.callback) {
-                const callback = resultObj.callback;
+                const callback = resultObj.callback as Record<string, unknown>;
                 console.log(
                   `[SSE] Callback triggered: ${callback.type}`,
                   callback,
                 );
 
-                // 根据 callback.type 触发对应的回调
                 if (callback.type === "skill_added" && options?.onSkillAdded) {
                   options.onSkillAdded(
-                    callback.name || "",
-                    callback.description || "",
-                    callback.files_count || 0,
+                    (callback.name as string) || "",
+                    (callback.description as string) || "",
+                    (callback.files_count as number) || 0,
                   );
                 }
-                // 可以扩展其他 callback 类型...
               }
-            } catch {
-              // JSON 解析失败，忽略
+            } catch (e) {
+              console.warn(
+                "[SSE] Failed to parse add_skill_from_path result:",
+                e,
+              );
             }
           }
 
