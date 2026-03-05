@@ -137,11 +137,12 @@ export const sessionApi = {
   async generateTitle(
     sessionId: string,
     message: string,
+    lang: string = "en",
   ): Promise<{ title: string; session_id: string }> {
     return authFetch(
       `${API_BASE}/api/sessions/${sessionId}/generate-title?message=${encodeURIComponent(
         message,
-      )}`,
+      )}&lang=${encodeURIComponent(lang)}`,
       {
         method: "POST",
       },

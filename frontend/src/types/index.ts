@@ -634,6 +634,7 @@ export interface RunSummary {
   completed_at?: string;
   status: "pending" | "running" | "completed" | "failed";
   event_count: number;
+  user_message?: string;
 }
 
 // ============================================

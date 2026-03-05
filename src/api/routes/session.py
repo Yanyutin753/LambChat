@@ -256,6 +256,7 @@ async def get_session_runs(
         limit: 最大返回数量
     """
     from src.infra.session.dual_writer import get_dual_writer
+    from src.infra.session.trace_storage import get_trace_storage
 
     manager = SessionManager()
     session = await manager.get_session(session_id)
@@ -264,21 +265,42 @@ async def get_session_runs(
 
     verify_session_ownership(session, user)
 
+    # 获取traces基本信息
     dual_writer = get_dual_writer()
     traces = await dual_writer.list_traces(session_id=session_id, limit=limit)
+
+    # 获取trace_storage来查询用户消息
+    trace_storage = get_trace_storage()
 
     # 转换为 run 摘要格式
     runs = []
     for trace in traces:
+        run_id = trace.get("run_id")
+        trace_id = trace.get("trace_id")
+        # 查询该run的第一个用户消息
+        user_message = None
+        if run_id and trace_id:
+            events = await trace_storage.get_trace_events(trace_id=trace_id)
+            for event in events:
+                if event.get("event_type") == "user:message":
+                    data = event.get("data", {})
+                    user_message = data.get("content") or data.get("message") or ""
+                    if user_message:
+                        # 截断过长消息
+                        if len(user_message) > 20:
+                            user_message = user_message[:17] + "..."
+                        break
+
         runs.append(
             {
-                "run_id": trace.get("run_id"),
+                "run_id": run_id,
                 "trace_id": trace.get("trace_id"),
                 "agent_id": trace.get("agent_id"),
                 "started_at": trace.get("started_at"),
                 "completed_at": trace.get("completed_at"),
                 "status": trace.get("status"),
                 "event_count": trace.get("event_count", 0),
+                "user_message": user_message,
             }
         )
 
@@ -421,6 +443,7 @@ async def update_session(
 async def generate_session_title(
     session_id: str,
     message: str = Query(..., description="用户消息内容，用于生成标题"),
+    lang: str = Query("en", description="语言代码: en, zh, ja, ko"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -442,16 +465,18 @@ async def generate_session_title(
         return {"title": "新对话", "session_id": session_id}
 
     title_model = settings.SESSION_TITLE_MODEL
+    title_api_base = settings.SESSION_TITLE_API_BASE or settings.LLM_API_BASE
+    title_api_key = settings.SESSION_TITLE_API_KEY or settings.LLM_API_KEY
     prompt_template = settings.SESSION_TITLE_PROMPT
 
     # 使用 LLM 生成标题
     try:
         model = LLMClient.get_model(
             model=title_model,
-            api_base=settings.LLM_API_BASE,
-            api_key=settings.LLM_API_KEY,
+            api_base=title_api_base,
+            api_key=title_api_key,
         )
-        prompt = prompt_template.format(message=message[:800])
+        prompt = prompt_template.replace("{lang}", lang).replace("{message}", message[:800])
 
         response = await _ainvoke_with_retry(model, prompt)
         print("LLM 生成标题响应:", response)

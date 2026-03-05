@@ -29,6 +29,7 @@ interface ShareDialogProps {
   onClose: () => void;
   sessionId: string;
   sessionName: string;
+  currentRunId?: string;
 }
 
 export function ShareDialog({
@@ -36,6 +37,7 @@ export function ShareDialog({
   onClose,
   sessionId,
   sessionName,
+  currentRunId,
 }: ShareDialogProps) {
   const { t } = useTranslation();
   const [shareType, setShareType] = useState<ShareType>("full");
@@ -64,13 +66,29 @@ export function ShareDialog({
     setIsLoadingRuns(true);
     try {
       const response = await sessionApi.getRuns(sessionId);
-      setRuns(response.runs || []);
+      // Sort runs by started_at in ascending order (oldest first)
+      const sortedRuns = (response.runs || []).sort(
+        (a, b) =>
+          new Date(a.started_at).getTime() - new Date(b.started_at).getTime(),
+      );
+      setRuns(sortedRuns);
+
+      // Auto-select runs up to and including currentRunId
+      if (currentRunId) {
+        const runIndex = sortedRuns.findIndex((r) => r.run_id === currentRunId);
+        if (runIndex >= 0) {
+          const runsToSelect = sortedRuns
+            .slice(0, runIndex + 1)
+            .map((r) => r.run_id);
+          setSelectedRunIds(runsToSelect);
+        }
+      }
     } catch (error) {
       console.error("Failed to load runs:", error);
     } finally {
       setIsLoadingRuns(false);
     }
-  }, [sessionId]);
+  }, [sessionId, currentRunId]);
 
   // Load existing shares and runs when dialog opens
   useEffect(() => {
@@ -124,12 +142,19 @@ export function ShareDialog({
     }
   };
 
-  const toggleRunSelection = (runId: string) => {
-    setSelectedRunIds((prev) =>
-      prev.includes(runId)
-        ? prev.filter((id) => id !== runId)
-        : [...prev, runId],
-    );
+  const handleRunClick = (runId: string) => {
+    // If currently not selected, select this run AND all previous runs
+    if (!selectedRunIds.includes(runId)) {
+      const runIndex = runs.findIndex((r) => r.run_id === runId);
+      if (runIndex >= 0) {
+        // Select all runs up to and including this one
+        const runsToSelect = runs.slice(0, runIndex + 1).map((r) => r.run_id);
+        setSelectedRunIds([...new Set([...selectedRunIds, ...runsToSelect])]);
+      }
+    } else {
+      // If already selected, just toggle this one off
+      setSelectedRunIds(selectedRunIds.filter((id) => id !== runId));
+    }
   };
 
   // Close on Escape key
@@ -234,10 +259,11 @@ export function ShareDialog({
                 </div>
               ) : (
                 <div className="max-h-40 overflow-y-auto space-y-1 border rounded-lg p-2 dark:border-stone-600">
-                  {runs.map((run) => (
+                  {runs.map((run, index) => (
                     <button
                       key={run.run_id}
-                      onClick={() => toggleRunSelection(run.run_id)}
+                      type="button"
+                      onClick={() => handleRunClick(run.run_id)}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                         selectedRunIds.includes(run.run_id)
                           ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
@@ -256,10 +282,10 @@ export function ShareDialog({
                         )}
                       </div>
                       <span className="truncate">
-                        {t("share.run")} #{run.run_id?.slice(0, 8)}
+                        第 {index + 1} {t("share.run")}
                       </span>
                       <span className="text-xs text-gray-400 dark:text-stone-500">
-                        ({run.event_count} {t("share.events")})
+                        ({run.user_message || t("share.noUserMessage")})
                       </span>
                     </button>
                   ))}

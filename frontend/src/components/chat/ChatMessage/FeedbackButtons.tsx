@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 interface FeedbackButtonsProps {
   sessionId: string;
-  runId: string;
+  runId?: string;
   currentFeedback?: RatingValue | null;
   onFeedbackChange?: (feedback: RatingValue | null) => void;
   className?: string;
@@ -64,7 +64,7 @@ export function FeedbackButtons({
         rating: selectedRating,
         comment: comment.trim() || undefined,
         session_id: sessionId,
-        run_id: runId,
+        run_id: runId || "",
       });
       setSubmittedFeedback(selectedRating);
       onFeedbackChange?.(selectedRating);
@@ -131,9 +131,9 @@ export function FeedbackButtons({
         onClick={() => handleRatingClick("up")}
         disabled={isSubmitting}
         className={clsx(
-          "flex items-center justify-center rounded-lg p-1.5 transition-all",
+          "flex items-center justify-center rounded-md p-1.5 transition-all",
           "opacity-0 group-hover:opacity-100",
-          "text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-700 dark:hover:text-stone-300",
+          "text-gray-400 dark:text-stone-500 hover:bg-gray-200 dark:hover:bg-stone-700 hover:text-gray-600 dark:hover:text-stone-300",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
         title={t("feedback.positive")}
@@ -143,7 +143,7 @@ export function FeedbackButtons({
           className={clsx(
             selectedRating === "up"
               ? "text-stone-600 dark:text-stone-300"
-              : "text-stone-400",
+              : "text-gray-400 dark:text-stone-500",
           )}
         />
       </button>
@@ -151,9 +151,9 @@ export function FeedbackButtons({
         onClick={() => handleRatingClick("down")}
         disabled={isSubmitting}
         className={clsx(
-          "flex items-center justify-center rounded-lg p-1.5 transition-all",
+          "flex items-center justify-center rounded-md p-1.5 transition-all",
           "opacity-0 group-hover:opacity-100",
-          "text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-700 dark:hover:text-stone-300",
+          "text-gray-400 dark:text-stone-500 hover:bg-gray-200 dark:hover:bg-stone-700 hover:text-gray-600 dark:hover:text-stone-300",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
         title={t("feedback.negative")}
@@ -163,7 +163,7 @@ export function FeedbackButtons({
           className={clsx(
             selectedRating === "down"
               ? "text-stone-600 dark:text-stone-300"
-              : "text-stone-400",
+              : "text-gray-400 dark:text-stone-500",
           )}
         />
       </button>
@@ -171,7 +171,7 @@ export function FeedbackButtons({
       {/* Comment input popup - ChatGPT style */}
       {showCommentInput && (
         <div
-          className="absolute bottom-full left-0 z-50 mb-2 w-72 rounded-xl border border-stone-200 bg-white p-4 shadow-xl dark:border-stone-700 dark:bg-stone-900"
+          className="absolute bottom-full left-0 z-50 mb-2 inline-block w-72 min-w-0 max-w-md rounded-xl border border-stone-200 bg-white p-4 shadow-xl dark:border-stone-700 dark:bg-stone-900"
           onKeyDown={handleKeyDown}
         >
           {/* Header */}
@@ -222,16 +222,16 @@ export function FeedbackButtons({
           />
 
           {/* Actions */}
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-xs text-stone-400">
+          <div className="mt-3 flex flex-nowrap items-center justify-between gap-2">
+            <span className="truncate text-xs text-stone-400">
               {t("feedback.pressEnter") || "⌘+Enter to send"}
             </span>
-            <div className="flex gap-2">
+            <div className="flex shrink-0 gap-2">
               <button
                 onClick={handleSkipComment}
                 disabled={isSubmitting}
                 className={clsx(
-                  "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                  "whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                   "text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                 )}
@@ -242,7 +242,7 @@ export function FeedbackButtons({
                 onClick={handleSubmitFeedback}
                 disabled={isSubmitting}
                 className={clsx(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                  "flex whitespace-nowrap items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                   "bg-stone-900 text-white hover:bg-stone-800 dark:bg-stone-200 dark:text-stone-900 dark:hover:bg-stone-300",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
                 )}

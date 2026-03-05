@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import i18n from "../i18n";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type {
   Message,
@@ -1115,7 +1116,7 @@ export function useAgent(options?: UseAgentOptions) {
           setNewlyCreatedSession(newSession);
 
           sessionApi
-            .generateTitle(newSessionId, content)
+            .generateTitle(newSessionId, content, i18n.language)
             .then((result) => {
               setNewlyCreatedSession((prev) =>
                 prev

@@ -15,6 +15,7 @@ import { ToolCallItem, FileRevealItem } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { FeedbackButtons } from "./FeedbackButtons";
+import { ShareButton } from "./ShareButton";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -289,6 +290,13 @@ export function ChatMessage({ message, sessionId, runId }: ChatMessageProps) {
                 sessionId={sessionId}
                 runId={message.runId || runId!}
                 currentFeedback={message.feedback}
+              />
+            )}
+            {/* Share button */}
+            {sessionId && (
+              <ShareButton
+                sessionId={sessionId}
+                runId={message.runId || runId}
               />
             )}
           </div>

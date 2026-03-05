@@ -121,19 +121,19 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
         try:
             download_responses = await backend.adownload_files([file_path])
             if download_responses and download_responses[0].content:
-                logger.debug(f"Read file {file_path} via adownload_files")
+                logger.info(f"Read file {file_path} via adownload_files")
                 return download_responses[0].content
         except Exception as e:
-            logger.debug(f"adownload_files failed for {file_path}: {e}")
+            logger.info(f"adownload_files failed for {file_path}: {e}")
 
     if hasattr(backend, "download_files"):
         try:
             download_responses = backend.download_files([file_path])
             if download_responses and download_responses[0].content:
-                logger.debug(f"Read file {file_path} via download_files")
+                logger.info(f"Read file {file_path} via download_files")
                 return download_responses[0].content
         except Exception as e:
-            logger.debug(f"download_files failed for {file_path}: {e}")
+            logger.info(f"download_files failed for {file_path}: {e}")
 
     # 方式2: 非沙箱模式 - 使用 read 方法 (StoreBackend/CompositeBackend)
     if hasattr(backend, "read"):
@@ -143,11 +143,11 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
             if content is not None:
                 # 如果是字符串，转换为字节
                 if isinstance(content, str):
-                    logger.debug(f"Read file {file_path} via read (string)")
+                    logger.info(f"Read file {file_path} via read (string)")
                     return content.encode("utf-8")
                 # 如果是字节，直接返回
                 elif isinstance(content, bytes):
-                    logger.debug(f"Read file {file_path} via read (bytes)")
+                    logger.info(f"Read file {file_path} via read (bytes)")
                     return content
                 # 如果是字典（文件信息），尝试获取内容
                 elif isinstance(content, dict):
@@ -159,7 +159,7 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
                         elif isinstance(file_content, bytes):
                             return file_content
         except Exception as e:
-            logger.debug(f"read failed for {file_path}: {e}")
+            logger.info(f"read failed for {file_path}: {e}")
 
     # 方式3: 尝试 aread 方法（异步版本）
     if hasattr(backend, "aread"):
@@ -167,13 +167,13 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
             content = await backend.aread(file_path)
             if content is not None:
                 if isinstance(content, str):
-                    logger.debug(f"Read file {file_path} via aread (string)")
+                    logger.info(f"Read file {file_path} via aread (string)")
                     return content.encode("utf-8")
                 elif isinstance(content, bytes):
-                    logger.debug(f"Read file {file_path} via aread (bytes)")
+                    logger.info(f"Read file {file_path} via aread (bytes)")
                     return content
         except Exception as e:
-            logger.debug(f"aread failed for {file_path}: {e}")
+            logger.info(f"aread failed for {file_path}: {e}")
 
     return None
 
@@ -254,18 +254,11 @@ async def reveal_file(
         # 从 configurable 中获取 base_url
         base_url = ""
         if runtime:
-            logger.info(f"[reveal_file] runtime type: {type(runtime)}")
-            logger.info(f"[reveal_file] runtime attributes: {dir(runtime)}")
-
             if hasattr(runtime, "config"):
                 config = runtime.config
-                logger.info(f"[reveal_file] config type: {type(config)}")
-                logger.info(f"[reveal_file] config: {config}")
                 if isinstance(config, dict):
                     configurable = config.get("configurable", {})
-                    logger.info(f"[reveal_file] configurable: {configurable}")
                     base_url = configurable.get("base_url", "")
-                    logger.info(f"[reveal_file] base_url from configurable: '{base_url}'")
             else:
                 logger.warning("[reveal_file] runtime has no 'config' attribute")
 

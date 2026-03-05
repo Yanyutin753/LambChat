@@ -5,6 +5,7 @@ MCP敏感字段加密模块
 """
 
 import base64
+import hashlib
 import logging
 from typing import Any
 
@@ -22,8 +23,6 @@ def _get_fernet() -> Fernet:
     """获取Fernet加密实例，使用JWT_SECRET_KEY派生密钥"""
     # Fernet密钥必须是32字节并使用base64编码
     # 使用JWT_SECRET_KEY的SHA256哈希来派生密钥
-    import hashlib
-
     key = hashlib.sha256(settings.JWT_SECRET_KEY.encode()).digest()
     fernet_key = base64.urlsafe_b64encode(key)
     return Fernet(fernet_key)
