@@ -148,38 +148,6 @@ export function FeedbackPanel() {
     });
   };
 
-  // Render loading state
-  if (isLoading && feedbackList.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" className="mx-auto mb-4" />
-          <p className="text-stone-500 dark:text-stone-400">
-            {t("common.loading")}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Render empty state
-  if (!isLoading && feedbackList.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center text-center">
-        <ThumbsUp
-          size={48}
-          className="mb-4 text-stone-300 dark:text-stone-600"
-        />
-        <p className="text-lg font-medium text-stone-500 dark:text-stone-400">
-          {t("feedback.noFeedback")}
-        </p>
-        <p className="text-sm text-stone-400 dark:text-stone-500">
-          {t("feedback.noFeedbackHint")}
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
@@ -287,14 +255,27 @@ export function FeedbackPanel() {
 
       {/* Feedback List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-        {isLoading ? (
-          <div className="flex h-32 items-center justify-center">
-            <LoadingSpinner />
+        {isLoading && feedbackList.length === 0 ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center">
+              <LoadingSpinner size="lg" className="mx-auto mb-4" />
+              <p className="text-stone-500 dark:text-stone-400">
+                {t("common.loading")}
+              </p>
+            </div>
           </div>
-        ) : feedbackList.length === 0 ? (
-          <div className="flex h-32 flex-col items-center justify-center text-stone-500 dark:text-stone-400">
-            <AlertCircle size={32} />
-            <p className="mt-2">{t("feedback.noFeedback")}</p>
+        ) : !isLoading && feedbackList.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <ThumbsUp
+              size={48}
+              className="mb-4 text-stone-300 dark:text-stone-600"
+            />
+            <p className="text-lg font-medium text-stone-500 dark:text-stone-400">
+              {t("feedback.noFeedback")}
+            </p>
+            <p className="text-sm text-stone-400 dark:text-stone-500">
+              {t("feedback.noFeedbackHint")}
+            </p>
           </div>
         ) : (
           <>
