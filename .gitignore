@@ -61,3 +61,5 @@ mcp.json
 # Documentation
 docs/deepagents
 .omc/
+
+.docs/
