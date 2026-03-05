@@ -10,12 +10,10 @@ import {
   ThumbsDown,
   Trash2,
   AlertCircle,
-  Loader2,
-  ChevronLeft,
-  ChevronRight,
   MessageSquare,
 } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Pagination } from "../common/Pagination";
 import { feedbackApi } from "../../services/api/feedback";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -25,23 +23,7 @@ import type {
   RatingValue,
 } from "../../types/feedback";
 
-// Rating display component
-function RatingBadge({ rating }: { rating: RatingValue }) {
-  const { t } = useTranslation();
-  return rating === "up" ? (
-    <div className="flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full">
-      <ThumbsUp size={14} className="fill-current" />
-      <span className="text-xs font-medium">{t("feedback.positive")}</span>
-    </div>
-  ) : (
-    <div className="flex items-center gap-1 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full">
-      <ThumbsDown size={14} className="fill-current" />
-      <span className="text-xs font-medium">{t("feedback.negative")}</span>
-    </div>
-  );
-}
-
-// Delete confirmation modal
+// Delete confirmation modal with bottom sheet pattern
 function DeleteConfirmModal({
   onConfirm,
   onCancel,
@@ -52,33 +34,46 @@ function DeleteConfirmModal({
   const { t } = useTranslation();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-stone-800 rounded-lg shadow-xl p-6 max-w-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertCircle className="text-red-500" size={24} />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-stone-100">
-            {t("feedback.deleteConfirmTitle")}
-          </h3>
-        </div>
-        <p className="text-sm text-gray-500 dark:text-stone-400 mb-6">
-          {t("feedback.deleteConfirm")}
-        </p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-stone-300 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
-          >
-            {t("common.cancel")}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-          >
-            {t("feedback.delete")}
-          </button>
+    <>
+      <div className="fixed inset-0" onClick={onCancel} />
+      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+        <div className="modal-bottom-sheet-content sm:modal-centered-content">
+          <div className="bottom-sheet-handle sm:hidden" />
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                <AlertCircle
+                  className="text-red-600 dark:text-red-400"
+                  size={20}
+                />
+              </div>
+              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                {t("feedback.deleteConfirmTitle")}
+              </h3>
+            </div>
+          </div>
+          {/* Content */}
+          <div className="px-6 py-4">
+            <p className="text-sm text-stone-500 dark:text-stone-400">
+              {t("feedback.deleteConfirm")}
+            </p>
+          </div>
+          {/* Actions */}
+          <div className="flex gap-3 border-t border-stone-200 px-6 py-4 dark:border-stone-800">
+            <button onClick={onCancel} className="btn-secondary flex-1">
+              {t("common.cancel")}
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            >
+              {t("feedback.delete")}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -156,8 +151,13 @@ export function FeedbackPanel() {
   // Render loading state
   if (isLoading && feedbackList.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner />
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <LoadingSpinner size="lg" className="mx-auto mb-4" />
+          <p className="text-stone-500 dark:text-stone-400">
+            {t("common.loading")}
+          </p>
+        </div>
       </div>
     );
   }
@@ -165,16 +165,23 @@ export function FeedbackPanel() {
   // Render empty state
   if (!isLoading && feedbackList.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-stone-400">
-        <ThumbsUp className="mb-4" size={48} />
-        <p className="text-lg font-medium">{t("feedback.noFeedback")}</p>
-        <p className="text-sm">{t("feedback.noFeedbackHint")}</p>
+      <div className="flex h-full flex-col items-center justify-center text-center">
+        <ThumbsUp
+          size={48}
+          className="mb-4 text-stone-300 dark:text-stone-600"
+        />
+        <p className="text-lg font-medium text-stone-500 dark:text-stone-400">
+          {t("feedback.noFeedback")}
+        </p>
+        <p className="text-sm text-stone-400 dark:text-stone-500">
+          {t("feedback.noFeedbackHint")}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full flex-col min-h-0">
       {/* Header */}
       <div className="panel-header">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -186,23 +193,39 @@ export function FeedbackPanel() {
               {t("feedback.subtitle")}
             </p>
           </div>
+          {/* Filter dropdown */}
+          <div className="relative">
+            <select
+              value={ratingFilter || ""}
+              onChange={(e) =>
+                setRatingFilter(
+                  e.target.value ? (e.target.value as RatingValue) : undefined,
+                )
+              }
+              className="panel-search w-full sm:w-40"
+            >
+              <option value="">{t("feedback.allRatings")}</option>
+              <option value="up">👍 {t("feedback.positive")}</option>
+              <option value="down">👎 {t("feedback.negative")}</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Stats Section */}
       {stats && (
-        <div className="flex-shrink-0 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 dark:bg-stone-800/50">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 sm:gap-4 sm:p-4 bg-stone-50 dark:bg-stone-800/50">
           {/* Total Count */}
-          <div className="bg-white dark:bg-stone-800 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <MessageSquare className="text-blue-500" size={20} />
+          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <MessageSquare className="text-blue-500" size={18} />
               </div>
               <div>
-                <p className="text-2xs text-gray-500 dark:text-stone-400">
+                <p className="text-xs text-stone-500 dark:text-stone-400">
                   {t("feedback.totalCount")}
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-stone-100">
+                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
                   {stats.total_count}
                 </p>
               </div>
@@ -210,16 +233,16 @@ export function FeedbackPanel() {
           </div>
 
           {/* Up Count */}
-          <div className="bg-white dark:bg-stone-800 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <ThumbsUp className="text-green-500" size={20} />
+          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <ThumbsUp className="text-green-500" size={18} />
               </div>
               <div>
-                <p className="text-2xs text-gray-500 dark:text-stone-400">
+                <p className="text-xs text-stone-500 dark:text-stone-400">
                   {t("feedback.positive")}
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-stone-100">
+                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
                   {stats.up_count}
                 </p>
               </div>
@@ -227,16 +250,16 @@ export function FeedbackPanel() {
           </div>
 
           {/* Down Count */}
-          <div className="bg-white dark:bg-stone-800 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <ThumbsDown className="text-red-500" size={20} />
+          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <ThumbsDown className="text-red-500" size={18} />
               </div>
               <div>
-                <p className="text-2xs text-gray-500 dark:text-stone-400">
+                <p className="text-xs text-stone-500 dark:text-stone-400">
                   {t("feedback.negative")}
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-stone-100">
+                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
                   {stats.down_count}
                 </p>
               </div>
@@ -244,16 +267,16 @@ export function FeedbackPanel() {
           </div>
 
           {/* Positive Rate */}
-          <div className="bg-white dark:bg-stone-800 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                <ThumbsUp className="text-amber-500" size={20} />
+          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <ThumbsUp className="text-amber-500" size={18} />
               </div>
               <div>
-                <p className="text-2xs text-gray-500 dark:text-stone-400">
-                  {t("feedback.positiveRate") || "Positive Rate"}
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  {t("feedback.positiveRate")}
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-stone-100">
+                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
                   {stats.up_percentage.toFixed(1)}%
                 </p>
               </div>
@@ -262,121 +285,153 @@ export function FeedbackPanel() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex-shrink-0 flex flex-col md:flex-row gap-4 p-4 bg-gray-50 dark:bg-stone-800/50">
-        {/* Rating Filter */}
-        <div className="flex-1">
-          <label className="text-sm font-medium text-gray-700 dark:text-stone-300 mb-1">
-            {t("feedback.filterByRating")}
-          </label>
-          <select
-            value={ratingFilter || ""}
-            onChange={(e) =>
-              setRatingFilter(
-                e.target.value ? (e.target.value as RatingValue) : undefined,
-              )
-            }
-            className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-stone-600 bg-white dark:bg-stone-800 px-3 py-2 text-sm text-gray-900 dark:text-stone-100"
-          >
-            <option value="">{t("feedback.allRatings")}</option>
-            <option value="up">👍 {t("feedback.positive")}</option>
-            <option value="down">👎 {t("feedback.negative")}</option>
-          </select>
-        </div>
-      </div>
-
       {/* Feedback List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="animate-spin text-amber-500" size={24} />
+          <div className="flex h-32 items-center justify-center">
+            <LoadingSpinner />
           </div>
         ) : feedbackList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-gray-500 dark:text-stone-400">
+          <div className="flex h-32 flex-col items-center justify-center text-stone-500 dark:text-stone-400">
             <AlertCircle size={32} />
             <p className="mt-2">{t("feedback.noFeedback")}</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {feedbackList.map((feedback) => (
-              <div
-                key={feedback.id}
-                className="bg-white dark:bg-stone-800 rounded-lg border border-gray-200 dark:border-stone-700 p-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  {/* User Info */}
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-medium">
-                      {feedback.username.charAt(0).toUpperCase()}
+          <>
+            {/* Mobile card view */}
+            <div className="space-y-3 sm:hidden">
+              {feedbackList.map((feedback) => (
+                <div key={feedback.id} className="panel-card">
+                  {/* Header row: avatar, name, rating, delete */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-9 w-9 flex-shrink-0 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
+                        {feedback.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-stone-900 dark:text-stone-100">
+                          {feedback.username}
+                        </p>
+                        <p className="text-xs text-stone-500 dark:text-stone-400">
+                          {formatDate(feedback.created_at)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-stone-100">
-                        {feedback.username}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-stone-400">
-                        {formatDate(feedback.created_at)}
-                      </p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span
+                        className={`tag ${
+                          feedback.rating === "up" ? "tag-success" : "tag-error"
+                        }`}
+                      >
+                        {feedback.rating === "up" ? (
+                          <ThumbsUp size={12} />
+                        ) : (
+                          <ThumbsDown size={12} />
+                        )}
+                      </span>
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteTarget(feedback)}
+                          className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                          title={t("feedback.delete")}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
-
-                  {/* Rating Badge */}
-                  <RatingBadge rating={feedback.rating} />
-
-                  {/* Delete Button */}
-                  {canDelete && (
-                    <button
-                      onClick={() => setDeleteTarget(feedback)}
-                      className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
-                      title={t("feedback.delete")}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                  {/* Comment */}
+                  {feedback.comment && (
+                    <div className="mt-3 rounded-lg bg-stone-50 p-3 dark:bg-stone-800/50">
+                      <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
+                        {feedback.comment}
+                      </p>
+                    </div>
                   )}
                 </div>
+              ))}
+            </div>
 
-                {/* Comment */}
-                {feedback.comment && (
-                  <div className="mt-3 p-3 bg-gray-50 dark:bg-stone-700/50 rounded-lg">
-                    <p className="text-sm text-gray-700 dark:text-stone-300 whitespace-pre-wrap">
-                      {feedback.comment}
-                    </p>
+            {/* Desktop card view */}
+            <div className="hidden space-y-4 sm:block">
+              {feedbackList.map((feedback) => (
+                <div key={feedback.id} className="panel-card">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* User Info */}
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-medium">
+                        {feedback.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="font-medium text-stone-900 dark:text-stone-100">
+                          {feedback.username}
+                        </p>
+                        <p className="text-xs text-stone-500 dark:text-stone-400">
+                          {formatDate(feedback.created_at)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Rating Badge */}
+                    <span
+                      className={`tag ${
+                        feedback.rating === "up" ? "tag-success" : "tag-error"
+                      }`}
+                    >
+                      {feedback.rating === "up" ? (
+                        <ThumbsUp size={12} />
+                      ) : (
+                        <ThumbsDown size={12} />
+                      )}
+                      {feedback.rating === "up"
+                        ? t("feedback.positive")
+                        : t("feedback.negative")}
+                    </span>
+
+                    {/* Delete Button */}
+                    {canDelete && (
+                      <button
+                        onClick={() => setDeleteTarget(feedback)}
+                        className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                        title={t("feedback.delete")}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
+
+                  {/* Comment */}
+                  {feedback.comment && (
+                    <div className="mt-3 rounded-lg bg-stone-50 p-3 dark:bg-stone-800/50">
+                      <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
+                        {feedback.comment}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
       {/* Pagination */}
       {total > limit && (
-        <div className="flex-shrink-0 flex items-center justify-between border-t border-gray-200 dark:border-stone-700 bg-white dark:bg-stone-800 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-stone-400">
-            <span>
-              {t("common.showing", {
-                start: skip + 1,
+        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-6">
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+            <p className="text-sm text-stone-500 dark:text-stone-400">
+              {t("feedback.paginationInfo", {
+                start: Math.floor(skip / limit) * limit + 1,
                 end: Math.min(skip + limit, total),
+                total,
               })}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSkip(Math.max(0, skip - limit))}
-              disabled={skip === 0}
-              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-stone-700 disabled:opacity-50"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span className="text-sm text-gray-500 dark:text-stone-400">
-              {t("common.page", { page: Math.floor(skip / limit) + 1 })}
-            </span>
-            <button
-              onClick={() => setSkip(Math.min(skip + limit, total - limit))}
-              disabled={skip + limit >= total}
-              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-stone-700 disabled:opacity-50"
-            >
-              <ChevronRight size={16} />
-            </button>
+            </p>
+            <Pagination
+              page={Math.floor(skip / limit) + 1}
+              pageSize={limit}
+              total={total}
+              onChange={(page) => setSkip((page - 1) * limit)}
+            />
           </div>
         </div>
       )}
