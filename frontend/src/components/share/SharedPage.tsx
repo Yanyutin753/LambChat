@@ -200,7 +200,7 @@ export function SharedPage() {
     <div className="h-screen flex flex-col bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900">
       {/* Floating header with glass effect */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 dark:bg-stone-900/70 border-b border-stone-200/50 dark:border-stone-800/50">
-        <div className="max-w-full max-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl sm:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Left: Back button */}
             <Link
@@ -354,7 +354,7 @@ export function SharedPage() {
 
       {/* Fixed footer */}
       <footer className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-stone-900/80 border-t border-stone-200/50 dark:border-stone-800/50">
-        <div className="max-w-full max-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-3xl sm:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-2.5">

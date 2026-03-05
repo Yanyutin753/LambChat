@@ -1,3 +1,14 @@
+// ============================================
+// Feedback Types (re-export from feedback.ts)
+// ============================================
+export type {
+  RatingValue,
+  Feedback,
+  FeedbackCreate,
+  FeedbackStats,
+  FeedbackListResponse,
+} from "./feedback";
+
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";
@@ -14,6 +25,12 @@ export interface Message {
   duration?: number;
   // 用户消息附件
   attachments?: MessageAttachment[];
+  // 运行 ID - 用于反馈
+  runId?: string;
+  // 用户对该消息的反馈 (从 feedback API 加载)
+  feedback?: import("./feedback").RatingValue;
+  // 反馈 ID
+  feedbackId?: string;
 }
 
 // 消息内容块类型
@@ -463,6 +480,10 @@ export enum Permission {
   FILE_UPLOAD_DOCUMENT = "file:upload:document",
   // Avatar
   AVATAR_UPLOAD = "avatar:upload",
+  // Feedback
+  FEEDBACK_WRITE = "feedback:write",
+  FEEDBACK_READ = "feedback:read",
+  FEEDBACK_ADMIN = "feedback:admin",
 }
 
 // 用户信息
@@ -634,6 +655,12 @@ export type SettingCategory =
   | "tracing"
   | "user";
 
+// Setting dependency condition
+export interface SettingDependsOn {
+  key: string; // Parent setting key
+  value: string | number | boolean; // Expected value for visibility
+}
+
 export interface SettingItem {
   key: string;
   value: string | number | boolean | object;
@@ -644,6 +671,7 @@ export interface SettingItem {
   requires_restart: boolean;
   is_sensitive: boolean;
   frontend_visible: boolean;
+  depends_on?: string | SettingDependsOn; // Key of parent setting or condition object
   updated_at?: string;
   updated_by?: string;
 }

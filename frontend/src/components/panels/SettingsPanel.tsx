@@ -117,12 +117,53 @@ export function SettingsPanel() {
   // Get settings for active category
   const categorySettings = settings?.settings[activeCategory] ?? [];
 
-  // Filter settings by search query
-  const filteredSettings = categorySettings.filter(
-    (setting) =>
-      setting.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      setting.description.toLowerCase().includes(searchQuery.toLowerCase()),
+  // Check if a setting should be visible based on depends_on
+  const isSettingVisible = useCallback(
+    (setting: SettingItem): boolean => {
+      if (!setting.depends_on) {
+        return true;
+      }
+
+      const allSettings = settings
+        ? Object.values(settings.settings).flat()
+        : [];
+
+      if (typeof setting.depends_on === "string") {
+        const parentSetting = allSettings.find(
+          (s) => s.key === setting.depends_on,
+        );
+        if (!parentSetting) {
+          return true;
+        }
+        const parentValue = editValues[setting.depends_on as string];
+        if (parentValue !== undefined) {
+          return parentValue === true;
+        }
+        return parentSetting.value === true;
+      } else {
+        const { key, value: expectedValue } = setting.depends_on;
+        const parentSetting = allSettings.find((s) => s.key === key);
+        if (!parentSetting) {
+          return true;
+        }
+        const parentValue = editValues[key];
+        if (parentValue !== undefined) {
+          return parentValue === expectedValue;
+        }
+        return parentSetting.value === expectedValue;
+      }
+    },
+    [settings, editValues],
   );
+
+  // Filter settings by search query and visibility
+  const filteredSettings = categorySettings.filter((setting) => {
+    const matchesSearch =
+      setting.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      setting.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const isVisible = isSettingVisible(setting);
+    return matchesSearch && isVisible;
+  });
 
   // Handle value change
   const handleValueChange = useCallback(

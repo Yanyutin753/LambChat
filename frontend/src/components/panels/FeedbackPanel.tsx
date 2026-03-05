@@ -1,5 +1,5 @@
 /**
- * 反馈管理面板
+ * 反馈管理面板 - ChatGPT 风格
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -11,6 +11,9 @@ import {
   Trash2,
   AlertCircle,
   MessageSquare,
+  TrendingUp,
+  Copy,
+  Check,
 } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Pagination } from "../common/Pagination";
@@ -23,7 +26,34 @@ import type {
   RatingValue,
 } from "../../types/feedback";
 
-// Delete confirmation modal with bottom sheet pattern
+// Stats card component
+function StatsCard({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-stone-100 dark:bg-stone-800">
+          <Icon size={18} className="text-stone-600 dark:text-stone-400" />
+        </div>
+        <div>
+          <p className="text-xs text-stone-500 dark:text-stone-400">{label}</p>
+          <p className="text-xl font-bold text-stone-900 dark:text-stone-100">
+            {value}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Delete confirmation modal with ChatGPT-style centered dialog
 function DeleteConfirmModal({
   onConfirm,
   onCancel,
@@ -35,38 +65,45 @@ function DeleteConfirmModal({
 
   return (
     <>
-      <div className="fixed inset-0" onClick={onCancel} />
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div className="modal-bottom-sheet-content sm:modal-centered-content">
-          <div className="bottom-sheet-handle sm:hidden" />
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                <AlertCircle
-                  className="text-red-600 dark:text-red-400"
-                  size={20}
-                />
-              </div>
-              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
-                {t("feedback.deleteConfirmTitle")}
-              </h3>
-            </div>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={onCancel}
+      />
+      {/* Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all dark:bg-stone-900"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Icon */}
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+            <AlertCircle className="text-red-600 dark:text-red-400" size={24} />
           </div>
-          {/* Content */}
-          <div className="px-6 py-4">
+
+          {/* Title */}
+          <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+            {t("feedback.deleteConfirmTitle")}
+          </h3>
+
+          {/* Description */}
+          <div className="mt-2">
             <p className="text-sm text-stone-500 dark:text-stone-400">
               {t("feedback.deleteConfirm")}
             </p>
           </div>
+
           {/* Actions */}
-          <div className="flex gap-3 border-t border-stone-200 px-6 py-4 dark:border-stone-800">
-            <button onClick={onCancel} className="btn-secondary flex-1">
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+            >
               {t("common.cancel")}
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+              className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
             >
               {t("feedback.delete")}
             </button>
@@ -75,6 +112,181 @@ function DeleteConfirmModal({
       </div>
     </>
   );
+}
+
+// Feedback detail modal
+function FeedbackDetailModal({
+  feedback,
+  onClose,
+  onCopy,
+  copiedField,
+}: {
+  feedback: Feedback;
+  onClose: () => void;
+  onCopy: (text: string, field: string) => void;
+  copiedField: string | null;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      {/* Modal */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all dark:bg-stone-900"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+              {t("feedback.detailTitle") || "Feedback Details"}
+            </h3>
+            <button
+              onClick={onClose}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+            >
+              <span className="sr-only">Close</span>
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {/* User Info */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300 font-semibold text-lg">
+                {feedback.username.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="font-medium text-stone-900 dark:text-stone-100">
+                  {feedback.username}
+                </p>
+                <p className="text-sm text-stone-500 dark:text-stone-400">
+                  {formatDateFull(feedback.created_at)}
+                </p>
+              </div>
+            </div>
+
+            {/* Rating */}
+            <div className="flex items-center gap-2 mb-6">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
+                  feedback.rating === "up"
+                    ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                    : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
+                }`}
+              >
+                {feedback.rating === "up" ? (
+                  <ThumbsUp size={16} />
+                ) : (
+                  <ThumbsDown size={16} />
+                )}
+                {feedback.rating === "up"
+                  ? t("feedback.positive")
+                  : t("feedback.negative")}
+              </span>
+            </div>
+
+            {/* Session & Run IDs */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">
+                  Session ID
+                </label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-600 dark:bg-stone-800 dark:text-stone-300 font-mono truncate">
+                    {feedback.session_id}
+                  </code>
+                  <button
+                    onClick={() => onCopy(feedback.session_id, "session")}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+                    title="Copy"
+                  >
+                    {copiedField === "session" ? (
+                      <Check size={16} />
+                    ) : (
+                      <Copy size={16} />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-1">
+                  Run ID
+                </label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 rounded-lg bg-stone-100 px-3 py-2 text-sm text-stone-600 dark:bg-stone-800 dark:text-stone-300 font-mono truncate">
+                    {feedback.run_id}
+                  </code>
+                  <button
+                    onClick={() => onCopy(feedback.run_id, "run")}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+                    title="Copy"
+                  >
+                    {copiedField === "run" ? (
+                      <Check size={16} />
+                    ) : (
+                      <Copy size={16} />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Comment */}
+          {feedback.comment && (
+            <div>
+              <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-2">
+                {t("feedback.comment") || "Comment"}
+              </label>
+              <div className="rounded-xl bg-stone-50 p-4 text-sm text-stone-700 dark:bg-stone-800 dark:text-stone-300 whitespace-pre-wrap">
+                {feedback.comment}
+              </div>
+            </div>
+          )}
+
+          {/* Close button */}
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={onClose}
+              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+            >
+              {t("common.close") || "Close"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Helper function to format full date
+function formatDateFull(dateString: string) {
+  const date = new Date(dateString);
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export function FeedbackPanel() {
@@ -90,8 +302,23 @@ export function FeedbackPanel() {
     undefined,
   );
   const [deleteTarget, setDeleteTarget] = useState<Feedback | null>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(
+    null,
+  );
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const canDelete = hasPermission(Permission.FEEDBACK_ADMIN);
+
+  // Copy to clipboard
+  const handleCopy = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (error) {
+      console.error("Failed to copy:", error);
+    }
+  };
 
   // Fetch feedback data
   const fetchFeedback = useCallback(async () => {
@@ -151,18 +378,18 @@ export function FeedbackPanel() {
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
-      <div className="panel-header">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-b border-stone-200 bg-white px-4 py-5 dark:border-stone-800 dark:bg-stone-950 sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100">
+            <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-50">
               {t("feedback.title")}
             </h1>
             <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
               {t("feedback.subtitle")}
             </p>
           </div>
-          {/* Filter dropdown */}
-          <div className="relative">
+          {/* Filter dropdown - ChatGPT style */}
+          <div className="relative w-full sm:w-44">
             <select
               value={ratingFilter || ""}
               onChange={(e) =>
@@ -170,91 +397,59 @@ export function FeedbackPanel() {
                   e.target.value ? (e.target.value as RatingValue) : undefined,
                 )
               }
-              className="panel-search w-full sm:w-40"
+              className="w-full appearance-none rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 pr-10 text-sm font-medium text-stone-700 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
             >
               <option value="">{t("feedback.allRatings")}</option>
-              <option value="up">👍 {t("feedback.positive")}</option>
-              <option value="down">👎 {t("feedback.negative")}</option>
+              <option value="up">{t("feedback.positive")}</option>
+              <option value="down">{t("feedback.negative")}</option>
             </select>
+            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400">
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Stats Section */}
+      {/* Stats Section - Modern card design */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 sm:gap-4 sm:p-4 bg-stone-50 dark:bg-stone-800/50">
-          {/* Total Count */}
-          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <MessageSquare className="text-blue-500" size={18} />
-              </div>
-              <div>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  {t("feedback.totalCount")}
-                </p>
-                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
-                  {stats.total_count}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Up Count */}
-          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <ThumbsUp className="text-green-500" size={18} />
-              </div>
-              <div>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  {t("feedback.positive")}
-                </p>
-                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
-                  {stats.up_count}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Down Count */}
-          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <ThumbsDown className="text-red-500" size={18} />
-              </div>
-              <div>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  {t("feedback.negative")}
-                </p>
-                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
-                  {stats.down_count}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Positive Rate */}
-          <div className="rounded-xl border border-stone-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-1.5 sm:p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                <ThumbsUp className="text-amber-500" size={18} />
-              </div>
-              <div>
-                <p className="text-xs text-stone-500 dark:text-stone-400">
-                  {t("feedback.positiveRate")}
-                </p>
-                <p className="text-lg sm:text-2xl font-bold text-stone-900 dark:text-stone-100">
-                  {stats.up_percentage.toFixed(1)}%
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4 sm:gap-4">
+          <StatsCard
+            icon={MessageSquare}
+            label={t("feedback.totalCount")}
+            value={stats.total_count}
+          />
+          <StatsCard
+            icon={ThumbsUp}
+            label={t("feedback.positive")}
+            value={stats.up_count}
+          />
+          <StatsCard
+            icon={ThumbsDown}
+            label={t("feedback.negative")}
+            value={stats.down_count}
+          />
+          <StatsCard
+            icon={TrendingUp}
+            label={t("feedback.positiveRate")}
+            value={`${stats.up_percentage.toFixed(1)}%`}
+          />
         </div>
       )}
 
-      {/* Feedback List */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+      {/* Feedback List - ChatGPT style */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         {isLoading && feedbackList.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center">
@@ -266,42 +461,51 @@ export function FeedbackPanel() {
           </div>
         ) : !isLoading && feedbackList.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <ThumbsUp
-              size={48}
-              className="mb-4 text-stone-300 dark:text-stone-600"
-            />
-            <p className="text-lg font-medium text-stone-500 dark:text-stone-400">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">
+              <ThumbsUp
+                size={32}
+                className="text-stone-400 dark:text-stone-500"
+              />
+            </div>
+            <p className="text-lg font-medium text-stone-700 dark:text-stone-300">
               {t("feedback.noFeedback")}
             </p>
-            <p className="text-sm text-stone-400 dark:text-stone-500">
+            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
               {t("feedback.noFeedbackHint")}
             </p>
           </div>
         ) : (
           <>
-            {/* Mobile card view */}
+            {/* Mobile card view - modern style */}
             <div className="space-y-3 sm:hidden">
               {feedbackList.map((feedback) => (
-                <div key={feedback.id} className="panel-card">
-                  {/* Header row: avatar, name, rating, delete */}
-                  <div className="flex items-center justify-between">
+                <button
+                  key={feedback.id}
+                  onClick={() => setSelectedFeedback(feedback)}
+                  className="group relative w-full text-left overflow-hidden rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    {/* User Info */}
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-9 w-9 flex-shrink-0 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300 text-sm font-medium">
                         {feedback.username.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <p className="truncate font-medium text-stone-900 dark:text-stone-100">
                           {feedback.username}
                         </p>
-                        <p className="text-xs text-stone-500 dark:text-stone-400">
+                        <p className="text-xs text-stone-400 dark:text-stone-500">
                           {formatDate(feedback.created_at)}
                         </p>
                       </div>
                     </div>
+                    {/* Rating & Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span
-                        className={`tag ${
-                          feedback.rating === "up" ? "tag-success" : "tag-error"
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                          feedback.rating === "up"
+                            ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                            : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
                         }`}
                       >
                         {feedback.rating === "up" ? (
@@ -312,8 +516,11 @@ export function FeedbackPanel() {
                       </span>
                       {canDelete && (
                         <button
-                          onClick={() => setDeleteTarget(feedback)}
-                          className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget(feedback);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                           title={t("feedback.delete")}
                         >
                           <Trash2 size={16} />
@@ -323,31 +530,33 @@ export function FeedbackPanel() {
                   </div>
                   {/* Comment */}
                   {feedback.comment && (
-                    <div className="mt-3 rounded-lg bg-stone-50 p-3 dark:bg-stone-800/50">
-                      <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
-                        {feedback.comment}
-                      </p>
+                    <div className="mt-3 rounded-lg bg-stone-50 p-3 text-sm text-stone-600 dark:bg-stone-800 dark:text-stone-300 whitespace-pre-wrap">
+                      {feedback.comment}
                     </div>
                   )}
-                </div>
+                </button>
               ))}
             </div>
 
-            {/* Desktop card view */}
-            <div className="hidden space-y-4 sm:block">
+            {/* Desktop card view - modern style */}
+            <div className="hidden space-y-3 sm:block">
               {feedbackList.map((feedback) => (
-                <div key={feedback.id} className="panel-card">
+                <button
+                  key={feedback.id}
+                  onClick={() => setSelectedFeedback(feedback)}
+                  className="group relative w-full text-left overflow-hidden rounded-xl border border-stone-200 bg-white p-5 dark:border-stone-700 dark:bg-stone-900 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+                >
                   <div className="flex items-start justify-between gap-4">
                     {/* User Info */}
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-medium">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300 font-medium">
                         {feedback.username.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <p className="font-medium text-stone-900 dark:text-stone-100">
                           {feedback.username}
                         </p>
-                        <p className="text-xs text-stone-500 dark:text-stone-400">
+                        <p className="text-xs text-stone-400 dark:text-stone-500">
                           {formatDate(feedback.created_at)}
                         </p>
                       </div>
@@ -355,14 +564,16 @@ export function FeedbackPanel() {
 
                     {/* Rating Badge */}
                     <span
-                      className={`tag ${
-                        feedback.rating === "up" ? "tag-success" : "tag-error"
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                        feedback.rating === "up"
+                          ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                          : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
                       }`}
                     >
                       {feedback.rating === "up" ? (
-                        <ThumbsUp size={12} />
+                        <ThumbsUp size={14} />
                       ) : (
-                        <ThumbsDown size={12} />
+                        <ThumbsDown size={14} />
                       )}
                       {feedback.rating === "up"
                         ? t("feedback.positive")
@@ -372,8 +583,11 @@ export function FeedbackPanel() {
                     {/* Delete Button */}
                     {canDelete && (
                       <button
-                        onClick={() => setDeleteTarget(feedback)}
-                        className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(feedback);
+                        }}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 opacity-0 group-hover:opacity-100"
                         title={t("feedback.delete")}
                       >
                         <Trash2 size={18} />
@@ -383,23 +597,21 @@ export function FeedbackPanel() {
 
                   {/* Comment */}
                   {feedback.comment && (
-                    <div className="mt-3 rounded-lg bg-stone-50 p-3 dark:bg-stone-800/50">
-                      <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
-                        {feedback.comment}
-                      </p>
+                    <div className="mt-4 rounded-xl bg-stone-50 p-4 text-sm text-stone-600 dark:bg-stone-800/50 dark:text-stone-300 whitespace-pre-wrap">
+                      {feedback.comment}
                     </div>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           </>
         )}
       </div>
 
-      {/* Pagination */}
+      {/* Pagination - ChatGPT style */}
       {total > limit && (
-        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-6">
-          <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+        <div className="border-t border-stone-200 bg-white px-4 py-4 dark:border-stone-800 dark:bg-stone-950 sm:px-6">
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
             <p className="text-sm text-stone-500 dark:text-stone-400">
               {t("feedback.paginationInfo", {
                 start: Math.floor(skip / limit) * limit + 1,
@@ -422,6 +634,16 @@ export function FeedbackPanel() {
         <DeleteConfirmModal
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* Feedback Detail Modal */}
+      {selectedFeedback && (
+        <FeedbackDetailModal
+          feedback={selectedFeedback}
+          onClose={() => setSelectedFeedback(null)}
+          onCopy={handleCopy}
+          copiedField={copiedField}
         />
       )}
     </div>

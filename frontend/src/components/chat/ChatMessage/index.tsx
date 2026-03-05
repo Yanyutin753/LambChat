@@ -14,6 +14,7 @@ import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallItem, FileRevealItem } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { UserMessageBubble } from "./UserMessageBubble";
+import { FeedbackButtons } from "./FeedbackButtons";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -47,6 +48,8 @@ function ThinkingIndicator() {
 
 interface ChatMessageProps {
   message: Message;
+  sessionId?: string;
+  runId?: string;
   onStop?: () => void;
 }
 
@@ -152,7 +155,7 @@ function TokenDetailsButton({
   );
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, sessionId, runId }: ChatMessageProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
@@ -278,6 +281,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
               <TokenDetailsButton
                 tokenUsage={message.tokenUsage}
                 duration={message.duration}
+              />
+            )}
+            {/* Feedback buttons */}
+            {sessionId && (message.runId || runId) && (
+              <FeedbackButtons
+                sessionId={sessionId}
+                runId={message.runId || runId!}
+                currentFeedback={message.feedback}
               />
             )}
           </div>

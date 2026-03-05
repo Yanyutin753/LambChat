@@ -481,7 +481,7 @@ export function MCPServerForm({
           type="button"
           onClick={onCancel}
           disabled={isLoading}
-          className="rounded-lg border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-50 dark:border-stone-700 dark:hover:bg-stone-800"
+          className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-stone-700 dark:text-gray-200 dark:hover:bg-stone-800"
         >
           {t("mcp.form.cancel")}
         </button>

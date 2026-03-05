@@ -308,6 +308,12 @@ async def add_skill_from_path(
                 "description": user_skill.description,
                 "files_count": len(files),
             },
+            "callback": {
+                "type": "skill_added",
+                "name": user_skill.name,
+                "description": user_skill.description,
+                "files_count": len(files),
+            },
             "message": f"Successfully imported skill '{skill_name}' with {len(files)} files.",
         }
 

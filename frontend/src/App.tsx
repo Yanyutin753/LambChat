@@ -24,6 +24,7 @@ import {
   X,
   Pencil,
   User,
+  Star,
 } from "lucide-react";
 import { ChatMessage } from "./components/chat/ChatMessage";
 import { ChatInput } from "./components/chat/ChatInput";
@@ -35,6 +36,7 @@ import { UsersPanel } from "./components/panels/UsersPanel";
 import { RolesPanel } from "./components/panels/RolesPanel";
 import { SettingsPanel } from "./components/panels/SettingsPanel";
 import { MCPPanel } from "./components/panels/MCPPanel";
+import { FeedbackPanel } from "./components/panels/FeedbackPanel";
 import { ThemeToggle } from "./components/common/ThemeToggle";
 import { LanguageToggle } from "./components/common/LanguageToggle";
 import { AgentSelector } from "./components/agent/AgentSelector";
@@ -51,7 +53,14 @@ import { usePageTitle } from "./hooks/usePageTitle";
 import { Permission, User as UserType } from "./types";
 import { authApi, uploadApi } from "./services/api";
 
-type TabType = "chat" | "skills" | "users" | "roles" | "settings" | "mcp";
+type TabType =
+  | "chat"
+  | "skills"
+  | "users"
+  | "roles"
+  | "settings"
+  | "mcp"
+  | "feedback";
 
 // Profile Modal Component - renders at document body level via portal
 function ProfileModal({
@@ -612,6 +621,7 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
   const canManageRoles = hasAnyPermission([Permission.ROLE_MANAGE]);
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]) && enableMcp;
+  const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
 
   // 更新菜单位置
   const updateMenuPosition = useCallback(() => {
@@ -664,6 +674,12 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
       label: t("nav.roles"),
       icon: Shield,
       show: canManageRoles,
+    },
+    {
+      path: "/feedback",
+      label: t("nav.feedback"),
+      icon: Star,
+      show: canViewFeedback,
     },
     {
       path: "/settings",
@@ -805,6 +821,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
     messages,
     isLoading,
     sessionId,
+    currentRunId,
     agents,
     currentAgent,
     agentsLoading,
@@ -1173,8 +1190,15 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                 ) : (
                   <div className="dark:divide-stone-800">
                     {messages.map((message) => (
-                      <ChatMessage key={message.id} message={message} />
+                      <ChatMessage
+                        key={message.id}
+                        message={message}
+                        sessionId={sessionId ?? undefined}
+                        runId={currentRunId ?? undefined}
+                      />
                     ))}
+                    {/* Session feedback - using per-message ratings instead */}
+
                     <div ref={messagesEndRef} />
                   </div>
                 )}
@@ -1265,6 +1289,10 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
             <main className="flex-1 overflow-hidden">
               <MCPPanel />
             </main>
+          ) : activeTab === "feedback" ? (
+            <main className="flex-1 overflow-hidden">
+              <FeedbackPanel />
+            </main>
           ) : null}
         </div>
       </div>
@@ -1346,6 +1374,11 @@ function SettingsPage() {
 function MCPPage() {
   usePageTitle("nav.mcp");
   return <AppContent activeTab="mcp" />;
+}
+
+function FeedbackPage() {
+  usePageTitle("nav.feedback");
+  return <AppContent activeTab="feedback" />;
 }
 
 // App 入口 - 包含认证 Provider
@@ -1435,6 +1468,19 @@ function App() {
               toastMessage={t("errors.noPermission")}
             >
               <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/feedback"
+          element={
+            <ProtectedRoute
+              permissions={[Permission.FEEDBACK_READ]}
+              redirectTo="/chat"
+              showToast
+              toastMessage={t("errors.noPermission")}
+            >
+              <FeedbackPage />
             </ProtectedRoute>
           }
         />
