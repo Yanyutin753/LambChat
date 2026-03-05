@@ -188,20 +188,21 @@ def aggregate_results(results: dict) -> dict:
         }
 
     # 计算前两个配置之间的 delta
+    primary: dict = {}
+    baseline: dict = {}
     if len(configs) >= 2:
-        primary = run_summary.get(configs[0], {})
-        baseline = run_summary.get(configs[1], {})
-    else:
-        primary = run_summary.get(configs[0], {}) if configs else {}
-        baseline = {}
+        primary = run_summary.get(configs[0], {})  # type: ignore[assignment]
+        baseline = run_summary.get(configs[1], {})  # type: ignore[assignment]
+    elif configs:
+        primary = run_summary.get(configs[0], {})  # type: ignore[assignment]
 
-    delta_pass_rate = primary.get("pass_rate", {}).get("mean", 0) - baseline.get(
+    delta_pass_rate = primary.get("pass_rate", {}).get("mean", 0) - baseline.get(  # type: ignore[attr-defined]
         "pass_rate", {}
     ).get("mean", 0)
-    delta_time = primary.get("time_seconds", {}).get("mean", 0) - baseline.get(
+    delta_time = primary.get("time_seconds", {}).get("mean", 0) - baseline.get(  # type: ignore[attr-defined]
         "time_seconds", {}
     ).get("mean", 0)
-    delta_tokens = primary.get("tokens", {}).get("mean", 0) - baseline.get("tokens", {}).get(
+    delta_tokens = primary.get("tokens", {}).get("mean", 0) - baseline.get("tokens", {}).get(  # type: ignore[attr-defined]
         "mean", 0
     )
 
