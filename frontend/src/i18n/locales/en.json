@@ -472,6 +472,7 @@
     "noMessages": "No messages",
     "noPermission": "No permission to share sessions",
     "noRuns": "No conversations available",
+    "noUserMessage": "No user messages",
     "notFound": "Share Not Found",
     "notFoundDesc": "This share link is invalid or has been removed",
     "partialSession": "Partial Content",

@@ -51,7 +51,7 @@ import { useSkills } from "./hooks/useSkills";
 import { useVersion } from "./hooks/useVersion";
 import { usePageTitle } from "./hooks/usePageTitle";
 import { Permission, User as UserType } from "./types";
-import { authApi, uploadApi } from "./services/api";
+import { authApi, uploadApi, sessionApi } from "./services/api";
 
 type TabType =
   | "chat"
@@ -1347,7 +1347,36 @@ function NotFoundPage() {
 
 // Page Components
 function ChatPage() {
-  usePageTitle("nav.chat");
+  const { sessionId } = useParams<{ sessionId?: string }>();
+  const [sessionName, setSessionName] = useState<string | null>(null);
+
+  // Fetch session name when sessionId changes
+  useEffect(() => {
+    if (!sessionId) {
+      setSessionName(null);
+      return;
+    }
+
+    const fetchSessionName = async () => {
+      try {
+        const session = await sessionApi.get(sessionId);
+        if (session?.name) {
+          setSessionName(session.name);
+        } else {
+          setSessionName(null);
+        }
+      } catch (err) {
+        console.warn("[ChatPage] Failed to fetch session:", err);
+        setSessionName(null);
+      }
+    };
+
+    fetchSessionName();
+  }, [sessionId]);
+
+  // Use session name if available, otherwise use default "nav.chat"
+  usePageTitle(sessionName || "nav.chat");
+
   return <AppContent activeTab="chat" />;
 }
 

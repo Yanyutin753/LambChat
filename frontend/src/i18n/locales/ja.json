@@ -451,6 +451,7 @@
     "messages": "件のメッセージ",
     "noMessages": "メッセージがありません",
     "noRuns": "利用可能な会話がありません",
+    "noUserMessage": "ユーザーメッセージがありません",
     "notFound": "共有が見つかりません",
     "notFoundDesc": "この共有リンクは無効か削除されました",
     "partialSession": "一部の内容",

@@ -97,7 +97,7 @@ function TokenDetailsButton({
         )}
         title="Token usage"
       >
-        <Info size={14} />
+        <Info size={16} />
       </button>
       {/* ChatGPT style details popup */}
       {showDetails && (
@@ -275,7 +275,7 @@ export function ChatMessage({ message, sessionId, runId }: ChatMessageProps) {
               )}
               title={t("chat.message.copy")}
             >
-              <Copy size={14} />
+              <Copy size={16} />
             </button>
             {/* Token usage statistics button */}
             {(message.tokenUsage || message.duration) && (

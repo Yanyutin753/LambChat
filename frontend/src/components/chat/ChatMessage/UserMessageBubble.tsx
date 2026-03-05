@@ -84,7 +84,7 @@ export function UserMessageBubble({
           )}
 
           {/* Action buttons - show on hover */}
-          <div className="flex justify-end mt-1 gap-1">
+          <div className="flex justify-end mt-2 gap-1">
             <button
               onClick={handleCopy}
               className={clsx(
