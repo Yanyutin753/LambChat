@@ -442,7 +442,7 @@ export function ShareDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 px-5 py-4 bg-gray-50 dark:bg-stone-900/50 border-t border-gray-100 dark:border-stone-700">
+        <div className="flex items-center justify-end gap-2 px-5 py-4 bg-gray-50 dark:bg-stone-900/50 border-t border-gray-100 dark:border-stone-700 safe-area-bottom">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-gray-200 dark:border-stone-600 rounded-lg hover:bg-gray-50 dark:hover:bg-stone-700 transition-colors"

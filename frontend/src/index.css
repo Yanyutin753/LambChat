@@ -1012,11 +1012,16 @@ html.dark body {
   }
 }
 
-/* Safe area padding for iOS devices */
+/* Safe area padding for iOS/Android devices */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* Fallback for older browsers */
+.safe-area-bottom {
+  padding-bottom: 20px;
 }
 
 /* Prevent zoom on input focus (iOS) - removed to maintain consistent font sizes */
