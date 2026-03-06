@@ -314,7 +314,7 @@ function ProfileModal({
       onClick={() => onCloseProfileModal()}
     >
       <div
-        className="w-full max-w-md rounded-xl bg-white dark:bg-stone-800 shadow-2xl border border-gray-200 dark:border-stone-700 overflow-hidden mx-4 max-h-[90vh] flex flex-col"
+        className="w-full max-w-md rounded-xl bg-white dark:bg-stone-800 shadow-2xl border border-gray-200 dark:border-stone-700 overflow-hidden mx-4 max-h-[90vh] max-h-[90dvh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -861,6 +861,33 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
     },
   });
 
+  // Session name state - needs to be after useAgent since it depends on sessionId
+  const [sessionName, setSessionName] = useState<string | null>(null);
+
+  // Fetch session name when sessionId changes
+  useEffect(() => {
+    if (!sessionId) {
+      setSessionName(null);
+      return;
+    }
+
+    const fetchSessionName = async () => {
+      try {
+        const session = await sessionApi.get(sessionId);
+        if (session?.name) {
+          setSessionName(session.name);
+        } else {
+          setSessionName(null);
+        }
+      } catch (err) {
+        console.warn("[AppContent] Failed to fetch session:", err);
+        setSessionName(null);
+      }
+    };
+
+    fetchSessionName();
+  }, [sessionId]);
+
   // Agent options state
   const [agentOptionValues, setAgentOptionValues] = useState<
     Record<string, boolean | string | number>
@@ -1194,6 +1221,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                         key={message.id}
                         message={message}
                         sessionId={sessionId ?? undefined}
+                        sessionName={sessionName ?? undefined}
                         runId={currentRunId ?? undefined}
                       />
                     ))}

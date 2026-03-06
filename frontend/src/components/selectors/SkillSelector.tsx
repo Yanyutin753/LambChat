@@ -90,7 +90,7 @@ export function SkillSelector({
   };
 
   const ModalContent = () => (
-    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[480px] sm:max-h-[80vh] max-h-[85vh] flex flex-col overflow-hidden">
+    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[480px] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
         {/* Mobile drag handle */}

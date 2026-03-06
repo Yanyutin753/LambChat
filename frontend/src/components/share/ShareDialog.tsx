@@ -189,7 +189,7 @@ export function ShareDialog({
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       {/* Dialog */}
-      <div className="relative z-10 w-full max-w-lg mx-4 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+      <div className="relative z-10 w-full max-w-lg mx-4 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] max-h-[90dvh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-stone-700">
           <div className="flex items-center gap-2">
