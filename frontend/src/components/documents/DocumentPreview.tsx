@@ -356,24 +356,30 @@ export default function DocumentPreview({
     }
   };
 
-  const handleDownload = async () => {
-    // 优先使用 S3 签名 URL 下载
-    if (s3Key) {
-      try {
-        const signedUrl = await uploadApi.getSignedUrl(s3Key);
-        const a = document.createElement("a");
-        a.href = signedUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } catch (err) {
-        console.error("Failed to download file:", err);
-      }
+  const handleDownload = () => {
+    // 优先使用已传入的签名 URL 下载（直接走原始链接）
+    if (signedUrl) {
+      const a = document.createElement("a");
+      a.href = signedUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       return;
     }
 
-    // 没有 s3Key 时，使用内存中的内容下载
+    // 使用外部图片 URL 下载
+    if (externalImageUrl) {
+      const a = document.createElement("a");
+      a.href = externalImageUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    // 兜底：使用内存中的内容下载
     if (data?.content) {
       const blob = new Blob([data.content], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
@@ -463,7 +469,7 @@ export default function DocumentPreview({
                 />
               )}
             </button>
-            {(data?.content || s3Key) && (
+            {(data?.content || s3Key || signedUrl || externalImageUrl) && (
               <>
                 <button
                   type="button"

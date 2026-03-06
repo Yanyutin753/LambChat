@@ -479,6 +479,7 @@
     "publicDesc": "任何拥有链接的人都可以查看",
     "readOnlyNotice": "这是一个分享的会话，您只能查看不能编辑",
     "run": "轮",
+    "runNumber": "第 {{number}} 轮",
     "selectRuns": "选择要分享的对话轮次",
     "session": "会话",
     "shareType": "分享范围",

@@ -328,6 +328,14 @@ class BaseGraphAgent(ABC):
                         if name not in ["read_file", "read_todos", "write_todos"]:
                             yield presenter.present_tool_start(name, inp)
 
+                    # 工具调用错误
+                    elif evt_type == "on_tool_error":
+                        name = item_data.get("name", "")
+                        error = item_data.get("data", {}).get("error", "")
+                        error_msg = str(error) if error else "Unknown error"
+                        if name not in ["read_file", "read_todos", "write_todos"]:
+                            yield presenter.present_tool_result(name, error_msg, success=False)
+
                     # 工具调用结束
                     elif evt_type == "on_tool_end":
                         name = item_data.get("name", "")
@@ -370,6 +378,12 @@ class BaseGraphAgent(ABC):
                             inp = item_data.get("data", {}).get("input", {})
                             if name not in ["read_file", "read_todos", "write_todos"]:
                                 yield presenter.present_tool_start(name, inp)
+                        elif evt_type == "on_tool_error":
+                            name = item_data.get("name", "")
+                            error = item_data.get("data", {}).get("error", "")
+                            error_msg = str(error) if error else "Unknown error"
+                            if name not in ["read_file", "read_todos", "write_todos"]:
+                                yield presenter.present_tool_result(name, error_msg, success=False)
                         elif evt_type == "on_tool_end":
                             name = item_data.get("name", "")
                             out = item_data.get("data", {}).get("output", "")

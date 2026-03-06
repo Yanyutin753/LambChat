@@ -271,7 +271,7 @@ export function ShareDialog({
                       }`}
                     >
                       <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center ${
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                           selectedRunIds.includes(run.run_id)
                             ? "border-blue-500 bg-blue-500"
                             : "border-gray-300 dark:border-stone-500"
@@ -281,11 +281,15 @@ export function ShareDialog({
                           <Check size={12} className="text-white" />
                         )}
                       </div>
-                      <span className="truncate">
-                        第 {index + 1} {t("share.run")}
+                      <span className="flex-1 min-w-0">
+                        {t("share.runNumber", { number: index + 1 })}
                       </span>
-                      <span className="text-xs text-gray-400 dark:text-stone-500">
-                        ({run.user_message || t("share.noUserMessage")})
+                      <span className="text-xs text-gray-400 dark:text-stone-500 truncate">
+                        {run.user_message
+                          ? t("share.userMessage", {
+                              message: run.user_message,
+                            })
+                          : t("share.noUserMessage")}
                       </span>
                     </button>
                   ))}

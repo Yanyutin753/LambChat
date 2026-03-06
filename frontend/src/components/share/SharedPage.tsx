@@ -111,6 +111,19 @@ export function SharedPage() {
     });
   }, [data?.events]);
 
+  // Derive session title from session name or first user message
+  const sessionTitle = useMemo(() => {
+    if (data?.session?.name) return data.session.name;
+    // Fallback to first user message as title
+    const firstUserMessage = messages.find((m) => m.role === "user");
+    if (firstUserMessage?.content) {
+      // Truncate long messages for title
+      const content = firstUserMessage.content;
+      return content.length > 50 ? content.substring(0, 50) + "..." : content;
+    }
+    return t("sidebar.newChat");
+  }, [data?.session?.name, messages, t]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -221,7 +234,7 @@ export function SharedPage() {
             {/* Center: Session title */}
             <div className="flex-1 min-w-0 px-4">
               <h1 className="text-base font-semibold text-stone-900 dark:text-stone-100 truncate text-center font-serif tracking-tight">
-                {data.session.name || t("sidebar.newChat")}
+                {sessionTitle}
               </h1>
             </div>
 
@@ -251,11 +264,14 @@ export function SharedPage() {
       {/* Messages - scrollable area with session info */}
       <main
         className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain pb-24"
-        style={{ WebkitOverflowScrolling: "touch" }}
+        style={{
+          WebkitOverflowScrolling: "touch",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 6rem)",
+        }}
       >
         <div className="max-w-3xl sm:max-w-5xl mx-auto">
           {/* Session info card */}
-          <div className="pt-6 pb-4 px-4 sm:px-6">
+          <div className="pt-6 pb-4 px-4 sm:px-6 mx-auto max-w-3xl xl:max-w-5xl">
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/60 dark:border-stone-800/60 shadow-lg shadow-stone-900/5 dark:shadow-black/20 overflow-hidden">
                 {/* User info section */}
@@ -353,7 +369,10 @@ export function SharedPage() {
       </main>
 
       {/* Fixed footer */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-stone-900/80 border-t border-stone-200/50 dark:border-stone-800/50">
+      <footer
+        className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-stone-900/80 border-t border-stone-200/50 dark:border-stone-800/50"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
+      >
         <div className="max-w-3xl sm:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}

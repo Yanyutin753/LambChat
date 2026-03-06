@@ -50,6 +50,7 @@ function ThinkingIndicator() {
 interface ChatMessageProps {
   message: Message;
   sessionId?: string;
+  sessionName?: string;
   runId?: string;
   onStop?: () => void;
 }
@@ -156,7 +157,12 @@ function TokenDetailsButton({
   );
 }
 
-export function ChatMessage({ message, sessionId, runId }: ChatMessageProps) {
+export function ChatMessage({
+  message,
+  sessionId,
+  sessionName,
+  runId,
+}: ChatMessageProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
@@ -296,6 +302,7 @@ export function ChatMessage({ message, sessionId, runId }: ChatMessageProps) {
             {sessionId && (
               <ShareButton
                 sessionId={sessionId}
+                sessionName={sessionName}
                 runId={message.runId || runId}
               />
             )}

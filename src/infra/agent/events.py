@@ -78,6 +78,11 @@ class AgentEventProcessor:
             await self._handle_task_end(event)
             return
 
+        # 处理 task 工具错误
+        if evt_type == "on_tool_error" and tool_name == "task":
+            await self._handle_task_error(event)
+            return
+
         # 获取当前子代理上下文
         current_agent_id, current_depth = self._get_current_agent_context(event)
 
@@ -160,6 +165,23 @@ class AgentEventProcessor:
             if messages and hasattr(messages[0], "content"):
                 result_text = messages[0].content
 
+        # 检查输出中是否包含错误信息
+        error_message = None
+        if isinstance(out, dict):
+            if out.get("error") or out.get("status") == "error":
+                error_message = out.get("error") or out.get("message") or str(out)
+        elif isinstance(out, str):
+            error_indicators = [
+                "Error:",
+                "ValidationError",
+                "failed",
+                "error",
+                "exception",
+                "Traceback",
+            ]
+            if any(indicator.lower() in out.lower() for indicator in error_indicators):
+                error_message = out
+
         run_id = event.get("run_id", "")
         agent_info = self.task_run_id_to_agent.get(run_id)
 
@@ -171,17 +193,51 @@ class AgentEventProcessor:
             current_depth = 1
 
         logger.debug(
-            "Subagent ended: instance_id=%s, depth=%d",
+            "Subagent ended: instance_id=%s, depth=%d, error=%s",
             current_instance_id,
             current_depth,
+            error_message is not None,
         )
 
         await self.presenter.emit(
             self.presenter.present_agent_result(
                 agent_id=current_instance_id,
                 result=result_text,
-                success=True,
+                success=error_message is None,
                 depth=current_depth,
+                error=error_message,
+            )
+        )
+
+    async def _handle_task_error(self, event: StreamEvent) -> None:
+        """处理 task 工具错误事件"""
+        error = event.get("data", {}).get("error")
+        error_message = str(error) if error is not None else "Unknown error"
+
+        run_id = event.get("run_id", "")
+        agent_info = self.task_run_id_to_agent.get(run_id)
+
+        if agent_info:
+            current_instance_id, _, current_depth = agent_info
+            del self.task_run_id_to_agent[run_id]
+        else:
+            current_instance_id = "unknown"
+            current_depth = 1
+
+        logger.warning(
+            "Subagent error: instance_id=%s, depth=%d, error=%s",
+            current_instance_id,
+            current_depth,
+            error_message[:200],
+        )
+
+        await self.presenter.emit(
+            self.presenter.present_agent_result(
+                agent_id=current_instance_id,
+                result="",
+                success=False,
+                depth=current_depth,
+                error=error_message,
             )
         )
 
@@ -226,6 +282,7 @@ class AgentEventProcessor:
             return
 
         content = chunk.content
+        id = chunk.id
 
         # 处理字符串内容
         if isinstance(content, str) and content:
@@ -245,13 +302,14 @@ class AgentEventProcessor:
                 btype = block.get("type", "") if isinstance(block, dict) else ""
 
                 if btype == "thinking":
-                    await self._handle_thinking_block(block, current_agent_id, current_depth)
+                    await self._handle_thinking_block(block, id, current_agent_id, current_depth)
                 elif btype == "text":
                     await self._handle_text_block(block, current_agent_id, current_depth)
 
     async def _handle_thinking_block(
         self,
         block: dict[str, Any],
+        id: str | None,
         current_agent_id: str | None,
         current_depth: int,
     ) -> None:
@@ -260,14 +318,10 @@ class AgentEventProcessor:
         if not thinking_text:
             return
 
-        thinking_key = f"{current_depth}:{current_agent_id}"
-        if self.thinking_ids.get(thinking_key) is None:
-            self.thinking_ids[thinking_key] = f"thinking_{uuid.uuid4().hex[:8]}"
-
         await self.presenter.emit(
             self.presenter.present_thinking(
                 thinking_text,
-                thinking_id=self.thinking_ids[thinking_key],
+                thinking_id=id,
                 depth=current_depth,
                 agent_id=current_agent_id,
             )

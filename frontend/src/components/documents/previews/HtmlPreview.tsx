@@ -86,12 +86,12 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
             <code>{content}</code>
           </pre>
         ) : (
-          // 使用 sandboxed iframe 隔离 CSS，不影响外部
+          // 使用 sandboxed iframe 隔离 CSS，同时允许 JavaScript 和外部资源
           <iframe
             srcDoc={content}
             title={t("documents.htmlDocument")}
             className="w-full h-full border-0"
-            sandbox="allow-same-origin"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
           />
         )}
       </div>

@@ -32,6 +32,13 @@ Example correct behavior:
 **Anti-pattern to avoid**: Creating files and only saying "I've created the file" without revealing it.
 
 **IMPORTANT**: Never call `write_file` and `reveal_file` for the same file in one block. Call `write_file` first, wait for completion, then call `reveal_file`.
+
+### Ask Human When Needed
+
+When uncertain about the user's intent, missing required information, or need clarification:
+- Use the `ask_human` tool to ask the user directly
+- Don't guess or proceed with incomplete information
+- It's better to ask than to do the wrong thing
 """
 
 
@@ -69,4 +76,11 @@ Example correct behavior:
 **Anti-pattern to avoid**: Creating files and only saying "I've created the file" without revealing it.
 
 **IMPORTANT**: Never call `write_file` and `reveal_file` for the same file in one block. Call `write_file` first, wait for completion, then call `reveal_file`.
+
+### Ask Human When Needed
+
+When uncertain about the user's intent, missing required information, or need clarification:
+- Use the `ask_human` tool to ask the user directly
+- Don't guess or proceed with incomplete information
+- It's better to ask than to do the wrong thing
 """

@@ -156,7 +156,7 @@ class RBACManager:
                     Permission.FEEDBACK_WRITE.value,
                     Permission.FEEDBACK_READ.value,
                 ],
-                "is_system": True,  # 设为系统角色，自动更新权限
+                "is_system": False,
             },
             {
                 "name": "guest",

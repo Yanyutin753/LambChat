@@ -53,10 +53,29 @@ async def get_role(
 async def update_role(
     role_id: str,
     role_data: RoleUpdate,
+    current_user: TokenPayload = Depends(get_current_user_required),
     _: None = Depends(require_permissions("role:manage")),
 ):
     """更新角色"""
     manager = RoleManager()
+
+    # 获取目标角色
+    target_role = await manager.get_role(role_id)
+    if not target_role:
+        raise HTTPException(status_code=404, detail="角色不存在")
+
+    # 如果是系统角色，检查当前用户是否拥有该角色
+    if target_role.is_system:
+        from src.infra.user.manager import UserManager
+
+        user_manager = UserManager()
+        user = await user_manager.get_user(current_user.sub)
+        if user and user.roles and target_role.name in user.roles:
+            raise HTTPException(
+                status_code=400,
+                detail="不能修改自己所属角色的权限",
+            )
+
     try:
         role = await manager.update_role(role_id, role_data)
     except ValidationError as e:

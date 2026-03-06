@@ -410,6 +410,7 @@ class Presenter:
         result: str,
         success: bool = True,
         depth: int = 1,
+        error: Optional[str] = None,
     ) -> Dict[str, Any]:
         """输出子 Agent 返回结果
 
@@ -418,15 +419,19 @@ class Presenter:
             result: 返回结果
             success: 是否成功
             depth: 层级深度（默认为1，因为这是子代理）
+            error: 错误信息（如果有）
         """
+        data: Dict[str, Any] = {
+            "agent_id": agent_id,
+            "result": result,
+            "success": success,
+            "timestamp": _get_timestamp(),
+        }
+        if error:
+            data["error"] = error
         return self._build_event(
             "agent:result",
-            {
-                "agent_id": agent_id,
-                "result": result,
-                "success": success,
-                "timestamp": _get_timestamp(),
-            },
+            data,
             depth=depth,
             agent_id=agent_id,
         )
