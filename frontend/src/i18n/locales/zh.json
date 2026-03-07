@@ -80,6 +80,7 @@
     "database": "数据库",
     "frontend": "前端",
     "llm": "大语言模型",
+    "long_term_storage": "长期存储",
     "s3": "S3 存储",
     "sandbox": "沙盒",
     "security": "安全",
@@ -87,7 +88,7 @@
     "skills": "技能",
     "tools": "工具",
     "tracing": "追踪",
-    "user": "用户管理"
+    "user": "个人资料"
   },
   "chat": {
     "attachFile": "附件",
@@ -382,7 +383,9 @@
     "roles": "角色",
     "settings": "设置",
     "skills": "技能",
-    "users": "用户"
+    "users": "用户",
+    "userSettings": "用户管理",
+    "systemSettings": "系统设置"
   },
   "profile": {
     "avatar": "头像",
@@ -678,7 +681,7 @@
     "title": "用户管理",
     "updateFailed": "更新用户失败",
     "updateSuccess": "用户更新成功",
-    "user": "用户",
+    "user": "个人资料",
     "username": "用户名",
     "usernamePlaceholder": "请输入用户名",
     "validation": {

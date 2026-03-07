@@ -14,8 +14,11 @@ const PptPreview = memo(function PptPreview({
   // For PowerPoint files (.ppt and .pptx), use Office Online iframe for reliable rendering
   // This avoids issues with pptx-preview library where element positions can be incorrect
   // when the PPT's original dimensions don't match the fixed 960x540 rendering size
+
+  // Ensure the source URL uses HTTPS to avoid Mixed Content errors
+  const secureUrl = url.replace(/^http:/i, "https:");
   const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
-    url,
+    secureUrl,
   )}`;
 
   return (

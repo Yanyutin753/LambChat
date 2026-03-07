@@ -92,30 +92,67 @@ async def load_skill_files(user_id: Optional[str]) -> SkillLoadResult:
 
 async def build_skills_prompt(skills: list[dict]) -> str:
     """
-    Build skills prompt text with enhanced matching hints.
+    Build skills prompt text with progressive disclosure pattern.
 
-    Includes skill descriptions, usage triggers, and matching guidance
-    to help the LLM select the most relevant skill for user queries.
+    Matches the format used by deepagents.middleware.skills.SkillsMiddleware
+    to ensure consistent behavior when SkillsMiddleware is disabled.
     """
     if not skills:
         return ""
 
-    lines = ["## Available Skills", ""]
-    # Categorize skills by their domain/type for better organization
+    # Format skills list with progressive disclosure pattern
+    skills_lines = []
     for skill in skills:
         name = skill.get("name", "unnamed skill")
         description = skill.get("description", "no description")
+        skill_path = f"/skills/{name}/SKILL.md"
 
-        # Build skill entry with matching hints
-        lines.append(f"### {name}")
-        lines.append(f"**Description**: {description}")
-        lines.append("")
+        # Format skill entry matching SkillsMiddleware._format_skills_list
+        desc_line = f"- **{name}**: {description}"
+        skills_lines.append(desc_line)
+        skills_lines.append(f"  -> Read `{skill_path}` for full instructions")
 
-    lines.append("### Skill Selection Strategy")
-    lines.append("")
-    lines.append(
-        "To learn more about a skill's details, access the corresponding file at `/skills/{skill_name}/SKILL.md`."
-    )
-    lines.append("")
+    skills_list_str = "\n".join(skills_lines)
 
-    return "\n".join(lines)
+    # Build full prompt matching SkillsMiddleware.SKILLS_SYSTEM_PROMPT format
+    prompt = f"""
+
+## Skills System
+
+You have access to a skills library that provides specialized capabilities and domain knowledge.
+
+**Skills Location**: `/skills/`
+
+**Available Skills:**
+
+{skills_list_str}
+
+**How to Use Skills (Progressive Disclosure):**
+
+Skills follow a **progressive disclosure** pattern - you see their name and description above, but only read full instructions when needed:
+
+1. **Recognize when a skill applies**: Check if the user's task matches a skill's description
+2. **Read the skill's full instructions**: Use the path shown in the skill list above
+3. **Follow the skill's instructions**: SKILL.md contains step-by-step workflows, best practices, and examples
+4. **Access supporting files**: Skills may include helper scripts, configs, or reference docs - use absolute paths
+
+**When to Use Skills:**
+- User's request matches a skill's domain (e.g., "research X" -> web-research skill)
+- You need specialized knowledge or structured workflows
+- A skill provides proven patterns for complex tasks
+
+**Executing Skill Scripts:**
+Skills may contain Python scripts or other executable files. Always use absolute paths from the skill list.
+
+**Example Workflow:**
+
+User: "Can you research the latest developments in quantum computing?"
+
+1. Check available skills -> See "web-research" skill with its path
+2. Read the skill using the path shown
+3. Follow the skill's research workflow (search -> organize -> synthesize)
+4. Use any helper scripts with absolute paths
+
+Remember: Skills make you more capable and consistent. When in doubt, check if a skill exists for the task!
+"""
+    return prompt

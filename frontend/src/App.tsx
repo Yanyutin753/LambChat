@@ -525,7 +525,7 @@ function ProfileModal({
           )}
 
           {activeTab === "password" && (
-            <>
+            <div className="space-y-3">
               {passwordSuccess && (
                 <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-sm">
                   {t("profile.passwordChanged")}
@@ -604,7 +604,7 @@ function ProfileModal({
                   t("profile.changePassword")
                 )}
               </button>
-            </>
+            </div>
           )}
 
           {activeTab === "notification" && (
@@ -734,15 +734,7 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
     setShowMenu(false);
   };
 
-  const navItems = [
-    { path: "/chat", label: t("nav.chat"), icon: MessageSquare, show: true },
-    {
-      path: "/skills",
-      label: t("nav.skills"),
-      icon: Package,
-      show: canReadSkills,
-    },
-    { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
+  const userSettingsItems = [
     {
       path: "/users",
       label: t("nav.users"),
@@ -755,6 +747,9 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
       icon: Shield,
       show: canManageRoles,
     },
+  ];
+
+  const systemSettingsItems = [
     {
       path: "/feedback",
       label: t("nav.feedback"),
@@ -763,10 +758,21 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
     },
     {
       path: "/settings",
-      label: t("nav.settings"),
+      label: t("nav.systemSettings"),
       icon: Settings,
       show: canManageSettings,
     },
+  ];
+
+  const navItems = [
+    { path: "/chat", label: t("nav.chat"), icon: MessageSquare, show: true },
+    {
+      path: "/skills",
+      label: t("nav.skills"),
+      icon: Package,
+      show: canReadSkills,
+    },
+    { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
   ];
 
   return (
@@ -831,6 +837,54 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
                     );
                   })}
               </div>
+
+              {/* User Management Section */}
+              {userSettingsItems.some((item) => item.show) && (
+                <div className="border-t border-gray-100 dark:border-stone-700 pt-2 mt-2">
+                  <div className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-stone-500">
+                    {t("nav.userSettings")}
+                  </div>
+                  {userSettingsItems
+                    .filter((item) => item.show)
+                    .map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => handleNavigate(item.path)}
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+                        >
+                          <Icon size={18} />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
+
+              {/* System Settings Section */}
+              {systemSettingsItems.some((item) => item.show) && (
+                <div className="border-t border-gray-100 dark:border-stone-700 pt-2 mt-2">
+                  <div className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-stone-500">
+                    {t("nav.systemSettings")}
+                  </div>
+                  {systemSettingsItems
+                    .filter((item) => item.show)
+                    .map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.path}
+                          onClick={() => handleNavigate(item.path)}
+                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+                        >
+                          <Icon size={18} />
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
 
               {/* Logout */}
               <div className="border-t border-gray-100 dark:border-stone-700">

@@ -12,7 +12,7 @@ import uuid
 from typing import Any, Dict
 
 from deepagents import create_deep_agent
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
@@ -23,6 +23,7 @@ from src.infra.backend import (
     create_postgres_backend_factory,
     create_sandbox_backend_factory,
 )
+from src.infra.backend.deepagent import create_memory_backend_factory
 from src.infra.llm.client import LLMClient
 from src.infra.sandbox import SessionSandboxManager
 from src.infra.skill import load_skill_files
@@ -251,19 +252,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 创建内层 graph (deep agent)
     inner_checkpointer = await get_async_checkpointer()
 
-    # 传入 skills 参数
-    skills_param = None
-    if settings.ENABLE_SKILLS:
-        skills_param = ["/skills/"]
+    # 注意：不使用 SkillsMiddleware（skills=None），而是使用 load_skill_files + build_skills_prompt
+    # 这样可以确保每次对话都能获取最新的技能列表
+    # SkillsMiddleware 会缓存 skills_metadata，导致技能更新后不会刷新
 
-    # 不传 system_prompt，让 deep agent 从 messages 中获取（每次运行时动态传入）
     inner_graph = create_deep_agent(
         model=llm,
+        system_prompt=context.system_prompt,
         backend=backend_factory,
         tools=filtered_tools if filtered_tools else None,
         checkpointer=inner_checkpointer,
         store=store,  # 传递 PostgresStore
-        skills=skills_param,
+        skills=None,  # 禁用 SkillsMiddleware，使用 build_skills_prompt 代替
     ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
 
     inner_config: RunnableConfig = {
@@ -272,7 +272,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "backend": backend_factory,
             "context": context,  # 传递 context 以便工具访问 user_id
             "base_url": configurable.get("base_url", ""),  # 传递 base_url 给工具使用
-            "system_prompt": system_prompt,  # 传递最新的 system_prompt
         },
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
@@ -281,13 +280,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     existing_messages = inner_state.values.get("messages", [])
 
-    # 过滤掉已存在的 SystemMessage，避免重复（保留 HumanMessage 和 AI 消息）
-    filtered_messages = [msg for msg in existing_messages if not isinstance(msg, SystemMessage)]
-
-    # 构建传入的消息列表，包含最新的 system_prompt
-    system_message = SystemMessage(content=system_prompt)
+    # 构建传入的消息列表（包含附件）
     new_message = _build_human_message(state.get("input", ""), attachments)
-    all_messages = [system_message] + filtered_messages + [new_message]
+    all_messages = existing_messages + [new_message]
 
     # 传递 messages
     inner_config["configurable"]["messages"] = existing_messages
@@ -298,7 +293,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 流式处理事件（带重试，处理 429 等错误）
     await _run_with_retry(
         graph=inner_graph,
-        input_data={"messages": all_messages, "files": initial_skill_files},
+        input_data={
+            "messages": all_messages,
+            "files": initial_skill_files,
+        },
         config=inner_config,
         event_processor=event_processor,
     )
@@ -349,15 +347,26 @@ async def _create_backend_and_prompt(
         except Exception as e:
             logger.warning(f"Failed to build skills prompt: {e}")
 
-    # 使用 PostgreSQL，每个 agent 创建独立的 store 实例
-    store = create_postgres_store()
+    # 根据设置决定是否使用长期存储
+    if settings.ENABLE_LONG_TERM_STORAGE:
+        # 使用 PostgreSQL 长期存储，每个 agent 创建独立的 store 实例
+        store = create_postgres_store()
+    else:
+        # 不使用长期存储，使用内存 store
+        store = None
 
     if not settings.ENABLE_SANDBOX:
-        logger.info(
-            f"Sandbox disabled, using CompositeBackend with PostgresStore for assistant: {assistant_id}"
-        )
+        # 非沙箱模式
+        if settings.ENABLE_LONG_TERM_STORAGE:
+            logger.info(
+                f"Sandbox disabled, using CompositeBackend with PostgresStore for assistant: {assistant_id}"
+            )
+            backend_factory = create_postgres_backend_factory(assistant_id)
+        else:
+            logger.info(f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}")
+            backend_factory = create_memory_backend_factory(assistant_id)
         return (
-            create_postgres_backend_factory(assistant_id),
+            backend_factory,
             DEFAULT_SYSTEM_PROMPT.replace("{skills}", skills_prompt),
             store,
         )

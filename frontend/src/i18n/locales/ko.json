@@ -80,6 +80,7 @@
     "database": "데이터베이스",
     "frontend": "프론트엔드",
     "llm": "LLM",
+    "long_term_storage": "장기 스토리지",
     "s3": "S3 스토리지",
     "sandbox": "샌드박스",
     "security": "보안",
@@ -87,7 +88,7 @@
     "skills": "스킬",
     "tools": "도구",
     "tracing": "추적",
-    "user": "사용자 관리"
+    "user": "프로필"
   },
   "chat": {
     "attachFile": "파일 첨부",
@@ -367,7 +368,9 @@
     "roles": "역할",
     "settings": "설정",
     "skills": "스킬",
-    "users": "사용자"
+    "users": "사용자",
+    "userSettings": "사용자 관리",
+    "systemSettings": "시스템 설정"
   },
   "profile": {
     "avatarDeleted": "아바타가 삭제되었습니다",
@@ -657,7 +660,7 @@
     "title": "사용자 관리",
     "updateFailed": "사용자 업데이트에 실패했습니다",
     "updateSuccess": "사용자가 성공적으로 업데이트되었습니다",
-    "user": "사용자",
+    "user": "프로필",
     "username": "사용자 이름",
     "usernamePlaceholder": "사용자 이름 입력",
     "validation": {

@@ -124,10 +124,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         console.log("[WebSocket] Disconnected:", event.code, event.reason);
         isConnectingRef.current = false;
         setIsConnected(false);
+
+        // Check if this was a manual disconnect BEFORE resetting the flag
+        const wasManualDisconnect = isDisconnectingRef.current;
+        isDisconnectingRef.current = false; // Reset here after socket is fully closed
+
         wsRef.current = null;
 
         // Only attempt to reconnect if still enabled and not manually closed
-        if (enabled && reconnectTimeoutRef.current === null) {
+        if (
+          enabled &&
+          reconnectTimeoutRef.current === null &&
+          !wasManualDisconnect
+        ) {
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log("[WebSocket] Reconnecting...");
             reconnectTimeoutRef.current = null;
@@ -149,8 +158,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, [enabled]);
 
   const disconnect = useCallback(() => {
-    isDisconnectingRef.current = true;
-
     // Clear any pending reconnect
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -158,12 +165,16 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }
 
     if (wsRef.current) {
-      wsRef.current.close();
+      const ws = wsRef.current;
+      // Mark as disconnecting BEFORE closing to prevent reconnect attempts in onclose
+      isDisconnectingRef.current = true;
+      ws.close();
       wsRef.current = null;
     }
     isConnectingRef.current = false;
-    isDisconnectingRef.current = false;
     setIsConnected(false);
+    // NOTE: Don't reset isDisconnectingRef here - let the onclose handler do it
+    // This prevents race conditions where connect() is called before the socket finishes closing
   }, []);
 
   // Store connect/disconnect in refs to avoid deps issues

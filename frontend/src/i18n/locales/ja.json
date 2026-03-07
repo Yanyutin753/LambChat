@@ -80,6 +80,7 @@
     "database": "データベース",
     "frontend": "フロントエンド",
     "llm": "LLM",
+    "long_term_storage": "長期ストレージ",
     "s3": "S3 ストレージ",
     "sandbox": "サンドボックス",
     "security": "セキュリティ",
@@ -87,7 +88,7 @@
     "skills": "スキル",
     "tools": "ツール",
     "tracing": "トレース",
-    "user": "ユーザー管理"
+    "user": "プロフィール"
   },
   "chat": {
     "attachFile": "ファイルを添付",
@@ -367,7 +368,9 @@
     "roles": "ロール",
     "settings": "設定",
     "skills": "スキル",
-    "users": "ユーザー"
+    "users": "ユーザー",
+    "userSettings": "ユーザー管理",
+    "systemSettings": "システム設定"
   },
   "profile": {
     "avatarDeleted": "アバターが削除されました",
@@ -655,7 +658,7 @@
     "title": "ユーザー管理",
     "updateFailed": "ユーザーの更新に失敗しました",
     "updateSuccess": "ユーザーが正常に更新されました",
-    "user": "ユーザー",
+    "user": "プロフィール",
     "username": "ユーザー名",
     "usernamePlaceholder": "ユーザー名を入力",
     "validation": {

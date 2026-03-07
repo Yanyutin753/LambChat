@@ -80,6 +80,7 @@
     "database": "Database",
     "frontend": "Frontend",
     "llm": "LLM",
+    "long_term_storage": "Long-term Storage",
     "s3": "S3 Storage",
     "sandbox": "Sandbox",
     "security": "Security",
@@ -87,7 +88,7 @@
     "skills": "Skills",
     "tools": "Tools",
     "tracing": "Tracing",
-    "user": "User Management"
+    "user": "Profile"
   },
   "chat": {
     "attachFile": "Attach file",
@@ -383,7 +384,9 @@
     "roles": "Roles",
     "settings": "Settings",
     "skills": "Skills",
-    "users": "Users"
+    "users": "Users",
+    "userSettings": "User Management",
+    "systemSettings": "System Settings"
   },
   "profile": {
     "avatar": "Avatar",
@@ -680,7 +683,7 @@
     "title": "User Management",
     "updateFailed": "Failed to update user",
     "updateSuccess": "User updated successfully",
-    "user": "User",
+    "user": "Profile",
     "username": "Username",
     "usernamePlaceholder": "Enter username",
     "validation": {

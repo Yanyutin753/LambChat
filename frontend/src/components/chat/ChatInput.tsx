@@ -351,12 +351,17 @@ export const ChatInput = memo(function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      // 如果正在加载，按 Enter 应该停止而不是发送
+      if (isLoading) {
+        onStop();
+      } else {
+        handleSubmit(e);
+      }
     }
   };
 
   const hasContent = input.trim() && !disabled;
-  const canSubmit = hasContent && canSend;
+  const canSubmit = hasContent && canSend && !isLoading;
 
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
@@ -573,7 +578,11 @@ export const ChatInput = memo(function ChatInput({
               ) : isLoading ? (
                 <button
                   type="button"
-                  onClick={onStop}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onStop();
+                  }}
                   className="flex items-center justify-center rounded-full p-2 bg-stone-900 dark:bg-stone-600 text-white dark:text-stone-100 transition-all hover:scale-105"
                   title={t("chat.stop")}
                 >

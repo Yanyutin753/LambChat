@@ -33,6 +33,7 @@ class SettingCategory(str, Enum):
     LLM = "llm"
     SESSION = "session"
     DATABASE = "database"
+    LONG_TERM_STORAGE = "long_term_storage"
     SECURITY = "security"
     S3 = "s3"
     SANDBOX = "sandbox"

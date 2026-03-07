@@ -227,20 +227,9 @@ export default function DocumentPreview({
           if (pptFile) {
             if (pptxFile) {
               // .pptx 文件获取 ArrayBuffer 用于本地预览
-              try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                  throw new Error(`Failed to fetch file: ${response.status}`);
-                }
-                const buffer = await response.arrayBuffer();
-                setPptxBuffer(buffer);
-                setData({ content: "", path });
-              } catch (e) {
-                console.error("Failed to fetch pptx:", e);
-                setError(
-                  t("documents.failedToLoadFromS3", "从存储加载文件失败"),
-                );
-              }
+              // Use Office Online viewer for .pptx files (same as .ppt)
+              setPptUrl(url);
+              setData({ content: "", path });
             } else {
               // .ppt 文件使用 Office Online viewer
               setPptUrl(url);

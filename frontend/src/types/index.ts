@@ -649,6 +649,7 @@ export type SettingCategory =
   | "session"
   | "skills"
   | "database"
+  | "long_term_storage"
   | "security"
   | "sandbox"
   | "s3"

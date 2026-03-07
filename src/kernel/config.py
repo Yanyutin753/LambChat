@@ -386,39 +386,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "",
     },
     # ============================================
-    # PostgreSQL Settings (for LangGraph Store)
-    # ============================================
-    "POSTGRES_HOST": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.DATABASE,
-        "description": "PostgreSQL host",
-        "default": "localhost",
-    },
-    "POSTGRES_PORT": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.DATABASE,
-        "description": "PostgreSQL port",
-        "default": 5432,
-    },
-    "POSTGRES_USER": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.DATABASE,
-        "description": "PostgreSQL username",
-        "default": "postgres",
-    },
-    "POSTGRES_PASSWORD": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.DATABASE,
-        "description": "PostgreSQL password",
-        "default": "postgres",
-    },
-    "POSTGRES_DB": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.DATABASE,
-        "description": "PostgreSQL database name",
-        "default": "langgraph",
-    },
-    # ============================================
     # LangSmith Tracing Settings
     # ============================================
     "LANGSMITH_TRACING": {
@@ -562,6 +529,66 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Presigned URL expiration time in seconds (default: 7 days)",
         "default": 604800,
         "depends_on": "S3_ENABLED",
+    },
+    # ============================================
+    # Long-term Storage Settings (PostgreSQL for LangGraph Store)
+    # ============================================
+    "ENABLE_LONG_TERM_STORAGE": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "Enable PostgreSQL-based long-term storage for agent memories and files",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "POSTGRES_HOST": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "PostgreSQL host",
+        "default": "localhost",
+        "depends_on": "ENABLE_LONG_TERM_STORAGE",
+    },
+    "POSTGRES_PORT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "PostgreSQL port",
+        "default": 5432,
+        "depends_on": "ENABLE_LONG_TERM_STORAGE",
+    },
+    "POSTGRES_USER": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "PostgreSQL username",
+        "default": "postgres",
+        "depends_on": "ENABLE_LONG_TERM_STORAGE",
+    },
+    "POSTGRES_PASSWORD": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "PostgreSQL password",
+        "default": "postgres",
+        "is_sensitive": True,
+        "depends_on": "ENABLE_LONG_TERM_STORAGE",
+    },
+    "POSTGRES_DB": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "PostgreSQL database name",
+        "default": "langgraph",
+        "depends_on": "ENABLE_LONG_TERM_STORAGE",
+    },
+    "POSTGRES_POOL_MIN_SIZE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "PostgreSQL connection pool minimum size",
+        "default": 2,
+        "depends_on": "ENABLE_LONG_TERM_STORAGE",
+    },
+    "POSTGRES_POOL_MAX_SIZE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LONG_TERM_STORAGE,
+        "description": "PostgreSQL connection pool maximum size",
+        "default": 10,
+        "depends_on": "ENABLE_LONG_TERM_STORAGE",
     },
     # ============================================
     # User Management Settings
@@ -783,14 +810,15 @@ class Settings(BaseSettings):
     MONGODB_SESSIONS_COLLECTION: str = "sessions"
     MONGODB_TRACES_COLLECTION: str = "traces"
 
-    # PostgreSQL Settings (for LangGraph Store - persistent memory/files)
+    # Long-term Storage Settings (PostgreSQL for LangGraph Store)
+    ENABLE_LONG_TERM_STORAGE: bool = False
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_DB: str = "langgraph"
-    POSTGRES_POOL_MIN_SIZE: int = 5
-    POSTGRES_POOL_MAX_SIZE: int = 50
+    POSTGRES_POOL_MIN_SIZE: int = 2
+    POSTGRES_POOL_MAX_SIZE: int = 10
 
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True

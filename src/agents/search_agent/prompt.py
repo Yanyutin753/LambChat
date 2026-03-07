@@ -39,6 +39,7 @@ When uncertain about the user's intent, missing required information, or need cl
 - Use the `ask_human` tool to ask the user directly
 - Don't guess or proceed with incomplete information
 - It's better to ask than to do the wrong thing
+{skills}
 """
 
 
@@ -83,4 +84,5 @@ When uncertain about the user's intent, missing required information, or need cl
 - Use the `ask_human` tool to ask the user directly
 - Don't guess or proceed with incomplete information
 - It's better to ask than to do the wrong thing
+{skills}
 """

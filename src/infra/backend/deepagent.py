@@ -9,6 +9,30 @@ from typing import Any, Callable
 from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
 
 
+def create_memory_backend_factory(
+    assistant_id: str,
+) -> Callable[[Any], CompositeBackend]:
+    """
+    创建基于内存的 Backend 工厂函数（非沙箱模式，不使用长期存储）
+
+    Args:
+        assistant_id: 助手 ID，用于命名空间隔离
+
+    Returns:
+        Backend 工厂函数
+    """
+
+    def backend_factory(rt: Any) -> CompositeBackend:
+        return CompositeBackend(
+            default=StateBackend(rt),  # 默认使用内存状态后端
+            routes={
+                "/skills/": StateBackend(rt),
+            },
+        )
+
+    return backend_factory
+
+
 def create_postgres_backend_factory(
     assistant_id: str,
 ) -> Callable[[Any], CompositeBackend]:

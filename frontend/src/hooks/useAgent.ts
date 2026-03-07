@@ -66,6 +66,7 @@ export function useAgent(options?: UseAgentOptions) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const isConnectingRef = useRef(false);
   const isLoadingHistoryRef = useRef(false);
+  const isSendingRef = useRef(false);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -1039,6 +1040,15 @@ export function useAgent(options?: UseAgentOptions) {
     ) => {
       if (!content.trim()) return;
 
+      // 防止重复发送
+      if (isSendingRef.current) {
+        console.log(
+          "[sendMessage] Already sending, ignoring duplicate request",
+        );
+        return;
+      }
+      isSendingRef.current = true;
+
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -1178,6 +1188,7 @@ export function useAgent(options?: UseAgentOptions) {
         setConnectionStatus("disconnected");
       } finally {
         setIsLoading(false);
+        isSendingRef.current = false;
       }
     },
     [sessionId, currentAgent, connectToSSE, clearReconnectTimeout, options],
@@ -1189,6 +1200,8 @@ export function useAgent(options?: UseAgentOptions) {
     }
     setConnectionStatus("disconnected");
     streamingMessageIdRef.current = null;
+    isSendingRef.current = false;
+    setIsLoading(false);
 
     const currentSessionId = sessionIdRef.current;
     if (currentSessionId) {

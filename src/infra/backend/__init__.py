@@ -6,7 +6,11 @@ from .context import (
     get_user_id,
     set_user_context,
 )
-from .deepagent import create_postgres_backend_factory, create_sandbox_backend_factory
+from .deepagent import (
+    create_memory_backend_factory,
+    create_postgres_backend_factory,
+    create_sandbox_backend_factory,
+)
 
 __all__ = [
     # Context
@@ -15,6 +19,7 @@ __all__ = [
     "get_session_id",
     "clear_user_context",
     # DeepAgent Backend
+    "create_memory_backend_factory",
     "create_postgres_backend_factory",
     "create_sandbox_backend_factory",
 ]
