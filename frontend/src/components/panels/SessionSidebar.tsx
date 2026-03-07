@@ -5,14 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import {
-  Plus,
-  ChevronDown,
-  ChevronRight,
-  X,
-  Search,
-  FolderPlus,
-} from "lucide-react";
+import { Plus, ChevronDown, X, Search, FolderPlus } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useInView } from "react-intersection-observer";
 import { sessionApi, folderApi, type BackendSession } from "../../services/api";
