@@ -281,10 +281,13 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     existing_messages = inner_state.values.get("messages", [])
 
+    # 过滤掉已存在的 SystemMessage，避免重复（保留 HumanMessage 和 AI 消息）
+    filtered_messages = [msg for msg in existing_messages if not isinstance(msg, SystemMessage)]
+
     # 构建传入的消息列表，包含最新的 system_prompt
     system_message = SystemMessage(content=system_prompt)
     new_message = _build_human_message(state.get("input", ""), attachments)
-    all_messages = [system_message] + existing_messages + [new_message]
+    all_messages = [system_message] + filtered_messages + [new_message]
 
     # 传递 messages
     inner_config["configurable"]["messages"] = existing_messages
