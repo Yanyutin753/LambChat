@@ -70,6 +70,8 @@ export interface EventData {
   total_tokens?: number;
   duration?: number;
   timestamp?: string;
+  cache_creation_tokens?: number;
+  cache_read_tokens?: number;
   // user:message event fields
   attachments?: Array<{
     id: string;

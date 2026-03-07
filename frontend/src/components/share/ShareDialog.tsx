@@ -193,7 +193,7 @@ export function ShareDialog({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-stone-700">
           <div className="flex items-center gap-2">
-            <Share2 size={20} className="text-blue-500" />
+            <Share2 size={20} className="text-stone-500 dark:text-stone-400" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-stone-100">
               {t("share.title")}
             </h3>
@@ -224,7 +224,7 @@ export function ShareDialog({
                 onClick={() => setShareType("full")}
                 className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                   shareType === "full"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                    ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
                     : "border-gray-200 dark:border-stone-600 text-gray-700 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700"
                 }`}
               >
@@ -234,7 +234,7 @@ export function ShareDialog({
                 onClick={() => setShareType("partial")}
                 className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                   shareType === "partial"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                    ? "border-stone-500 bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
                     : "border-gray-200 dark:border-stone-600 text-gray-700 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700"
                 }`}
               >
@@ -266,14 +266,14 @@ export function ShareDialog({
                       onClick={() => handleRunClick(run.run_id)}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                         selectedRunIds.includes(run.run_id)
-                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                          ? "bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
                           : "hover:bg-gray-50 dark:hover:bg-stone-700 text-gray-700 dark:text-stone-300"
                       }`}
                     >
                       <div
                         className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                           selectedRunIds.includes(run.run_id)
-                            ? "border-blue-500 bg-blue-500"
+                            ? "border-stone-500 bg-stone-500 dark:border-stone-400 dark:bg-stone-400"
                             : "border-gray-300 dark:border-stone-500"
                         }`}
                       >
@@ -306,9 +306,9 @@ export function ShareDialog({
             <div className="space-y-2">
               <button
                 onClick={() => setVisibility("public")}
-                className={`w-full flex items-start gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "public"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                    ? "border-stone-500 bg-stone-100 dark:bg-stone-700"
                     : "border-gray-200 dark:border-stone-600 hover:bg-gray-50 dark:hover:bg-stone-700"
                 }`}
               >
@@ -316,7 +316,7 @@ export function ShareDialog({
                   size={20}
                   className={
                     visibility === "public"
-                      ? "text-blue-500"
+                      ? "text-stone-600 dark:text-stone-300"
                       : "text-gray-400 dark:text-stone-500"
                   }
                 />
@@ -324,7 +324,7 @@ export function ShareDialog({
                   <div
                     className={`text-sm font-medium ${
                       visibility === "public"
-                        ? "text-blue-600 dark:text-blue-400"
+                        ? "text-stone-700 dark:text-stone-200"
                         : "text-gray-700 dark:text-stone-300"
                     }`}
                   >
@@ -337,9 +337,9 @@ export function ShareDialog({
               </button>
               <button
                 onClick={() => setVisibility("authenticated")}
-                className={`w-full flex items-start gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
                   visibility === "authenticated"
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                    ? "border-stone-500 bg-stone-100 dark:bg-stone-700"
                     : "border-gray-200 dark:border-stone-600 hover:bg-gray-50 dark:hover:bg-stone-700"
                 }`}
               >
@@ -347,7 +347,7 @@ export function ShareDialog({
                   size={20}
                   className={
                     visibility === "authenticated"
-                      ? "text-blue-500"
+                      ? "text-stone-600 dark:text-stone-300"
                       : "text-gray-400 dark:text-stone-500"
                   }
                 />
@@ -355,7 +355,7 @@ export function ShareDialog({
                   <div
                     className={`text-sm font-medium ${
                       visibility === "authenticated"
-                        ? "text-blue-600 dark:text-blue-400"
+                        ? "text-stone-700 dark:text-stone-200"
                         : "text-gray-700 dark:text-stone-300"
                     }`}
                   >
@@ -455,7 +455,7 @@ export function ShareDialog({
               isCreating ||
               (shareType === "partial" && selectedRunIds.length === 0)
             }
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-stone-900 hover:bg-stone-800 dark:bg-stone-600 dark:hover:bg-stone-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isCreating ? (
               <Loader2 size={16} className="animate-spin" />

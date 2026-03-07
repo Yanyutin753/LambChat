@@ -425,6 +425,8 @@ async def _emit_token_usage(
     total_input_tokens = event_processor.total_input_tokens
     total_output_tokens = event_processor.total_output_tokens
     total_tokens = event_processor.total_tokens
+    cache_creation_tokens = event_processor.total_cache_creation_tokens
+    cache_read_tokens = event_processor.total_cache_read_tokens
 
     if total_input_tokens > 0 or total_output_tokens > 0 or total_tokens > 0:
         if total_tokens == 0:
@@ -438,6 +440,8 @@ async def _emit_token_usage(
                     output_tokens=total_output_tokens,
                     total_tokens=total_tokens,
                     duration=duration,
+                    cache_creation_tokens=cache_creation_tokens,
+                    cache_read_tokens=cache_read_tokens,
                 )
             )
         except Exception as e:

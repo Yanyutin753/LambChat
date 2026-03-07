@@ -128,7 +128,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
               className="size-5 object-cover rounded-full"
             />
           ) : (
-            <div className="flex size-5 items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 rounded-full">
+            <div className="flex size-5 items-center justify-center bg-gradient-to-br from-stone-500 to-stone-700 rounded-full">
               <span className="text-xs font-bold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
@@ -151,7 +151,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                   onShowProfile();
                   setShowMenu(false);
                 }}
-                className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50 transition-colors"
+                className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50 transition-colors"
               >
                 <User size={18} />
                 {t("users.user")}
@@ -167,7 +167,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                       <button
                         key={item.path}
                         onClick={() => handleNavigate(item.path)}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+                        className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
                       >
                         <Icon size={18} />
                         {item.label}
@@ -190,7 +190,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                         <button
                           key={item.path}
                           onClick={() => handleNavigate(item.path)}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+                          className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
                         >
                           <Icon size={18} />
                           {item.label}
@@ -214,7 +214,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                         <button
                           key={item.path}
                           onClick={() => handleNavigate(item.path)}
-                          className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+                          className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
                         >
                           <Icon size={18} />
                           {item.label}

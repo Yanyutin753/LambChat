@@ -693,6 +693,8 @@ class Presenter:
         output_tokens: int = 0,
         total_tokens: int = 0,
         duration: float = 0.0,
+        cache_creation_tokens: int = 0,
+        cache_read_tokens: int = 0,
     ) -> Dict[str, Any]:
         """输出 Token 使用统计
 
@@ -701,17 +703,22 @@ class Presenter:
             output_tokens: 输出 token 数
             total_tokens: 总 token 数
             duration: 对话耗时（秒）
+            cache_creation_tokens: 缓存创建 token 数
+            cache_read_tokens: 缓存读取 token 数
         """
-        return self._build_event(
-            "token:usage",
-            {
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "total_tokens": total_tokens,
-                "duration": duration,
-                "timestamp": _get_timestamp(),
-            },
-        )
+        data: Dict[str, Any] = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "duration": duration,
+            "timestamp": _get_timestamp(),
+        }
+        # 添加缓存token统计（如果有）
+        if cache_creation_tokens > 0:
+            data["cache_creation_tokens"] = cache_creation_tokens
+        if cache_read_tokens > 0:
+            data["cache_read_tokens"] = cache_read_tokens
+        return self._build_event("token:usage", data)
 
     def done(self) -> Dict[str, Any]:
         """输出流结束标记"""

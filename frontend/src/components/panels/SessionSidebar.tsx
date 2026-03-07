@@ -461,7 +461,7 @@ export function SessionSidebar({
             placeholder={t("common.search") + "..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 min-w-0 text-sm bg-transparent text-stone-700 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none"
+            className="flex-1 min-w-0 text-sm bg-transparent text-stone-700 dark:text-stone-200 placeholder:text-sm placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none"
           />
           {searchQuery && (
             <button

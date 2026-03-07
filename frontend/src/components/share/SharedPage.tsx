@@ -290,7 +290,7 @@ export function SharedPage() {
                           className="w-12 h-12 rounded-xl object-cover ring-2 ring-stone-100 dark:ring-stone-800"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-stone-500 to-stone-700 flex items-center justify-center shadow-lg shadow-stone-500/20">
                           <User size={22} className="text-white" />
                         </div>
                       )}

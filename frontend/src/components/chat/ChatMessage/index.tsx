@@ -114,27 +114,41 @@ function TokenDetailsButton({
           <div className="text-xs space-y-1.5">
             {tokenUsage && (
               <>
-                <div className="flex justify-between gap-4">
-                  <span className="text-gray-500 dark:text-stone-400">
-                    {t("chat.message.tokenInput")}
-                  </span>
-                  <span className="text-gray-700 dark:text-stone-200 font-medium">
+                <div className="flex justify-between gap-4 text-sky-600 dark:text-sky-400">
+                  <span className="">{t("chat.message.tokenInput")}</span>
+                  <span className="font-medium">
                     {tokenUsage.input_tokens?.toLocaleString()} tokens
                   </span>
                 </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-gray-500 dark:text-stone-400">
-                    {t("chat.message.tokenOutput")}
-                  </span>
-                  <span className="text-gray-700 dark:text-stone-200 font-medium">
+                <div className="flex justify-between gap-4 text-violet-600 dark:text-violet-400">
+                  <span className="">{t("chat.message.tokenOutput")}</span>
+                  <span className="font-medium">
                     {tokenUsage.output_tokens?.toLocaleString()} tokens
                   </span>
                 </div>
-                <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5">
-                  <span className="text-gray-500 dark:text-stone-400">
-                    {t("chat.message.tokenTotal")}
-                  </span>
-                  <span className="text-gray-700 dark:text-stone-200 font-medium">
+                {(tokenUsage.cache_creation_tokens ?? 0) > 0 && (
+                  <div className="flex justify-between gap-4 text-emerald-600 dark:text-emerald-400">
+                    <span className="">
+                      {t("chat.message.tokenCacheCreation")}
+                    </span>
+                    <span className="font-medium">
+                      {(tokenUsage.cache_creation_tokens ?? 0).toLocaleString()}{" "}
+                      tokens
+                    </span>
+                  </div>
+                )}
+                {(tokenUsage.cache_read_tokens ?? 0) > 0 && (
+                  <div className="flex justify-between gap-4 text-pink-600 dark:text-pink-400">
+                    <span className="">{t("chat.message.tokenCacheRead")}</span>
+                    <span className="font-medium">
+                      {(tokenUsage.cache_read_tokens ?? 0).toLocaleString()}{" "}
+                      tokens
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
+                  <span className="">{t("chat.message.tokenTotal")}</span>
+                  <span className="font-medium">
                     {tokenUsage.total_tokens?.toLocaleString()} tokens
                   </span>
                 </div>

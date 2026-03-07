@@ -383,12 +383,16 @@ function processHistoryEvent(
         output_tokens?: number;
         total_tokens?: number;
         duration?: number;
+        cache_creation_tokens?: number;
+        cache_read_tokens?: number;
       };
       msg.tokenUsage = {
         type: "token_usage",
         input_tokens: tokenData.input_tokens || 0,
         output_tokens: tokenData.output_tokens || 0,
         total_tokens: tokenData.total_tokens || 0,
+        cache_creation_tokens: tokenData.cache_creation_tokens || 0,
+        cache_read_tokens: tokenData.cache_read_tokens || 0,
       };
       msg.duration = tokenData.duration ? tokenData.duration * 1000 : undefined;
       break;

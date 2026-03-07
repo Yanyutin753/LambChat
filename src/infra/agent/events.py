@@ -38,6 +38,8 @@ class AgentEventProcessor:
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.total_tokens = 0
+        self.total_cache_creation_tokens = 0
+        self.total_cache_read_tokens = 0
 
     def _get_current_agent_context(self, event: StreamEvent) -> tuple[str | None, int]:
         """
@@ -257,11 +259,18 @@ class AgentEventProcessor:
                 if usage:
                     self._add_tokens(usage)
 
-    def _add_tokens(self, usage: dict[str, Any]) -> None:
+    def _add_tokens(self, usage: Any) -> None:
         """累加 token 统计"""
-        input_tok = usage.get("input_tokens", 0)
-        output_tok = usage.get("output_tokens", 0)
-        total_tok = usage.get("total_tokens", 0)
+
+        # 支持 dict 和对象两种方式
+        def get_value(obj: Any, key: str, default: Any = 0) -> Any:
+            if isinstance(obj, dict):
+                return obj.get(key, default)
+            return getattr(obj, key, default)
+
+        input_tok = get_value(usage, "input_tokens", 0)
+        output_tok = get_value(usage, "output_tokens", 0)
+        total_tok = get_value(usage, "total_tokens", 0)
 
         if isinstance(input_tok, int):
             self.total_input_tokens += input_tok
@@ -269,6 +278,16 @@ class AgentEventProcessor:
             self.total_output_tokens += output_tok
         if isinstance(total_tok, int):
             self.total_tokens += total_tok
+
+        # 提取缓存token统计
+        input_details = get_value(usage, "input_token_details", {})
+        if input_details:
+            cache_creation = get_value(input_details, "cache_creation", 0)
+            cache_read = get_value(input_details, "cache_read", 0)
+            if isinstance(cache_creation, int):
+                self.total_cache_creation_tokens += cache_creation
+            if isinstance(cache_read, int):
+                self.total_cache_read_tokens += cache_read
 
     async def _handle_chat_stream(
         self,

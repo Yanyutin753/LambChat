@@ -738,6 +738,8 @@ function handleTokenUsage(
     input_tokens: data.input_tokens || 0,
     output_tokens: data.output_tokens || 0,
     total_tokens: data.total_tokens || 0,
+    cache_creation_tokens: data.cache_creation_tokens || 0,
+    cache_read_tokens: data.cache_read_tokens || 0,
   };
   ctx.setMessages((prev) =>
     prev.map((m) => {

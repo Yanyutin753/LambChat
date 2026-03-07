@@ -49,8 +49,13 @@ export function ProfileModal({
   const canUploadAvatar = hasPermission(Permission.AVATAR_UPLOAD);
 
   // Browser notification
-  const { requestPermission, isSupported, permission } =
-    useBrowserNotification();
+  const {
+    requestPermission,
+    isSupported,
+    permission,
+    isMobile,
+    isMobileNotificationSupported,
+  } = useBrowserNotification();
 
   // Sync user data when modal opens or user changes
   useEffect(() => {
@@ -332,7 +337,7 @@ export function ProfileModal({
                       className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-stone-700 shadow-md"
                     />
                   ) : (
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-md">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-stone-500 to-stone-700 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-md">
                       <span className="text-2xl font-bold text-white">
                         {userData?.username?.charAt(0).toUpperCase() || "U"}
                       </span>
@@ -589,6 +594,38 @@ export function ProfileModal({
                   </p>
                 )}
               </div>
+
+              {/* Mobile Notification Status */}
+              {isMobile && (
+                <div className="bg-gray-50 dark:bg-stone-700/50 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-stone-100">
+                        {t("profile.mobileNotification")}
+                      </h4>
+                      <p className="text-sm text-gray-500 dark:text-stone-400 mt-1">
+                        {t("profile.mobileNotificationDesc")}
+                      </p>
+                    </div>
+                    <span
+                      className={`text-sm flex items-center gap-1 ${
+                        isMobileNotificationSupported()
+                          ? "text-green-600"
+                          : "text-amber-600"
+                      }`}
+                    >
+                      {isMobileNotificationSupported() ? (
+                        <>
+                          <Check size={16} />
+                          {t("profile.supported")}
+                        </>
+                      ) : (
+                        t("profile.limitedSupport")
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* WebSocket Connection Status */}
               <div className="bg-gray-50 dark:bg-stone-700/50 rounded-lg p-4">

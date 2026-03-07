@@ -171,11 +171,13 @@ export function AppContent({ activeTab }: AppContentProps) {
           notify(t("notification.taskCompleted"), {
             body: message,
             onClick: navigateToSession,
+            url: `/chat/${session_id}`,
           });
         } else {
           notify(t("notification.taskFailed"), {
             body: message,
             onClick: navigateToSession,
+            url: `/chat/${session_id}`,
           });
         }
       } else {
@@ -263,6 +265,13 @@ export function AppContent({ activeTab }: AppContentProps) {
 
     fetchSessionName();
   }, [sessionId]);
+
+  // Sync sessionName with newlyCreatedSession.name (e.g., after title generation)
+  useEffect(() => {
+    if (newlyCreatedSession?.name && sessionId === newlyCreatedSession.id) {
+      setSessionName(newlyCreatedSession.name);
+    }
+  }, [newlyCreatedSession?.name, newlyCreatedSession?.id, sessionId]);
 
   // Agent options state
   const [agentOptionValues, setAgentOptionValues] = useState<
