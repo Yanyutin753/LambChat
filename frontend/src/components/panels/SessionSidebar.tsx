@@ -5,12 +5,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, ChevronDown, X, Search } from "lucide-react";
+import { Plus, Trash2, ChevronDown, X, Search, FolderPlus } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useInView } from "react-intersection-observer";
-import { sessionApi, type BackendSession } from "../../services/api";
+import { sessionApi, folderApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { ConfirmDialog } from "../common/ConfirmDialog";
+import { FolderItem } from "../sidebar/FolderItem";
+import type { Folder } from "../../types";
 
 const PAGE_SIZE = 20;
 
@@ -65,6 +67,12 @@ export function SessionSidebar({
     isOpen: boolean;
     sessionId: string | null;
   }>({ isOpen: false, sessionId: null });
+
+  // Folder state
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.1,
@@ -145,6 +153,16 @@ export function SessionSidebar({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasMore, isLoadingMore, isLoading]);
+
+  // Load folders
+  const loadFolders = async () => {
+    try {
+      const folderList = await folderApi.list();
+      setFolders(folderList);
+    } catch (err) {
+      console.error("Failed to load folders:", err);
+    }
+  };
 
   useEffect(() => {
     if (inView && hasMore && !isLoadingMore) {
@@ -242,8 +260,81 @@ export function SessionSidebar({
     }
   };
 
+  // Folder operations
+  const handleCreateFolder = async () => {
+    const trimmedName = newFolderName.trim();
+    if (!trimmedName) return;
+
+    try {
+      const newFolder = await folderApi.create({ name: trimmedName });
+      setFolders((prev) => [...prev, newFolder]);
+      setNewFolderName("");
+      setShowNewFolderInput(false);
+      toast.success(t("sidebar.folderCreated", "Folder created"));
+    } catch (err) {
+      console.error("Failed to create folder:", err);
+      toast.error(t("sidebar.folderCreateFailed", "Failed to create folder"));
+    }
+  };
+
+  const handleRenameFolder = (folderId: string, name: string) => {
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folderId ? { ...f, name } : f)),
+    );
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    try {
+      await folderApi.delete(folderId);
+      setFolders((prev) => prev.filter((f) => f.id !== folderId));
+      // Sessions in deleted folder become uncategorized (folder_id cleared on backend)
+      // Refresh sessions to get updated folder assignments
+      loadSessions(true);
+      toast.success(t("sidebar.folderDeleted", "Folder deleted"));
+    } catch (err) {
+      console.error("Failed to delete folder:", err);
+      toast.error(t("sidebar.folderDeleteFailed", "Failed to delete folder"));
+    }
+  };
+
+  const handleMoveSession = async (
+    sessionId: string,
+    folderId: string | null,
+  ) => {
+    try {
+      const response = await sessionApi.moveToFolder(sessionId, folderId);
+      if (response.session) {
+        setSessions((prev) =>
+          prev.map((s) => (s.id === sessionId ? response.session : s)),
+        );
+        toast.success(
+          folderId
+            ? t("sidebar.sessionMoved", "Session moved")
+            : t("sidebar.sessionRemoved", "Session removed from folder"),
+        );
+      }
+    } catch (err) {
+      console.error("Failed to move session:", err);
+      toast.error(t("sidebar.sessionMoveFailed", "Failed to move session"));
+    }
+  };
+
+  const handleSessionUpdate = (updatedSession: BackendSession) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)),
+    );
+  };
+
+  // Focus input when new folder input appears
+  useEffect(() => {
+    if (showNewFolderInput && newFolderInputRef.current) {
+      newFolderInputRef.current.focus();
+    }
+  }, [showNewFolderInput]);
+
   useEffect(() => {
     loadSessions(true);
+    loadFolders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
@@ -317,8 +408,6 @@ export function SessionSidebar({
     return groups;
   };
 
-  const groupedSessions = groupSessionsByTime(filteredSessions);
-
   if (isCollapsed) {
     return null;
   }
@@ -363,8 +452,8 @@ export function SessionSidebar({
         </button>
       </div>
 
-      {/* New chat button */}
-      <div className="px-2 pb-3">
+      {/* New chat and new folder buttons */}
+      <div className="px-2 pb-3 space-y-2">
         <button
           onClick={onNewSession}
           className="w-full flex items-center gap-2 rounded-lg border border-gray-200 dark:border-stone-700 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
@@ -372,6 +461,39 @@ export function SessionSidebar({
           <Plus size={18} strokeWidth={2} />
           <span>{t("sidebar.newChat")}</span>
         </button>
+
+        {/* New folder button / inline input */}
+        {showNewFolderInput ? (
+          <input
+            ref={newFolderInputRef}
+            type="text"
+            placeholder={t("sidebar.folderName", "Folder name")}
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleCreateFolder();
+              } else if (e.key === "Escape") {
+                setShowNewFolderInput(false);
+                setNewFolderName("");
+              }
+            }}
+            onBlur={() => {
+              if (!newFolderName.trim()) {
+                setShowNewFolderInput(false);
+              }
+            }}
+            className="w-full rounded-lg border border-gray-200 dark:border-stone-700 bg-transparent px-3 py-2 text-sm text-gray-700 dark:text-stone-200 placeholder-gray-400 dark:placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+          />
+        ) : (
+          <button
+            onClick={() => setShowNewFolderInput(true)}
+            className="w-full flex items-center gap-2 rounded-lg border border-gray-200 dark:border-stone-700 px-3 py-2 text-sm text-gray-500 dark:text-stone-400 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
+          >
+            <FolderPlus size={18} strokeWidth={2} />
+            <span>{t("sidebar.newFolder", "New Folder")}</span>
+          </button>
+        )}
       </div>
 
       {/* Search */}
@@ -399,7 +521,7 @@ export function SessionSidebar({
         </div>
       </div>
 
-      {/* Session list */}
+      {/* Session list with folders */}
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto px-2"
@@ -442,7 +564,7 @@ export function SessionSidebar({
               {t("sidebar.retry")}
             </button>
           </div>
-        ) : filteredSessions.length === 0 ? (
+        ) : filteredSessions.length === 0 && folders.length === 0 ? (
           <div className="py-8 text-center">
             <p className="text-sm text-gray-400 dark:text-stone-500">
               {searchQuery
@@ -452,47 +574,119 @@ export function SessionSidebar({
           </div>
         ) : (
           <div className="space-y-4">
-            {groupedSessions.map((group) => (
-              <div key={group.label}>
-                <div className="px-2 py-1.5 text-xs font-medium text-gray-400 dark:text-stone-500">
-                  {group.label}
-                </div>
-                <div className="space-y-0.5">
-                  {group.sessions
-                    .filter((session) => session.id)
-                    .map((session) => (
-                      <div
-                        key={session.id}
-                        onClick={() => {
-                          onSelectSession(session.id);
-                          onMobileClose?.();
-                        }}
-                        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 transition-colors ${
-                          currentSessionId === session.id
-                            ? "bg-gray-100 dark:bg-stone-800"
-                            : "hover:bg-gray-50 dark:hover:bg-stone-800/50"
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm text-gray-700 dark:text-stone-200">
-                            {getSessionTitle(session)}
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => deleteSession(session.id, e)}
-                          className="flex-shrink-0 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-stone-700 transition-all"
-                          title={t("common.delete")}
+            {/* Favorites folder */}
+            {(() => {
+              const favoritesFolder = folders.find(
+                (f) => f.type === "favorites",
+              );
+              if (!favoritesFolder) return null;
+              const favoritesSessions = filteredSessions.filter(
+                (s) => s.metadata?.folder_id === favoritesFolder.id,
+              );
+              if (favoritesSessions.length === 0) return null;
+              return (
+                <FolderItem
+                  folder={favoritesFolder}
+                  sessions={favoritesSessions}
+                  currentSessionId={currentSessionId}
+                  allFolders={folders}
+                  onSelectSession={(sessionId) => {
+                    onSelectSession(sessionId);
+                    onMobileClose?.();
+                  }}
+                  onDeleteSession={(sessionId) => {
+                    setDeleteConfirm({ isOpen: true, sessionId });
+                  }}
+                  onMoveSession={handleMoveSession}
+                  onSessionUpdate={handleSessionUpdate}
+                  onRenameFolder={handleRenameFolder}
+                  onDeleteFolder={handleDeleteFolder}
+                />
+              );
+            })()}
+
+            {/* Custom folders */}
+            {folders
+              .filter((f) => f.type === "custom")
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((folder) => {
+                const folderSessions = filteredSessions.filter(
+                  (s) => s.metadata?.folder_id === folder.id,
+                );
+                return (
+                  <FolderItem
+                    key={folder.id}
+                    folder={folder}
+                    sessions={folderSessions}
+                    currentSessionId={currentSessionId}
+                    allFolders={folders}
+                    onSelectSession={(sessionId) => {
+                      onSelectSession(sessionId);
+                      onMobileClose?.();
+                    }}
+                    onDeleteSession={(sessionId) => {
+                      setDeleteConfirm({ isOpen: true, sessionId });
+                    }}
+                    onMoveSession={handleMoveSession}
+                    onSessionUpdate={handleSessionUpdate}
+                    onRenameFolder={handleRenameFolder}
+                    onDeleteFolder={handleDeleteFolder}
+                  />
+                );
+              })}
+
+            {/* Uncategorized sessions (by time) */}
+            {(() => {
+              const uncategorizedSessions = filteredSessions.filter(
+                (s) => !s.metadata?.folder_id,
+              );
+              if (uncategorizedSessions.length === 0) return null;
+              const groupedUncategorized = groupSessionsByTime(
+                uncategorizedSessions,
+              );
+              return groupedUncategorized.map((group) => (
+                <div key={group.label}>
+                  <div className="px-2 py-1.5 text-xs font-medium text-gray-400 dark:text-stone-500">
+                    {group.label}
+                  </div>
+                  <div className="space-y-0.5">
+                    {group.sessions
+                      .filter((session) => session.id)
+                      .map((session) => (
+                        <div
+                          key={session.id}
+                          onClick={() => {
+                            onSelectSession(session.id);
+                            onMobileClose?.();
+                          }}
+                          className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 transition-colors ${
+                            currentSessionId === session.id
+                              ? "bg-gray-100 dark:bg-stone-800"
+                              : "hover:bg-gray-50 dark:hover:bg-stone-800/50"
+                          }`}
                         >
-                          <Trash2
-                            size={14}
-                            className="text-gray-400 hover:text-red-500 dark:text-stone-500 dark:hover:text-red-400"
-                          />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm text-gray-700 dark:text-stone-200">
+                              {getSessionTitle(session)}
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => deleteSession(session.id, e)}
+                            className="flex-shrink-0 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-stone-700 transition-all"
+                            title={t("common.delete")}
+                          >
+                            <Trash2
+                              size={14}
+                              className="text-gray-400 hover:text-red-500 dark:text-stone-500 dark:hover:text-red-400"
+                            />
+                          </button>
+                        </div>
+                      ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ));
+            })()}
+
             <div ref={loadMoreRef} className="flex justify-center py-2">
               {isLoadingMore && (
                 <div className="flex items-center gap-2 text-gray-400 dark:text-stone-500">

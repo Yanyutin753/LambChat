@@ -4,7 +4,12 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, Star, Folder, MoreHorizontal } from "lucide-react";
+import {
+  ChevronRight,
+  Star,
+  Folder as FolderIcon,
+  MoreHorizontal,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Folder } from "../../types";
@@ -148,7 +153,7 @@ export function FolderItem({
             className="flex-shrink-0 text-yellow-500 fill-yellow-500"
           />
         ) : (
-          <Folder
+          <FolderIcon
             size={16}
             className="flex-shrink-0 text-gray-500 dark:text-stone-400"
           />
