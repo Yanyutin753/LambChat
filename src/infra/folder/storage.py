@@ -152,3 +152,15 @@ class FolderStorage:
         folder_dict["id"] = str(result.inserted_id)
 
         return Folder(**folder_dict)
+
+
+# Singleton instance
+_folder_storage: Optional[FolderStorage] = None
+
+
+def get_folder_storage() -> FolderStorage:
+    """Get folder storage singleton."""
+    global _folder_storage
+    if _folder_storage is None:
+        _folder_storage = FolderStorage()
+    return _folder_storage
