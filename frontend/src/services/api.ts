@@ -39,3 +39,4 @@ export { settingsApi } from "./api/settings";
 export { mcpApi } from "./api/mcp";
 export { uploadApi } from "./api/upload";
 export { versionApi } from "./api/version";
+export { folderApi } from "./api/folder";

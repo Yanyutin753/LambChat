@@ -36,11 +36,13 @@ export const sessionApi = {
     status?: string;
     limit?: number;
     skip?: number;
+    folder_id?: string;
   }): Promise<SessionListResponse | BackendSession[]> {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.set("status", params.status);
     if (params?.limit) searchParams.set("limit", params.limit.toString());
     if (params?.skip) searchParams.set("skip", params.skip.toString());
+    if (params?.folder_id) searchParams.set("folder_id", params.folder_id);
 
     const url = `${API_BASE}/api/sessions${
       searchParams.toString() ? `?${searchParams}` : ""
@@ -225,6 +227,32 @@ export const sessionApi = {
         session_id: sessionId,
         agent_options: agentOptions,
       }),
+    });
+  },
+
+  /**
+   * Move session to folder
+   */
+  async moveToFolder(
+    sessionId: string,
+    folderId: string | null,
+  ): Promise<{ status: string; session: BackendSession }> {
+    return authFetch(`${API_BASE}/api/sessions/${sessionId}/move`, {
+      method: "POST",
+      body: JSON.stringify({ folder_id: folderId }),
+    });
+  },
+
+  /**
+   * Update session (including name and metadata)
+   */
+  async update(
+    sessionId: string,
+    data: { name?: string; metadata?: Record<string, unknown> },
+  ): Promise<{ status: string; session: BackendSession }> {
+    return authFetch(`${API_BASE}/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
     });
   },
 };
