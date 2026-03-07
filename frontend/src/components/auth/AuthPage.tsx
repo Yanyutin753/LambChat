@@ -3,15 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import {
-  User,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  AtSign,
-} from "lucide-react";
+import { User, Mail, Lock, AlertCircle, AtSign } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
@@ -33,7 +25,6 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -337,26 +328,15 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                     <Lock size={16} className="sm:h-[18px] sm:w-[18px]" />
                   </div>
                   <input
-                    type={showPassword ? "text" : "password"}
+                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-10 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-11"
+                    className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-4"
                     placeholder={t("auth.passwordPlaceholder")}
                     autoComplete={
                       mode === "login" ? "current-password" : "new-password"
                     }
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 transition-colors hover:text-gray-600 dark:text-stone-500 dark:hover:text-stone-300 sm:pr-3.5"
-                  >
-                    {showPassword ? (
-                      <EyeOff size={16} className="sm:h-[18px] sm:w-[18px]" />
-                    ) : (
-                      <Eye size={16} className="sm:h-[18px] sm:w-[18px]" />
-                    )}
-                  </button>
                 </div>
               </div>
 
@@ -371,7 +351,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                       <Lock size={16} className="sm:h-[18px] sm:w-[18px]" />
                     </div>
                     <input
-                      type={showPassword ? "text" : "password"}
+                      type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-4"

@@ -78,6 +78,8 @@ class BaseGraphAgent(ABC):
     _agent_name: str = "Base Agent"
     _description: str = ""
     _version: str = "0.1.0"
+    # 排序权重（数值越小越靠前）
+    _sort_order: int = 100
     # Agent 选项配置（供前端渲染）
     # 格式: {"option_name": {"type": "boolean", "default": False, "label": "...", "description": "..."}}
     _options: Dict[str, Dict[str, Any]] = {}
@@ -537,19 +539,29 @@ class AgentFactory:
             return agent
 
     @classmethod
-    def list_agents(cls) -> List[Dict[str, Any]]:
-        """列出所有可用 Agent（包含选项配置）"""
-        return [
+    def list_agents(cls, default_agent_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """列出所有可用 Agent（包含选项配置），按 sort_order 和名称排序，默认 agent 排在最前面"""
+        agents = [
             {
                 "id": aid,
-                "name": getattr(cls, "_name_key", None) or getattr(cls, "_agent_name", aid.title()),
-                "description": getattr(cls, "_description_key", None)
-                or getattr(cls, "_description", ""),
-                "version": getattr(cls, "_version", "0.1.0"),
-                "options": getattr(cls, "_options", {}),
+                "name": getattr(agent_cls, "_name_key", None)
+                or getattr(agent_cls, "_agent_name", aid.title()),
+                "description": getattr(agent_cls, "_description_key", None)
+                or getattr(agent_cls, "_description", ""),
+                "version": getattr(agent_cls, "_version", "0.1.0"),
+                "sort_order": getattr(agent_cls, "_sort_order", 100),
+                "options": getattr(agent_cls, "_options", {}),
             }
-            for aid, cls in _AGENT_REGISTRY.items()
+            for aid, agent_cls in _AGENT_REGISTRY.items()
         ]
+
+        # 排序：默认 agent 放最前面，其余按 sort_order 和名称排序
+        def sort_key(agent):
+            is_default = agent["id"] == default_agent_id
+            return (0 if is_default else 1, agent["sort_order"], agent["name"])
+
+        agents.sort(key=sort_key)
+        return agents
 
     @classmethod
     async def close_all(cls) -> None:

@@ -1,19 +1,13 @@
 """
-Search Agent - 基于 LangGraph 的 Graph Agent
+Fast Agent - 基于 LangGraph 的快速 Agent
 
-外层 Graph 管理多个节点，agent_node 执行 LLM + 工具调用。
-后续可扩展：检索节点、记忆节点、规划节点等。
+特点：
+- 无沙箱（使用内存 backend）
+- 支持 Skills
+- 快速响应
 
 架构:
-    START -> agent_node -> END
-
-优化点：
-1. 去掉外层 checkpoint（只保留内层 MemorySaver）
-2. 使用 stream_mode="updates" 减少事件开销
-
-后续可扩展:
-    - START -> retrieve_node -> agent_node -> END
-    - START -> plan_node -> agent_node -> summarize_node -> END
+    START -> fast_agent_node -> END
 """
 
 import asyncio
@@ -23,11 +17,9 @@ from typing import Any, AsyncGenerator, Dict
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import BaseGraphAgent, GraphBuilder, register_agent
-from src.agents.search_agent.context import AgentContext
-from src.agents.search_agent.nodes import agent_node
-from src.agents.search_agent.state import SearchAgentState
-
-# 设置用户上下文，供 backend 使用
+from src.agents.fast_agent.context import FastAgentContext
+from src.agents.fast_agent.nodes import fast_agent_node
+from src.agents.fast_agent.state import FastAgentState
 from src.infra.backend.context import set_user_context
 from src.infra.task.manager import TaskInterruptedError
 from src.infra.writer.present import Presenter, PresenterConfig
@@ -37,27 +29,29 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
-# SearchAgent 类
+# FastAgent 类
 # ============================================================================
 
 
-@register_agent("search")
-class SearchAgent(BaseGraphAgent):
+@register_agent("fast")
+class FastAgent(BaseGraphAgent):
     """
-    Search Agent
+    Fast Agent - 快速响应，无沙箱
 
-    基于 LangGraph 的多节点 Agent，当前包含 agent_node。
-    可扩展：检索节点、记忆节点、规划节点等。
+    适用于：
+    - 快速对话
+    - 无需文件系统操作的场景
+    - 低延迟要求的场景
     """
 
-    _agent_id = "search"
-    _agent_name = "Search Agent"
-    _name_key = "agents.search.name"
-    _description = "基于 LangGraph 的搜索和执行 Agent"
-    _description_key = "agents.search.description"
+    _agent_id = "fast"
+    _agent_name = "Fast Agent"
+    _name_key = "agents.fast.name"
+    _description = "快速响应的 AI 助手，无沙箱，支持 Skills"
+    _description_key = "agents.fast.description"
     _version = "1.0.0"
-    _sort_order = 1  # 排序权重，数值越小越靠前
-    # Agent 选项配置（供前端渲染）
+    _sort_order = 2  # 排序权重，数值越小越靠前
+
     _options = {
         "enable_thinking": {
             "type": "boolean",
@@ -72,19 +66,15 @@ class SearchAgent(BaseGraphAgent):
 
     @property
     def state_class(self) -> type:
-        return SearchAgentState
+        return FastAgentState
 
     def build_graph(self, builder: GraphBuilder) -> None:
         """
         构建 Graph
 
-        当前结构: START -> agent_node -> END
-
-        后续可扩展:
-        - START -> retrieve_node -> agent_node -> END
-        - START -> plan_node -> agent_node -> summarize_node -> END
+        当前结构: START -> fast_agent_node -> END
         """
-        builder.add_node("agent", agent_node)
+        builder.add_node("agent", fast_agent_node)
         builder.set_entry_point("agent")
         builder.add_edge("agent", "END")
 
@@ -93,17 +83,15 @@ class SearchAgent(BaseGraphAgent):
         if self._initialized:
             return
 
-        # 不使用外层 checkpointer（历史消息由内层 MemorySaver 管理）
-        # 构建 graph
         builder = GraphBuilder(self.state_class)
         self.build_graph(builder)
         self._graph = builder.compile(
-            checkpointer=None,  # 不使用 checkpoint
+            checkpointer=None,
             recursion_limit=settings.SESSION_MAX_RUNS_PER_SESSION,
         )
 
         self._initialized = True
-        logger.info(f"{self.name} initialized (no outer checkpointer)")
+        logger.info(f"{self.name} initialized (no sandbox, no checkpointer)")
 
     async def _stream(
         self,
@@ -114,19 +102,13 @@ class SearchAgent(BaseGraphAgent):
         **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        执行 graph，事件由 agent_node 内部通过 presenter.emit 直接发送。
-
-        这里只需要：
-        1. yield metadata（让 manager.py 保存）
-        2. 执行 graph
-        3. yield done/error
+        执行 graph
         """
         if not self._initialized:
             await self.initialize()
 
         set_user_context(user_id or "default", session_id)
 
-        # 如果没有传入 presenter，创建一个仅用于生成事件的
         if presenter is None:
             presenter = Presenter(
                 PresenterConfig(
@@ -138,9 +120,9 @@ class SearchAgent(BaseGraphAgent):
                 )
             )
 
-        # 创建并初始化 AgentContext
+        # 创建并初始化 FastAgentContext
         disabled_tools = kwargs.get("disabled_tools")
-        context = AgentContext(
+        context = FastAgentContext(
             session_id=session_id,
             agent_id=self.agent_id,
             user_id=user_id,
@@ -153,7 +135,7 @@ class SearchAgent(BaseGraphAgent):
 
         # 构建 config
         agent_options = kwargs.get("agent_options", {})
-        logger.info(f"[SearchAgent] agent_options: {agent_options}")
+        logger.info(f"[FastAgent] agent_options: {agent_options}")
 
         config: RunnableConfig = {
             "configurable": {
@@ -161,8 +143,7 @@ class SearchAgent(BaseGraphAgent):
                 "presenter": presenter,
                 "context": context,
                 "agent_options": agent_options,
-                "disabled_tools": disabled_tools,
-                "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
+                "base_url": kwargs.get("base_url", ""),
             },
             "recursion_limit": self.recursion_limit,
         }
@@ -172,17 +153,15 @@ class SearchAgent(BaseGraphAgent):
         initial_state = {
             "input": message,
             "session_id": session_id,
-            "messages": [],  # 历史消息由 agent_node 内部的 deep_agent 管理
+            "messages": [],
             "output": "",
             "attachments": attachments,
         }
         logger.info(
-            f"[SearchAgent] initial_state attachments: {len(attachments) if attachments else 0} items"
+            f"[FastAgent] initial_state attachments: {len(attachments) if attachments else 0} items"
         )
 
         try:
-            # 直接执行 graph（用 ainvoke 而非 astream，因为不需要处理流式事件）
-            # 事件由 agent_node 内部通过 presenter.emit 直接保存
             graph_task = asyncio.create_task(self._graph.ainvoke(initial_state, config))
             self._stream_tasks[presenter.run_id] = graph_task
 
@@ -207,7 +186,6 @@ class SearchAgent(BaseGraphAgent):
             raise
 
         except Exception as e:
-            # 错误事件由 agent_node 内部处理，这里只 yield 给 manager
             yield presenter.error(str(e), type(e).__name__)
             raise
 
@@ -215,5 +193,4 @@ class SearchAgent(BaseGraphAgent):
             self._stream_tasks.pop(presenter.run_id, None)
             await context.close()
 
-        # 正常完成，发送 done 事件
         yield presenter.done()

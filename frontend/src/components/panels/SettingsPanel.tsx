@@ -17,8 +17,8 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { useAuth } from "../../hooks/useAuth";
-import { roleApi } from "../../services/api";
-import { Permission } from "../../types";
+import { roleApi, agentApi } from "../../services/api";
+import { Permission, type AgentInfo } from "../../types";
 import type {
   SettingItem,
   SettingCategory,
@@ -94,6 +94,7 @@ export function SettingsPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [showAbout, setShowAbout] = useState(false);
 
   // Reset confirmation dialog state
@@ -114,6 +115,19 @@ export function SettingsPanel() {
       }
     };
     fetchRoles();
+  }, []);
+
+  // Fetch agents for DEFAULT_AGENT dropdown
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const data = await agentApi.list();
+        setAgents(data.agents || []);
+      } catch (err) {
+        console.error("Failed to fetch agents:", err);
+      }
+    };
+    fetchAgents();
   }, []);
 
   // Get settings for active category
@@ -565,7 +579,26 @@ export function SettingsPanel() {
 
                       {/* Edit Input */}
                       <div className="mt-3">
-                        {setting.key === "DEFAULT_USER_ROLE" ? (
+                        {setting.key === "DEFAULT_AGENT" ? (
+                          <select
+                            value={getDisplayValue(setting)}
+                            onChange={(e) =>
+                              handleValueChange(
+                                setting.key,
+                                e.target.value,
+                                setting.type,
+                              )
+                            }
+                            disabled={!canManage}
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                          >
+                            {agents.map((agent) => (
+                              <option key={agent.id} value={agent.id}>
+                                {agent.name || agent.id}
+                              </option>
+                            ))}
+                          </select>
+                        ) : setting.key === "DEFAULT_USER_ROLE" ? (
                           <select
                             value={getDisplayValue(setting)}
                             onChange={(e) =>

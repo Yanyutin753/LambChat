@@ -14,8 +14,12 @@
   },
   "agents": {
     "search": {
-      "description": "LangGraphベースの検索・実行エージェント",
+      "description": "コードインタープリター＆サンドボックス対応、複雑なタスク向け",
       "name": "Search Agent"
+    },
+    "fast": {
+      "description": "サンドボックスなし、高速レスポンス、日常会話向け",
+      "name": "Fast Agent"
     }
   },
   "appName": "LambChat",

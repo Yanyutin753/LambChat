@@ -28,7 +28,7 @@ const AgentItem = memo(function AgentItem({
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600">
           <Bot size={18} className="text-white" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 space-y-1">
           <div className="text-sm font-medium text-gray-700 dark:text-stone-200">
             {t(agent.name)}
           </div>

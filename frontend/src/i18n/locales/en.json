@@ -14,8 +14,12 @@
   },
   "agents": {
     "search": {
-      "description": "Search and execution agent based on LangGraph",
+      "description": "With code interpreter & sandbox, for complex tasks",
       "name": "Search Agent"
+    },
+    "fast": {
+      "description": "No sandbox, faster response, for daily chat",
+      "name": "Fast Agent"
     }
   },
   "appName": "LambChat",

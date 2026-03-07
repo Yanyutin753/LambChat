@@ -14,8 +14,12 @@
   },
   "agents": {
     "search": {
-      "description": "基于 LangGraph 的搜索和执行代理",
+      "description": "支持代码解释器和沙箱，适合复杂任务",
       "name": "Search Agent"
+    },
+    "fast": {
+      "description": "无沙箱，响应更快，适合日常对话",
+      "name": "Fast Agent"
     }
   },
   "appName": "LambChat",

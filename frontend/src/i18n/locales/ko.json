@@ -14,8 +14,12 @@
   },
   "agents": {
     "search": {
-      "description": "LangGraph 기반 검색 및 실행 에이전트",
+      "description": "코드 인터프리터 & 샌드박스 지원, 복잡한 작업용",
       "name": "Search Agent"
+    },
+    "fast": {
+      "description": "샌드박스 없음, 빠른 응답, 일상 대화용",
+      "name": "Fast Agent"
     }
   },
   "appName": "LambChat",

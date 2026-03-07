@@ -183,4 +183,3 @@ export interface BackendSession {
 
 // Constants
 export const API_BASE = "/api";
-export const DEFAULT_AGENT = "search";

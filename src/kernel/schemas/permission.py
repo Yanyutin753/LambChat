@@ -161,6 +161,19 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "上传头像",
         "description": "允许上传和删除用户头像",
     },
+    # Feedback
+    Permission.FEEDBACK_WRITE.value: {
+        "label": "提交反馈",
+        "description": "允许提交消息反馈（点赞/点踩）",
+    },
+    Permission.FEEDBACK_READ.value: {
+        "label": "查看反馈",
+        "description": "查看反馈列表和统计",
+    },
+    Permission.FEEDBACK_ADMIN.value: {
+        "label": "管理反馈",
+        "description": "删除和管理所有用户反馈",
+    },
 }
 
 # 权限分组配置
@@ -236,6 +249,14 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
         "name": "头像",
         "permissions": [
             Permission.AVATAR_UPLOAD.value,
+        ],
+    },
+    {
+        "name": "反馈",
+        "permissions": [
+            Permission.FEEDBACK_WRITE.value,
+            Permission.FEEDBACK_READ.value,
+            Permission.FEEDBACK_ADMIN.value,
         ],
     },
 ]

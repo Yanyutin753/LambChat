@@ -22,7 +22,6 @@ import {
 import { feedbackApi } from "../services/api/feedback";
 import {
   API_BASE,
-  DEFAULT_AGENT,
   type EventType,
   type StreamEvent,
   type EventData,
@@ -50,7 +49,7 @@ export function useAgent(options?: UseAgentOptions) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [currentAgent, setCurrentAgent] = useState<string>(DEFAULT_AGENT);
+  const [currentAgent, setCurrentAgent] = useState<string>("");
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
@@ -115,12 +114,19 @@ export function useAgent(options?: UseAgentOptions) {
       if (!response.ok) throw new Error("Failed to fetch agents");
       const data: AgentListResponse = await response.json();
       setAgents(data.agents || []);
+      // Set default agent from API response, or fallback to first agent
+      if (!currentAgent && data.agents?.length > 0) {
+        const defaultAgentId = data.default_agent || data.agents[0]?.id || "";
+        if (defaultAgentId) {
+          setCurrentAgent(defaultAgentId);
+        }
+      }
     } catch (err) {
       console.error("Failed to fetch agents:", err);
     } finally {
       setAgentsLoading(false);
     }
-  }, []);
+  }, [currentAgent]);
 
   // Load agents on mount
   useEffect(() => {

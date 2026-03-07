@@ -362,12 +362,14 @@ export interface AgentInfo {
   name: string;
   description: string;
   version: string;
+  sort_order?: number;
   options?: Record<string, AgentOption>;
 }
 
 export interface AgentListResponse {
   agents: AgentInfo[];
   count: number;
+  default_agent?: string;
 }
 
 // Workflow event types

@@ -5,13 +5,14 @@
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 import { getAccessToken } from "./token";
+import type { AgentListResponse } from "../../types";
 
 export const agentApi = {
   /**
    * List all agents
    */
-  async list() {
-    return authFetch(`${API_BASE}/agents`);
+  async list(): Promise<AgentListResponse> {
+    return authFetch<AgentListResponse>(`${API_BASE}/api/agents`);
   },
 
   /**

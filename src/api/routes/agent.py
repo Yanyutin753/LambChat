@@ -219,8 +219,11 @@ def extract_tool_parameters(tool) -> list[ToolParamInfo]:
 
 @router.get("/agents")
 async def list_agents():
-    """列出所有可用的 Agent"""
-    return {"agents": AgentFactory.list_agents()}
+    """列出所有可用的 Agent（按名称排序，默认 agent 排在最前面）"""
+    return {
+        "agents": AgentFactory.list_agents(default_agent_id=settings.DEFAULT_AGENT),
+        "default_agent": settings.DEFAULT_AGENT,
+    }
 
 
 @router.post("/{agent_id}/chat")

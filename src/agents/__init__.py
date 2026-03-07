@@ -32,6 +32,7 @@ from src.agents.core import (
 def discover_agents() -> None:
     """发现并注册所有 Agent"""
     # 导入会触发 @register_agent 装饰器
+    from src.agents.fast_agent import FastAgent  # noqa: F401
     from src.agents.search_agent import SearchAgent  # noqa: F401
 
 
@@ -40,9 +41,9 @@ async def get_agent_async(agent_id: str) -> BaseGraphAgent:
     return await AgentFactory.get(agent_id)
 
 
-def list_agents() -> list[dict[str, str]]:
-    """列出所有注册的 Agent"""
-    return AgentFactory.list_agents()
+def list_agents(default_agent_id: str | None = None) -> list[dict[str, str]]:
+    """列出所有注册的 Agent（按名称排序，默认 agent 排在最前面）"""
+    return AgentFactory.list_agents(default_agent_id=default_agent_id)
 
 
 __all__ = [
