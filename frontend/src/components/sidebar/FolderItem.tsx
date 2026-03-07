@@ -43,7 +43,7 @@ export function FolderItem({
   onDeleteFolder,
 }: FolderItemProps) {
   const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -87,10 +87,10 @@ export function FolderItem({
         name: trimmedName,
       });
       onRenameFolder(folder.id, updatedFolder.name);
-      toast.success(t("sidebar.folderRenamed", "Folder renamed"));
+      toast.success(t("sidebar.folderRenamed"));
     } catch (error) {
       console.error("Failed to update folder name:", error);
-      toast.error(t("sidebar.folderRenameFailed", "Failed to rename folder"));
+      toast.error(t("sidebar.folderRenameFailed"));
     } finally {
       setIsSaving(false);
       setIsEditing(false);
@@ -161,18 +161,18 @@ export function FolderItem({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 transition-all duration-150 ${
+        className={`group relative flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 transition-all duration-150 ${
           isDragOver
-            ? "bg-violet-50 dark:bg-violet-900/20 ring-1 ring-violet-400 dark:ring-violet-500"
+            ? "bg-stone-100 dark:bg-stone-800/50"
             : isExpanded
-              ? "bg-stone-100/60 dark:bg-stone-800/60"
-              : "hover:bg-stone-50 dark:hover:bg-stone-800/40"
+              ? "bg-stone-100/40 dark:bg-stone-800/30"
+              : "hover:bg-stone-50 dark:hover:bg-stone-800/20"
         }`}
       >
         {/* Chevron icon */}
         <ChevronRight
-          size={14}
-          className={`flex-shrink-0 text-stone-400 dark:text-stone-500 transition-transform duration-150 ${
+          size={16}
+          className={`flex-shrink-0 text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
             isExpanded ? "rotate-90" : ""
           }`}
         />
@@ -180,13 +180,13 @@ export function FolderItem({
         {/* Folder icon */}
         {isFavorites ? (
           <Star
-            size={14}
+            size={16}
             className="flex-shrink-0 text-amber-500 fill-amber-500"
           />
         ) : (
           <FolderIcon
-            size={14}
-            className="flex-shrink-0 text-violet-500 dark:text-violet-400"
+            size={16}
+            className="flex-shrink-0 text-stone-500 dark:text-stone-400"
           />
         )}
 
@@ -201,33 +201,26 @@ export function FolderItem({
               onKeyDown={handleKeyDown}
               onBlur={handleSaveName}
               disabled={isSaving}
-              className="w-full text-sm font-medium bg-transparent text-stone-700 dark:text-stone-200 border border-violet-400 dark:border-violet-500 rounded px-1.5 py-0.5 focus:outline-none"
+              className="w-full text-sm bg-transparent text-stone-700 dark:text-stone-200 border border-stone-400 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <div className="truncate text-sm font-medium text-stone-600 dark:text-stone-300">
-              {isFavorites ? t("sidebar.favorites", "Favorites") : folder.name}
+            <div className="truncate text-sm text-stone-600 dark:text-stone-400">
+              {isFavorites ? t("sidebar.favorites") : folder.name}
             </div>
           )}
         </div>
-
-        {/* Session count badge */}
-        {sessions.length > 0 && (
-          <span className="flex-shrink-0 text-[10px] text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-700 rounded px-1.5 py-0.5 font-medium">
-            {sessions.length}
-          </span>
-        )}
 
         {/* Menu button - only for custom folders */}
         {!isFavorites && !isEditing && (
           <button
             ref={menuButtonRef}
             onClick={handleMenuClick}
-            className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all"
-            title={t("sidebar.moreOptions", "More options")}
+            className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-all"
+            title={t("sidebar.moreOptions")}
           >
             <MoreHorizontal
-              size={14}
+              size={15}
               className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
             />
           </button>
@@ -236,7 +229,7 @@ export function FolderItem({
 
       {/* Expandable content - sessions list */}
       {isExpanded && sessions.length > 0 && (
-        <div className="ml-2.5 mt-0.5 space-y-0.5 border-l border-stone-200 dark:border-stone-700 pl-2">
+        <div className="ml-2 mt-1 space-y-1">
           {sessions.map((session) => (
             <SessionItem
               key={session.id}

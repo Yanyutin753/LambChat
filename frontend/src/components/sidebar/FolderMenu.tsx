@@ -2,9 +2,9 @@
  * Folder context menu component for folder actions
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2, X } from "lucide-react";
 import type { Folder } from "../../types";
 
 interface FolderMenuProps {
@@ -27,6 +27,22 @@ export function FolderMenu({
   // _folder is available for future use (e.g., showing folder info in menu)
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Reactive mobile detection
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 640;
+  });
+
+  // Update isMobile on resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -68,6 +84,73 @@ export function FolderMenu({
 
   if (!isOpen || !anchorEl) return null;
 
+  // Mobile: bottom sheet style
+  if (isMobile) {
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
+          onClick={onClose}
+        />
+        {/* Bottom sheet */}
+        <div
+          ref={menuRef}
+          className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl max-h-[70vh] overflow-y-auto"
+        >
+          {/* Handle bar */}
+          <div className="flex justify-center py-2">
+            <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-stone-600" />
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 pb-2">
+            <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
+              {t("sidebar.folderOptions")}
+            </span>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-stone-700"
+            >
+              <X size={18} className="text-stone-400" />
+            </button>
+          </div>
+
+          {/* Menu items */}
+          <div className="px-2 pb-4">
+            {/* Rename */}
+            <button
+              onClick={() => {
+                onRename();
+                onClose();
+              }}
+              className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+            >
+              <Edit2 size={18} />
+              <span>{t("sidebar.rename")}</span>
+            </button>
+
+            {/* Divider */}
+            <div className="h-px bg-gray-200 dark:bg-stone-700 my-2" />
+
+            {/* Delete */}
+            <button
+              onClick={() => {
+                onDelete();
+                onClose();
+              }}
+              className="w-full flex items-center gap-3 px-3 py-3 text-base text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+            >
+              <Trash2 size={18} />
+              <span>{t("common.delete")}</span>
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Desktop: dropdown menu
   // Calculate menu position
   const rect = anchorEl.getBoundingClientRect();
   const menuStyle: React.CSSProperties = {
@@ -92,7 +175,7 @@ export function FolderMenu({
         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
       >
         <Edit2 size={14} />
-        <span>{t("sidebar.rename", "Rename")}</span>
+        <span>{t("sidebar.rename")}</span>
       </button>
 
       {/* Divider */}
@@ -107,7 +190,7 @@ export function FolderMenu({
         className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
       >
         <Trash2 size={14} />
-        <span>{t("common.delete", "Delete")}</span>
+        <span>{t("common.delete")}</span>
       </button>
     </div>
   );

@@ -1,0 +1,53 @@
+// ============================================
+// Settings Types
+// ============================================
+
+export type SettingType = "string" | "text" | "number" | "boolean" | "json";
+export type SettingCategory =
+  | "frontend"
+  | "agent"
+  | "llm"
+  | "session"
+  | "skills"
+  | "database"
+  | "long_term_storage"
+  | "security"
+  | "sandbox"
+  | "s3"
+  | "tools"
+  | "tracing"
+  | "user";
+
+// Setting dependency condition
+export interface SettingDependsOn {
+  key: string; // Parent setting key
+  value: string | number | boolean; // Expected value for visibility
+}
+
+export interface SettingItem {
+  key: string;
+  value: string | number | boolean | object;
+  type: SettingType;
+  category: SettingCategory;
+  description: string;
+  default_value: string | number | boolean | object;
+  requires_restart: boolean;
+  is_sensitive: boolean;
+  frontend_visible: boolean;
+  depends_on?: string | SettingDependsOn; // Key of parent setting or condition object
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface SettingsResponse {
+  settings: Record<SettingCategory, SettingItem[]>;
+}
+
+export interface SettingUpdate {
+  value: string | number | boolean | object;
+}
+
+export interface SettingResetResponse {
+  message: string;
+  reset_count: number;
+}
