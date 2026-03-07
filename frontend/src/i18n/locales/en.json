@@ -55,6 +55,12 @@
     "roles": "Roles",
     "supportsUsernameOrEmailLogin": "Supports username or email login",
     "termsHint": "By signing in, you agree to our Terms of Service and Privacy Policy",
+    "poweredBy": "Powered by",
+    "oauthLoginFailed": "OAuth login failed, please try again later",
+    "completingLogin": "Completing login...",
+    "continueWith": "Continue with {{provider}}",
+    "orContinueWith": "or continue with",
+    "or": "or",
     "username": "Username",
     "usernameOrEmail": "Username or Email",
     "usernameOrEmailPlaceholder": "Enter username or email",
@@ -385,6 +391,17 @@
     "avatarUrl": "Avatar URL",
     "changeAvatar": "Change Avatar",
     "changePassword": "Change Password",
+    "browserNotification": "Browser Notifications",
+    "browserNotificationDesc": "Receive desktop notifications when tasks complete",
+    "notifications": "Notifications",
+    "enable": "Enable",
+    "enabled": "Enabled",
+    "denied": "Denied",
+    "retry": "Retry",
+    "notSupported": "Not supported",
+    "notificationDeniedHint": "Click Retry, or enable manually in browser settings",
+    "realtimeNotification": "Real-time Notifications",
+    "realtimeNotificationDesc": "Receive task completion notifications via WebSocket",
     "confirmPassword": "Confirm Password",
     "deleteAvatar": "Delete Avatar",
     "email": "Email",
@@ -457,6 +474,7 @@
     "copyLink": "Copy Link",
     "createFailed": "Failed to create share",
     "createShare": "Create Share",
+    "createChat": "Create chat",
     "createYourOwn": "Create your own chat",
     "deleteConfirm": "Are you sure you want to unshare?",
     "deleteFailed": "Failed to remove share",
@@ -671,5 +689,9 @@
       "enterUsername": "Please enter username",
       "passwordMinLength": "Password must be at least 6 characters"
     }
+  },
+  "notification": {
+    "taskCompleted": "Task completed",
+    "taskFailed": "Task failed"
   }
 }

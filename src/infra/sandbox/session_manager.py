@@ -336,6 +336,7 @@ class SessionSandboxManager:
                 auto_stop_interval=settings.SANDBOX_AUTO_STOP_INTERVAL,
                 auto_archive_interval=settings.SANDBOX_AUTO_ARCHIVE_INTERVAL,
                 language="python",
+                snapshot=settings.DAYTONA_IMAGE if settings.DAYTONA_IMAGE else None,
             )
             sandbox = client.create(params)
             return DaytonaBackend(sandbox=sandbox), sandbox.get_work_dir()

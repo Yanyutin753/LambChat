@@ -100,6 +100,9 @@ SENSITIVE_SETTINGS = {
     "S3_ACCESS_KEY",
     "S3_SECRET_KEY",
     "POSTGRES_PASSWORD",
+    "OAUTH_GOOGLE_CLIENT_SECRET",
+    "OAUTH_GITHUB_CLIENT_SECRET",
+    "OAUTH_APPLE_CLIENT_SECRET",
 }
 
 # ============================================
@@ -277,6 +280,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.SANDBOX,
         "description": "Daytona command timeout in seconds",
         "default": 180,
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "daytona"},
+    },
+    "DAYTONA_IMAGE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SANDBOX,
+        "description": "Daytona sandbox image (snapshot) to use for creating sandboxes",
+        "default": "",
         "depends_on": {"key": "SANDBOX_PLATFORM", "value": "daytona"},
     },
     "SANDBOX_AUTO_STOP_INTERVAL": {
@@ -555,6 +565,93 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Default role for newly registered users",
         "default": "user",
     },
+    "ENABLE_REGISTRATION": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.USER,
+        "description": "Enable user registration",
+        "default": True,
+        "frontend_visible": True,
+    },
+    # ============================================
+    # OAuth Settings
+    # ============================================
+    "OAUTH_GOOGLE_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.USER,
+        "description": "Enable Google OAuth login",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "OAUTH_GOOGLE_CLIENT_ID": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "Google OAuth client ID",
+        "default": "",
+        "depends_on": "OAUTH_GOOGLE_ENABLED",
+    },
+    "OAUTH_GOOGLE_CLIENT_SECRET": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "Google OAuth client secret",
+        "default": "",
+        "depends_on": "OAUTH_GOOGLE_ENABLED",
+    },
+    "OAUTH_GITHUB_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.USER,
+        "description": "Enable GitHub OAuth login",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "OAUTH_GITHUB_CLIENT_ID": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "GitHub OAuth client ID",
+        "default": "",
+        "depends_on": "OAUTH_GITHUB_ENABLED",
+    },
+    "OAUTH_GITHUB_CLIENT_SECRET": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "GitHub OAuth client secret",
+        "default": "",
+        "depends_on": "OAUTH_GITHUB_ENABLED",
+    },
+    "OAUTH_APPLE_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.USER,
+        "description": "Enable Apple OAuth login",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "OAUTH_APPLE_CLIENT_ID": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "Apple OAuth client ID (Service ID)",
+        "default": "",
+        "depends_on": "OAUTH_APPLE_ENABLED",
+    },
+    "OAUTH_APPLE_CLIENT_SECRET": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "Apple OAuth client secret (private key)",
+        "default": "",
+        "depends_on": "OAUTH_APPLE_ENABLED",
+    },
+    "OAUTH_APPLE_TEAM_ID": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "Apple developer team ID",
+        "default": "",
+        "depends_on": "OAUTH_APPLE_ENABLED",
+    },
+    "OAUTH_APPLE_KEY_ID": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.USER,
+        "description": "Apple private key ID",
+        "default": "",
+        "depends_on": "OAUTH_APPLE_ENABLED",
+    },
 }
 
 
@@ -621,6 +718,7 @@ class Settings(BaseSettings):
     GIT_TAG: Optional[str] = None
     COMMIT_HASH: Optional[str] = None
     BUILD_TIME: Optional[str] = None
+    GITHUB_URL: str = "https://github.com/lambchat/lambchat"
 
     # Logging Configuration (not in SETTING_DEFINITIONS - internal use only)
     LOG_LEVELS: str = ""
@@ -695,6 +793,7 @@ class Settings(BaseSettings):
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180  # 3 minutes
+    DAYTONA_IMAGE: str = ""  # Optional: sandbox image/snapshot
     SANDBOX_AUTO_STOP_INTERVAL: int = 5  # minutes
     SANDBOX_AUTO_ARCHIVE_INTERVAL: int = 5  # minutes
     MODAL_APP_NAME: str = ""
@@ -738,6 +837,20 @@ class Settings(BaseSettings):
         {"icon": "🔧", "text": "Help me write a shell script"},
     ]
     DEFAULT_USER_ROLE: str = "user"
+    ENABLE_REGISTRATION: bool = True
+
+    # OAuth Settings
+    OAUTH_GOOGLE_ENABLED: bool = False
+    OAUTH_GOOGLE_CLIENT_ID: str = ""
+    OAUTH_GOOGLE_CLIENT_SECRET: str = ""
+    OAUTH_GITHUB_ENABLED: bool = False
+    OAUTH_GITHUB_CLIENT_ID: str = ""
+    OAUTH_GITHUB_CLIENT_SECRET: str = ""
+    OAUTH_APPLE_ENABLED: bool = False
+    OAUTH_APPLE_CLIENT_ID: str = ""
+    OAUTH_APPLE_CLIENT_SECRET: str = ""
+    OAUTH_APPLE_TEAM_ID: str = ""
+    OAUTH_APPLE_KEY_ID: str = ""
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),

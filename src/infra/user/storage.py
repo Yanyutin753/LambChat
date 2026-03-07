@@ -58,12 +58,21 @@ class UserStorage:
             raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
 
         now = datetime.now()
+        # For OAuth users, generate a random password if not provided
+        password = user_data.password
+        if not password and (user_data.oauth_provider and user_data.oauth_id):
+            import secrets
+
+            password = secrets.token_urlsafe(32)
+
         user_dict: dict[str, Any] = {
             "username": user_data.username,
             "email": user_data.email,
-            "password_hash": hash_password(user_data.password),
+            "password_hash": hash_password(password) if password else None,
             "roles": user_data.roles,
             "avatar_url": user_data.avatar_url,  # Data URI for avatar
+            "oauth_provider": user_data.oauth_provider.value if user_data.oauth_provider else None,
+            "oauth_id": user_data.oauth_id,
             "is_active": True,
             "created_at": now,
             "updated_at": now,
@@ -126,6 +135,30 @@ class UserStorage:
             用户对象或 None
         """
         user_dict = await self.collection.find_one({"email": email})
+
+        if not user_dict:
+            return None
+
+        user_dict["id"] = str(user_dict.pop("_id"))
+        return UserInDB(**user_dict)
+
+    async def get_by_oauth(self, oauth_provider: str, oauth_id: str) -> Optional[UserInDB]:
+        """
+        通过 OAuth 提供商和 ID 获取用户
+
+        Args:
+            oauth_provider: OAuth 提供商 (google, github, apple)
+            oauth_id: OAuth 提供商返回的用户 ID
+
+        Returns:
+            用户对象或 None
+        """
+        user_dict = await self.collection.find_one(
+            {
+                "oauth_provider": oauth_provider,
+                "oauth_id": oauth_id,
+            }
+        )
 
         if not user_dict:
             return None

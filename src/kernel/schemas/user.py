@@ -1,9 +1,18 @@
 """User-related schemas."""
 
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class OAuthProvider(str, Enum):
+    """OAuth provider types."""
+
+    GOOGLE = "google"
+    GITHUB = "github"
+    APPLE = "apple"
 
 
 class UserBase(BaseModel):
@@ -12,12 +21,14 @@ class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
     avatar_url: Optional[str] = None  # Data URI for avatar (data:image/xxx;base64,...)
+    oauth_provider: Optional[OAuthProvider] = None  # OAuth provider (google, github, apple)
+    oauth_id: Optional[str] = None  # OAuth provider user ID
 
 
 class UserCreate(UserBase):
     """Schema for creating a user."""
 
-    password: str = Field(..., min_length=6)
+    password: Optional[str] = Field(None, min_length=6)  # Optional for OAuth users
     roles: List[str] = Field(default_factory=list)
 
 
@@ -32,6 +43,8 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = None  # Data URI for avatar (data:image/xxx;base64,...)
     roles: Optional[List[str]] = None
     is_active: Optional[bool] = None
+    oauth_provider: Optional[OAuthProvider] = None
+    oauth_id: Optional[str] = None
 
 
 class User(UserBase):

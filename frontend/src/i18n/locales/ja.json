@@ -55,6 +55,12 @@
     "roles": "ロール",
     "supportsUsernameOrEmailLogin": "ユーザー名またはメールアドレスでログインできます",
     "termsHint": "ログインすることで、利用規約とプライバシーポリシーに同意したものとみなされます",
+    "poweredBy": "Powered by",
+    "oauthLoginFailed": "OAuthログインに失敗しました。もう一度お試しください",
+    "completingLogin": "ログイン処理中...",
+    "continueWith": "{{provider}}で続行",
+    "orContinueWith": "または、以下の方法でログイン",
+    "or": "または",
     "username": "ユーザー名",
     "usernameOrEmail": "ユーザー名またはメール",
     "usernameOrEmailPlaceholder": "ユーザー名またはメールを入力",
@@ -367,6 +373,17 @@
     "avatarDeleted": "アバターが削除されました",
     "changeAvatar": "アバターを変更",
     "changePassword": "パスワードを変更",
+    "browserNotification": "ブラウザ通知",
+    "browserNotificationDesc": "タスク完了時にデスクトップ通知を受け取る",
+    "notifications": "通知",
+    "enable": "有効にする",
+    "enabled": "有効",
+    "denied": "拒否",
+    "retry": "再試行",
+    "notSupported": "サポート外",
+    "notificationDeniedHint": "「再試行」をクリックするか、ブラウザ設定で有効にしてください",
+    "realtimeNotification": "リアルタイム通知",
+    "realtimeNotificationDesc": "WebSocketでタスク完了通知を受け取る",
     "confirmPassword": "パスワードを確認",
     "deleteAvatar": "アバターを削除",
     "email": "メール",
@@ -438,6 +455,7 @@
     "copyLink": "リンクをコピー",
     "createFailed": "共有の作成に失敗しました",
     "createShare": "共有を作成",
+    "createChat": "チャット作成",
     "createYourOwn": "自分のチャットを作成",
     "deleteFailed": "共有の削除に失敗しました",
     "deleteShare": "共有解除",
@@ -646,5 +664,9 @@
       "enterUsername": "ユーザー名を入力してください",
       "passwordMinLength": "パスワードは6文字以上である必要があります"
     }
+  },
+  "notification": {
+    "taskCompleted": "タスク完了",
+    "taskFailed": "タスク失敗"
   }
 }

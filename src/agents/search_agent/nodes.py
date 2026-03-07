@@ -12,7 +12,7 @@ import uuid
 from typing import Any, Dict
 
 from deepagents import create_deep_agent
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
@@ -256,9 +256,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     if settings.ENABLE_SKILLS:
         skills_param = ["/skills/"]
 
+    # 不传 system_prompt，让 deep agent 从 messages 中获取（每次运行时动态传入）
     inner_graph = create_deep_agent(
         model=llm,
-        system_prompt=context.system_prompt,
         backend=backend_factory,
         tools=filtered_tools if filtered_tools else None,
         checkpointer=inner_checkpointer,
@@ -272,6 +272,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "backend": backend_factory,
             "context": context,  # 传递 context 以便工具访问 user_id
             "base_url": configurable.get("base_url", ""),  # 传递 base_url 给工具使用
+            "system_prompt": system_prompt,  # 传递最新的 system_prompt
         },
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
@@ -280,9 +281,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     existing_messages = inner_state.values.get("messages", [])
 
-    # 构建传入的消息列表（包含附件）
+    # 构建传入的消息列表，包含最新的 system_prompt
+    system_message = SystemMessage(content=system_prompt)
     new_message = _build_human_message(state.get("input", ""), attachments)
-    all_messages = existing_messages + [new_message]
+    all_messages = [system_message] + existing_messages + [new_message]
 
     # 传递 messages
     inner_config["configurable"]["messages"] = existing_messages

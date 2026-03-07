@@ -115,5 +115,6 @@ class VersionResponse(BaseModel):
     build_time: Optional[str] = Field(None, description="Build timestamp")
     latest_version: Optional[str] = Field(None, description="Latest version from GitHub")
     release_url: Optional[str] = Field(None, description="GitHub release URL")
+    github_url: Optional[str] = Field(None, description="GitHub repository URL")
     has_update: Optional[bool] = Field(None, description="Whether a newer version is available")
     published_at: Optional[str] = Field(None, description="Latest release publish date")

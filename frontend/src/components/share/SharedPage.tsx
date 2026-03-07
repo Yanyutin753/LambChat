@@ -131,8 +131,12 @@ export function SharedPage() {
         <div className="flex flex-col items-center gap-6 animate-in fade-in duration-500">
           {/* Animated logo */}
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-white dark:bg-stone-800 flex items-center justify-center shadow-xl shadow-stone-900/10 dark:shadow-stone-950/50 border border-stone-200 dark:border-stone-700">
-              <img src="/icons/icon.svg" alt="LambChat" className="w-10 h-10" />
+            <div className="size-12 rounded-2xl bg-white dark:bg-stone-800 flex items-center justify-center shadow-xl shadow-stone-900/10 dark:shadow-stone-950/50 border border-stone-200 dark:border-stone-700">
+              <img
+                src="/icons/icon.svg"
+                alt="LambChat"
+                className="size-8 rounded-full"
+              />
             </div>
             <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-stone-400/20 to-stone-600/20 blur-xl animate-pulse" />
           </div>
@@ -266,12 +270,12 @@ export function SharedPage() {
         className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain pb-24"
         style={{
           WebkitOverflowScrolling: "touch",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 6rem)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 10rem)",
         }}
       >
         <div className="max-w-3xl sm:max-w-5xl mx-auto">
           {/* Session info card */}
-          <div className="pt-6 pb-4 px-4 sm:px-6 mx-auto max-w-3xl xl:max-w-5xl">
+          <div className="py-8 px-4 sm:px-6 mx-auto max-w-3xl xl:max-w-5xl">
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/60 dark:border-stone-800/60 shadow-lg shadow-stone-900/5 dark:shadow-black/20 overflow-hidden">
                 {/* User info section */}
@@ -369,20 +373,17 @@ export function SharedPage() {
       </main>
 
       {/* Fixed footer */}
-      <footer
-        className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-stone-900/80 border-t border-stone-200/50 dark:border-stone-800/50"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
-      >
+      <footer className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-stone-900/80 border-t border-stone-200/50 dark:border-stone-800/50">
         <div className="max-w-3xl sm:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             {/* Logo */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               <img
                 src="/icons/icon.svg"
                 alt="LambChat"
                 className="size-8 rounded-full"
               />
-              <span className="text-base font-semibold text-stone-700 dark:text-stone-300 tracking-tight">
+              <span className="text-base font-semibold text-stone-700 dark:text-stone-300 tracking-tight font-serif">
                 LambChat
               </span>
             </div>
@@ -395,7 +396,7 @@ export function SharedPage() {
               <span className="hidden sm:inline">
                 {t("share.createYourOwn")}
               </span>
-              <span className="sm:hidden">Create chat</span>
+              <span className="sm:hidden">{t("share.createChat")}</span>
               <ExternalLink
                 size={14}
                 className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"

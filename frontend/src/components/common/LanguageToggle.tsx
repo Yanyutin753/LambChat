@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Languages, Check } from "lucide-react";
 
@@ -14,11 +14,14 @@ export function LanguageToggle() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectLanguage = (code: string) => {
-    i18n.changeLanguage(code);
-    localStorage.setItem("language", code);
-    setIsOpen(false);
-  };
+  const selectLanguage = useCallback(
+    (code: string) => {
+      i18n.changeLanguage(code);
+      localStorage.setItem("language", code);
+      setIsOpen(false);
+    },
+    [i18n],
+  );
 
   // Close dropdown when clicking outside
   useEffect(() => {

@@ -30,6 +30,7 @@ async def get_version(
         build_time=settings.BUILD_TIME,
         latest_version=normalize_version(latest_release.tag_name) if latest_release else None,
         release_url=latest_release.html_url if latest_release else None,
+        github_url=settings.GITHUB_URL,
         has_update=has_update,
         published_at=latest_release.published_at if latest_release else None,
     )

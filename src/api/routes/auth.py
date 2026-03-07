@@ -2,9 +2,12 @@
 认证路由
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import logging
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from src.api.deps import get_current_user_required
 from src.infra.auth.jwt import create_access_token, decode_token
@@ -17,11 +20,18 @@ from src.kernel.schemas.user import LoginRequest, Token, TokenPayload, User, Use
 
 router = APIRouter()
 security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=User)
 async def register(user_data: UserCreate):
     """用户注册"""
+    # 检查是否允许注册
+    if not settings.ENABLE_REGISTRATION:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="注册已关闭",
+        )
     manager = UserManager()
     try:
         user = await manager.register(user_data)
@@ -272,3 +282,207 @@ async def update_username(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+
+# ============================================
+# OAuth Endpoints
+# ============================================
+
+# OAuth provider path parameter with validation
+OAuthProviderParam = Annotated[
+    str,
+    StringConstraints(pattern="^(google|github|apple)$"),
+    Path(description="OAuth provider name", examples=["google", "github", "apple"]),
+]
+
+
+@router.get("/oauth/providers")
+async def get_oauth_providers():
+    """
+    获取可用的 OAuth 提供商列表和认证设置
+
+    返回已启用的 OAuth 登录选项以及注册是否启用。
+    """
+    providers = []
+    try:
+        from src.infra.auth.oauth import get_oauth_service
+        from src.kernel.schemas.user import OAuthProvider
+
+        # 调试：打印 settings 值
+        logger.info(
+            f"DEBUG: OAUTH_GITHUB_ENABLED = {settings.OAUTH_GITHUB_ENABLED}, type = {type(settings.OAUTH_GITHUB_ENABLED)}"
+        )
+
+        oauth_service = get_oauth_service()
+        for provider in OAuthProvider:
+            logger.info(f"DEBUG: checking provider {provider}")
+            if oauth_service.is_provider_enabled(provider):
+                providers.append(
+                    {
+                        "id": provider.value,
+                        "name": provider.value.capitalize(),
+                    }
+                )
+    except Exception as e:
+        logger.error(f"DEBUG: OAuth providers error: {e}", exc_info=True)
+        pass
+
+    logger.info(f"DEBUG: final providers = {providers}")
+    return {
+        "providers": providers,
+        "registration_enabled": settings.ENABLE_REGISTRATION,
+    }
+
+
+def _get_frontend_url(request: Request) -> str:
+    """从请求中获取前端 URL
+
+    通过 X-Forwarded-Host 头自动检测前端 URL，无需手动配置。
+    - 开发环境：Vite 代理会自动设置 X-Forwarded-Host
+    - 生产环境：Nginx 等代理需配置传递 X-Forwarded-Host
+    """
+    from urllib.parse import urlparse
+
+    # 检查代理转发的原始 Host（Vite 代理会设置 X-Forwarded-Host）
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if forwarded_host:
+        # 使用 X-Forwarded-Host 构建 URL
+        # 默认使用 https，除非是 localhost
+        scheme = (
+            "http" if "localhost" in forwarded_host or "127.0.0.1" in forwarded_host else "https"
+        )
+        return f"{scheme}://{forwarded_host}"
+
+    # 其次使用 Origin 请求头（适用于 AJAX 请求）
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if origin:
+        # 提取 origin 部分 (scheme + host + port)
+        parsed = urlparse(origin)
+        return f"{parsed.scheme}://{parsed.netloc}"
+
+    # 回退到请求的 base_url
+    base_url = str(request.base_url)
+    parsed = urlparse(base_url)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+@router.get("/oauth/{provider}")
+async def oauth_login(request: Request, provider: OAuthProviderParam):
+    """
+    发起 OAuth 授权
+
+    返回授权 URL，前端应重定向到该 URL。
+    """
+    import secrets
+
+    from src.infra.auth.oauth import get_oauth_service
+    from src.kernel.schemas.user import OAuthProvider
+
+    oauth_service = get_oauth_service()
+    oauth_provider = OAuthProvider(provider)
+
+    if not oauth_service.is_provider_enabled(oauth_provider):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"OAuth provider '{provider}' is not enabled",
+        )
+
+    # 生成 state 用于 CSRF 防护
+    state = secrets.token_urlsafe(32)
+
+    # 从请求中获取前端 URL
+    frontend_url = _get_frontend_url(request)
+    redirect_uri = f"{frontend_url}/api/auth/oauth/{provider}/callback"
+
+    # 获取授权 URL
+    auth_url = oauth_service.get_authorization_url(oauth_provider, state, redirect_uri)
+    if not auth_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create authorization URL",
+        )
+
+    # 返回授权 URL 和 state
+    return {"authorization_url": auth_url, "state": state}
+
+
+class OAuthCallbackRequest(BaseModel):
+    """OAuth 回调请求"""
+
+    code: str
+    state: str
+
+
+@router.post("/oauth/{provider}/callback")
+async def oauth_callback(
+    http_request: Request, provider: OAuthProviderParam, request: OAuthCallbackRequest
+):
+    """
+    处理 OAuth 回调
+
+    接收授权码，交换 token 并返回 JWT。
+    """
+    from src.infra.auth.oauth import get_oauth_service
+    from src.kernel.schemas.user import OAuthProvider
+
+    oauth_service = get_oauth_service()
+    oauth_provider = OAuthProvider(provider)
+
+    # 使用与发起 OAuth 时相同的方式获取 frontend_url，确保 redirect_uri 一致
+    frontend_url = _get_frontend_url(http_request)
+    redirect_uri = f"{frontend_url}/api/auth/oauth/{provider}/callback"
+
+    token = await oauth_service.handle_callback(
+        oauth_provider, request.code, request.state, redirect_uri
+    )
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="OAuth authentication failed",
+        )
+
+    return token
+
+
+@router.get("/oauth/{provider}/callback")
+async def oauth_callback_get(request: Request, provider: OAuthProviderParam, code: str, state: str):
+    """
+    处理 OAuth 回调 (GET 请求)
+
+    接收授权码，交换 token 并重定向到前端页面。
+    Token 通过 URL fragment (#) 传递，更安全且不会被服务器日志记录。
+    """
+    from urllib.parse import urlencode
+
+    from fastapi.responses import RedirectResponse
+
+    from src.infra.auth.oauth import get_oauth_service
+    from src.kernel.schemas.user import OAuthProvider
+
+    oauth_service = get_oauth_service()
+    oauth_provider = OAuthProvider(provider)
+
+    # 使用与发起 OAuth 时相同的方式获取 frontend_url，确保 redirect_uri 一致
+    frontend_url = _get_frontend_url(request)
+    redirect_uri = f"{frontend_url}/api/auth/oauth/{provider}/callback"
+
+    token = await oauth_service.handle_callback(oauth_provider, code, state, redirect_uri)
+
+    # 构建重定向 URL 到前端的 OAuth 回调处理页面
+    callback_url = f"{frontend_url}/auth/callback"
+
+    if not token:
+        # 认证失败，重定向到登录页面并显示错误
+        error_params = urlencode({"error": "oauth_failed", "provider": provider})
+        return RedirectResponse(url=f"{frontend_url}/login?{error_params}", status_code=302)
+
+    # 认证成功，通过 URL fragment 传递 token
+    # URL fragment (# 后面的内容) 不会发送到服务器，更安全
+    fragment_params = urlencode(
+        {
+            "access_token": token.access_token,
+            "refresh_token": token.refresh_token,
+            "expires_in": token.expires_in,
+        }
+    )
+    return RedirectResponse(url=f"{callback_url}#{fragment_params}", status_code=302)

@@ -264,6 +264,8 @@ class BackgroundTaskManager:
             # 标记完成
             await self._update_session_status(session_id, TaskStatus.COMPLETED, run_id=run_id)
             logger.info(f"Task completed: session={session_id}, run_id={run_id}")
+            # 发送任务完成通知
+            await self._send_task_notification(session_id, run_id, TaskStatus.COMPLETED, user_id)
 
         except asyncio.CancelledError:
             await self._update_session_status(
@@ -294,6 +296,10 @@ class BackgroundTaskManager:
                     run_id=run_id,
                 )
             logger.warning(f"Task cancelled: session={session_id}, run_id={run_id}")
+            # 发送任务取消通知
+            await self._send_task_notification(
+                session_id, run_id, TaskStatus.FAILED, user_id, "Task cancelled"
+            )
             raise
 
         except TaskInterruptedError as e:
@@ -324,6 +330,10 @@ class BackgroundTaskManager:
                     run_id=run_id,
                 )
             logger.info(f"Task interrupted: session={session_id}, run_id={run_id}")
+            # 发送任务中断通知
+            await self._send_task_notification(
+                session_id, run_id, TaskStatus.FAILED, user_id, "Task interrupted"
+            )
             raise
 
         except Exception as e:
@@ -353,6 +363,11 @@ class BackgroundTaskManager:
                     run_id=run_id,
                 )
 
+            # 发送任务失败通知
+            await self._send_task_notification(
+                session_id, run_id, TaskStatus.FAILED, user_id, str(e)
+            )
+
         finally:
             # 无论成功、取消还是失败，都停止心跳并清除中断信号
             await self._stop_heartbeat(run_id)
@@ -363,6 +378,46 @@ class BackgroundTaskManager:
         # 清理任务引用
         if run_id in self._tasks:
             del self._tasks[run_id]
+
+    async def _send_task_notification(
+        self,
+        session_id: str,
+        run_id: str,
+        status: TaskStatus,
+        user_id: str,
+        message: str | None = None,
+    ) -> None:
+        """
+        发送任务完成通知
+
+        Args:
+            session_id: 会话 ID
+            run_id: 运行 ID
+            status: 任务状态
+            user_id: 用户 ID
+            message: 可选的消息
+        """
+        try:
+            from src.infra.websocket import get_connection_manager
+
+            manager = get_connection_manager()
+            notification: dict[str, Any] = {
+                "type": "task:complete",
+                "data": {
+                    "session_id": session_id,
+                    "run_id": run_id,
+                    "status": status.value,
+                },
+            }
+            if message:
+                notification["data"]["message"] = message
+
+            await manager.send_to_user(user_id, notification)
+            logger.info(
+                f"Task notification sent: user_id={user_id}, session={session_id}, status={status.value}"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send task notification: {e}")
 
     async def _update_session_status(
         self,
