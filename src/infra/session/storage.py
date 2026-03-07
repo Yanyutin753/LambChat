@@ -154,12 +154,17 @@ class SessionStorage:
         skip: int = 0,
         limit: int = 100,
         is_active: Optional[bool] = None,
+        folder_id: Optional[str] = None,
     ) -> tuple[list[Session], int]:
         """列出会话，返回 (sessions, total_count)
 
         Args:
             user_id: 用户ID，如果提供则只返回该用户的会话
                      None 表示不过滤（仅管理员使用）
+            folder_id: 文件夹ID过滤
+                       - None: 不过滤文件夹
+                       - "none": 只返回未分类的会话（没有folder_id）
+                       - 其他值: 只返回该文件夹内的会话
         """
         query: dict[str, Any] = {}
         if user_id is not None:
@@ -167,6 +172,13 @@ class SessionStorage:
             query["user_id"] = user_id
         if is_active is not None:
             query["is_active"] = is_active
+
+        # Folder filter
+        if folder_id == "none":
+            # 未分类：folder_id 为 None 或不存在
+            query["metadata.folder_id"] = None
+        elif folder_id is not None:
+            query["metadata.folder_id"] = folder_id
 
         # Get total count
         total = await self.collection.count_documents(query)
@@ -200,3 +212,45 @@ class SessionStorage:
             {"$set": {"metadata.folder_id": None, "updated_at": datetime.now()}},
         )
         return result.modified_count
+
+    async def move_to_folder(
+        self, session_id: str, user_id: str, folder_id: Optional[str]
+    ) -> Optional[Session]:
+        """Move a session to a folder.
+
+        Args:
+            session_id: The session ID to move
+            user_id: The user ID (for ownership verification)
+            folder_id: The target folder ID, or None to uncategorize
+
+        Returns:
+            Updated Session if found and updated, None otherwise
+        """
+        update_dict = {
+            "updated_at": datetime.now(),
+            "metadata.folder_id": folder_id,
+        }
+
+        # Try custom session_id first
+        result = await self.collection.find_one_and_update(
+            {"session_id": session_id, "user_id": user_id},
+            {"$set": update_dict},
+            return_document=True,
+        )
+
+        # If not found, try ObjectId
+        if not result:
+            try:
+                result = await self.collection.find_one_and_update(
+                    {"_id": ObjectId(session_id), "user_id": user_id},
+                    {"$set": update_dict},
+                    return_document=True,
+                )
+            except Exception:
+                return None
+
+        if not result:
+            return None
+
+        result["id"] = result.get("session_id") or str(result.pop("_id"))
+        return Session(**result)

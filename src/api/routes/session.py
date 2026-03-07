@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.deps import get_current_user_required
 from src.infra.session.manager import SessionManager
+from src.infra.session.storage import SessionStorage
 from src.kernel.config import settings
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 from src.kernel.schemas.user import TokenPayload
@@ -84,12 +85,19 @@ async def list_sessions(
     skip: int = Query(0, ge=0, description="跳过的会话数量"),
     limit: int = Query(20, ge=1, le=100, description="返回的会话数量"),
     status: Optional[str] = Query(None, description="状态过滤: active 或 archived"),
+    folder_id: Optional[str] = Query(None, description="文件夹过滤: 文件夹ID 或 'none'(未分类)"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
     列出会话
 
     普通用户只能看到自己的会话，管理员可以看到所有会话。
+
+    Args:
+        folder_id: 可选的文件夹过滤
+                   - 不传: 返回所有会话
+                   - "none": 返回未分类的会话
+                   - 文件夹ID: 返回该文件夹内的会话
 
     Returns:
         {
@@ -113,7 +121,11 @@ async def list_sessions(
     filter_user_id = user.sub
 
     sessions, total = await manager.list_sessions(
-        user_id=filter_user_id, skip=skip, limit=limit, is_active=is_active
+        user_id=filter_user_id,
+        skip=skip,
+        limit=limit,
+        is_active=is_active,
+        folder_id=folder_id,
     )
 
     return {
@@ -512,3 +524,51 @@ async def generate_session_title(
             fallback_title += "..."
         await manager.update_session(session_id, SessionUpdate(name=fallback_title))
         return {"title": fallback_title, "session_id": session_id, "error": str(e)}
+
+
+@router.post("/{session_id}/move")
+async def move_session(
+    session_id: str,
+    body: dict,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """
+    移动会话到文件夹
+
+    将会话移动到指定文件夹，或设置为未分类。
+
+    Args:
+        session_id: 会话ID
+        body: {"folder_id": "xxx" 或 null}
+
+    Returns:
+        {"status": "moved", "session": updated_session}
+    """
+    from src.infra.folder.storage import get_folder_storage
+
+    manager = SessionManager()
+    storage = SessionStorage()
+
+    # Verify session exists and belongs to user
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    verify_session_ownership(session, user)
+
+    # Get folder_id from body
+    folder_id = body.get("folder_id")
+
+    # If folder_id provided (not null), verify folder exists and belongs to user
+    if folder_id is not None:
+        folder_storage = get_folder_storage()
+        folder = await folder_storage.get_by_id(folder_id, user.sub)
+        if not folder:
+            raise HTTPException(status_code=404, detail="文件夹不存在")
+
+    # Move session
+    updated_session = await storage.move_to_folder(session_id, user.sub, folder_id)
+    if not updated_session:
+        raise HTTPException(status_code=500, detail="移动失败")
+
+    return {"status": "moved", "session": updated_session}
