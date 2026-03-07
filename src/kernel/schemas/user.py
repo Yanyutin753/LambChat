@@ -18,7 +18,7 @@ class OAuthProvider(str, Enum):
 class UserBase(BaseModel):
     """Base user schema."""
 
-    username: str = Field(..., min_length=3, max_length=50)
+    username: str = Field(..., min_length=1, max_length=50)
     email: EmailStr
     avatar_url: Optional[str] = None  # Data URI for avatar (data:image/xxx;base64,...)
     oauth_provider: Optional[OAuthProvider] = None  # OAuth provider (google, github, apple)
@@ -37,7 +37,7 @@ class UserUpdate(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    username: Optional[str] = Field(None, min_length=1, max_length=50)
     email: Optional[EmailStr] = None
     password: Optional[str] = Field(None, min_length=6)
     avatar_url: Optional[str] = None  # Data URI for avatar (data:image/xxx;base64,...)
