@@ -16,6 +16,8 @@ export function getFullUrl(url: string | undefined | null): string | undefined {
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
-  // 如果是相对路径，拼接 API Base URL
-  return API_BASE + url;
+  // 如果是相对路径，拼接 base URL（优先使用当前 origin，否则使用 API_BASE）
+  const baseUrl =
+    (typeof window !== "undefined" ? window.location.origin : "") || API_BASE;
+  return baseUrl + url;
 }

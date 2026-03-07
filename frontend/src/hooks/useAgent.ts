@@ -1,17 +1,15 @@
+/**
+ * Main useAgent hook
+ * Provides agent communication, message management, and SSE streaming
+ */
+
 import { useState, useCallback, useRef, useEffect } from "react";
 import i18n from "../i18n";
-import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type {
   Message,
-  ToolCall,
-  ToolResult,
   AgentInfo,
   AgentListResponse,
   ConnectionStatus,
-  ThinkingPart,
-  MessagePart,
-  SandboxPart,
-  TokenUsagePart,
   MessageAttachment,
 } from "../types";
 import {
@@ -22,28 +20,25 @@ import {
 import { feedbackApi } from "../services/api/feedback";
 import {
   API_BASE,
-  type EventType,
-  type StreamEvent,
-  type EventData,
   type UseAgentOptions,
   type SubagentStackItem,
   type HistoryEvent,
+  type UseAgentReturn,
 } from "./useAgent/types";
 import {
-  addPartToDepth,
-  updateSubagentResult,
-  updateToolResultInDepth,
-  createToolPart,
-  createThinkingPart,
-  createSubagentPart,
-} from "./useAgent/messageParts";
-import {
-  convertAttachments,
   reconstructMessagesFromEvents,
   getLastEventTimestamp,
 } from "./useAgent/historyLoader";
+import { type EventHandlerContext } from "./useAgent/eventHandlers";
+import {
+  connectToSSE,
+  reconnectSSE,
+  clearReconnectTimeout,
+  type SSEConnectionContext,
+} from "./useAgent/sseConnection";
 
-export function useAgent(options?: UseAgentOptions) {
+export function useAgent(options?: UseAgentOptions): UseAgentReturn {
+  // State
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -56,8 +51,6 @@ export function useAgent(options?: UseAgentOptions) {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [newlyCreatedSession, setNewlyCreatedSession] =
     useState<BackendSession | null>(null);
-
-  // Sandbox initialization state
   const [isInitializingSandbox, setIsInitializingSandbox] = useState(false);
   const [sandboxError, setSandboxError] = useState<string | null>(null);
 
@@ -74,10 +67,10 @@ export function useAgent(options?: UseAgentOptions) {
   // Track processed event IDs to prevent duplicates
   const processedEventIdsRef = useRef<Set<string>>(new Set());
 
-  // Track last event timestamp from history to prevent duplicates when reconnecting
+  // Track last event timestamp from history
   const lastHistoryTimestampRef = useRef<Date | null>(null);
 
-  // Subagent tracking stack for parallel subagent support
+  // Subagent tracking stack
   const activeSubagentStackRef = useRef<SubagentStackItem[]>([]);
 
   // Current streaming message ID
@@ -86,9 +79,10 @@ export function useAgent(options?: UseAgentOptions) {
   // Flag for reconnect from history
   const isReconnectFromHistoryRef = useRef<boolean>(false);
 
-  // Keep sessionId in ref for closure access
+  // Keep sessionId/runId in ref for closure access
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
+  const messagesRef = useRef<Message[]>([]);
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
@@ -98,13 +92,41 @@ export function useAgent(options?: UseAgentOptions) {
     currentRunIdRef.current = currentRunId;
   }, [currentRunId]);
 
-  // Clear reconnect timeout
-  const clearReconnectTimeout = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-  }, []);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Create event handler context
+  const createEventHandlerContext = useCallback(
+    (): EventHandlerContext => ({
+      options,
+      sessionIdRef,
+      processedEventIdsRef,
+      lastHistoryTimestampRef,
+      activeSubagentStackRef,
+      setSessionId,
+      setMessages,
+      setConnectionStatus: (status) =>
+        setConnectionStatus(status as ConnectionStatus),
+      setIsInitializingSandbox,
+      setSandboxError,
+    }),
+    [options],
+  );
+
+  // Create SSE connection context
+  const createSSEContext = useCallback(
+    (): SSEConnectionContext => ({
+      ...createEventHandlerContext(),
+      abortControllerRef,
+      isConnectingRef,
+      streamingMessageIdRef,
+      reconnectTimeoutRef,
+      retryCountRef,
+      messagesRef,
+    }),
+    [createEventHandlerContext],
+  );
 
   // Fetch available agents
   const fetchAgents = useCallback(async () => {
@@ -114,7 +136,6 @@ export function useAgent(options?: UseAgentOptions) {
       if (!response.ok) throw new Error("Failed to fetch agents");
       const data: AgentListResponse = await response.json();
       setAgents(data.agents || []);
-      // Set default agent from API response, or fallback to first agent
       if (!currentAgent && data.agents?.length > 0) {
         const defaultAgentId = data.default_agent || data.agents[0]?.id || "";
         if (defaultAgentId) {
@@ -139,742 +160,13 @@ export function useAgent(options?: UseAgentOptions) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      clearReconnectTimeout();
+      clearReconnectTimeout(reconnectTimeoutRef);
     };
-  }, [clearReconnectTimeout]);
-
-  // Handle incoming SSE events
-  const handleStreamEvent = useCallback(
-    (
-      event: StreamEvent,
-      messageId: string,
-      eventId: string,
-      eventTimestamp?: string,
-    ) => {
-      console.log("[handleStreamEvent] Received event:", {
-        eventType: event.event,
-        messageId,
-        eventId,
-      });
-
-      // Skip if already processed by ID
-      if (processedEventIdsRef.current.has(eventId)) {
-        console.log("[SSE] Skipping duplicate event by ID:", eventId);
-        return;
-      }
-
-      // Skip if this event is older than the last history timestamp
-      if (eventTimestamp && lastHistoryTimestampRef.current) {
-        const eventTime = new Date(eventTimestamp);
-        const historyTime = lastHistoryTimestampRef.current;
-        if (eventTime < historyTime) {
-          console.log(
-            "[SSE] Skipping duplicate event by timestamp:",
-            eventId,
-            eventTime.toISOString(),
-            "<",
-            historyTime.toISOString(),
-          );
-          return;
-        }
-      }
-
-      processedEventIdsRef.current.add(eventId);
-
-      const eventType = event.event;
-      let data: EventData = {};
-      try {
-        data = JSON.parse(event.data);
-      } catch {
-        // Fallback for non-JSON data
-      }
-
-      const depth = data.depth || 0;
-
-      switch (eventType) {
-        case "metadata": {
-          if (data.session_id && !sessionIdRef.current) {
-            setSessionId(data.session_id);
-          }
-          break;
-        }
-
-        case "user:message": {
-          const userContent = data.content || "";
-          const userAttachments = convertAttachments(data.attachments);
-
-          if (userContent) {
-            setMessages((prev) => {
-              if (prev.length === 0) {
-                const newUserMessage: Message = {
-                  id: crypto.randomUUID(),
-                  role: "user",
-                  content: userContent,
-                  timestamp: eventTimestamp
-                    ? new Date(eventTimestamp)
-                    : new Date(),
-                  attachments: userAttachments,
-                };
-                return [...prev, newUserMessage];
-              }
-              const existingUserMsg = prev.find(
-                (m) => m.role === "user" && m.content === userContent,
-              );
-              if (existingUserMsg) return prev;
-
-              const newUserMessage: Message = {
-                id: crypto.randomUUID(),
-                role: "user",
-                content: userContent,
-                timestamp: eventTimestamp
-                  ? new Date(eventTimestamp)
-                  : new Date(),
-                attachments: userAttachments,
-              };
-              const streamingAssistantIndex = prev.findIndex(
-                (m) => m.role === "assistant" && m.isStreaming,
-              );
-              if (streamingAssistantIndex !== -1) {
-                const newMessages = [...prev];
-                newMessages.splice(streamingAssistantIndex, 0, newUserMessage);
-                return newMessages;
-              }
-              return [...prev, newUserMessage];
-            });
-          }
-          break;
-        }
-
-        case "agent:call": {
-          const agentId = data.agent_id || "unknown";
-          const subagentPart = createSubagentPart(
-            agentId,
-            data.agent_name || data.agent_id || "Unknown Agent",
-            data.input || "",
-            depth,
-          );
-
-          activeSubagentStackRef.current.push({
-            agent_id: agentId,
-            depth: depth,
-            message_id: messageId,
-          });
-
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-              const newParts = addPartToDepth(
-                parts,
-                subagentPart,
-                depth,
-                activeSubagentStackRef.current,
-                agentId,
-                messageId,
-              );
-              return { ...m, parts: newParts };
-            }),
-          );
-          break;
-        }
-
-        case "agent:result": {
-          const agentId = data.agent_id || "unknown";
-          const stackIndex = activeSubagentStackRef.current.findIndex(
-            (item) =>
-              item.agent_id === agentId && item.message_id === messageId,
-          );
-          if (stackIndex !== -1) {
-            activeSubagentStackRef.current.splice(stackIndex, 1);
-          }
-
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-              const newParts = updateSubagentResult(
-                parts,
-                agentId,
-                data.result || "",
-                data.success !== false,
-                depth,
-              );
-              return { ...m, parts: newParts };
-            }),
-          );
-          break;
-        }
-
-        case "thinking": {
-          const content = data.content || "";
-          const thinkingId = data.thinking_id;
-          if (content) {
-            const thinkingPart = createThinkingPart(
-              content,
-              thinkingId,
-              depth,
-              data.agent_id,
-              true,
-            );
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id !== messageId) return m;
-                const parts = m.parts || [];
-                if (depth > 0) {
-                  const newParts = addPartToDepth(
-                    parts,
-                    thinkingPart,
-                    depth,
-                    activeSubagentStackRef.current,
-                    data.agent_id as string,
-                    messageId,
-                  );
-                  return { ...m, parts: newParts };
-                } else {
-                  const newParts = [...parts];
-                  let existingIndex = -1;
-
-                  // 如果有 thinking_id，精确匹配
-                  if (thinkingId !== undefined) {
-                    existingIndex = newParts.findIndex(
-                      (p) =>
-                        p.type === "thinking" && p.thinking_id === thinkingId,
-                    );
-                  } else {
-                    // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
-                    for (let i = newParts.length - 1; i >= 0; i--) {
-                      const p = newParts[i];
-                      if (
-                        p.type === "thinking" &&
-                        p.thinking_id === undefined
-                      ) {
-                        existingIndex = i;
-                        break;
-                      }
-                    }
-                  }
-
-                  if (existingIndex >= 0) {
-                    const existing = newParts[existingIndex] as ThinkingPart;
-                    newParts[existingIndex] = {
-                      ...existing,
-                      content: existing.content + content,
-                      isStreaming: true,
-                    };
-                  } else {
-                    newParts.push(thinkingPart);
-                  }
-                  return { ...m, parts: newParts };
-                }
-              }),
-            );
-          }
-          break;
-        }
-
-        case "message:chunk": {
-          const content = data.content || "";
-          if (content) {
-            setMessages((prev) => {
-              const targetMessage = prev.find((m) => m.id === messageId);
-              if (!targetMessage) return prev;
-
-              return prev.map((m) => {
-                if (m.id !== messageId) return m;
-                const parts = m.parts || [];
-
-                if (depth > 0) {
-                  const textPart = {
-                    type: "text" as const,
-                    content,
-                    depth,
-                    agent_id: data.agent_id,
-                  };
-                  const newParts = addPartToDepth(
-                    parts,
-                    textPart,
-                    depth,
-                    activeSubagentStackRef.current,
-                    data.agent_id as string,
-                    messageId,
-                  );
-                  return { ...m, parts: newParts };
-                } else {
-                  const newParts = [...parts];
-                  const lastPart = newParts[newParts.length - 1];
-                  if (lastPart?.type === "text" && !lastPart.depth) {
-                    newParts[newParts.length - 1] = {
-                      ...lastPart,
-                      content: lastPart.content + content,
-                    };
-                  } else {
-                    newParts.push({ type: "text" as const, content });
-                  }
-                  return {
-                    ...m,
-                    content: m.content + content,
-                    parts: newParts,
-                  };
-                }
-              });
-            });
-          }
-          break;
-        }
-
-        case "tool:start": {
-          const toolCallId = data.tool_call_id as string | undefined;
-          const toolCall: ToolCall = {
-            id: toolCallId,
-            name: data.tool || "",
-            args: data.args || {},
-          };
-          const toolPart = createToolPart(
-            data.tool || "",
-            data.args || {},
-            depth,
-            data.agent_id as string | undefined,
-            toolCallId,
-          );
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-              let newParts: MessagePart[];
-
-              if (depth > 0) {
-                newParts = addPartToDepth(
-                  parts,
-                  toolPart,
-                  depth,
-                  activeSubagentStackRef.current,
-                  data.agent_id as string,
-                  messageId,
-                );
-              } else {
-                newParts = [...parts, toolPart];
-              }
-              return {
-                ...m,
-                toolCalls:
-                  depth === 0
-                    ? [...(m.toolCalls || []), toolCall]
-                    : m.toolCalls,
-                parts: newParts,
-              };
-            }),
-          );
-          break;
-        }
-
-        case "tool:result": {
-          const toolCallId = data.tool_call_id as string | undefined;
-          const toolName = data.tool || "";
-          const isSuccess =
-            data.success !== false &&
-            !data.result?.toString().startsWith("Error:");
-          const toolResult: ToolResult = {
-            id: toolCallId,
-            name: toolName,
-            result: data.result || "",
-            success: isSuccess,
-          };
-          const errorMsg = data.error as string | undefined;
-
-          // 只针对 add_skill_from_path 工具处理 callback
-          if (toolName === "add_skill_from_path" && isSuccess && data.result) {
-            try {
-              let jsonStr = data.result;
-
-              // 提取 content='...' 中的 JSON
-              const contentMatch = jsonStr.match(/content='((?:[^'\\]|\\.)*)'/);
-              if (contentMatch) {
-                jsonStr = contentMatch[1].replace(/\\'/g, "'");
-              }
-
-              const resultObj = JSON.parse(jsonStr) as Record<string, unknown>;
-
-              if (resultObj.callback) {
-                const callback = resultObj.callback as Record<string, unknown>;
-                console.log(
-                  `[SSE] Callback triggered: ${callback.type}`,
-                  callback,
-                );
-
-                if (callback.type === "skill_added" && options?.onSkillAdded) {
-                  options.onSkillAdded(
-                    (callback.name as string) || "",
-                    (callback.description as string) || "",
-                    (callback.files_count as number) || 0,
-                  );
-                }
-              }
-            } catch (e) {
-              console.warn(
-                "[SSE] Failed to parse add_skill_from_path result:",
-                e,
-              );
-            }
-          }
-
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-
-              if (depth > 0 || toolCallId) {
-                // 优先使用 tool_call_id 匹配
-                const newParts = updateToolResultInDepth(
-                  parts,
-                  toolCallId || "",
-                  toolResult.result,
-                  toolResult.success,
-                  errorMsg,
-                  depth,
-                  data.agent_id as string,
-                );
-                return { ...m, parts: newParts };
-              } else {
-                // 向后兼容：按 name 匹配
-                let updated = false;
-                const newParts = parts.map((p) => {
-                  if (
-                    p.type === "tool" &&
-                    p.name === toolName &&
-                    p.isPending &&
-                    !updated
-                  ) {
-                    updated = true;
-                    return {
-                      ...p,
-                      result: toolResult.result,
-                      success: toolResult.success,
-                      error: errorMsg,
-                      isPending: false,
-                    };
-                  }
-                  return p;
-                });
-                return {
-                  ...m,
-                  toolResults: [...(m.toolResults || []), toolResult],
-                  parts: newParts,
-                };
-              }
-            }),
-          );
-          break;
-        }
-
-        case "done": {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === messageId ? { ...m, isStreaming: false } : m,
-            ),
-          );
-          setConnectionStatus("disconnected");
-          streamingMessageIdRef.current = null;
-          break;
-        }
-
-        case "error": {
-          const errorMsg = data.error || "Unknown error";
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              return {
-                ...m,
-                content: `Error: ${errorMsg}`,
-                isStreaming: false,
-              };
-            }),
-          );
-          setConnectionStatus("disconnected");
-          streamingMessageIdRef.current = null;
-          options?.onClearApprovals?.();
-          break;
-        }
-
-        case "approval_required": {
-          if (data.id && options?.onApprovalRequired) {
-            fetch(`/human/${data.id}`)
-              .then((response) => (response.ok ? response.json() : null))
-              .then((approval) => {
-                if (approval && approval.status === "pending") {
-                  options?.onApprovalRequired?.({
-                    id: data.id!,
-                    message: approval.message || "",
-                    type: approval.type || "form",
-                    fields: approval.fields || [],
-                  });
-                }
-              })
-              .catch((err) => {
-                console.warn("[SSE] Failed to check approval status:", err);
-              });
-          }
-          break;
-        }
-
-        case "sandbox:starting": {
-          setIsInitializingSandbox(true);
-          setSandboxError(null);
-          const startingPart: SandboxPart = {
-            type: "sandbox",
-            status: "starting",
-            timestamp: data.timestamp,
-          };
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-              const newParts = parts.some((p) => p.type === "sandbox")
-                ? parts.map((p) => (p.type === "sandbox" ? startingPart : p))
-                : [...parts, startingPart];
-              return { ...m, parts: newParts };
-            }),
-          );
-          break;
-        }
-
-        case "sandbox:state": {
-          const statePart: SandboxPart = {
-            type: "sandbox",
-            status: data.state as "starting" | "ready" | "error",
-            timestamp: data.timestamp,
-          };
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-              const newParts = parts.some((p) => p.type === "sandbox")
-                ? parts.map((p) => (p.type === "sandbox" ? statePart : p))
-                : [...parts, statePart];
-              return { ...m, parts: newParts };
-            }),
-          );
-          break;
-        }
-
-        case "sandbox:ready": {
-          setIsInitializingSandbox(false);
-          const readyPart: SandboxPart = {
-            type: "sandbox",
-            status: "ready",
-            sandbox_id: data.sandbox_id,
-            work_dir: data.work_dir,
-            timestamp: data.timestamp,
-          };
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-              const newParts = parts.some((p) => p.type === "sandbox")
-                ? parts.map((p) => (p.type === "sandbox" ? readyPart : p))
-                : [...parts, readyPart];
-              return { ...m, parts: newParts };
-            }),
-          );
-          break;
-        }
-
-        case "sandbox:error": {
-          setIsInitializingSandbox(false);
-          setSandboxError(data.error || "沙箱初始化失败");
-          const errorPart: SandboxPart = {
-            type: "sandbox",
-            status: "error",
-            error: data.error,
-            timestamp: data.timestamp,
-          };
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              const parts = m.parts || [];
-              const newParts = parts.some((p) => p.type === "sandbox")
-                ? parts.map((p) => (p.type === "sandbox" ? errorPart : p))
-                : [...parts, errorPart];
-              return { ...m, parts: newParts };
-            }),
-          );
-          break;
-        }
-
-        case "token:usage": {
-          const tokenUsage: TokenUsagePart = {
-            type: "token_usage",
-            input_tokens: data.input_tokens || 0,
-            output_tokens: data.output_tokens || 0,
-            total_tokens: data.total_tokens || 0,
-          };
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id !== messageId) return m;
-              return {
-                ...m,
-                tokenUsage,
-                duration: data.duration ? data.duration * 1000 : undefined,
-              };
-            }),
-          );
-          break;
-        }
-      }
-    },
-    [options],
-  );
-
-  // Connect to SSE stream
-  const connectToSSE = useCallback(
-    async (targetSessionId: string, targetRunId: string, messageId: string) => {
-      if (isConnectingRef.current) {
-        console.log("[SSE] Connection already in progress, skipping...");
-        return;
-      }
-      isConnectingRef.current = true;
-      streamingMessageIdRef.current = messageId;
-
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      abortControllerRef.current = new AbortController();
-
-      const token = getAccessToken();
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      console.log(
-        `[SSE] Connecting: session=${targetSessionId}, run_id=${targetRunId}`,
-      );
-
-      setConnectionStatus("connecting");
-      retryCountRef.current = 0;
-
-      try {
-        await fetchEventSource(
-          `${API_BASE}/chat/sessions/${targetSessionId}/stream?run_id=${targetRunId}`,
-          {
-            headers,
-            signal: abortControllerRef.current.signal,
-            openWhenHidden: true,
-            onopen: async (response) => {
-              if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-              }
-              console.log("[SSE] Connection established");
-              setConnectionStatus("connected");
-              retryCountRef.current = 0;
-            },
-            onmessage: (event) => {
-              if (event.event === "ping") return;
-              const eventId = event.id || crypto.randomUUID();
-              try {
-                const parsedData = JSON.parse(event.data);
-                const timestamp = parsedData._timestamp as string | undefined;
-                const streamEvent: StreamEvent = {
-                  event: event.event as EventType,
-                  data: event.data,
-                };
-                handleStreamEvent(streamEvent, messageId, eventId, timestamp);
-              } catch {
-                // Ignore parse errors
-              }
-            },
-            onerror: (err) => {
-              console.error("[SSE] Connection error:", err);
-              setConnectionStatus("reconnecting");
-            },
-            onclose: () => {
-              console.log("[SSE] Connection closed");
-              setConnectionStatus("disconnected");
-              isConnectingRef.current = false;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === messageId ? { ...m, isStreaming: false } : m,
-                ),
-              );
-            },
-          },
-        );
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          console.log("[SSE] Connection aborted");
-          return;
-        }
-        console.error("[SSE] Connection error:", err);
-        setConnectionStatus("disconnected");
-      } finally {
-        isConnectingRef.current = false;
-      }
-    },
-    [handleStreamEvent],
-  );
-
-  // Exponential backoff for reconnection
-  const getReconnectDelay = useCallback((retryCount: number): number => {
-    const baseDelay = Math.min(Math.pow(2, retryCount), 30) * 1000;
-    const jitter = Math.random() * 1000;
-    return baseDelay + jitter;
   }, []);
-
-  // Smart reconnect with exponential backoff
-  const reconnectSSE = useCallback(async () => {
-    const currentSessId = sessionIdRef.current;
-    const currentRId = currentRunIdRef.current;
-    const currentMsgId = streamingMessageIdRef.current;
-
-    if (!currentSessId || !currentRId) {
-      console.log("[SSE] No session/run ID, skipping reconnect");
-      return;
-    }
-
-    clearReconnectTimeout();
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-
-    isConnectingRef.current = false;
-
-    try {
-      const statusData = await sessionApi.getStatus(currentSessId, currentRId);
-      if (statusData.status === "completed" || statusData.status === "error") {
-        console.log("[SSE] Task already completed");
-        setConnectionStatus("disconnected");
-        streamingMessageIdRef.current = null;
-        return;
-      }
-    } catch (err) {
-      console.error("[SSE] Failed to check task status:", err);
-    }
-
-    setConnectionStatus("reconnecting");
-
-    const delay = getReconnectDelay(retryCountRef.current);
-    retryCountRef.current += 1;
-    console.log(
-      `[SSE] Scheduling reconnect in ${delay}ms (retry ${retryCountRef.current})`,
-    );
-
-    reconnectTimeoutRef.current = setTimeout(async () => {
-      if (currentMsgId) {
-        const msgs = messages;
-        const lastMsg = msgs.find((m) => m.id === currentMsgId);
-        if (lastMsg) {
-          isReconnectFromHistoryRef.current = true;
-          await connectToSSE(currentSessId, currentRId, currentMsgId);
-        }
-      }
-    }, delay);
-  }, [clearReconnectTimeout, getReconnectDelay, connectToSSE, messages]);
 
   // Load message history from backend
   const loadHistory = useCallback(
     async (targetSessionId: string, targetRunId?: string) => {
-      // Allow switching sessions anytime - abort previous loading
       if (isLoadingHistoryRef.current) {
         console.log(
           "[loadHistory] Switching to new session, aborting previous load...",
@@ -888,7 +180,7 @@ export function useAgent(options?: UseAgentOptions) {
       }
       isConnectingRef.current = false;
       streamingMessageIdRef.current = null;
-      clearReconnectTimeout();
+      clearReconnectTimeout(reconnectTimeoutRef);
 
       setIsLoading(true);
       setError(null);
@@ -941,14 +233,12 @@ export function useAgent(options?: UseAgentOptions) {
                 targetSessionId,
               );
               if (feedbackList && feedbackList.items.length > 0) {
-                // Create a map for quick lookup by run_id
                 const feedbackMap = new Map(
                   feedbackList.items.map((f) => [
                     f.run_id,
                     { feedback: f.rating, feedbackId: f.id },
                   ]),
                 );
-                // Merge feedback into messages
                 reconstructedMessages = reconstructedMessages.map((msg) => {
                   if (msg.runId) {
                     const feedbackInfo = feedbackMap.get(msg.runId);
@@ -968,7 +258,6 @@ export function useAgent(options?: UseAgentOptions) {
                 "[loadHistory] Failed to load feedback:",
                 feedbackErr,
               );
-              // Continue without feedback - not critical
             }
 
             const lastTimestamp = getLastEventTimestamp(
@@ -995,10 +284,12 @@ export function useAgent(options?: UseAgentOptions) {
               setMessages((prev) => [...prev, newAssistantMsg]);
 
               isReconnectFromHistoryRef.current = false;
+              const ctx = createSSEContext();
               await connectToSSE(
                 targetSessionId,
                 currentRunId,
                 streamingMessageId,
+                ctx,
               );
             }
           } else {
@@ -1018,10 +309,12 @@ export function useAgent(options?: UseAgentOptions) {
                 isStreaming: true,
               };
               setMessages([newAssistantMsg]);
+              const ctx = createSSEContext();
               await connectToSSE(
                 targetSessionId,
                 currentRunId,
                 streamingMessageId,
+                ctx,
               );
             }
           }
@@ -1034,7 +327,7 @@ export function useAgent(options?: UseAgentOptions) {
         isLoadingHistoryRef.current = false;
       }
     },
-    [connectToSSE, clearReconnectTimeout, options],
+    [options, createSSEContext],
   );
 
   // Send message
@@ -1046,7 +339,6 @@ export function useAgent(options?: UseAgentOptions) {
     ) => {
       if (!content.trim()) return;
 
-      // 防止重复发送
       if (isSendingRef.current) {
         console.log(
           "[sendMessage] Already sending, ignoring duplicate request",
@@ -1060,7 +352,7 @@ export function useAgent(options?: UseAgentOptions) {
         abortControllerRef.current = null;
       }
       isConnectingRef.current = false;
-      clearReconnectTimeout();
+      clearReconnectTimeout(reconnectTimeoutRef);
 
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
@@ -1160,7 +452,6 @@ export function useAgent(options?: UseAgentOptions) {
         }
         if (newRunId) {
           setCurrentRunId(newRunId);
-          // Update the assistant message with the runId
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMessage.id ? { ...m, runId: newRunId } : m,
@@ -1176,7 +467,13 @@ export function useAgent(options?: UseAgentOptions) {
         }
 
         isReconnectFromHistoryRef.current = false;
-        await connectToSSE(streamSessionId, streamRunId, assistantMessage.id);
+        const ctx = createSSEContext();
+        await connectToSSE(
+          streamSessionId,
+          streamRunId,
+          assistantMessage.id,
+          ctx,
+        );
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
           return;
@@ -1197,7 +494,7 @@ export function useAgent(options?: UseAgentOptions) {
         isSendingRef.current = false;
       }
     },
-    [sessionId, currentAgent, connectToSSE, clearReconnectTimeout, options],
+    [sessionId, currentAgent, options, createSSEContext],
   );
 
   const stopGeneration = useCallback(async () => {
@@ -1212,7 +509,6 @@ export function useAgent(options?: UseAgentOptions) {
     const currentSessionId = sessionIdRef.current;
     if (currentSessionId) {
       try {
-        const { sessionApi } = await import("../services/api");
         await sessionApi.cancel(currentSessionId);
       } catch (error) {
         console.error(
@@ -1239,8 +535,8 @@ export function useAgent(options?: UseAgentOptions) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    clearReconnectTimeout();
-  }, [clearReconnectTimeout]);
+    clearReconnectTimeout(reconnectTimeoutRef);
+  }, []);
 
   const selectAgent = useCallback(
     (agentId: string) => {
@@ -1249,6 +545,17 @@ export function useAgent(options?: UseAgentOptions) {
     },
     [clearMessages],
   );
+
+  // Reconnect function
+  const handleReconnectSSE = useCallback(async () => {
+    const ctx = {
+      ...createSSEContext(),
+      sessionIdRef,
+      currentRunIdRef,
+      isReconnectFromHistoryRef,
+    };
+    await reconnectSSE(ctx);
+  }, [createSSEContext]);
 
   // Handle visibility change
   useEffect(() => {
@@ -1260,7 +567,7 @@ export function useAgent(options?: UseAgentOptions) {
         currentRunIdRef.current &&
         streamingMessageIdRef.current
       ) {
-        reconnectSSE();
+        handleReconnectSSE();
       }
     };
 
@@ -1268,7 +575,7 @@ export function useAgent(options?: UseAgentOptions) {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [connectionStatus, reconnectSSE]);
+  }, [connectionStatus, handleReconnectSSE]);
 
   // Handle network status changes
   useEffect(() => {
@@ -1279,7 +586,7 @@ export function useAgent(options?: UseAgentOptions) {
         currentRunIdRef.current &&
         streamingMessageIdRef.current
       ) {
-        reconnectSSE();
+        handleReconnectSSE();
       }
     };
 
@@ -1294,7 +601,7 @@ export function useAgent(options?: UseAgentOptions) {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [connectionStatus, reconnectSSE]);
+  }, [connectionStatus, handleReconnectSSE]);
 
   return {
     messages,
@@ -1316,6 +623,14 @@ export function useAgent(options?: UseAgentOptions) {
     selectAgent,
     refreshAgents: fetchAgents,
     loadHistory,
-    reconnectSSE,
+    reconnectSSE: handleReconnectSSE,
   };
 }
+
+// Re-export types and utilities
+export type {
+  UseAgentOptions,
+  UseAgentReturn,
+  BackendSession,
+} from "./useAgent/types";
+export { API_BASE } from "./useAgent/types";

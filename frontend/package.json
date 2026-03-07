@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "i18n:extract": "npx tsx scripts/extract-i18n.ts"
+    "i18n:extract": "npx tsx scripts/extract-i18n.ts",
+    "find-large-files": "tsx scripts/find-large-files.ts"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.0",

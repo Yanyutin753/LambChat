@@ -6,6 +6,7 @@ import { LoadingSpinner, CollapsiblePill, ImageViewer } from "../../common";
 import type { CollapsibleStatus } from "../../common";
 import DocumentPreview from "../../documents/DocumentPreview";
 import { getFileTypeInfo } from "../../documents/utils";
+import { getFullUrl } from "../../../services/api";
 
 // Collapsible Tool Call Item (compact design)
 export function ToolCallItem({
@@ -153,9 +154,9 @@ export function FileRevealItem({
 
       // 检查是否为新格式（有 key 和 url 字段）
       if ("key" in parsed && "url" in parsed) {
-        // 新格式：直接使用返回的 URL
+        // 新格式：使用 getFullUrl 处理相对路径
         s3Key = parsed.key;
-        s3Url = parsed.url;
+        s3Url = getFullUrl(parsed.url) || "";
         fileSize = parsed.size;
         // 从 _meta 获取额外信息
         if (parsed._meta) {
