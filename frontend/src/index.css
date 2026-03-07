@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 浏览器自动填充适配主题色 */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: #1c1917 !important;
+  caret-color: #1c1917 !important;
+  outline: none !important;
+  border-color: #e7e5e4 !important;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+.dark textarea:-webkit-autofill,
+.dark textarea:-webkit-autofill:hover,
+.dark textarea:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill:active,
+.dark select:-webkit-autofill,
+.dark select:-webkit-autofill:hover,
+.dark select:-webkit-autofill:focus,
+.dark select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #292524 inset !important;
+  -webkit-text-fill-color: #f5f5f4 !important;
+  caret-color: #f5f5f4 !important;
+  outline: none !important;
+  border-color: #44403c !important;
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
@@ -1022,6 +1061,23 @@ html.dark body {
 /* Fallback for older browsers */
 .safe-area-bottom {
   padding-bottom: 20px;
+}
+
+/* Safe area for both top and bottom */
+@supports (
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left)
+) {
+  .safe-top-bottom {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Fallback for safe-top-bottom */
+.safe-top-bottom {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
 }
 
 /* Prevent zoom on input focus (iOS) - removed to maintain consistent font sizes */

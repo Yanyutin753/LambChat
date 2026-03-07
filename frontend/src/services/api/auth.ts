@@ -136,4 +136,52 @@ export const authApi = {
   async getProfile(): Promise<User> {
     return authFetch<User>(`${API_BASE}/api/auth/profile`);
   },
+
+  /**
+   * 获取可用的 OAuth 提供商列表
+   */
+  async getOAuthProviders(): Promise<{
+    providers: { id: string; name: string }[];
+    registration_enabled: boolean;
+  }> {
+    return authFetch<{
+      providers: { id: string; name: string }[];
+      registration_enabled: boolean;
+    }>(`${API_BASE}/api/auth/oauth/providers`, { skipAuth: true });
+  },
+
+  /**
+   * 发起 OAuth 授权
+   */
+  async getOAuthAuthorizationUrl(
+    provider: string,
+  ): Promise<{ authorization_url: string; state: string }> {
+    return authFetch<{ authorization_url: string; state: string }>(
+      `${API_BASE}/api/auth/oauth/${provider}`,
+      { skipAuth: true },
+    );
+  },
+
+  /**
+   * 处理 OAuth 回调
+   */
+  async handleOAuthCallback(
+    provider: string,
+    code: string,
+    state: string,
+  ): Promise<TokenResponse> {
+    const response = await authFetch<TokenResponse>(
+      `${API_BASE}/api/auth/oauth/${provider}/callback`,
+      {
+        method: "POST",
+        skipAuth: true,
+        body: JSON.stringify({ code, state }),
+      },
+    );
+
+    setTokens(response.access_token, response.refresh_token);
+    window.dispatchEvent(new CustomEvent("auth:login"));
+
+    return response;
+  },
 };

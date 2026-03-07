@@ -30,6 +30,7 @@ from src.api.routes import (
     upload,
     user,
     version,
+    websocket,
 )
 from src.api.routes import settings as settings_router
 from src.infra.logging import get_logger, setup_logging
@@ -171,6 +172,8 @@ def create_app() -> FastAPI:
     app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
+    # WebSocket 路由: /ws 用于实时通知
+    app.include_router(websocket.router, tags=["WebSocket"])
 
     # Serve frontend static files
     static_dir = Path(__file__).parent.parent.parent / "static"

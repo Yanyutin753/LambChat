@@ -18,6 +18,15 @@ export default defineConfig({
         ws: true, // Enable WebSocket/SSE support for streaming
         timeout: 300000, // 5 minutes timeout for SSE
         proxyTimeout: 300000, // 5 minutes proxy timeout
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            // 保留原始 host 到 X-Forwarded-Host 头，用于 OAuth redirect_uri
+            const host = req.headers.host;
+            if (host) {
+              proxyReq.setHeader("X-Forwarded-Host", host);
+            }
+          });
+        },
       },
       // Agent routes (/{agent_id}/chat, /{agent_id}/stream, /{agent_id}/skills)
       ...Object.fromEntries(
@@ -53,6 +62,12 @@ export default defineConfig({
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
+      },
+      "/ws": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+        ws: true,
       },
       "/services": {
         target: "http://127.0.0.1:8000",

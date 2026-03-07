@@ -1,4 +1,10 @@
-import { X, RefreshCw, ExternalLink, ArrowDownCircle } from "lucide-react";
+import {
+  X,
+  RefreshCw,
+  ExternalLink,
+  ArrowDownCircle,
+  Github,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
 
@@ -23,13 +29,19 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
     }
   };
 
+  const handleGoToGitHub = () => {
+    if (versionInfo?.github_url) {
+      window.open(versionInfo.github_url, "_blank");
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-stone-800">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-stone-100">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-stone-100 font-serif">
               {t("about.title", "LambChat")}
             </h2>
           </div>
@@ -118,6 +130,17 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
                 <div className="rounded-lg bg-green-50 p-3 text-center text-sm text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   {t("about.upToDate", "You're up to date!")}
                 </div>
+              )}
+
+              {/* GitHub Link */}
+              {versionInfo.github_url && (
+                <button
+                  onClick={handleGoToGitHub}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-stone-600 dark:text-stone-400 dark:hover:bg-stone-700"
+                >
+                  <Github className="h-4 w-4" />
+                  {t("about.viewOnGitHub", "View on GitHub")}
+                </button>
               )}
             </>
           ) : null}

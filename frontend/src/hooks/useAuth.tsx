@@ -26,6 +26,12 @@ import type { User, UserCreate, LoginRequest, AuthState } from "../types";
 interface AuthContextType extends AuthState {
   login: (credentials: LoginRequest) => Promise<void>;
   register: (userData: UserCreate) => Promise<void>;
+  loginWithOAuth: (provider: string) => Promise<void>;
+  handleOAuthCallback: (
+    provider: string,
+    code: string,
+    state: string,
+  ) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   hasPermission: (permission: Permission) => boolean;
@@ -163,6 +169,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [login],
   );
 
+  // OAuth 登录 - 重定向到 OAuth 提供商
+  const loginWithOAuth = useCallback(async (provider: string) => {
+    try {
+      const { authorization_url } =
+        await authApi.getOAuthAuthorizationUrl(provider);
+      // 重定向到 OAuth 授权页面
+      window.location.href = authorization_url;
+    } catch (error) {
+      console.error("OAuth login failed:", error);
+      throw error;
+    }
+  }, []);
+
+  // 处理 OAuth 回调
+  const handleOAuthCallback = useCallback(
+    async (provider: string, code: string, state: string) => {
+      setIsLoading(true);
+      try {
+        await authApi.handleOAuthCallback(provider, code, state);
+        const accessToken = getAccessToken();
+        setToken(accessToken);
+
+        // 获取用户信息
+        try {
+          const currentUser = await authApi.getCurrentUser();
+          setUser(currentUser);
+          // 更新动态权限
+          if (currentUser.permissions) {
+            setDynamicPermissions(
+              currentUser.permissions.filter((p): p is Permission =>
+                Object.values(Permission).includes(p as Permission),
+              ),
+            );
+          }
+        } catch {
+          // 忽略用户信息获取失败
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
   // 登出
   const logout = useCallback(() => {
     authApi.logout();
@@ -222,6 +272,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     permissions,
     login,
     register,
+    loginWithOAuth,
+    handleOAuthCallback,
     logout,
     refreshUser,
     hasPermission,

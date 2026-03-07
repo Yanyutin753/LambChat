@@ -6,6 +6,7 @@ import {
   Navigate,
   useNavigate,
   useParams,
+  useLocation,
 } from "react-router-dom";
 import { Toaster, toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -25,6 +26,7 @@ import {
   Pencil,
   User,
   Star,
+  Check,
 } from "lucide-react";
 import { ChatMessage } from "./components/chat/ChatMessage";
 import { ChatInput } from "./components/chat/ChatInput";
@@ -39,8 +41,10 @@ import { MCPPanel } from "./components/panels/MCPPanel";
 import { FeedbackPanel } from "./components/panels/FeedbackPanel";
 import { ThemeToggle } from "./components/common/ThemeToggle";
 import { LanguageToggle } from "./components/common/LanguageToggle";
+import { Loading } from "./components/common";
 import { AgentSelector } from "./components/agent/AgentSelector";
 import { SharedPage } from "./components/share/SharedPage";
+import { OAuthCallback } from "./components/auth/OAuthCallback";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { useSettingsContext } from "./contexts/SettingsContext";
 import { useAgent } from "./hooks/useAgent";
@@ -50,6 +54,8 @@ import { useTools } from "./hooks/useTools";
 import { useSkills } from "./hooks/useSkills";
 import { useVersion } from "./hooks/useVersion";
 import { usePageTitle } from "./hooks/usePageTitle";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useBrowserNotification } from "./hooks/useBrowserNotification";
 import { Permission, User as UserType } from "./types";
 import { authApi, uploadApi, sessionApi } from "./services/api";
 
@@ -75,7 +81,9 @@ function ProfileModal({
   const { t } = useTranslation();
   const { user, refreshUser, hasPermission } = useAuth();
   const [userData, setUserData] = useState<UserType | null>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "password">("info");
+  const [activeTab, setActiveTab] = useState<
+    "info" | "password" | "notification"
+  >("info");
   const [isLoading, setIsLoading] = useState(false);
 
   // Username change state
@@ -97,6 +105,10 @@ function ProfileModal({
 
   // Permission check for avatar upload
   const canUploadAvatar = hasPermission(Permission.AVATAR_UPLOAD);
+
+  // Browser notification
+  const { requestPermission, isSupported, permission } =
+    useBrowserNotification();
 
   // Sync user data when modal opens or user changes
   useEffect(() => {
@@ -352,11 +364,21 @@ function ProfileModal({
           >
             {t("profile.changePassword")}
           </button>
+          <button
+            onClick={() => setActiveTab("notification")}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === "notification"
+                ? "text-amber-600 border-b-2 border-amber-600"
+                : "text-gray-500 dark:text-stone-400 hover:text-gray-700 dark:hover:text-stone-200"
+            }`}
+          >
+            {t("profile.notifications")}
+          </button>
         </div>
 
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto flex-1">
-          {activeTab === "info" ? (
+          {activeTab === "info" && (
             <>
               {/* Avatar */}
               <div className="flex flex-col items-center mb-6">
@@ -500,9 +522,10 @@ function ProfileModal({
                 )}
               </div>
             </>
-          ) : (
-            /* Password Change Tab */
-            <div className="space-y-4">
+          )}
+
+          {activeTab === "password" && (
+            <>
               {passwordSuccess && (
                 <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-sm">
                   {t("profile.passwordChanged")}
@@ -581,6 +604,63 @@ function ProfileModal({
                   t("profile.changePassword")
                 )}
               </button>
+            </>
+          )}
+
+          {activeTab === "notification" && (
+            <div className="space-y-4">
+              {/* Browser Notification Setting */}
+              <div className="bg-gray-50 dark:bg-stone-700/50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900 dark:text-stone-100">
+                      {t("profile.browserNotification")}
+                    </h4>
+                    <p className="text-sm text-gray-500 dark:text-stone-400 mt-1">
+                      {t("profile.browserNotificationDesc")}
+                    </p>
+                  </div>
+                  {!isSupported ? (
+                    <span className="text-xs text-gray-400">
+                      {t("profile.notSupported")}
+                    </span>
+                  ) : permission === "granted" ? (
+                    <span className="text-sm text-green-600 flex items-center gap-1">
+                      <Check size={16} />
+                      {t("profile.enabled")}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={requestPermission}
+                      className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                    >
+                      {permission === "denied"
+                        ? t("profile.retry")
+                        : t("profile.enable")}
+                    </button>
+                  )}
+                </div>
+
+                {permission === "denied" && (
+                  <p className="text-xs text-red-500 mt-2">
+                    {t("profile.notificationDeniedHint")}
+                  </p>
+                )}
+              </div>
+
+              {/* WebSocket Connection Status */}
+              <div className="bg-gray-50 dark:bg-stone-700/50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900 dark:text-stone-100">
+                      {t("profile.realtimeNotification")}
+                    </h4>
+                    <p className="text-sm text-gray-500 dark:text-stone-400 mt-1">
+                      {t("profile.realtimeNotificationDesc")}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -588,7 +668,7 @@ function ProfileModal({
         {/* Modal Footer */}
         <div className="px-4 py-3 bg-gray-50 dark:bg-stone-700/50 flex items-center justify-end">
           <div className="text-xs text-gray-400 dark:text-stone-500">
-            <span className="font-semibold text-gray-500 dark:text-stone-400">
+            <span className="font-semibold text-gray-500 dark:text-stone-400 font-serif">
               LambChat
             </span>
             {versionInfo?.app_version && (
@@ -705,7 +785,7 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
             />
           ) : (
             <div className="flex size-5 items-center justify-center bg-gradient-to-br from-violet-500 to-purple-600 rounded-full">
-              <span className="text-sm font-semibold text-white">
+              <span className="text-xs font-bold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
@@ -777,6 +857,7 @@ function UserMenu({ onShowProfile }: { onShowProfile: () => void }) {
 function AppContent({ activeTab }: { activeTab: TabType }) {
   const { t } = useTranslation();
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
+  const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -819,9 +900,9 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
 
   const {
     messages,
-    isLoading,
     sessionId,
     currentRunId,
+    isLoading,
     agents,
     currentAgent,
     agentsLoading,
@@ -858,6 +939,111 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
         `[App] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
       );
       fetchSkills();
+    },
+  });
+
+  // Browser notification
+  const { requestPermission, notify, isSupported, permission } =
+    useBrowserNotification();
+
+  // Request notification permission on first interaction
+  useEffect(() => {
+    console.log("[AppContent] Notification state:", {
+      isSupported,
+      permission,
+    });
+    if (isSupported && permission === "default") {
+      requestPermission();
+    }
+  }, [isSupported, permission, requestPermission]);
+
+  // WebSocket for task completion notifications
+  useWebSocket({
+    enabled: !!sessionId,
+    onTaskComplete: (notification: {
+      data: { session_id: string; status: string; message?: string };
+    }) => {
+      const { session_id, status, message } = notification.data;
+      console.log("[AppContent] Task complete notification:", notification, {
+        isSupported,
+        permission,
+      });
+
+      // Show browser notification
+      if (isSupported && permission === "granted") {
+        console.log("[AppContent] Showing browser notification:", status);
+        const navigateToSession = () => {
+          if (session_id !== sessionId) {
+            navigate(`/chat/${session_id}`);
+          }
+        };
+        if (status === "completed") {
+          notify(t("notification.taskCompleted"), {
+            body: message,
+            onClick: navigateToSession,
+          });
+        } else {
+          notify(t("notification.taskFailed"), {
+            body: message,
+            onClick: navigateToSession,
+          });
+        }
+      } else {
+        console.log(
+          "[AppContent] Browser notification not shown, permission:",
+          permission,
+        );
+      }
+
+      // Navigate function for notifications
+      const navigateToSession = () => {
+        if (session_id !== sessionId) {
+          // Use replace + state to prevent sync effect from reverting the navigation
+          navigate(`/chat/${session_id}`, {
+            replace: true,
+            state: { externalNavigate: true },
+          });
+        }
+      };
+
+      // Show toast notification (clickable)
+      const toastMessage =
+        status === "completed"
+          ? message || t("notification.taskCompleted")
+          : message || t("notification.taskFailed");
+      const isSuccess = status === "completed";
+
+      toast.custom(
+        (visible) => (
+          <div
+            className={`cursor-pointer px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transition-all ${
+              visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+            } ${
+              isSuccess
+                ? "bg-green-50 dark:bg-green-900/80 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700"
+                : "bg-red-50 dark:bg-red-900/80 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700"
+            }`}
+            onClick={() => {
+              navigateToSession();
+              toast.remove();
+            }}
+          >
+            {isSuccess ? (
+              <Check
+                size={18}
+                className="text-green-600 dark:text-green-400 flex-shrink-0"
+              />
+            ) : (
+              <X
+                size={18}
+                className="text-red-600 dark:text-red-400 flex-shrink-0"
+              />
+            )}
+            <span className="text-sm font-medium">{toastMessage}</span>
+          </div>
+        ),
+        { duration: 4000 },
+      );
     },
   });
 
@@ -941,11 +1127,22 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
     return isAtBottom;
   }, []);
 
-  // Auto-scroll to bottom only when user is already near bottom
+  // Track previous message count to detect new messages
+  const prevMessagesCountRef = useRef(messages.length);
+
+  // Auto-scroll to bottom when new messages are added or when loading
   useEffect(() => {
-    if (isNearBottom) {
+    const prevCount = prevMessagesCountRef.current;
+    const newCount = messages.length;
+
+    // Scroll to bottom when:
+    // 1. New message is added (count increased)
+    // 2. User is already near bottom
+    if (newCount > prevCount || isNearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
     }
+
+    prevMessagesCountRef.current = newCount;
   }, [messages, isNearBottom]);
 
   // Track scroll position
@@ -971,6 +1168,14 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
   useEffect(() => {
     if (isSyncingRef.current) return;
 
+    // Skip sync if this navigation was initiated externally (e.g., from toast click)
+    // This prevents the sync effect from reverting the user's navigation
+    if ((location.state as { externalNavigate?: boolean })?.externalNavigate) {
+      // Clear the externalNavigate flag after handling
+      navigate(location.pathname, { replace: true, state: {} });
+      return;
+    }
+
     if (sessionId && sessionId !== urlSessionId) {
       // New session created - update URL
       isSyncingRef.current = true;
@@ -986,7 +1191,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
         isSyncingRef.current = false;
       }, 100);
     }
-  }, [sessionId, urlSessionId, navigate]);
+  }, [sessionId, urlSessionId, navigate, location]);
 
   // Handle session selection from sidebar
   const handleSelectSession = useCallback(
@@ -1116,7 +1321,7 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                     </svg>
                   </button>
                   <div className="flex h-8 items-center gap-2">
-                    <span className="text-base font-bold text-gray-700 dark:text-stone-200">
+                    <span className="text-base font-bold text-gray-700 dark:text-stone-200 font-serif">
                       LambChat
                     </span>
                   </div>
@@ -1166,21 +1371,17 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                 className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain pb-5"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
-                {/* Session loading indicator - only show when switching sessions (no messages yet) */}
+                {/* Session loading indicator - show when loading history (no messages yet) */}
                 {isLoading && messages.length === 0 && (
                   <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-stone-900/80 backdrop-blur-sm">
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-2 w-2 rounded-full bg-gray-400 dark:bg-stone-500 animate-[bounce_1s_ease-in-out_infinite]" />
-                      <div className="h-2 w-2 rounded-full bg-gray-400 dark:bg-stone-500 animate-[bounce_1s_ease-in-out_0.1s_infinite]" />
-                      <div className="h-2 w-2 rounded-full bg-gray-400 dark:bg-stone-500 animate-[bounce_1s_ease-in-out_0.2s_infinite]" />
-                    </div>
+                    <Loading size="lg" />
                   </div>
                 )}
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center px-4 py-8">
                     {/* Title */}
                     <div className="flex items-center gap-3 mb-7 sm:mb-9">
-                      <h1 className="text-3xl sm:text-4xl font-semibold text-gray-700 dark:text-stone-200">
+                      <h1 className="text-3xl sm:text-4xl font-semibold text-gray-700 dark:text-stone-200 font-serif">
                         LambChat
                       </h1>
                     </div>
@@ -1205,7 +1406,14 @@ function AppContent({ activeTab }: { activeTab: TabType }) {
                       ))}
                     </div>
                     <div className="mt-4 sm:mt-6 flex items-center gap-2 text-xs text-gray-400 dark:text-stone-500">
-                      <span className="font-medium">LambChat</span>
+                      <a
+                        href="https://github.com/Yanyutin753/LambChat"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:text-gray-600 dark:hover:text-stone-400 transition-colors font-serif"
+                      >
+                        LambChat
+                      </a>
                       {versionInfo?.app_version && (
                         <>
                           <span>·</span>
@@ -1541,6 +1749,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* OAuth callback page - handles OAuth redirect from backend */}
+        <Route path="/auth/callback" element={<OAuthCallback />} />
         {/* Public shared session page - no auth required */}
         <Route path="/shared/:shareId" element={<SharedPage />} />
         <Route path="*" element={<NotFoundPage />} />

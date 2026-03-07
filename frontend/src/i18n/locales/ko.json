@@ -55,6 +55,12 @@
     "roles": "역할",
     "supportsUsernameOrEmailLogin": "사용자 이름 또는 이메일로 로그인할 수 있습니다",
     "termsHint": "로그인하면 이용약관 및 개인정보 처리방침에 동의하는 것으로 간주됩니다",
+    "poweredBy": "Powered by",
+    "oauthLoginFailed": "OAuth 로그인에 실패했습니다. 나중에 다시 시도해 주세요",
+    "completingLogin": "로그인 완료 중...",
+    "continueWith": "{{provider}}으로 계속",
+    "orContinueWith": "또는 다음 방법으로 계속",
+    "or": "또는",
     "username": "사용자 이름",
     "usernameOrEmail": "사용자 이름 또는 이메일",
     "usernameOrEmailPlaceholder": "사용자 이름 또는 이메일 입력",
@@ -367,6 +373,17 @@
     "avatarDeleted": "아바타가 삭제되었습니다",
     "changeAvatar": "아바타 변경",
     "changePassword": "비밀번호 변경",
+    "browserNotification": "브라우저 알림",
+    "browserNotificationDesc": "작업 완료 시 데스크톱 알림 받기",
+    "notifications": "알림",
+    "enable": "활성화",
+    "enabled": "활성화됨",
+    "denied": "거부됨",
+    "retry": "다시 시도",
+    "notSupported": "지원 안 함",
+    "notificationDeniedHint": "\"다시 시도\"를 클릭하거나 브라우저 설정에서 수동으로 활성화하세요",
+    "realtimeNotification": "실시간 알림",
+    "realtimeNotificationDesc": "WebSocket을 통해 작업 완료 알림 받기",
     "confirmPassword": "비밀번호 확인",
     "deleteAvatar": "아바타 삭제",
     "email": "이메일",
@@ -438,6 +455,7 @@
     "copyLink": "링크 복사",
     "createFailed": "공유 생성 실패",
     "createShare": "공유 생성",
+    "createChat": "채팅 만들기",
     "createYourOwn": "나만의 채팅 만들기",
     "deleteFailed": "공유 삭제 실패",
     "deleteShare": "공유 해제",
@@ -648,5 +666,9 @@
       "enterUsername": "사용자 이름을 입력해주세요",
       "passwordMinLength": "비밀번호는 6자 이상이어야 합니다"
     }
+  },
+  "notification": {
+    "taskCompleted": "작업 완료",
+    "taskFailed": "작업 실패"
   }
 }

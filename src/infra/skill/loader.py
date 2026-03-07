@@ -65,18 +65,19 @@ async def load_skill_files(user_id: Optional[str]) -> SkillLoadResult:
                 else (dict(skill_data) if not isinstance(skill_data, dict) else skill_data)
             )
             skill_dict["is_system"] = skill_dict.get("is_system", True)
-            if skill_dict.get("enabled", True):
+            is_enabled = skill_dict.get("enabled", True)
+            if is_enabled:
                 skills_list.append(skill_dict)
 
-            # 如果有多个文件（新格式）
-            if skill_files:
-                for file_name, file_content in skill_files.items():
-                    file_path = f"/{skill_name}/{file_name}"
-                    result["files"][file_path] = create_file_data(file_content)
-            # 否则只有主内容（旧格式兼容）
-            elif skill_content:
-                file_path = f"/{skill_name}/SKILL.md"
-                result["files"][file_path] = create_file_data(skill_content)
+                # 如果有多个文件（新格式）
+                if skill_files:
+                    for file_name, file_content in skill_files.items():
+                        file_path = f"/{skill_name}/{file_name}"
+                        result["files"][file_path] = create_file_data(file_content)
+                # 否则只有主内容（旧格式兼容）
+                elif skill_content:
+                    file_path = f"/{skill_name}/SKILL.md"
+                    result["files"][file_path] = create_file_data(skill_content)
 
         result["skills"] = skills_list
         logger.info(

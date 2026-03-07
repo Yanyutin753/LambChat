@@ -333,9 +333,14 @@ export function SessionSidebar({
             alt="LambChat"
             className="size-6 rounded-full object-cover"
           />
-          <span className="text-base font-semibold leading-none text-gray-700 dark:text-stone-200">
+          <a
+            href="https://github.com/Yanyutin753/LambChat"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-base font-semibold leading-none text-gray-700 dark:text-stone-200 hover:text-gray-900 dark:hover:text-stone-400 transition-colors font-serif"
+          >
             LambChat
-          </span>
+          </a>
         </div>
         <button
           onClick={() => setIsCollapsed(true)}

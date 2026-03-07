@@ -1,0 +1,390 @@
+"""
+OAuth 认证服务
+
+支持 Google、GitHub、Apple OAuth 登录。
+"""
+
+import logging
+from typing import Any, Dict, Optional
+
+import httpx
+from authlib.integrations.httpx_client import AsyncOAuth2Client
+from pydantic import BaseModel
+
+from src.infra.user.storage import UserStorage
+from src.kernel.config import settings
+from src.kernel.schemas.user import OAuthProvider, Token, User, UserCreate
+
+logger = logging.getLogger(__name__)
+
+
+class OAuthUserInfo(BaseModel):
+    """OAuth 用户信息"""
+
+    provider: OAuthProvider
+    oauth_id: str
+    email: str
+    username: str
+    avatar_url: Optional[str] = None
+
+
+class OAuthService:
+    """
+    OAuth 服务类
+
+    处理 OAuth 授权流程。
+    """
+
+    def __init__(self):
+        self.storage = UserStorage()
+        self._oauth_clients: Dict[str, AsyncOAuth2Client] = {}
+
+    def _get_client(self, provider: OAuthProvider) -> Optional[AsyncOAuth2Client]:
+        """获取 OAuth 客户端"""
+        if provider.value in self._oauth_clients:
+            return self._oauth_clients[provider.value]
+
+        client_id, client_secret = self._get_client_credentials(provider)
+        if not client_id or not client_secret:
+            return None
+
+        # 使用 AsyncOAuth2Client 直接创建客户端
+        client = AsyncOAuth2Client(
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+        self._oauth_clients[provider.value] = client
+        return client
+
+    def _get_client_credentials(self, provider: OAuthProvider) -> tuple[str, str]:
+        """获取 OAuth 客户端凭据"""
+        if provider == OAuthProvider.GOOGLE:
+            return settings.OAUTH_GOOGLE_CLIENT_ID, settings.OAUTH_GOOGLE_CLIENT_SECRET
+        elif provider == OAuthProvider.GITHUB:
+            return settings.OAUTH_GITHUB_CLIENT_ID, settings.OAUTH_GITHUB_CLIENT_SECRET
+        elif provider == OAuthProvider.APPLE:
+            return settings.OAUTH_APPLE_CLIENT_ID, settings.OAUTH_APPLE_CLIENT_SECRET
+        return "", ""
+
+    def _get_register_config(self, provider: OAuthProvider) -> Optional[Dict[str, Any]]:
+        """获取 OAuth 注册配置"""
+
+        if provider == OAuthProvider.GOOGLE:
+            return {
+                "api_base_url": "https://www.googleapis.com/oauth2/v2/",
+                "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+                "access_token_url": "https://oauth2.googleapis.com/token",
+                "userinfo_url": "https://www.googleapis.com/oauth2/v2/userinfo",
+            }
+        elif provider == OAuthProvider.GITHUB:
+            return {
+                "api_base_url": "https://api.github.com/",
+                "authorize_url": "https://github.com/login/oauth/authorize",
+                "access_token_url": "https://github.com/login/oauth/access_token",
+            }
+        elif provider == OAuthProvider.APPLE:
+            return {
+                "api_base_url": "https://appleid.apple.com/",
+                "authorize_url": "https://appleid.apple.com/auth/authorize",
+                "access_token_url": "https://appleid.apple.com/auth/token",
+            }
+        return None
+
+    def is_provider_enabled(self, provider: OAuthProvider) -> bool:
+        """检查 OAuth 提供商是否启用"""
+        if provider == OAuthProvider.GOOGLE:
+            return bool(settings.OAUTH_GOOGLE_ENABLED)
+        elif provider == OAuthProvider.GITHUB:
+            return bool(settings.OAUTH_GITHUB_ENABLED)
+        elif provider == OAuthProvider.APPLE:
+            return bool(settings.OAUTH_APPLE_ENABLED)
+        return False
+
+    def get_authorization_url(
+        self, provider: OAuthProvider, state: str, redirect_uri: str
+    ) -> Optional[str]:
+        """
+        获取 OAuth 授权 URL
+
+        Args:
+            provider: OAuth 提供商
+            state: CSRF 状态码
+            redirect_uri: OAuth 回调 URL（从请求中构建）
+
+        Returns:
+            授权 URL 或 None
+        """
+        if not self.is_provider_enabled(provider):
+            logger.warning(f"OAuth provider {provider.value} is not enabled")
+            return None
+
+        client = self._get_client(provider)
+        if not client:
+            logger.error(f"Failed to get OAuth client for {provider.value}")
+            return None
+
+        try:
+            if provider == OAuthProvider.GOOGLE:
+                url, _ = client.create_authorization_url(
+                    "https://accounts.google.com/o/oauth2/v2/auth",
+                    redirect_uri=redirect_uri,
+                    state=state,
+                    scope="openid email profile",
+                )
+                return url
+            elif provider == OAuthProvider.GITHUB:
+                url, _ = client.create_authorization_url(
+                    "https://github.com/login/oauth/authorize",
+                    redirect_uri=redirect_uri,
+                    state=state,
+                    scope="user:email read:user",
+                )
+                return url
+            elif provider == OAuthProvider.APPLE:
+                url, _ = client.create_authorization_url(
+                    "https://appleid.apple.com/auth/authorize",
+                    redirect_uri=redirect_uri,
+                    state=state,
+                    scope="name email",
+                    response_mode="form_post",
+                )
+                return url
+        except Exception as e:
+            logger.error(f"Failed to create authorization URL for {provider.value}: {e}")
+
+        return None
+
+    async def handle_callback(
+        self, provider: OAuthProvider, code: str, state: str, redirect_uri: str
+    ) -> Optional[Token]:
+        """
+        处理 OAuth 回调
+
+        Args:
+            provider: OAuth 提供商
+            code: 授权码
+            state: CSRF 状态码
+            redirect_uri: OAuth 回调 URL（从请求中构建）
+
+        Returns:
+            Token 或 None
+        """
+        if not self.is_provider_enabled(provider):
+            logger.warning(f"OAuth provider {provider.value} is not enabled")
+            return None
+
+        client = self._get_client(provider)
+        if not client:
+            logger.error(f"Failed to get OAuth client for {provider.value}")
+            return None
+
+        try:
+            # 获取 token URL
+            register_config = self._get_register_config(provider)
+            token_url = register_config.get("access_token_url") if register_config else None
+
+            # 交换 code 获取 token
+            token = await client.fetch_token(
+                token_url,
+                code=code,
+                redirect_uri=redirect_uri,
+            )
+
+            # 获取用户信息
+            user_info = await self._get_user_info(provider, token)
+            if not user_info:
+                logger.error(f"Failed to get user info from {provider.value}")
+                return None
+
+            # 查找或创建用户
+            user = await self._find_or_create_user(user_info)
+            if not user:
+                logger.error("Failed to find or create user")
+                return None
+
+            # 生成 JWT token
+            from src.infra.auth.jwt import create_access_token, create_refresh_token
+
+            access_token = create_access_token(user_id=user.id)
+            refresh_token = create_refresh_token(user_id=user.id, username=user.username)
+
+            return Token(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
+            )
+        except Exception as e:
+            logger.error(f"Failed to handle OAuth callback for {provider.value}: {e}")
+            return None
+
+    async def _get_user_info(
+        self, provider: OAuthProvider, token: Dict[str, Any]
+    ) -> Optional[OAuthUserInfo]:
+        """获取 OAuth 用户信息"""
+        try:
+            if provider == OAuthProvider.GOOGLE:
+                return await self._get_google_user_info(token)
+            elif provider == OAuthProvider.GITHUB:
+                return await self._get_github_user_info(token)
+            elif provider == OAuthProvider.APPLE:
+                return await self._get_apple_user_info(token)
+        except Exception as e:
+            logger.error(f"Failed to get user info from {provider.value}: {e}")
+        return None
+
+    async def _get_google_user_info(self, token: Dict[str, Any]) -> Optional[OAuthUserInfo]:
+        """获取 Google 用户信息"""
+        access_token = token.get("access_token")
+        if not access_token:
+            return None
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            data = resp.json()
+
+        return OAuthUserInfo(
+            provider=OAuthProvider.GOOGLE,
+            oauth_id=data["id"],
+            email=data["email"],
+            username=data.get("name", data["email"].split("@")[0]),
+            avatar_url=data.get("picture"),
+        )
+
+    async def _get_github_user_info(self, token: Dict[str, Any]) -> Optional[OAuthUserInfo]:
+        """获取 GitHub 用户信息"""
+        access_token = token.get("access_token")
+        if not access_token:
+            return None
+
+        async with httpx.AsyncClient() as client:
+            # 获取用户信息
+            resp = await client.get(
+                "https://api.github.com/user",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            data = resp.json()
+
+            # 获取邮箱（如果用户没有公开邮箱）
+            email = data.get("email")
+            if not email:
+                resp = await client.get(
+                    "https://api.github.com/user/emails",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                emails = resp.json()
+                if emails:
+                    email = emails[0].get("email")
+
+        if not email:
+            logger.error("No email found for GitHub user")
+            return None
+
+        return OAuthUserInfo(
+            provider=OAuthProvider.GITHUB,
+            oauth_id=str(data["id"]),
+            email=email,
+            username=data.get("login", email.split("@")[0]),
+            avatar_url=data.get("avatar_url"),
+        )
+
+    async def _get_apple_user_info(self, token: Dict[str, Any]) -> Optional[OAuthUserInfo]:
+        """获取 Apple 用户信息"""
+        # Apple 使用 ID token 直接解析用户信息
+        import base64
+        import json
+
+        id_token = token.get("id_token")
+        if not id_token:
+            return None
+
+        # 解码 ID token
+        parts = id_token.split(".")
+        if len(parts) != 3:
+            return None
+
+        # 解码 payload
+        payload = parts[1]
+        # 添加 padding 如果需要
+        padding = 4 - len(payload) % 4
+        if padding != 4:
+            payload += "=" * padding
+
+        data = json.loads(base64.urlsafe_b64decode(payload))
+
+        return OAuthUserInfo(
+            provider=OAuthProvider.APPLE,
+            oauth_id=data["sub"],
+            email=data.get("email", ""),
+            username=data.get("email", "").split("@")[0]
+            if data.get("email")
+            else f"apple_{data['sub'][:8]}",
+            avatar_url=None,
+        )
+
+    async def _find_or_create_user(self, user_info: OAuthUserInfo) -> Optional[User]:
+        """
+        查找或创建用户
+
+        Args:
+            user_info: OAuth 用户信息
+
+        Returns:
+            用户对象或 None
+        """
+        # 尝试通过 oauth_id 查找用户
+        user = await self.storage.get_by_oauth(user_info.provider.value, user_info.oauth_id)
+        if user:
+            return User.model_validate(user.model_dump())
+
+        # 尝试通过邮箱查找用户（如果已存在则绑定 OAuth）
+        existing_user = await self.storage.get_by_email(user_info.email)
+        if existing_user:
+            # 绑定 OAuth 到现有用户
+            from src.kernel.schemas.user import UserUpdate
+
+            await self.storage.update(
+                existing_user.id,
+                UserUpdate(
+                    oauth_provider=user_info.provider,
+                    oauth_id=user_info.oauth_id,
+                    # 如果用户没有头像，更新头像
+                    avatar_url=user_info.avatar_url or existing_user.avatar_url,
+                ),
+            )
+            return await self.storage.get_by_id(existing_user.id)
+
+        # 创建新用户
+        # 生成唯一的用户名
+        base_username = user_info.username
+        username = base_username
+        counter = 1
+
+        while await self.storage.get_by_username(username):
+            username = f"{base_username}{counter}"
+            counter += 1
+
+        user_data = UserCreate(
+            username=username,
+            email=user_info.email,
+            avatar_url=user_info.avatar_url,
+            oauth_provider=user_info.provider,
+            oauth_id=user_info.oauth_id,
+        )
+
+        user = await self.storage.create(user_data)
+        return User.model_validate(user.model_dump())
+
+
+# 单例
+_oauth_service: Optional[OAuthService] = None
+
+
+def get_oauth_service() -> OAuthService:
+    """获取 OAuth 服务单例"""
+    global _oauth_service
+    if _oauth_service is None:
+        _oauth_service = OAuthService()
+    return _oauth_service

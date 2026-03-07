@@ -137,7 +137,7 @@ make dev-all
 | 服务 | 地址 |
 |------|------|
 | API 文档 | http://localhost:8000/docs |
-| 前端 | http://localhost:5173 |
+| 前端 | http://localhost:3001 |
 | Redis | localhost:6379 |
 | MongoDB | localhost:27017 |
 

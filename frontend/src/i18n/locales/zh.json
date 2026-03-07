@@ -55,6 +55,12 @@
     "roles": "角色",
     "supportsUsernameOrEmailLogin": "支持使用用户名或邮箱登录",
     "termsHint": "登录即表示您同意我们的服务条款和隐私政策",
+    "poweredBy": "Powered by",
+    "oauthLoginFailed": "OAuth 登录失败，请稍后重试",
+    "completingLogin": "正在完成登录...",
+    "continueWith": "使用 {{provider}} 继续",
+    "orContinueWith": "或使用以下方式登录",
+    "or": "或",
     "username": "用户名",
     "usernameOrEmail": "用户名或邮箱",
     "usernameOrEmailPlaceholder": "请输入用户名或邮箱",
@@ -384,6 +390,17 @@
     "avatarUrl": "头像URL",
     "changeAvatar": "更换头像",
     "changePassword": "修改密码",
+    "browserNotification": "浏览器通知",
+    "browserNotificationDesc": "任务完成时接收桌面通知",
+    "notifications": "通知",
+    "enable": "启用",
+    "enabled": "已启用",
+    "denied": "已拒绝",
+    "retry": "重试",
+    "notSupported": "不支持",
+    "notificationDeniedHint": "请点击\"重试\"按钮，或在浏览器设置中手动启用",
+    "realtimeNotification": "实时通知",
+    "realtimeNotificationDesc": "通过 WebSocket 接收任务完成通知",
     "confirmPassword": "确认密码",
     "deleteAvatar": "删除头像",
     "email": "邮箱",
@@ -456,6 +473,7 @@
     "copyLink": "复制链接",
     "createFailed": "创建分享失败",
     "createShare": "创建分享",
+    "createChat": "创建对话",
     "createYourOwn": "创建您自己的对话",
     "deleteConfirm": "确定要取消分享吗？",
     "deleteFailed": "取消分享失败",
@@ -669,5 +687,9 @@
       "enterUsername": "请输入用户名",
       "passwordMinLength": "密码至少需要6个字符"
     }
+  },
+  "notification": {
+    "taskCompleted": "任务已完成",
+    "taskFailed": "任务失败"
   }
 }
