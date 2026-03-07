@@ -5,13 +5,14 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { Plus, Trash2, ChevronDown, X, Search, FolderPlus } from "lucide-react";
+import { Plus, ChevronDown, X, Search, FolderPlus } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useInView } from "react-intersection-observer";
 import { sessionApi, folderApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { FolderItem } from "../sidebar/FolderItem";
+import { SessionItem } from "../sidebar/SessionItem";
 import type { Folder } from "../../types";
 
 const PAGE_SIZE = 20;
@@ -236,11 +237,6 @@ export function SessionSidebar({
     isPullingRef.current = false;
   };
 
-  const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDeleteConfirm({ isOpen: true, sessionId });
-  };
-
   const confirmDeleteSession = async () => {
     const sessionId = deleteConfirm.sessionId;
     if (!sessionId) return;
@@ -456,7 +452,7 @@ export function SessionSidebar({
       <div className="px-2 pb-3 space-y-2">
         <button
           onClick={onNewSession}
-          className="w-full flex items-center gap-2 rounded-lg border border-gray-200 dark:border-stone-700 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-stone-900 dark:bg-stone-100 px-3 py-2.5 text-sm font-medium text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 transition-colors"
         >
           <Plus size={18} strokeWidth={2} />
           <span>{t("sidebar.newChat")}</span>
@@ -483,12 +479,12 @@ export function SessionSidebar({
                 setShowNewFolderInput(false);
               }
             }}
-            className="w-full rounded-lg border border-gray-200 dark:border-stone-700 bg-transparent px-3 py-2 text-sm text-gray-700 dark:text-stone-200 placeholder-gray-400 dark:placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+            className="w-full rounded-xl border border-stone-200 dark:border-stone-700 bg-transparent px-3 py-2.5 text-sm text-stone-700 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-stone-400 dark:focus:border-stone-500 transition-colors"
           />
         ) : (
           <button
             onClick={() => setShowNewFolderInput(true)}
-            className="w-full flex items-center gap-2 rounded-lg border border-gray-200 dark:border-stone-700 px-3 py-2 text-sm text-gray-500 dark:text-stone-400 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
+            className="w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
           >
             <FolderPlus size={18} strokeWidth={2} />
             <span>{t("sidebar.newFolder", "New Folder")}</span>
@@ -498,22 +494,22 @@ export function SessionSidebar({
 
       {/* Search */}
       <div className="px-2 pb-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100/80 dark:bg-stone-800/80">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-transparent focus-within:border-stone-400 dark:focus-within:border-stone-500 transition-colors">
           <Search
-            size={14}
-            className="flex-shrink-0 text-gray-400 dark:text-stone-500"
+            size={16}
+            className="flex-shrink-0 text-stone-400 dark:text-stone-500"
           />
           <input
             type="text"
             placeholder={t("common.search") + "..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 min-w-0 text-sm bg-transparent text-gray-700 dark:text-stone-200 placeholder-gray-400 dark:placeholder-stone-500 focus:outline-none"
+            className="flex-1 min-w-0 text-sm bg-transparent text-stone-700 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
+              className="flex-shrink-0 p-0.5 rounded text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
             >
               <X size={14} />
             </button>
@@ -646,41 +642,34 @@ export function SessionSidebar({
               );
               return groupedUncategorized.map((group) => (
                 <div key={group.label}>
-                  <div className="px-2 py-1.5 text-xs font-medium text-gray-400 dark:text-stone-500">
+                  <div className="px-2 py-2 mt-2 text-xs font-medium text-stone-400 dark:text-stone-500">
                     {group.label}
                   </div>
                   <div className="space-y-0.5">
                     {group.sessions
                       .filter((session) => session.id)
                       .map((session) => (
-                        <div
+                        <SessionItem
                           key={session.id}
-                          onClick={() => {
+                          session={session}
+                          isActive={currentSessionId === session.id}
+                          folders={folders}
+                          onSelect={() => {
                             onSelectSession(session.id);
                             onMobileClose?.();
                           }}
-                          className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 transition-colors ${
-                            currentSessionId === session.id
-                              ? "bg-gray-100 dark:bg-stone-800"
-                              : "hover:bg-gray-50 dark:hover:bg-stone-800/50"
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm text-gray-700 dark:text-stone-200">
-                              {getSessionTitle(session)}
-                            </div>
-                          </div>
-                          <button
-                            onClick={(e) => deleteSession(session.id, e)}
-                            className="flex-shrink-0 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-stone-700 transition-all"
-                            title={t("common.delete")}
-                          >
-                            <Trash2
-                              size={14}
-                              className="text-gray-400 hover:text-red-500 dark:text-stone-500 dark:hover:text-red-400"
-                            />
-                          </button>
-                        </div>
+                          onDelete={() =>
+                            setDeleteConfirm({
+                              isOpen: true,
+                              sessionId: session.id,
+                            })
+                          }
+                          onMoveToFolder={(folderId) =>
+                            handleMoveSession(session.id, folderId)
+                          }
+                          onSessionUpdate={handleSessionUpdate}
+                          isFavorite={false}
+                        />
                       ))}
                   </div>
                 </div>
@@ -700,26 +689,26 @@ export function SessionSidebar({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-100 dark:border-stone-800 px-2 py-1">
+      <div className="border-t border-stone-100 dark:border-stone-800 px-2 py-2">
         <div
           onClick={onShowProfile}
-          className="flex items-center gap-3 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+          className="flex items-center gap-3 rounded-xl p-3 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
         >
           {user?.avatar_url ? (
             <img
               src={user.avatar_url}
               alt={user?.username || "User"}
-              className="size-6 rounded-full object-cover flex-shrink-0"
+              className="size-8 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="flex size-6 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex-shrink-0">
-              <span className="text-base font-semibold text-white">
+            <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex-shrink-0">
+              <span className="text-sm font-semibold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
           )}
-          <div className="flex-1 min-w-0 space-y-1">
-            <div className="text-sm font-semibold text-gray-900 dark:text-stone-100 truncate">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-stone-700 dark:text-stone-200 truncate">
               {user?.username || "User"}
             </div>
           </div>

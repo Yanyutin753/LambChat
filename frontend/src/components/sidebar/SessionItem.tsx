@@ -1,10 +1,10 @@
 /**
- * Session item component with inline title editing
+ * Session item component with inline title editing and drag support
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Star, MoreHorizontal } from "lucide-react";
+import { Star, MoreHorizontal, GripVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Folder } from "../../types";
@@ -20,6 +20,8 @@ interface SessionItemProps {
   onMoveToFolder: (folderId: string | null) => void;
   onSessionUpdate: (session: BackendSession) => void;
   isFavorite?: boolean;
+  onDragStart?: (session: BackendSession) => void;
+  onDragEnd?: () => void;
 }
 
 export function SessionItem({
@@ -31,6 +33,8 @@ export function SessionItem({
   onMoveToFolder,
   onSessionUpdate,
   isFavorite = false,
+  onDragStart,
+  onDragEnd,
 }: SessionItemProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -38,6 +42,7 @@ export function SessionItem({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -120,28 +125,54 @@ export function SessionItem({
     setIsMenuOpen(true);
   };
 
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("text/plain", session.id);
+    e.dataTransfer.effectAllowed = "move";
+    setIsDragging(true);
+    onDragStart?.(session);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    onDragEnd?.();
+  };
+
   // Get display title
   const displayTitle = getSessionTitle(session);
 
   return (
     <>
       <div
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         onClick={() => {
           if (!isEditing) {
             onSelect();
           }
         }}
-        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2.5 transition-colors ${
+        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-150 ${
           isActive
-            ? "bg-gray-100 dark:bg-stone-800"
-            : "hover:bg-gray-50 dark:hover:bg-stone-800/50"
-        }`}
+            ? "bg-stone-100 dark:bg-stone-800 border-l-2 border-stone-900 dark:border-stone-100"
+            : "hover:bg-stone-50 dark:hover:bg-stone-800/50 border-l-2 border-transparent"
+        } ${isDragging ? "opacity-50" : ""}`}
       >
+        {/* Drag handle */}
+        <div
+          className="flex-shrink-0 cursor-grab opacity-0 group-hover:opacity-60 transition-opacity"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <GripVertical
+            size={14}
+            className="text-stone-300 dark:text-stone-600"
+          />
+        </div>
         {/* Favorite star icon */}
         {isFavorite && (
           <Star
             size={14}
-            className="flex-shrink-0 text-yellow-500 fill-yellow-500"
+            className="flex-shrink-0 text-amber-500 fill-amber-500"
           />
         )}
 
@@ -156,11 +187,17 @@ export function SessionItem({
               onKeyDown={handleKeyDown}
               onBlur={handleSaveTitle}
               disabled={isSaving}
-              className="w-full text-sm bg-transparent text-gray-700 dark:text-stone-200 border border-blue-500 dark:border-blue-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+              className="w-full text-sm bg-transparent text-stone-700 dark:text-stone-200 border border-stone-400 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <div className="truncate text-sm text-gray-700 dark:text-stone-200">
+            <div
+              className={`truncate text-sm ${
+                isActive
+                  ? "font-medium text-stone-900 dark:text-stone-100"
+                  : "text-stone-600 dark:text-stone-300"
+              }`}
+            >
               {displayTitle}
             </div>
           )}
@@ -171,12 +208,12 @@ export function SessionItem({
           <button
             ref={menuButtonRef}
             onClick={handleMenuClick}
-            className="flex-shrink-0 rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-stone-700 transition-all"
+            className="flex-shrink-0 rounded-lg p-1 opacity-0 group-hover:opacity-100 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all"
             title={t("sidebar.moreOptions", "More options")}
           >
             <MoreHorizontal
               size={14}
-              className="text-gray-400 hover:text-gray-600 dark:text-stone-500 dark:hover:text-stone-300"
+              className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
             />
           </button>
         )}
