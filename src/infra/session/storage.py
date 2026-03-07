@@ -184,3 +184,19 @@ class SessionStorage:
     async def get(self, session_id: str) -> Optional[Session]:
         """获取会话 (兼容旧 API)"""
         return await self.get_by_id(session_id)
+
+    async def clear_folder_id(self, folder_id: str, user_id: str) -> int:
+        """Clear folder_id for all sessions in a folder (when folder is deleted).
+
+        Args:
+            folder_id: The folder ID to clear
+            user_id: The user ID to filter sessions
+
+        Returns:
+            Number of modified sessions
+        """
+        result = await self.collection.update_many(
+            {"user_id": user_id, "metadata.folder_id": folder_id},
+            {"$set": {"metadata.folder_id": None, "updated_at": datetime.now()}},
+        )
+        return result.modified_count
