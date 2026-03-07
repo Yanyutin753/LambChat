@@ -445,7 +445,17 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                 <span>GitHub</span>
               </a>
               <span className="text-gray-300 dark:text-stone-600">·</span>
-              <span>{t("auth.poweredBy")} LambChat</span>
+              <span>
+                {t("auth.poweredBy")}{" "}
+                <a
+                  href="https://github.com/lambchat/lambchat"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-serif text-gray-600 hover:text-gray-900 dark:text-stone-400 dark:hover:text-stone-200"
+                >
+                  LambChat
+                </a>
+              </span>
               <span className="text-gray-300 dark:text-stone-600">·</span>
               <span>{new Date().getFullYear()}</span>
             </div>

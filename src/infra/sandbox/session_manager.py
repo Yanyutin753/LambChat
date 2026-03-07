@@ -333,6 +333,7 @@ class SessionSandboxManager:
         def _sync_create():
             client = self._get_daytona_client()
             params = CreateSandboxFromSnapshotParams(
+                auto_delete_interval=settings.SANDBOX_AUTO_DELETE_INTERVAL,
                 auto_stop_interval=settings.SANDBOX_AUTO_STOP_INTERVAL,
                 auto_archive_interval=settings.SANDBOX_AUTO_ARCHIVE_INTERVAL,
                 language="python",

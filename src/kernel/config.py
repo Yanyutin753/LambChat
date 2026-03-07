@@ -303,6 +303,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 5,
         "depends_on": "ENABLE_SANDBOX",
     },
+    "SANDBOX_AUTO_DELETE_INTERVAL": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SANDBOX,
+        "description": "Sandbox auto-delete interval in minutes after being archived",
+        "default": 1440,
+        "depends_on": "ENABLE_SANDBOX",
+    },
     "MODAL_APP_NAME": {
         "type": SettingType.STRING,
         "category": SettingCategory.SANDBOX,
@@ -796,6 +803,7 @@ class Settings(BaseSettings):
     DAYTONA_IMAGE: str = ""  # Optional: sandbox image/snapshot
     SANDBOX_AUTO_STOP_INTERVAL: int = 5  # minutes
     SANDBOX_AUTO_ARCHIVE_INTERVAL: int = 5  # minutes
+    SANDBOX_AUTO_DELETE_INTERVAL: int = 1440  # minutes
     MODAL_APP_NAME: str = ""
 
     # Skills Settings

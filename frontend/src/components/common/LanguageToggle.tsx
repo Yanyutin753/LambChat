@@ -60,7 +60,7 @@ export function LanguageToggle() {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        <Languages size={18} />
+        <Languages size={20} />
       </button>
 
       {isOpen && (
