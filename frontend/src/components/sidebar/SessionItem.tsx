@@ -152,26 +152,26 @@ export function SessionItem({
             onSelect();
           }
         }}
-        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-150 ${
+        className={`group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 transition-all duration-150 ${
           isActive
-            ? "bg-stone-100 dark:bg-stone-800 border-l-2 border-stone-900 dark:border-stone-100"
+            ? "bg-violet-50 dark:bg-violet-900/30 border-l-2 border-violet-500 dark:border-violet-400"
             : "hover:bg-stone-50 dark:hover:bg-stone-800/50 border-l-2 border-transparent"
         } ${isDragging ? "opacity-50" : ""}`}
       >
         {/* Drag handle */}
         <div
-          className="flex-shrink-0 cursor-grab opacity-0 group-hover:opacity-60 transition-opacity"
+          className="flex-shrink-0 cursor-grab opacity-0 group-hover:opacity-50 transition-opacity"
           onMouseDown={(e) => e.stopPropagation()}
         >
           <GripVertical
-            size={14}
+            size={12}
             className="text-stone-300 dark:text-stone-600"
           />
         </div>
         {/* Favorite star icon */}
         {isFavorite && (
           <Star
-            size={14}
+            size={12}
             className="flex-shrink-0 text-amber-500 fill-amber-500"
           />
         )}
@@ -187,15 +187,15 @@ export function SessionItem({
               onKeyDown={handleKeyDown}
               onBlur={handleSaveTitle}
               disabled={isSaving}
-              className="w-full text-sm bg-transparent text-stone-700 dark:text-stone-200 border border-stone-400 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none"
+              className="w-full text-sm bg-transparent text-stone-700 dark:text-stone-200 border border-violet-400 dark:border-violet-500 rounded px-1.5 py-0.5 focus:outline-none"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <div
               className={`truncate text-sm ${
                 isActive
-                  ? "font-medium text-stone-900 dark:text-stone-100"
-                  : "text-stone-600 dark:text-stone-300"
+                  ? "font-medium text-violet-700 dark:text-violet-300"
+                  : "text-stone-600 dark:text-stone-400"
               }`}
             >
               {displayTitle}
@@ -208,7 +208,7 @@ export function SessionItem({
           <button
             ref={menuButtonRef}
             onClick={handleMenuClick}
-            className="flex-shrink-0 rounded-lg p-1 opacity-0 group-hover:opacity-100 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all"
+            className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all"
             title={t("sidebar.moreOptions", "More options")}
           >
             <MoreHorizontal

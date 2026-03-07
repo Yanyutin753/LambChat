@@ -154,25 +154,25 @@ export function FolderItem({
   };
 
   return (
-    <div className="mb-1">
+    <div className="mb-0.5">
       {/* Folder header - drop target */}
       <div
         onClick={handleToggle}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-200 ${
+        className={`group relative flex cursor-pointer items-center gap-1.5 rounded-lg px-1.5 py-1.5 transition-all duration-150 ${
           isDragOver
-            ? "bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-400 dark:ring-blue-500"
+            ? "bg-violet-50 dark:bg-violet-900/20 ring-1 ring-violet-400 dark:ring-violet-500"
             : isExpanded
-              ? "bg-stone-100/70 dark:bg-stone-800/70"
-              : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
+              ? "bg-stone-100/60 dark:bg-stone-800/60"
+              : "hover:bg-stone-50 dark:hover:bg-stone-800/40"
         }`}
       >
         {/* Chevron icon */}
         <ChevronRight
-          size={16}
-          className={`flex-shrink-0 text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
+          size={14}
+          className={`flex-shrink-0 text-stone-400 dark:text-stone-500 transition-transform duration-150 ${
             isExpanded ? "rotate-90" : ""
           }`}
         />
@@ -180,13 +180,13 @@ export function FolderItem({
         {/* Folder icon */}
         {isFavorites ? (
           <Star
-            size={16}
+            size={14}
             className="flex-shrink-0 text-amber-500 fill-amber-500"
           />
         ) : (
           <FolderIcon
-            size={16}
-            className="flex-shrink-0 text-stone-400 dark:text-stone-500"
+            size={14}
+            className="flex-shrink-0 text-violet-500 dark:text-violet-400"
           />
         )}
 
@@ -201,11 +201,11 @@ export function FolderItem({
               onKeyDown={handleKeyDown}
               onBlur={handleSaveName}
               disabled={isSaving}
-              className="w-full text-sm font-medium bg-transparent text-stone-700 dark:text-stone-200 border border-stone-400 dark:border-stone-500 rounded px-1.5 py-0.5 focus:outline-none"
+              className="w-full text-sm font-medium bg-transparent text-stone-700 dark:text-stone-200 border border-violet-400 dark:border-violet-500 rounded px-1.5 py-0.5 focus:outline-none"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <div className="truncate text-sm font-medium text-stone-700 dark:text-stone-200">
+            <div className="truncate text-sm font-medium text-stone-600 dark:text-stone-300">
               {isFavorites ? t("sidebar.favorites", "Favorites") : folder.name}
             </div>
           )}
@@ -213,7 +213,7 @@ export function FolderItem({
 
         {/* Session count badge */}
         {sessions.length > 0 && (
-          <span className="flex-shrink-0 text-xs text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-700 rounded-full px-2 py-0.5 font-medium">
+          <span className="flex-shrink-0 text-[10px] text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-700 rounded px-1.5 py-0.5 font-medium">
             {sessions.length}
           </span>
         )}
@@ -223,7 +223,7 @@ export function FolderItem({
           <button
             ref={menuButtonRef}
             onClick={handleMenuClick}
-            className="flex-shrink-0 rounded-lg p-1 opacity-0 group-hover:opacity-100 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all"
+            className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 hover:bg-stone-200 dark:hover:bg-stone-700 transition-all"
             title={t("sidebar.moreOptions", "More options")}
           >
             <MoreHorizontal
@@ -236,7 +236,7 @@ export function FolderItem({
 
       {/* Expandable content - sessions list */}
       {isExpanded && sessions.length > 0 && (
-        <div className="ml-3 mt-1 space-y-0.5 border-l-2 border-stone-200 dark:border-stone-700 pl-3">
+        <div className="ml-2.5 mt-0.5 space-y-0.5 border-l border-stone-200 dark:border-stone-700 pl-2">
           {sessions.map((session) => (
             <SessionItem
               key={session.id}

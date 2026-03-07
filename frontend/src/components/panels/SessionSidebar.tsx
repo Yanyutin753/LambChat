@@ -449,12 +449,12 @@ export function SessionSidebar({
       </div>
 
       {/* New chat and new folder buttons */}
-      <div className="px-2 pb-3 space-y-2">
+      <div className="px-2 pb-2 space-y-1.5">
         <button
           onClick={onNewSession}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-stone-900 dark:bg-stone-100 px-3 py-2.5 text-sm font-medium text-white dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 transition-colors"
+          className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-violet-600 dark:bg-violet-500 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700 dark:hover:bg-violet-600 transition-colors"
         >
-          <Plus size={18} strokeWidth={2} />
+          <Plus size={16} strokeWidth={2.5} />
           <span>{t("sidebar.newChat")}</span>
         </button>
 
@@ -479,24 +479,24 @@ export function SessionSidebar({
                 setShowNewFolderInput(false);
               }
             }}
-            className="w-full rounded-xl border border-stone-200 dark:border-stone-700 bg-transparent px-3 py-2.5 text-sm text-stone-700 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-stone-400 dark:focus:border-stone-500 transition-colors"
+            className="w-full rounded-lg border border-stone-200 dark:border-stone-700 bg-transparent px-2.5 py-1.5 text-sm text-stone-700 dark:text-stone-200 placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-colors"
           />
         ) : (
           <button
             onClick={() => setShowNewFolderInput(true)}
-            className="w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
           >
-            <FolderPlus size={18} strokeWidth={2} />
+            <FolderPlus size={16} strokeWidth={2} />
             <span>{t("sidebar.newFolder", "New Folder")}</span>
           </button>
         )}
       </div>
 
       {/* Search */}
-      <div className="px-2 pb-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-transparent focus-within:border-stone-400 dark:focus-within:border-stone-500 transition-colors">
+      <div className="px-2 pb-1.5">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-transparent focus-within:border-violet-400 dark:focus-within:border-violet-500 transition-colors">
           <Search
-            size={16}
+            size={14}
             className="flex-shrink-0 text-stone-400 dark:text-stone-500"
           />
           <input
@@ -511,7 +511,7 @@ export function SessionSidebar({
               onClick={() => setSearchQuery("")}
               className="flex-shrink-0 p-0.5 rounded text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           )}
         </div>
@@ -642,7 +642,7 @@ export function SessionSidebar({
               );
               return groupedUncategorized.map((group) => (
                 <div key={group.label}>
-                  <div className="px-2 py-2 mt-2 text-xs font-medium text-stone-400 dark:text-stone-500">
+                  <div className="px-2 py-1.5 mt-1.5 text-xs font-medium text-stone-400 dark:text-stone-500">
                     {group.label}
                   </div>
                   <div className="space-y-0.5">
@@ -689,20 +689,20 @@ export function SessionSidebar({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-stone-100 dark:border-stone-800 px-2 py-2">
+      <div className="border-t border-stone-100 dark:border-stone-800 px-2 py-1.5">
         <div
           onClick={onShowProfile}
-          className="flex items-center gap-3 rounded-xl p-3 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+          className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
         >
           {user?.avatar_url ? (
             <img
               src={user.avatar_url}
               alt={user?.username || "User"}
-              className="size-8 rounded-full object-cover flex-shrink-0"
+              className="size-7 rounded-full object-cover flex-shrink-0"
             />
           ) : (
-            <div className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex-shrink-0">
-              <span className="text-sm font-semibold text-white">
+            <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex-shrink-0">
+              <span className="text-xs font-semibold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
