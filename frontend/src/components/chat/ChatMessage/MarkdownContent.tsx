@@ -268,12 +268,12 @@ export const MarkdownContent = memo(function MarkdownContent({
             </tr>
           ),
           th: ({ children }) => (
-            <th className="px-3 py-2 text-left text-xs font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
+            <th className="px-3 py-2 text-left text-xs font-semibold text-stone-700 dark:text-stone-300 uppercase tracking-wider whitespace-nowrap min-w-[60px]">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-3 py-2 text-sm text-stone-600 dark:text-stone-400 whitespace-nowrap">
+            <td className="px-3 py-2 text-sm text-stone-600 dark:text-stone-400 whitespace-nowrap min-w-[60px]">
               {children}
             </td>
           ),
