@@ -145,7 +145,7 @@ class FastAgent(BaseGraphAgent):
                 "agent_options": agent_options,
                 "base_url": kwargs.get("base_url", ""),
             },
-            "recursion_limit": self.recursion_limit,
+            "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,
         }
 
         # 初始状态

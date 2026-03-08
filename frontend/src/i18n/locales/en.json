@@ -506,7 +506,7 @@
     "noPermission": "No permission to share sessions",
     "noRuns": "No conversations available",
     "noUserMessage": "No user messages",
-    "userMessage": "({{message}})",
+    "userMessage": "(User Message: {{message}})",
     "notFound": "Share Not Found",
     "notFoundDesc": "This share link is invalid or has been removed",
     "partialSession": "Partial Content",

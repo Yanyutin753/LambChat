@@ -264,14 +264,14 @@ export function ShareDialog({
                       key={run.run_id}
                       type="button"
                       onClick={() => handleRunClick(run.run_id)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                      className={`w-full grid grid-cols-[auto_4rem_1fr] items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                         selectedRunIds.includes(run.run_id)
                           ? "bg-stone-100 dark:bg-stone-700 text-stone-700 dark:text-stone-200"
                           : "hover:bg-gray-50 dark:hover:bg-stone-700 text-gray-700 dark:text-stone-300"
                       }`}
                     >
                       <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                        className={`w-4 h-4 rounded border flex items-center justify-center ${
                           selectedRunIds.includes(run.run_id)
                             ? "border-stone-500 bg-stone-500 dark:border-stone-400 dark:bg-stone-400"
                             : "border-gray-300 dark:border-stone-500"
@@ -281,15 +281,18 @@ export function ShareDialog({
                           <Check size={12} className="text-white" />
                         )}
                       </div>
-                      <span className="flex-1 min-w-0">
-                        {t("share.runNumber", { number: index + 1 })}
+                      <span className="flex items-center gap-0.5 whitespace-nowrap">
+                        <span>{t("share.run")}</span>
+                        <span className="w-5 text-center tabular-nums">
+                          {index + 1}
+                        </span>
                       </span>
-                      <span className="text-xs text-gray-400 dark:text-stone-500 truncate">
-                        {run.user_message
-                          ? t("share.userMessage", {
-                              message: run.user_message,
-                            })
-                          : t("share.noUserMessage")}
+                      <span className="min-w-0 text-xs text-gray-400 dark:text-stone-500 truncate text-left">
+                        {t("share.userMessage", {
+                          message: (
+                            run.user_message || t("share.noUserMessage")
+                          ).replace(/\s+/g, " "),
+                        })}
                       </span>
                     </button>
                   ))}

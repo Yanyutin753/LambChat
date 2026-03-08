@@ -98,7 +98,7 @@ class SearchAgent(BaseGraphAgent):
         builder = GraphBuilder(self.state_class)
         self.build_graph(builder)
         self._graph = builder.compile(
-            checkpointer=None,  # 不使用 checkpoint
+            checkpointer=None,
             recursion_limit=settings.SESSION_MAX_RUNS_PER_SESSION,
         )
 
@@ -164,7 +164,7 @@ class SearchAgent(BaseGraphAgent):
                 "disabled_tools": disabled_tools,
                 "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
             },
-            "recursion_limit": self.recursion_limit,
+            "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,
         }
 
         # 初始状态

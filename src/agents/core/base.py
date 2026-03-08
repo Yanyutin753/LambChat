@@ -17,6 +17,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from src.infra.writer.present import Presenter, PresenterConfig
+from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +85,8 @@ class BaseGraphAgent(ABC):
     # 格式: {"option_name": {"type": "boolean", "default": False, "label": "...", "description": "..."}}
     _options: Dict[str, Dict[str, Any]] = {}
 
-    def __init__(self, recursion_limit: int = 100, enable_checkpointer: bool = True):
-        self.recursion_limit = recursion_limit
+    def __init__(self, recursion_limit: int | None = None, enable_checkpointer: bool = True):
+        self.recursion_limit = recursion_limit or settings.SESSION_MAX_RUNS_PER_SESSION
         self.enable_checkpointer = enable_checkpointer
         self._graph: Any = None
         self._checkpointer: MemorySaver | None = None
@@ -468,7 +469,7 @@ class GraphBuilder:
         self._conditional_edges.append((from_node, condition, path_map))
         return self
 
-    def compile(self, checkpointer=None, recursion_limit: int = 100) -> Any:
+    def compile(self, checkpointer=None, recursion_limit: int | None = None) -> Any:
         """编译 graph"""
         graph: StateGraph = StateGraph(self._state_class)
 
