@@ -26,6 +26,7 @@ import {
   createToolPart,
   createThinkingPart,
   createSubagentPart,
+  clearAllLoadingStates,
 } from "./messageParts";
 
 /**
@@ -595,17 +596,31 @@ function handleError(
   ctx: EventHandlerContext,
 ): void {
   const errorMsg = data.error || "Unknown error";
+  const isCancelled = data.type === "CancelledError";
+
   ctx.setMessages((prev) =>
     prev.map((m) => {
       if (m.id !== messageId) return m;
+      if (isCancelled) {
+        // For cancellation, preserve content and mark as cancelled
+        return {
+          ...m,
+          isStreaming: false,
+          cancelled: true,
+          parts: clearAllLoadingStates(m.parts || []),
+        };
+      }
+      // Regular error: show error message
       return {
         ...m,
         content: `Error: ${errorMsg}`,
         isStreaming: false,
+        parts: clearAllLoadingStates(m.parts || []),
       };
     }),
   );
   ctx.setConnectionStatus("disconnected");
+  ctx.setIsInitializingSandbox(false);
   ctx.options?.onClearApprovals?.();
 }
 
