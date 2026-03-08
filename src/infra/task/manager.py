@@ -295,6 +295,12 @@ class BackgroundTaskManager:
                     trace_id=trace_id,
                     run_id=run_id,
                 )
+                # 再次刷新，确保 error 事件被持久化
+                try:
+                    await dual_writer._flush_redis_buffer()
+                    await dual_writer.flush_mongo_buffer()
+                except Exception:
+                    pass
             logger.warning(f"Task cancelled: session={session_id}, run_id={run_id}")
             # 发送任务取消通知
             await self._send_task_notification(
@@ -329,6 +335,12 @@ class BackgroundTaskManager:
                     trace_id=trace_id,
                     run_id=run_id,
                 )
+                # 再次刷新，确保 error 事件被持久化
+                try:
+                    await dual_writer._flush_redis_buffer()
+                    await dual_writer.flush_mongo_buffer()
+                except Exception:
+                    pass
             logger.info(f"Task interrupted: session={session_id}, run_id={run_id}")
             # 发送任务中断通知
             await self._send_task_notification(
@@ -362,6 +374,12 @@ class BackgroundTaskManager:
                     trace_id=trace_id,
                     run_id=run_id,
                 )
+                # 再次刷新，确保 error 事件被持久化
+                try:
+                    await dual_writer._flush_redis_buffer()
+                    await dual_writer.flush_mongo_buffer()
+                except Exception:
+                    pass
 
             # 发送任务失败通知
             await self._send_task_notification(
@@ -603,8 +621,18 @@ class BackgroundTaskManager:
         info = self._run_info.get(run_id)
         return info.get("trace_id") if info else None
 
-    async def cancel(self, session_id: str) -> bool:
-        """取消任务（支持分布式）"""
+    async def cancel(self, session_id: str) -> Dict[str, Any]:
+        """
+        取消任务（支持分布式）
+
+        Returns:
+            {
+                "success": bool,  # 中断信号是否成功设置
+                "cancelled_locally": bool,  # 是否在本地实例取消
+                "run_id": str | None,  # 被取消的 run_id
+                "message": str  # 状态信息
+            }
+        """
         # 获取 current_run_id
         try:
             session = await self.storage.get_by_session_id(session_id)
@@ -612,11 +640,23 @@ class BackgroundTaskManager:
                 run_id = session.metadata.get("current_run_id")
                 if run_id:
                     return await self.cancel_run(run_id)
-        except Exception:
-            pass
-        return False
+                else:
+                    return {
+                        "success": False,
+                        "cancelled_locally": False,
+                        "run_id": None,
+                        "message": "没有正在运行的任务",
+                    }
+        except Exception as e:
+            logger.warning(f"Failed to cancel session {session_id}: {e}")
+        return {
+            "success": False,
+            "cancelled_locally": False,
+            "run_id": None,
+            "message": "取消失败",
+        }
 
-    async def cancel_run(self, run_id: str, publish: bool = True) -> bool:
+    async def cancel_run(self, run_id: str, publish: bool = True) -> Dict[str, Any]:
         """
         取消特定 run 的任务（支持分布式）
 
@@ -625,9 +665,15 @@ class BackgroundTaskManager:
             publish: 是否通过 Redis pub/sub 广播取消信号（用于分布式场景）
 
         Returns:
-            是否成功取消
+            {
+                "success": bool,  # 中断信号是否成功设置
+                "cancelled_locally": bool,  # 是否在本地实例取消
+                "run_id": str,  # 被取消的 run_id
+                "message": str  # 状态信息
+            }
         """
         cancelled_locally = False
+        interrupt_signal_set = False
 
         # 1. 立即设置内存中的中断标志（最快）
         global _interrupted_runs
@@ -642,6 +688,7 @@ class BackgroundTaskManager:
                 datetime.now().isoformat(),
                 ex=300,  # 5 分钟过期
             )
+            interrupt_signal_set = True
             logger.info(f"Redis interrupt signal set for run_id={run_id}")
         except Exception as e:
             logger.warning(f"Failed to set interrupt signal: {e}")
@@ -705,7 +752,23 @@ class BackgroundTaskManager:
             except Exception as e:
                 logger.warning(f"Failed to publish cancel signal: {e}")
 
-        return cancelled_locally
+        # 构建返回结果
+        # success: 中断信号成功设置即认为成功（即使任务在其他实例运行）
+        success = interrupt_signal_set or run_id in _interrupted_runs
+
+        if cancelled_locally:
+            message = "任务已取消"
+        elif success:
+            message = "取消信号已发送，任务将在下次检查点中断"
+        else:
+            message = "取消信号设置失败"
+
+        return {
+            "success": success,
+            "cancelled_locally": cancelled_locally,
+            "run_id": run_id,
+            "message": message,
+        }
 
     @staticmethod
     async def check_interrupt(run_id: str) -> None:
