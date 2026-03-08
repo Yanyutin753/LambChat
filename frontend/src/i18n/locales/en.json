@@ -119,6 +119,7 @@
       "tokenCacheCreation": "Cache Creation",
       "tokenCacheRead": "Cache Read",
       "tokenTotal": "Total",
+      "cancelled": "Generation cancelled",
       "toolCalls": "Tool Calls"
     },
     "noPermission": "No permission to send messages",

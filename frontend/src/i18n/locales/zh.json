@@ -119,6 +119,7 @@
       "tokenCacheCreation": "缓存写入",
       "tokenCacheRead": "缓存读取",
       "tokenTotal": "总计",
+      "cancelled": "生成已取消",
       "toolCalls": "工具调用"
     },
     "noPermission": "没有发送消息的权限",

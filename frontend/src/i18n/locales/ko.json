@@ -118,6 +118,7 @@
       "tokenCacheCreation": "캐시 생성",
       "tokenCacheRead": "캐시 읽기",
       "tokenTotal": "총계",
+      "cancelled": "생성이 취소되었습니다",
       "toolCalls": "도구 호출"
     },
     "noPermission": "메시지를 보낼 권한이 없습니다",

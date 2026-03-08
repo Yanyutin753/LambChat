@@ -118,6 +118,7 @@
       "tokenCacheCreation": "キャッシュ作成",
       "tokenCacheRead": "キャッシュ読込",
       "tokenTotal": "合計",
+      "cancelled": "生成がキャンセルされました",
       "toolCalls": "ツール呼び出し"
     },
     "noPermission": "メッセージを送信する権限がありません",
