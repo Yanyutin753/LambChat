@@ -58,14 +58,25 @@ class DaytonaBackend(BaseSandbox):
         return self._work_dir
 
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
-        effective_timeout = timeout if timeout is not None else self._timeout
-        result = self._sandbox.process.exec(command, timeout=effective_timeout)
+        effective_timeout = min(timeout or self._timeout, self._timeout)
 
-        return ExecuteResponse(
-            output=result.result,
-            exit_code=result.exit_code,
-            truncated=False,
-        )
+        future = self._pool.submit(self._sandbox.process.exec, command, timeout=effective_timeout)
+
+        try:
+            result = future.result(timeout=effective_timeout)
+            return ExecuteResponse(
+                output=result.result,
+                exit_code=result.exit_code,
+                truncated=False,
+            )
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            logger.warning(f"Command timed out after {effective_timeout}s: {command[:100]}...")
+            return ExecuteResponse(
+                output=f"Command timed out after {effective_timeout} seconds",
+                exit_code=-1,
+                truncated=False,
+            )
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         """Download files from the sandbox."""
