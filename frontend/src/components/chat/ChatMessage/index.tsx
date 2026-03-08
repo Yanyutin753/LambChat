@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Bot, Copy, Info } from "lucide-react";
+import { Bot, Copy, Info, Ban } from "lucide-react";
 import type {
   Message,
   MessagePart,
@@ -43,6 +43,25 @@ function ThinkingIndicator() {
         <div className="skeleton-line flex-1 h-2 rounded-sm" />
         <div className="skeleton-line w-2/5 h-2 rounded-sm" />
       </div>
+    </div>
+  );
+}
+
+// Cancelled message banner component
+function CancelledBanner() {
+  const { t } = useTranslation();
+  return (
+    <div
+      className={clsx(
+        "flex items-center gap-2 px-3 py-2 rounded-lg",
+        "bg-orange-50 dark:bg-orange-950/30",
+        "border border-orange-200 dark:border-orange-800",
+        "text-orange-700 dark:text-orange-400",
+        "text-sm",
+      )}
+    >
+      <Ban size={16} />
+      <span>{t("chat.message.cancelled")}</span>
     </div>
   );
 }
@@ -275,6 +294,8 @@ export function ChatMessage({
               )}
             </>
           )}
+          {/* Cancelled banner */}
+          {message.cancelled && <CancelledBanner />}
         </div>
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && (
