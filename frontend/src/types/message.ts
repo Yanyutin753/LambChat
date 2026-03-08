@@ -26,6 +26,8 @@ export interface Message {
   feedback?: import("./feedback").RatingValue;
   // 反馈 ID
   feedbackId?: string;
+  // 是否被取消
+  cancelled?: boolean;
 }
 
 // 消息内容块类型
