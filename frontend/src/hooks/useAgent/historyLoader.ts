@@ -397,6 +397,19 @@ function processHistoryEvent(
       msg.duration = tokenData.duration ? tokenData.duration * 1000 : undefined;
       break;
     }
+
+    case "error": {
+      const errorData = event.data as {
+        error?: string;
+        type?: string;
+      };
+      if (errorData.type === "CancelledError") {
+        msg.cancelled = true;
+      } else {
+        msg.content = `Error: ${errorData.error || "Unknown error"}`;
+      }
+      break;
+    }
   }
 
   return msg;
