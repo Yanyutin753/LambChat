@@ -5,7 +5,6 @@
 支持客户端侧强制超时，通过 DAYTONA_TIMEOUT 配置（settings > 环境变量 > 默认值）。
 """
 
-import concurrent.futures
 import logging
 import os
 
@@ -29,7 +28,7 @@ _DEFAULT_TIMEOUT = 30 * 60
 class DaytonaBackend(BaseSandbox):
     """Daytona 沙箱后端
 
-    仅 execute() 走 shell 命令。客户端侧强制超时。
+    仅 execute() 走 shell 命令，使用 Daytona 服务端超时。
     """
 
     def __init__(
@@ -44,7 +43,6 @@ class DaytonaBackend(BaseSandbox):
             or settings.DAYTONA_TIMEOUT
             or int(os.environ.get("DAYTONA_TIMEOUT", _DEFAULT_TIMEOUT))
         )
-        self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
     @property
     def id(self) -> str:
@@ -60,17 +58,14 @@ class DaytonaBackend(BaseSandbox):
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         effective_timeout = min(timeout or self._timeout, self._timeout)
 
-        future = self._pool.submit(self._sandbox.process.exec, command, timeout=effective_timeout)
-
         try:
-            result = future.result(timeout=effective_timeout)
+            result = self._sandbox.process.exec(command, timeout=effective_timeout)
             return ExecuteResponse(
                 output=result.result,
                 exit_code=result.exit_code,
                 truncated=False,
             )
-        except concurrent.futures.TimeoutError:
-            future.cancel()
+        except TimeoutError:
             logger.warning(f"Command timed out after {effective_timeout}s: {command[:100]}...")
             return ExecuteResponse(
                 output=f"Command timed out after {effective_timeout} seconds",
