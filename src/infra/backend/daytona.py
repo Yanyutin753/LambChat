@@ -10,6 +10,7 @@ import os
 
 import daytona
 from daytona import FileDownloadRequest, FileUpload
+from daytona._utils.errors import DaytonaTimeoutError
 from deepagents.backends.protocol import (
     ExecuteResponse,
     FileDownloadResponse,
@@ -65,7 +66,7 @@ class DaytonaBackend(BaseSandbox):
                 exit_code=result.exit_code,
                 truncated=False,
             )
-        except TimeoutError:
+        except DaytonaTimeoutError:
             logger.warning(f"Command timed out after {effective_timeout}s: {command[:100]}...")
             return ExecuteResponse(
                 output=f"Command timed out after {effective_timeout} seconds",
