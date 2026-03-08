@@ -42,7 +42,8 @@ class DualEventWriter:
         self._trace = None
         self._ttl_set_keys: set[str] = set()
         # MongoDB 批量写入缓冲
-        self._mongo_buffer: list[tuple[str, str, dict, str, Optional[str]]] = []
+        # (trace_id, event_type, data, session_id, run_id, timestamp)
+        self._mongo_buffer: list[tuple[str, str, dict, str, Optional[str], datetime]] = []
         self._mongo_lock = asyncio.Lock()  # 保护 buffer 和 flush 操作
         self._flush_scheduled = False  # 是否已调度刷新
 
@@ -96,12 +97,15 @@ class DualEventWriter:
         - Redis: 立即写入
         - MongoDB: 缓冲写入，批量刷新
         """
+        # 统一时间戳，确保 Redis 和 MongoDB 使用相同的时间
+        timestamp = _utc_now()
+
         # ---- Redis 写入（立即） ----
         stream_key = self._stream_key(session_id, run_id)
         fields = {
             "event_type": event_type,
             "data": (json.dumps(data, ensure_ascii=False) if isinstance(data, dict) else str(data)),
-            "timestamp": _utc_now().isoformat(),
+            "timestamp": timestamp.isoformat(),
         }
         redis_success = await self._write_to_redis_direct(stream_key, fields)
 
@@ -109,7 +113,9 @@ class DualEventWriter:
         if trace_id:
             should_flush_now = False
             async with self._mongo_lock:
-                self._mongo_buffer.append((trace_id, event_type, data, session_id, run_id))
+                self._mongo_buffer.append(
+                    (trace_id, event_type, data, session_id, run_id, timestamp)
+                )
                 # 达到批量大小立即刷新
                 if len(self._mongo_buffer) >= _MONGO_BATCH_SIZE:
                     should_flush_now = True
@@ -147,12 +153,12 @@ class DualEventWriter:
         grouped: dict[str, list[dict]] = defaultdict(list)
         trace_context: dict[str, tuple[str, Optional[str]]] = {}
 
-        for trace_id, event_type, data, session_id, run_id in batch:
+        for trace_id, event_type, data, session_id, run_id, timestamp in batch:
             grouped[trace_id].append(
                 {
                     "event_type": event_type,
                     "data": data,
-                    "timestamp": _utc_now(),
+                    "timestamp": timestamp,  # 保留原始时间戳
                 }
             )
             if trace_id not in trace_context:

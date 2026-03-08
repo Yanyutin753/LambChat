@@ -47,25 +47,6 @@ function ThinkingIndicator() {
   );
 }
 
-// Cancelled message banner component
-function CancelledBanner() {
-  const { t } = useTranslation();
-  return (
-    <div
-      className={clsx(
-        "flex items-center gap-2 px-3 py-2 rounded-lg",
-        "bg-orange-50 dark:bg-orange-950/30",
-        "border border-orange-200 dark:border-orange-800",
-        "text-orange-700 dark:text-orange-400",
-        "text-sm",
-      )}
-    >
-      <Ban size={16} />
-      <span>{t("chat.message.cancelled")}</span>
-    </div>
-  );
-}
-
 interface ChatMessageProps {
   message: Message;
   sessionId?: string;
@@ -294,8 +275,6 @@ export function ChatMessage({
               )}
             </>
           )}
-          {/* Cancelled banner */}
-          {message.cancelled && <CancelledBanner />}
         </div>
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && (
@@ -432,6 +411,25 @@ function MessagePartRenderer({
         sandboxId={part.sandbox_id}
         error={part.error}
       />
+    );
+  }
+
+  // Cancelled block
+  if (part.type === "cancelled") {
+    const { t } = useTranslation();
+    return (
+      <div
+        className={clsx(
+          "flex items-center gap-2 px-4u py-2.5 rounded-xl mt-4",
+          "bg-amber-50 dark:bg-amber-950/40",
+          "border border-amber-200/60 dark:border-amber-800/60",
+          "text-amber-700 dark:text-amber-400",
+          "text-sm font-medium",
+        )}
+      >
+        <Ban size={16} className="shrink-0" />
+        <span>{t("chat.message.cancelled")}</span>
+      </div>
     );
   }
 

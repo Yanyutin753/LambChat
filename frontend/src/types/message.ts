@@ -37,7 +37,8 @@ export type MessagePart =
   | SubagentPart
   | ThinkingPart
   | SandboxPart
-  | TokenUsagePart;
+  | TokenUsagePart
+  | CancelledPart;
 
 // Sandbox 状态块类型（用于渲染沙箱初始化状态）
 export interface SandboxPart {
@@ -57,6 +58,11 @@ export interface TokenUsagePart {
   total_tokens: number;
   cache_creation_tokens?: number;
   cache_read_tokens?: number;
+}
+
+// 取消状态块类型
+export interface CancelledPart {
+  type: "cancelled";
 }
 
 export interface TextPart {

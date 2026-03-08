@@ -121,6 +121,12 @@ export function SubagentBlock({
   const [isExpanded, setIsExpanded] = useState(false);
   const hasContent = (parts && parts.length > 0) || result;
 
+  // Format agent name: capitalize first letter and convert underscores to spaces
+  const formattedAgentName = agent_name
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
   // Auto collapse when completed
   useEffect(() => {
     if (isPending === false) {
@@ -174,7 +180,7 @@ export function SubagentBlock({
         <div className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
-              {agent_name}
+              {formattedAgentName}
             </span>
             {isPending && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium">
@@ -275,12 +281,18 @@ function SubagentToolItem({
   const hasResult = !!part.result;
   const canExpand = hasArgs || hasResult;
 
+  // Format label: capitalize first letter and convert underscores to spaces
+  const formattedName = part.name
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
   return (
     <div className="rounded-lg overflow-hidden">
       <CollapsiblePill
         status={status}
         icon={<Wrench size={12} className="shrink-0 opacity-50" />}
-        label={part.name}
+        label={formattedName}
         variant="tool"
         expandable={canExpand}
       >

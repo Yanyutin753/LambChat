@@ -501,3 +501,38 @@ export function createSubagentPart(
     parts: [],
   };
 }
+
+/**
+ * Clear all loading states in message parts recursively.
+ * Sets isPending: false on tools and subagents, isStreaming: false on thinking.
+ * Returns a new parts array with updated loading states.
+ */
+export function clearAllLoadingStates(parts: MessagePart[]): MessagePart[] {
+  return parts.map((part) => {
+    switch (part.type) {
+      case "tool": {
+        const toolPart = part as ToolPart;
+        if (!toolPart.isPending) return part;
+        return { ...toolPart, isPending: false };
+      }
+      case "thinking": {
+        const thinkingPart = part as ThinkingPart;
+        if (!thinkingPart.isStreaming) return part;
+        return { ...thinkingPart, isStreaming: false };
+      }
+      case "subagent": {
+        const subagentPart = part as SubagentPart;
+        const updatedParts = subagentPart.parts
+          ? clearAllLoadingStates(subagentPart.parts)
+          : [];
+        return {
+          ...subagentPart,
+          isPending: false,
+          parts: updatedParts,
+        };
+      }
+      default:
+        return part;
+    }
+  });
+}

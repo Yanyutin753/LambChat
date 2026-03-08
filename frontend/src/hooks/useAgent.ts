@@ -29,6 +29,7 @@ import {
   reconstructMessagesFromEvents,
   getLastEventTimestamp,
 } from "./useAgent/historyLoader";
+import { clearAllLoadingStates } from "./useAgent/messageParts";
 import { type EventHandlerContext } from "./useAgent/eventHandlers";
 import {
   connectToSSE,
@@ -484,11 +485,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantMessage.id
-              ? { ...m, content: `Error: ${errorMessage}`, isStreaming: false }
+              ? {
+                  ...m,
+                  content: `Error: ${errorMessage}`,
+                  isStreaming: false,
+                  parts: clearAllLoadingStates(m.parts || []),
+                }
               : m,
           ),
         );
         setConnectionStatus("disconnected");
+        setIsInitializingSandbox(false);
       } finally {
         setIsLoading(false);
         isSendingRef.current = false;
@@ -505,6 +512,16 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     streamingMessageIdRef.current = null;
     isSendingRef.current = false;
     setIsLoading(false);
+    setIsInitializingSandbox(false);
+
+    // Clear loading states on all messages and their parts
+    setMessages((prev) =>
+      prev.map((m) => ({
+        ...m,
+        isStreaming: false,
+        parts: clearAllLoadingStates(m.parts || []),
+      })),
+    );
 
     const currentSessionId = sessionIdRef.current;
     if (currentSessionId) {

@@ -7,6 +7,7 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { getAccessToken, sessionApi } from "../../services/api";
 import type { EventType, StreamEvent } from "./types";
 import { handleStreamEvent, type EventHandlerContext } from "./eventHandlers";
+import { clearAllLoadingStates } from "./messageParts";
 
 /**
  * SSE Connection context
@@ -125,9 +126,16 @@ export async function connectToSSE(
           console.log("[SSE] Connection closed");
           setConnectionStatus("disconnected");
           isConnectingRef.current = false;
+          ctx.setIsInitializingSandbox(false);
           ctx.setMessages((prev) =>
             prev.map((m) =>
-              m.id === messageId ? { ...m, isStreaming: false } : m,
+              m.id === messageId
+                ? {
+                    ...m,
+                    isStreaming: false,
+                    parts: clearAllLoadingStates(m.parts || []),
+                  }
+                : m,
             ),
           );
         },
@@ -191,7 +199,22 @@ export async function reconnectSSE(
     if (statusData.status === "completed" || statusData.status === "error") {
       console.log("[SSE] Task already completed");
       setConnectionStatus("disconnected");
+      ctx.setIsInitializingSandbox(false);
       streamingMessageIdRef.current = null;
+      // Clear loading states on the message
+      if (currentMsgId) {
+        ctx.setMessages((prev) =>
+          prev.map((m) =>
+            m.id === currentMsgId
+              ? {
+                  ...m,
+                  isStreaming: false,
+                  parts: clearAllLoadingStates(m.parts || []),
+                }
+              : m,
+          ),
+        );
+      }
       return;
     }
   } catch (err) {

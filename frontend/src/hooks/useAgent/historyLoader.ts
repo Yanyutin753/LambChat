@@ -86,6 +86,9 @@ function processHistoryEvent(
     return null; // Signal to push current assistant and create user message
   }
 
+  // Skip user:cancel - handled separately in reconstructMessagesFromEvents
+  // to preserve the current assistant message with cancelled state
+
   // Skip events that don't contribute to message content
   if (eventType === "metadata" || eventType === "done") {
     return currentAssistantMessage;
@@ -453,6 +456,33 @@ export function reconstructMessagesFromEvents(
         // Include run_id for message rating
         runId: event.run_id,
       });
+      continue;
+    }
+
+    // Handle user cancel - add cancelled part to current assistant message
+    // If no assistant message exists yet, create an empty one with cancelled part
+    if (eventType === "user:cancel") {
+      if (currentAssistantMessage) {
+        reconstructedMessages.push({
+          ...currentAssistantMessage,
+          parts: [
+            ...(currentAssistantMessage.parts || []),
+            { type: "cancelled" },
+          ],
+        });
+      } else {
+        // Create an empty assistant message with cancelled part
+        reconstructedMessages.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "",
+          timestamp: new Date(event.timestamp || Date.now()),
+          parts: [{ type: "cancelled" }],
+          // Include run_id for feedback/rating
+          runId: event.run_id,
+        });
+      }
+      currentAssistantMessage = null;
       continue;
     }
 

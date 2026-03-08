@@ -131,6 +131,12 @@ export function CollapsiblePill({
 
   const canExpand = expandable || hasChildren;
 
+  // Format label: capitalize first letter and convert underscores to spaces
+  const formattedLabel = label
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
   return (
     <div className="my-1">
       <button
@@ -145,7 +151,7 @@ export function CollapsiblePill({
       >
         <StatusIndicator status={status} variant={variant} />
         {icon}
-        <span className="font-mono">{label}</span>
+        <span className="font-mono">{formattedLabel}</span>
         {suffix}
         {canExpand && (
           <ChevronRight

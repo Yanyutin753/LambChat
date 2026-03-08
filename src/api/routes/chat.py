@@ -230,7 +230,9 @@ async def cancel_session(
         session_id: 会话 ID
 
     Returns:
-        success: 是否成功取消
+        success: 是否成功设置取消信号
+        cancelled_locally: 是否在本地实例取消
+        run_id: 被取消的运行 ID
         message: 状态信息
     """
     # 验证用户对该 session 的所有权
@@ -241,9 +243,6 @@ async def cancel_session(
     verify_session_ownership(session, user)
 
     task_manager = get_task_manager()
-    success = await task_manager.cancel(session_id)
+    result = await task_manager.cancel(session_id, user_id=user.sub)
 
-    if success:
-        return {"success": True, "message": "任务已取消"}
-    else:
-        return {"success": False, "message": "没有正在运行的任务"}
+    return result

@@ -134,6 +134,12 @@ export function handleStreamEvent(
       break;
     }
 
+    case "user:cancel": {
+      // Mark the current message as cancelled
+      handleError(data, messageId, ctx, true);
+      break;
+    }
+
     case "agent:call": {
       handleAgentCall(data, messageId, depth, ctx);
       break;
@@ -594,9 +600,10 @@ function handleError(
   data: EventData,
   messageId: string,
   ctx: EventHandlerContext,
+  forceCancelled?: boolean,
 ): void {
   const errorMsg = data.error || "Unknown error";
-  const isCancelled = data.type === "CancelledError";
+  const isCancelled = forceCancelled || data.type === "CancelledError";
 
   ctx.setMessages((prev) =>
     prev.map((m) => {

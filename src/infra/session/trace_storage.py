@@ -364,20 +364,9 @@ class TraceStorage:
             if event_types:
                 pipeline.append({"$match": {"events.event_type": {"$in": event_types}}})
 
-            # 添加计算字段：优先使用 data.timestamp，否则使用外层 timestamp
-            # 这样可以处理所有事件类型（有些事件的 data 里没有 timestamp）
-            pipeline.append(
-                {
-                    "$addFields": {
-                        "effective_timestamp": {
-                            "$ifNull": ["$events.data.timestamp", "$events.timestamp"]
-                        }
-                    }
-                }
-            )
-
-            # 按有效时间戳排序
-            pipeline.append({"$sort": {"effective_timestamp": 1}})
+            # 直接使用外层 timestamp 排序，避免 data.timestamp 类型不一致问题
+            # （data.timestamp 有时是字符串有时没有，而外层 timestamp 始终是统一的 UTC Date）
+            pipeline.append({"$sort": {"events.timestamp": 1}})
 
             # 投影
             pipeline.append(

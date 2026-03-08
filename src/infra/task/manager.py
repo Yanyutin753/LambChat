@@ -231,6 +231,10 @@ class BackgroundTaskManager:
 
             await presenter._ensure_trace()
 
+            # 立即发送 user:message 事件（任务开始时固定发送）
+            if message:
+                await presenter.emit_user_message(message, attachments=attachments)
+
             # 保存 trace_id 和 agent_id 到 run_info
             self._run_info[run_id] = {
                 "session_id": session_id,
@@ -621,9 +625,13 @@ class BackgroundTaskManager:
         info = self._run_info.get(run_id)
         return info.get("trace_id") if info else None
 
-    async def cancel(self, session_id: str) -> Dict[str, Any]:
+    async def cancel(self, session_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
         """
         取消任务（支持分布式）
+
+        Args:
+            session_id: 会话 ID
+            user_id: 取消任务的用户 ID
 
         Returns:
             {
@@ -639,7 +647,7 @@ class BackgroundTaskManager:
             if session and session.metadata:
                 run_id = session.metadata.get("current_run_id")
                 if run_id:
-                    return await self.cancel_run(run_id)
+                    return await self.cancel_run(run_id, user_id=user_id)
                 else:
                     return {
                         "success": False,
@@ -656,13 +664,16 @@ class BackgroundTaskManager:
             "message": "取消失败",
         }
 
-    async def cancel_run(self, run_id: str, publish: bool = True) -> Dict[str, Any]:
+    async def cancel_run(
+        self, run_id: str, publish: bool = True, user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         取消特定 run 的任务（支持分布式）
 
         Args:
             run_id: 运行 ID
             publish: 是否通过 Redis pub/sub 广播取消信号（用于分布式场景）
+            user_id: 取消任务的用户 ID
 
         Returns:
             {
@@ -710,6 +721,30 @@ class BackgroundTaskManager:
                     )
                 except Exception as e:
                     logger.warning(f"Failed to update trace status: {e}")
+
+        # 3.5 记录用户取消事件
+        if user_id and run_info:
+            session_id = run_info.get("session_id")
+            trace_id = run_info.get("trace_id")
+            if session_id and trace_id:
+                try:
+                    from src.infra.session.dual_writer import get_dual_writer
+
+                    dual_writer = get_dual_writer()
+                    await dual_writer.write_event(
+                        session_id=session_id,
+                        event_type="user:cancel",
+                        data={
+                            "user_id": user_id,
+                            "run_id": run_id,
+                            "timestamp": datetime.now().isoformat(),
+                        },
+                        trace_id=trace_id,
+                        run_id=run_id,
+                    )
+                    logger.info(f"User cancel event recorded: user_id={user_id}, run_id={run_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to record user cancel event: {e}")
 
         # 4. 调用 agent.close(run_id) 取消 graph 执行
         run_info = self._run_info.get(run_id)
@@ -769,6 +804,23 @@ class BackgroundTaskManager:
             "run_id": run_id,
             "message": message,
         }
+
+    @staticmethod
+    def check_interrupt_fast(run_id: str) -> bool:
+        """
+        快速检查中断信号（仅内存，无 IO）
+
+        用于高频调用的场景（如主循环），避免 Redis IO 开销。
+        对于分布式场景，依赖 Redis pub/sub 将信号同步到本地内存。
+
+        Args:
+            run_id: 运行 ID
+
+        Returns:
+            True 如果任务被中断
+        """
+        global _interrupted_runs
+        return run_id in _interrupted_runs
 
     @staticmethod
     async def check_interrupt(run_id: str) -> None:

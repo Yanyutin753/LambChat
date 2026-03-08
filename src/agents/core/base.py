@@ -303,10 +303,25 @@ class BaseGraphAgent(ABC):
             # 注册任务以便 close 可以取消
             self._stream_tasks[presenter.run_id] = stream_task
 
+            # 中断检查间隔（秒）- 1 秒是性能和响应速度的平衡点
+            interrupt_check_interval = 1.0
+
             try:
                 while True:
-                    # 直接 await 队列，cancel 时 CancelledError 会打断
-                    item = await event_queue.get()
+                    # 使用 wait_for 定期检查中断信号
+                    # 即使 LLM 请求阻塞，也能响应取消
+                    try:
+                        item = await asyncio.wait_for(
+                            event_queue.get(), timeout=interrupt_check_interval
+                        )
+                    except asyncio.TimeoutError:
+                        # 超时时使用快速内存检查（无 IO 开销）
+                        if BackgroundTaskManager.check_interrupt_fast(presenter.run_id):
+                            raise TaskInterruptedError(
+                                f"Task interrupted: run_id={presenter.run_id}"
+                            )
+                        continue
+                        continue
 
                     item_type, item_data = item
 

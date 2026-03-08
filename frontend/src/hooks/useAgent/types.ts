@@ -11,6 +11,7 @@ export type EventType =
   | "metadata"
   | "message:chunk"
   | "user:message"
+  | "user:cancel"
   | "thinking"
   | "tool:start"
   | "tool:result"
@@ -82,6 +83,9 @@ export interface EventData {
     size: number;
     url: string;
   }>;
+  // user:cancel event fields
+  user_id?: string;
+  run_id?: string;
 }
 
 export interface UseAgentOptions {
