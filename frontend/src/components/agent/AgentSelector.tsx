@@ -29,7 +29,7 @@ const AgentItem = memo(function AgentItem({
           <Bot size={18} className="text-white" />
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <div className="text-sm font-medium text-gray-700 dark:text-stone-200">
+          <div className="text-sm font-medium text-gray-700 dark:text-stone-200 font-serif">
             {t(agent.name)}
           </div>
           <div className="text-xs text-gray-400 dark:text-stone-500 truncate">
@@ -126,7 +126,7 @@ const AgentSelector = memo(function AgentSelector({
         onClick={toggleSelector}
         className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
       >
-        <span className="text-base font-semibold text-gray-700 dark:text-stone-200">
+        <span className="text-base font-semibold text-gray-700 dark:text-stone-200 font-serif">
           {t(currentAgentInfo?.name || currentAgent)}
         </span>
         <ChevronDown
