@@ -30,6 +30,7 @@ import {
   isMarkdownFile,
   isPreviewableFile,
   isExcalidrawFile,
+  isVideoFile,
   getFileTypeInfo,
   detectLanguage,
 } from "./utils";
@@ -106,6 +107,7 @@ export default function DocumentPreview({
   const [pptxBuffer, setPptxBuffer] = useState<ArrayBuffer | null>(null);
   const [htmlUrl, setHtmlUrl] = useState<string | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>("");
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [arrayBuffer, setArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showImageViewer, setShowImageViewer] = useState(false);
@@ -126,6 +128,7 @@ export default function DocumentPreview({
   const markdownFile = isMarkdownFile(fileName);
   const previewable = isPreviewableFile(ext);
   const excalidrawFile = isExcalidrawFile(ext);
+  const videoFile = isVideoFile(ext);
 
   // Memoize language detection for performance
   const language = useMemo(() => detectLanguage(fileName), [fileName]);
@@ -168,6 +171,7 @@ export default function DocumentPreview({
     setPptxBuffer(null);
     setHtmlUrl(null);
     setHtmlContent("");
+    setVideoUrl(null);
     setArrayBuffer(null);
     setExcalidrawData("");
 
@@ -218,6 +222,14 @@ export default function DocumentPreview({
           // PDF 文件使用 iframe 嵌入
           if (pdfFile) {
             setPdfUrl(url);
+            setData({ content: "", path });
+            setLoading(false);
+            return;
+          }
+
+          // 视频文件直接使用签名 URL
+          if (videoFile) {
+            setVideoUrl(url);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -551,7 +563,7 @@ export default function DocumentPreview({
                 </p>
               </div>
             </div>
-          ) : binaryFile && !imageFile && !pdfFile ? (
+          ) : binaryFile && !imageFile && !pdfFile && !videoFile ? (
             <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4 px-4">
               <div
                 className={`flex items-center justify-center w-20 h-20 rounded-2xl ${fileInfo.bg}`}
@@ -580,6 +592,18 @@ export default function DocumentPreview({
           ) : pdfFile ? (
             <div className="h-full min-h-[400px]">
               {pdfUrl && <PdfPreview url={pdfUrl} />}
+            </div>
+          ) : videoFile && videoUrl ? (
+            <div className="flex items-center justify-center p-4 sm:p-8 bg-stone-950 min-h-[300px]">
+              <video
+                controls
+                autoPlay={false}
+                className="max-w-full max-h-[60vh] rounded-lg shadow-lg"
+                src={videoUrl}
+              >
+                <track kind="captions" />
+                {t("documents.videoNotSupported")}
+              </video>
             </div>
           ) : pptFile && (pptUrl || pptxBuffer) ? (
             <div className="h-full min-h-[400px]">

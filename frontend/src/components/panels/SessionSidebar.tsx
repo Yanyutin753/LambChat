@@ -49,6 +49,7 @@ export function SessionSidebar({
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [imgError, setImgError] = useState(false);
 
   // Use external state if provided, otherwise use internal state
   const isCollapsed = externalCollapsed ?? internalCollapsed;
@@ -545,7 +546,7 @@ export function SessionSidebar({
             {!isFoldersCollapsed && (
               <button
                 onClick={() => setShowNewFolderModal(true)}
-                className="group flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 transition-all duration-150 hover:bg-stone-50 dark:hover:bg-stone-800/20"
+                className="group flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 transition-all duration-150 hover:bg-stone-50 dark:hover:bg-stone-800/20"
               >
                 <FolderPlus
                   size={16}
@@ -683,21 +684,22 @@ export function SessionSidebar({
           onClick={onShowProfile}
           className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
         >
-          {user?.avatar_url ? (
+          {user?.avatar_url && !imgError ? (
             <img
               src={user.avatar_url}
               alt={user?.username || "User"}
               className="size-7 rounded-full object-cover flex-shrink-0"
+              onError={() => setImgError(true)}
             />
           ) : (
-            <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-br from-stone-500 to-stone-700 flex-shrink-0">
+            <div className="flex size-6 items-center justify-center rounded-full bg-gradient-to-br from-stone-500 to-stone-700 flex-shrink-0">
               <span className="text-xs font-semibold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-stone-700 dark:text-stone-200 truncate">
+            <div className="text-sm font-medium text-stone-700 dark:text-stone-200 capitalize truncate">
               {user?.username || "User"}
             </div>
           </div>
@@ -743,7 +745,7 @@ export function SessionSidebar({
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowNewFolderModal(false)}
           />
-          <div className="relative bg-white dark:bg-stone-800 rounded-lg shadow-xl p-4 w-80 max-w-[90vw]">
+          <div className="relative bg-white dark:bg-stone-800 rounded-lg shadow-xl p-4 w-92 max-w-[90vw] space-y-4">
             <h3 className="text-sm font-medium text-stone-700 dark:text-stone-200 mb-1">
               {t("sidebar.newFolder")}
             </h3>

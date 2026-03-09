@@ -428,7 +428,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
               <span>
                 {t("auth.poweredBy")}{" "}
                 <a
-                  href="https://github.com/lambchat/lambchat"
+                  href="https://github.com/Yanyutin753/LambChat"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-serif text-gray-600 hover:text-gray-900 dark:text-stone-400 dark:hover:text-stone-200"

@@ -332,6 +332,9 @@ async def list_tools(
             await mcp_manager.initialize()
             mcp_tools = await mcp_manager.get_tools()
 
+            # 按首字母排序 MCP 工具
+            mcp_tools = sorted(mcp_tools, key=lambda t: t.name.lower())
+
             # 获取服务器名称映射（从工具名推断）
             # MCP 工具名格式通常是 "server_name:tool_name" 或直接是 tool_name
             for tool in mcp_tools:

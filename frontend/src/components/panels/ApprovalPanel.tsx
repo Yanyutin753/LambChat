@@ -316,10 +316,10 @@ export function ApprovalPanel({
         >
           {/* Header */}
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 dark:border-stone-700">
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
               <AlertCircle
                 size={12}
-                className="text-blue-600 dark:text-blue-400"
+                className="text-amber-600 dark:text-amber-400"
               />
             </div>
             <span className="text-xs font-medium text-gray-500 dark:text-stone-400">
@@ -329,7 +329,7 @@ export function ApprovalPanel({
 
           {/* Message content */}
           <div className="px-4 py-3 sm:px-5">
-            <div className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed text-gray-800 dark:text-stone-200 prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-code:rounded-md prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-blue-600 dark:prose-code:bg-stone-700 dark:prose-code:text-blue-400">
+            <div className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed text-gray-800 dark:text-stone-200 prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-code:rounded-md prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-stone-600 dark:prose-code:bg-stone-700 dark:prose-code:text-stone-400">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                 {currentApproval.message}
               </ReactMarkdown>

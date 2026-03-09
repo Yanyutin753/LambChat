@@ -203,7 +203,7 @@ export function SkillForm({
           onChange={(e) => setName(e.target.value)}
           disabled={isEditing}
           placeholder={t("skills.form.namePlaceholder")}
-          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
+          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
             errors.name
               ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
               : ""
@@ -231,7 +231,7 @@ export function SkillForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t("skills.form.descriptionPlaceholder")}
-          className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
+          className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
             errors.description
               ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
               : ""
@@ -253,7 +253,7 @@ export function SkillForm({
           <button
             type="button"
             onClick={addFile}
-            className="whitespace-nowrap text-xs text-blue-600 hover:text-blue-800 dark:text-amber-500 dark:hover:text-amber-400"
+            className="whitespace-nowrap text-xs text-stone-600 hover:text-stone-800 dark:text-amber-500 dark:hover:text-amber-400"
           >
             + Add File
           </button>
@@ -266,7 +266,7 @@ export function SkillForm({
               key={index}
               className={`flex items-center gap-1 rounded-t-lg border-b-2 px-3 py-1.5 text-sm ${
                 activeFileIndex === index
-                  ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-amber-500 dark:bg-stone-800 dark:text-amber-400"
+                  ? "border-stone-500 bg-stone-50 text-stone-700 dark:border-amber-500 dark:bg-stone-800 dark:text-amber-400"
                   : "border-transparent text-gray-500 hover:bg-gray-50 dark:text-stone-400 dark:hover:bg-stone-800"
               }`}
             >
@@ -299,7 +299,7 @@ export function SkillForm({
             value={files[activeFileIndex]?.path || ""}
             onChange={(e) => updateFilePath(activeFileIndex, e.target.value)}
             placeholder="File path (e.g., SKILL.md, templates/main.py)"
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-mono text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
           />
         </div>
 
@@ -309,7 +309,7 @@ export function SkillForm({
           onChange={(e) => updateFileContent(activeFileIndex, e.target.value)}
           rows={12}
           placeholder={t("skills.form.contentPlaceholder")}
-          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
+          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
             errors.content
               ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
               : ""
@@ -334,7 +334,7 @@ export function SkillForm({
           id="skill-enabled"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-stone-600 dark:bg-stone-800 dark:text-amber-600 dark:focus:ring-amber-500"
+          className="h-4 w-4 rounded border-gray-300 text-stone-600 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-800 dark:text-amber-600 dark:focus:ring-amber-500"
         />
         <label
           htmlFor="skill-enabled"
@@ -352,7 +352,7 @@ export function SkillForm({
             id="skill-system"
             checked={isSystem}
             onChange={(e) => setIsSystem(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-stone-600 dark:bg-stone-800 dark:text-amber-600 dark:focus:ring-amber-500"
+            className="h-4 w-4 rounded border-gray-300 text-stone-600 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-800 dark:text-amber-600 dark:focus:ring-amber-500"
           />
           <label
             htmlFor="skill-system"
@@ -378,7 +378,7 @@ export function SkillForm({
         <button
           type="submit"
           disabled={isLoading}
-          className="flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-700"
+          className="flex items-center gap-1 rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white hover:bg-stone-900 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-700"
         >
           {isEditing
             ? t("skills.form.saveChanges")

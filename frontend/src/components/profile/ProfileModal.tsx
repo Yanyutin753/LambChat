@@ -44,6 +44,7 @@ export function ProfileModal({
 
   // Avatar upload state
   const [isUploading, setIsUploading] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   // Permission check for avatar upload
   const canUploadAvatar = hasPermission(Permission.AVATAR_UPLOAD);
@@ -293,7 +294,7 @@ export function ProfileModal({
         <div className="flex border-b border-gray-200 dark:border-stone-700">
           <button
             onClick={() => setActiveTab("info")}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
               activeTab === "info"
                 ? "text-amber-600 border-b-2 border-amber-600"
                 : "text-gray-500 dark:text-stone-400 hover:text-gray-700 dark:hover:text-stone-200"
@@ -303,7 +304,7 @@ export function ProfileModal({
           </button>
           <button
             onClick={() => setActiveTab("password")}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors flex items-center justify-center gap-2 ${
               activeTab === "password"
                 ? "text-amber-600 border-b-2 border-amber-600"
                 : "text-gray-500 dark:text-stone-400 hover:text-gray-700 dark:hover:text-stone-200"
@@ -313,7 +314,7 @@ export function ProfileModal({
           </button>
           <button
             onClick={() => setActiveTab("notification")}
-            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
               activeTab === "notification"
                 ? "text-amber-600 border-b-2 border-amber-600"
                 : "text-gray-500 dark:text-stone-400 hover:text-gray-700 dark:hover:text-stone-200"
@@ -330,11 +331,12 @@ export function ProfileModal({
               {/* Avatar */}
               <div className="flex flex-col items-center mb-6">
                 <div className="relative">
-                  {userData?.avatar_url ? (
+                  {userData?.avatar_url && !imgError ? (
                     <img
                       src={userData.avatar_url}
                       alt="Avatar"
                       className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-stone-700 shadow-md"
+                      onError={() => setImgError(true)}
                     />
                   ) : (
                     <div className="w-20 h-20 rounded-full bg-gradient-to-br from-stone-500 to-stone-700 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-md">

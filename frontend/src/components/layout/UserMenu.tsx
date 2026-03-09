@@ -27,6 +27,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const { enableMcp, enableSkills } = useSettingsContext();
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+  const [imgError, setImgError] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
@@ -121,15 +122,16 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
           onClick={() => setShowMenu(!showMenu)}
           className="flex h-8 w-8 items-center justify-center rounded-full transition-colors overflow-hidden"
         >
-          {user?.avatar_url ? (
+          {user?.avatar_url && !imgError ? (
             <img
               src={user.avatar_url}
               alt={user?.username || "User"}
               className="size-5 object-cover rounded-full"
+              onError={() => setImgError(true)}
             />
           ) : (
             <div className="flex size-5 items-center justify-center bg-gradient-to-br from-stone-500 to-stone-700 rounded-full">
-              <span className="text-xs font-bold text-white">
+              <span className="text-xs font-semibold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>

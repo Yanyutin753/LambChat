@@ -19,6 +19,7 @@ import { roleApi, authApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Pagination } from "../common/Pagination";
 import type {
   Role,
   RoleCreate,
@@ -129,7 +130,7 @@ function RoleFormModal({
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {isEditing ? t("roles.editRole") : t("roles.createRole")}
             </h2>
             <button onClick={onClose} className="btn-icon">
@@ -294,7 +295,7 @@ function DeleteConfirmModal({
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("roles.confirmDelete")}
             </h2>
             <button onClick={onClose} className="btn-icon">
@@ -339,6 +340,21 @@ export function RolesPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 20;
+
+  // Update total when roles change
+  useEffect(() => {
+    setTotal(roles.length);
+  }, [roles]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   // 权限数据
   const [permissionGroups, setPermissionGroups] = useState<PermissionGroup[]>(
@@ -443,6 +459,12 @@ export function RolesPanel() {
     r.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  // Get paginated roles
+  const paginatedRoles = filteredRoles.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
+
   // 打开编辑模态框
   const openEditModal = (role: Role) => {
     setEditingRole(role);
@@ -480,7 +502,7 @@ export function RolesPanel() {
       <div className="panel-header">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100">
+            <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("roles.title")}
             </h1>
             <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
@@ -533,7 +555,7 @@ export function RolesPanel() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredRoles.map((role) => (
+            {paginatedRoles.map((role) => (
               <div key={role.id} className="panel-card">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -615,6 +637,18 @@ export function RolesPanel() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-4">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onChange={setPage}
+          />
+        </div>
+      )}
 
       {/* 模态框 */}
       {showFormModal && (

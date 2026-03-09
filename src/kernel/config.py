@@ -752,7 +752,7 @@ class Settings(BaseSettings):
     GIT_TAG: Optional[str] = None
     COMMIT_HASH: Optional[str] = None
     BUILD_TIME: Optional[str] = None
-    GITHUB_URL: str = "https://github.com/lambchat/lambchat"
+    GITHUB_URL: str = "https://github.com/Yanyutin753/LambChat"
 
     # Logging Configuration (not in SETTING_DEFINITIONS - internal use only)
     LOG_LEVELS: str = ""

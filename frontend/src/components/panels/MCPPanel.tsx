@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus,
   X,
@@ -12,6 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Pagination } from "../common/Pagination";
 import { MCPServerCard } from "../mcp/MCPServerCard";
 import { MCPServerForm } from "../mcp/MCPServerForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -56,6 +57,21 @@ export function MCPPanel() {
     message: string;
   } | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 20;
+
+  // Update total when servers change
+  useEffect(() => {
+    setTotal(servers.length);
+  }, [servers]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
   // Delete confirmation dialog state
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteConfirmData, setDeleteConfirmData] = useState<{
@@ -89,6 +105,12 @@ export function MCPPanel() {
 
   const filteredServers = servers.filter((server) =>
     server.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  // Get paginated servers
+  const paginatedServers = filteredServers.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
   );
 
   const handleCreate = async () => {
@@ -322,7 +344,7 @@ export function MCPPanel() {
       <div className="panel-header">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("mcp.title")}
             </h2>
             <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
@@ -413,7 +435,7 @@ export function MCPPanel() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredServers.map((server) => (
+            {paginatedServers.map((server) => (
               <MCPServerCard
                 key={server.name}
                 server={server}
@@ -425,6 +447,18 @@ export function MCPPanel() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-4">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onChange={setPage}
+          />
+        </div>
+      )}
 
       {/* Form Modal */}
       {showModal && (
@@ -439,7 +473,7 @@ export function MCPPanel() {
 
               {/* Header */}
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {isCreating
                     ? t("mcp.addNew")
                     : t("mcp.editServer", { name: editingServer?.name })}
@@ -513,7 +547,7 @@ export function MCPPanel() {
             <div className="modal-bottom-sheet-content sm:modal-centered-content">
               <div className="bottom-sheet-handle sm:hidden" />
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {t("mcp.importServers")}
                 </h3>
                 <button

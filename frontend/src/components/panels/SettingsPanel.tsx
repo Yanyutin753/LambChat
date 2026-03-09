@@ -43,7 +43,7 @@ const CATEGORY_ORDER: SettingCategory[] = [
 ];
 
 const TYPE_COLORS: Record<SettingType, string> = {
-  string: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+  string: "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
   text: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300",
   number:
     "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
@@ -391,7 +391,7 @@ export function SettingsPanel() {
                   onClick={() => setActiveCategory(category)}
                   className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                     activeCategory === category
-                      ? "bg-blue-100 text-blue-700 dark:bg-amber-900/40 dark:text-amber-300"
+                      ? "bg-stone-200 text-stone-800 dark:bg-amber-900/40 dark:text-amber-300"
                       : "text-gray-600 hover:bg-gray-100 dark:text-stone-400 dark:hover:bg-stone-700"
                   }`}
                 >
@@ -440,7 +440,7 @@ export function SettingsPanel() {
                   onChange={(e) =>
                     setActiveCategory(e.target.value as SettingCategory)
                   }
-                  className="w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-8 text-sm font-medium text-gray-900 focus:border-blue-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                  className="w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-8 text-sm font-medium text-gray-900 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                 >
                   {CATEGORY_ORDER.map((category) => (
                     <option key={category} value={category}>
@@ -468,7 +468,7 @@ export function SettingsPanel() {
                   placeholder={t("settings.searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-amber-500"
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-amber-500"
                 />
               </div>
               {canManage && (
@@ -590,7 +590,7 @@ export function SettingsPanel() {
                               )
                             }
                             disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                           >
                             {agents.map((agent) => (
                               <option key={agent.id} value={agent.id}>
@@ -609,7 +609,7 @@ export function SettingsPanel() {
                               )
                             }
                             disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                           >
                             {roles.map((role) => (
                               <option key={role.id} value={role.name}>
@@ -628,7 +628,7 @@ export function SettingsPanel() {
                               )
                             }
                             disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                           >
                             <option value="true">true</option>
                             <option value="false">false</option>
@@ -645,7 +645,7 @@ export function SettingsPanel() {
                             }
                             disabled={!canManage}
                             rows={4}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                           />
                         ) : isJson ? (
                           <textarea
@@ -659,7 +659,7 @@ export function SettingsPanel() {
                             }
                             disabled={!canManage}
                             rows={4}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs sm:text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs sm:text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                           />
                         ) : (
                           <input
@@ -673,7 +673,7 @@ export function SettingsPanel() {
                               )
                             }
                             disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                           />
                         )}
                       </div>
@@ -686,7 +686,7 @@ export function SettingsPanel() {
                               <button
                                 onClick={() => handleSave(setting)}
                                 disabled={!modified || isSaving}
-                                className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs sm:text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-700"
+                                className="flex items-center gap-1 rounded-lg bg-stone-800 px-3 py-1.5 text-xs sm:text-sm font-medium text-white hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-700"
                               >
                                 {justSaved ? (
                                   <>

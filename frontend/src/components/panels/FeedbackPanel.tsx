@@ -82,7 +82,7 @@ function DeleteConfirmModal({
           </div>
 
           {/* Title */}
-          <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+          <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
             {t("feedback.deleteConfirmTitle")}
           </h3>
 
@@ -143,7 +143,7 @@ function FeedbackDetailModal({
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+            <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("feedback.detailTitle") || "Feedback Details"}
             </h3>
             <button
@@ -381,7 +381,7 @@ export function FeedbackPanel() {
       <div className="border-b border-stone-200 bg-white px-4 py-5 dark:border-stone-800 dark:bg-stone-950 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-50">
+            <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("feedback.title")}
             </h1>
             <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
@@ -397,7 +397,7 @@ export function FeedbackPanel() {
                   e.target.value ? (e.target.value as RatingValue) : undefined,
                 )
               }
-              className="w-full appearance-none rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 pr-10 text-sm font-medium text-stone-700 transition-all focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
+              className="w-full appearance-none rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 pr-10 text-sm font-medium text-stone-700 transition-all focus:border-stone-500 focus:outline-none focus:ring-2 focus:ring-stone-500/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
             >
               <option value="">{t("feedback.allRatings")}</option>
               <option value="up">{t("feedback.positive")}</option>
@@ -608,24 +608,15 @@ export function FeedbackPanel() {
         )}
       </div>
 
-      {/* Pagination - ChatGPT style */}
+      {/* Pagination */}
       {total > limit && (
         <div className="border-t border-stone-200 bg-white px-4 py-4 dark:border-stone-800 dark:bg-stone-950 sm:px-6">
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              {t("feedback.paginationInfo", {
-                start: Math.floor(skip / limit) * limit + 1,
-                end: Math.min(skip + limit, total),
-                total,
-              })}
-            </p>
-            <Pagination
-              page={Math.floor(skip / limit) + 1}
-              pageSize={limit}
-              total={total}
-              onChange={(page) => setSkip((page - 1) * limit)}
-            />
-          </div>
+          <Pagination
+            page={Math.floor(skip / limit) + 1}
+            pageSize={limit}
+            total={total}
+            onChange={(page) => setSkip((page - 1) * limit)}
+          />
         </div>
       )}
 

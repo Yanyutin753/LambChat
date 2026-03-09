@@ -22,7 +22,7 @@ const AgentItem = memo(function AgentItem({
   return (
     <button
       onClick={onSelect}
-      className="w-full px-3 py-4 text-left hover:bg-gray-100/80 dark:hover:bg-stone-700/50 transition-colors"
+      className="w-full px-3 py-3 sm:py-4 text-left hover:bg-gray-100/80 dark:hover:bg-stone-700/50 transition-colors"
     >
       <div className="flex items-center gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-purple-600">
