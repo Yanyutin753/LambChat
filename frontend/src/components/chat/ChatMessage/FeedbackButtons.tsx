@@ -126,7 +126,7 @@ export function FeedbackButtons({
   }
 
   return (
-    <div className={clsx("relative flex items-center gap-1", className)}>
+    <div className={clsx("relative flex items-center gap-2", className)}>
       <button
         onClick={() => handleRatingClick("up")}
         disabled={isSubmitting}

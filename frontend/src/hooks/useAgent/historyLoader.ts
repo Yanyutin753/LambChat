@@ -7,6 +7,7 @@ import type {
   SandboxPart,
   FormField,
   MessageAttachment,
+  MessagePart,
 } from "../../types";
 import type {
   SubagentStackItem,
@@ -465,16 +466,38 @@ export function reconstructMessagesFromEvents(
     }
 
     // Handle user cancel - add cancelled part to current assistant message
-    // If no assistant message exists yet, create an empty one with cancelled part
+    // Also mark all pending/running states as completed
     if (eventType === "user:cancel") {
       if (currentAssistantMessage) {
-        reconstructedMessages.push({
+        // Mark all pending tools as completed and stop streaming states
+        const updatedParts = (currentAssistantMessage.parts || []).map(
+          (part): MessagePart => {
+            // Tool: mark as not pending
+            if (part.type === "tool" && part.isPending) {
+              return {
+                ...part,
+                isPending: false,
+                result: part.result || "Cancelled",
+                success: false,
+              };
+            }
+            // Thinking: stop streaming
+            if (part.type === "thinking" && part.isStreaming) {
+              return {
+                ...part,
+                isStreaming: false,
+              };
+            }
+            return part;
+          },
+        );
+        // Also stop streaming on the main message
+        const updatedMessage = {
           ...currentAssistantMessage,
-          parts: [
-            ...(currentAssistantMessage.parts || []),
-            { type: "cancelled" },
-          ],
-        });
+          isStreaming: false,
+          parts: [...updatedParts, { type: "cancelled" as const }],
+        };
+        reconstructedMessages.push(updatedMessage);
       } else {
         // Create an empty assistant message with cancelled part
         reconstructedMessages.push({
