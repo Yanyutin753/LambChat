@@ -3,7 +3,17 @@ Dual Event Writer - 双写事件到 Redis Stream + MongoDB
 
 所有事件按 trace_id 聚合到 MongoDB，大幅减少文档数量。
 - Redis: 所有事件立即写入，保证 SSE 实时性
-- MongoDB: 批量缓冲写入，确保数据不丢失
+- MongoDB: 从 Redis 读取后批量写入（保证顺序）
+
+写入流程:
+1. 事件写入 Redis Stream（立即）
+2. 记录 stream_key 到 buffer，追踪 Redis entry_id
+3. 达到批量大小或延迟超时后触发 flush
+4. flush 时从 Redis 读取新数据，按 Redis 顺序写入 MongoDB
+
+读取流程（按 run 顺序合并）:
+1. 按 started_at 获取所有 traces
+2. 每个 trace 内的 events 保持 Redis 写入顺序
 """
 
 import asyncio
@@ -31,21 +41,22 @@ def _utc_now() -> datetime:
 
 class DualEventWriter:
     """
-    双写事件到 Redis Stream + MongoDB (Trace 模式)
+    双写事件到 Redis Stream + MongoDB
 
     - Redis: 所有事件立即写入，保证 SSE 实时性
-    - MongoDB: 批量缓冲写入，使用 Lock 保护，确保数据不丢失
+    - MongoDB: 从 Redis 读取后批量写入（保证顺序）
     """
 
     def __init__(self):
         self._redis = None
         self._trace = None
         self._ttl_set_keys: set[str] = set()
-        # MongoDB 批量写入缓冲
-        # (trace_id, event_type, data, session_id, run_id, timestamp)
-        self._mongo_buffer: list[tuple[str, str, dict, str, Optional[str], datetime]] = []
+        # MongoDB 批量写入缓冲（只记录 stream_key，flush 时从 Redis 读取）
+        self._mongo_buffer: list[str] = []
         self._mongo_lock = asyncio.Lock()  # 保护 buffer 和 flush 操作
         self._flush_scheduled = False  # 是否已调度刷新
+        # 追踪每个 stream 的最后读取位置，用于 flush 时从 Redis 读取
+        self._stream_last_ids: dict[str, str] = {}  # stream_key -> last entry_id
 
     @property
     def redis(self) -> RedisStorage:
@@ -94,8 +105,8 @@ class DualEventWriter:
         """
         双写事件到 Redis + MongoDB
 
-        - Redis: 立即写入
-        - MongoDB: 缓冲写入，批量刷新
+        - Redis: 立即写入，保证 SSE 实时性
+        - MongoDB: 记录 stream_key 触发延迟 flush，flush 时从 Redis 读取写入（保证顺序）
         """
         # 统一时间戳，确保 Redis 和 MongoDB 使用相同的时间
         timestamp = _utc_now()
@@ -106,23 +117,28 @@ class DualEventWriter:
             "event_type": event_type,
             "data": (json.dumps(data, ensure_ascii=False) if isinstance(data, dict) else str(data)),
             "timestamp": timestamp.isoformat(),
+            "trace_id": trace_id or "",
+            "session_id": session_id,
+            "run_id": run_id or "",
         }
-        redis_success = await self._write_to_redis_direct(stream_key, fields)
+        redis_entry_id = await self._write_to_redis_direct(stream_key, fields)
+        redis_success = redis_entry_id is not None
 
-        # ---- MongoDB 写入（缓冲） ----
+        # ---- MongoDB 写入（记录触发条件，flush 时统一从 Redis 读取） ----
         if trace_id:
             should_flush_now = False
             async with self._mongo_lock:
-                self._mongo_buffer.append(
-                    (trace_id, event_type, data, session_id, run_id, timestamp)
-                )
                 # 达到批量大小立即刷新
                 if len(self._mongo_buffer) >= _MONGO_BATCH_SIZE:
                     should_flush_now = True
-                # 调度延迟刷新（如果还没调度）
-                elif not self._flush_scheduled:
-                    self._flush_scheduled = True
-                    asyncio.create_task(self._schedule_flush())
+                else:
+                    self._mongo_buffer.append(
+                        stream_key
+                    )  # 只记录 stream_key，触发 flush 时从 Redis 读取
+                    # 调度延迟刷新（如果还没调度）
+                    if not self._flush_scheduled:
+                        self._flush_scheduled = True
+                        asyncio.create_task(self._schedule_flush())
 
             if should_flush_now:
                 await self._do_flush()
@@ -139,52 +155,101 @@ class DualEventWriter:
         await self._do_flush()
 
     async def _do_flush(self) -> None:
-        """实际执行批量写入"""
+        """实际执行批量写入 - 统一从 Redis 读取保证顺序"""
         async with self._mongo_lock:
-            if not self._mongo_buffer:
+            if not self._mongo_buffer and not self._stream_last_ids:
                 self._flush_scheduled = False
                 return
 
-            batch = self._mongo_buffer
+            # 收集需要 flush 的 stream_keys（去重）
+            stream_keys = set(self._mongo_buffer)
             self._mongo_buffer = []
             self._flush_scheduled = False
 
-        # 按 trace_id 分组
-        grouped: dict[str, list[dict]] = defaultdict(list)
-        trace_context: dict[str, tuple[str, Optional[str]]] = {}
+        # 从每个 stream 读取新数据写入 MongoDB
+        for stream_key in stream_keys:
+            last_id = self._stream_last_ids.get(stream_key, "0")
+            await self._flush_stream_to_mongo(stream_key, last_id)
 
-        for trace_id, event_type, data, session_id, run_id, timestamp in batch:
-            grouped[trace_id].append(
-                {
-                    "event_type": event_type,
-                    "data": data,
-                    "timestamp": timestamp,  # 保留原始时间戳
-                }
-            )
-            if trace_id not in trace_context:
-                trace_context[trace_id] = (session_id, run_id)
+    async def _flush_stream_to_mongo(self, stream_key: str, last_id: str) -> None:
+        """从 Redis Stream 读取新数据写入 MongoDB（保证顺序）"""
+        try:
+            # 从 last_id 之后读取所有新数据
+            if last_id == "0":
+                entries = await self.redis.xrange(stream_key, min="-", max="+")
+            else:
+                # 从 last_id 的下一个开始读取
+                entries = await self.redis.xrange(stream_key, min=f"({last_id}", max="+")
 
-        # 批量写入
-        for trace_id, events in grouped.items():
-            try:
-                session_id, run_id = trace_context.get(trace_id, ("", None))
-                await self.trace.collection.update_one(
-                    {"trace_id": trace_id},
-                    {
-                        "$push": {"events": {"$each": events}},
-                        "$inc": {"event_count": len(events)},
-                        "$set": {"updated_at": _utc_now()},
-                        "$setOnInsert": {
-                            "session_id": session_id,
-                            "run_id": run_id or "",
-                            "status": "running",
-                            "started_at": _utc_now(),
-                        },
-                    },
-                    upsert=True,
+            if not entries:
+                return
+
+            # 按 trace_id 分组，保持 Redis 的顺序
+            grouped: dict[str, list[dict]] = defaultdict(list)
+            trace_context: dict[str, tuple[str, Optional[str]]] = {}
+            new_last_id = last_id
+
+            for entry_id, fields in entries:
+                event_type = fields.get("event_type")
+                data_str = fields.get("data", "{}")
+                timestamp_str = fields.get("timestamp")
+                trace_id = fields.get("trace_id") or ""
+                session_id = fields.get("session_id", "")
+                run_id = fields.get("run_id") or ""
+
+                # 解析 data
+                try:
+                    data = json.loads(data_str) if isinstance(data_str, str) else data_str
+                except json.JSONDecodeError:
+                    data = data_str
+
+                # 解析 timestamp
+                timestamp = (
+                    datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                    if timestamp_str
+                    else _utc_now()
                 )
-            except Exception as e:
-                logger.warning(f"Failed to write {len(events)} events to trace {trace_id}: {e}")
+
+                if trace_id:
+                    grouped[trace_id].append(
+                        {
+                            "event_type": event_type,
+                            "data": data,
+                            "timestamp": timestamp,
+                        }
+                    )
+                    if trace_id not in trace_context:
+                        trace_context[trace_id] = (session_id, run_id)
+
+                new_last_id = entry_id
+
+            # 更新 last_id
+            self._stream_last_ids[stream_key] = new_last_id
+
+            # 批量写入 MongoDB
+            for trace_id, events in grouped.items():
+                try:
+                    session_id, run_id = trace_context.get(trace_id, ("", None))
+                    await self.trace.collection.update_one(
+                        {"trace_id": trace_id},
+                        {
+                            "$push": {"events": {"$each": events}},
+                            "$inc": {"event_count": len(events)},
+                            "$set": {"updated_at": _utc_now()},
+                            "$setOnInsert": {
+                                "session_id": session_id,
+                                "run_id": run_id or "",
+                                "status": "running",
+                                "started_at": _utc_now(),
+                            },
+                        },
+                        upsert=True,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to write {len(events)} events to trace {trace_id}: {e}")
+
+        except Exception as e:
+            logger.warning(f"Failed to flush stream {stream_key}: {e}")
 
     async def flush_mongo_buffer(self) -> None:
         """强制刷新缓冲（外部调用）"""
@@ -211,13 +276,15 @@ class DualEventWriter:
         Returns:
             是否更新成功
         """
+        # 先刷新 Redis 缓冲，确保所有事件都已写入 MongoDB
+        await self._do_flush()
         return await self.trace.complete_trace(trace_id, status, metadata)
 
     async def _write_to_redis_direct(
         self,
         stream_key: str,
         fields: Dict[str, str],
-    ) -> bool:
+    ) -> Optional[str]:
         """
         单条立即写入 Redis Stream（用于流式事件，保证实时性）
 
@@ -226,23 +293,23 @@ class DualEventWriter:
             fields: 已序列化的字段 dict
 
         Returns:
-            是否写入成功
+            写入的 entry_id，失败返回 None
         """
         try:
-            await self.redis.xadd(
-                stream_key,
-                fields,
-            )
+            entry_id = await self.redis.xadd(stream_key, fields)
+
+            # 追踪 stream 的最后位置，用于 flush
+            self._stream_last_ids[stream_key] = entry_id
 
             if stream_key not in self._ttl_set_keys:
                 ttl = await self.redis.ttl(stream_key)
                 if ttl == -1:
                     await self.redis.expire(stream_key, settings.SSE_CACHE_TTL)
                 self._ttl_set_keys.add(stream_key)
-            return True
+            return entry_id
         except Exception as e:
             logger.warning(f"Redis xadd failed (streaming event): {e}")
-            return False
+            return None
 
     async def read_from_redis(
         self,

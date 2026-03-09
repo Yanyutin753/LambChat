@@ -407,6 +407,11 @@ function processHistoryEvent(
         type?: string;
       };
       if (errorData.type === "CancelledError") {
+        // If currentAssistantMessage is null (already handled by user:cancel),
+        // don't create a new message to avoid duplicates
+        if (!currentAssistantMessage) {
+          return null;
+        }
         msg.cancelled = true;
       } else {
         msg.content = `Error: ${errorData.error || "Unknown error"}`;

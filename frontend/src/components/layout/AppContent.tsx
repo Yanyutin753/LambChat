@@ -449,7 +449,7 @@ export function AppContent({ activeTab }: AppContentProps) {
         {/* Main Content */}
         <div className="relative z-0 flex flex-1 flex-col min-w-0 overflow-hidden">
           {/* Header */}
-          <header className="relative z-50 flex items-center px-3 py-4 sm:px-4 mb-2">
+          <header className="relative z-50 flex items-center px-3 pt-4 sm:px-4 mb-3">
             {/* Left: Expand Sidebar + Menu + Agent Selector / Page Title */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {activeTab === "chat" ? (
@@ -567,7 +567,7 @@ export function AppContent({ activeTab }: AppContentProps) {
               <main
                 ref={messagesContainerRef}
                 onScroll={handleScroll}
-                className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain pb-5"
+                className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain pb-5 pt-3"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 {/* Session loading indicator - show when loading history (no messages yet) */}

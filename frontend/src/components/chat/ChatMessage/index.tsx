@@ -216,7 +216,7 @@ export function ChatMessage({
   // Assistant message: left layout
   return (
     <div className="group w-full">
-      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6 sm:mb-4">
+      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-3 sm:px-6 sm:mb-4">
         {/* Content */}
         <div className="flex-1 overflow-hidden min-w-0">
           {/* Header: Avatar + Role label + Stop button */}
@@ -233,7 +233,7 @@ export function ChatMessage({
           {isStreaming && !hasParts && <ThinkingIndicator />}
 
           {hasParts ? (
-            <div className="space-y-3 px-2">
+            <div className="space-y-3 px-2 my-2">
               {message.parts!.map((part: MessagePart, index: number) => (
                 <MessagePartRenderer
                   key={index}
@@ -337,6 +337,8 @@ function MessagePartRenderer({
   isStreaming?: boolean;
   isLast: boolean;
 }) {
+  const { t } = useTranslation();
+
   if (part.type === "text") {
     // Text inside subagent uses simple rendering, main agent uses Markdown
     if (part.depth && part.depth > 0) {
@@ -416,11 +418,10 @@ function MessagePartRenderer({
 
   // Cancelled block
   if (part.type === "cancelled") {
-    const { t } = useTranslation();
     return (
       <div
         className={clsx(
-          "flex items-center gap-2 px-4u py-2.5 rounded-xl mt-4",
+          "flex items-center gap-2 px-4 py-2.5 rounded-xl",
           "bg-amber-50 dark:bg-amber-950/40",
           "border border-amber-200/60 dark:border-amber-800/60",
           "text-amber-700 dark:text-amber-400",

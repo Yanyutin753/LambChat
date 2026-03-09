@@ -47,6 +47,7 @@ class TraceStorage:
     Trace 存储类
 
     按 trace_id 聚合事件，使用 MongoDB $push 追加事件到数组。
+    写入时按 Redis 顺序追加，读取时按 started_at 排序后合并。
     """
 
     def __init__(self):
@@ -330,7 +331,7 @@ class TraceStorage:
         """
         获取会话的所有事件（跨 traces 聚合）
 
-        按 timestamp 排序返回所有事件。
+        按 run 顺序（started_at）合并事件，每个 run 内的事件保持原有顺序。
 
         Args:
             session_id: 会话 ID
@@ -340,7 +341,7 @@ class TraceStorage:
             completed_only: 是否只返回成功完成的 trace 中的事件（默认 True）
 
         Returns:
-            事件列表，按时间戳排序
+            事件列表，按 run 顺序合并
         """
         try:
             # 构建查询条件
@@ -353,39 +354,33 @@ class TraceStorage:
             if completed_only:
                 match_query["status"] = {"$ne": "running"}
 
-            # 直接执行聚合查询，去掉冗余的 count_documents（聚合空结果自然返回空列表）
-            # 聚合查询，展开所有 events
-            pipeline: List[Dict[str, Any]] = [
-                {"$match": match_query},
-                {"$unwind": {"path": "$events", "preserveNullAndEmptyArrays": False}},
-            ]
+            # 按 started_at 排序获取所有 traces（每个 trace 对应一个 run）
+            cursor = self.collection.find(match_query).sort("started_at", 1)
+            traces = await cursor.to_list(length=None)
 
-            # 事件类型过滤
-            if event_types:
-                pipeline.append({"$match": {"events.event_type": {"$in": event_types}}})
+            # 合并所有事件：按 run 顺序，每个 run 内的事件保持原有顺序
+            all_events: List[Dict[str, Any]] = []
+            for trace in traces:
+                events = trace.get("events", [])
+                # 事件类型过滤
+                if event_types:
+                    events = [e for e in events if e.get("event_type") in event_types]
+                # 添加 trace 信息
+                for event in events:
+                    all_events.append(
+                        {
+                            "trace_id": trace.get("trace_id"),
+                            "run_id": trace.get("run_id"),
+                            "event_type": event.get("event_type"),
+                            "data": event.get("data"),
+                            "timestamp": event.get("timestamp"),
+                        }
+                    )
 
-            # 直接使用外层 timestamp 排序，避免 data.timestamp 类型不一致问题
-            # （data.timestamp 有时是字符串有时没有，而外层 timestamp 始终是统一的 UTC Date）
-            pipeline.append({"$sort": {"events.timestamp": 1}})
-
-            # 投影
-            pipeline.append(
-                {
-                    "$project": {
-                        "_id": 0,
-                        "trace_id": 1,
-                        "run_id": 1,
-                        "event_type": "$events.event_type",
-                        "data": "$events.data",
-                        "timestamp": "$events.timestamp",
-                    }
-                }
+            logger.debug(
+                f"Session {session_id} (run_id={run_id}) returned {len(all_events)} events"
             )
-
-            cursor = self.collection.aggregate(pipeline, allowDiskUse=True)
-            results = await cursor.to_list(length=None)
-            logger.debug(f"Session {session_id} (run_id={run_id}) returned {len(results)} events")
-            return results
+            return all_events
         except Exception as e:
             logger.error(f"Failed to get session events: {e}")
             return []
@@ -405,7 +400,7 @@ class TraceStorage:
             event_types: 可选的事件类型过滤列表
 
         Returns:
-            事件列表，按时间戳排序
+            事件列表，按写入顺序
         """
         return await self.get_session_events(session_id, event_types, run_id=run_id)
 

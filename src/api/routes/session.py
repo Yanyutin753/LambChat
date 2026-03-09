@@ -491,7 +491,7 @@ async def generate_session_title(
         prompt = prompt_template.replace("{lang}", lang).replace("{message}", message[:800])
 
         response = await _ainvoke_with_retry(model, prompt)
-        logger.info("LLM 生成标题响应: %s", response)
+        logger.debug("LLM 生成标题响应: %s", response)
 
         # 提取标题，兼容新旧格式
         content = response.content
