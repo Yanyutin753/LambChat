@@ -127,7 +127,8 @@ export function isPreviewableFile(ext: string): boolean {
     isHtmlFile(ext) ||
     isCodeFile(ext) ||
     isMarkdownFile(ext) ||
-    isExcalidrawFile(ext)
+    isExcalidrawFile(ext) ||
+    isVideoFile(ext)
   );
 }
 

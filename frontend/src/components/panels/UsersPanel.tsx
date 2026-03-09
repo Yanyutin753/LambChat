@@ -38,13 +38,15 @@ interface UserAvatarProps {
 
 function UserAvatar({ user, size = "sm" }: UserAvatarProps) {
   const sizeClasses = size === "sm" ? "h-8 w-8 text-sm" : "h-10 w-10 text-base";
+  const [imgError, setImgError] = useState(false);
 
-  if (user.avatar_url) {
+  if (user.avatar_url && !imgError) {
     return (
       <img
         src={user.avatar_url}
         alt={user.username}
         className={`rounded-full object-cover ${sizeClasses}`}
+        onError={() => setImgError(true)}
       />
     );
   }
@@ -165,7 +167,7 @@ function UserFormModal({
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {isEditing ? t("users.editUser") : t("users.createUser")}
             </h2>
             <button onClick={onClose} className="btn-icon">
@@ -349,7 +351,7 @@ function DeleteConfirmModal({
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("users.confirmDelete")}
             </h2>
             <button onClick={onClose} className="btn-icon">
@@ -531,7 +533,7 @@ export function UsersPanel() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100">
+              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                 {t("users.title")}
               </h1>
               <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
@@ -769,21 +771,12 @@ export function UsersPanel() {
       {/* Pagination */}
       {total > pageSize && (
         <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-6">
-          <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
-            <p className="text-sm text-stone-500 dark:text-stone-400">
-              {t("users.paginationInfo", {
-                start: (page - 1) * pageSize + 1,
-                end: Math.min(page * pageSize, total),
-                total,
-              })}
-            </p>
-            <Pagination
-              page={page}
-              pageSize={pageSize}
-              total={total}
-              onChange={setPage}
-            />
-          </div>
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onChange={setPage}
+          />
         </div>
       )}
 

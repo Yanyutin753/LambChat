@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus,
   X,
@@ -13,6 +13,7 @@ import {
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Pagination } from "../common/Pagination";
 import { SkillCard } from "../skill/SkillCard";
 import { SkillForm } from "../skill/SkillForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -68,6 +69,21 @@ export function SkillsPanel() {
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubInstallAsSystem, setGithubInstallAsSystem] = useState(false);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 20;
+
+  // Update total when skills change
+  useEffect(() => {
+    setTotal(skills.length);
+  }, [skills]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
   // Delete confirmation dialog state
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteConfirmData, setDeleteConfirmData] = useState<{
@@ -83,6 +99,12 @@ export function SkillsPanel() {
     (skill) =>
       skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       skill.description.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  // Get paginated skills
+  const paginatedSkills = filteredSkills.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
   );
 
   const handleCreate = () => {
@@ -372,7 +394,7 @@ export function SkillsPanel() {
       <div className="panel-header">
         <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 whitespace-nowrap">
+            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif whitespace-nowrap">
               {t("skills.title")}
             </h2>
             <p className="mt-0.5 text-sm text-stone-500 dark:text-stone-400 whitespace-nowrap">
@@ -478,7 +500,7 @@ export function SkillsPanel() {
           </div>
         ) : (
           <div className="space-y-1.5 sm:space-y-2">
-            {filteredSkills.map((skill) => (
+            {paginatedSkills.map((skill) => (
               <SkillCard
                 key={skill.name}
                 skill={skill}
@@ -491,6 +513,18 @@ export function SkillsPanel() {
         )}
       </div>
 
+      {/* Pagination */}
+      {total > pageSize && (
+        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-4">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onChange={setPage}
+          />
+        </div>
+      )}
+
       {/* Form Modal - Bottom Sheet */}
       {showModal && (
         <>
@@ -500,7 +534,7 @@ export function SkillsPanel() {
               <div className="bottom-sheet-handle sm:hidden" />
               {/* Header */}
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {isCreating
                     ? t("skills.createNew")
                     : t("skills.editSkill", { name: editingSkill?.name })}
@@ -536,7 +570,7 @@ export function SkillsPanel() {
               <div className="bottom-sheet-handle sm:hidden" />
               {/* Header */}
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {t("skills.importSkills")}
                 </h3>
                 <button
@@ -649,7 +683,7 @@ export function SkillsPanel() {
               <div className="bottom-sheet-handle sm:hidden" />
               {/* Header */}
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {t("skills.importFromGitHubTitle")}
                 </h3>
                 <button

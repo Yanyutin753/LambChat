@@ -2,7 +2,7 @@
  * Pagination Component - Page number navigation
  */
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 
 interface PaginationProps {
   page: number;
@@ -22,49 +22,54 @@ export function Pagination({
   if (totalPages <= 1) return null;
 
   const pages = getPageNumbers(page, totalPages);
+  const startItem = (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, total);
 
   return (
-    <div className="flex items-center justify-center gap-1">
-      {/* Previous button */}
-      <button
-        onClick={() => onChange(page - 1)}
-        disabled={page === 1}
-        className="btn-icon disabled:opacity-40"
-        aria-label="Previous page"
-      >
-        <ChevronLeft size={18} />
-      </button>
+    <div className="pagination-wrapper">
+      {/* Info */}
+      <p className="text-sm text-stone-500 dark:text-stone-400 whitespace-nowrap">
+        {startItem}-{endItem} / {total}
+      </p>
 
-      {/* Page numbers */}
-      {pages.map((p, idx) =>
-        p === "..." ? (
-          <span key={`ellipsis-${idx}`} className="px-2 text-stone-400">
-            ...
-          </span>
-        ) : (
-          <button
-            key={p}
-            onClick={() => onChange(p as number)}
-            className={`min-w-[32px] rounded-lg px-2 py-1 text-sm font-medium transition-colors ${
-              p === page
-                ? "bg-amber-500 text-white"
-                : "text-stone-600 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
-            }`}
-          >
-            {p}
-          </button>
-        ),
-      )}
+      {/* Page controls */}
+      <div className="pagination-controls">
+        <button
+          onClick={() => onChange(page - 1)}
+          disabled={page === 1}
+          className="pagination-btn"
+          aria-label="Previous"
+        >
+          <ChevronLeft size={16} />
+        </button>
 
-      {/* Next button */}
-      <button
-        onClick={() => onChange(page + 1)}
-        disabled={page === totalPages}
-        className="btn-icon disabled:opacity-40"
-        aria-label="Next page"
-      >
-        <ChevronRight size={18} />
-      </button>
+        {pages.map((p, idx) =>
+          p === "..." ? (
+            <span key={`ellipsis-${idx}`} className="pagination-ellipsis">
+              <MoreHorizontal size={14} />
+            </span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onChange(p as number)}
+              className={`pagination-page ${
+                p === page ? "pagination-page-active" : ""
+              }`}
+            >
+              {p}
+            </button>
+          ),
+        )}
+
+        <button
+          onClick={() => onChange(page + 1)}
+          disabled={page === totalPages}
+          className="pagination-btn"
+          aria-label="Next"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
     </div>
   );
 }

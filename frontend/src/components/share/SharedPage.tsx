@@ -65,6 +65,7 @@ export function SharedPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SharedContentResponse | null>(null);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     if (!shareId) {
@@ -159,7 +160,7 @@ export function SharedPage() {
                   className="text-amber-500 dark:text-amber-400"
                 />
               </div>
-              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 mb-2 font-serif tracking-tight">
+              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif mb-2 font-serif tracking-tight">
                 {t("share.loginRequired")}
               </h1>
               <p className="text-stone-500 dark:text-stone-400 mb-8 leading-relaxed">
@@ -192,7 +193,7 @@ export function SharedPage() {
                   className="text-red-500 dark:text-red-400"
                 />
               </div>
-              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 mb-2 font-serif tracking-tight">
+              <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif mb-2 font-serif tracking-tight">
                 {t("share.notFound")}
               </h1>
               <p className="text-stone-500 dark:text-stone-400 mb-8 leading-relaxed">
@@ -283,11 +284,12 @@ export function SharedPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     {/* Avatar and username */}
                     <div className="flex items-center gap-3">
-                      {data.owner.avatar_url ? (
+                      {data.owner.avatar_url && !imgError ? (
                         <img
                           src={data.owner.avatar_url}
                           alt={data.owner.username}
                           className="w-12 h-12 rounded-xl object-cover ring-2 ring-stone-100 dark:ring-stone-800"
+                          onError={() => setImgError(true)}
                         />
                       ) : (
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-stone-500 to-stone-700 flex items-center justify-center shadow-lg shadow-stone-500/20">

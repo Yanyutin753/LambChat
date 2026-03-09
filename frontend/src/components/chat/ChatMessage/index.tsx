@@ -216,7 +216,7 @@ export function ChatMessage({
   // Assistant message: left layout
   return (
     <div className="group w-full">
-      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-3 sm:px-6 sm:mb-4">
+      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-3 sm:px-6 mb-3 sm:mb-4">
         {/* Content */}
         <div className="flex-1 overflow-hidden min-w-0">
           {/* Header: Avatar + Role label + Stop button */}

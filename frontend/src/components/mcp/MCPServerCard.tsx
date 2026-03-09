@@ -16,7 +16,7 @@ const TRANSPORT_LABELS: Record<string, string> = {
 };
 
 const TRANSPORT_COLORS: Record<string, string> = {
-  stdio: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+  stdio: "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
   sse: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
   streamable_http:
     "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300",

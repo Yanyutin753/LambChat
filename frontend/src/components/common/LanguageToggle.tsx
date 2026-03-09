@@ -72,13 +72,20 @@ export function LanguageToggle() {
             <button
               key={lang.code}
               onClick={() => selectLanguage(lang.code)}
-              className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-stone-700 flex items-center justify-between text-gray-700 dark:text-stone-200"
+              className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between transition-colors ${
+                i18n.language === lang.code
+                  ? "bg-gray-100 dark:bg-stone-700 text-gray-900 dark:text-stone-100"
+                  : "text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+              }`}
               role="menuitem"
               aria-selected={i18n.language === lang.code}
             >
               <span>{lang.nativeName}</span>
               {i18n.language === lang.code && (
-                <Check size={16} className="text-blue-500" />
+                <Check
+                  size={16}
+                  className="text-gray-700 dark:text-stone-200"
+                />
               )}
             </button>
           ))}
