@@ -134,7 +134,8 @@
     "send": "Send message",
     "shiftEnterNewLine": "for new line",
     "stop": "Stop generating",
-    "title": "Chat"
+    "title": "Chat",
+    "waitingForUpload": "Please wait for file upload to complete"
   },
   "common": {
     "about": "About",

@@ -594,16 +594,19 @@ export default function DocumentPreview({
               {pdfUrl && <PdfPreview url={pdfUrl} />}
             </div>
           ) : videoFile && videoUrl ? (
-            <div className="flex items-center justify-center p-4 sm:p-8 bg-stone-950 min-h-[300px]">
-              <video
-                controls
-                autoPlay={false}
-                className="max-w-full max-h-[60vh] rounded-lg shadow-lg"
-                src={videoUrl}
-              >
-                <track kind="captions" />
-                {t("documents.videoNotSupported")}
-              </video>
+            <div className="flex items-center justify-center h-full bg-gradient-to-b from-stone-900 to-stone-950 min-h-[400px] p-4 sm:p-8">
+              <div className="relative w-full max-w-4xl mx-auto">
+                <video
+                  controls
+                  autoPlay={false}
+                  className="w-full max-h-[65vh] rounded-xl shadow-2xl ring-1 ring-white/10"
+                  src={videoUrl}
+                  style={{ margin: "0 auto", display: "block" }}
+                >
+                  <track kind="captions" />
+                  {t("documents.videoNotSupported")}
+                </video>
+              </div>
             </div>
           ) : pptFile && (pptUrl || pptxBuffer) ? (
             <div className="h-full min-h-[400px]">
