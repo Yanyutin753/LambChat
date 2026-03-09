@@ -132,6 +132,10 @@ export function AppContent({ activeTab }: AppContentProps) {
     },
   });
 
+  // Ref to store loadHistory to avoid stale closure in useEffect
+  const loadHistoryRef = useRef(loadHistory);
+  loadHistoryRef.current = loadHistory;
+
   // Browser notification
   const { requestPermission, notify, isSupported, permission } =
     useBrowserNotification();
@@ -306,8 +310,10 @@ export function AppContent({ activeTab }: AppContentProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // Flag to prevent sync loops between URL and state
+  // Session sync state - controlled by single ref to prevent sync loops
   const isSyncingRef = useRef(false);
+  // Track if navigation was initiated internally (not from URL)
+  const isInternalNavRef = useRef(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
 
   // Check if user is near the bottom (within 100px)
@@ -361,7 +367,6 @@ export function AppContent({ activeTab }: AppContentProps) {
 
   // Load session when URL changes (e.g., from toast click)
   const isLoadingRef = useRef(false);
-  const isInternalNavRef = useRef(false);
   useEffect(() => {
     // Skip if sessionId is null (new session being created, handled by clearMessages)
     // This prevents loading old session history after clearMessages is called
@@ -386,21 +391,30 @@ export function AppContent({ activeTab }: AppContentProps) {
     }
 
     isLoadingRef.current = true;
-    loadHistory(urlSessionId).finally(() => {
+    loadHistoryRef.current(urlSessionId).finally(() => {
       isLoadingRef.current = false;
     });
-  }, [urlSessionId, sessionId, loadHistory]);
+  }, [urlSessionId, sessionId]);
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
+  // Sync URL with sessionId state (when sessionId changes from internal actions)
+  // Use ref to store location pathname to avoid triggering on every render
+  const locationPathRef = useRef(location.pathname);
+  const locationStateRef = useRef(location.state);
+  locationPathRef.current = location.pathname;
+  locationStateRef.current = location.state;
+
   useEffect(() => {
     if (isSyncingRef.current) return;
 
     // Skip sync if this navigation was initiated externally (e.g., from toast click)
     // This prevents the sync effect from reverting the user's navigation
-    const locationState = location.state as { externalNavigate?: boolean };
-    if (locationState?.externalNavigate) {
+    const externalNavigate = (
+      locationStateRef.current as { externalNavigate?: boolean }
+    )?.externalNavigate;
+    if (externalNavigate) {
       // Clear the externalNavigate flag without triggering another navigation
-      window.history.replaceState({}, "", location.pathname);
+      window.history.replaceState({}, "", locationPathRef.current);
       return;
     }
 
@@ -419,7 +433,7 @@ export function AppContent({ activeTab }: AppContentProps) {
         isSyncingRef.current = false;
       }, 100);
     }
-  }, [sessionId, urlSessionId, navigate, location]);
+  }, [sessionId, urlSessionId, navigate]);
 
   // Handle session selection from sidebar
   const handleSelectSession = useCallback(
