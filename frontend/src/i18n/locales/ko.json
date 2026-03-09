@@ -133,7 +133,8 @@
     "send": "메시지 보내기",
     "shiftEnterNewLine": "로 줄바꿈",
     "stop": "생성 중지",
-    "title": "채팅"
+    "title": "채팅",
+    "waitingForUpload": "파일 업로드가 완료될 때까지 기다려 주세요"
   },
   "common": {
     "about": "정보",
