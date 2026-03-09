@@ -316,12 +316,14 @@ class BackgroundTaskManager:
             # 任务被中断
             await self._update_session_status(session_id, TaskStatus.FAILED, str(e), run_id=run_id)
             # 先刷新所有缓冲，确保已产生的事件不丢失
-            if dual_writer is not None:
-                try:
-                    await dual_writer._flush_redis_buffer()
-                    await dual_writer.flush_mongo_buffer()
-                except Exception:
-                    pass
+            # 注意：dual_writer 可能还是 None（如果任务在 get_dual_writer() 之前就被取消）
+            if dual_writer is None:
+                dual_writer = get_dual_writer()
+            try:
+                await dual_writer._flush_redis_buffer()
+                await dual_writer.flush_mongo_buffer()
+            except Exception as flush_error:
+                logger.warning(f"Failed to flush events on TaskInterruptedError: {flush_error}")
             # 完成 trace
             if presenter is not None:
                 await presenter.complete("error")
@@ -357,12 +359,14 @@ class BackgroundTaskManager:
             logger.error(f"Task failed: session={session_id}, run_id={run_id}, error={e}")
 
             # 先刷新所有缓冲，确保已产生的事件不丢失
-            if dual_writer is not None:
-                try:
-                    await dual_writer._flush_redis_buffer()
-                    await dual_writer.flush_mongo_buffer()
-                except Exception:
-                    pass
+            # 注意：dual_writer 可能还是 None（如果任务在 get_dual_writer() 之前就失败）
+            if dual_writer is None:
+                dual_writer = get_dual_writer()
+            try:
+                await dual_writer._flush_redis_buffer()
+                await dual_writer.flush_mongo_buffer()
+            except Exception as flush_err:
+                logger.warning(f"Failed to flush events on task failure: {flush_err}")
 
             # 完成 trace（如果已创建）
             if presenter is not None:
@@ -370,20 +374,19 @@ class BackgroundTaskManager:
 
             # 写入错误事件（包含 trace_id 以写入 MongoDB）
             trace_id = presenter.trace_id if presenter else None
-            if dual_writer is not None:
-                await dual_writer.write_event(
-                    session_id=session_id,
-                    event_type="error",
-                    data={"error": str(e), "type": type(e).__name__, "run_id": run_id},
-                    trace_id=trace_id,
-                    run_id=run_id,
-                )
-                # 再次刷新，确保 error 事件被持久化
-                try:
-                    await dual_writer._flush_redis_buffer()
-                    await dual_writer.flush_mongo_buffer()
-                except Exception:
-                    pass
+            await dual_writer.write_event(
+                session_id=session_id,
+                event_type="error",
+                data={"error": str(e), "type": type(e).__name__, "run_id": run_id},
+                trace_id=trace_id,
+                run_id=run_id,
+            )
+            # 再次刷新，确保 error 事件被持久化
+            try:
+                await dual_writer._flush_redis_buffer()
+                await dual_writer.flush_mongo_buffer()
+            except Exception as flush_err:
+                logger.warning(f"Failed to flush error event: {flush_err}")
 
             # 发送任务失败通知
             await self._send_task_notification(
@@ -721,8 +724,12 @@ class BackgroundTaskManager:
                     )
                 except Exception as e:
                     logger.warning(f"Failed to update trace status: {e}")
+        else:
+            logger.warning(
+                f"Cancel: run_info not found for run_id={run_id}, cannot update MongoDB trace status"
+            )
 
-        # 3.5 记录用户取消事件
+        # 3.1 记录用户取消事件
         if user_id and run_info:
             session_id = run_info.get("session_id")
             trace_id = run_info.get("trace_id")
@@ -773,23 +780,37 @@ class BackgroundTaskManager:
             try:
                 redis_client = get_redis_client()
                 agent_id = run_info.get("agent_id") if run_info else None
+                session_id = run_info.get("session_id") if run_info else None
+                trace_id = run_info.get("trace_id") if run_info else None
                 await redis_client.publish(
                     CANCEL_CHANNEL,
                     json.dumps(
                         {
                             "run_id": run_id,
                             "agent_id": agent_id,
+                            "session_id": session_id,
+                            "trace_id": trace_id,
                             "timestamp": datetime.now().isoformat(),
                         }
                     ),
                 )
-                logger.info(f"Published cancel signal for run_id={run_id}, agent_id={agent_id}")
+                logger.info(
+                    f"Published cancel signal for run_id={run_id}, agent_id={agent_id}, session_id={session_id}"
+                )
             except Exception as e:
                 logger.warning(f"Failed to publish cancel signal: {e}")
 
         # 构建返回结果
         # success: 中断信号成功设置即认为成功（即使任务在其他实例运行）
         success = interrupt_signal_set or run_id in _interrupted_runs
+
+        # 5. 更新 session 状态为 cancelled
+        if run_info:
+            session_id = run_info.get("session_id")
+            if session_id:
+                await self._update_session_status(
+                    session_id, TaskStatus.FAILED, "Task cancelled", run_id=run_id
+                )
 
         if cancelled_locally:
             message = "任务已取消"
@@ -902,10 +923,35 @@ class BackgroundTaskManager:
                             data = json.loads(message["data"])
                             run_id = data.get("run_id")
                             agent_id = data.get("agent_id")
+                            session_id = data.get("session_id")
+                            trace_id = data.get("trace_id")
                             if run_id:
                                 logger.info(
-                                    f"Received cancel signal for run_id={run_id}, agent_id={agent_id}"
+                                    f"Received cancel signal for run_id={run_id}, agent_id={agent_id}, session_id={session_id}"
                                 )
+
+                                # 更新 MongoDB trace 状态为 error（确保 trace 状态被更新）
+                                if trace_id:
+                                    try:
+                                        from src.infra.session.trace_storage import (
+                                            get_trace_storage,
+                                        )
+
+                                        trace_storage = get_trace_storage()
+                                        success = await trace_storage.complete_trace(
+                                            trace_id,
+                                            status="error",
+                                            metadata={
+                                                "cancel_reason": "Task cancelled via pub/sub"
+                                            },
+                                        )
+                                        logger.info(
+                                            f"MongoDB trace status updated via pub/sub: trace_id={trace_id}, success={success}"
+                                        )
+                                    except Exception as e:
+                                        logger.warning(
+                                            f"Failed to update trace status via pub/sub: {e}"
+                                        )
 
                                 # 调用 agent.close(run_id) 取消 graph
                                 if agent_id:
