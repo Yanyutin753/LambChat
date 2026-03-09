@@ -8,6 +8,8 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
 </p>
 
+English | [简体中文](README_CN.md)
+
 > A production-ready AI Agent system built with FastAPI + LangGraph
 
 ## ✨ Features
