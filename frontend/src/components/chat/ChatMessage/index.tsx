@@ -224,7 +224,7 @@ export function ChatMessage({
             <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-rose-500 text-white shadow-sm">
               <Bot size={16} />
             </div>
-            <span className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100 font-serif">
+            <span className="text-base font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("chat.message.assistant")}
             </span>
           </div>
