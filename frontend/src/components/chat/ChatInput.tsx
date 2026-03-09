@@ -361,7 +361,9 @@ export const ChatInput = memo(function ChatInput({
   };
 
   const hasContent = input.trim() && !disabled;
-  const canSubmit = hasContent && canSend && !isLoading;
+  // Check if any attachment is still uploading
+  const hasUploadingAttachment = attachments.some((a) => a.isUploading);
+  const canSubmit = hasContent && canSend && !isLoading && !hasUploadingAttachment;
 
   // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
@@ -597,7 +599,11 @@ export const ChatInput = memo(function ChatInput({
                       ? "bg-stone-900 dark:bg-stone-600 text-white dark:text-stone-100 hover:scale-105"
                       : "bg-gray-100 text-gray-400 dark:bg-stone-700 dark:text-stone-500"
                   }`}
-                  title={t("chat.send")}
+                  title={
+                    hasUploadingAttachment
+                      ? t("chat.waitingForUpload", "请等待文件上传完成")
+                      : t("chat.send")
+                  }
                 >
                   <ArrowUp size={18} />
                 </button>

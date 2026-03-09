@@ -133,7 +133,8 @@
     "send": "メッセージを送信",
     "shiftEnterNewLine": "で改行",
     "stop": "生成を停止",
-    "title": "チャット"
+    "title": "チャット",
+    "waitingForUpload": "ファイルのアップロードが完了するまでお待ちください"
   },
   "common": {
     "about": "について",
