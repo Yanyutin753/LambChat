@@ -599,30 +599,41 @@ export function ProfileModal({
 
               {/* Mobile Notification Status */}
               {isMobile && (
-                <div className="bg-gray-50 dark:bg-stone-700/50 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-gray-900 dark:text-stone-100">
-                        {t("profile.mobileNotification")}
-                      </h4>
-                      <p className="text-sm text-gray-500 dark:text-stone-400 mt-1">
-                        {t("profile.mobileNotificationDesc")}
-                      </p>
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-3 sm:p-4 border border-blue-100 dark:border-blue-800/30">
+                  <div className="flex items-center justify-between gap-2 flex-nowrap">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-800/50 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-blue-600 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-sm sm:text-base text-gray-900 dark:text-stone-100 truncate">
+                          {t("profile.mobileNotification")}
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-stone-400 hidden sm:block truncate">
+                          {t("profile.mobileNotificationDesc")}
+                        </p>
+                      </div>
                     </div>
                     <span
-                      className={`text-sm flex items-center gap-1 ${
+                      className={`shrink-0 text-xs sm:text-sm flex items-center gap-1 px-2 py-1 rounded-full ${
                         isMobileNotificationSupported()
-                          ? "text-green-600"
-                          : "text-amber-600"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
                       }`}
                     >
                       {isMobileNotificationSupported() ? (
                         <>
-                          <Check size={16} />
-                          {t("profile.supported")}
+                          <Check size={12} className="sm:w-4 sm:h-4" />
+                          <span className="hidden sm:inline">{t("profile.supported")}</span>
+                          <span className="sm:hidden">OK</span>
                         </>
                       ) : (
-                        t("profile.limitedSupport")
+                        <>
+                          <span className="hidden sm:inline">{t("profile.limitedSupport")}</span>
+                          <span className="sm:hidden">-</span>
+                        </>
                       )}
                     </span>
                   </div>
