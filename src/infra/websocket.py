@@ -26,9 +26,16 @@ class ConnectionManager:
         self._connections: Dict[str, Set[WebSocket]] = {}
         self._lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket, user_id: str) -> None:
-        """用户连接 WebSocket"""
-        await websocket.accept()
+    async def connect(self, websocket: WebSocket, user_id: str, accept: bool = True) -> None:
+        """用户连接 WebSocket
+
+        Args:
+            websocket: WebSocket连接
+            user_id: 用户ID
+            accept: 是否需要接受连接（如果已经accept过，设为False）
+        """
+        if accept:
+            await websocket.accept()
         async with self._lock:
             if user_id not in self._connections:
                 self._connections[user_id] = set()

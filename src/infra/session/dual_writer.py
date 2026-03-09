@@ -4,6 +4,11 @@ Dual Event Writer - 双写事件到 Redis Stream + MongoDB
 所有事件按 trace_id 聚合到 MongoDB，大幅减少文档数量。
 - Redis: 所有事件立即写入，保证 SSE 实时性
 - MongoDB: 批量缓冲写入，确保数据不丢失
+
+性能优化:
+- 使用 bulk_write 批量更新 MongoDB，减少 DB 往返
+- 分离 Redis/Mongo 锁，减少锁竞争
+- 使用 asyncio.Event 替代轮询标志
 """
 
 import asyncio
@@ -12,6 +17,8 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
+
+from pymongo import UpdateOne
 
 from src.infra.session.trace_storage import TraceStorage, get_trace_storage
 from src.infra.storage.redis import RedisStorage
@@ -35,6 +42,11 @@ class DualEventWriter:
 
     - Redis: 所有事件立即写入，保证 SSE 实时性
     - MongoDB: 批量缓冲写入，使用 Lock 保护，确保数据不丢失
+
+    性能优化:
+    - Redis 和 MongoDB 操作使用不同的锁，减少争用
+    - 使用 asyncio.Event 替代轮询标志，避免 busy wait
+    - 使用 bulk_write 批量更新 MongoDB
     """
 
     def __init__(self):
@@ -44,8 +56,9 @@ class DualEventWriter:
         # MongoDB 批量写入缓冲
         # (trace_id, event_type, data, session_id, run_id, timestamp)
         self._mongo_buffer: list[tuple[str, str, dict, str, Optional[str], datetime]] = []
-        self._mongo_lock = asyncio.Lock()  # 保护 buffer 和 flush 操作
-        self._flush_scheduled = False  # 是否已调度刷新
+        self._mongo_lock = asyncio.Lock()  # 只保护 buffer 和 flush 操作
+        self._flush_event = asyncio.Event()  # 使用 Event 替代轮询标志
+        self._flush_event.set()  # 初始状态为已就绪
 
     @property
     def redis(self) -> RedisStorage:
@@ -94,13 +107,13 @@ class DualEventWriter:
         """
         双写事件到 Redis + MongoDB
 
-        - Redis: 立即写入
-        - MongoDB: 缓冲写入，批量刷新
+        - Redis: 立即写入（无锁）
+        - MongoDB: 缓冲写入，批量刷新（使用 Event 触发）
         """
         # 统一时间戳，确保 Redis 和 MongoDB 使用相同的时间
         timestamp = _utc_now()
 
-        # ---- Redis 写入（立即） ----
+        # ---- Redis 写入（立即，无锁） ----
         stream_key = self._stream_key(session_id, run_id)
         fields = {
             "event_type": event_type,
@@ -109,7 +122,7 @@ class DualEventWriter:
         }
         redis_success = await self._write_to_redis_direct(stream_key, fields)
 
-        # ---- MongoDB 写入（缓冲） ----
+        # ---- MongoDB 写入（缓冲，使用 Event 触发） ----
         if trace_id:
             should_flush_now = False
             async with self._mongo_lock:
@@ -119,9 +132,9 @@ class DualEventWriter:
                 # 达到批量大小立即刷新
                 if len(self._mongo_buffer) >= _MONGO_BATCH_SIZE:
                     should_flush_now = True
-                # 调度延迟刷新（如果还没调度）
-                elif not self._flush_scheduled:
-                    self._flush_scheduled = True
+                # 使用 Event 触发延迟刷新
+                elif self._flush_event.is_set():
+                    self._flush_event.clear()
                     asyncio.create_task(self._schedule_flush())
 
             if should_flush_now:
@@ -136,22 +149,23 @@ class DualEventWriter:
         except asyncio.CancelledError:
             # 被取消时也要执行刷新，确保数据不丢失
             pass
-        await self._do_flush()
+        finally:
+            await self._do_flush()
 
     async def _do_flush(self) -> None:
-        """实际执行批量写入"""
+        """实际执行批量写入，使用 bulk_write 优化"""
         async with self._mongo_lock:
             if not self._mongo_buffer:
-                self._flush_scheduled = False
+                self._flush_event.set()
                 return
 
             batch = self._mongo_buffer
             self._mongo_buffer = []
-            self._flush_scheduled = False
 
         # 按 trace_id 分组
         grouped: dict[str, list[dict]] = defaultdict(list)
         trace_context: dict[str, tuple[str, Optional[str]]] = {}
+        now = _utc_now()
 
         for trace_id, event_type, data, session_id, run_id, timestamp in batch:
             grouped[trace_id].append(
@@ -164,30 +178,45 @@ class DualEventWriter:
             if trace_id not in trace_context:
                 trace_context[trace_id] = (session_id, run_id)
 
-        # 批量写入
+        # 构建批量操作
+        operations: list[UpdateOne] = []
         for trace_id, events in grouped.items():
-            try:
-                session_id, run_id = trace_context.get(trace_id, ("", None))
-                await self.trace.collection.update_one(
+            session_id, run_id = trace_context.get(trace_id, ("", None))
+            operations.append(
+                UpdateOne(
                     {"trace_id": trace_id},
                     {
                         "$push": {"events": {"$each": events}},
                         "$inc": {"event_count": len(events)},
-                        "$set": {"updated_at": _utc_now()},
+                        "$set": {"updated_at": now},
                         "$setOnInsert": {
                             "session_id": session_id,
                             "run_id": run_id or "",
                             "status": "running",
-                            "started_at": _utc_now(),
+                            "started_at": now,
                         },
                     },
                     upsert=True,
                 )
+            )
+
+        # 批量执行
+        if operations:
+            try:
+                result = await self.trace.collection.bulk_write(operations, ordered=False)
+                logger.debug(
+                    f"Bulk write: {result.modified_count} modified, {result.upserted_count} upserted"
+                )
             except Exception as e:
-                logger.warning(f"Failed to write {len(events)} events to trace {trace_id}: {e}")
+                logger.warning(f"Bulk write failed: {e}")
+
+        # 标记完成，允许下次刷新
+        self._flush_event.set()
 
     async def flush_mongo_buffer(self) -> None:
         """强制刷新缓冲（外部调用）"""
+        # 等待当前刷新完成后再执行
+        await self._flush_event.wait()
         await self._do_flush()
 
     async def _flush_redis_buffer(self) -> None:

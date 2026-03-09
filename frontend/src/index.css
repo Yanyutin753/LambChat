@@ -1396,6 +1396,72 @@ html.dark body {
   }
 }
 
+/* ========================================
+   Toast 全局样式 - 可关闭
+   ======================================== */
+
+/* Toast 容器 - 添加光标提示 */
+[data-hot-toast] {
+  cursor: pointer !important;
+}
+
+/* Toast 悬停效果 */
+[data-hot-toast]:hover {
+  opacity: 0.95 !important;
+}
+
+/* 关闭按钮样式 */
+.toast-close-button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  border-radius: 4px;
+  transition:
+    opacity 0.2s,
+    background-color 0.2s;
+  padding: 0;
+  margin: 0;
+}
+
+.toast-close-button:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.toast-close-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
+}
+
+.dark .toast-close-button:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Toast 成功样式 */
+[data-hot-toast].toast-success {
+  border-left: 4px solid #22c55e;
+}
+
+/* Toast 错误样式 */
+[data-hot-toast].toast-error {
+  border-left: 4px solid #ef4444;
+}
+
+/* Toast 加载中样式 */
+[data-hot-toast].toast-loading {
+  border-left: 4px solid #3b82f6;
+}
+
 /* Excalidraw preview styles */
 .excalidraw-preview-container {
   width: 100%;

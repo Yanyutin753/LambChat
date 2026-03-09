@@ -92,17 +92,18 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       // Determine WebSocket URL based on current location
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host;
-      // Pass token as query parameter for authentication
-      const wsUrl = `${protocol}//${host}/ws?token=${encodeURIComponent(
-        token,
-      )}`;
+      // Token sent after connection (more secure than URL query param)
+      const wsUrl = `${protocol}//${host}/ws`;
 
       console.log("[WebSocket] Connecting to:", wsUrl);
 
       const ws = new WebSocket(wsUrl);
 
+      // Send authentication after connection is established
       ws.onopen = () => {
-        console.log("[WebSocket] Connected");
+        console.log("[WebSocket] Connected, sending auth");
+        // Send auth token after connection
+        ws.send(JSON.stringify({ type: "auth", token }));
         isConnectingRef.current = false;
         setIsConnected(true);
       };

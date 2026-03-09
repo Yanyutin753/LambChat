@@ -147,9 +147,9 @@ export function AppContent({ activeTab }: AppContentProps) {
     }
   }, [isSupported, permission, requestPermission]);
 
-  // WebSocket for task completion notifications
+  // WebSocket for task completion notifications - always enabled to receive notifications across all pages
   useWebSocket({
-    enabled: !!sessionId,
+    enabled: true,
     onTaskComplete: (notification: {
       data: { session_id: string; status: string; message?: string };
     }) => {
@@ -159,14 +159,20 @@ export function AppContent({ activeTab }: AppContentProps) {
         permission,
       });
 
-      // Show browser notification
+      // Navigate function for notifications
+      const navigateToSession = () => {
+        if (session_id !== sessionId) {
+          // Use replace + state to prevent sync effect from reverting the navigation
+          navigate(`/chat/${session_id}`, {
+            replace: true,
+            state: { externalNavigate: true },
+          });
+        }
+      };
+
+      // Show browser notification (if permitted)
       if (isSupported && permission === "granted") {
         console.log("[AppContent] Showing browser notification:", status);
-        const navigateToSession = () => {
-          if (session_id !== sessionId) {
-            navigate(`/chat/${session_id}`);
-          }
-        };
         if (status === "completed") {
           notify(t("notification.taskCompleted"), {
             body: message,
@@ -180,25 +186,14 @@ export function AppContent({ activeTab }: AppContentProps) {
             url: `/chat/${session_id}`,
           });
         }
-      } else {
+      } else if (permission === "default") {
         console.log(
           "[AppContent] Browser notification not shown, permission:",
           permission,
         );
       }
 
-      // Navigate function for notifications
-      const navigateToSession = () => {
-        if (session_id !== sessionId) {
-          // Use replace + state to prevent sync effect from reverting the navigation
-          navigate(`/chat/${session_id}`, {
-            replace: true,
-            state: { externalNavigate: true },
-          });
-        }
-      };
-
-      // Show toast notification (clickable)
+      // Show toast notification (clickable) - always show for better UX
       const toastMessage =
         status === "completed"
           ? message || t("notification.taskCompleted")
@@ -215,7 +210,8 @@ export function AppContent({ activeTab }: AppContentProps) {
                 ? "bg-green-50 dark:bg-green-900/80 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700"
                 : "bg-red-50 dark:bg-red-900/80 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700"
             }`}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               navigateToSession();
               toast.remove();
             }}
@@ -363,15 +359,48 @@ export function AppContent({ activeTab }: AppContentProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
+  // Load session when URL changes (e.g., from toast click)
+  const isLoadingRef = useRef(false);
+  const isInternalNavRef = useRef(false);
+  useEffect(() => {
+    // Skip if sessionId is null (new session being created, handled by clearMessages)
+    // This prevents loading old session history after clearMessages is called
+    if (!sessionId) {
+      return;
+    }
+
+    // Skip if urlSessionId is null/undefined (no session in URL)
+    if (!urlSessionId) {
+      return;
+    }
+
+    // Skip if already loading or if sessionId matches URL (no need to reload)
+    if (isLoadingRef.current || sessionId === urlSessionId) {
+      return;
+    }
+
+    // Skip if this was an internal navigation (handled by handleSelectSession)
+    if (isInternalNavRef.current) {
+      isInternalNavRef.current = false;
+      return;
+    }
+
+    isLoadingRef.current = true;
+    loadHistory(urlSessionId).finally(() => {
+      isLoadingRef.current = false;
+    });
+  }, [urlSessionId, sessionId, loadHistory]);
+
   // Sync URL with sessionId state (when sessionId changes from internal actions)
   useEffect(() => {
     if (isSyncingRef.current) return;
 
     // Skip sync if this navigation was initiated externally (e.g., from toast click)
     // This prevents the sync effect from reverting the user's navigation
-    if ((location.state as { externalNavigate?: boolean })?.externalNavigate) {
-      // Clear the externalNavigate flag after handling
-      navigate(location.pathname, { replace: true, state: {} });
+    const locationState = location.state as { externalNavigate?: boolean };
+    if (locationState?.externalNavigate) {
+      // Clear the externalNavigate flag without triggering another navigation
+      window.history.replaceState({}, "", location.pathname);
       return;
     }
 
@@ -397,6 +426,7 @@ export function AppContent({ activeTab }: AppContentProps) {
     async (selectedSessionId: string) => {
       // loadHistory has its own isLoadingHistoryRef guard, no need to check here
       try {
+        isInternalNavRef.current = true;
         await loadHistory(selectedSessionId);
         // Update URL
         navigate(`/chat/${selectedSessionId}`);
@@ -409,10 +439,10 @@ export function AppContent({ activeTab }: AppContentProps) {
     [navigate, loadHistory],
   );
 
-  // Handle new session
+  // Handle new session - just clear messages, URL sync is handled by useEffect
   const handleNewSession = useCallback(() => {
+    isInternalNavRef.current = false;
     clearMessages();
-    // URL sync is handled by the useEffect above
   }, [clearMessages]);
 
   return (

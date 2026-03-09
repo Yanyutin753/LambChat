@@ -178,15 +178,16 @@ function processHistoryEvent(
 
     case "thinking": {
       const thinkingId = eventData.thinking_id;
-      const thinkingPart = createThinkingPart(
-        eventData.content || "",
-        thinkingId,
-        depth,
-        agentId,
-        false,
-      );
+      const thinkingContent = eventData.content || "";
       const parts = msg.parts || [];
       if (depth > 0) {
+        const thinkingPart = createThinkingPart(
+          thinkingContent,
+          thinkingId,
+          depth,
+          agentId,
+          false,
+        );
         msg.parts = addPartToDepth(
           parts,
           thinkingPart,
@@ -195,18 +196,21 @@ function processHistoryEvent(
           agentId,
         );
       } else {
-        const newParts = [...parts];
         let existingIndex = -1;
 
         // 如果有 thinking_id，精确匹配
         if (thinkingId !== undefined) {
-          existingIndex = newParts.findIndex(
-            (p) => p.type === "thinking" && p.thinking_id === thinkingId,
-          );
+          for (let i = parts.length - 1; i >= 0; i--) {
+            const p = parts[i];
+            if (p.type === "thinking" && p.thinking_id === thinkingId) {
+              existingIndex = i;
+              break;
+            }
+          }
         } else {
           // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
-          for (let i = newParts.length - 1; i >= 0; i--) {
-            const p = newParts[i];
+          for (let i = parts.length - 1; i >= 0; i--) {
+            const p = parts[i];
             if (p.type === "thinking" && p.thinking_id === undefined) {
               existingIndex = i;
               break;
@@ -215,15 +219,20 @@ function processHistoryEvent(
         }
 
         if (existingIndex >= 0) {
-          const existing = newParts[existingIndex] as ThinkingPart;
-          newParts[existingIndex] = {
-            ...existing,
-            content: existing.content + (eventData.content || ""),
-          };
+          // Mutate directly for better performance
+          const existing = parts[existingIndex] as ThinkingPart;
+          existing.content += thinkingContent;
+          msg.parts = parts;
         } else {
-          newParts.push(thinkingPart);
+          const thinkingPart = createThinkingPart(
+            thinkingContent,
+            thinkingId,
+            depth,
+            agentId,
+            false,
+          );
+          msg.parts = [...parts, thinkingPart];
         }
-        msg.parts = newParts;
       }
       break;
     }
@@ -248,17 +257,14 @@ function processHistoryEvent(
       } else {
         msg.content += content;
         const parts = msg.parts || [];
-        const newParts = [...parts];
-        const lastPart = newParts[newParts.length - 1];
+        const lastPart = parts[parts.length - 1];
         if (lastPart?.type === "text" && !lastPart.depth) {
-          newParts[newParts.length - 1] = {
-            ...lastPart,
-            content: lastPart.content + content,
-          };
+          // Mutate directly for better performance
+          (lastPart as { content: string }).content += content;
+          msg.parts = parts;
         } else {
-          newParts.push({ type: "text" as const, content });
+          msg.parts = [...parts, { type: "text" as const, content }];
         }
-        msg.parts = newParts;
       }
       break;
     }
@@ -318,26 +324,27 @@ function processHistoryEvent(
       } else {
         // 向后兼容：按 name 匹配
         const toolName = eventData.tool || "";
+        const resultContent = eventData.result || "";
         let updated = false;
-        const newParts = parts.map((p) => {
+        for (let i = 0; i < parts.length; i++) {
+          const p = parts[i];
           if (
             p.type === "tool" &&
             p.name === toolName &&
-            p.isPending &&
+            (p as ToolPart).isPending &&
             !updated
           ) {
             updated = true;
-            return {
-              ...p,
-              result: eventData.result || "",
-              success: isSuccess,
-              error: eventData.error,
-              isPending: false,
-            } as ToolPart;
+            // Mutate directly for better performance
+            const toolPart = p as ToolPart;
+            toolPart.result = resultContent;
+            toolPart.success = isSuccess;
+            toolPart.error = eventData.error;
+            toolPart.isPending = false;
+            break;
           }
-          return p;
-        });
-        msg.parts = newParts;
+        }
+        msg.parts = parts;
         msg.toolResults = [...(msg.toolResults || []), toolResult];
       }
       break;
@@ -355,29 +362,34 @@ function processHistoryEvent(
     }
 
     case "sandbox:ready": {
-      const sandboxPart: SandboxPart = {
-        type: "sandbox",
-        status: "ready",
-        sandbox_id: eventData.sandbox_id,
-        work_dir: eventData.work_dir,
-        timestamp: eventData.timestamp,
-      };
       const parts = msg.parts || [];
-      msg.parts = parts.map((p) =>
-        p.type === "sandbox" && p.status === "starting" ? sandboxPart : p,
-      );
+      // Find and update existing sandbox in place
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        if (p.type === "sandbox" && p.status === "starting") {
+          (p as SandboxPart).status = "ready";
+          (p as SandboxPart).sandbox_id = eventData.sandbox_id;
+          (p as SandboxPart).work_dir = eventData.work_dir;
+          (p as SandboxPart).timestamp = eventData.timestamp;
+          break;
+        }
+      }
+      msg.parts = parts;
       break;
     }
 
     case "sandbox:error": {
-      const sandboxPart: SandboxPart = {
-        type: "sandbox",
-        status: "error",
-        error: eventData.error,
-        timestamp: eventData.timestamp,
-      };
       const parts = msg.parts || [];
-      msg.parts = parts.map((p) => (p.type === "sandbox" ? sandboxPart : p));
+      // Update all sandbox parts to error state
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i];
+        if (p.type === "sandbox") {
+          (p as SandboxPart).status = "error";
+          (p as SandboxPart).error = eventData.error;
+          (p as SandboxPart).timestamp = eventData.timestamp;
+        }
+      }
+      msg.parts = parts;
       break;
     }
 
@@ -532,14 +544,17 @@ export function reconstructMessagesFromEvents(
 
 /**
  * Get the last event timestamp from sorted events.
+ * Uses the already sorted array to avoid re-sorting.
  */
 export function getLastEventTimestamp(events: HistoryEvent[]): Date | null {
   if (events.length === 0) return null;
-  const sortedEvents = [...events].sort((a, b) => {
-    const timeA = new Date(a.timestamp || 0).getTime();
-    const timeB = new Date(b.timestamp || 0).getTime();
-    return timeA - timeB;
-  });
-  const lastEvent = sortedEvents[sortedEvents.length - 1];
+  // Find last event with timestamp (events should already be sorted by caller)
+  let lastEvent: HistoryEvent | null = null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].timestamp) {
+      lastEvent = events[i];
+      break;
+    }
+  }
   return lastEvent?.timestamp ? new Date(lastEvent.timestamp) : null;
 }

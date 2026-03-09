@@ -1,14 +1,14 @@
 {
   "name": "LambChat",
   "short_name": "LambChat",
-  "description": "AI 智能聊天助手",
+  "description": "AI Intelligent Chat Assistant",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "dark_background_color": "#1c1917",
   "dark_theme_color": "#1c1917",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "scope": "/",
   "permissions": ["notifications", "push"],
   "icons": [

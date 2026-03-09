@@ -636,6 +636,8 @@ class Presenter:
         data: Dict[str, Any] = {"content": content, "timestamp": _get_timestamp()}
         if attachments:
             data["attachments"] = attachments
+        else:
+            data["attachments"] = []
         return self._build_event("user:message", data)
 
     def present_sandbox_starting(self) -> Dict[str, Any]:
