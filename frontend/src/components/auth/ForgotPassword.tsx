@@ -3,6 +3,7 @@
  */
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -17,9 +18,18 @@ interface ForgotPasswordProps {
 
 export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const handleBackToLogin = () => {
+    if (onBackToLogin) {
+      onBackToLogin();
+    } else {
+      navigate("/");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +92,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
             </div>
 
             <button
-              onClick={onBackToLogin}
+              onClick={handleBackToLogin}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
             >
               <ArrowLeft size={16} />
@@ -175,7 +185,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
           {/* 返回登录链接 */}
           <div className="mt-6 text-center">
             <button
-              onClick={onBackToLogin}
+              onClick={handleBackToLogin}
               className="inline-flex items-center gap-1.5 text-sm text-gray-600 transition-colors hover:text-gray-900 dark:text-stone-400 dark:hover:text-stone-200"
             >
               <ArrowLeft size={14} />

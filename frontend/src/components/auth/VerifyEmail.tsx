@@ -48,7 +48,7 @@ export function VerifyEmail() {
   };
 
   const handleGoToLogin = () => {
-    navigate("/login");
+    navigate("/");
   };
 
   const handleResend = async () => {
