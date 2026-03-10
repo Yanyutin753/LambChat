@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Pagination } from "../common/Pagination";
 import { SkillCard } from "../skill/SkillCard";
@@ -391,72 +392,53 @@ export function SkillsPanel() {
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
-      <div className="panel-header">
-        <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif whitespace-nowrap">
-              {t("skills.title")}
-            </h2>
-            <p className="mt-0.5 text-sm text-stone-500 dark:text-stone-400 whitespace-nowrap">
-              {t("skills.subtitle")}
-            </p>
-          </div>
-          <div className="flex gap-1.5 sm:gap-2">
-            {canWrite && (
-              <>
-                <button
-                  onClick={handleGithubClick}
-                  className="btn-secondary !py-1.5 !px-2 sm:!py-2 sm:!px-3"
-                  title={t("skills.importFromGitHub")}
-                >
-                  <Github size={16} />
-                  <span className="hidden sm:inline">GitHub</span>
-                </button>
-                <button
-                  onClick={handleImportClick}
-                  className="btn-secondary !py-1.5 !px-2 sm:!py-2 sm:!px-3"
-                  title={t("skills.importFromJSON")}
-                >
-                  <Upload size={16} />
-                  <span className="hidden sm:inline">{t("common.import")}</span>
-                </button>
-                <button
-                  onClick={handleExport}
-                  className="btn-secondary !py-1.5 !px-2 sm:!py-2 sm:!px-3"
-                  title={t("skills.exportToJSON")}
-                >
-                  <Download size={16} />
-                  <span className="hidden sm:inline">{t("common.export")}</span>
-                </button>
-                <button
-                  onClick={handleCreate}
-                  className="btn-primary !py-1.5 !px-2 sm:!py-2 sm:!px-3 whitespace-nowrap"
-                >
-                  <Plus size={16} />
-                  <span className="hidden sm:inline">
-                    {t("skills.newSkill")}
-                  </span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="relative mt-2 sm:mt-3">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-          />
-          <input
-            type="text"
-            placeholder={t("skills.searchPlaceholder")}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="panel-search !py-2"
-          />
-        </div>
-      </div>
+      <PanelHeader
+        title={t("skills.title")}
+        subtitle={t("skills.subtitle")}
+        icon={<FolderOpen size={18} className="text-stone-600 dark:text-stone-400" />}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder={t("skills.searchPlaceholder")}
+        actions={
+          canWrite && (
+            <>
+              <button
+                onClick={handleGithubClick}
+                className="btn-secondary !py-1.5 !px-2 sm:!py-2 sm:!px-3"
+                title={t("skills.importFromGitHub")}
+              >
+                <Github size={16} />
+                <span className="hidden sm:inline">GitHub</span>
+              </button>
+              <button
+                onClick={handleImportClick}
+                className="btn-secondary !py-1.5 !px-2 sm:!py-2 sm:!px-3"
+                title={t("skills.importFromJSON")}
+              >
+                <Upload size={16} />
+                <span className="hidden sm:inline">{t("common.import")}</span>
+              </button>
+              <button
+                onClick={handleExport}
+                className="btn-secondary !py-1.5 !px-2 sm:!py-2 sm:!px-3"
+                title={t("skills.exportToJSON")}
+              >
+                <Download size={16} />
+                <span className="hidden sm:inline">{t("common.export")}</span>
+              </button>
+              <button
+                onClick={handleCreate}
+                className="btn-primary !py-1.5 !px-2 sm:!py-2 sm:!px-3 whitespace-nowrap"
+              >
+                <Plus size={16} />
+                <span className="hidden sm:inline">
+                  {t("skills.newSkill")}
+                </span>
+              </button>
+            </>
+          )
+        }
+      />
 
       {/* Error */}
       {error && (

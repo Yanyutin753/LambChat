@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Plus,
   X,
-  Search,
   Download,
   Upload,
   FolderOpen,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Pagination } from "../common/Pagination";
 import { MCPServerCard } from "../mcp/MCPServerCard";
@@ -341,59 +341,40 @@ export function MCPPanel() {
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
-      <div className="panel-header">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {t("mcp.title")}
-            </h2>
-            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-              {t("mcp.subtitle")}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {canWrite && (
-              <>
-                <button
-                  onClick={handleImportClick}
-                  className="btn-secondary"
-                  title={t("mcp.importFromJSON")}
-                >
-                  <Upload size={18} />
-                  <span className="hidden sm:inline">{t("common.import")}</span>
-                </button>
-                <button
-                  onClick={handleExport}
-                  className="btn-secondary"
-                  title={t("mcp.exportToJSON")}
-                >
-                  <Download size={18} />
-                  <span className="hidden sm:inline">{t("common.export")}</span>
-                </button>
-                <button onClick={handleCreate} className="btn-primary">
-                  <Plus size={18} />
-                  {t("mcp.addServer")}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="relative mt-3">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-          />
-          <input
-            type="text"
-            placeholder={t("mcp.searchPlaceholder")}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="panel-search"
-          />
-        </div>
-      </div>
+      <PanelHeader
+        title={t("mcp.title")}
+        subtitle={t("mcp.subtitle")}
+        icon={<FolderOpen size={18} className="text-stone-600 dark:text-stone-400" />}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder={t("mcp.searchPlaceholder")}
+        actions={
+          canWrite && (
+            <>
+              <button
+                onClick={handleImportClick}
+                className="btn-secondary"
+                title={t("mcp.importFromJSON")}
+              >
+                <Upload size={16} className="sm:size-[18px]" />
+                <span className="hidden sm:inline">{t("common.import")}</span>
+              </button>
+              <button
+                onClick={handleExport}
+                className="btn-secondary"
+                title={t("mcp.exportToJSON")}
+              >
+                <Download size={16} className="sm:size-[18px]" />
+                <span className="hidden sm:inline">{t("common.export")}</span>
+              </button>
+              <button onClick={handleCreate} className="btn-primary">
+                <Plus size={16} className="sm:size-[18px]" />
+                <span className="hidden sm:inline">{t("mcp.addServer")}</span>
+              </button>
+            </>
+          )
+        }
+      />
 
       {/* Error */}
       {error && (
