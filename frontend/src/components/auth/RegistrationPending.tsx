@@ -24,8 +24,8 @@ export function RegistrationPending() {
 
   useEffect(() => {
     if (!email) {
-      // 如果没有 email 参数，跳转到登录页
-      navigate("/login");
+      // 如果没有 email 参数，跳转到首页（会自动显示登录页）
+      navigate("/");
     }
   }, [email, navigate]);
 
@@ -46,7 +46,7 @@ export function RegistrationPending() {
   };
 
   const handleGoToLogin = () => {
-    navigate("/login");
+    navigate("/");
   };
 
   if (!email) {
