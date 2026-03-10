@@ -12,6 +12,35 @@ English | [简体中文](README_CN.md)
 
 > A production-ready AI Agent system built with FastAPI + LangGraph
 
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td align="center"><b>Chat Interface</b></td>
+    <td align="center"><b>Streaming Response</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/chat-home.png" alt="Chat Interface" width="400"/></td>
+    <td><img src="docs/images/chat-response.png" alt="Streaming Response" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>MCP Configuration</b></td>
+    <td align="center"><b>Skills Management</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/mcp-panel.png" alt="MCP Configuration" width="400"/></td>
+    <td><img src="docs/images/skills-panel.png" alt="Skills Management" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>System Settings</b></td>
+    <td align="center"><b>Feedback System</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/settings.png" alt="System Settings" width="400"/></td>
+    <td><img src="docs/images/feedback.png" alt="Feedback System" width="400"/></td>
+  </tr>
+</table>
+
 ## ✨ Features
 
 ### 🤖 Agent System
