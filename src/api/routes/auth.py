@@ -9,6 +9,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, StringConstraints
+from redis import asyncio as aioredis
 
 from src.api.deps import get_current_user_required
 from src.infra.auth.jwt import create_access_token, decode_token
@@ -45,13 +46,11 @@ class RateLimiter:
     """Simple Redis-based rate limiter for email endpoints."""
 
     def __init__(self) -> None:
-        self._redis: Optional[object] = None
+        self._redis: Optional[aioredis.Redis] = None
 
-    def _get_redis(self):
+    def _get_redis(self) -> aioredis.Redis:
         """Lazy load Redis client."""
         if self._redis is None:
-            from redis import asyncio as aioredis
-
             self._redis = aioredis.from_url(
                 settings.REDIS_URL, password=settings.REDIS_PASSWORD or None, decode_responses=True
             )
@@ -94,6 +93,12 @@ class RateLimiter:
             # If Redis fails, allow the request (fail open)
             logger.error("[RateLimiter] Redis error: %s", e)
             return True, max_requests
+
+    async def close(self) -> None:
+        """Close Redis connection."""
+        if self._redis is not None:
+            await self._redis.close()
+            self._redis = None
 
 
 _rate_limiter: Optional[RateLimiter] = None
@@ -811,10 +816,35 @@ async def resend_verification(
     """重发验证邮件
 
     重新发送邮箱验证邮件。
+    限流：每个 IP 每小时最多 5 次，每个邮箱每小时最多 3 次。
     """
     from src.infra.email import get_email_service
 
     email = request_data.email
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Rate limiting
+    limiter = get_rate_limiter()
+
+    # IP-based rate limit (5 per hour)
+    ip_key = f"ratelimit:resend-verification:ip:{client_ip}"
+    ip_allowed, _ = await limiter.check_rate_limit(ip_key, max_requests=5, window_seconds=3600)
+    if not ip_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试",
+        )
+
+    # Email-based rate limit (3 per hour)
+    email_key = f"ratelimit:resend-verification:email:{email}"
+    email_allowed, _ = await limiter.check_rate_limit(
+        email_key, max_requests=3, window_seconds=3600
+    )
+    if not email_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="该邮箱请求过于频繁，请稍后再试",
+        )
 
     email_service = get_email_service()
     if not email_service.is_enabled():

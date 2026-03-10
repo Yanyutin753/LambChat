@@ -95,7 +95,6 @@ class EmailService:
 
     _instance: Optional[EmailService] = None
     _lock = threading.Lock()
-    _config_version: int = 0  # Track config changes
 
     def __init__(self) -> None:
         """Initialize the email service."""
@@ -104,12 +103,18 @@ class EmailService:
         self._config_loaded_at: float = 0
         self._current_index = 0
         self._reset_expire_hours = settings.PASSWORD_RESET_EXPIRE_HOURS
-        self._http_client = httpx.AsyncClient(timeout=30.0)
+        self._http_client: Optional[httpx.AsyncClient] = None
 
         if self._enabled:
             logger.info("[EmailService] Email service enabled")
         else:
             logger.info("[EmailService] Email service disabled")
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create HTTP client lazily."""
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(timeout=30.0)
+        return self._http_client
 
     def _parse_accounts(self) -> list[dict[str, str]]:
         """Parse account configurations.
@@ -174,7 +179,7 @@ class EmailService:
         """
         # Quick check without lock (hot path)
         if self._accounts_cache is not None:
-            # Check if we should refresh (every 60 seconds or if config changed)
+            # Check if we should refresh (every 60 seconds)
             if time.time() - self._config_loaded_at < 60:
                 return self._accounts_cache
 
@@ -293,7 +298,8 @@ class EmailService:
             True if email sent successfully, False otherwise.
         """
         try:
-            response = await self._http_client.post(
+            client = self._get_http_client()
+            response = await client.post(
                 RESEND_API_URL,
                 headers={
                     "Authorization": f"Bearer {account['api_key']}",
@@ -482,8 +488,11 @@ class EmailService:
         return await self._send_email(account, to_email, subject, html_content, text_content)
 
     async def close(self) -> None:
-        """Close the HTTP client."""
-        await self._http_client.aclose()
+        """Close the HTTP client and cleanup resources."""
+        if self._http_client is not None:
+            await self._http_client.aclose()
+            self._http_client = None
+            logger.info("[EmailService] HTTP client closed")
 
 
 def get_email_service() -> EmailService:
