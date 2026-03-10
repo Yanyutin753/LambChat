@@ -104,6 +104,7 @@ SENSITIVE_SETTINGS = {
     "OAUTH_GITHUB_CLIENT_SECRET",
     "OAUTH_APPLE_CLIENT_SECRET",
     "TURNSTILE_SECRET_KEY",
+    "RESEND_API_KEY",
 }
 
 # ============================================
@@ -736,6 +737,54 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": "TURNSTILE_ENABLED",
         "frontend_visible": True,
     },
+    # ============================================
+    # Email Settings (Resend)
+    # ============================================
+    "EMAIL_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Enable email service (password reset, email verification)",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "RESEND_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Resend API key for email delivery",
+        "default": "",
+        "depends_on": "EMAIL_ENABLED",
+    },
+    "EMAIL_FROM": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Sender email address",
+        "default": "noreply@lambchat.com",
+        "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": True,
+    },
+    "EMAIL_FROM_NAME": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Sender name displayed in emails",
+        "default": "LambChat",
+        "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": True,
+    },
+    "PASSWORD_RESET_EXPIRE_HOURS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SECURITY,
+        "description": "Password reset link expiration in hours",
+        "default": 24,
+        "depends_on": "EMAIL_ENABLED",
+    },
+    "REQUIRE_EMAIL_VERIFICATION": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Require email verification before login",
+        "default": False,
+        "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": True,
+    },
 }
 
 
@@ -945,6 +994,14 @@ class Settings(BaseSettings):
     TURNSTILE_REQUIRE_ON_LOGIN: bool = False
     TURNSTILE_REQUIRE_ON_REGISTER: bool = True
     TURNSTILE_REQUIRE_ON_PASSWORD_CHANGE: bool = True
+
+    # Email Settings (Resend)
+    EMAIL_ENABLED: bool = False
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "noreply@lambchat.com"
+    EMAIL_FROM_NAME: str = "LambChat"
+    PASSWORD_RESET_EXPIRE_HOURS: int = 24
+    REQUIRE_EMAIL_VERIFICATION: bool = False
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),

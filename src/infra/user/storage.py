@@ -74,6 +74,10 @@ class UserStorage:
             "oauth_provider": user_data.oauth_provider.value if user_data.oauth_provider else None,
             "oauth_id": user_data.oauth_id,
             "is_active": True,
+            "email_verified": False,  # 默认未验证
+            "verification_token": None,
+            "reset_token": None,
+            "reset_token_expires": None,
             "created_at": now,
             "updated_at": now,
         }
@@ -209,6 +213,19 @@ class UserStorage:
         if user_data.is_active is not None:
             update_dict["is_active"] = user_data.is_active
 
+        # 支持邮箱验证和密码重置字段
+        if hasattr(user_data, "email_verified") and user_data.email_verified is not None:
+            update_dict["email_verified"] = user_data.email_verified
+
+        if hasattr(user_data, "verification_token") and user_data.verification_token is not None:
+            update_dict["verification_token"] = user_data.verification_token
+
+        if hasattr(user_data, "reset_token"):
+            update_dict["reset_token"] = user_data.reset_token
+
+        if hasattr(user_data, "reset_token_expires"):
+            update_dict["reset_token_expires"] = user_data.reset_token_expires
+
         from bson import ObjectId
 
         result = await self.collection.find_one_and_update(
@@ -327,3 +344,106 @@ class UserStorage:
             return None
 
         return user
+
+    async def get_by_reset_token(self, token: str) -> Optional[UserInDB]:
+        """
+        通过密码重置令牌获取用户
+
+        Args:
+            token: 密码重置令牌
+
+        Returns:
+            用户对象或 None
+        """
+        user_dict = await self.collection.find_one({"reset_token": token})
+        if not user_dict:
+            return None
+        user_dict["id"] = str(user_dict.pop("_id"))
+        return UserInDB(**user_dict)
+
+    async def get_by_verification_token(self, token: str) -> Optional[UserInDB]:
+        """
+        通过邮箱验证令牌获取用户
+
+        Args:
+            token: 邮箱验证令牌
+
+        Returns:
+            用户对象或 None
+        """
+        user_dict = await self.collection.find_one({"verification_token": token})
+        if not user_dict:
+            return None
+        user_dict["id"] = str(user_dict.pop("_id"))
+        return UserInDB(**user_dict)
+
+    async def set_email_verified(self, user_id: str, verified: bool = True) -> bool:
+        """
+        设置用户邮箱验证状态
+
+        Args:
+            user_id: 用户 ID
+            verified: 是否已验证
+
+        Returns:
+            是否更新成功
+        """
+        from bson import ObjectId
+
+        result = await self.collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"email_verified": verified, "updated_at": datetime.now()}},
+        )
+        return result.modified_count > 0
+
+    async def set_reset_token(
+        self, user_id: str, token: str, expires: datetime
+    ) -> bool:
+        """
+        设置用户密码重置令牌
+
+        Args:
+            user_id: 用户 ID
+            token: 重置令牌
+            expires: 过期时间
+
+        Returns:
+            是否更新成功
+        """
+        from bson import ObjectId
+
+        result = await self.collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "reset_token": token,
+                    "reset_token_expires": expires,
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0
+
+    async def clear_reset_token(self, user_id: str) -> bool:
+        """
+        清除用户密码重置令牌
+
+        Args:
+            user_id: 用户 ID
+
+        Returns:
+            是否更新成功
+        """
+        from bson import ObjectId
+
+        result = await self.collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "reset_token": None,
+                    "reset_token_expires": None,
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0
