@@ -227,13 +227,25 @@ async def login(credentials: LoginRequest, request: Request):
             )
 
     manager = UserManager()
-    token = await manager.login(credentials.username, credentials.password)
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="用户名或密码错误",
-        )
-    return token
+    try:
+        token = await manager.login(credentials.username, credentials.password)
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户名或密码错误",
+            )
+        return token
+    except Exception as e:
+        # 处理邮箱未验证错误
+        if "EmailNotVerifiedError" in type(e).__name__ or "请先验证邮箱" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": "请先验证邮箱后再登录",
+                    "email": getattr(e, "email", credentials.username),
+                },
+            )
+        raise
 
 
 @router.post("/refresh", response_model=Token)

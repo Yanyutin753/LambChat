@@ -69,3 +69,11 @@ class SessionError(Exception):
     """会话相关错误"""
 
     pass
+
+
+class EmailNotVerifiedError(Exception):
+    """邮箱未验证错误"""
+
+    def __init__(self, message: str, email: str):
+        super().__init__(message)
+        self.email = email

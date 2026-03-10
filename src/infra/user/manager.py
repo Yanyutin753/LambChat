@@ -61,10 +61,19 @@ class UserManager:
 
         Returns:
             Token 或 None
+
+        Raises:
+            EmailNotVerifiedError: 邮箱未验证（当 REQUIRE_EMAIL_VERIFICATION=true 时）
         """
         user = await self.storage.authenticate(username_or_email, password)
         if not user:
             return None
+
+        # 检查邮箱验证状态
+        if settings.REQUIRE_EMAIL_VERIFICATION and not user.email_verified:
+            from src.kernel.exceptions import EmailNotVerifiedError
+
+            raise EmailNotVerifiedError("请先验证邮箱后再登录", user.email)
 
         # 获取用户的角色和权限
         roles = []
