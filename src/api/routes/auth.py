@@ -33,7 +33,7 @@ async def register(user_data: UserCreate, request: Request):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="注册已关闭",
         )
-    
+
     # Turnstile 验证
     turnstile_service = get_turnstile_service()
     if turnstile_service.require_on_register:
@@ -44,7 +44,7 @@ async def register(user_data: UserCreate, request: Request):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="人机验证失败，请重试",
             )
-    
+
     manager = UserManager()
     try:
         user = await manager.register(user_data)
@@ -69,7 +69,7 @@ async def login(credentials: LoginRequest, request: Request):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="人机验证失败，请重试",
             )
-    
+
     manager = UserManager()
     token = await manager.login(credentials.username, credentials.password)
     if not token:
@@ -206,7 +206,7 @@ async def change_password(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="人机验证失败，请重试",
             )
-    
+
     manager = UserManager()
     user = await manager.get_user(current_user.sub)
 
