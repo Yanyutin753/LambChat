@@ -155,7 +155,11 @@ async def register(user_data: UserCreate, request: Request):
                     verify_token=verify_token,
                     base_url=frontend_url,
                 )
-                logger.info("[Auth] Verification email sent to %s for new user %s", user.email, user.username)
+                logger.info(
+                    "[Auth] Verification email sent to %s for new user %s",
+                    user.email,
+                    user.username,
+                )
             else:
                 logger.warning("[Auth] Email verification required but email service not enabled")
 
@@ -671,7 +675,9 @@ async def forgot_password(
 
     # Email-based rate limit (3 per hour)
     email_key = f"ratelimit:forgot-password:email:{email}"
-    email_allowed, _ = await limiter.check_rate_limit(email_key, max_requests=3, window_seconds=3600)
+    email_allowed, _ = await limiter.check_rate_limit(
+        email_key, max_requests=3, window_seconds=3600
+    )
     if not email_allowed:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

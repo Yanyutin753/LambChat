@@ -136,9 +136,7 @@ class EmailService:
                             accounts.append(
                                 {
                                     "api_key": str(acc.get("api_key", "")),
-                                    "email_from": str(
-                                        acc.get("email_from", settings.EMAIL_FROM)
-                                    ),
+                                    "email_from": str(acc.get("email_from", settings.EMAIL_FROM)),
                                     "email_from_name": str(
                                         acc.get(
                                             "email_from_name",
@@ -182,10 +180,7 @@ class EmailService:
 
         with self._lock:
             # Double-check after acquiring lock
-            if (
-                self._accounts_cache is not None
-                and time.time() - self._config_loaded_at < 60
-            ):
+            if self._accounts_cache is not None and time.time() - self._config_loaded_at < 60:
                 return self._accounts_cache
 
             # Parse fresh accounts
@@ -257,9 +252,7 @@ class EmailService:
         Returns:
             Formatted sender address.
         """
-        return formataddr(
-            (account.get("email_from_name", ""), account.get("email_from", ""))
-        )
+        return formataddr((account.get("email_from_name", ""), account.get("email_from", "")))
 
     def generate_token(self) -> str:
         """Generate a secure random token for password reset or email verification."""
@@ -375,7 +368,7 @@ class EmailService:
             title=from_name,
             icon="🔐",
             heading="重置您的密码 / Reset Your Password",
-            greeting=f'您好，<strong>{username}</strong>！<br>Hello, <strong>{username}</strong>!',
+            greeting=f"您好，<strong>{username}</strong>！<br>Hello, <strong>{username}</strong>!",
             content="我们收到了重置您密码的请求。请点击下方按钮重置密码：<br>We received a request to reset your password. Please click the button below to reset it:",
             button_url=reset_url,
             button_text="重置密码 / Reset Password",
@@ -417,7 +410,9 @@ class EmailService:
             logger.warning("[EmailService] No accounts available")
             return False
 
-        verify_url = base_url.rstrip("/") + "/verify-email?token=" + verify_token + "&email=" + to_email
+        verify_url = (
+            base_url.rstrip("/") + "/verify-email?token=" + verify_token + "&email=" + to_email
+        )
         from_name = account.get("email_from_name", "LambChat")
 
         subject = f"{from_name} - 验证您的邮箱 / Verify Your Email"
@@ -426,7 +421,7 @@ class EmailService:
             title=from_name,
             icon="✉️",
             heading="验证您的邮箱 / Verify Your Email",
-            greeting=f'您好，<strong>{username}</strong>！<br>Hello, <strong>{username}</strong>!',
+            greeting=f"您好，<strong>{username}</strong>！<br>Hello, <strong>{username}</strong>!",
             content=f"感谢您注册 {from_name}！请点击下方按钮验证您的邮箱地址：<br>Thank you for registering with {from_name}! Please click the button below to verify your email address:",
             button_url=verify_url,
             button_text="验证邮箱 / Verify Email",
@@ -442,9 +437,7 @@ class EmailService:
 
         return await self._send_email(account, to_email, subject, html_content, text_content)
 
-    async def send_welcome_email(
-        self, to_email: str, username: str, base_url: str
-    ) -> bool:
+    async def send_welcome_email(self, to_email: str, username: str, base_url: str) -> bool:
         """Send welcome email after registration.
 
         Args:
@@ -473,7 +466,7 @@ class EmailService:
             title=from_name,
             icon="🎉",
             heading="欢迎加入！/ Welcome!",
-            greeting=f'您好，<strong>{username}</strong>！<br>Hello, <strong>{username}</strong>!',
+            greeting=f"您好，<strong>{username}</strong>！<br>Hello, <strong>{username}</strong>!",
             content=f"欢迎加入 {from_name}！<br>Welcome to {from_name}!",
             button_url=login_url,
             button_text="开始使用 / Get Started",
