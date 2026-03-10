@@ -20,8 +20,7 @@ class TurnstileService:
     _instance: Optional["TurnstileService"] = None
 
     def __init__(self) -> None:
-        self._enabled: bool = settings.TURNSTILE_ENABLED
-        self._secret_key: str = settings.TURNSTILE_SECRET_KEY
+        pass
 
     @classmethod
     def get_instance(cls) -> "TurnstileService":
@@ -30,15 +29,10 @@ class TurnstileService:
             cls._instance = cls()
         return cls._instance
 
-    def refresh_settings(self) -> None:
-        """Refresh settings from global config"""
-        self._enabled = settings.TURNSTILE_ENABLED
-        self._secret_key = settings.TURNSTILE_SECRET_KEY
-
     @property
     def is_enabled(self) -> bool:
-        """Check if Turnstile is enabled"""
-        return self._enabled and bool(self._secret_key)
+        """Check if Turnstile is enabled (reads fresh from settings)"""
+        return settings.TURNSTILE_ENABLED and bool(settings.TURNSTILE_SECRET_KEY)
 
     @property
     def site_key(self) -> str:
@@ -71,7 +65,8 @@ class TurnstileService:
         Returns:
             True if verification succeeds, False otherwise
         """
-        if not self.is_enabled:
+        # Always read fresh from settings
+        if not settings.TURNSTILE_ENABLED:
             logger.debug("Turnstile is not enabled, skipping verification")
             return True
 
@@ -79,14 +74,15 @@ class TurnstileService:
             logger.warning("Turnstile token is missing")
             return False
 
-        if not self._secret_key:
+        secret_key = settings.TURNSTILE_SECRET_KEY
+        if not secret_key:
             logger.error("Turnstile secret key is not configured")
             return False
 
         try:
             async with httpx.AsyncClient() as client:
                 data: dict[str, str] = {
-                    "secret": self._secret_key,
+                    "secret": secret_key,
                     "response": token,
                 }
                 if remote_ip:
