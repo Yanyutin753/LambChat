@@ -77,3 +77,11 @@ class EmailNotVerifiedError(Exception):
     def __init__(self, message: str, email: str):
         super().__init__(message)
         self.email = email
+
+
+class AccountNotActiveError(Exception):
+    """账户未激活错误"""
+
+    def __init__(self, message: str, email: str):
+        super().__init__(message)
+        self.email = email
