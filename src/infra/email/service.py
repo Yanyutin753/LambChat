@@ -172,54 +172,33 @@ class EmailService:
         return self._http_client
 
     def _parse_accounts(self) -> list[dict[str, str]]:
-        """Parse account configurations.
-
-        Priority:
-        1. RESEND_ACCOUNTS JSON array
-        2. Fallback to single RESEND_API_KEY + EMAIL_FROM + EMAIL_FROM_NAME
+        """Parse account configurations from RESEND_ACCOUNTS JSON.
 
         Returns:
             List of account dicts with api_key, email_from, email_from_name.
         """
         accounts: list[dict[str, str]] = []
 
-        # Priority 1: Parse JSON accounts config
         resend_accounts = settings.RESEND_ACCOUNTS
-        if resend_accounts:
-            try:
-                if isinstance(resend_accounts, str):
-                    resend_accounts = json.loads(resend_accounts)
+        if not resend_accounts:
+            return accounts
 
-                if isinstance(resend_accounts, list):
-                    for acc in resend_accounts:
-                        if isinstance(acc, dict) and acc.get("api_key"):
-                            accounts.append(
-                                {
-                                    "api_key": str(acc.get("api_key", "")),
-                                    "email_from": str(acc.get("email_from", settings.EMAIL_FROM)),
-                                    "email_from_name": str(
-                                        acc.get(
-                                            "email_from_name",
-                                            settings.EMAIL_FROM_NAME,
-                                        )
-                                    ),
-                                }
-                            )
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.warning("[EmailService] Failed to parse RESEND_ACCOUNTS: %s", e)
+        try:
+            if isinstance(resend_accounts, str):
+                resend_accounts = json.loads(resend_accounts)
 
-        # Priority 2: Fallback to single key config (backward compatible)
-        if not accounts and settings.RESEND_API_KEY:
-            # Support comma-separated keys with same email_from
-            keys = [k.strip() for k in settings.RESEND_API_KEY.split(",") if k.strip()]
-            for key in keys:
-                accounts.append(
-                    {
-                        "api_key": key,
-                        "email_from": settings.EMAIL_FROM,
-                        "email_from_name": settings.EMAIL_FROM_NAME,
-                    }
-                )
+            if isinstance(resend_accounts, list):
+                for acc in resend_accounts:
+                    if isinstance(acc, dict) and acc.get("api_key"):
+                        accounts.append(
+                            {
+                                "api_key": str(acc.get("api_key", "")),
+                                "email_from": str(acc.get("email_from", "noreply@example.com")),
+                                "email_from_name": str(acc.get("email_from_name", "LambChat")),
+                            }
+                        )
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning("[EmailService] Failed to parse RESEND_ACCOUNTS: %s", e)
 
         return accounts
 
