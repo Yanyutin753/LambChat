@@ -170,9 +170,15 @@ export async function authFetch<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.detail || `Request failed: ${response.statusText}`,
-    );
+    // 处理 detail 为对象或字符串的情况
+    let errorMessage: string;
+    if (typeof errorData.detail === "object" && errorData.detail !== null) {
+      // 如果 detail 是对象，提取 message 字段
+      errorMessage = errorData.detail.message || JSON.stringify(errorData.detail);
+    } else {
+      errorMessage = errorData.detail || `Request failed: ${response.statusText}`;
+    }
+    throw new Error(errorMessage);
   }
 
   // 处理空响应
