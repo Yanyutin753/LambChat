@@ -240,10 +240,13 @@ async def login(credentials: LoginRequest, request: Request):
         if "EmailNotVerifiedError" in type(e).__name__ or "请先验证邮箱" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "message": "请先验证邮箱后再登录",
-                    "email": getattr(e, "email", credentials.username),
-                },
+                detail="请先验证邮箱后再登录",
+            )
+        # 处理账户未激活错误
+        if "AccountNotActiveError" in type(e).__name__ or "账户未激活" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="账户未激活，请验证邮箱后登录",
             )
         raise
 
@@ -870,7 +873,7 @@ async def verify_email(request_data: VerifyEmailRequest):
     验证成功后：
     - 设置 email_verified=True
     - 设置 is_active=True（激活账户）
-    - 赋予默认角色（从 DEFAULT_USER_ROLE 读取）
+    - 如果用户没有角色，赋予默认角色（从 DEFAULT_USER_ROLE 读取）
     """
     token = request_data.token
 
@@ -885,16 +888,20 @@ async def verify_email(request_data: VerifyEmailRequest):
             detail="无效或过期的验证令牌",
         )
 
-    # 获取默认角色
-    default_role = settings.DEFAULT_USER_ROLE or "user"
+    # 如果用户已有角色（如第一个管理员用户），保留；否则赋予默认角色
+    if not user.roles:
+        default_role = settings.DEFAULT_USER_ROLE or "user"
+        roles = [default_role]
+    else:
+        roles = user.roles
 
-    # 更新用户状态：邮箱验证 + 账户激活 + 赋予角色
+    # 更新用户状态：邮箱验证 + 账户激活
     await manager.storage.update(
         user.id,
         UserUpdate(
             email_verified=True,
             is_active=True,  # 激活账户
-            roles=[default_role],  # 赋予默认角色
+            roles=roles,  # 保留已有角色或赋予默认角色
             verification_token=None,
             verification_token_expires=None,
         ),
