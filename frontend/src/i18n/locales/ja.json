@@ -47,6 +47,7 @@
     "loginHint": "アカウントにログイン",
     "loginNow": "今すぐログイン",
     "loginSuccess": "ログインしました",
+    "pleaseLoginWithEmail": "登録したメールアドレスでログインして認証を完了してください",
     "logout": "ログアウト",
     "noAccount": "アカウントをお持ちでないですか？",
     "oauthLoginFailed": "OAuthログインに失敗しました。もう一度お試しください",

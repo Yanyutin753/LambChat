@@ -47,6 +47,7 @@
     "loginHint": "登录您的账户",
     "loginNow": "立即登录",
     "loginSuccess": "登录成功",
+    "pleaseLoginWithEmail": "请使用注册邮箱登录以完成验证",
     "logout": "退出登录",
     "noAccount": "还没有账户？",
     "oauthLoginFailed": "OAuth 登录失败，请稍后重试",
