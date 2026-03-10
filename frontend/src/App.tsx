@@ -8,6 +8,7 @@ import { OAuthCallback } from "./components/auth/OAuthCallback";
 import { ForgotPassword } from "./components/auth/ForgotPassword";
 import { ResetPassword } from "./components/auth/ResetPassword";
 import { VerifyEmail } from "./components/auth/VerifyEmail";
+import { RegistrationPending } from "./components/auth/RegistrationPending";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AppContent } from "./components/layout/AppContent";
 import { NotFoundPage } from "./components/common/NotFoundPage";
@@ -210,6 +211,8 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           {/* Email verification page - no auth required */}
           <Route path="/verify-email" element={<VerifyEmail />} />
+          {/* Registration pending verification page - no auth required */}
+          <Route path="/registration-pending" element={<RegistrationPending />} />
           {/* Public shared session page - no auth required */}
           <Route path="/shared/:shareId" element={<SharedPage />} />
           <Route path="*" element={<NotFoundPage />} />

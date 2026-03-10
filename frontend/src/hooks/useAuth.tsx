@@ -25,7 +25,7 @@ import type { User, UserCreate, LoginRequest, AuthState } from "../types";
 // 认证上下文类型
 interface AuthContextType extends AuthState {
   login: (credentials: LoginRequest, turnstileToken?: string) => Promise<void>;
-  register: (userData: UserCreate, turnstileToken?: string) => Promise<void>;
+  register: (userData: UserCreate, turnstileToken?: string) => Promise<{ requiresVerification: boolean; email: string }>;
   loginWithOAuth: (provider: string) => Promise<void>;
   handleOAuthCallback: (
     provider: string,
@@ -153,20 +153,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 注册
   const register = useCallback(
-    async (userData: UserCreate, turnstileToken?: string) => {
+    async (userData: UserCreate, turnstileToken?: string): Promise<{ requiresVerification: boolean; email: string }> => {
       setIsLoading(true);
       try {
         await authApi.register(userData, turnstileToken);
-        // 注册成功后自动登录
-        await login({
-          username: userData.username,
-          password: userData.password,
-        }, turnstileToken);
+        // 不再自动登录，返回是否需要验证
+        // 根据 REQUIRE_EMAIL_VERIFICATION 配置，用户可能需要先验证邮箱
+        return {
+          requiresVerification: true, // 注册成功后需要验证邮箱
+          email: userData.email,
+        };
       } finally {
         setIsLoading(false);
       }
     },
-    [login],
+    [],
   );
 
   // OAuth 登录 - 重定向到 OAuth 提供商

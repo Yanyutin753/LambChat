@@ -195,11 +195,19 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       if (mode === "login") {
         await login({ username, password }, turnstileToken || undefined);
         toast.success(t("auth.loginSuccess"));
+        onSuccess?.();
       } else {
-        await register({ username, email, password }, turnstileToken || undefined);
+        const result = await register({ username, email, password }, turnstileToken || undefined);
+        if (result.requiresVerification) {
+          // 注册成功，需要验证邮箱
+          toast.success(t("auth.registerSuccessVerification"));
+          // 跳转到验证等待页面
+          window.location.href = `/registration-pending?email=${encodeURIComponent(result.email)}`;
+          return;
+        }
         toast.success(t("auth.registerSuccess"));
+        onSuccess?.();
       }
-      onSuccess?.();
     } catch (err) {
       const errorMessage = (err as Error).message || t("auth.operationFailed");
       toast.error(errorMessage);
