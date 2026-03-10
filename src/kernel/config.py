@@ -751,7 +751,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     "RESEND_ACCOUNTS": {
         "type": SettingType.JSON,
         "category": SettingCategory.SECURITY,
-        "description": 'Resend accounts JSON config: [{"api_key":"re_xxx","email_from":"noreply@domain.com","email_from_name":"LambChat"}]',
+        "description": "Resend accounts config (supports multiple accounts with round-robin)",
         "default": [],
         "depends_on": "EMAIL_ENABLED",
         "frontend_visible": True,
@@ -762,6 +762,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Resend API key (fallback if RESEND_ACCOUNTS empty)",
         "default": "",
         "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": False,  # Hidden - use RESEND_ACCOUNTS instead
     },
     "EMAIL_FROM": {
         "type": SettingType.STRING,
@@ -769,7 +770,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Sender email address (fallback if RESEND_ACCOUNTS empty)",
         "default": "noreply@lambchat.com",
         "depends_on": "EMAIL_ENABLED",
-        "frontend_visible": True,
+        "frontend_visible": False,  # Hidden - use RESEND_ACCOUNTS instead
     },
     "EMAIL_FROM_NAME": {
         "type": SettingType.STRING,
@@ -777,7 +778,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Sender name displayed in emails (fallback if RESEND_ACCOUNTS empty)",
         "default": "LambChat",
         "depends_on": "EMAIL_ENABLED",
-        "frontend_visible": True,
+        "frontend_visible": False,  # Hidden - use RESEND_ACCOUNTS instead
     },
     "PASSWORD_RESET_EXPIRE_HOURS": {
         "type": SettingType.NUMBER,
