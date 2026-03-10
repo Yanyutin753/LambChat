@@ -49,7 +49,7 @@ class UserStorage:
         return self._collection
 
     async def _ensure_indexes(self):
-        """确保必要的索引存在（包括唯一索引）"""
+        """确保必要的索引存在（包括唯一索引）并迁移旧用户数据"""
         try:
             collection = self.collection  # 使用属性而不是直接访问 _collection
             # 创建唯一索引防止并发竞态条件
@@ -59,11 +59,45 @@ class UserStorage:
             await collection.create_index("oauth_provider", background=True)
             await collection.create_index("reset_token", background=True, sparse=True)
             await collection.create_index("verification_token", background=True, sparse=True)
+
+            # 自动迁移旧用户：将 None 改为 True
+            await self._migrate_legacy_users()
         except Exception as e:
             # 索引创建失败不应阻止应用启动
             import logging
 
             logging.getLogger(__name__).warning(f"Failed to create indexes: {e}")
+
+    async def _migrate_legacy_users(self):
+        """迁移旧用户数据：将 email_verified 和 is_active 从 None 改为 True"""
+        try:
+            # 迁移 email_verified: None -> True
+            result1 = await self.collection.update_many(
+                {"email_verified": None},
+                {"$set": {"email_verified": True}},
+            )
+            if result1.modified_count > 0:
+                import logging
+
+                logging.getLogger(__name__).info(
+                    f"[Migration] Updated email_verified for {result1.modified_count} users"
+                )
+
+            # 迁移 is_active: None -> True
+            result2 = await self.collection.update_many(
+                {"is_active": None},
+                {"$set": {"is_active": True}},
+            )
+            if result2.modified_count > 0:
+                import logging
+
+                logging.getLogger(__name__).info(
+                    f"[Migration] Updated is_active for {result2.modified_count} users"
+                )
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(f"[Migration] Failed to migrate legacy users: {e}")
 
     async def create(self, user_data: UserCreate) -> UserInDB:
         """
