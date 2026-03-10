@@ -3,6 +3,7 @@
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
@@ -17,7 +18,18 @@ from src.infra.user.manager import UserManager
 from src.kernel.config import settings
 from src.kernel.exceptions import ValidationError
 from src.kernel.schemas.permission import PermissionsResponse, get_permissions_response
-from src.kernel.schemas.user import LoginRequest, Token, TokenPayload, User, UserCreate
+from src.kernel.schemas.user import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    ResendVerificationRequest,
+    ResetPasswordRequest,
+    Token,
+    TokenPayload,
+    User,
+    UserCreate,
+    UserUpdate,
+    VerifyEmailRequest,
+)
 
 router = APIRouter()
 security = HTTPBearer()
@@ -532,21 +544,17 @@ async def oauth_callback_get(request: Request, provider: OAuthProviderParam, cod
 
 
 @router.post("/forgot-password")
-async def forgot_password(request: Request):
+async def forgot_password(
+    request_data: ForgotPasswordRequest,
+    request: Request,
+):
     """请求密码重置邮件
 
     发送包含重置链接的邮件到用户邮箱。
     """
     from src.infra.email import get_email_service
 
-    data = await request.json()
-    email = data.get("email")
-
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="邮箱地址不能为空",
-        )
+    email = request_data.email
 
     email_service = get_email_service()
     if not email_service.is_enabled():
@@ -568,14 +576,10 @@ async def forgot_password(request: Request):
         # 更新用户的重置令牌
         await manager.storage.update(
             user.id,
-            type(
-                "UserUpdate",
-                (),
-                {
-                    "reset_token": reset_token,
-                    "reset_token_expires": reset_expires,
-                },
-            )(),
+            UserUpdate(
+                reset_token=reset_token,
+                reset_token_expires=reset_expires,
+            ),
         )
 
         # 发送重置邮件
@@ -593,28 +597,13 @@ async def forgot_password(request: Request):
 
 
 @router.post("/reset-password")
-async def reset_password(request: Request):
+async def reset_password(request_data: ResetPasswordRequest):
     """重置密码
 
     使用重置令牌设置新密码。
     """
-    from datetime import datetime, timezone
-
-    data = await request.json()
-    token = data.get("token")
-    new_password = data.get("new_password")
-
-    if not token or not new_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="令牌和新密码不能为空",
-        )
-
-    if len(new_password) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="密码长度至少为 6 个字符",
-        )
+    token = request_data.token
+    new_password = request_data.new_password
 
     manager = UserManager()
 
@@ -641,15 +630,11 @@ async def reset_password(request: Request):
     # 更新密码并清除重置令牌
     await manager.storage.update(
         user.id,
-        type(
-            "UserUpdate",
-            (),
-            {
-                "password": new_password,
-                "reset_token": None,
-                "reset_token_expires": None,
-            },
-        )(),
+        UserUpdate(
+            password=new_password,
+            reset_token=None,
+            reset_token_expires=None,
+        ),
     )
 
     logger.info("[Auth] Password reset successful for user %s", user.username)
@@ -658,19 +643,12 @@ async def reset_password(request: Request):
 
 
 @router.post("/verify-email")
-async def verify_email(request: Request):
+async def verify_email(request_data: VerifyEmailRequest):
     """验证邮箱
 
     使用验证令牌验证用户邮箱。
     """
-    data = await request.json()
-    token = data.get("token")
-
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="验证令牌不能为空",
-        )
+    token = request_data.token
 
     manager = UserManager()
 
@@ -686,14 +664,10 @@ async def verify_email(request: Request):
     # 更新邮箱验证状态
     await manager.storage.update(
         user.id,
-        type(
-            "UserUpdate",
-            (),
-            {
-                "email_verified": True,
-                "verification_token": None,
-            },
-        )(),
+        UserUpdate(
+            email_verified=True,
+            verification_token=None,
+        ),
     )
 
     logger.info("[Auth] Email verified for user %s", user.username)
@@ -702,21 +676,17 @@ async def verify_email(request: Request):
 
 
 @router.post("/resend-verification")
-async def resend_verification(request: Request):
+async def resend_verification(
+    request_data: ResendVerificationRequest,
+    request: Request,
+):
     """重发验证邮件
 
     重新发送邮箱验证邮件。
     """
     from src.infra.email import get_email_service
 
-    data = await request.json()
-    email = data.get("email")
-
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="邮箱地址不能为空",
-        )
+    email = request_data.email
 
     email_service = get_email_service()
     if not email_service.is_enabled():
@@ -735,13 +705,9 @@ async def resend_verification(request: Request):
         # 更新用户的验证令牌
         await manager.storage.update(
             user.id,
-            type(
-                "UserUpdate",
-                (),
-                {
-                    "verification_token": verify_token,
-                },
-            )(),
+            UserUpdate(
+                verification_token=verify_token,
+            ),
         )
 
         # 发送验证邮件
