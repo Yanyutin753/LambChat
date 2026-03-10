@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 from email.utils import formataddr
 from typing import Optional
@@ -22,27 +23,95 @@ class EmailService:
     - Password reset
     - Email verification
     - Welcome emails
+
+    Supports multiple API keys with round-robin rotation.
     """
 
     _instance: Optional[EmailService] = None
+    _lock = threading.Lock()
 
     def __init__(self) -> None:
         """Initialize the email service."""
         self._enabled = settings.EMAIL_ENABLED
-        self._api_key = settings.RESEND_API_KEY
+        self._api_keys = self._parse_api_keys(settings.RESEND_API_KEY)
+        self._current_key_index = 0
         self._from_email = settings.EMAIL_FROM
         self._from_name = settings.EMAIL_FROM_NAME
         self._reset_expire_hours = settings.PASSWORD_RESET_EXPIRE_HOURS
 
-        if self._enabled and self._api_key:
-            resend.api_key = self._api_key
-            logger.info("[EmailService] Initialized with Resend API")
+        if self._enabled and self._api_keys:
+            # Set initial API key
+            resend.api_key = self._api_keys[0]
+            logger.info(
+                "[EmailService] Initialized with %d Resend API key(s)",
+                len(self._api_keys),
+            )
         elif self._enabled:
             logger.warning(
                 "[EmailService] Email enabled but RESEND_API_KEY not configured"
             )
         else:
             logger.info("[EmailService] Email service disabled")
+
+    def _parse_api_keys(self, key_config: str) -> list[str]:
+        """Parse API keys from configuration.
+
+        Supports comma-separated keys for round-robin rotation.
+        Example: "re_key1,re_key2,re_key3"
+
+        Args:
+            key_config: Comma-separated API keys or single key.
+
+        Returns:
+            List of API keys.
+        """
+        if not key_config:
+            return []
+        keys = [k.strip() for k in key_config.split(",") if k.strip()]
+        return keys
+
+    def _mask_api_key(self, key: str) -> str:
+        """Mask API key for safe logging.
+
+        Args:
+            key: API key to mask.
+
+        Returns:
+            Masked key showing only first 4 characters.
+        """
+        if not key or len(key) < 4:
+            return "***"
+        return f"{key[:4]}...{key[-4:]}"
+
+    def _get_next_api_key(self) -> Optional[str]:
+        """Get next API key using round-robin rotation.
+
+        Thread-safe rotation through available API keys.
+
+        Returns:
+            Next API key or None if no keys configured.
+        """
+        if not self._api_keys:
+            return None
+
+        with EmailService._lock:
+            key = self._api_keys[self._current_key_index]
+            self._current_key_index = (self._current_key_index + 1) % len(
+                self._api_keys
+            )
+            return key
+
+    def _set_current_api_key(self) -> bool:
+        """Set the current API key for resend.
+
+        Returns:
+            True if key was set, False if no keys available.
+        """
+        key = self._get_next_api_key()
+        if key:
+            resend.api_key = key
+            return True
+        return False
 
     @classmethod
     def get_instance(cls) -> EmailService:
@@ -53,7 +122,7 @@ class EmailService:
 
     def is_enabled(self) -> bool:
         """Check if email service is enabled and configured."""
-        return self._enabled and bool(self._api_key)
+        return self._enabled and bool(self._api_keys)
 
     def _get_from_address(self) -> str:
         """Get formatted sender address."""
@@ -92,6 +161,11 @@ class EmailService:
         """
         if not self.is_enabled():
             logger.warning("[EmailService] Cannot send email: service not enabled")
+            return False
+
+        # Set next API key (round-robin)
+        if not self._set_current_api_key():
+            logger.warning("[EmailService] No API keys available")
             return False
 
         reset_url = f"{base_url.rstrip('/')}/reset-password?token={reset_token}"
@@ -153,9 +227,11 @@ class EmailService:
                 "text": text_content,
             }
             response = resend.Emails.send(params)
+            masked_key = self._mask_api_key(str(resend.api_key))
             logger.info(
-                "[EmailService] Password reset email sent to %s, id=%s",
+                "[EmailService] Password reset email sent to %s via key %s, id=%s",
                 to_email,
+                masked_key,
                 response.get("id", "unknown"),
             )
             return True
@@ -183,6 +259,11 @@ class EmailService:
         """
         if not self.is_enabled():
             logger.warning("[EmailService] Cannot send email: service not enabled")
+            return False
+
+        # Set next API key (round-robin)
+        if not self._set_current_api_key():
+            logger.warning("[EmailService] No API keys available")
             return False
 
         verify_url = f"{base_url.rstrip('/')}/verify-email?token={verify_token}"
@@ -240,9 +321,11 @@ class EmailService:
                 "text": text_content,
             }
             response = resend.Emails.send(params)
+            masked_key = self._mask_api_key(str(resend.api_key))
             logger.info(
-                "[EmailService] Verification email sent to %s, id=%s",
+                "[EmailService] Verification email sent to %s via key %s, id=%s",
                 to_email,
+                masked_key,
                 response.get("id", "unknown"),
             )
             return True
@@ -269,6 +352,11 @@ class EmailService:
         """
         if not self.is_enabled():
             logger.warning("[EmailService] Cannot send email: service not enabled")
+            return False
+
+        # Set next API key (round-robin)
+        if not self._set_current_api_key():
+            logger.warning("[EmailService] No API keys available")
             return False
 
         login_url = f"{base_url.rstrip('/')}/login"
@@ -326,9 +414,11 @@ class EmailService:
                 "text": text_content,
             }
             response = resend.Emails.send(params)
+            masked_key = self._mask_api_key(str(resend.api_key))
             logger.info(
-                "[EmailService] Welcome email sent to %s, id=%s",
+                "[EmailService] Welcome email sent to %s via key %s, id=%s",
                 to_email,
+                masked_key,
                 response.get("id", "unknown"),
             )
             return True
