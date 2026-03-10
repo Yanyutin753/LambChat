@@ -48,6 +48,35 @@ class RateLimiter:
     def __init__(self) -> None:
         self._redis: Optional[aioredis.Redis] = None
 
+    @staticmethod
+    def _safe_key_part(value: str) -> str:
+        """Sanitize value for use in Redis key to prevent injection.
+
+        Args:
+            value: Raw input value (IP or email)
+
+        Returns:
+            Safe string for Redis key (alphanumeric, dots, hyphens, @ only)
+        """
+        import re
+
+        # 只保留安全字符：字母、数字、点、连字符、@、下划线
+        return re.sub(r"[^a-zA-Z0-9.@_-]", "", value)[:100]
+
+    @staticmethod
+    def build_key(prefix: str, identifier: str) -> str:
+        """Build a safe Redis key from prefix and identifier.
+
+        Args:
+            prefix: Key prefix (e.g., "ratelimit:forgot-password:ip")
+            identifier: User-provided identifier (IP or email)
+
+        Returns:
+            Safe Redis key
+        """
+        safe_id = RateLimiter._safe_key_part(identifier)
+        return f"{prefix}:{safe_id}"
+
     def _get_redis(self) -> aioredis.Redis:
         """Lazy load Redis client."""
         if self._redis is None:
@@ -65,7 +94,7 @@ class RateLimiter:
         """Check if request is within rate limit.
 
         Args:
-            key: Redis key for rate limiting
+            key: Redis key for rate limiting (should be built with build_key())
             max_requests: Maximum requests allowed in window
             window_seconds: Time window in seconds
 
@@ -143,14 +172,21 @@ async def register(user_data: UserCreate, request: Request):
 
             email_service = get_email_service()
             if email_service.is_enabled():
-                # 生成验证令牌
+                # 生成验证令牌（24小时有效期）
                 verify_token = email_service.generate_token()
+                verify_token_expires = email_service.get_token_expiry(hours=24)
 
                 # 更新用户的验证令牌
                 from src.infra.user.storage import UserStorage
 
                 storage = UserStorage()
-                await storage.update(user.id, UserUpdate(verification_token=verify_token))
+                await storage.update(
+                    user.id,
+                    UserUpdate(
+                        verification_token=verify_token,
+                        verification_token_expires=verify_token_expires,
+                    ),
+                )
 
                 # 发送验证邮件
                 frontend_url = _get_frontend_url(request)
@@ -697,7 +733,7 @@ async def forgot_password(
     limiter = get_rate_limiter()
 
     # IP-based rate limit (5 per hour)
-    ip_key = f"ratelimit:forgot-password:ip:{client_ip}"
+    ip_key = limiter.build_key("ratelimit:forgot-password:ip", client_ip)
     ip_allowed, _ = await limiter.check_rate_limit(ip_key, max_requests=5, window_seconds=3600)
     if not ip_allowed:
         raise HTTPException(
@@ -706,7 +742,7 @@ async def forgot_password(
         )
 
     # Email-based rate limit (3 per hour)
-    email_key = f"ratelimit:forgot-password:email:{email}"
+    email_key = limiter.build_key("ratelimit:forgot-password:email", email)
     email_allowed, _ = await limiter.check_rate_limit(
         email_key, max_requests=3, window_seconds=3600
     )
@@ -751,6 +787,16 @@ async def forgot_password(
             base_url=frontend_url,
         )
         logger.info("[Auth] Password reset email sent to %s", email)
+    else:
+        # 用户不存在时也执行相同操作以防止时序攻击
+        # 生成令牌（但不保存或发送）
+        _ = email_service.generate_token()
+        _ = email_service.get_token_expiry()
+        # 执行一次哈希计算以匹配密码重置的时间消耗
+        import hashlib
+
+        hashlib.sha256(b"timing-resistant-dummy").hexdigest()
+        logger.debug("[Auth] Password reset requested for non-existent email: %s", email)
 
     # 始终返回成功，防止邮箱枚举攻击
     return {"message": "如果邮箱已注册，您将收到密码重置邮件"}
@@ -827,6 +873,7 @@ async def verify_email(request_data: VerifyEmailRequest):
         UserUpdate(
             email_verified=True,
             verification_token=None,
+            verification_token_expires=None,
         ),
     )
 
@@ -854,7 +901,7 @@ async def resend_verification(
     limiter = get_rate_limiter()
 
     # IP-based rate limit (5 per hour)
-    ip_key = f"ratelimit:resend-verification:ip:{client_ip}"
+    ip_key = limiter.build_key("ratelimit:resend-verification:ip", client_ip)
     ip_allowed, _ = await limiter.check_rate_limit(ip_key, max_requests=5, window_seconds=3600)
     if not ip_allowed:
         raise HTTPException(
@@ -863,7 +910,7 @@ async def resend_verification(
         )
 
     # Email-based rate limit (3 per hour)
-    email_key = f"ratelimit:resend-verification:email:{email}"
+    email_key = limiter.build_key("ratelimit:resend-verification:email", email)
     email_allowed, _ = await limiter.check_rate_limit(
         email_key, max_requests=3, window_seconds=3600
     )
@@ -884,14 +931,16 @@ async def resend_verification(
     user = await manager.storage.get_by_email(email)
 
     if user and not user.email_verified:
-        # 生成新的验证令牌
+        # 生成新的验证令牌（24小时有效期）
         verify_token = email_service.generate_token()
+        verify_token_expires = email_service.get_token_expiry(hours=24)
 
         # 更新用户的验证令牌
         await manager.storage.update(
             user.id,
             UserUpdate(
                 verification_token=verify_token,
+                verification_token_expires=verify_token_expires,
             ),
         )
 

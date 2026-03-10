@@ -146,6 +146,7 @@ class EmailService:
 
     _instance: Optional[EmailService] = None
     _lock = threading.Lock()
+    _http_client_lock = asyncio.Lock()
 
     def __init__(self) -> None:
         """Initialize the email service."""
@@ -161,10 +162,13 @@ class EmailService:
         else:
             logger.info("[EmailService] Email service disabled")
 
-    def _get_http_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client lazily."""
+    async def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create HTTP client lazily with thread-safe initialization."""
         if self._http_client is None:
-            self._http_client = httpx.AsyncClient(timeout=30.0)
+            async with self._http_client_lock:
+                # Double-check after acquiring lock
+                if self._http_client is None:
+                    self._http_client = httpx.AsyncClient(timeout=30.0)
         return self._http_client
 
     def _parse_accounts(self) -> list[dict[str, str]]:
@@ -354,7 +358,7 @@ class EmailService:
 
         for attempt in range(max_retries):
             try:
-                client = self._get_http_client()
+                client = await self._get_http_client()
                 response = await client.post(
                     RESEND_API_URL,
                     headers={

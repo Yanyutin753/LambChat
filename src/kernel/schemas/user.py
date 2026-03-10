@@ -47,6 +47,7 @@ class UserUpdate(BaseModel):
     oauth_id: Optional[str] = None
     email_verified: Optional[bool] = None
     verification_token: Optional[str] = None
+    verification_token_expires: Optional[datetime] = None
     reset_token: Optional[str] = None
     reset_token_expires: Optional[datetime] = None
 
@@ -81,6 +82,7 @@ class UserInDB(User):
 
     password_hash: str
     verification_token: Optional[str] = None  # 邮箱验证令牌
+    verification_token_expires: Optional[datetime] = None  # 邮箱验证令牌过期时间
     reset_token: Optional[str] = None  # 密码重置令牌
     reset_token_expires: Optional[datetime] = None  # 密码重置令牌过期时间
 

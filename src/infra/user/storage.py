@@ -4,7 +4,7 @@
 提供用户的数据库操作。
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from src.infra.auth.password import hash_password, verify_password
@@ -76,6 +76,7 @@ class UserStorage:
             "is_active": True,
             "email_verified": False,  # 默认未验证
             "verification_token": None,
+            "verification_token_expires": None,
             "reset_token": None,
             "reset_token_expires": None,
             "created_at": now,
@@ -98,10 +99,12 @@ class UserStorage:
             用户对象或 None
         """
         from bson import ObjectId
+        from bson.errors import InvalidId
 
         try:
             user_dict = await self.collection.find_one({"_id": ObjectId(user_id)})
-        except Exception:
+        except InvalidId:
+            # 无效的 ObjectId 格式
             return None
 
         if not user_dict:
@@ -219,6 +222,9 @@ class UserStorage:
 
         if hasattr(user_data, "verification_token") and user_data.verification_token is not None:
             update_dict["verification_token"] = user_data.verification_token
+
+        if hasattr(user_data, "verification_token_expires"):
+            update_dict["verification_token_expires"] = user_data.verification_token_expires
 
         if hasattr(user_data, "reset_token"):
             update_dict["reset_token"] = user_data.reset_token
@@ -369,11 +375,20 @@ class UserStorage:
             token: 邮箱验证令牌
 
         Returns:
-            用户对象或 None
+            用户对象或 None（令牌无效或已过期）
         """
         user_dict = await self.collection.find_one({"verification_token": token})
         if not user_dict:
             return None
+
+        # 检查令牌是否过期（如果有设置过期时间）
+        expires = user_dict.get("verification_token_expires")
+        if expires is not None:
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > expires:
+                return None
+
         user_dict["id"] = str(user_dict.pop("_id"))
         return UserInDB(**user_dict)
 
