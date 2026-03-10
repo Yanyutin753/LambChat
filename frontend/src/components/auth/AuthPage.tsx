@@ -410,7 +410,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
 
               {/* Turnstile 人机验证 */}
               {requiresTurnstile() && (
-                <div className="mb-4 flex justify-center sm:mb-6">
+                <div className="mb-4 flex w-full justify-center sm:mb-6">
                   <Turnstile
                     key={turnstileKey}
                     sitekey={turnstileConfig.site_key}
@@ -421,6 +421,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                     }}
                     onExpire={() => setTurnstileToken(null)}
                     theme="auto"
+                    style={{ width: "100%" }}
                   />
                 </div>
               )}
