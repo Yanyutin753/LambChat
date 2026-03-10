@@ -29,6 +29,31 @@ interface AuthPageProps {
 
 export function AuthPage({ onSuccess }: AuthPageProps) {
   const { t } = useTranslation();
+
+  // 覆盖全局 overflow: hidden，允许登录页面滚动
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+    
+    // 保存原始样式
+    const originalHtmlOverflow = html.style.overflow;
+    const originalBodyOverflow = body.style.overflow;
+    const originalRootOverflow = root?.style.overflow;
+    
+    // 设置允许滚动
+    html.style.overflow = 'auto';
+    body.style.overflow = 'auto';
+    if (root) root.style.overflow = 'auto';
+    
+    // 组件卸载时恢复原始样式
+    return () => {
+      html.style.overflow = originalHtmlOverflow;
+      body.style.overflow = originalBodyOverflow;
+      if (root) root.style.overflow = originalRootOverflow || '';
+    };
+  }, []);
+
   const [mode, setMode] = useState<AuthMode>("login");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
