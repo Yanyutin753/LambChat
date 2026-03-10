@@ -70,13 +70,15 @@ class UserManager:
             return None
 
         # 检查邮箱验证状态
-        if settings.REQUIRE_EMAIL_VERIFICATION and not user.email_verified:
+        # 注意：使用 `is False` 而不是 `not`，因为旧用户字段为 None 应该通过检查
+        if settings.REQUIRE_EMAIL_VERIFICATION and user.email_verified is False:
             from src.kernel.exceptions import EmailNotVerifiedError
 
             raise EmailNotVerifiedError("请先验证邮箱后再登录", user.email)
 
         # 检查账户激活状态
-        if not user.is_active:
+        # 注意：使用 `is False` 而不是 `not`，因为旧用户字段为 None 应该通过检查
+        if user.is_active is False:
             from src.kernel.exceptions import AccountNotActiveError
 
             raise AccountNotActiveError("账户未激活，请验证邮箱后登录", user.email)
