@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { User, Mail, Lock, AlertCircle, AtSign } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { Turnstile } from "react-turnstile";
 import { useAuth } from "../../hooks/useAuth";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ThemeToggle } from "../common/ThemeToggle";
@@ -13,6 +14,14 @@ import { LanguageToggle } from "../common/LanguageToggle";
 import { authApi } from "../../services/api";
 
 type AuthMode = "login" | "register";
+
+interface TurnstileConfig {
+  enabled: boolean;
+  site_key: string;
+  require_on_login: boolean;
+  require_on_register: boolean;
+  require_on_password_change: boolean;
+}
 
 interface AuthPageProps {
   onSuccess?: () => void;
@@ -27,12 +36,21 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0); // 用于强制重新渲染 Turnstile
 
   const { login, register, loginWithOAuth } = useAuth();
   const [oauthProviders, setOauthProviders] = useState<
     { id: string; name: string }[]
   >([]);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [turnstileConfig, setTurnstileConfig] = useState<TurnstileConfig>({
+    enabled: false,
+    site_key: "",
+    require_on_login: false,
+    require_on_register: true,
+    require_on_password_change: true,
+  });
 
   // Use ref to access current mode without adding it to deps
   const modeRef = useRef(mode);
@@ -47,6 +65,10 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
         if (!mounted) return;
         setOauthProviders(result.providers);
         setRegistrationEnabled(result.registration_enabled);
+        // 设置 Turnstile 配置
+        if (result.turnstile) {
+          setTurnstileConfig(result.turnstile);
+        }
         // 如果注册已关闭且当前是注册模式，切换回登录
         if (!result.registration_enabled && modeRef.current === "register") {
           setMode("login");
@@ -62,6 +84,21 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       mounted = false;
     };
   }, []);
+
+  // 检查当前模式是否需要 Turnstile
+  const requiresTurnstile = () => {
+    if (!turnstileConfig.enabled || !turnstileConfig.site_key) return false;
+    if (mode === "login") return turnstileConfig.require_on_login;
+    if (mode === "register") return turnstileConfig.require_on_register;
+    return false;
+  };
+
+  // 重置 Turnstile token 当模式切换时
+  useEffect(() => {
+    setTurnstileToken(null);
+    // 通过改变 key 强制重新渲染 Turnstile
+    setTurnstileKey(prev => prev + 1);
+  }, [mode]);
 
   // OAuth 登录处理
   const handleOAuthLogin = async (provider: string) => {
@@ -112,14 +149,20 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       return;
     }
 
+    // Turnstile 验证
+    if (requiresTurnstile() && !turnstileToken) {
+      setError(t("auth.turnstileRequired"));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       if (mode === "login") {
-        await login({ username, password });
+        await login({ username, password }, turnstileToken || undefined);
         toast.success(t("auth.loginSuccess"));
       } else {
-        await register({ username, email, password });
+        await register({ username, email, password }, turnstileToken || undefined);
         toast.success(t("auth.registerSuccess"));
       }
       onSuccess?.();
@@ -127,6 +170,9 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       const errorMessage = (err as Error).message || t("auth.operationFailed");
       toast.error(errorMessage);
       setError(errorMessage);
+      // 重置 Turnstile widget
+      setTurnstileToken(null);
+      setTurnstileKey(prev => prev + 1);
     } finally {
       setIsSubmitting(false);
     }
@@ -362,6 +408,23 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                 </div>
               )}
 
+              {/* Turnstile 人机验证 */}
+              {requiresTurnstile() && (
+                <div className="mb-4 flex justify-center sm:mb-6">
+                  <Turnstile
+                    key={turnstileKey}
+                    sitekey={turnstileConfig.site_key}
+                    onSuccess={(token) => setTurnstileToken(token)}
+                    onError={() => {
+                      setTurnstileToken(null);
+                      setError(t("auth.turnstileError"));
+                    }}
+                    onExpire={() => setTurnstileToken(null)}
+                    theme="auto"
+                  />
+                </div>
+              )}
+
               {/* 提交按钮 */}
               <button
                 type="submit"
@@ -386,19 +449,27 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
 
             {/* 切换登录/注册 */}
             <div className="mt-4 flex flex-wrap items-center justify-center gap-1 text-xs text-gray-500 dark:text-stone-400 sm:mt-5 sm:text-sm">
-              <span>
-                {mode === "login" ? t("auth.noAccount") : t("auth.hasAccount")}
-              </span>
-              {registrationEnabled && (
-                <button
-                  type="button"
-                  onClick={switchMode}
-                  className="font-medium text-gray-900 underline-offset-2 transition-all hover:text-gray-700 hover:underline dark:text-white dark:hover:text-stone-200"
-                >
-                  {mode === "login"
-                    ? t("auth.registerNow")
-                    : t("auth.loginNow")}
-                </button>
+              {registrationEnabled ? (
+                <>
+                  <span>
+                    {mode === "login" ? t("auth.noAccount") : t("auth.hasAccount")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={switchMode}
+                    className="font-medium text-gray-900 underline-offset-2 transition-all hover:text-gray-700 hover:underline dark:text-white dark:hover:text-stone-200"
+                  >
+                    {mode === "login"
+                      ? t("auth.registerNow")
+                      : t("auth.loginNow")}
+                  </button>
+                </>
+              ) : (
+                mode === "login" && (
+                  <span className="text-gray-400 dark:text-stone-500">
+                    {t("auth.registrationDisabled")}
+                  </span>
+                )
               )}
             </div>
 

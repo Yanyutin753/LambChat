@@ -103,6 +103,7 @@ SENSITIVE_SETTINGS = {
     "OAUTH_GOOGLE_CLIENT_SECRET",
     "OAUTH_GITHUB_CLIENT_SECRET",
     "OAUTH_APPLE_CLIENT_SECRET",
+    "TURNSTILE_SECRET_KEY",
 }
 
 # ============================================
@@ -686,6 +687,55 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": "",
         "depends_on": "OAUTH_APPLE_ENABLED",
     },
+    # ============================================
+    # Cloudflare Turnstile Settings
+    # ============================================
+    "TURNSTILE_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Enable Cloudflare Turnstile verification",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "TURNSTILE_SITE_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Cloudflare Turnstile site key",
+        "default": "",
+        "depends_on": "TURNSTILE_ENABLED",
+        "frontend_visible": True,
+    },
+    "TURNSTILE_SECRET_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Cloudflare Turnstile secret key",
+        "default": "",
+        "depends_on": "TURNSTILE_ENABLED",
+    },
+    "TURNSTILE_REQUIRE_ON_LOGIN": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Require Turnstile verification on login",
+        "default": False,
+        "depends_on": "TURNSTILE_ENABLED",
+        "frontend_visible": True,
+    },
+    "TURNSTILE_REQUIRE_ON_REGISTER": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Require Turnstile verification on registration",
+        "default": True,
+        "depends_on": "TURNSTILE_ENABLED",
+        "frontend_visible": True,
+    },
+    "TURNSTILE_REQUIRE_ON_PASSWORD_CHANGE": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Require Turnstile verification on password change",
+        "default": True,
+        "depends_on": "TURNSTILE_ENABLED",
+        "frontend_visible": True,
+    },
 }
 
 
@@ -887,6 +937,14 @@ class Settings(BaseSettings):
     OAUTH_APPLE_CLIENT_SECRET: str = ""
     OAUTH_APPLE_TEAM_ID: str = ""
     OAUTH_APPLE_KEY_ID: str = ""
+
+    # Cloudflare Turnstile Settings
+    TURNSTILE_ENABLED: bool = False
+    TURNSTILE_SITE_KEY: str = ""
+    TURNSTILE_SECRET_KEY: str = ""
+    TURNSTILE_REQUIRE_ON_LOGIN: bool = False
+    TURNSTILE_REQUIRE_ON_REGISTER: bool = True
+    TURNSTILE_REQUIRE_ON_PASSWORD_CHANGE: bool = True
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),

@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from src.api.deps import get_current_user_required
 from src.infra.auth.jwt import create_access_token, decode_token
 from src.infra.auth.password import verify_password
+from src.infra.auth.turnstile import get_turnstile_service
 from src.infra.user.manager import UserManager
 from src.kernel.config import settings
 from src.kernel.exceptions import ValidationError
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=User)
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, request: Request):
     """用户注册"""
     # 检查是否允许注册
     if not settings.ENABLE_REGISTRATION:
@@ -32,6 +33,18 @@ async def register(user_data: UserCreate):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="注册已关闭",
         )
+
+    # Turnstile 验证
+    turnstile_service = get_turnstile_service()
+    if turnstile_service.require_on_register:
+        turnstile_token = request.headers.get("X-Turnstile-Token")
+        client_ip = request.client.host if request.client else None
+        if not await turnstile_service.verify(turnstile_token, client_ip):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="人机验证失败，请重试",
+            )
+
     manager = UserManager()
     try:
         user = await manager.register(user_data)
@@ -44,8 +57,19 @@ async def register(user_data: UserCreate):
 
 
 @router.post("/login", response_model=Token)
-async def login(credentials: LoginRequest):
+async def login(credentials: LoginRequest, request: Request):
     """用户登录"""
+    # Turnstile 验证
+    turnstile_service = get_turnstile_service()
+    if turnstile_service.require_on_login:
+        turnstile_token = request.headers.get("X-Turnstile-Token")
+        client_ip = request.client.host if request.client else None
+        if not await turnstile_service.verify(turnstile_token, client_ip):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="人机验证失败，请重试",
+            )
+
     manager = UserManager()
     token = await manager.login(credentials.username, credentials.password)
     if not token:
@@ -164,6 +188,7 @@ class PasswordChangeRequest(BaseModel):
 @router.post("/change-password")
 async def change_password(
     request: PasswordChangeRequest,
+    http_request: Request,
     current_user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -171,6 +196,17 @@ async def change_password(
 
     需要提供旧密码和新密码。
     """
+    # Turnstile 验证
+    turnstile_service = get_turnstile_service()
+    if turnstile_service.require_on_password_change:
+        turnstile_token = http_request.headers.get("X-Turnstile-Token")
+        client_ip = http_request.client.host if http_request.client else None
+        if not await turnstile_service.verify(turnstile_token, client_ip):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="人机验证失败，请重试",
+            )
+
     manager = UserManager()
     user = await manager.get_user(current_user.sub)
 
@@ -303,19 +339,13 @@ async def get_oauth_providers():
 
     返回已启用的 OAuth 登录选项以及注册是否启用。
     """
-    providers = []
+    providers: list[dict[str, str]] = []
     try:
         from src.infra.auth.oauth import get_oauth_service
         from src.kernel.schemas.user import OAuthProvider
 
-        # 调试：打印 settings 值
-        logger.info(
-            f"DEBUG: OAUTH_GITHUB_ENABLED = {settings.OAUTH_GITHUB_ENABLED}, type = {type(settings.OAUTH_GITHUB_ENABLED)}"
-        )
-
         oauth_service = get_oauth_service()
         for provider in OAuthProvider:
-            logger.info(f"DEBUG: checking provider {provider}")
             if oauth_service.is_provider_enabled(provider):
                 providers.append(
                     {
@@ -324,13 +354,21 @@ async def get_oauth_providers():
                     }
                 )
     except Exception as e:
-        logger.error(f"DEBUG: OAuth providers error: {e}", exc_info=True)
-        pass
+        logger.error("OAuth providers error: %s", e, exc_info=True)
 
-    logger.info(f"DEBUG: final providers = {providers}")
+    # 获取 Turnstile 配置
+    turnstile_service = get_turnstile_service()
+
     return {
         "providers": providers,
         "registration_enabled": settings.ENABLE_REGISTRATION,
+        "turnstile": {
+            "enabled": turnstile_service.is_enabled,
+            "site_key": turnstile_service.site_key,
+            "require_on_login": turnstile_service.require_on_login,
+            "require_on_register": turnstile_service.require_on_register,
+            "require_on_password_change": turnstile_service.require_on_password_change,
+        },
     }
 
 

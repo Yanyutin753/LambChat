@@ -17,13 +17,21 @@ export const authApi = {
   /**
    * 用户登录
    */
-  async login(credentials: LoginRequest): Promise<TokenResponse> {
+  async login(credentials: LoginRequest, turnstileToken?: string): Promise<TokenResponse> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (turnstileToken) {
+      headers["X-Turnstile-Token"] = turnstileToken;
+    }
+
     const response = await authFetch<TokenResponse>(
       `${API_BASE}/api/auth/login`,
       {
         method: "POST",
         skipAuth: true,
         body: JSON.stringify(credentials),
+        headers,
       },
     );
 
@@ -36,11 +44,19 @@ export const authApi = {
   /**
    * 用户注册
    */
-  async register(userData: UserCreate): Promise<User> {
+  async register(userData: UserCreate, turnstileToken?: string): Promise<User> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (turnstileToken) {
+      headers["X-Turnstile-Token"] = turnstileToken;
+    }
+
     return authFetch<User>(`${API_BASE}/api/auth/register`, {
       method: "POST",
       skipAuth: true,
       body: JSON.stringify(userData),
+      headers,
     });
   },
 
@@ -97,7 +113,15 @@ export const authApi = {
   async changePassword(
     oldPassword: string,
     newPassword: string,
+    turnstileToken?: string,
   ): Promise<{ message: string }> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (turnstileToken) {
+      headers["X-Turnstile-Token"] = turnstileToken;
+    }
+
     return authFetch<{ message: string }>(
       `${API_BASE}/api/auth/change-password`,
       {
@@ -106,6 +130,7 @@ export const authApi = {
           old_password: oldPassword,
           new_password: newPassword,
         }),
+        headers,
       },
     );
   },
@@ -143,10 +168,24 @@ export const authApi = {
   async getOAuthProviders(): Promise<{
     providers: { id: string; name: string }[];
     registration_enabled: boolean;
+    turnstile?: {
+      enabled: boolean;
+      site_key: string;
+      require_on_login: boolean;
+      require_on_register: boolean;
+      require_on_password_change: boolean;
+    };
   }> {
     return authFetch<{
       providers: { id: string; name: string }[];
       registration_enabled: boolean;
+      turnstile?: {
+        enabled: boolean;
+        site_key: string;
+        require_on_login: boolean;
+        require_on_register: boolean;
+        require_on_password_change: boolean;
+      };
     }>(`${API_BASE}/api/auth/oauth/providers`, { skipAuth: true });
   },
 
