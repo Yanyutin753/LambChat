@@ -47,6 +47,7 @@
     "loginHint": "Sign in to your account",
     "loginNow": "Login now",
     "loginSuccess": "Login successful",
+    "pleaseLoginWithEmail": "Please login with your registered email to complete verification",
     "logout": "Logout",
     "noAccount": "Don't have an account?",
     "oauthLoginFailed": "OAuth login failed, please try again later",
