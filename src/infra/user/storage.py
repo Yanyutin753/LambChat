@@ -4,6 +4,7 @@
 提供用户的数据库操作。
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -11,6 +12,20 @@ from src.infra.auth.password import hash_password, verify_password
 from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, ValidationError
 from src.kernel.schemas.user import User, UserCreate, UserInDB, UserUpdate
+
+
+def _escape_regex(text: str) -> str:
+    """
+    转义正则表达式特殊字符，防止 ReDoS 攻击
+
+    Args:
+        text: 用户输入的搜索文本
+
+    Returns:
+        转义后的安全正则表达式字符串
+    """
+    # 转义所有正则表达式特殊字符
+    return re.escape(text)
 
 
 class UserStorage:
@@ -330,9 +345,11 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
+            # 使用转义后的搜索字符串防止 ReDoS 攻击
+            escaped_search = _escape_regex(search)
             query["$or"] = [
-                {"username": {"$regex": search, "$options": "i"}},
-                {"email": {"$regex": search, "$options": "i"}},
+                {"username": {"$regex": escaped_search, "$options": "i"}},
+                {"email": {"$regex": escaped_search, "$options": "i"}},
             ]
 
         cursor = self.collection.find(query).skip(skip).limit(limit)
@@ -363,9 +380,11 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
+            # 使用转义后的搜索字符串防止 ReDoS 攻击
+            escaped_search = _escape_regex(search)
             query["$or"] = [
-                {"username": {"$regex": search, "$options": "i"}},
-                {"email": {"$regex": search, "$options": "i"}},
+                {"username": {"$regex": escaped_search, "$options": "i"}},
+                {"email": {"$regex": escaped_search, "$options": "i"}},
             ]
         return await self.collection.count_documents(query)
 
