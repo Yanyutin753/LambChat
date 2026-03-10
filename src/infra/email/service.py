@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import html
 import json
 import logging
 import secrets
@@ -25,6 +27,36 @@ class EmailTemplate:
     """Email template renderer with consistent styling."""
 
     @staticmethod
+    def _escape_html(text: str) -> str:
+        """Escape HTML special characters to prevent XSS attacks.
+
+        Args:
+            text: Text to escape
+
+        Returns:
+            HTML-escaped text safe for insertion into HTML
+        """
+        return html.escape(str(text), quote=True)
+
+    @staticmethod
+    def _escape_url(url: str) -> str:
+        """Validate and escape URL to prevent javascript: and data: URL attacks.
+
+        Args:
+            url: URL to validate and escape
+
+        Returns:
+            Safe URL or empty string if invalid
+        """
+        url = str(url).strip()
+        # Only allow http and https protocols
+        if url.startswith(("http://", "https://")):
+            return html.escape(url, quote=True)
+        # Block dangerous protocols
+        logger.warning("[EmailTemplate] Blocked potentially unsafe URL: %s", url[:50])
+        return ""
+
+    @staticmethod
     def render(
         title: str,
         icon: str,
@@ -35,7 +67,9 @@ class EmailTemplate:
         button_text: str,
         footer: Optional[str] = None,
     ) -> str:
-        """Render HTML email template.
+        """Render HTML email template with XSS protection.
+
+        All user-provided content is HTML-escaped to prevent XSS attacks.
 
         Args:
             title: Email title in header
@@ -43,16 +77,33 @@ class EmailTemplate:
             heading: Main heading
             greeting: Greeting text with username
             content: Main content paragraph
-            button_url: Button link URL
+            button_url: Button link URL (validated to only allow http/https)
             button_text: Button text
             footer: Optional footer text
 
         Returns:
             Complete HTML email content.
         """
+        # Escape all user-provided content to prevent XSS
+        safe_title = EmailTemplate._escape_html(title)
+        safe_icon = EmailTemplate._escape_html(icon)
+        safe_heading = EmailTemplate._escape_html(heading)
+        safe_greeting = EmailTemplate._escape_html(greeting)
+        safe_content = EmailTemplate._escape_html(content)
+        safe_button_url = EmailTemplate._escape_url(button_url)
+        safe_button_text = EmailTemplate._escape_html(button_text)
+
         footer_html = ""
         if footer:
-            footer_html = f'<p style="color: #666; font-size: 14px;">{footer}</p>'
+            safe_footer = EmailTemplate._escape_html(footer)
+            footer_html = f'<p style="color: #666; font-size: 14px;">{safe_footer}</p>'
+
+        # If button_url is invalid, render button without link
+        button_html = ""
+        if safe_button_url:
+            button_html = f'<a href="{safe_button_url}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">{safe_button_text}</a>'
+        else:
+            button_html = f'<span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">{safe_button_text}</span>'
 
         return f"""
 <!DOCTYPE html>
@@ -63,14 +114,14 @@ class EmailTemplate:
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px 10px 0 0; padding: 30px; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">{icon} {title}</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">{safe_icon} {safe_title}</h1>
     </div>
     <div style="background: #f9f9f9; border-radius: 0 0 10px 10px; padding: 30px;">
-        <h2 style="color: #333; margin-top: 0;">{heading}</h2>
-        <p>{greeting}</p>
-        <p>{content}</p>
+        <h2 style="color: #333; margin-top: 0;">{safe_heading}</h2>
+        <p>{safe_greeting}</p>
+        <p>{safe_content}</p>
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{button_url}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">{button_text}</a>
+            {button_html}
         </div>
         {footer_html}
     </div>
@@ -284,8 +335,9 @@ class EmailService:
         subject: str,
         html_content: str,
         text_content: str,
+        max_retries: int = 3,
     ) -> bool:
-        """Send email via Resend API using httpx.
+        """Send email via Resend API using httpx with retry logic.
 
         Args:
             account: Account dict with api_key.
@@ -293,53 +345,131 @@ class EmailService:
             subject: Email subject.
             html_content: HTML content.
             text_content: Plain text content.
+            max_retries: Maximum number of retry attempts (default: 3)
 
         Returns:
             True if email sent successfully, False otherwise.
         """
-        try:
-            client = self._get_http_client()
-            response = await client.post(
-                RESEND_API_URL,
-                headers={
-                    "Authorization": f"Bearer {account['api_key']}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "from": self._get_from_address(account),
-                    "to": [to_email],
-                    "subject": subject,
-                    "html": html_content,
-                    "text": text_content,
-                },
-            )
+        last_error: Optional[Exception] = None
 
-            if response.status_code == 200:
-                data = response.json()
-                masked_key = self._mask_api_key(account["api_key"])
-                logger.info(
-                    "[EmailService] Email sent to %s via key %s, id=%s",
-                    to_email,
-                    masked_key,
-                    data.get("id", "unknown"),
+        for attempt in range(max_retries):
+            try:
+                client = self._get_http_client()
+                response = await client.post(
+                    RESEND_API_URL,
+                    headers={
+                        "Authorization": f"Bearer {account['api_key']}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "from": self._get_from_address(account),
+                        "to": [to_email],
+                        "subject": subject,
+                        "html": html_content,
+                        "text": text_content,
+                    },
                 )
-                return True
-            else:
+
+                if response.status_code == 200:
+                    data = response.json()
+                    masked_key = self._mask_api_key(account["api_key"])
+                    logger.info(
+                        "[EmailService] Email sent to %s via key %s, id=%s",
+                        to_email,
+                        masked_key,
+                        data.get("id", "unknown"),
+                    )
+                    return True
+                elif response.status_code == 429:
+                    # Rate limit - exponential backoff
+                    retry_after = int(response.headers.get("Retry-After", 60))
+                    wait_time = min(retry_after, 2**attempt * 5)
+                    logger.warning(
+                        "[EmailService] Rate limited sending to %s, waiting %ds (attempt %d/%d)",
+                        to_email,
+                        wait_time,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(wait_time)
+                    continue
+                elif response.status_code >= 500:
+                    # Server error - retry with exponential backoff
+                    wait_time = 2**attempt
+                    logger.error(
+                        "[EmailService] Server error (HTTP %d) sending to %s, retrying in %ds (attempt %d/%d): %s",
+                        response.status_code,
+                        to_email,
+                        wait_time,
+                        attempt + 1,
+                        max_retries,
+                        response.text[:200],
+                    )
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(wait_time)
+                    last_error = httpx.HTTPStatusError(
+                        f"HTTP {response.status_code}", request=None, response=response
+                    )
+                    continue
+                else:
+                    # Client error (4xx) - don't retry
+                    logger.error(
+                        "[EmailService] Failed to send email to %s: HTTP %d - %s",
+                        to_email,
+                        response.status_code,
+                        response.text[:200],
+                    )
+                    return False
+
+            except httpx.TimeoutException as e:
+                wait_time = 2**attempt
+                logger.warning(
+                    "[EmailService] Timeout sending to %s, retrying in %ds (attempt %d/%d): %s",
+                    to_email,
+                    wait_time,
+                    attempt + 1,
+                    max_retries,
+                    str(e),
+                )
+                last_error = e
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(wait_time)
+                continue
+
+            except httpx.NetworkError as e:
+                wait_time = 2**attempt
+                logger.warning(
+                    "[EmailService] Network error sending to %s, retrying in %ds (attempt %d/%d): %s",
+                    to_email,
+                    wait_time,
+                    attempt + 1,
+                    max_retries,
+                    str(e),
+                )
+                last_error = e
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(wait_time)
+                continue
+
+            except Exception as e:
                 logger.error(
-                    "[EmailService] Failed to send email to %s: HTTP %d - %s",
+                    "[EmailService] Unexpected error sending to %s: %s",
                     to_email,
-                    response.status_code,
-                    response.text[:200],
+                    e,
+                    exc_info=True,
                 )
-                return False
+                last_error = e
+                break
 
-        except Exception as e:
-            logger.error(
-                "[EmailService] Failed to send email to %s: %s",
-                to_email,
-                e,
-            )
-            return False
+        # All retries failed
+        logger.error(
+            "[EmailService] Failed to send email to %s after %d attempts: %s",
+            to_email,
+            max_retries,
+            last_error,
+        )
+        return False
 
     async def send_password_reset_email(
         self, to_email: str, username: str, reset_token: str, base_url: str

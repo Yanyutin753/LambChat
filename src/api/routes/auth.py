@@ -126,7 +126,7 @@ async def register(user_data: UserCreate, request: Request):
     turnstile_service = get_turnstile_service()
     if turnstile_service.require_on_register:
         turnstile_token = request.headers.get("X-Turnstile-Token")
-        client_ip = request.client.host if request.client else None
+        client_ip = _get_client_ip(request)
         if not await turnstile_service.verify(turnstile_token, client_ip):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -183,7 +183,7 @@ async def login(credentials: LoginRequest, request: Request):
     turnstile_service = get_turnstile_service()
     if turnstile_service.require_on_login:
         turnstile_token = request.headers.get("X-Turnstile-Token")
-        client_ip = request.client.host if request.client else None
+        client_ip = _get_client_ip(request)
         if not await turnstile_service.verify(turnstile_token, client_ip):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -320,7 +320,7 @@ async def change_password(
     turnstile_service = get_turnstile_service()
     if turnstile_service.require_on_password_change:
         turnstile_token = http_request.headers.get("X-Turnstile-Token")
-        client_ip = http_request.client.host if http_request.client else None
+        client_ip = _get_client_ip(http_request)
         if not await turnstile_service.verify(turnstile_token, client_ip):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -490,6 +490,33 @@ async def get_oauth_providers():
             "require_on_password_change": turnstile_service.require_on_password_change,
         },
     }
+
+
+def _get_client_ip(request: Request) -> str:
+    """Get client IP address from request, handling reverse proxies.
+
+    Checks X-Forwarded-For header first (for reverse proxy setups),
+    then falls back to direct client IP.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        Client IP address string
+    """
+    # Check X-Forwarded-For header (comma-separated list, first is original client)
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        # Take the first IP in the chain (original client)
+        ips = [ip.strip() for ip in forwarded_for.split(",")]
+        if ips:
+            return ips[0]
+
+    # Fall back to direct client IP
+    if request.client:
+        return request.client.host
+
+    return "unknown"
 
 
 def _get_frontend_url(request: Request) -> str:
@@ -664,7 +691,7 @@ async def forgot_password(
     from src.infra.email import get_email_service
 
     email = request_data.email
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
 
     # Rate limiting
     limiter = get_rate_limiter()
@@ -821,7 +848,7 @@ async def resend_verification(
     from src.infra.email import get_email_service
 
     email = request_data.email
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
 
     # Rate limiting
     limiter = get_rate_limiter()
