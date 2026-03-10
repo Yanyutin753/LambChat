@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { User, Mail, Lock, AlertCircle, AtSign } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -507,6 +508,18 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                 )
               )}
             </div>
+
+            {/* 忘记密码链接 */}
+            {mode === "login" && (
+              <div className="mt-2 text-center">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-stone-400 dark:hover:text-stone-200 sm:text-sm"
+                >
+                  {t("auth.forgotPassword")}
+                </Link>
+              </div>
+            )}
 
             {/* 服务条款 */}
             <p className="mt-3 text-center text-[10px] text-gray-400 dark:text-stone-500 sm:mt-4 sm:text-xs">
