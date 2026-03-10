@@ -4,7 +4,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -36,6 +36,77 @@ security = HTTPBearer()
 logger = logging.getLogger(__name__)
 
 
+# ============================================
+# Rate Limiting Helper
+# ============================================
+
+
+class RateLimiter:
+    """Simple Redis-based rate limiter for email endpoints."""
+
+    def __init__(self) -> None:
+        self._redis: Optional[object] = None
+
+    def _get_redis(self):
+        """Lazy load Redis client."""
+        if self._redis is None:
+            from redis import asyncio as aioredis
+
+            self._redis = aioredis.from_url(
+                settings.REDIS_URL, password=settings.REDIS_PASSWORD or None, decode_responses=True
+            )
+        return self._redis
+
+    async def check_rate_limit(
+        self,
+        key: str,
+        max_requests: int,
+        window_seconds: int,
+    ) -> tuple[bool, int]:
+        """Check if request is within rate limit.
+
+        Args:
+            key: Redis key for rate limiting
+            max_requests: Maximum requests allowed in window
+            window_seconds: Time window in seconds
+
+        Returns:
+            Tuple of (is_allowed, remaining_requests)
+        """
+        try:
+            redis = self._get_redis()
+            current = await redis.get(key)
+
+            if current is None:
+                await redis.setex(key, window_seconds, 1)
+                return True, max_requests - 1
+
+            current_count = int(current)
+            if current_count >= max_requests:
+                ttl = await redis.ttl(key)
+                logger.warning("[RateLimiter] Rate limit exceeded for %s, TTL=%d", key, ttl)
+                return False, 0
+
+            await redis.incr(key)
+            return True, max_requests - current_count - 1
+
+        except Exception as e:
+            # If Redis fails, allow the request (fail open)
+            logger.error("[RateLimiter] Redis error: %s", e)
+            return True, max_requests
+
+
+_rate_limiter: Optional[RateLimiter] = None
+
+
+def get_rate_limiter() -> RateLimiter:
+    """Get singleton rate limiter instance."""
+    global _rate_limiter
+    if _rate_limiter is None:
+        _rate_limiter = RateLimiter()
+    return _rate_limiter
+
+
 @router.post("/register", response_model=User)
 async def register(user_data: UserCreate, request: Request):
     """用户注册"""
@@ -60,6 +131,34 @@ async def register(user_data: UserCreate, request: Request):
     manager = UserManager()
     try:
         user = await manager.register(user_data)
+
+        # 如果要求邮箱验证，发送验证邮件
+        if settings.REQUIRE_EMAIL_VERIFICATION:
+            from src.infra.email import get_email_service
+
+            email_service = get_email_service()
+            if email_service.is_enabled():
+                # 生成验证令牌
+                verify_token = email_service.generate_token()
+
+                # 更新用户的验证令牌
+                from src.infra.user.storage import UserStorage
+
+                storage = UserStorage()
+                await storage.update(user.id, UserUpdate(verification_token=verify_token))
+
+                # 发送验证邮件
+                frontend_url = _get_frontend_url(request)
+                await email_service.send_verification_email(
+                    to_email=user.email,
+                    username=user.username,
+                    verify_token=verify_token,
+                    base_url=frontend_url,
+                )
+                logger.info("[Auth] Verification email sent to %s for new user %s", user.email, user.username)
+            else:
+                logger.warning("[Auth] Email verification required but email service not enabled")
+
         return user
     except ValidationError as e:
         raise HTTPException(
@@ -551,10 +650,33 @@ async def forgot_password(
     """请求密码重置邮件
 
     发送包含重置链接的邮件到用户邮箱。
+    限流：每个 IP 每小时最多 5 次，每个邮箱每小时最多 3 次。
     """
     from src.infra.email import get_email_service
 
     email = request_data.email
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Rate limiting
+    limiter = get_rate_limiter()
+
+    # IP-based rate limit (5 per hour)
+    ip_key = f"ratelimit:forgot-password:ip:{client_ip}"
+    ip_allowed, _ = await limiter.check_rate_limit(ip_key, max_requests=5, window_seconds=3600)
+    if not ip_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试",
+        )
+
+    # Email-based rate limit (3 per hour)
+    email_key = f"ratelimit:forgot-password:email:{email}"
+    email_allowed, _ = await limiter.check_rate_limit(email_key, max_requests=3, window_seconds=3600)
+    if not email_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="该邮箱请求过于频繁，请稍后再试",
+        )
 
     email_service = get_email_service()
     if not email_service.is_enabled():
