@@ -298,31 +298,45 @@ class OAuthService:
 
         id_token = token.get("id_token")
         if not id_token:
+            logger.warning("Apple OAuth: No id_token in response")
             return None
 
-        # 解码 ID token
-        parts = id_token.split(".")
-        if len(parts) != 3:
+        try:
+            # 解码 ID token
+            parts = id_token.split(".")
+            if len(parts) != 3:
+                logger.warning(f"Apple OAuth: Invalid id_token format (expected 3 parts, got {len(parts)})")
+                return None
+
+            # 解码 payload
+            payload = parts[1]
+            # 添加 padding 如果需要
+            padding = 4 - len(payload) % 4
+            if padding != 4:
+                payload += "=" * padding
+
+            decoded_bytes = base64.urlsafe_b64decode(payload)
+            data = json.loads(decoded_bytes.decode("utf-8"))
+
+            if "sub" not in data:
+                logger.warning("Apple OAuth: Missing 'sub' in id_token payload")
+                return None
+
+            return OAuthUserInfo(
+                provider=OAuthProvider.APPLE,
+                oauth_id=data["sub"],
+                email=data.get("email", ""),
+                username=data.get("email", "").split("@")[0]
+                if data.get("email")
+                else f"apple_{data['sub'][:8]}",
+                avatar_url=None,
+            )
+        except (json.JSONDecodeError, ValueError, UnicodeDecodeError) as e:
+            logger.error(f"Apple OAuth: Failed to decode id_token: {e}")
             return None
-
-        # 解码 payload
-        payload = parts[1]
-        # 添加 padding 如果需要
-        padding = 4 - len(payload) % 4
-        if padding != 4:
-            payload += "=" * padding
-
-        data = json.loads(base64.urlsafe_b64decode(payload))
-
-        return OAuthUserInfo(
-            provider=OAuthProvider.APPLE,
-            oauth_id=data["sub"],
-            email=data.get("email", ""),
-            username=data.get("email", "").split("@")[0]
-            if data.get("email")
-            else f"apple_{data['sub'][:8]}",
-            avatar_url=None,
-        )
+        except Exception as e:
+            logger.error(f"Apple OAuth: Unexpected error parsing id_token: {e}")
+            return None
 
     async def _find_or_create_user(self, user_info: OAuthUserInfo) -> Optional[User]:
         """

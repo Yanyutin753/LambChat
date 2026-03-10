@@ -37,6 +37,9 @@ def encrypt_value(value: Any) -> Any:
 
     Returns:
         加密后的值，如果是None则返回None
+
+    Raises:
+        RuntimeError: 加密失败时抛出异常
     """
     if value is None:
         return None
@@ -59,8 +62,8 @@ def encrypt_value(value: Any) -> Any:
         return {ENCRYPTED_MARKER: base64.b64encode(encrypted_bytes).decode("utf-8")}
     except Exception as e:
         logger.error(f"加密失败: {e}")
-        # 加密失败时返回原值（不应该发生）
-        return value
+        # 加密失败时抛出异常，避免敏感数据以明文形式存储
+        raise RuntimeError(f"加密失败: {e}") from e
 
 
 def decrypt_value(value: Any) -> Any:
@@ -103,9 +106,11 @@ def decrypt_value(value: Any) -> Any:
 
             return json.loads(decrypted_bytes.decode("utf-8"))
         except Exception as e:
-            logger.error(f"解密失败: {e}")
-            # 解密失败时返回原值
-            return value
+            # 解密失败可能是因为密钥变更，记录警告并返回空字典
+            logger.warning(
+                f"解密失败（可能是密钥变更）: {e}. 返回空字典以避免敏感数据泄露。"
+            )
+            return {}
 
     # 明文格式（向后兼容）
     return value
