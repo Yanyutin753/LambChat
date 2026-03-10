@@ -100,7 +100,7 @@ class UserStorage:
             "username": user_data.username,
             "email": user_data.email,
             "password_hash": hash_password(password) if password else None,
-            "roles": [],  # 空角色，验证后赋予默认角色
+            "roles": user_data.roles if user_data.roles else [],  # 使用提供的角色，否则为空
             "avatar_url": user_data.avatar_url,  # Data URI for avatar
             "oauth_provider": user_data.oauth_provider.value if user_data.oauth_provider else None,
             "oauth_id": user_data.oauth_id,
