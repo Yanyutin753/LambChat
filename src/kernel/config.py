@@ -105,7 +105,7 @@ SENSITIVE_SETTINGS = {
     "OAUTH_GITHUB_CLIENT_SECRET",
     "OAUTH_APPLE_CLIENT_SECRET",
     "TURNSTILE_SECRET_KEY",
-    "RESEND_API_KEY",
+    "RESEND_ACCOUNTS",  # JSON array of email accounts
 }
 
 # ============================================
@@ -756,30 +756,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": "EMAIL_ENABLED",
         "frontend_visible": True,
     },
-    "RESEND_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SECURITY,
-        "description": "Resend API key (fallback if RESEND_ACCOUNTS empty)",
-        "default": "",
-        "depends_on": "EMAIL_ENABLED",
-        "frontend_visible": False,  # Hidden - use RESEND_ACCOUNTS instead
-    },
-    "EMAIL_FROM": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SECURITY,
-        "description": "Sender email address (fallback if RESEND_ACCOUNTS empty)",
-        "default": "noreply@lambchat.com",
-        "depends_on": "EMAIL_ENABLED",
-        "frontend_visible": False,  # Hidden - use RESEND_ACCOUNTS instead
-    },
-    "EMAIL_FROM_NAME": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SECURITY,
-        "description": "Sender name displayed in emails (fallback if RESEND_ACCOUNTS empty)",
-        "default": "LambChat",
-        "depends_on": "EMAIL_ENABLED",
-        "frontend_visible": False,  # Hidden - use RESEND_ACCOUNTS instead
-    },
     "PASSWORD_RESET_EXPIRE_HOURS": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.SECURITY,
@@ -1008,9 +984,6 @@ class Settings(BaseSettings):
     # Email Settings (Resend)
     EMAIL_ENABLED: bool = False
     RESEND_ACCOUNTS: Any = Field(default_factory=list)  # JSON array of accounts
-    RESEND_API_KEY: str = ""
-    EMAIL_FROM: str = "noreply@lambchat.com"
-    EMAIL_FROM_NAME: str = "LambChat"
     PASSWORD_RESET_EXPIRE_HOURS: int = 24
     REQUIRE_EMAIL_VERIFICATION: bool = False
 
