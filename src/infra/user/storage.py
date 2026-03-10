@@ -72,6 +72,9 @@ class UserStorage:
         使用 MongoDB unique index 防止并发竞态条件。
         不再使用"先检查后插入"模式，而是直接插入并捕获 duplicate key error。
 
+        注册时设置 is_active=False (pending 状态)，需要邮箱验证后激活。
+        OAuth 用户自动激活。
+
         Args:
             user_data: 用户创建数据
 
@@ -86,21 +89,23 @@ class UserStorage:
         now = datetime.now()
         # For OAuth users, generate a random password if not provided
         password = user_data.password
-        if not password and (user_data.oauth_provider and user_data.oauth_id):
+        is_oauth_user = bool(user_data.oauth_provider and user_data.oauth_id)
+        if not password and is_oauth_user:
             import secrets
 
             password = secrets.token_urlsafe(32)
 
+        # OAuth 用户自动激活和验证，普通用户需要邮箱验证
         user_dict: dict[str, Any] = {
             "username": user_data.username,
             "email": user_data.email,
             "password_hash": hash_password(password) if password else None,
-            "roles": user_data.roles,
+            "roles": [],  # 空角色，验证后赋予默认角色
             "avatar_url": user_data.avatar_url,  # Data URI for avatar
             "oauth_provider": user_data.oauth_provider.value if user_data.oauth_provider else None,
             "oauth_id": user_data.oauth_id,
-            "is_active": True,
-            "email_verified": False,  # 默认未验证
+            "is_active": is_oauth_user,  # OAuth 用户自动激活，普通用户 pending
+            "email_verified": is_oauth_user,  # OAuth 用户自动验证
             "verification_token": None,
             "verification_token_expires": None,
             "reset_token": None,
