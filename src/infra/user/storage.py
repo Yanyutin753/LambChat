@@ -407,6 +407,9 @@ class UserStorage:
         """
         验证用户凭据（支持用户名或邮箱登录）
 
+        注意：此方法只验证密码，不检查激活状态。
+        激活状态检查由 UserManager.login() 处理，以便返回正确的错误信息。
+
         Args:
             username_or_email: 用户名或邮箱
             password: 密码
@@ -423,9 +426,8 @@ class UserStorage:
         if not user:
             return None
 
-        if not user.is_active:
-            return None
-
+        # 只验证密码，不检查 is_active
+        # is_active 检查由 UserManager.login() 处理，以便返回正确的错误信息
         if not verify_password(password, user.password_hash):
             return None
 
