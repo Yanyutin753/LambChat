@@ -853,18 +853,19 @@ async def verify_email(request_data: VerifyEmailRequest):
     """验证邮箱
 
     使用验证令牌验证用户邮箱。
+    令牌过期检查已在 storage.get_by_verification_token 中处理。
     """
     token = request_data.token
 
     manager = UserManager()
 
-    # 通过验证令牌查找用户
+    # 通过验证令牌查找用户（已包含过期检查）
     user = await manager.storage.get_by_verification_token(token)
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="无效的验证令牌",
+            detail="无效或过期的验证令牌",
         )
 
     # 更新邮箱验证状态

@@ -32,11 +32,45 @@ class UserStorage:
             client = get_mongo_client()
             db = client[settings.MONGODB_DB]
             self._collection = db["users"]
+            # 确保在第一次访问时创建索引
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，调度索引创建
+                    asyncio.create_task(self._ensure_indexes())
+                else:
+                    # 否则同步运行
+                    loop.run_until_complete(self._ensure_indexes())
+            except RuntimeError:
+                # 如果没有事件循环，忽略（会在第一次异步操作时创建）
+                pass
         return self._collection
+
+    async def _ensure_indexes(self):
+        """确保必要的索引存在（包括唯一索引）"""
+        try:
+            collection = self.collection  # 使用属性而不是直接访问 _collection
+            # 创建唯一索引防止并发竞态条件
+            await collection.create_index("username", unique=True, background=True)
+            await collection.create_index("email", unique=True, background=True)
+            # 其他常用查询索引
+            await collection.create_index("oauth_provider", background=True)
+            await collection.create_index("reset_token", background=True, sparse=True)
+            await collection.create_index("verification_token", background=True, sparse=True)
+        except Exception as e:
+            # 索引创建失败不应阻止应用启动
+            import logging
+
+            logging.getLogger(__name__).warning(f"Failed to create indexes: {e}")
 
     async def create(self, user_data: UserCreate) -> UserInDB:
         """
-        创建用户
+        创建用户（并发安全）
+
+        使用 MongoDB unique index 防止并发竞态条件。
+        不再使用"先检查后插入"模式，而是直接插入并捕获 duplicate key error。
 
         Args:
             user_data: 用户创建数据
@@ -47,15 +81,7 @@ class UserStorage:
         Raises:
             ValidationError: 用户名或邮箱已存在
         """
-        # 检查用户名是否存在
-        existing = await self.get_by_username(user_data.username)
-        if existing:
-            raise ValidationError(f"用户名 '{user_data.username}' 已存在")
-
-        # 检查邮箱是否存在
-        existing = await self.get_by_email(user_data.email)
-        if existing:
-            raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+        from pymongo.errors import DuplicateKeyError
 
         now = datetime.now()
         # For OAuth users, generate a random password if not provided
@@ -83,10 +109,20 @@ class UserStorage:
             "updated_at": now,
         }
 
-        result = await self.collection.insert_one(user_dict)
-        user_dict["id"] = str(result.inserted_id)
-
-        return UserInDB(**user_dict)
+        try:
+            result = await self.collection.insert_one(user_dict)
+            user_dict["id"] = str(result.inserted_id)
+            return UserInDB(**user_dict)
+        except DuplicateKeyError as e:
+            # 解析哪个字段重复
+            error_msg = str(e)
+            if "username" in error_msg or "username_1" in error_msg:
+                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
+            elif "email" in error_msg or "email_1" in error_msg:
+                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+            else:
+                # 未知重复键错误
+                raise ValidationError("用户名或邮箱已存在")
 
     async def get_by_id(self, user_id: str) -> Optional[UserInDB]:
         """
@@ -187,20 +223,14 @@ class UserStorage:
         Raises:
             NotFoundError: 用户不存在
         """
+        from pymongo.errors import DuplicateKeyError
+
         update_dict: dict = {"updated_at": datetime.now()}
 
         if user_data.username is not None:
-            # 检查新用户名是否已存在
-            existing = await self.get_by_username(user_data.username)
-            if existing and existing.id != user_id:
-                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
             update_dict["username"] = user_data.username
 
         if user_data.email is not None:
-            # 检查新邮箱是否已存在
-            existing = await self.get_by_email(user_data.email)
-            if existing and existing.id != user_id:
-                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
             update_dict["email"] = user_data.email
 
         if user_data.password is not None:
@@ -234,17 +264,28 @@ class UserStorage:
 
         from bson import ObjectId
 
-        result = await self.collection.find_one_and_update(
-            {"_id": ObjectId(user_id)},
-            {"$set": update_dict},
-            return_document=True,
-        )
+        try:
+            result = await self.collection.find_one_and_update(
+                {"_id": ObjectId(user_id)},
+                {"$set": update_dict},
+                return_document=True,
+            )
 
-        if not result:
-            raise NotFoundError(f"用户 '{user_id}' 不存在")
+            if not result:
+                raise NotFoundError(f"用户 '{user_id}' 不存在")
 
-        result["id"] = str(result.pop("_id"))
-        return User(**result)
+            result["id"] = str(result.pop("_id"))
+            return User(**result)
+        except DuplicateKeyError as e:
+            # 解析哪个字段重复
+            error_msg = str(e)
+            if "username" in error_msg or "username_1" in error_msg:
+                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
+            elif "email" in error_msg or "email_1" in error_msg:
+                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+            else:
+                # 未知重复键错误
+                raise ValidationError("用户名或邮箱已存在")
 
     async def delete(self, user_id: str) -> bool:
         """
