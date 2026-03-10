@@ -412,9 +412,7 @@ class EmailService:
                     )
                     if attempt < max_retries - 1:
                         await asyncio.sleep(wait_time)
-                    last_error = httpx.HTTPStatusError(
-                        f"HTTP {response.status_code}", request=None, response=response
-                    )
+                    last_error = Exception(f"HTTP {response.status_code}: {response.text[:200]}")
                     continue
                 else:
                     # Client error (4xx) - don't retry
