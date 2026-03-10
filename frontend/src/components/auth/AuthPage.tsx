@@ -410,7 +410,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
 
               {/* Turnstile 人机验证 */}
               {requiresTurnstile() && (
-                <div className="flex justify-center">
+                <div className="mb-4 flex justify-center sm:mb-6">
                   <Turnstile
                     key={turnstileKey}
                     sitekey={turnstileConfig.site_key}
