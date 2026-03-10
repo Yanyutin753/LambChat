@@ -410,19 +410,20 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
 
               {/* Turnstile 人机验证 */}
               {requiresTurnstile() && (
-                <div className="mb-4 flex w-full justify-center sm:mb-6">
-                  <Turnstile
-                    key={turnstileKey}
-                    sitekey={turnstileConfig.site_key}
-                    onSuccess={(token) => setTurnstileToken(token)}
-                    onError={() => {
-                      setTurnstileToken(null);
-                      setError(t("auth.turnstileError"));
-                    }}
-                    onExpire={() => setTurnstileToken(null)}
-                    theme="auto"
-                    style={{ width: "100%" }}
-                  />
+                <div className="mb-4 w-full rounded-xl border border-gray-200/80 bg-white/80 p-3 dark:border-stone-600/60 dark:bg-stone-800/60 sm:mb-6 sm:p-4">
+                  <div className="flex justify-center">
+                    <Turnstile
+                      key={turnstileKey}
+                      sitekey={turnstileConfig.site_key}
+                      onSuccess={(token) => setTurnstileToken(token)}
+                      onError={() => {
+                        setTurnstileToken(null);
+                        setError(t("auth.turnstileError"));
+                      }}
+                      onExpire={() => setTurnstileToken(null)}
+                      theme="auto"
+                    />
+                  </div>
                 </div>
               )}
 
