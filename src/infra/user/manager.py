@@ -70,21 +70,14 @@ class UserManager:
             return None
 
         # 检查邮箱验证状态
-        # 注意：
-        # 1. 只有当 REQUIRE_EMAIL_VERIFICATION=True 且用户有 email 且 email_verified 明确为 False 时才拦截
-        # 2. 旧用户（字段为 None）通过检查
-        # 3. 没有 email 的用户通过检查
-        if (
-            settings.REQUIRE_EMAIL_VERIFICATION
-            and user.email  # 有邮箱才需要验证
-            and user.email_verified is False  # 明确为 False（不是 None）
-        ):
+        # 迁移脚本已将旧用户的 None 改为 True，所以只检查 is False
+        if settings.REQUIRE_EMAIL_VERIFICATION and user.email_verified is False:
             from src.kernel.exceptions import EmailNotVerifiedError
 
             raise EmailNotVerifiedError("请先验证邮箱后再登录", user.email)
 
         # 检查账户激活状态
-        # 注意：只有明确为 False 时才拦截，None（旧用户）通过检查
+        # 迁移脚本已将旧用户的 None 改为 True，所以只检查 is False
         if user.is_active is False:
             from src.kernel.exceptions import AccountNotActiveError
 
