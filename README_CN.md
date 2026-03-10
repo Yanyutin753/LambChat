@@ -27,11 +27,11 @@
   </tr>
   <tr>
     <td align="center"><b>流式输出</b></td>
-    <td align="center"><b>代码高亮</b></td>
+    <td align="center"><b>分享对话框</b></td>
   </tr>
   <tr>
     <td><img src="docs/images/best-practice/chat-response.png" alt="流式输出" width="400"/></td>
-    <td><img src="docs/images/best-practice/message-typed.png" alt="代码高亮" width="400"/></td>
+    <td><img src="docs/images/best-practice/share-dialog.png" alt="分享对话框" width="400"/></td>
   </tr>
 </table>
 
@@ -55,11 +55,11 @@
     <td><img src="docs/images/best-practice/feedback-page.png" alt="反馈系统" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><b>用户管理</b></td>
+    <td align="center"><b>分享会话</b></td>
     <td align="center"><b>角色管理</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/best-practice/users-page.png" alt="用户管理" width="400"/></td>
+    <td><img src="docs/images/best-practice/shared-page.png" alt="分享会话" width="400"/></td>
     <td><img src="docs/images/best-practice/roles-page.png" alt="角色管理" width="400"/></td>
   </tr>
 </table>

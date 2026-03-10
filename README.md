@@ -27,11 +27,11 @@ English | [简体中文](README_CN.md)
   </tr>
   <tr>
     <td align="center"><b>Streaming Response</b></td>
-    <td align="center"><b>Code Highlighting</b></td>
+    <td align="center"><b>Share Dialog</b></td>
   </tr>
   <tr>
     <td><img src="docs/images/best-practice/chat-response.png" alt="Streaming Response" width="400"/></td>
-    <td><img src="docs/images/best-practice/message-typed.png" alt="Code Highlighting" width="400"/></td>
+    <td><img src="docs/images/best-practice/share-dialog.png" alt="Share Dialog" width="400"/></td>
   </tr>
 </table>
 
@@ -55,11 +55,11 @@ English | [简体中文](README_CN.md)
     <td><img src="docs/images/best-practice/feedback-page.png" alt="Feedback System" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><b>User Management</b></td>
+    <td align="center"><b>Shared Session</b></td>
     <td align="center"><b>Role Management</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/best-practice/users-page.png" alt="User Management" width="400"/></td>
+    <td><img src="docs/images/best-practice/shared-page.png" alt="Shared Session" width="400"/></td>
     <td><img src="docs/images/best-practice/roles-page.png" alt="Role Management" width="400"/></td>
   </tr>
 </table>
