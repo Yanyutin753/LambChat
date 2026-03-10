@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { Turnstile } from "react-turnstile";
 import { useAuth } from "../../hooks/useAuth";
+import { useTheme } from "../../contexts/ThemeContext";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";
@@ -63,6 +64,13 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0); // 用于强制重新渲染 Turnstile
+
+  const { theme } = useTheme();
+
+  // 当主题变化时，强制重新渲染 Turnstile 以更新主题
+  useEffect(() => {
+    setTurnstileKey(prev => prev + 1);
+  }, [theme]);
 
   const { login, register, loginWithOAuth } = useAuth();
   const [oauthProviders, setOauthProviders] = useState<
@@ -446,7 +454,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                         setError(t("auth.turnstileError"));
                       }}
                       onExpire={() => setTurnstileToken(null)}
-                      theme="auto"
+                      theme={theme}
                     />
                   </div>
                 </div>
