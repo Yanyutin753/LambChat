@@ -209,14 +209,14 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       </div>
 
       {/* 背景装饰 */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
       </div>
 
-      <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center px-4 py-6 sm:min-h-screen sm:px-6 sm:py-8">
+      <div className="flex w-full flex-col items-center justify-start px-4 py-16 sm:min-h-screen sm:justify-center sm:px-6 sm:py-8">
         {/* 内容容器 */}
-        <div className="w-full max-w-md pt-12 sm:pt-0">
+        <div className="w-full max-w-md pb-4">
           {/* Logo 和标题 */}
           <div className="mb-6 text-center sm:mb-8">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-stone-100 mb-2 tracking-tight font-serif sm:text-3xl">
@@ -410,19 +410,20 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
 
               {/* Turnstile 人机验证 */}
               {requiresTurnstile() && (
-                <div className="mb-4 flex w-full justify-center sm:mb-6">
-                  <Turnstile
-                    key={turnstileKey}
-                    sitekey={turnstileConfig.site_key}
-                    onSuccess={(token) => setTurnstileToken(token)}
-                    onError={() => {
-                      setTurnstileToken(null);
-                      setError(t("auth.turnstileError"));
-                    }}
-                    onExpire={() => setTurnstileToken(null)}
-                    theme="auto"
-                    style={{ width: "100%" }}
-                  />
+                <div className="mb-4 w-full rounded-xl border border-gray-200/80 bg-white/80 p-3 dark:border-stone-600/60 dark:bg-stone-800/60 sm:mb-6 sm:p-4">
+                  <div className="flex justify-center">
+                    <Turnstile
+                      key={turnstileKey}
+                      sitekey={turnstileConfig.site_key}
+                      onSuccess={(token) => setTurnstileToken(token)}
+                      onError={() => {
+                        setTurnstileToken(null);
+                        setError(t("auth.turnstileError"));
+                      }}
+                      onExpire={() => setTurnstileToken(null)}
+                      theme="auto"
+                    />
+                  </div>
                 </div>
               )}
 
