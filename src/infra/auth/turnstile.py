@@ -19,9 +19,9 @@ class TurnstileService:
 
     _instance: Optional["TurnstileService"] = None
 
-    def __init__(self):
-        self._enabled = settings.TURNSTILE_ENABLED
-        self._secret_key = settings.TURNSTILE_SECRET_KEY
+    def __init__(self) -> None:
+        self._enabled: bool = settings.TURNSTILE_ENABLED
+        self._secret_key: str = settings.TURNSTILE_SECRET_KEY
 
     @classmethod
     def get_instance(cls) -> "TurnstileService":
@@ -60,7 +60,7 @@ class TurnstileService:
         """Check if Turnstile is required on password change"""
         return settings.TURNSTILE_REQUIRE_ON_PASSWORD_CHANGE and self.is_enabled
 
-    async def verify(self, token: str, remote_ip: Optional[str] = None) -> bool:
+    async def verify(self, token: Optional[str], remote_ip: Optional[str] = None) -> bool:
         """
         Verify a Turnstile token
 
@@ -85,7 +85,7 @@ class TurnstileService:
 
         try:
             async with httpx.AsyncClient() as client:
-                data = {
+                data: dict[str, str] = {
                     "secret": self._secret_key,
                     "response": token,
                 }
@@ -104,14 +104,14 @@ class TurnstileService:
                     return True
                 else:
                     error_codes = result.get("error-codes", [])
-                    logger.warning(f"Turnstile verification failed: {error_codes}")
+                    logger.warning("Turnstile verification failed: %s", error_codes)
                     return False
 
         except httpx.TimeoutException:
             logger.error("Turnstile verification timed out")
             return False
         except Exception as e:
-            logger.error(f"Turnstile verification error: {e}")
+            logger.error("Turnstile verification error: %s", e)
             return False
 
 

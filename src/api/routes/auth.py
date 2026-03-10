@@ -339,19 +339,13 @@ async def get_oauth_providers():
 
     返回已启用的 OAuth 登录选项以及注册是否启用。
     """
-    providers = []
+    providers: list[dict[str, str]] = []
     try:
         from src.infra.auth.oauth import get_oauth_service
         from src.kernel.schemas.user import OAuthProvider
 
-        # 调试：打印 settings 值
-        logger.info(
-            f"DEBUG: OAUTH_GITHUB_ENABLED = {settings.OAUTH_GITHUB_ENABLED}, type = {type(settings.OAUTH_GITHUB_ENABLED)}"
-        )
-
         oauth_service = get_oauth_service()
         for provider in OAuthProvider:
-            logger.info(f"DEBUG: checking provider {provider}")
             if oauth_service.is_provider_enabled(provider):
                 providers.append(
                     {
@@ -360,13 +354,11 @@ async def get_oauth_providers():
                     }
                 )
     except Exception as e:
-        logger.error(f"DEBUG: OAuth providers error: {e}", exc_info=True)
-        pass
+        logger.error("OAuth providers error: %s", e, exc_info=True)
 
     # 获取 Turnstile 配置
     turnstile_service = get_turnstile_service()
-    
-    logger.info(f"DEBUG: final providers = {providers}")
+
     return {
         "providers": providers,
         "registration_enabled": settings.ENABLE_REGISTRATION,
