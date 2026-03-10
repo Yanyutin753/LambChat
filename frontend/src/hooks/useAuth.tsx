@@ -24,8 +24,8 @@ import type { User, UserCreate, LoginRequest, AuthState } from "../types";
 
 // 认证上下文类型
 interface AuthContextType extends AuthState {
-  login: (credentials: LoginRequest) => Promise<void>;
-  register: (userData: UserCreate) => Promise<void>;
+  login: (credentials: LoginRequest, turnstileToken?: string) => Promise<void>;
+  register: (userData: UserCreate, turnstileToken?: string) => Promise<void>;
   loginWithOAuth: (provider: string) => Promise<void>;
   handleOAuthCallback: (
     provider: string,
@@ -113,10 +113,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // 登录
-  const login = useCallback(async (credentials: LoginRequest) => {
+  const login = useCallback(async (credentials: LoginRequest, turnstileToken?: string) => {
     setIsLoading(true);
     try {
-      await authApi.login(credentials);
+      await authApi.login(credentials, turnstileToken);
       const accessToken = getAccessToken();
       setToken(accessToken);
 
@@ -153,15 +153,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 注册
   const register = useCallback(
-    async (userData: UserCreate) => {
+    async (userData: UserCreate, turnstileToken?: string) => {
       setIsLoading(true);
       try {
-        await authApi.register(userData);
+        await authApi.register(userData, turnstileToken);
         // 注册成功后自动登录
         await login({
           username: userData.username,
           password: userData.password,
-        });
+        }, turnstileToken);
       } finally {
         setIsLoading(false);
       }
