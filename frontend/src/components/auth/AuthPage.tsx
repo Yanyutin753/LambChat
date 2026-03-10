@@ -210,8 +210,26 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       }
     } catch (err) {
       const errorMessage = (err as Error).message || t("auth.operationFailed");
-      toast.error(errorMessage);
-      setError(errorMessage);
+      
+      // 检查是否是邮箱未验证或账户未激活错误，跳转到验证页面
+      if (errorMessage.includes("请先验证邮箱") || errorMessage.includes("账户未激活")) {
+        // 如果输入的是邮箱，直接跳转
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username);
+        if (isEmail) {
+          toast.error(errorMessage);
+          setTimeout(() => {
+            window.location.href = `/registration-pending?email=${encodeURIComponent(username)}`;
+          }, 1500);
+          return;
+        }
+        // 如果是用户名，提示用户
+        setError(t("auth.pleaseLoginWithEmail") || "请使用注册邮箱登录以完成验证");
+        toast.error(errorMessage);
+      } else {
+        toast.error(errorMessage);
+        setError(errorMessage);
+      }
+      
       // 重置 Turnstile widget
       setTurnstileToken(null);
       setTurnstileKey(prev => prev + 1);

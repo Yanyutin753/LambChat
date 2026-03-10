@@ -47,6 +47,7 @@
     "loginHint": "계정에 로그인",
     "loginNow": "지금 로그인",
     "loginSuccess": "로그인 성공",
+    "pleaseLoginWithEmail": "등록한 이메일로 로그인하여 인증을 완료해주세요",
     "logout": "로그아웃",
     "noAccount": "계정이 없으신가요?",
     "oauthLoginFailed": "OAuth 로그인에 실패했습니다. 나중에 다시 시도해 주세요",
