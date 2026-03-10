@@ -214,9 +214,9 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
       </div>
 
-      <div className="flex min-h-[100dvh] w-full flex-col items-center justify-start overflow-y-auto px-4 py-6 sm:min-h-screen sm:justify-center sm:px-6 sm:py-8">
+      <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center overflow-y-auto px-4 py-6 sm:min-h-screen sm:px-6 sm:py-8">
         {/* 内容容器 */}
-        <div className="w-full max-w-md pb-8 sm:pb-0">
+        <div className="w-full max-w-md py-4">
           {/* Logo 和标题 */}
           <div className="mb-6 text-center sm:mb-8">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-stone-100 mb-2 tracking-tight font-serif sm:text-3xl">
