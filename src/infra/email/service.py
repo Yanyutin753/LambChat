@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import secrets
 import threading
@@ -24,7 +25,8 @@ class EmailService:
     - Email verification
     - Welcome emails
 
-    Supports multiple API keys with round-robin rotation.
+    Supports multiple accounts with round-robin rotation.
+    Each account can have its own API key and sender address.
     """
 
     _instance: Optional[EmailService] = None
@@ -33,42 +35,71 @@ class EmailService:
     def __init__(self) -> None:
         """Initialize the email service."""
         self._enabled = settings.EMAIL_ENABLED
-        self._api_keys = self._parse_api_keys(settings.RESEND_API_KEY)
-        self._current_key_index = 0
-        self._from_email = settings.EMAIL_FROM
-        self._from_name = settings.EMAIL_FROM_NAME
+        self._accounts = self._parse_accounts()
+        self._current_index = 0
         self._reset_expire_hours = settings.PASSWORD_RESET_EXPIRE_HOURS
 
-        if self._enabled and self._api_keys:
-            # Set initial API key
-            resend.api_key = self._api_keys[0]
+        if self._enabled and self._accounts:
             logger.info(
-                "[EmailService] Initialized with %d Resend API key(s)",
-                len(self._api_keys),
+                "[EmailService] Initialized with %d Resend account(s)",
+                len(self._accounts),
             )
         elif self._enabled:
-            logger.warning(
-                "[EmailService] Email enabled but RESEND_API_KEY not configured"
-            )
+            logger.warning("[EmailService] Email enabled but no accounts configured")
         else:
             logger.info("[EmailService] Email service disabled")
 
-    def _parse_api_keys(self, key_config: str) -> list[str]:
-        """Parse API keys from configuration.
+    def _parse_accounts(self) -> list[dict[str, str]]:
+        """Parse account configurations.
 
-        Supports comma-separated keys for round-robin rotation.
-        Example: "re_key1,re_key2,re_key3"
-
-        Args:
-            key_config: Comma-separated API keys or single key.
+        Priority:
+        1. RESEND_ACCOUNTS JSON array
+        2. Fallback to single RESEND_API_KEY + EMAIL_FROM + EMAIL_FROM_NAME
 
         Returns:
-            List of API keys.
+            List of account dicts with api_key, email_from, email_from_name.
         """
-        if not key_config:
-            return []
-        keys = [k.strip() for k in key_config.split(",") if k.strip()]
-        return keys
+        accounts: list[dict[str, str]] = []
+
+        # Priority 1: Parse JSON accounts config
+        resend_accounts = settings.RESEND_ACCOUNTS
+        if resend_accounts:
+            try:
+                if isinstance(resend_accounts, str):
+                    resend_accounts = json.loads(resend_accounts)
+
+                if isinstance(resend_accounts, list):
+                    for acc in resend_accounts:
+                        if isinstance(acc, dict) and acc.get("api_key"):
+                            accounts.append(
+                                {
+                                    "api_key": str(acc.get("api_key", "")),
+                                    "email_from": str(acc.get("email_from", settings.EMAIL_FROM)),
+                                    "email_from_name": str(
+                                        acc.get(
+                                            "email_from_name",
+                                            settings.EMAIL_FROM_NAME,
+                                        )
+                                    ),
+                                }
+                            )
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning("[EmailService] Failed to parse RESEND_ACCOUNTS: %s", e)
+
+        # Priority 2: Fallback to single key config (backward compatible)
+        if not accounts and settings.RESEND_API_KEY:
+            # Support comma-separated keys with same email_from
+            keys = [k.strip() for k in settings.RESEND_API_KEY.split(",") if k.strip()]
+            for key in keys:
+                accounts.append(
+                    {
+                        "api_key": key,
+                        "email_from": settings.EMAIL_FROM,
+                        "email_from_name": settings.EMAIL_FROM_NAME,
+                    }
+                )
+
+        return accounts
 
     def _mask_api_key(self, key: str) -> str:
         """Mask API key for safe logging.
@@ -77,41 +108,27 @@ class EmailService:
             key: API key to mask.
 
         Returns:
-            Masked key showing only first 4 characters.
+            Masked key showing only first/last 4 characters.
         """
-        if not key or len(key) < 4:
+        if not key or len(key) < 8:
             return "***"
-        return f"{key[:4]}...{key[-4:]}"
+        return key[:4] + "..." + key[-4:]
 
-    def _get_next_api_key(self) -> Optional[str]:
-        """Get next API key using round-robin rotation.
+    def _get_next_account(self) -> Optional[dict[str, str]]:
+        """Get next account using round-robin rotation.
 
-        Thread-safe rotation through available API keys.
+        Thread-safe rotation through available accounts.
 
         Returns:
-            Next API key or None if no keys configured.
+            Account dict or None if no accounts configured.
         """
-        if not self._api_keys:
+        if not self._accounts:
             return None
 
         with EmailService._lock:
-            key = self._api_keys[self._current_key_index]
-            self._current_key_index = (self._current_key_index + 1) % len(
-                self._api_keys
-            )
-            return key
-
-    def _set_current_api_key(self) -> bool:
-        """Set the current API key for resend.
-
-        Returns:
-            True if key was set, False if no keys available.
-        """
-        key = self._get_next_api_key()
-        if key:
-            resend.api_key = key
-            return True
-        return False
+            account = self._accounts[self._current_index]
+            self._current_index = (self._current_index + 1) % len(self._accounts)
+            return account.copy()
 
     @classmethod
     def get_instance(cls) -> EmailService:
@@ -122,11 +139,18 @@ class EmailService:
 
     def is_enabled(self) -> bool:
         """Check if email service is enabled and configured."""
-        return self._enabled and bool(self._api_keys)
+        return self._enabled and bool(self._accounts)
 
-    def _get_from_address(self) -> str:
-        """Get formatted sender address."""
-        return formataddr((self._from_name, self._from_email))
+    def _get_from_address(self, account: dict[str, str]) -> str:
+        """Get formatted sender address from account.
+
+        Args:
+            account: Account dict with email_from and email_from_name.
+
+        Returns:
+            Formatted sender address.
+        """
+        return formataddr((account.get("email_from_name", ""), account.get("email_from", "")))
 
     def generate_token(self) -> str:
         """Generate a secure random token for password reset or email verification."""
@@ -136,7 +160,8 @@ class EmailService:
         """Get token expiry datetime.
 
         Args:
-            hours: Number of hours until expiry. Defaults to PASSWORD_RESET_EXPIRE_HOURS.
+            hours: Number of hours until expiry. Defaults to
+                PASSWORD_RESET_EXPIRE_HOURS.
 
         Returns:
             Datetime when token expires.
@@ -163,16 +188,20 @@ class EmailService:
             logger.warning("[EmailService] Cannot send email: service not enabled")
             return False
 
-        # Set next API key (round-robin)
-        if not self._set_current_api_key():
-            logger.warning("[EmailService] No API keys available")
+        account = self._get_next_account()
+        if not account:
+            logger.warning("[EmailService] No accounts available")
             return False
 
-        reset_url = f"{base_url.rstrip('/')}/reset-password?token={reset_token}"
+        resend.api_key = account["api_key"]
+        reset_url = base_url.rstrip("/") + "/reset-password?token=" + reset_token
+        from_name = account.get("email_from_name", "LambChat")
 
-        subject = f"{self._from_name} - 重置密码 / Password Reset"
+        subject = from_name + " - 重置密码 / Password Reset"
+        expire_hours = str(self._reset_expire_hours)
 
-        html_content = f"""
+        html_content = (
+            """
         <!DOCTYPE html>
         <html>
         <head>
@@ -181,53 +210,66 @@ class EmailService:
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px 10px 0 0; padding: 30px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">🔐 {self._from_name}</h1>
+                <h1 style="color: white; margin: 0; font-size: 24px;">🔐 """
+            + from_name
+            + """</h1>
             </div>
             <div style="background: #f9f9f9; border-radius: 0 0 10px 10px; padding: 30px;">
                 <h2 style="color: #333; margin-top: 0;">重置您的密码 / Reset Your Password</h2>
-                <p>您好，<strong>{username}</strong>！</p>
-                <p>Hello, <strong>{username}</strong>!</p>
+                <p>您好，<strong>"""
+            + username
+            + """</strong>！</p>
+                <p>Hello, <strong>"""
+            + username
+            + """</strong>!</p>
                 <p>我们收到了重置您密码的请求。请点击下方按钮重置密码：</p>
                 <p>We received a request to reset your password. Please click the button below to reset it:</p>
                 <div style="text-align: center; margin: 30px 0;">
-                    <a href="{reset_url}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">重置密码 / Reset Password</a>
+                    <a href=\""""
+            + reset_url
+            + """\" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">重置密码 / Reset Password</a>
                 </div>
-                <p style="color: #666; font-size: 14px;">或者复制以下链接到浏览器：<br><code style="word-break: break-all; background: #eee; padding: 2px 6px; border-radius: 4px;">{reset_url}</code></p>
-                <p style="color: #666; font-size: 14px;">此链接将在 {self._reset_expire_hours} 小时后失效。</p>
-                <p style="color: #666; font-size: 14px;">This link will expire in {self._reset_expire_hours} hours.</p>
-                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-                <p style="color: #999; font-size: 12px; text-align: center;">
-                    如果您没有请求重置密码，请忽略此邮件。<br>
-                    If you didn't request this, please ignore this email.
-                </p>
+                <p style="color: #666; font-size: 14px;">此链接将在 """
+            + expire_hours
+            + """ 小时后失效。</p>
+                <p style="color: #666; font-size: 14px;">This link will expire in """
+            + expire_hours
+            + """ hours.</p>
             </div>
         </body>
         </html>
         """
+        )
 
-        text_content = f"""
-{self._from_name} - 重置密码 / Password Reset
+        text_content = (
+            from_name
+            + """ - 重置密码 / Password Reset
 
-您好，{username}！
+您好，"""
+            + username
+            + """！
 
-我们收到了重置您密码的请求。请访问以下链接重置密码：
-{reset_url}
-
-此链接将在 {self._reset_expire_hours} 小时后失效。
-
-如果您没有请求重置密码，请忽略此邮件。
+请访问以下链接重置密码：
 """
+            + reset_url
+            + """
+
+此链接将在 """
+            + expire_hours
+            + """ 小时后失效。
+"""
+        )
 
         try:
             params: resend.Emails.SendParams = {
-                "from": self._get_from_address(),
+                "from": self._get_from_address(account),
                 "to": [to_email],
                 "subject": subject,
                 "html": html_content,
                 "text": text_content,
             }
             response = resend.Emails.send(params)
-            masked_key = self._mask_api_key(str(resend.api_key))
+            masked_key = self._mask_api_key(account["api_key"])
             logger.info(
                 "[EmailService] Password reset email sent to %s via key %s, id=%s",
                 to_email,
@@ -261,16 +303,19 @@ class EmailService:
             logger.warning("[EmailService] Cannot send email: service not enabled")
             return False
 
-        # Set next API key (round-robin)
-        if not self._set_current_api_key():
-            logger.warning("[EmailService] No API keys available")
+        account = self._get_next_account()
+        if not account:
+            logger.warning("[EmailService] No accounts available")
             return False
 
-        verify_url = f"{base_url.rstrip('/')}/verify-email?token={verify_token}"
+        resend.api_key = account["api_key"]
+        verify_url = base_url.rstrip("/") + "/verify-email?token=" + verify_token
+        from_name = account.get("email_from_name", "LambChat")
 
-        subject = f"{self._from_name} - 验证您的邮箱 / Verify Your Email"
+        subject = from_name + " - 验证您的邮箱 / Verify Your Email"
 
-        html_content = f"""
+        html_content = (
+            """
         <!DOCTYPE html>
         <html>
         <head>
@@ -279,49 +324,55 @@ class EmailService:
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px 10px 0 0; padding: 30px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">✉️ {self._from_name}</h1>
+                <h1 style="color: white; margin: 0; font-size: 24px;">✉️ """
+            + from_name
+            + """</h1>
             </div>
             <div style="background: #f9f9f9; border-radius: 0 0 10px 10px; padding: 30px;">
                 <h2 style="color: #333; margin-top: 0;">验证您的邮箱 / Verify Your Email</h2>
-                <p>您好，<strong>{username}</strong>！</p>
-                <p>Hello, <strong>{username}</strong>!</p>
-                <p>感谢您注册 {self._from_name}！请点击下方按钮验证您的邮箱地址：</p>
-                <p>Thank you for registering at {self._from_name}! Please click the button below to verify your email address:</p>
+                <p>您好，<strong>"""
+            + username
+            + """</strong>！</p>
+                <p>Hello, <strong>"""
+            + username
+            + """</strong>!</p>
+                <p>感谢您注册 """
+            + from_name
+            + """！请点击下方按钮验证您的邮箱地址：</p>
                 <div style="text-align: center; margin: 30px 0;">
-                    <a href="{verify_url}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">验证邮箱 / Verify Email</a>
+                    <a href=\""""
+            + verify_url
+            + """\" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">验证邮箱 / Verify Email</a>
                 </div>
-                <p style="color: #666; font-size: 14px;">或者复制以下链接到浏览器：<br><code style="word-break: break-all; background: #eee; padding: 2px 6px; border-radius: 4px;">{verify_url}</code></p>
-                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-                <p style="color: #999; font-size: 12px; text-align: center;">
-                    如果您没有注册账户，请忽略此邮件。<br>
-                    If you didn't create an account, please ignore this email.
-                </p>
             </div>
         </body>
         </html>
         """
+        )
 
-        text_content = f"""
-{self._from_name} - 验证您的邮箱 / Verify Your Email
+        text_content = (
+            from_name
+            + """ - 验证您的邮箱 / Verify Your Email
 
-您好，{username}！
+您好，"""
+            + username
+            + """！
 
-感谢您注册 {self._from_name}！请访问以下链接验证您的邮箱地址：
-{verify_url}
-
-如果您没有注册账户，请忽略此邮件。
+请访问以下链接验证您的邮箱地址：
 """
+            + verify_url
+        )
 
         try:
             params: resend.Emails.SendParams = {
-                "from": self._get_from_address(),
+                "from": self._get_from_address(account),
                 "to": [to_email],
                 "subject": subject,
                 "html": html_content,
                 "text": text_content,
             }
             response = resend.Emails.send(params)
-            masked_key = self._mask_api_key(str(resend.api_key))
+            masked_key = self._mask_api_key(account["api_key"])
             logger.info(
                 "[EmailService] Verification email sent to %s via key %s, id=%s",
                 to_email,
@@ -337,9 +388,7 @@ class EmailService:
             )
             return False
 
-    async def send_welcome_email(
-        self, to_email: str, username: str, base_url: str
-    ) -> bool:
+    async def send_welcome_email(self, to_email: str, username: str, base_url: str) -> bool:
         """Send welcome email after registration.
 
         Args:
@@ -354,16 +403,19 @@ class EmailService:
             logger.warning("[EmailService] Cannot send email: service not enabled")
             return False
 
-        # Set next API key (round-robin)
-        if not self._set_current_api_key():
-            logger.warning("[EmailService] No API keys available")
+        account = self._get_next_account()
+        if not account:
+            logger.warning("[EmailService] No accounts available")
             return False
 
-        login_url = f"{base_url.rstrip('/')}/login"
+        resend.api_key = account["api_key"]
+        login_url = base_url.rstrip("/") + "/login"
+        from_name = account.get("email_from_name", "LambChat")
 
-        subject = f"欢迎加入 {self._from_name}！/ Welcome to {self._from_name}!"
+        subject = "欢迎加入 " + from_name + "！/ Welcome to " + from_name + "!"
 
-        html_content = f"""
+        html_content = (
+            """
         <!DOCTYPE html>
         <html>
         <head>
@@ -372,49 +424,55 @@ class EmailService:
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px 10px 0 0; padding: 30px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">🎉 {self._from_name}</h1>
+                <h1 style="color: white; margin: 0; font-size: 24px;">🎉 """
+            + from_name
+            + """</h1>
             </div>
             <div style="background: #f9f9f9; border-radius: 0 0 10px 10px; padding: 30px;">
                 <h2 style="color: #333; margin-top: 0;">欢迎加入！/ Welcome!</h2>
-                <p>您好，<strong>{username}</strong>！</p>
-                <p>Hello, <strong>{username}</strong>!</p>
-                <p>欢迎加入 {self._from_name}！我们很高兴您成为我们的一员。</p>
-                <p>Welcome to {self._from_name}! We're glad to have you here.</p>
+                <p>您好，<strong>"""
+            + username
+            + """</strong>！</p>
+                <p>Hello, <strong>"""
+            + username
+            + """</strong>!</p>
+                <p>欢迎加入 """
+            + from_name
+            + """！</p>
                 <div style="text-align: center; margin: 30px 0;">
-                    <a href="{login_url}" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">开始使用 / Get Started</a>
+                    <a href=\""""
+            + login_url
+            + """\" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">开始使用 / Get Started</a>
                 </div>
-                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-                <p style="color: #999; font-size: 12px; text-align: center;">
-                    如有任何问题，请随时联系我们的支持团队。<br>
-                    If you have any questions, please feel free to contact our support team.
-                </p>
             </div>
         </body>
         </html>
         """
+        )
 
-        text_content = f"""
-欢迎加入 {self._from_name}！/ Welcome to {self._from_name}!
+        text_content = (
+            """欢迎加入 """
+            + from_name
+            + """！
 
-您好，{username}！
+您好，"""
+            + username
+            + """！
 
-欢迎加入 {self._from_name}！我们很高兴您成为我们的一员。
-
-立即登录开始使用：{login_url}
-
-如有任何问题，请随时联系我们的支持团队。
-"""
+立即登录开始使用："""
+            + login_url
+        )
 
         try:
             params: resend.Emails.SendParams = {
-                "from": self._get_from_address(),
+                "from": self._get_from_address(account),
                 "to": [to_email],
                 "subject": subject,
                 "html": html_content,
                 "text": text_content,
             }
             response = resend.Emails.send(params)
-            masked_key = self._mask_api_key(str(resend.api_key))
+            masked_key = self._mask_api_key(account["api_key"])
             logger.info(
                 "[EmailService] Welcome email sent to %s via key %s, id=%s",
                 to_email,

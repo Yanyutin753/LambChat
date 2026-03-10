@@ -396,9 +396,7 @@ class UserStorage:
         )
         return result.modified_count > 0
 
-    async def set_reset_token(
-        self, user_id: str, token: str, expires: datetime
-    ) -> bool:
+    async def set_reset_token(self, user_id: str, token: str, expires: datetime) -> bool:
         """
         设置用户密码重置令牌
 
