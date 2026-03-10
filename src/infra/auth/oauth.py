@@ -326,7 +326,9 @@ class OAuthService:
 
     async def _find_or_create_user(self, user_info: OAuthUserInfo) -> Optional[User]:
         """
-        查找或创建用户
+        查找或创建用户（并发安全）
+
+        使用 try-except 捕获重复用户名错误并自动重试。
 
         Args:
             user_info: OAuth 用户信息
@@ -334,6 +336,8 @@ class OAuthService:
         Returns:
             用户对象或 None
         """
+        from src.kernel.exceptions import ValidationError
+
         # 尝试通过 oauth_id 查找用户
         user = await self.storage.get_by_oauth(user_info.provider.value, user_info.oauth_id)
         if user:
@@ -356,26 +360,45 @@ class OAuthService:
             )
             return await self.storage.get_by_id(existing_user.id)
 
-        # 创建新用户
-        # 生成唯一的用户名
+        # 创建新用户 - 使用重试机制处理并发用户名冲突
         base_username = user_info.username
-        username = base_username
-        counter = 1
+        max_retries = 10
 
-        while await self.storage.get_by_username(username):
-            username = f"{base_username}{counter}"
-            counter += 1
+        for attempt in range(max_retries):
+            if attempt == 0:
+                username = base_username
+            else:
+                # 添加随机后缀以避免冲突
+                import random
+                import string
 
-        user_data = UserCreate(
-            username=username,
-            email=user_info.email,
-            avatar_url=user_info.avatar_url,
-            oauth_provider=user_info.provider,
-            oauth_id=user_info.oauth_id,
-        )
+                suffix = "".join(random.choices(string.digits, k=4))
+                username = f"{base_username}_{suffix}"
 
-        user = await self.storage.create(user_data)
-        return User.model_validate(user.model_dump())
+            user_data = UserCreate(
+                username=username,
+                email=user_info.email,
+                avatar_url=user_info.avatar_url,
+                oauth_provider=user_info.provider,
+                oauth_id=user_info.oauth_id,
+            )
+
+            try:
+                user = await self.storage.create(user_data)
+                return User.model_validate(user.model_dump())
+            except ValidationError as e:
+                # 如果是用户名冲突且还有重试机会，继续尝试
+                if "用户名" in str(e) and attempt < max_retries - 1:
+                    logger.debug(
+                        f"Username {username} already exists, retrying... (attempt {attempt + 1})"
+                    )
+                    continue
+                # 如果是邮箱冲突或其他错误，直接抛出
+                raise
+
+        # 不应该到达这里，但为了完整性
+        logger.error(f"Failed to create user after {max_retries} attempts")
+        return None
 
 
 # 单例

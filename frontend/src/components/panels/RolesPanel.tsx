@@ -6,7 +6,6 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Shield,
   Plus,
-  Search,
   Edit,
   Trash2,
   X,
@@ -15,11 +14,12 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { PanelHeader } from "../common/PanelHeader";
+import { LoadingSpinner } from "../common/LoadingSpinner";
+import { Pagination } from "../common/Pagination";
 import { roleApi, authApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
-import { LoadingSpinner } from "../common/LoadingSpinner";
-import { Pagination } from "../common/Pagination";
 import type {
   Role,
   RoleCreate,
@@ -499,39 +499,22 @@ export function RolesPanel() {
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* 头部 */}
-      <div className="panel-header">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {t("roles.title")}
-            </h1>
-            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-              {t("roles.subtitle")}
-            </p>
-          </div>
-          {canManage && (
+      <PanelHeader
+        title={t("roles.title")}
+        subtitle={t("roles.subtitle")}
+        icon={<Shield size={18} className="text-stone-600 dark:text-stone-400" />}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder={t("roles.searchPlaceholder")}
+        actions={
+          canManage && (
             <button onClick={openCreateModal} className="btn-primary">
-              <Plus size={18} />
-              {t("roles.createRole")}
+              <Plus size={16} className="sm:size-[18px]" />
+              <span className="hidden sm:inline">{t("roles.createRole")}</span>
             </button>
-          )}
-        </div>
-
-        {/* 搜索 */}
-        <div className="relative mt-3">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-          />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="panel-search"
-            placeholder={t("roles.searchPlaceholder")}
-          />
-        </div>
-      </div>
+          )
+        }
+      />
 
       {/* 错误提示 */}
       {error && (

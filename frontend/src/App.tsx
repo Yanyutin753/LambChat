@@ -5,6 +5,9 @@ import { useTranslation } from "react-i18next";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { SharedPage } from "./components/share/SharedPage";
 import { OAuthCallback } from "./components/auth/OAuthCallback";
+import { ForgotPassword } from "./components/auth/ForgotPassword";
+import { ResetPassword } from "./components/auth/ResetPassword";
+import { VerifyEmail } from "./components/auth/VerifyEmail";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AppContent } from "./components/layout/AppContent";
 import { NotFoundPage } from "./components/common/NotFoundPage";
@@ -202,6 +205,11 @@ function App() {
           />
           {/* OAuth callback page - handles OAuth redirect from backend */}
           <Route path="/auth/callback" element={<OAuthCallback />} />
+          {/* Password reset pages - no auth required */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          {/* Email verification page - no auth required */}
+          <Route path="/verify-email" element={<VerifyEmail />} />
           {/* Public shared session page - no auth required */}
           <Route path="/shared/:shareId" element={<SharedPage />} />
           <Route path="*" element={<NotFoundPage />} />

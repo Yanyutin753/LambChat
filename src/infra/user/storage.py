@@ -4,7 +4,7 @@
 提供用户的数据库操作。
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from src.infra.auth.password import hash_password, verify_password
@@ -32,11 +32,45 @@ class UserStorage:
             client = get_mongo_client()
             db = client[settings.MONGODB_DB]
             self._collection = db["users"]
+            # 确保在第一次访问时创建索引
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，调度索引创建
+                    asyncio.create_task(self._ensure_indexes())
+                else:
+                    # 否则同步运行
+                    loop.run_until_complete(self._ensure_indexes())
+            except RuntimeError:
+                # 如果没有事件循环，忽略（会在第一次异步操作时创建）
+                pass
         return self._collection
+
+    async def _ensure_indexes(self):
+        """确保必要的索引存在（包括唯一索引）"""
+        try:
+            collection = self.collection  # 使用属性而不是直接访问 _collection
+            # 创建唯一索引防止并发竞态条件
+            await collection.create_index("username", unique=True, background=True)
+            await collection.create_index("email", unique=True, background=True)
+            # 其他常用查询索引
+            await collection.create_index("oauth_provider", background=True)
+            await collection.create_index("reset_token", background=True, sparse=True)
+            await collection.create_index("verification_token", background=True, sparse=True)
+        except Exception as e:
+            # 索引创建失败不应阻止应用启动
+            import logging
+
+            logging.getLogger(__name__).warning(f"Failed to create indexes: {e}")
 
     async def create(self, user_data: UserCreate) -> UserInDB:
         """
-        创建用户
+        创建用户（并发安全）
+
+        使用 MongoDB unique index 防止并发竞态条件。
+        不再使用"先检查后插入"模式，而是直接插入并捕获 duplicate key error。
 
         Args:
             user_data: 用户创建数据
@@ -47,15 +81,7 @@ class UserStorage:
         Raises:
             ValidationError: 用户名或邮箱已存在
         """
-        # 检查用户名是否存在
-        existing = await self.get_by_username(user_data.username)
-        if existing:
-            raise ValidationError(f"用户名 '{user_data.username}' 已存在")
-
-        # 检查邮箱是否存在
-        existing = await self.get_by_email(user_data.email)
-        if existing:
-            raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+        from pymongo.errors import DuplicateKeyError
 
         now = datetime.now()
         # For OAuth users, generate a random password if not provided
@@ -74,14 +100,29 @@ class UserStorage:
             "oauth_provider": user_data.oauth_provider.value if user_data.oauth_provider else None,
             "oauth_id": user_data.oauth_id,
             "is_active": True,
+            "email_verified": False,  # 默认未验证
+            "verification_token": None,
+            "verification_token_expires": None,
+            "reset_token": None,
+            "reset_token_expires": None,
             "created_at": now,
             "updated_at": now,
         }
 
-        result = await self.collection.insert_one(user_dict)
-        user_dict["id"] = str(result.inserted_id)
-
-        return UserInDB(**user_dict)
+        try:
+            result = await self.collection.insert_one(user_dict)
+            user_dict["id"] = str(result.inserted_id)
+            return UserInDB(**user_dict)
+        except DuplicateKeyError as e:
+            # 解析哪个字段重复
+            error_msg = str(e)
+            if "username" in error_msg or "username_1" in error_msg:
+                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
+            elif "email" in error_msg or "email_1" in error_msg:
+                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+            else:
+                # 未知重复键错误
+                raise ValidationError("用户名或邮箱已存在")
 
     async def get_by_id(self, user_id: str) -> Optional[UserInDB]:
         """
@@ -94,10 +135,12 @@ class UserStorage:
             用户对象或 None
         """
         from bson import ObjectId
+        from bson.errors import InvalidId
 
         try:
             user_dict = await self.collection.find_one({"_id": ObjectId(user_id)})
-        except Exception:
+        except InvalidId:
+            # 无效的 ObjectId 格式
             return None
 
         if not user_dict:
@@ -180,20 +223,14 @@ class UserStorage:
         Raises:
             NotFoundError: 用户不存在
         """
+        from pymongo.errors import DuplicateKeyError
+
         update_dict: dict = {"updated_at": datetime.now()}
 
         if user_data.username is not None:
-            # 检查新用户名是否已存在
-            existing = await self.get_by_username(user_data.username)
-            if existing and existing.id != user_id:
-                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
             update_dict["username"] = user_data.username
 
         if user_data.email is not None:
-            # 检查新邮箱是否已存在
-            existing = await self.get_by_email(user_data.email)
-            if existing and existing.id != user_id:
-                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
             update_dict["email"] = user_data.email
 
         if user_data.password is not None:
@@ -209,19 +246,46 @@ class UserStorage:
         if user_data.is_active is not None:
             update_dict["is_active"] = user_data.is_active
 
+        # 支持邮箱验证和密码重置字段
+        if hasattr(user_data, "email_verified") and user_data.email_verified is not None:
+            update_dict["email_verified"] = user_data.email_verified
+
+        if hasattr(user_data, "verification_token") and user_data.verification_token is not None:
+            update_dict["verification_token"] = user_data.verification_token
+
+        if hasattr(user_data, "verification_token_expires"):
+            update_dict["verification_token_expires"] = user_data.verification_token_expires
+
+        if hasattr(user_data, "reset_token"):
+            update_dict["reset_token"] = user_data.reset_token
+
+        if hasattr(user_data, "reset_token_expires"):
+            update_dict["reset_token_expires"] = user_data.reset_token_expires
+
         from bson import ObjectId
 
-        result = await self.collection.find_one_and_update(
-            {"_id": ObjectId(user_id)},
-            {"$set": update_dict},
-            return_document=True,
-        )
+        try:
+            result = await self.collection.find_one_and_update(
+                {"_id": ObjectId(user_id)},
+                {"$set": update_dict},
+                return_document=True,
+            )
 
-        if not result:
-            raise NotFoundError(f"用户 '{user_id}' 不存在")
+            if not result:
+                raise NotFoundError(f"用户 '{user_id}' 不存在")
 
-        result["id"] = str(result.pop("_id"))
-        return User(**result)
+            result["id"] = str(result.pop("_id"))
+            return User(**result)
+        except DuplicateKeyError as e:
+            # 解析哪个字段重复
+            error_msg = str(e)
+            if "username" in error_msg or "username_1" in error_msg:
+                raise ValidationError(f"用户名 '{user_data.username}' 已存在")
+            elif "email" in error_msg or "email_1" in error_msg:
+                raise ValidationError(f"邮箱 '{user_data.email}' 已存在")
+            else:
+                # 未知重复键错误
+                raise ValidationError("用户名或邮箱已存在")
 
     async def delete(self, user_id: str) -> bool:
         """
@@ -327,3 +391,113 @@ class UserStorage:
             return None
 
         return user
+
+    async def get_by_reset_token(self, token: str) -> Optional[UserInDB]:
+        """
+        通过密码重置令牌获取用户
+
+        Args:
+            token: 密码重置令牌
+
+        Returns:
+            用户对象或 None
+        """
+        user_dict = await self.collection.find_one({"reset_token": token})
+        if not user_dict:
+            return None
+        user_dict["id"] = str(user_dict.pop("_id"))
+        return UserInDB(**user_dict)
+
+    async def get_by_verification_token(self, token: str) -> Optional[UserInDB]:
+        """
+        通过邮箱验证令牌获取用户
+
+        Args:
+            token: 邮箱验证令牌
+
+        Returns:
+            用户对象或 None（令牌无效或已过期）
+        """
+        user_dict = await self.collection.find_one({"verification_token": token})
+        if not user_dict:
+            return None
+
+        # 检查令牌是否过期（如果有设置过期时间）
+        expires = user_dict.get("verification_token_expires")
+        if expires is not None:
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > expires:
+                return None
+
+        user_dict["id"] = str(user_dict.pop("_id"))
+        return UserInDB(**user_dict)
+
+    async def set_email_verified(self, user_id: str, verified: bool = True) -> bool:
+        """
+        设置用户邮箱验证状态
+
+        Args:
+            user_id: 用户 ID
+            verified: 是否已验证
+
+        Returns:
+            是否更新成功
+        """
+        from bson import ObjectId
+
+        result = await self.collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"email_verified": verified, "updated_at": datetime.now()}},
+        )
+        return result.modified_count > 0
+
+    async def set_reset_token(self, user_id: str, token: str, expires: datetime) -> bool:
+        """
+        设置用户密码重置令牌
+
+        Args:
+            user_id: 用户 ID
+            token: 重置令牌
+            expires: 过期时间
+
+        Returns:
+            是否更新成功
+        """
+        from bson import ObjectId
+
+        result = await self.collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "reset_token": token,
+                    "reset_token_expires": expires,
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0
+
+    async def clear_reset_token(self, user_id: str) -> bool:
+        """
+        清除用户密码重置令牌
+
+        Args:
+            user_id: 用户 ID
+
+        Returns:
+            是否更新成功
+        """
+        from bson import ObjectId
+
+        result = await self.collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "reset_token": None,
+                    "reset_token_expires": None,
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0

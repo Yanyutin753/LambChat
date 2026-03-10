@@ -223,4 +223,63 @@ export const authApi = {
 
     return response;
   },
+
+  /**
+   * 忘记密码 - 发送重置邮件
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    return authFetch<{ message: string }>(
+      `${API_BASE}/api/auth/forgot-password`,
+      {
+        method: "POST",
+        skipAuth: true,
+        body: JSON.stringify({ email }),
+      },
+    );
+  },
+
+  /**
+   * 重置密码
+   */
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    return authFetch<{ message: string }>(
+      `${API_BASE}/api/auth/reset-password`,
+      {
+        method: "POST",
+        skipAuth: true,
+        body: JSON.stringify({ token, new_password: newPassword }),
+      },
+    );
+  },
+
+  /**
+   * 验证邮箱
+   */
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    return authFetch<{ message: string }>(
+      `${API_BASE}/api/auth/verify-email`,
+      {
+        method: "POST",
+        skipAuth: true,
+        body: JSON.stringify({ token }),
+      },
+    );
+  },
+
+  /**
+   * 重发验证邮件
+   */
+  async resendVerification(email: string): Promise<{ message: string }> {
+    return authFetch<{ message: string }>(
+      `${API_BASE}/api/auth/resend-verification`,
+      {
+        method: "POST",
+        skipAuth: true,
+        body: JSON.stringify({ email }),
+      },
+    );
+  },
 };

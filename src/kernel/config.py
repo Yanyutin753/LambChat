@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 if TYPE_CHECKING:
@@ -104,6 +105,7 @@ SENSITIVE_SETTINGS = {
     "OAUTH_GITHUB_CLIENT_SECRET",
     "OAUTH_APPLE_CLIENT_SECRET",
     "TURNSTILE_SECRET_KEY",
+    "RESEND_API_KEY",
 }
 
 # ============================================
@@ -736,6 +738,62 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": "TURNSTILE_ENABLED",
         "frontend_visible": True,
     },
+    # ============================================
+    # Email Settings (Resend)
+    # ============================================
+    "EMAIL_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Enable email service (password reset, email verification)",
+        "default": False,
+        "frontend_visible": True,
+    },
+    "RESEND_ACCOUNTS": {
+        "type": SettingType.JSON,
+        "category": SettingCategory.SECURITY,
+        "description": 'Resend accounts JSON config: [{"api_key":"re_xxx","email_from":"noreply@domain.com","email_from_name":"LambChat"}]',
+        "default": [],
+        "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": True,
+    },
+    "RESEND_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Resend API key (fallback if RESEND_ACCOUNTS empty)",
+        "default": "",
+        "depends_on": "EMAIL_ENABLED",
+    },
+    "EMAIL_FROM": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Sender email address (fallback if RESEND_ACCOUNTS empty)",
+        "default": "noreply@lambchat.com",
+        "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": True,
+    },
+    "EMAIL_FROM_NAME": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SECURITY,
+        "description": "Sender name displayed in emails (fallback if RESEND_ACCOUNTS empty)",
+        "default": "LambChat",
+        "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": True,
+    },
+    "PASSWORD_RESET_EXPIRE_HOURS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SECURITY,
+        "description": "Password reset link expiration in hours",
+        "default": 24,
+        "depends_on": "EMAIL_ENABLED",
+    },
+    "REQUIRE_EMAIL_VERIFICATION": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SECURITY,
+        "description": "Require email verification before login",
+        "default": False,
+        "depends_on": "EMAIL_ENABLED",
+        "frontend_visible": True,
+    },
 }
 
 
@@ -945,6 +1003,15 @@ class Settings(BaseSettings):
     TURNSTILE_REQUIRE_ON_LOGIN: bool = False
     TURNSTILE_REQUIRE_ON_REGISTER: bool = True
     TURNSTILE_REQUIRE_ON_PASSWORD_CHANGE: bool = True
+
+    # Email Settings (Resend)
+    EMAIL_ENABLED: bool = False
+    RESEND_ACCOUNTS: Any = Field(default_factory=list)  # JSON array of accounts
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "noreply@lambchat.com"
+    EMAIL_FROM_NAME: str = "LambChat"
+    PASSWORD_RESET_EXPIRE_HOURS: int = 24
+    REQUIRE_EMAIL_VERIFICATION: bool = False
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),

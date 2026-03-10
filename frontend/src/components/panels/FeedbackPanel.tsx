@@ -15,6 +15,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Pagination } from "../common/Pagination";
 import { feedbackApi } from "../../services/api/feedback";
@@ -378,17 +379,11 @@ export function FeedbackPanel() {
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
-      <div className="border-b border-stone-200 bg-white px-4 py-5 dark:border-stone-800 dark:bg-stone-950 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {t("feedback.title")}
-            </h1>
-            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-              {t("feedback.subtitle")}
-            </p>
-          </div>
-          {/* Filter dropdown - ChatGPT style */}
+      <PanelHeader
+        title={t("feedback.title")}
+        subtitle={t("feedback.subtitle")}
+        icon={<MessageSquare size={18} className="text-stone-600 dark:text-stone-400" />}
+        actions={
           <div className="relative w-full sm:w-44">
             <select
               value={ratingFilter || ""}
@@ -404,23 +399,13 @@ export function FeedbackPanel() {
               <option value="down">{t("feedback.negative")}</option>
             </select>
             <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400">
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Stats Section - Modern card design */}
       {stats && (

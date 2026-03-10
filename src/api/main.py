@@ -127,6 +127,19 @@ async def lifespan(app: FastAPI):
     from src.infra.storage.postgres import close_connection_pool
 
     close_connection_pool()
+
+    # 关闭 EmailService HTTP 客户端
+    from src.infra.email import get_email_service
+
+    email_service = get_email_service()
+    await email_service.close()
+
+    # 关闭 RateLimiter Redis 连接
+    from src.api.routes.auth import get_rate_limiter
+
+    rate_limiter = get_rate_limiter()
+    await rate_limiter.close()
+
     logger.info("Shutting down...")
 
 
