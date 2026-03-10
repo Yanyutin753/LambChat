@@ -12,6 +12,35 @@
 
 > 基于 FastAPI + LangGraph 构建的生产级 AI Agent 系统
 
+## 📸 界面展示
+
+<table>
+  <tr>
+    <td align="center"><b>聊天界面</b></td>
+    <td align="center"><b>流式输出</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/chat-home.png" alt="聊天界面" width="400"/></td>
+    <td><img src="docs/images/chat-response.png" alt="流式输出" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>MCP 配置</b></td>
+    <td align="center"><b>技能管理</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/mcp-panel.png" alt="MCP 配置" width="400"/></td>
+    <td><img src="docs/images/skills-panel.png" alt="技能管理" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>系统设置</b></td>
+    <td align="center"><b>反馈系统</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/settings.png" alt="系统设置" width="400"/></td>
+    <td><img src="docs/images/feedback.png" alt="反馈系统" width="400"/></td>
+  </tr>
+</table>
+
 ## ✨ 核心特性
 
 ### 🤖 Agent 系统
