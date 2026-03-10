@@ -864,8 +864,13 @@ async def reset_password(request_data: ResetPasswordRequest):
 async def verify_email(request_data: VerifyEmailRequest):
     """验证邮箱
 
-    使用验证令牌验证用户邮箱。
+    使用验证令牌验证用户邮箱并激活账户。
     令牌过期检查已在 storage.get_by_verification_token 中处理。
+
+    验证成功后：
+    - 设置 email_verified=True
+    - 设置 is_active=True（激活账户）
+    - 赋予默认角色（从 DEFAULT_USER_ROLE 读取）
     """
     token = request_data.token
 
@@ -880,19 +885,28 @@ async def verify_email(request_data: VerifyEmailRequest):
             detail="无效或过期的验证令牌",
         )
 
-    # 更新邮箱验证状态
+    # 获取默认角色
+    default_role = settings.DEFAULT_USER_ROLE or "user"
+
+    # 更新用户状态：邮箱验证 + 账户激活 + 赋予角色
     await manager.storage.update(
         user.id,
         UserUpdate(
             email_verified=True,
+            is_active=True,  # 激活账户
+            roles=[default_role],  # 赋予默认角色
             verification_token=None,
             verification_token_expires=None,
         ),
     )
 
-    logger.info("[Auth] Email verified for user %s", user.username)
+    logger.info(
+        "[Auth] Email verified and account activated for user %s with role %s",
+        user.username,
+        default_role,
+    )
 
-    return {"message": "邮箱验证成功"}
+    return {"message": "邮箱验证成功，账户已激活"}
 
 
 @router.post("/resend-verification")

@@ -75,6 +75,12 @@ class UserManager:
 
             raise EmailNotVerifiedError("请先验证邮箱后再登录", user.email)
 
+        # 检查账户激活状态
+        if not user.is_active:
+            from src.kernel.exceptions import AccountNotActiveError
+
+            raise AccountNotActiveError("账户未激活，请验证邮箱后登录", user.email)
+
         # 获取用户的角色和权限
         roles = []
         permissions = set()
