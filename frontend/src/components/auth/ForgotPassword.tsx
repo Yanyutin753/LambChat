@@ -55,9 +55,8 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
 
   if (isSuccess) {
     return (
-      <div className="flex min-h-screen flex-col overflow-y-auto bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
-        {/* 左上角 Logo */}
-        <div className="sticky top-0 z-50 flex items-center justify-between bg-gradient-to-br from-gray-50/90 via-white/90 to-gray-100/90 p-3 backdrop-blur-sm dark:from-stone-950/90 dark:via-stone-900/90 dark:to-stone-800/90 sm:absolute sm:left-4 sm:top-4 sm:bg-transparent sm:p-0 sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+        <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
             <img
               src="/icons/icon.svg"
@@ -65,13 +64,13 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
               className="h-6 w-6 rounded"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
-          </div>
         </div>
 
-        {/* 背景装饰 */}
+        <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1 backdrop-blur-sm dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+          <LanguageToggle />
+          <ThemeToggle />
+        </div>
+
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
           <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
           <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
@@ -105,9 +104,8 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col overflow-y-auto bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
-      {/* 左上角 Logo */}
-      <div className="sticky top-0 z-50 flex items-center justify-between bg-gradient-to-br from-gray-50/90 via-white/90 to-gray-100/90 p-3 backdrop-blur-sm dark:from-stone-950/90 dark:via-stone-900/90 dark:to-stone-800/90 sm:absolute sm:left-4 sm:top-4 sm:bg-transparent sm:p-0 sm:backdrop-blur-none dark:sm:bg-transparent">
+    <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
           <img
             src="/icons/icon.svg"
@@ -115,13 +113,13 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
             className="h-6 w-6 rounded"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
       </div>
 
-      {/* 背景装饰 */}
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1 backdrop-blur-sm dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />

@@ -54,31 +54,33 @@ export function RegistrationPending() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col overflow-y-auto bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
-      {/* Header */}
-      <div className="sticky top-0 z-50 flex items-center justify-between bg-gradient-to-br from-gray-50/90 via-white/90 to-gray-100/90 p-3 backdrop-blur-sm dark:from-stone-950/90 dark:via-stone-900/90 dark:to-stone-800/90 sm:absolute sm:left-4 sm:top-4 sm:bg-transparent sm:p-0 sm:backdrop-blur-none dark:sm:bg-transparent">
+    <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      {/* 左上角返回按钮 */}
+      <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <div
           className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80"
           onClick={handleGoToLogin}
         >
           <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-stone-400" />
         </div>
-        <div className="flex items-center gap-2">
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
       </div>
 
-      {/* Background decorations */}
+      {/* 右上角按钮 */}
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1 backdrop-blur-sm dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+
+      {/* 背景装饰 */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
         <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
       </div>
 
-      {/* Main content */}
+      {/* 主内容区域 */}
       <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-md py-8">
-          {/* Success icon */}
+          {/* 成功图标 */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
               <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
@@ -91,7 +93,7 @@ export function RegistrationPending() {
             </p>
           </div>
 
-          {/* Email info card */}
+          {/* 邮箱信息卡片 */}
           <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-stone-700 dark:bg-stone-800">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
@@ -108,7 +110,7 @@ export function RegistrationPending() {
             </div>
           </div>
 
-          {/* Instructions */}
+          {/* 操作指引 */}
           <div className="mb-6 rounded-xl bg-gray-50 p-4 dark:bg-stone-800/50">
             <h2 className="mb-3 font-medium text-gray-900 dark:text-stone-100">
               {t("auth.whatToDoNext")}
@@ -135,7 +137,7 @@ export function RegistrationPending() {
             </ol>
           </div>
 
-          {/* Resend button */}
+          {/* 重发按钮 */}
           {resendSuccess ? (
             <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
               <p className="text-center text-sm text-green-700 dark:text-green-400">
@@ -159,7 +161,7 @@ export function RegistrationPending() {
             </button>
           )}
 
-          {/* Back to login */}
+          {/* 返回登录 */}
           <button
             onClick={handleGoToLogin}
             className="w-full rounded-xl bg-gray-900 py-3 text-sm font-medium text-white shadow-lg shadow-gray-900/25 transition-all hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:translate-y-0 dark:bg-white dark:text-gray-900 dark:shadow-white/10 dark:hover:bg-stone-100 sm:py-3.5"
