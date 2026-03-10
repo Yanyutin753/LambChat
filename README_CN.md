@@ -14,30 +14,66 @@
 
 ## 📸 界面展示
 
+### 主要界面
+
 <table>
   <tr>
+    <td align="center"><b>登录页面</b></td>
     <td align="center"><b>聊天界面</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/best-practice/login-page.png" alt="登录页面" width="400"/></td>
+    <td><img src="docs/images/best-practice/chat-home.png" alt="聊天界面" width="400"/></td>
+  </tr>
+  <tr>
     <td align="center"><b>流式输出</b></td>
+    <td align="center"><b>代码高亮</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/chat-home.png" alt="聊天界面" width="400"/></td>
-    <td><img src="docs/images/chat-response.png" alt="流式输出" width="400"/></td>
+    <td><img src="docs/images/best-practice/chat-response.png" alt="流式输出" width="400"/></td>
+    <td><img src="docs/images/best-practice/message-typed.png" alt="代码高亮" width="400"/></td>
   </tr>
+</table>
+
+### 管理面板
+
+<table>
   <tr>
-    <td align="center"><b>MCP 配置</b></td>
     <td align="center"><b>技能管理</b></td>
+    <td align="center"><b>MCP 配置</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/mcp-panel.png" alt="MCP 配置" width="400"/></td>
-    <td><img src="docs/images/skills-panel.png" alt="技能管理" width="400"/></td>
+    <td><img src="docs/images/best-practice/skills-page.png" alt="技能管理" width="400"/></td>
+    <td><img src="docs/images/best-practice/mcp-page.png" alt="MCP 配置" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>系统设置</b></td>
     <td align="center"><b>反馈系统</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/settings.png" alt="系统设置" width="400"/></td>
-    <td><img src="docs/images/feedback.png" alt="反馈系统" width="400"/></td>
+    <td><img src="docs/images/best-practice/settings-page.png" alt="系统设置" width="400"/></td>
+    <td><img src="docs/images/best-practice/feedback-page.png" alt="反馈系统" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>用户管理</b></td>
+    <td align="center"><b>角色管理</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/best-practice/users-page.png" alt="用户管理" width="400"/></td>
+    <td><img src="docs/images/best-practice/roles-page.png" alt="角色管理" width="400"/></td>
+  </tr>
+</table>
+
+### 响应式设计
+
+<table>
+  <tr>
+    <td align="center"><b>移动端视图</b></td>
+    <td align="center"><b>平板视图</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/best-practice/mobile-view.png" alt="移动端视图" width="250"/></td>
+    <td><img src="docs/images/best-practice/tablet-view.png" alt="平板视图" width="350"/></td>
   </tr>
 </table>
 

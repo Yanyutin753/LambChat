@@ -14,30 +14,66 @@ English | [简体中文](README_CN.md)
 
 ## 📸 Screenshots
 
+### Main Interface
+
 <table>
   <tr>
+    <td align="center"><b>Login Page</b></td>
     <td align="center"><b>Chat Interface</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/best-practice/login-page.png" alt="Login Page" width="400"/></td>
+    <td><img src="docs/images/best-practice/chat-home.png" alt="Chat Interface" width="400"/></td>
+  </tr>
+  <tr>
     <td align="center"><b>Streaming Response</b></td>
+    <td align="center"><b>Code Highlighting</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/chat-home.png" alt="Chat Interface" width="400"/></td>
-    <td><img src="docs/images/chat-response.png" alt="Streaming Response" width="400"/></td>
+    <td><img src="docs/images/best-practice/chat-response.png" alt="Streaming Response" width="400"/></td>
+    <td><img src="docs/images/best-practice/message-typed.png" alt="Code Highlighting" width="400"/></td>
   </tr>
+</table>
+
+### Management Panels
+
+<table>
   <tr>
-    <td align="center"><b>MCP Configuration</b></td>
     <td align="center"><b>Skills Management</b></td>
+    <td align="center"><b>MCP Configuration</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/mcp-panel.png" alt="MCP Configuration" width="400"/></td>
-    <td><img src="docs/images/skills-panel.png" alt="Skills Management" width="400"/></td>
+    <td><img src="docs/images/best-practice/skills-page.png" alt="Skills Management" width="400"/></td>
+    <td><img src="docs/images/best-practice/mcp-page.png" alt="MCP Configuration" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>System Settings</b></td>
     <td align="center"><b>Feedback System</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/settings.png" alt="System Settings" width="400"/></td>
-    <td><img src="docs/images/feedback.png" alt="Feedback System" width="400"/></td>
+    <td><img src="docs/images/best-practice/settings-page.png" alt="System Settings" width="400"/></td>
+    <td><img src="docs/images/best-practice/feedback-page.png" alt="Feedback System" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>User Management</b></td>
+    <td align="center"><b>Role Management</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/best-practice/users-page.png" alt="User Management" width="400"/></td>
+    <td><img src="docs/images/best-practice/roles-page.png" alt="Role Management" width="400"/></td>
+  </tr>
+</table>
+
+### Responsive Design
+
+<table>
+  <tr>
+    <td align="center"><b>Mobile View</b></td>
+    <td align="center"><b>Tablet View</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/best-practice/mobile-view.png" alt="Mobile View" width="250"/></td>
+    <td><img src="docs/images/best-practice/tablet-view.png" alt="Tablet View" width="350"/></td>
   </tr>
 </table>
 
