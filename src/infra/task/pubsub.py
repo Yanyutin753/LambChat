@@ -102,7 +102,7 @@ class TaskPubSub:
                 # 调用自定义回调
                 if on_message:
                     try:
-                        await on_message(data)
+                        await on_message(data)  # type: ignore[misc]
                     except Exception as e:
                         logger.warning(f"Error in on_message callback: {e}")
 

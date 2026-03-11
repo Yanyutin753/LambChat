@@ -57,8 +57,12 @@ def get_app_version() -> str:
         return "1.0.0"
 
 
-def get_default_from_settings(key: str, definitions: dict) -> Any:
+def get_default_from_settings(key: str, definitions: dict | None = None) -> Any:
     """Get default value from SETTING_DEFINITIONS"""
+    if definitions is None:
+        from src.kernel.config.definitions import SETTING_DEFINITIONS
+
+        definitions = SETTING_DEFINITIONS
     if key in definitions:
         return definitions[key].get("default")
     return None

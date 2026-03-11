@@ -11,6 +11,10 @@ from .constants import (
 )
 from .definitions import SETTING_DEFINITIONS
 from .service import initialize_settings, refresh_settings
+from .utils import get_default_from_settings
+
+# Alias for backward compatibility
+_get_default_from_settings = get_default_from_settings
 
 __all__ = [
     # Settings class and instance
@@ -26,4 +30,7 @@ __all__ = [
     # Service functions
     "initialize_settings",
     "refresh_settings",
+    # Utility functions
+    "get_default_from_settings",
+    "_get_default_from_settings",
 ]
