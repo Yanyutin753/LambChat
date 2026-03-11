@@ -25,7 +25,10 @@ _KDF_ITERATIONS = 100000  # PBKDF2 迭代次数
 
 def _get_kdf_salt() -> bytes:
     """获取PBKDF2盐值，从配置读取并转换为bytes"""
-    return settings.MCP_ENCRYPTION_SALT.encode("utf-8")
+    salt = settings.MCP_ENCRYPTION_SALT
+    if not salt:
+        raise RuntimeError("MCP_ENCRYPTION_SALT is not configured")
+    return salt.encode("utf-8")
 
 
 class DecryptionError(Exception):
