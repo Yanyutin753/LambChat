@@ -45,9 +45,7 @@ _cleanup_lock = asyncio.Lock()
 
 def _cleanup_expired_cache() -> int:
     """清理过期的缓存条目，返回清理的数量"""
-    expired_users = [
-        user_id for user_id, entry in _tools_cache.items() if entry.is_expired()
-    ]
+    expired_users = [user_id for user_id, entry in _tools_cache.items() if entry.is_expired()]
     for user_id in expired_users:
         _tools_cache.pop(user_id, None)
         _cache_locks.pop(user_id, None)
@@ -60,10 +58,7 @@ def _cleanup_excess_cache() -> int:
         return 0
 
     # 按最后访问时间排序，删除最旧的
-    sorted_entries = sorted(
-        _tools_cache.items(),
-        key=lambda x: x[1].last_access
-    )
+    sorted_entries = sorted(_tools_cache.items(), key=lambda x: x[1].last_access)
 
     # 删除超出部分
     to_remove = len(_tools_cache) - MAX_CACHE_ENTRIES

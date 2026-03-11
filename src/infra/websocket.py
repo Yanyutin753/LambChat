@@ -166,7 +166,9 @@ class ConnectionManager:
                 redis_client = get_redis_client()
                 self._pubsub = redis_client.pubsub()
                 await self._pubsub.subscribe(WS_BROADCAST_CHANNEL)
-                logger.info(f"WebSocket: Started listening on Redis channel: {WS_BROADCAST_CHANNEL}")
+                logger.info(
+                    f"WebSocket: Started listening on Redis channel: {WS_BROADCAST_CHANNEL}"
+                )
 
                 async for message in self._pubsub.listen():
                     if not self._running:
@@ -182,7 +184,9 @@ class ConnectionManager:
                                 # 只在本地发送，不再次广播（避免无限循环）
                                 await self._send_to_user_local(user_id, msg_content)
                         except json.JSONDecodeError:
-                            logger.warning(f"Invalid WebSocket broadcast message: {message['data']}")
+                            logger.warning(
+                                f"Invalid WebSocket broadcast message: {message['data']}"
+                            )
                         except Exception as e:
                             logger.error(f"Error processing WebSocket broadcast: {e}")
 

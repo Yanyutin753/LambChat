@@ -276,12 +276,8 @@ class FeedbackStorage:
                 "$group": {
                     "_id": None,
                     "total": {"$sum": 1},
-                    "up_count": {
-                        "$sum": {"$cond": [{"$eq": ["$rating", "up"]}, 1, 0]}
-                    },
-                    "down_count": {
-                        "$sum": {"$cond": [{"$eq": ["$rating", "down"]}, 1, 0]}
-                    },
+                    "up_count": {"$sum": {"$cond": [{"$eq": ["$rating", "up"]}, 1, 0]}},
+                    "down_count": {"$sum": {"$cond": [{"$eq": ["$rating", "down"]}, 1, 0]}},
                 }
             },
         ]
