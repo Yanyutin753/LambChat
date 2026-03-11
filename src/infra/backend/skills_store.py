@@ -570,15 +570,6 @@ class SkillsStoreBackend(BackendProtocol):
         """异步版本"""
         return self.glob_info(pattern, path)
 
-    # ==========================================
-    # 属性
-    # ==========================================
-
-    @property
-    def id(self) -> str:
-        """Backend ID"""
-        return f"skills-{self._user_id}"
-
     def close(self) -> None:
         """关闭连接"""
         if self._storage:
