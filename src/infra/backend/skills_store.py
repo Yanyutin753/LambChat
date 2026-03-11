@@ -161,13 +161,19 @@ class SkillsStoreBackend(BackendProtocol):
         if not path:
             return "/skills/"
 
-        # 已经有前缀
+        # 已经有正确前缀
         if path.startswith("/skills/"):
             return path
 
-        # 添加前缀
+        # skills/ 开头（CompositeBackend 去掉前导 / 后的情况）
+        if path.startswith("skills/"):
+            return f"/{path}"
+
+        # 其他 / 开头的路径
         if path.startswith("/"):
             return f"/skills{path}"
+
+        # 相对路径，添加前缀
         return f"/skills/{path}"
 
     def _parse_skill_path(self, path: str) -> Optional[tuple[str, str]]:
