@@ -3,7 +3,14 @@
 
 从数据库读取技能并注入到系统提示中。
 支持用户级别的技能访问。
-同时负责将技能注入到 Sandbox 文件系统。
+
+与 CompositeBackend 配合工作：
+- CompositeBackend 自动处理 /skills/ 路径的读写
+- LLM 可以直接通过 /skills/{skill_name}/ 读取技能文件
+- LLM 写入 /skills/ 路径会自动更新 MongoDB
+
+inject_skills_to_sandbox 方法保留用于需要将技能文件注入到沙箱文件系统
+以便执行脚本的场景（如 Python 脚本需要在沙箱中运行）。
 """
 
 import base64
