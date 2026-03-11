@@ -162,7 +162,8 @@ class UserStorage:
 
             password = secrets.token_urlsafe(32)
 
-        # OAuth 用户自动激活和验证，普通用户需要邮箱验证
+        # OAuth 用户或管理员创建的用户自动激活和验证，普通用户需要邮箱验证
+        should_skip_verification = is_oauth_user or user_data.skip_verification
         user_dict: dict[str, Any] = {
             "username": user_data.username,
             "email": user_data.email,
@@ -171,8 +172,8 @@ class UserStorage:
             "avatar_url": user_data.avatar_url,  # Data URI for avatar
             "oauth_provider": user_data.oauth_provider.value if user_data.oauth_provider else None,
             "oauth_id": user_data.oauth_id,
-            "is_active": is_oauth_user,  # OAuth 用户自动激活，普通用户 pending
-            "email_verified": is_oauth_user,  # OAuth 用户自动验证
+            "is_active": should_skip_verification,  # OAuth 或管理员创建的用户自动激活
+            "email_verified": should_skip_verification,  # OAuth 或管理员创建的用户自动验证
             "verification_token": None,
             "verification_token_expires": None,
             "reset_token": None,
