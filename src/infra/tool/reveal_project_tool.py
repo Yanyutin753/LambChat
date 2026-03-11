@@ -225,6 +225,9 @@ async def _run_command(backend: Any, command: str) -> Optional[str]:
     if hasattr(backend, "aexecute"):
         try:
             result = await backend.aexecute(command)
+            # ExecuteResponse 对象（有 output 属性）
+            if hasattr(result, "output"):
+                return result.output
             if isinstance(result, dict):
                 return result.get("output", result.get("stdout", ""))
             elif isinstance(result, str):
@@ -235,6 +238,9 @@ async def _run_command(backend: Any, command: str) -> Optional[str]:
     if hasattr(backend, "execute"):
         try:
             result = backend.execute(command)
+            # ExecuteResponse 对象（有 output 属性）
+            if hasattr(result, "output"):
+                return result.output
             if isinstance(result, dict):
                 return result.get("output", result.get("stdout", ""))
             elif isinstance(result, str):
