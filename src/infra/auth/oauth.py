@@ -35,9 +35,7 @@ def _cleanup_expired_states() -> None:
     """清理过期的 OAuth state"""
     current_time = time.time()
     expired_states = [
-        state
-        for state, (_, expire_time) in _oauth_states.items()
-        if current_time > expire_time
+        state for state, (_, expire_time) in _oauth_states.items() if current_time > expire_time
     ]
     for state in expired_states:
         _oauth_states.pop(state, None)
