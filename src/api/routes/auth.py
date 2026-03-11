@@ -910,7 +910,7 @@ async def verify_email(request_data: VerifyEmailRequest):
     logger.info(
         "[Auth] Email verified and account activated for user %s with roles %s",
         user.username,
-        roles,
+        ", ".join(roles) if roles else "none",
     )
 
     return {"message": "邮箱验证成功，账户已激活"}

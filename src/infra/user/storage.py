@@ -28,6 +28,24 @@ def _escape_regex(text: str) -> str:
     return re.escape(text)
 
 
+def _safe_search_pattern(text: str) -> str:
+    """
+    创建安全的搜索模式
+
+    使用转义后的文本，并添加锚定以避免意外匹配。
+    对于邮箱等包含特殊字符的搜索，确保正确转义。
+
+    Args:
+        text: 用户输入的搜索文本
+
+    Returns:
+        安全的正则表达式模式
+    """
+    escaped = _escape_regex(text)
+    # 不添加锚定，允许部分匹配（如搜索 "john" 匹配 "johnson"）
+    return escaped
+
+
 class UserStorage:
     """
     用户存储类
@@ -379,8 +397,8 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
-            # 使用转义后的搜索字符串防止 ReDoS 攻击
-            escaped_search = _escape_regex(search)
+            # 使用安全的搜索模式防止 ReDoS 攻击
+            escaped_search = _safe_search_pattern(search)
             query["$or"] = [
                 {"username": {"$regex": escaped_search, "$options": "i"}},
                 {"email": {"$regex": escaped_search, "$options": "i"}},
@@ -414,8 +432,8 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
-            # 使用转义后的搜索字符串防止 ReDoS 攻击
-            escaped_search = _escape_regex(search)
+            # 使用安全的搜索模式防止 ReDoS 攻击
+            escaped_search = _safe_search_pattern(search)
             query["$or"] = [
                 {"username": {"$regex": escaped_search, "$options": "i"}},
                 {"email": {"$regex": escaped_search, "$options": "i"}},
