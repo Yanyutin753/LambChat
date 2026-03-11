@@ -4,6 +4,8 @@
 提供用户的数据库操作。
 """
 
+import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -11,6 +13,12 @@ from src.infra.auth.password import hash_password, verify_password
 from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, ValidationError
 from src.kernel.schemas.user import User, UserCreate, UserInDB, UserUpdate
+
+logger = logging.getLogger(__name__)
+
+# Module-level lock for index creation
+_index_lock = asyncio.Lock()
+_indexes_ensured = False
 
 
 class UserStorage:
@@ -32,41 +40,46 @@ class UserStorage:
             client = get_mongo_client()
             db = client[settings.MONGODB_DB]
             self._collection = db["users"]
-            # 确保在第一次访问时创建索引
-            import asyncio
-
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 如果事件循环正在运行，调度索引创建
-                    asyncio.create_task(self._ensure_indexes())
-                else:
-                    # 否则同步运行
-                    loop.run_until_complete(self._ensure_indexes())
-            except RuntimeError:
-                # 如果没有事件循环，忽略（会在第一次异步操作时创建）
-                pass
         return self._collection
 
     async def _ensure_indexes(self):
-        """确保必要的索引存在（包括唯一索引）并迁移旧用户数据"""
-        try:
-            collection = self.collection  # 使用属性而不是直接访问 _collection
-            # 创建唯一索引防止并发竞态条件
-            await collection.create_index("username", unique=True, background=True)
-            await collection.create_index("email", unique=True, background=True)
-            # 其他常用查询索引
-            await collection.create_index("oauth_provider", background=True)
-            await collection.create_index("reset_token", background=True, sparse=True)
-            await collection.create_index("verification_token", background=True, sparse=True)
+        """确保必要的索引存在（包括唯一索引）并迁移旧用户数据
 
-            # 自动迁移旧用户：将 None 改为 True
-            await self._migrate_legacy_users()
-        except Exception as e:
-            # 索引创建失败不应阻止应用启动
-            import logging
+        此方法应该只在应用启动时调用一次，而不是在每次访问集合时调用。
+        使用模块级锁确保只创建一次索引。
+        """
+        global _indexes_ensured
 
-            logging.getLogger(__name__).warning(f"Failed to create indexes: {e}")
+        if _indexes_ensured:
+            return
+
+        async with _index_lock:
+            # Double check after acquiring lock
+            if _indexes_ensured:
+                return
+
+            try:
+                collection = self.collection  # 使用属性而不是直接访问 _collection
+                # 创建唯一索引防止并发竞态条件
+                await collection.create_index("username", unique=True, background=True)
+                await collection.create_index("email", unique=True, background=True)
+                # 其他常用查询索引
+                await collection.create_index("oauth_provider", background=True)
+                await collection.create_index("reset_token", background=True, sparse=True)
+                await collection.create_index("verification_token", background=True, sparse=True)
+
+                # 自动迁移旧用户：将 None 改为 True
+                await self._migrate_legacy_users()
+
+                _indexes_ensured = True
+                logger.info("User storage indexes ensured successfully")
+            except Exception as e:
+                # 索引创建失败不应阻止应用启动
+                logger.warning(f"Failed to create indexes: {e}")
+
+    async def ensure_indexes(self):
+        """Public method to ensure indexes exist - should be called at application startup"""
+        await self._ensure_indexes()
 
     async def _migrate_legacy_users(self):
         """迁移旧用户数据：将 email_verified 和 is_active 从 None 改为 True"""
@@ -77,9 +90,7 @@ class UserStorage:
                 {"$set": {"email_verified": True}},
             )
             if result1.modified_count > 0:
-                import logging
-
-                logging.getLogger(__name__).info(
+                logger.info(
                     f"[Migration] Updated email_verified for {result1.modified_count} users"
                 )
 
@@ -89,15 +100,11 @@ class UserStorage:
                 {"$set": {"is_active": True}},
             )
             if result2.modified_count > 0:
-                import logging
-
-                logging.getLogger(__name__).info(
+                logger.info(
                     f"[Migration] Updated is_active for {result2.modified_count} users"
                 )
         except Exception as e:
-            import logging
-
-            logging.getLogger(__name__).warning(f"[Migration] Failed to migrate legacy users: {e}")
+            logger.warning(f"[Migration] Failed to migrate legacy users: {e}")
 
     async def create(self, user_data: UserCreate) -> UserInDB:
         """
