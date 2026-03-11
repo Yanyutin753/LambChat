@@ -40,16 +40,24 @@ SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
 SKILLS_ROOT_PATTERN = re.compile(r"^/skills/?$")
 SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
 
-# 全局 SkillStorage 实例缓存（按用户 ID）
+# 全局 MongoDB 连接池（按 user_id 共享 SkillStorage）
+# 注意：SkillStorage 本身是无状态的，数据都在 MongoDB
+# 这个缓存只是为了复用 MongoDB 连接，减少连接数
 _storage_cache: dict[str, SkillStorage] = {}
 _storage_lock = threading.Lock()
 
 
 def _get_cached_storage(user_id: str) -> SkillStorage:
     """
-    获取缓存的 SkillStorage 实例（线程安全单例）
+    获取缓存的 SkillStorage 实例（线程安全）
 
-    每个 user_id 对应一个 SkillStorage 实例，避免重复创建 MongoDB 连接。
+    注意：这个缓存是进程内的，在分布式环境下每个进程有自己的缓存。
+    但这不是问题，因为：
+    1. SkillStorage 是无状态的，数据都在 MongoDB
+    2. Skills 缓存（get_effective_skills 的结果）存储在 Redis，是分布式的
+    3. 写入操作会通过 Redis 失效缓存，所有进程都会重新从 MongoDB 读取
+
+    这个缓存的主要目的是复用 MongoDB 连接，避免每个请求都创建新连接。
     """
     with _storage_lock:
         if user_id not in _storage_cache:
