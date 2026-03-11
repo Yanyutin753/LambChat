@@ -71,13 +71,13 @@ async def fix_mcp_encryption(dry_run: bool = True):
                     {"$set": {"headers": {}, "env": {}}}
                 )
                 if result.modified_count > 0:
-                    print(f"    ✅ 已清空")
+                    print("    ✅ 已清空")
                     fixed_count += 1
                 else:
-                    print(f"    ❌ 更新失败")
+                    print("    ❌ 更新失败")
                     error_count += 1
             else:
-                print(f"    [dry-run] 将清空 headers 和 env")
+                print("    [dry-run] 将清空 headers 和 env")
                 fixed_count += 1
 
     # 处理 user_mcp_servers
@@ -105,13 +105,13 @@ async def fix_mcp_encryption(dry_run: bool = True):
                     {"$set": {"headers": {}, "env": {}}}
                 )
                 if result.modified_count > 0:
-                    print(f"    ✅ 已清空")
+                    print("    ✅ 已清空")
                     fixed_count += 1
                 else:
-                    print(f"    ❌ 更新失败")
+                    print("    ❌ 更新失败")
                     error_count += 1
             else:
-                print(f"    [dry-run] 将清空 headers 和 env")
+                print("    [dry-run] 将清空 headers 和 env")
                 fixed_count += 1
 
     print()

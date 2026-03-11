@@ -17,7 +17,6 @@ from daytona import CreateSandboxFromSnapshotParams, Daytona, DaytonaConfig
 
 from src.infra.backend.composite import CompositeBackend, create_composite_backend
 from src.infra.backend.daytona import DaytonaBackend
-from src.infra.backend.skills_store import SkillsStoreBackend
 from src.infra.session.manager import SessionManager
 from src.kernel.config import settings
 from src.kernel.schemas.session import SessionUpdate

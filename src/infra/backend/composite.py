@@ -11,7 +11,7 @@ Composite Backend
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 from deepagents.backends.protocol import (
     EditResult,
@@ -330,10 +330,14 @@ class CompositeBackend:
         except Exception as e:
             logger.warning(f"Failed to close skills backend: {e}")
 
-        try:
-            self._sandbox.close()
-        except Exception as e:
-            logger.warning(f"Failed to close sandbox backend: {e}")
+        # SandboxBackendProtocol 协议没有定义 close 方法
+        # 使用 getattr 安全地调用（如果存在）
+        sandbox_close = getattr(self._sandbox, "close", None)
+        if sandbox_close:
+            try:
+                sandbox_close()
+            except Exception as e:
+                logger.warning(f"Failed to close sandbox backend: {e}")
 
 
 def create_composite_backend(
