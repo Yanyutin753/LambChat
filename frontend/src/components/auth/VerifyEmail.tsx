@@ -2,7 +2,7 @@
  * 验证邮箱页面组件
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Mail, CheckCircle, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
@@ -24,28 +24,32 @@ export function VerifyEmail() {
 
   const token = searchParams.get("token");
 
+  const handleVerify = useCallback(
+    async (verifyToken: string) => {
+      setStatus("loading");
+      setIsSubmitting(true);
+
+      try {
+        await authApi.verifyEmail(verifyToken);
+        setStatus("success");
+        toast.success(t("auth.verifyEmailSuccess"));
+      } catch (err) {
+        setStatus("error");
+        const errorMessage =
+          (err as Error).message || t("auth.verifyEmailFailed");
+        toast.error(errorMessage);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [t],
+  );
+
   useEffect(() => {
     if (token) {
       handleVerify(token);
     }
-  }, [token]);
-
-  const handleVerify = async (verifyToken: string) => {
-    setStatus("loading");
-    setIsSubmitting(true);
-
-    try {
-      await authApi.verifyEmail(verifyToken);
-      setStatus("success");
-      toast.success(t("auth.verifyEmailSuccess"));
-    } catch (err) {
-      setStatus("error");
-      const errorMessage = (err as Error).message || t("auth.verifyEmailFailed");
-      toast.error(errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  }, [token, handleVerify]);
 
   const handleGoToLogin = () => {
     navigate("/");
@@ -178,7 +182,10 @@ export function VerifyEmail() {
                 >
                   {isSubmitting ? (
                     <span className="flex items-center justify-center gap-2">
-                      <LoadingSpinner size="sm" className="text-gray-700 dark:text-stone-300" />
+                      <LoadingSpinner
+                        size="sm"
+                        className="text-gray-700 dark:text-stone-300"
+                      />
                       {t("auth.sending")}
                     </span>
                   ) : (

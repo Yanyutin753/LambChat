@@ -49,7 +49,7 @@ export function ToolCallItem({
 }: {
   name: string;
   args: Record<string, unknown>;
-  result?: string;
+  result?: string | Record<string, unknown>;
   success?: boolean;
   isPending?: boolean;
 }) {
@@ -97,13 +97,15 @@ export function ToolCallItem({
               <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                 {t("chat.message.result")}
               </div>
-              {isMarkdownText(result) ? (
+              {typeof result === "string" && isMarkdownText(result) ? (
                 <div className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto">
                   <MarkdownContent content={result} />
                 </div>
               ) : (
                 <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
-                  {result}
+                  {typeof result === "string"
+                    ? result
+                    : JSON.stringify(result, null, 2)}
                 </pre>
               )}
             </div>
@@ -161,7 +163,7 @@ export function FileRevealItem({
   isPending,
 }: {
   args: Record<string, unknown>;
-  result?: string;
+  result?: string | Record<string, unknown>;
   success?: boolean;
   isPending?: boolean;
 }) {
@@ -184,7 +186,7 @@ export function FileRevealItem({
 
       if (typeof result === "object") {
         // 已经是对象，直接使用
-        parsed = result as FileRevealResult;
+        parsed = result as unknown as FileRevealResult;
       } else {
         // 字符串，需要解析
         let jsonStr = result;
@@ -367,7 +369,7 @@ export function ProjectRevealItem({
   isPending,
 }: {
   args: Record<string, unknown>;
-  result?: string;
+  result?: string | Record<string, unknown>;
   success?: boolean;
   isPending?: boolean;
 }) {
