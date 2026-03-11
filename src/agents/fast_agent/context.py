@@ -50,7 +50,9 @@ class FastAgentContext:
         if not self.disabled_tools:
             return self.tools
 
-        builtin_tools = frozenset(["ask_human", "reveal_file", "add_skill_from_path"])
+        builtin_tools = frozenset(
+            ["ask_human", "reveal_file", "reveal_project", "add_skill_from_path"]
+        )
 
         disabled_set = set(self.disabled_tools)
         mcp_servers = set()

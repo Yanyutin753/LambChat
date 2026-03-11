@@ -59,7 +59,7 @@ class SettingsStorage:
                 result[category] = []
 
             # Get default from SETTING_DEFINITIONS (single source of truth)
-            default_value = _get_default_from_settings(key)
+            default_value = _get_default_from_settings(key, SETTING_DEFINITIONS)
 
             # Use DB value if exists, otherwise use default
             db_doc = db_settings.get(key)

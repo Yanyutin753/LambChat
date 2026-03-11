@@ -55,7 +55,9 @@ class AgentContext:
             return self.tools
 
         # 内置工具，始终可用
-        builtin_tools = frozenset(["ask_human", "reveal_file", "add_skill_from_path"])
+        builtin_tools = frozenset(
+            ["ask_human", "reveal_file", "reveal_project", "add_skill_from_path"]
+        )
 
         disabled_set = set(self.disabled_tools)
         mcp_servers = set()
