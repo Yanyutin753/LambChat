@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 # 管理员角色
 ADMIN_ROLES = {"admin", "administrator"}
 
+# 支持的语言白名单
+SUPPORTED_LANGUAGES = frozenset(["en", "zh", "ja", "ko"])
+
 
 def _is_retryable_error(error: Exception) -> bool:
     """判断错误是否可重试（429、网络错误等）"""
@@ -465,6 +468,11 @@ async def generate_session_title(
     支持通过 settings 自定义模型和提示词。
     """
     from src.infra.llm.client import LLMClient
+
+    # 验证语言参数白名单
+    if lang not in SUPPORTED_LANGUAGES:
+        logger.warning(f"Unsupported language code: {lang}, falling back to 'en'")
+        lang = "en"
 
     manager = SessionManager()
     session = await manager.get_session(session_id)

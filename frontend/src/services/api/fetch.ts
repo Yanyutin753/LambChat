@@ -182,6 +182,17 @@ export async function authFetch<T>(
   }
 
   // 处理空响应
+  // 注意：当响应体为空时返回 null，调用者应处理 T | null 的情况
+  // 对于必须返回非空值的场景，API 应确保返回空对象 {} 而不是空响应
   const text = await response.text();
-  return text ? JSON.parse(text) : (null as T);
+  if (!text) {
+    return null as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    console.warn("[authFetch] Failed to parse response as JSON:", text);
+    return null as T;
+  }
 }

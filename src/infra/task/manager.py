@@ -72,6 +72,7 @@ class BackgroundTaskManager:
         self._lock = asyncio.Lock()
         self._storage = None
         self._pubsub_task: Optional[asyncio.Task] = None
+        self._pubsub = None  # Redis pubsub object for cleanup
         self._running = False
         self._heartbeat_tasks: Dict[str, asyncio.Task] = {}  # run_id -> heartbeat Task
 
@@ -910,11 +911,11 @@ class BackgroundTaskManager:
         async def listener():
             try:
                 redis_client = get_redis_client()
-                pubsub = redis_client.pubsub()
-                await pubsub.subscribe(CANCEL_CHANNEL)
+                self._pubsub = redis_client.pubsub()
+                await self._pubsub.subscribe(CANCEL_CHANNEL)
                 logger.info(f"Started listening on Redis channel: {CANCEL_CHANNEL}")
 
-                async for message in pubsub.listen():
+                async for message in self._pubsub.listen():
                     if not self._running:
                         break
 
@@ -987,6 +988,15 @@ class BackgroundTaskManager:
             except Exception as e:
                 logger.error(f"Pub/sub listener error: {e}")
             finally:
+                # Cleanup pubsub connection
+                if self._pubsub:
+                    try:
+                        await self._pubsub.unsubscribe(CANCEL_CHANNEL)
+                        await self._pubsub.close()
+                    except Exception as e:
+                        logger.warning(f"Failed to close pubsub connection: {e}")
+                    finally:
+                        self._pubsub = None
                 self._running = False
                 logger.info("Pub/sub listener stopped")
 
@@ -999,12 +1009,25 @@ class BackgroundTaskManager:
         应在应用关闭时调用
         """
         self._running = False
+
+        # Close pubsub connection first to stop listening
+        if self._pubsub:
+            try:
+                await self._pubsub.unsubscribe(CANCEL_CHANNEL)
+                await self._pubsub.close()
+            except Exception as e:
+                logger.warning(f"Failed to close pubsub connection: {e}")
+            finally:
+                self._pubsub = None
+
+        # Cancel the listener task
         if self._pubsub_task and not self._pubsub_task.done():
             self._pubsub_task.cancel()
             try:
                 await self._pubsub_task
             except asyncio.CancelledError:
                 pass
+
         logger.info("Pub/sub listener stopped")
 
     async def cleanup_stale_tasks(self) -> None:
