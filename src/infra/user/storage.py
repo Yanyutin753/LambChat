@@ -4,6 +4,7 @@
 提供用户的数据库操作。
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -11,6 +12,38 @@ from src.infra.auth.password import hash_password, verify_password
 from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, ValidationError
 from src.kernel.schemas.user import User, UserCreate, UserInDB, UserUpdate
+
+
+def _escape_regex(text: str) -> str:
+    """
+    转义正则表达式特殊字符，防止 ReDoS 攻击
+
+    Args:
+        text: 用户输入的搜索文本
+
+    Returns:
+        转义后的安全正则表达式字符串
+    """
+    # 转义所有正则表达式特殊字符
+    return re.escape(text)
+
+
+def _safe_search_pattern(text: str) -> str:
+    """
+    创建安全的搜索模式
+
+    使用转义后的文本，并添加锚定以避免意外匹配。
+    对于邮箱等包含特殊字符的搜索，确保正确转义。
+
+    Args:
+        text: 用户输入的搜索文本
+
+    Returns:
+        安全的正则表达式模式
+    """
+    escaped = _escape_regex(text)
+    # 不添加锚定，允许部分匹配（如搜索 "john" 匹配 "johnson"）
+    return escaped
 
 
 class UserStorage:
@@ -129,7 +162,8 @@ class UserStorage:
 
             password = secrets.token_urlsafe(32)
 
-        # OAuth 用户自动激活和验证，普通用户需要邮箱验证
+        # OAuth 用户或管理员创建的用户自动激活和验证，普通用户需要邮箱验证
+        should_skip_verification = is_oauth_user or user_data.skip_verification
         user_dict: dict[str, Any] = {
             "username": user_data.username,
             "email": user_data.email,
@@ -138,8 +172,8 @@ class UserStorage:
             "avatar_url": user_data.avatar_url,  # Data URI for avatar
             "oauth_provider": user_data.oauth_provider.value if user_data.oauth_provider else None,
             "oauth_id": user_data.oauth_id,
-            "is_active": is_oauth_user,  # OAuth 用户自动激活，普通用户 pending
-            "email_verified": is_oauth_user,  # OAuth 用户自动验证
+            "is_active": should_skip_verification,  # OAuth 或管理员创建的用户自动激活
+            "email_verified": should_skip_verification,  # OAuth 或管理员创建的用户自动验证
             "verification_token": None,
             "verification_token_expires": None,
             "reset_token": None,
@@ -364,9 +398,11 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
+            # 使用安全的搜索模式防止 ReDoS 攻击
+            escaped_search = _safe_search_pattern(search)
             query["$or"] = [
-                {"username": {"$regex": search, "$options": "i"}},
-                {"email": {"$regex": search, "$options": "i"}},
+                {"username": {"$regex": escaped_search, "$options": "i"}},
+                {"email": {"$regex": escaped_search, "$options": "i"}},
             ]
 
         cursor = self.collection.find(query).skip(skip).limit(limit)
@@ -397,9 +433,11 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
+            # 使用安全的搜索模式防止 ReDoS 攻击
+            escaped_search = _safe_search_pattern(search)
             query["$or"] = [
-                {"username": {"$regex": search, "$options": "i"}},
-                {"email": {"$regex": search, "$options": "i"}},
+                {"username": {"$regex": escaped_search, "$options": "i"}},
+                {"email": {"$regex": escaped_search, "$options": "i"}},
             ]
         return await self.collection.count_documents(query)
 

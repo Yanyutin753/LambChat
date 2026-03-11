@@ -30,6 +30,7 @@ class UserCreate(UserBase):
 
     password: Optional[str] = Field(None, min_length=6)  # Optional for OAuth users
     roles: List[str] = Field(default_factory=list)
+    skip_verification: bool = False  # 跳过邮箱验证（管理员创建时使用）
 
 
 class UserUpdate(BaseModel):

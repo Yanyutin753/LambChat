@@ -72,7 +72,8 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
           viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
         },
       };
-    } catch {
+    } catch (err) {
+      console.error("Failed to parse Excalidraw data:", err);
       return null;
     }
   }, []);

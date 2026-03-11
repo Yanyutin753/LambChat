@@ -1,4 +1,5 @@
-if __name__ == "__main__":
+def run() -> None:
+    """Start the application server."""
     import uvicorn
 
     from src.kernel.config import settings
@@ -10,3 +11,7 @@ if __name__ == "__main__":
         reload=settings.DEBUG,
         log_level="info",
     )
+
+
+if __name__ == "__main__":
+    run()

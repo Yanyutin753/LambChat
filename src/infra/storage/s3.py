@@ -267,7 +267,7 @@ class MinioS3Backend(S3StorageBackend):
         # Run blocking minio call in thread pool
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         client = self._get_client()
 
         def _put_object():
@@ -313,7 +313,7 @@ class MinioS3Backend(S3StorageBackend):
         """Download a file from S3"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         client = self._get_client()
 
         def _get_object():
@@ -329,7 +329,7 @@ class MinioS3Backend(S3StorageBackend):
         """Delete a file from S3"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         client = self._get_client()
 
         def _delete_object():
@@ -345,7 +345,7 @@ class MinioS3Backend(S3StorageBackend):
         """Check if a file exists in S3"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         client = self._get_client()
 
         def _stat_object():
@@ -376,7 +376,7 @@ class MinioS3Backend(S3StorageBackend):
         """
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         client = self._get_client()
 
         def _presigned_url():
@@ -394,7 +394,7 @@ class MinioS3Backend(S3StorageBackend):
         """List objects with given prefix"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         client = self._get_client()
 
         def _list_objects():
@@ -463,7 +463,7 @@ class AliyunOssBackend(S3StorageBackend):
         file_size = len(content)
         file.seek(0)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         bucket = self._get_bucket()
 
         def _put_object():
@@ -506,7 +506,7 @@ class AliyunOssBackend(S3StorageBackend):
         """Download a file from Aliyun OSS"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         bucket = self._get_bucket()
 
         def _get_object():
@@ -519,7 +519,7 @@ class AliyunOssBackend(S3StorageBackend):
         """Delete a file from Aliyun OSS"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         bucket = self._get_bucket()
 
         def _delete_object():
@@ -532,7 +532,7 @@ class AliyunOssBackend(S3StorageBackend):
         """Check if a file exists in Aliyun OSS"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         bucket = self._get_bucket()
 
         def _exists():
@@ -548,7 +548,7 @@ class AliyunOssBackend(S3StorageBackend):
         """Get presigned URL for a file (for private buckets)"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         bucket = self._get_bucket()
 
         def _get_url():
@@ -561,7 +561,7 @@ class AliyunOssBackend(S3StorageBackend):
         """List objects with given prefix"""
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         bucket = self._get_bucket()
 
         def _list_objects():
@@ -810,7 +810,7 @@ class S3StorageService:
                 # Delete avatar folder objects
                 avatar_objects = await self.list_files(f"avatars/{user_id}")
                 if avatar_objects:
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
 
                     def _remove_avatar_objects():
                         for key in avatar_objects:
@@ -822,7 +822,7 @@ class S3StorageService:
                 # Delete user's general upload folder
                 user_objects = await self.list_files(user_id)
                 if user_objects:
-                    loop = asyncio.get_event_loop()
+                    loop = asyncio.get_running_loop()
 
                     def _remove_user_objects():
                         for key in user_objects:
@@ -832,9 +832,9 @@ class S3StorageService:
                     deleted_count += len(user_objects)
 
                 return deleted_count
-            except Exception:
+            except Exception as e:
                 # Fall back to individual deletes if batch fails
-                pass
+                logger.warning(f"Batch delete failed, falling back to individual deletes: {e}")
 
         # Fallback: individual deletes (slower)
         avatar_objects = await self.list_files(f"avatars/{user_id}")

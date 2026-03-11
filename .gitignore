@@ -64,3 +64,4 @@ docs/deepagents
 
 .docs/
 docs/plans/
+node_modules/

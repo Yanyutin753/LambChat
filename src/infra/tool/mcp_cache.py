@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 # 缓存过期时间（秒），默认 30 分钟
 CACHE_TTL = 1800
 
+# 最大缓存条目数（防止内存泄漏）
+MAX_CACHE_ENTRIES = 1000
+
 # Redis 缓存键前缀
 CONFIG_HASH_KEY_PREFIX = "mcp_config_hash:"
 
@@ -35,6 +38,35 @@ _tools_cache: dict[str, "CachedMCPEntry"] = {}
 
 # 缓存锁，防止并发初始化
 _cache_locks: dict[str, asyncio.Lock] = {}
+
+# 全局清理锁，防止并发清理
+_cleanup_lock = asyncio.Lock()
+
+
+def _cleanup_expired_cache() -> int:
+    """清理过期的缓存条目，返回清理的数量"""
+    expired_users = [user_id for user_id, entry in _tools_cache.items() if entry.is_expired()]
+    for user_id in expired_users:
+        _tools_cache.pop(user_id, None)
+        _cache_locks.pop(user_id, None)
+    return len(expired_users)
+
+
+def _cleanup_excess_cache() -> int:
+    """清理超出的缓存条目（LRU），返回清理的数量"""
+    if len(_tools_cache) <= MAX_CACHE_ENTRIES:
+        return 0
+
+    # 按最后访问时间排序，删除最旧的
+    sorted_entries = sorted(_tools_cache.items(), key=lambda x: x[1].last_access)
+
+    # 删除超出部分
+    to_remove = len(_tools_cache) - MAX_CACHE_ENTRIES
+    for user_id, _ in sorted_entries[:to_remove]:
+        _tools_cache.pop(user_id, None)
+        _cache_locks.pop(user_id, None)
+
+    return to_remove
 
 
 @dataclass
@@ -57,10 +89,25 @@ class CachedMCPEntry:
 
 
 def _get_cache_lock(user_id: str) -> asyncio.Lock:
-    """获取指定用户的缓存锁"""
-    if user_id not in _cache_locks:
-        _cache_locks[user_id] = asyncio.Lock()
-    return _cache_locks[user_id]
+    """获取指定用户的缓存锁（线程安全）
+
+    使用 setdefault 确保原子性，防止竞态条件。
+    同时定期清理过期和超出限制的缓存条目。
+    """
+    # 定期清理过期条目（简单触发机制）
+    if len(_tools_cache) > 0 and len(_tools_cache) % 50 == 0:
+        expired = _cleanup_expired_cache()
+        if expired > 0:
+            logger.debug(f"[MCP Cache] Auto-cleaned {expired} expired entries")
+
+    # 检查是否超出最大条目数
+    if len(_tools_cache) > MAX_CACHE_ENTRIES:
+        removed = _cleanup_excess_cache()
+        if removed > 0:
+            logger.info(f"[MCP Cache] Removed {removed} excess cache entries (LRU)")
+
+    # 使用 setdefault 确保原子性
+    return _cache_locks.setdefault(user_id, asyncio.Lock())
 
 
 def compute_config_hash(config: dict) -> str:

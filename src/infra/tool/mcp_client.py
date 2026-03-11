@@ -224,7 +224,7 @@ class MCPClientManager:
                     return
 
             # 从文件读取配置（向后兼容，仅当 use_database=False 时）
-            config = self._load_config_from_file()
+            config = await self._load_config_from_file()
             if config:
                 await self._initialize_with_config(config)
             else:
@@ -278,8 +278,8 @@ class MCPClientManager:
             traceback.print_exc()
             return None
 
-    def _load_config_from_file(self) -> Optional[dict]:
-        """从文件加载 MCP 配置"""
+    def _load_config_from_file_sync(self) -> Optional[dict]:
+        """从文件加载 MCP 配置（同步版本，内部使用）"""
         config_path = self._config_path
         if not config_path or not os.path.exists(config_path):
             logger.warning(f"MCP config file not found: {config_path}")
@@ -293,6 +293,11 @@ class MCPClientManager:
             return None
 
         return config
+
+    async def _load_config_from_file(self) -> Optional[dict]:
+        """从文件加载 MCP 配置（异步版本）"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._load_config_from_file_sync)
 
     def _server_to_config_dict(self, server) -> dict:
         """将服务器对象转换为配置字典"""

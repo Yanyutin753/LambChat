@@ -41,6 +41,7 @@ export function useBrowserNotification() {
   const [swRegistration, setSwRegistration] =
     useState<ServiceWorkerRegistration | null>(null);
   const notificationClickHandlerRef = useRef<(() => void) | null>(null);
+  const updateFoundHandlerRef = useRef<(() => void) | null>(null);
 
   // Register service worker
   const registerServiceWorker = useCallback(async () => {
@@ -55,9 +56,13 @@ export function useBrowserNotification() {
       setSwRegistration(registration);
 
       // Handle service worker updates
-      registration.addEventListener("updatefound", () => {
+      const handleUpdateFound = () => {
         console.log("[BrowserNotification] Service Worker update found");
-      });
+      };
+      registration.addEventListener("updatefound", handleUpdateFound);
+      updateFoundHandlerRef.current = () => {
+        registration.removeEventListener("updatefound", handleUpdateFound);
+      };
     } catch (error) {
       console.error(
         "[BrowserNotification] Service Worker registration failed:",
@@ -81,6 +86,15 @@ export function useBrowserNotification() {
         registerServiceWorker();
       }
     }
+
+    // Cleanup function
+    return () => {
+      // Remove updatefound listener
+      if (updateFoundHandlerRef.current) {
+        updateFoundHandlerRef.current();
+        updateFoundHandlerRef.current = null;
+      }
+    };
   }, [registerServiceWorker]);
 
   // Listen for messages from service worker

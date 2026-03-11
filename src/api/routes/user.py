@@ -31,9 +31,12 @@ async def create_user(
     user_data: UserCreate,
     _: None = Depends(require_permissions("user:write")),
 ):
-    """创建用户"""
+    """创建用户（管理员创建的用户自动激活，无需邮箱验证）"""
     manager = UserManager()
-    return await manager.register(user_data)
+    # 管理员创建的用户跳过邮箱验证
+    # 创建新的 UserCreate 对象，设置 skip_verification=True
+    admin_user_data = user_data.model_copy(update={"skip_verification": True})
+    return await manager.register(admin_user_data)
 
 
 @router.get("/{user_id}", response_model=User)

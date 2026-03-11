@@ -269,14 +269,28 @@ class FeedbackStorage:
         if run_id is not None:
             query["run_id"] = run_id
 
-        total = await self.collection.count_documents(query)
-        if total == 0:
+        # Use aggregation to get all counts in a single query
+        pipeline = [
+            {"$match": query},
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {"$sum": 1},
+                    "up_count": {"$sum": {"$cond": [{"$eq": ["$rating", "up"]}, 1, 0]}},
+                    "down_count": {"$sum": {"$cond": [{"$eq": ["$rating", "down"]}, 1, 0]}},
+                }
+            },
+        ]
+
+        result = await self.collection.aggregate(pipeline).to_list(length=1)
+
+        if not result:
             return FeedbackStats(total_count=0, up_count=0, down_count=0, up_percentage=0.0)
 
-        # 统计 up 和 down 数量
-        up_count = await self.collection.count_documents({**query, "rating": "up"})
-        down_count = await self.collection.count_documents({**query, "rating": "down"})
-
+        stats = result[0]
+        total = stats["total"]
+        up_count = stats["up_count"]
+        down_count = stats["down_count"]
         up_percentage = round((up_count / total) * 100, 1) if total > 0 else 0.0
 
         return FeedbackStats(

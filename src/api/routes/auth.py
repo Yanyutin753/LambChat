@@ -602,6 +602,48 @@ def _get_frontend_url(request: Request) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+async def _store_oauth_state(provider: str, state: str, client_ip: str) -> None:
+    """Store OAuth state in Redis for CSRF protection.
+
+    Args:
+        provider: OAuth provider name
+        state: State token to store
+        client_ip: Client IP address for binding
+    """
+    limiter = get_rate_limiter()
+    redis = limiter._get_redis()
+    key = f"oauth:state:{provider}:{RateLimiter._safe_key_part(client_ip)}"
+    # Store state with 10 minute expiry
+    await redis.setex(key, 600, state)
+
+
+async def _verify_oauth_state(provider: str, state: str, client_ip: str) -> bool:
+    """Verify OAuth state from Redis for CSRF protection.
+
+    Args:
+        provider: OAuth provider name
+        state: State token to verify
+        client_ip: Client IP address for binding
+
+    Returns:
+        True if state is valid, False otherwise
+    """
+    limiter = get_rate_limiter()
+    redis = limiter._get_redis()
+    key = f"oauth:state:{provider}:{RateLimiter._safe_key_part(client_ip)}"
+
+    try:
+        stored_state = await redis.get(key)
+        if stored_state and stored_state == state:
+            # Delete the state after successful verification (one-time use)
+            await redis.delete(key)
+            return True
+        return False
+    except Exception as e:
+        logger.error("[OAuth] Failed to verify state: %s", e)
+        return False
+
+
 @router.get("/oauth/{provider}")
 async def oauth_login(request: Request, provider: OAuthProviderParam):
     """
@@ -625,6 +667,10 @@ async def oauth_login(request: Request, provider: OAuthProviderParam):
 
     # 生成 state 用于 CSRF 防护
     state = secrets.token_urlsafe(32)
+
+    # 获取客户端 IP 并存储 state
+    client_ip = _get_client_ip(request)
+    await _store_oauth_state(provider, state, client_ip)
 
     # 从请求中获取前端 URL
     frontend_url = _get_frontend_url(request)
@@ -664,6 +710,15 @@ async def oauth_callback(
     oauth_service = get_oauth_service()
     oauth_provider = OAuthProvider(provider)
 
+    # 验证 state 以防止 CSRF 攻击
+    client_ip = _get_client_ip(http_request)
+    if not await _verify_oauth_state(provider, request.state, client_ip):
+        logger.warning("[OAuth] Invalid state for %s from %s", provider, client_ip)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid OAuth state. Please try logging in again.",
+        )
+
     # 使用与发起 OAuth 时相同的方式获取 frontend_url，确保 redirect_uri 一致
     frontend_url = _get_frontend_url(http_request)
     redirect_uri = f"{frontend_url}/api/auth/oauth/{provider}/callback"
@@ -701,6 +756,13 @@ async def oauth_callback_get(request: Request, provider: OAuthProviderParam, cod
     # 使用与发起 OAuth 时相同的方式获取 frontend_url，确保 redirect_uri 一致
     frontend_url = _get_frontend_url(request)
     redirect_uri = f"{frontend_url}/api/auth/oauth/{provider}/callback"
+
+    # 验证 state 以防止 CSRF 攻击
+    client_ip = _get_client_ip(request)
+    if not await _verify_oauth_state(provider, state, client_ip):
+        logger.warning("[OAuth] Invalid state for %s from %s", provider, client_ip)
+        error_params = urlencode({"error": "invalid_state", "provider": provider})
+        return RedirectResponse(url=f"{frontend_url}/login?{error_params}", status_code=302)
 
     token = await oauth_service.handle_callback(oauth_provider, code, state, redirect_uri)
 
@@ -889,8 +951,8 @@ async def verify_email(request_data: VerifyEmailRequest):
         )
 
     # 如果用户已有角色（如第一个管理员用户），保留；否则赋予默认角色
+    default_role = settings.DEFAULT_USER_ROLE or "user"
     if not user.roles:
-        default_role = settings.DEFAULT_USER_ROLE or "user"
         roles = [default_role]
     else:
         roles = user.roles
@@ -908,9 +970,9 @@ async def verify_email(request_data: VerifyEmailRequest):
     )
 
     logger.info(
-        "[Auth] Email verified and account activated for user %s with role %s",
+        "[Auth] Email verified and account activated for user %s with roles %s",
         user.username,
-        default_role,
+        ", ".join(roles) if roles else "none",
     )
 
     return {"message": "邮箱验证成功，账户已激活"}
