@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # 路径格式：/skills/{skill_name}/{file_path}
+# 内部统一使用带 /skills/ 前缀的路径
 SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
 SKILLS_ROOT_PATTERN = re.compile(r"^/skills/?$")
 SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
@@ -144,6 +145,31 @@ class SkillsStoreBackend(BackendProtocol):
             self._storage = _get_cached_storage(self._user_id)
         return self._storage
 
+    def _normalize_path(self, path: str) -> str:
+        """
+        标准化路径，确保始终以 /skills/ 开头
+
+        CompositeBackend 路由时会去掉 /skills/ 前缀，
+        这个方法确保内部处理时路径总是带前缀的。
+
+        Args:
+            path: 原始路径，可能有或没有 /skills/ 前缀
+
+        Returns:
+            带 /skills/ 前缀的标准化路径
+        """
+        if not path:
+            return "/skills/"
+
+        # 已经有前缀
+        if path.startswith("/skills/"):
+            return path
+
+        # 添加前缀
+        if path.startswith("/"):
+            return f"/skills{path}"
+        return f"/skills/{path}"
+
     def _parse_skill_path(self, path: str) -> Optional[tuple[str, str]]:
         """
         解析 skills 路径
@@ -161,15 +187,18 @@ class SkillsStoreBackend(BackendProtocol):
 
     def _is_skills_root(self, path: str) -> bool:
         """检查是否是 skills 根路径"""
-        return bool(SKILLS_ROOT_PATTERN.match(path))
+        normalized = self._normalize_path(path)
+        return normalized in ("/skills/", "/skills") or bool(SKILLS_ROOT_PATTERN.match(normalized))
 
     def _is_skill_dir(self, path: str) -> bool:
         """检查是否是某个 skill 的目录"""
-        return bool(SKILLS_DIR_PATTERN.match(path))
+        normalized = self._normalize_path(path)
+        return bool(SKILLS_DIR_PATTERN.match(normalized))
 
     def _get_skill_name_from_dir(self, path: str) -> Optional[str]:
         """从目录路径获取 skill 名称"""
-        match = SKILLS_DIR_PATTERN.match(path)
+        normalized = self._normalize_path(path)
+        match = SKILLS_DIR_PATTERN.match(normalized)
         if match:
             return match.group(1)
         return None
@@ -226,13 +255,16 @@ class SkillsStoreBackend(BackendProtocol):
         异步读取 skill 文件
 
         Args:
-            file_path: /skills/{skill_name}/{file_path}
+            file_path: 文件路径（会自动添加 /skills/ 前缀）
             offset: 起始行号（0-indexed）
             limit: 最大行数
 
         Returns:
             带行号的文件内容，或错误信息字符串
         """
+        # 标准化路径，确保有 /skills/ 前缀
+        file_path = self._normalize_path(file_path)
+
         parsed = self._parse_skill_path(file_path)
         if not parsed:
             return f"Error: Invalid skills path: {file_path}. Expected /skills/{{skill_name}}/{{file_path}}"
@@ -273,12 +305,15 @@ class SkillsStoreBackend(BackendProtocol):
         异步写入 skill 文件
 
         Args:
-            file_path: /skills/{skill_name}/{file_path}
+            file_path: 文件路径（会自动添加 /skills/ 前缀）
             content: 文件内容
 
         Returns:
             WriteResult 表示操作结果
         """
+        # 标准化路径，确保有 /skills/ 前缀
+        file_path = self._normalize_path(file_path)
+
         parsed = self._parse_skill_path(file_path)
         if not parsed:
             return WriteResult(
@@ -386,7 +421,7 @@ class SkillsStoreBackend(BackendProtocol):
         异步编辑 skill 文件
 
         Args:
-            file_path: /skills/{skill_name}/{file_path}
+            file_path: 文件路径（会自动添加 /skills/ 前缀）
             old_string: 要替换的字符串
             new_string: 新字符串
             replace_all: 是否替换所有出现
@@ -394,6 +429,9 @@ class SkillsStoreBackend(BackendProtocol):
         Returns:
             EditResult 表示操作结果
         """
+        # 标准化路径，确保有 /skills/ 前缀
+        file_path = self._normalize_path(file_path)
+
         parsed = self._parse_skill_path(file_path)
         if not parsed:
             return EditResult(error=f"Invalid skills path: {file_path}")
@@ -464,11 +502,13 @@ class SkillsStoreBackend(BackendProtocol):
         异步列出 skills 或文件
 
         Args:
-            path: /skills/ 或 /skills/{skill_name}/
+            path: 路径（会自动添加 /skills/ 前缀）
 
         Returns:
             list[FileInfo] 包含文件/目录信息
         """
+        # 标准化路径，确保有 /skills/ 前缀
+        path = self._normalize_path(path)
         storage = self._get_storage()
 
         try:

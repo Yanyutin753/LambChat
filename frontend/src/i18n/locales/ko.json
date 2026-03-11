@@ -677,8 +677,9 @@
       "validation": {
         "contentRequired": "내용을 입력하세요",
         "descriptionRequired": "설명을 입력하세요",
-        "nameInvalid": "이름에는 문자, 숫자, 밑줄, 하이픈만 사용할 수 있습니다",
-        "nameRequired": "스킬 이름을 입력하세요"
+        "nameInvalid": "이름에는 문자, 숫자, 밑줄, 하이픈, 점, 한글만 사용할 수 있습니다",
+        "nameRequired": "스킬 이름을 입력하세요",
+        "nameTooLong": "이름은 100자를 초과할 수 없습니다"
       }
     },
     "foundSkills": "{{count}}개 스킬 발견 - 설치할 항목 선택",

@@ -676,8 +676,9 @@
       "validation": {
         "contentRequired": "コンテンツを入力してください",
         "descriptionRequired": "説明を入力してください",
-        "nameInvalid": "名前には文字、数字、アンダースコア、ハイフンのみ使用できます",
-        "nameRequired": "スキル名を入力してください"
+        "nameInvalid": "名前には文字、数字、アンダースコア、ハイフン、ドット、日本語のみ使用できます",
+        "nameRequired": "スキル名を入力してください",
+        "nameTooLong": "名前は100文字を超えることはできません"
       }
     },
     "foundSkills": "{{count}}件のスキルが見つかりました - インストールするものを選択",
