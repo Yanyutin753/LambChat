@@ -37,9 +37,7 @@ class SkillImportExportMixin:
         """Get a user's skill by name (must be implemented by subclass)"""
         raise NotImplementedError("Subclass must implement get_user_skill")
 
-    async def update_system_skill(
-        self, name: str, updates: SkillUpdate, admin_user_id: str
-    ) -> Any:
+    async def update_system_skill(self, name: str, updates: SkillUpdate, admin_user_id: str) -> Any:
         """Update a system skill (must be implemented by subclass)"""
         raise NotImplementedError("Subclass must implement update_system_skill")
 
@@ -47,9 +45,7 @@ class SkillImportExportMixin:
         """Create a system skill (must be implemented by subclass)"""
         raise NotImplementedError("Subclass must implement create_system_skill")
 
-    async def update_user_skill(
-        self, name: str, updates: SkillUpdate, user_id: str
-    ) -> Any:
+    async def update_user_skill(self, name: str, updates: SkillUpdate, user_id: str) -> Any:
         """Update a user skill (must be implemented by subclass)"""
         raise NotImplementedError("Subclass must implement update_user_skill")
 

@@ -137,9 +137,7 @@ class TaskExecutor:
             await self._send_task_notification(session_id, run_id, TaskStatus.COMPLETED, user_id)
 
         except asyncio.CancelledError:
-            await self._handle_cancelled_error(
-                session_id, run_id, user_id, dual_writer, presenter
-            )
+            await self._handle_cancelled_error(session_id, run_id, user_id, dual_writer, presenter)
             raise
 
         except TaskInterruptedError as e:
@@ -149,9 +147,7 @@ class TaskExecutor:
             raise
 
         except Exception as e:
-            await self._handle_generic_error(
-                session_id, run_id, user_id, e, dual_writer, presenter
-            )
+            await self._handle_generic_error(session_id, run_id, user_id, e, dual_writer, presenter)
 
         finally:
             # 无论成功、取消还是失败，都停止心跳并清除中断信号

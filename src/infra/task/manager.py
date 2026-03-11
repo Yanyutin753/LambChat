@@ -107,7 +107,9 @@ class BackgroundTaskManager:
             await self._executor.ensure_session(session_id, agent_id, user_id)
 
             # 更新 MongoDB session 状态（包含 current_run_id）
-            await self._executor._update_session_status(session_id, TaskStatus.PENDING, run_id=run_id)
+            await self._executor._update_session_status(
+                session_id, TaskStatus.PENDING, run_id=run_id
+            )
 
             # 创建后台任务
             task = asyncio.create_task(
