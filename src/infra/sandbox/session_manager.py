@@ -375,15 +375,13 @@ class SessionSandboxManager:
                     "/skills/": skills_backend,
                 },
             )
-            return composite_backend, sandbox.get_work_dir()
+            # 返回 composite_backend, work_dir, sandbox_id（从 daytona_backend 获取）
+            return composite_backend, sandbox.get_work_dir(), daytona_backend.id
 
-        backend, work_dir = await asyncio.wait_for(
+        backend, work_dir, sandbox_id = await asyncio.wait_for(
             asyncio.to_thread(_sync_create),
             timeout=DEFAULT_DAYTONA_TIMEOUT,
         )
-
-        # 获取 sandbox_id
-        sandbox_id = backend.id
 
         # 更新 session metadata（覆盖旧的 sandbox_id）
         await self._update_session_metadata(session_id, sandbox_id, "running", is_new=True)
