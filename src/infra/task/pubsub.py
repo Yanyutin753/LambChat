@@ -10,6 +10,8 @@ import json
 import logging
 from typing import Any, Callable, Dict, Optional
 
+from redis.asyncio.client import PubSub
+
 from src.infra.storage.redis import get_redis_client
 
 from .constants import CANCEL_CHANNEL
@@ -35,7 +37,7 @@ class TaskPubSub:
         self._lock = lock
         self._tasks = tasks
         self._pubsub_task: Optional[asyncio.Task] = None
-        self._pubsub = None  # Redis pubsub object for cleanup
+        self._pubsub: Optional["PubSub"] = None  # Redis pubsub object for cleanup
         self._running = False
 
     async def start_listener(

@@ -16,10 +16,19 @@ from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import get_trace_storage
 
 from .cancellation import TaskCancellation
+from .exceptions import TaskInterruptedError
 from .executor import TaskExecutor
 from .heartbeat import TaskHeartbeat
 from .pubsub import TaskPubSub
 from .status import TaskStatus
+
+# 重导出供外部使用
+__all__ = [
+    "BackgroundTaskManager",
+    "TaskStatus",
+    "TaskInterruptedError",
+    "TaskCancellation",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +325,7 @@ class BackgroundTaskManager:
         )
 
         # 更新 session 状态为 cancelled
-        if result["success"] and run_info:
+        if result["success"] and run_info and self._executor is not None:
             session_id = run_info.get("session_id")
             if session_id:
                 await self._executor._update_session_status(
