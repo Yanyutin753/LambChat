@@ -12,17 +12,22 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
+from src.infra.skill.cache import SkillCacheMixin
+from src.infra.skill.converters import (
+    doc_to_effective_dict,
+    doc_to_export_dict,
+    doc_to_response,
+    doc_to_system_skill,
+    doc_to_user_skill,
+)
+from src.infra.skill.files import SkillFilesMixin
+from src.infra.skill.import_export import SkillImportExportMixin
+from src.infra.skill.preferences import SkillPreferencesMixin
 from src.infra.storage.mongodb import get_mongo_client
-from src.infra.storage.redis import get_redis_client
 from src.kernel.config import settings
 from src.kernel.schemas.skill import (
-    GitHubInstallRequest,
     SkillCreate,
-    SkillExportResponse,
-    SkillImportRequest,
-    SkillImportResponse,
     SkillResponse,
-    SkillSource,
     SkillUpdate,
     SystemSkill,
     UserSkill,
@@ -30,20 +35,17 @@ from src.kernel.schemas.skill import (
 
 logger = logging.getLogger(__name__)
 
-# Redis 缓存 TTL（秒），默认 30 分钟
-SKILLS_CACHE_TTL = 1800
-MCP_TOOLS_METADATA_CACHE_TTL = 1800
-
-# Redis 缓存键前缀
-SKILLS_CACHE_KEY_PREFIX = "user_skills:"
-MCP_TOOLS_METADATA_KEY_PREFIX = "mcp_tools_metadata:"
-
 
 if TYPE_CHECKING:
     from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 
 
-class SkillStorage:
+class SkillStorage(
+    SkillCacheMixin,
+    SkillFilesMixin,
+    SkillImportExportMixin,
+    SkillPreferencesMixin,
+):
     """
     Skill storage
 
@@ -58,33 +60,8 @@ class SkillStorage:
         self._preferences_collection: Optional["AsyncIOMotorCollection"] = None
 
     # ==========================================
-    # Redis Cache
+    # MongoDB Collection Access
     # ==========================================
-
-    async def _invalidate_user_skills_cache(self, user_id: str) -> None:
-        """Invalidate skills Redis cache for a specific user"""
-        cache_key = f"{SKILLS_CACHE_KEY_PREFIX}{user_id}"
-        try:
-            redis_client = get_redis_client()
-            result = await redis_client.delete(cache_key)
-            if result > 0:
-                logger.info(f"[Skills Cache] Invalidated Redis cache for user {user_id}")
-        except Exception as e:
-            logger.warning(f"[Skills Cache] Redis delete failed for user {user_id}: {e}")
-
-    async def _invalidate_all_skills_cache(self) -> None:
-        """Invalidate all skills Redis cache (system config changed)"""
-        try:
-            redis_client = get_redis_client()
-            keys = await redis_client.keys(f"{SKILLS_CACHE_KEY_PREFIX}*")
-            if keys:
-                deleted = 0
-                for key in keys:
-                    if await redis_client.delete(key) > 0:
-                        deleted += 1
-                logger.info(f"[Skills Cache] Invalidated {deleted} Redis cache entries")
-        except Exception as e:
-            logger.warning(f"[Skills Cache] Redis keys/delete failed: {e}")
 
     def _get_system_collection(self) -> "AsyncIOMotorCollection":
         """Get system skills collection lazily"""
@@ -109,6 +86,32 @@ class SkillStorage:
             db = self._client[settings.MONGODB_DB]
             self._preferences_collection = db["user_skill_preferences"]
         return self._preferences_collection
+
+    # ==========================================
+    # Document Conversion (using converters module)
+    # ==========================================
+
+    def _doc_to_system_skill(self, doc: dict[str, Any]) -> SystemSkill:
+        """Convert MongoDB document to SystemSkill"""
+        return doc_to_system_skill(doc)
+
+    def _doc_to_user_skill(self, doc: dict[str, Any]) -> UserSkill:
+        """Convert MongoDB document to UserSkill"""
+        return doc_to_user_skill(doc)
+
+    def _doc_to_response(
+        self, doc: dict[str, Any], is_system: bool, can_edit: bool
+    ) -> SkillResponse:
+        """Convert MongoDB document to SkillResponse"""
+        return doc_to_response(doc, is_system, can_edit)
+
+    def _doc_to_effective_dict(self, doc: dict[str, Any], is_system: bool = True) -> dict[str, Any]:
+        """Convert MongoDB document to effective dict format"""
+        return doc_to_effective_dict(doc, is_system)
+
+    def _doc_to_export_dict(self, doc: dict[str, Any]) -> dict[str, Any]:
+        """Convert MongoDB document to export dict format"""
+        return doc_to_export_dict(doc)
 
     # ==========================================
     # System Skills (Admin)
@@ -437,35 +440,6 @@ class SkillStorage:
         return self._doc_to_user_skill(doc)
 
     # ==========================================
-    # User Preferences (for system skills)
-    # ==========================================
-
-    async def _get_user_preferences(self, user_id: str) -> dict[str, bool]:
-        """Get user's enabled preferences for system skills"""
-        collection = self._get_preferences_collection()
-        preferences = {}
-        async for doc in collection.find({"user_id": user_id}):
-            preferences[doc["skill_name"]] = doc.get("enabled", True)
-        return preferences
-
-    async def _set_user_preference(self, skill_name: str, user_id: str, enabled: bool) -> None:
-        """Set user's preference for a system skill"""
-        collection = self._get_preferences_collection()
-        await collection.update_one(
-            {"skill_name": skill_name, "user_id": user_id},
-            {
-                "$set": {
-                    "enabled": enabled,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            },
-            upsert=True,
-        )
-
-        # Invalidate cache for this user
-        await self._invalidate_user_skills_cache(user_id)
-
-    # ==========================================
     # Combined Operations (for runtime)
     # ==========================================
 
@@ -476,12 +450,16 @@ class SkillStorage:
         Merges system and user configurations, with user preferences taking precedence.
         Only includes skills that are enabled (after applying user preferences).
 
-        文件直接从 MongoDB 技能文档的 files 字段加载。
+        Files are loaded directly from the MongoDB skill document's files field.
         """
+        from src.infra.skill.constants import SKILLS_CACHE_KEY_PREFIX, SKILLS_CACHE_TTL
+
         cache_key = f"{SKILLS_CACHE_KEY_PREFIX}{user_id}"
 
-        # 尝试从 Redis 获取缓存
+        # Try to get from Redis cache
         try:
+            from src.infra.storage.redis import get_redis_client
+
             redis_client = get_redis_client()
             cached_data = await redis_client.get(cache_key)
             if cached_data:
@@ -493,7 +471,7 @@ class SkillStorage:
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis get failed for user {user_id}: {e}")
 
-        # 缓存未命中，从 MongoDB 加载
+        # Cache miss, load from MongoDB
         logger.info(f"[Skills Cache] Miss for user {user_id}")
 
         # Get user preferences for system skills
@@ -512,7 +490,7 @@ class SkillStorage:
 
             if is_enabled:
                 skill_data = self._doc_to_effective_dict(doc, is_system=True)
-                # 直接从 MongoDB 文档的 files 字段获取文件
+                # Get files directly from MongoDB document's files field
                 skill_files = doc.get("files", {})
                 if skill_files:
                     skill_data["files"] = skill_files
@@ -526,7 +504,7 @@ class SkillStorage:
         user_skills = {}
         async for doc in user_collection.find({"user_id": user_id, "enabled": True}):
             skill_data = self._doc_to_effective_dict(doc, is_system=False)
-            # 直接从 MongoDB 文档的 files 字段获取文件
+            # Get files directly from MongoDB document's files field
             skill_files = doc.get("files", {})
             if skill_files:
                 skill_data["files"] = skill_files
@@ -539,8 +517,10 @@ class SkillStorage:
         result = {**system_skills, **user_skills}
         response = {"skills": result}
 
-        # 存入 Redis 缓存
+        # Store in Redis cache
         try:
+            from src.infra.storage.redis import get_redis_client
+
             redis_client = get_redis_client()
             await redis_client.set(cache_key, json.dumps(response), ex=SKILLS_CACHE_TTL)
             logger.info(f"[Skills Cache] Cached {len(result)} skills for user {user_id}")
@@ -658,497 +638,6 @@ class SkillStorage:
                 return self._doc_to_response(updated_doc, is_system=True, can_edit=True)
 
         return None
-
-    # ==========================================
-    # Import/Export
-    # ==========================================
-
-    async def import_skills(
-        self,
-        import_data: SkillImportRequest,
-        user_id: str,
-        is_admin: bool = False,
-    ) -> SkillImportResponse:
-        """
-        Import skills from JSON configuration.
-
-        Returns SkillImportResponse with counts and errors.
-        """
-        imported = 0
-        skipped = 0
-        errors = []
-
-        for name, config in import_data.skills.items():
-            try:
-                # Parse source
-                source_str = config.get("source", "manual")
-                try:
-                    source = SkillSource(source_str)
-                except ValueError:
-                    source = SkillSource.MANUAL
-
-                # Create skill object
-                skill = SkillCreate(
-                    name=name,
-                    description=config.get("description", ""),
-                    content=config.get("content", ""),
-                    enabled=config.get("enabled", True),
-                    source=source,
-                    github_url=config.get("github_url"),
-                    version=config.get("version"),
-                )
-
-                # Check if exists
-                existing: Optional[SystemSkill | UserSkill] = None
-                if is_admin:
-                    existing = await self.get_system_skill(name)
-                else:
-                    existing = await self.get_user_skill(name, user_id)
-
-                if existing and not import_data.overwrite:
-                    skipped += 1
-                    continue
-
-                # Create or update
-                if is_admin:
-                    if existing:
-                        await self.update_system_skill(
-                            name,
-                            SkillUpdate(
-                                description=skill.description,
-                                content=skill.content,
-                                enabled=skill.enabled,
-                                version=skill.version,
-                                is_system=True,
-                            ),
-                            user_id,
-                        )
-                    else:
-                        await self.create_system_skill(skill, user_id)
-                else:
-                    if existing:
-                        await self.update_user_skill(
-                            name,
-                            SkillUpdate(
-                                description=skill.description,
-                                content=skill.content,
-                                enabled=skill.enabled,
-                                version=skill.version,
-                                is_system=False,
-                            ),
-                            user_id,
-                        )
-                    else:
-                        await self.create_user_skill(skill, user_id)
-
-                imported += 1
-
-            except Exception as e:
-                errors.append(f"Error importing '{name}': {str(e)}")
-
-        return SkillImportResponse(
-            message=f"Imported {imported} skills, skipped {skipped}",
-            imported_count=imported,
-            skipped_count=skipped,
-            errors=errors,
-        )
-
-    async def export_user_skills(self, user_id: str) -> SkillExportResponse:
-        """Export user's skills as JSON configuration"""
-        user_collection = self._get_user_collection()
-        skills = {}
-
-        async for doc in user_collection.find({"user_id": user_id}):
-            skills[doc["name"]] = self._doc_to_export_dict(doc)
-
-        return SkillExportResponse(skills=skills)
-
-    async def export_all_skills(self) -> SkillExportResponse:
-        """Export all skills (system only, admin)"""
-        system_collection = self._get_system_collection()
-        skills = {}
-
-        async for doc in system_collection.find({}):
-            skills[doc["name"]] = self._doc_to_export_dict(doc)
-
-        return SkillExportResponse(skills=skills)
-
-    # ==========================================
-    # GitHub Install
-    # ==========================================
-
-    async def install_github_skills(
-        self,
-        install_request: GitHubInstallRequest,
-        skills_data: list[dict[str, Any]],
-        user_id: str,
-        is_admin: bool = False,
-    ) -> SkillImportResponse:
-        """
-        Install skills from GitHub repository.
-
-        Args:
-            install_request: GitHub install request
-            skills_data: List of skill data from GitHub sync service
-            user_id: User ID performing the install
-            is_admin: Whether the user is an admin
-
-        Returns:
-            SkillImportResponse with counts and errors
-        """
-        imported = 0
-        skipped = 0
-        errors = []
-
-        # Filter skills if specific names provided
-        if install_request.skill_names:
-            skills_data = [s for s in skills_data if s.get("name") in install_request.skill_names]
-
-        for skill_data in skills_data:
-            try:
-                name = skill_data["name"]
-
-                # Get content and files dict
-                content = skill_data.get("content", "")
-                # Use files from skill_data if available, otherwise create from content
-                files = skill_data.get("files")
-                if not files:
-                    files = {"SKILL.md": content} if content else {}
-
-                # Create skill object
-                skill = SkillCreate(
-                    name=name,
-                    description=skill_data.get("description", ""),
-                    content=content,
-                    files=files,
-                    enabled=True,
-                    source=SkillSource.GITHUB,
-                    github_url=install_request.repo_url,
-                    version=skill_data.get("version"),
-                )
-
-                # Check if exists
-                existing: Optional[SystemSkill | UserSkill] = None
-                if is_admin:
-                    existing = await self.get_system_skill(name)
-                else:
-                    existing = await self.get_user_skill(name, user_id)
-
-                if existing:
-                    skipped += 1
-                    continue
-
-                # Create skill (this will sync files internally)
-                if is_admin:
-                    await self.create_system_skill(skill, user_id)
-                else:
-                    await self.create_user_skill(skill, user_id)
-
-                imported += 1
-
-            except Exception as e:
-                errors.append(f"Error installing '{skill_data.get('name', 'unknown')}': {str(e)}")
-
-        return SkillImportResponse(
-            message=f"Installed {imported} skills from GitHub, skipped {skipped}",
-            imported_count=imported,
-            skipped_count=skipped,
-            errors=errors,
-        )
-
-    # ==========================================
-    # Document Conversion
-    # ==========================================
-
-    def _doc_to_system_skill(self, doc: dict[str, Any]) -> SystemSkill:
-        """Convert MongoDB document to SystemSkill"""
-        created_at = doc.get("created_at")
-        updated_at = doc.get("updated_at")
-
-        if created_at and hasattr(created_at, "isoformat"):
-            created_at = created_at.isoformat()
-        if updated_at and hasattr(updated_at, "isoformat"):
-            updated_at = updated_at.isoformat()
-
-        return SystemSkill(
-            name=doc["name"],
-            description=doc.get("description", ""),
-            content=doc.get("content", ""),
-            files=doc.get("files", {}),
-            enabled=doc.get("enabled", True),
-            source=SkillSource(doc.get("source", "manual")),
-            github_url=doc.get("github_url"),
-            version=doc.get("version"),
-            is_system=True,
-            created_at=created_at,
-            updated_at=updated_at,
-            updated_by=doc.get("updated_by"),
-        )
-
-    def _doc_to_user_skill(self, doc: dict[str, Any]) -> UserSkill:
-        """Convert MongoDB document to UserSkill"""
-        created_at = doc.get("created_at")
-        updated_at = doc.get("updated_at")
-
-        if created_at and hasattr(created_at, "isoformat"):
-            created_at = created_at.isoformat()
-        if updated_at and hasattr(updated_at, "isoformat"):
-            updated_at = updated_at.isoformat()
-
-        return UserSkill(
-            name=doc["name"],
-            description=doc.get("description", ""),
-            content=doc.get("content", ""),
-            files=doc.get("files", {}),
-            enabled=doc.get("enabled", True),
-            source=SkillSource(doc.get("source", "manual")),
-            github_url=doc.get("github_url"),
-            version=doc.get("version"),
-            user_id=doc["user_id"],
-            is_system=False,
-            created_at=created_at,
-            updated_at=updated_at,
-        )
-
-    def _doc_to_response(
-        self, doc: dict[str, Any], is_system: bool, can_edit: bool
-    ) -> SkillResponse:
-        """Convert MongoDB document to SkillResponse"""
-        # Deep copy to avoid modifying original
-        doc_copy = copy.deepcopy(doc)
-
-        # Convert datetime to ISO string if needed
-        created_at = doc_copy.get("created_at")
-        updated_at = doc_copy.get("updated_at")
-
-        if created_at and hasattr(created_at, "isoformat"):
-            created_at = created_at.isoformat()
-        if updated_at and hasattr(updated_at, "isoformat"):
-            updated_at = updated_at.isoformat()
-
-        return SkillResponse(
-            name=doc_copy["name"],
-            description=doc_copy.get("description", ""),
-            content=doc_copy.get("content", ""),
-            files=doc_copy.get("files", {}),
-            enabled=doc_copy.get("enabled", True),
-            source=SkillSource(doc_copy.get("source", "manual")),
-            github_url=doc_copy.get("github_url"),
-            version=doc_copy.get("version"),
-            is_system=is_system,
-            can_edit=can_edit,
-            created_at=created_at,
-            updated_at=updated_at,
-        )
-
-    def _doc_to_effective_dict(self, doc: dict[str, Any], is_system: bool = True) -> dict[str, Any]:
-        """Convert MongoDB document to effective dict format"""
-        result = {
-            "name": doc["name"],
-            "description": doc.get("description", ""),
-            "content": doc.get("content", ""),
-            "is_system": is_system,
-        }
-        if doc.get("github_url"):
-            result["github_url"] = doc["github_url"]
-        if doc.get("version"):
-            result["version"] = doc["version"]
-        return result
-
-    def _doc_to_export_dict(self, doc: dict[str, Any]) -> dict[str, Any]:
-        """Convert MongoDB document to export dict format"""
-        result = {
-            "description": doc.get("description", ""),
-            "content": doc.get("content", ""),
-            "enabled": doc.get("enabled", True),
-            "source": doc.get("source", "manual"),
-        }
-        if doc.get("github_url"):
-            result["github_url"] = doc["github_url"]
-        if doc.get("version"):
-            result["version"] = doc["version"]
-        return result
-
-    # ==========================================
-    # Skill Files (MongoDB files field)
-    # ==========================================
-
-    async def sync_skill_files(
-        self,
-        skill_name: str,
-        files: dict[str, str],
-        user_id: Optional[str] = None,
-    ) -> None:
-        """
-        Sync skill files to MongoDB files field.
-
-        文件直接存储在技能文档的 files 字段中，不再使用 PostgreSQL。
-
-        Args:
-            skill_name: 技能名称
-            files: 文件路径 -> 内容 的字典
-            user_id: 用户 ID（系统技能为 None）
-        """
-        # 确定使用哪个集合
-        if user_id is None or user_id == "system":
-            collection = self._get_system_collection()
-            query = {"name": skill_name}
-        else:
-            collection = self._get_user_collection()
-            query = {"name": skill_name, "user_id": user_id}
-
-        # 更新 files 字段
-        await collection.update_one(
-            query,
-            {
-                "$set": {
-                    "files": files,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            },
-        )
-
-    async def get_skill_files(
-        self,
-        skill_name: str,
-        user_id: Optional[str] = None,
-    ) -> dict[str, str]:
-        """
-        Get all files for a skill from MongoDB files field.
-
-        Args:
-            skill_name: 技能名称
-            user_id: 用户 ID（系统技能为 None）
-
-        Returns:
-            文件路径 -> 内容 的字典
-        """
-        # 确定使用哪个集合
-        if user_id is None or user_id == "system":
-            collection = self._get_system_collection()
-            doc = await collection.find_one({"name": skill_name})
-        else:
-            collection = self._get_user_collection()
-            doc = await collection.find_one({"name": skill_name, "user_id": user_id})
-
-        if doc:
-            return doc.get("files", {})
-        return {}
-
-    async def delete_skill_files(
-        self,
-        skill_name: str,
-        user_id: Optional[str] = None,
-    ) -> None:
-        """
-        Delete all files for a skill (clear files field).
-
-        Args:
-            skill_name: 技能名称
-            user_id: 用户 ID（系统技能为 None）
-        """
-        # 确定使用哪个集合
-        if user_id is None or user_id == "system":
-            collection = self._get_system_collection()
-            query = {"name": skill_name}
-        else:
-            collection = self._get_user_collection()
-            query = {"name": skill_name, "user_id": user_id}
-
-        # 清空 files 字段
-        await collection.update_one(
-            query,
-            {
-                "$set": {
-                    "files": {},
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                }
-            },
-        )
-
-    # ==========================================
-    # MCP Tools Cache (Redis)
-    # ==========================================
-
-    async def get_mcp_tools(
-        self,
-        user_id: str,
-        fetch_func,
-        cache_key_suffix: Optional[str] = None,
-        ttl: int = MCP_TOOLS_METADATA_CACHE_TTL,
-    ) -> list[dict[str, Any]]:
-        """
-        获取 MCP 工具（带 Redis 缓存）
-
-        先检查 Redis 缓存，有缓存就返回，没有就调用 fetch_func 获取并存入缓存。
-
-        Args:
-            user_id: 用户 ID
-            fetch_func: 异步函数，用于获取 MCP 工具，签名: async def fetch_func() -> list[dict]
-            cache_key_suffix: 缓存键后缀（可选，用于区分不同类型的工具）
-            ttl: 缓存过期时间（秒），默认 30 分钟
-
-        Returns:
-            MCP 工具列表
-        """
-        # 构建缓存键
-        cache_key = f"{MCP_TOOLS_METADATA_KEY_PREFIX}{user_id}"
-        if cache_key_suffix:
-            cache_key = f"{cache_key}:{cache_key_suffix}"
-
-        # 尝试从 Redis 获取缓存
-        try:
-            redis_client = get_redis_client()
-            cached_data = await redis_client.get(cache_key)
-
-            if cached_data:
-                tools = json.loads(cached_data)
-                logger.info(f"[MCP Tools Cache] Hit for user {user_id}, {len(tools)} tools")
-                return tools
-        except Exception as e:
-            logger.warning(f"[MCP Tools Cache] Redis get failed for user {user_id}: {e}")
-
-        # 缓存未命中，调用 fetch_func 获取数据
-        logger.info(f"[MCP Tools Cache] Miss for user {user_id}")
-        tools = await fetch_func()
-
-        # 存入 Redis 缓存
-        try:
-            redis_client = get_redis_client()
-            await redis_client.set(cache_key, json.dumps(tools), ex=ttl)
-            logger.info(f"[MCP Tools Cache] Cached {len(tools)} tools for user {user_id}")
-        except Exception as e:
-            logger.warning(f"[MCP Tools Cache] Redis set failed for user {user_id}: {e}")
-
-        return tools
-
-    async def invalidate_mcp_tools_cache(
-        self, user_id: str, cache_key_suffix: Optional[str] = None
-    ) -> bool:
-        """
-        使 MCP 工具缓存失效
-
-        Args:
-            user_id: 用户 ID
-            cache_key_suffix: 缓存键后缀（可选）
-
-        Returns:
-            是否成功删除缓存
-        """
-        cache_key = f"{MCP_TOOLS_METADATA_KEY_PREFIX}{user_id}"
-        if cache_key_suffix:
-            cache_key = f"{cache_key}:{cache_key_suffix}"
-
-        try:
-            redis_client = get_redis_client()
-            result = await redis_client.delete(cache_key)
-            if result > 0:
-                logger.info(f"[MCP Tools Cache] Invalidated cache for user {user_id}")
-                return True
-        except Exception as e:
-            logger.warning(f"[MCP Tools Cache] Redis delete failed for user {user_id}: {e}")
-
-        return False
 
     async def close(self):
         """Close MongoDB connection"""
