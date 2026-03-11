@@ -33,6 +33,25 @@ Example correct behavior:
 
 **IMPORTANT**: Never call `write_file` and `reveal_file` for the same file in one block. Call `write_file` first, wait for completion, then call `reveal_file`.
 
+### Project Preview for Frontend Projects (IMPORTANT)
+
+When you create a **multi-file frontend project** (HTML/CSS/JS, React, Vue, etc.), you MUST use `reveal_project` tool to let the user preview it in browser:
+
+1. **After creating a frontend project with multiple files** - Use `reveal_project` to show the entire project
+2. **The project must have an entry file** - Like `index.html`, `App.jsx`, or `main.js`
+3. **Supported templates**: `react`, `vue`, `vanilla` (plain HTML/CSS/JS), `static`
+
+Example usage:
+```
+reveal_project(
+    project_path="/workspace/my-react-app",
+    name="My React App",
+    template="react"  # optional, auto-detected from package.json
+)
+```
+
+**This enables in-browser preview** with file explorer, code editor, and live preview - no server deployment needed!
+
 ### Ask Human When Needed
 
 When uncertain about the user's intent, missing required information, or need clarification:
@@ -77,6 +96,25 @@ Example correct behavior:
 **Anti-pattern to avoid**: Creating files and only saying "I've created the file" without revealing it.
 
 **IMPORTANT**: Never call `write_file` and `reveal_file` for the same file in one block. Call `write_file` first, wait for completion, then call `reveal_file`.
+
+### Project Preview for Frontend Projects (IMPORTANT)
+
+When you create a **multi-file frontend project** (HTML/CSS/JS, React, Vue, etc.), you MUST use `reveal_project` tool to let the user preview it in browser:
+
+1. **After creating a frontend project with multiple files** - Use `reveal_project` to show the entire project
+2. **The project must have an entry file** - Like `index.html`, `App.jsx`, or `main.js`
+3. **Supported templates**: `react`, `vue`, `vanilla` (plain HTML/CSS/JS), `static`
+
+Example usage:
+```
+reveal_project(
+    project_path="/workspace/my-react-app",
+    name="My React App",
+    template="react"  # optional, auto-detected from package.json
+)
+```
+
+**This enables in-browser preview** with file explorer, code editor, and live preview - no server deployment needed!
 
 ### Ask Human When Needed
 
