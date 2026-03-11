@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # 支持的项目模板类型
 ProjectTemplate = Literal["react", "vue", "vanilla", "static"]
 
-# 常见的前端文件扩展名
+# 常见的前端文件扩展名（用于判断是否读取）
 FRONTEND_EXTENSIONS = {
     ".html",
     ".css",
@@ -49,7 +49,12 @@ FRONTEND_EXTENSIONS = {
     ".vue",
     ".json",
     ".svg",
+}
+
+# 用于文档展示的扩展名（读取但不作为预览文件）
+DOC_EXTENSIONS = {
     ".md",
+    ".txt",
 }
 
 # 需要忽略的目录和文件
@@ -141,7 +146,13 @@ def should_ignore_file(name: str) -> bool:
 
 
 def is_text_file(filename: str) -> bool:
-    """检查是否是文本文件"""
+    """检查是否是文本文件（包括前端文件和文档）"""
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in FRONTEND_EXTENSIONS or ext in DOC_EXTENSIONS
+
+
+def is_preview_file(filename: str) -> bool:
+    """检查是否是 Sandpack 可预览的文件"""
     ext = os.path.splitext(filename)[1].lower()
     return ext in FRONTEND_EXTENSIONS
 
@@ -251,15 +262,109 @@ async def _run_command(backend: Any, command: str) -> Optional[str]:
     return None
 
 
-async def _list_files_recursive(backend: Any, dir_path: str, max_depth: int = 5) -> list[str]:
+async def _list_files_recursive(backend: Any, dir_path: str) -> list[str]:
     """
     递归列出目录下的所有文件
 
-    优先使用 shell 命令（find），fallback 到 backend.list
+    优先使用 glob（通过 backend），fallback 到 shell 命令
     """
     files = []
 
-    # 方式1: 使用 find 命令（最快最可靠）
+    # 调试：打印 backend 可用方法
+    if backend:
+        methods = [m for m in dir(backend) if not m.startswith("_")]
+        logger.info(f"Backend available methods: {methods}")
+
+    # 方式1: 使用 ls_info（通过 backend.ls_info 或 backend.als_info）
+    # ls_info 返回目录内容信息，包括文件路径
+    if hasattr(backend, "als_info"):
+        try:
+            result = await backend.als_info(dir_path)
+            logger.info(f"backend.als_info result type: {type(result)}, value: {result}")
+            if result and isinstance(result, list):
+                for item in result:
+                    if isinstance(item, dict):
+                        path = item.get("path", "")
+                        is_dir = item.get("is_dir", False) or item.get("type") == "directory"
+                        if path and not is_dir:
+                            files.append(path)
+                    elif isinstance(item, str):
+                        files.append(item)
+                if files:
+                    logger.info(f"Found {len(files)} files via backend.als_info")
+                    return files
+        except Exception as e:
+            logger.warning(f"als_info failed: {e}")
+    elif hasattr(backend, "ls_info"):
+        try:
+            result = backend.ls_info(dir_path)
+            logger.info(f"backend.ls_info result type: {type(result)}, value: {result}")
+            if result and isinstance(result, list):
+                for item in result:
+                    if isinstance(item, dict):
+                        path = item.get("path", "")
+                        is_dir = item.get("is_dir", False) or item.get("type") == "directory"
+                        if path and not is_dir:
+                            files.append(path)
+                    elif isinstance(item, str):
+                        files.append(item)
+                if files:
+                    logger.info(f"Found {len(files)} files via backend.ls_info")
+                    return files
+        except Exception as e:
+            logger.warning(f"ls_info failed: {e}")
+
+    # 方式2: 使用 glob_info（通过 backend.glob_info 或 backend.aglob_info）
+    if hasattr(backend, "aglob_info"):
+        try:
+            result = await backend.aglob_info(f"{dir_path}/*")
+            logger.info(f"backend.aglob_info result type: {type(result)}, value: {result}")
+            if result and isinstance(result, list):
+                files = [f for f in result if isinstance(f, str)]
+                if files:
+                    logger.info(f"Found {len(files)} files via backend.aglob_info")
+                    return files
+        except Exception as e:
+            logger.warning(f"aglob_info failed: {e}")
+    elif hasattr(backend, "glob_info"):
+        try:
+            result = backend.glob_info(f"{dir_path}/*")
+            logger.info(f"backend.glob_info result type: {type(result)}, value: {result}")
+            if result and isinstance(result, list):
+                files = [f for f in result if isinstance(f, str)]
+                if files:
+                    logger.info(f"Found {len(files)} files via backend.glob_info")
+                    return files
+        except Exception as e:
+            logger.warning(f"glob_info failed: {e}")
+
+    # 方式1.5: 尝试 backend.list（有时它也能工作）
+    if hasattr(backend, "list"):
+        try:
+            result = backend.list(dir_path)
+            logger.info(f"backend.list result type: {type(result)}, value: {result}")
+            # 处理字符串格式的列表
+            if isinstance(result, str) and result.startswith("["):
+                import ast
+
+                try:
+                    parsed = ast.literal_eval(result)
+                    if isinstance(parsed, list):
+                        files = [f for f in parsed if isinstance(f, str)]
+                        if files:
+                            logger.info(f"Found {len(files)} files via backend.list")
+                            return files
+                except Exception:
+                    pass
+            if result and isinstance(result, list):
+                files = [f for f in result if isinstance(f, str)]
+                if files:
+                    logger.info(f"Found {len(files)} files via backend.list")
+                    return files
+        except Exception as e:
+            logger.warning(f"list failed: {e}")
+
+    # 方式2: 使用 find 命令（最快最可靠）
     find_cmd = f'find "{dir_path}" -type f 2>/dev/null | head -200'
     output = await _run_command(backend, find_cmd)
 
@@ -272,7 +377,7 @@ async def _list_files_recursive(backend: Any, dir_path: str, max_depth: int = 5)
             logger.info(f"Found {len(files)} files via find command")
             return files
 
-    # 方式2: 使用 ls -R 命令
+    # 方式3: 使用 ls -R 命令
     ls_cmd = f'ls -R "{dir_path}" 2>/dev/null'
     output = await _run_command(backend, ls_cmd)
 
@@ -291,42 +396,6 @@ async def _list_files_recursive(backend: Any, dir_path: str, max_depth: int = 5)
         if files:
             logger.info(f"Found {len(files)} files via ls -R command")
             return files
-
-    # 方式3: 使用 backend.list（可能不支持递归）
-    if hasattr(backend, "list"):
-        try:
-            # 尝试递归扫描
-            async def scan_dir(path: str, depth: int) -> None:
-                if depth > max_depth:
-                    return
-                try:
-                    items = backend.list(path)
-                    for item in items:
-                        if isinstance(item, dict):
-                            item_path = item.get("path", "")
-                            is_dir = item.get("is_dir", False) or item.get("type") == "directory"
-                        else:
-                            item_path = str(item)
-                            is_dir = False
-
-                        if not item_path:
-                            continue
-
-                        if is_dir:
-                            # 递归扫描子目录
-                            await scan_dir(item_path, depth + 1)
-                        else:
-                            files.append(item_path)
-                except Exception as e:
-                    logger.debug(f"list failed for {path}: {e}")
-
-            await scan_dir(dir_path, 0)
-
-            if files:
-                logger.info(f"Found {len(files)} files via backend.list")
-                return files
-        except Exception as e:
-            logger.debug(f"Recursive list failed: {e}")
 
     logger.warning(f"Could not list files in {dir_path}")
     return files
@@ -415,9 +484,9 @@ async def reveal_project(
                 logger.debug(f"Skipping binary file: {rel_path}")
                 continue
 
-            # 跳过非前端文件
+            # 跳过非文本文件（既不是前端文件也不是文档）
             if not is_text_file(filename):
-                logger.debug(f"Skipping non-frontend file: {rel_path}")
+                logger.debug(f"Skipping non-text file: {rel_path}")
                 continue
 
             # 读取文件内容
@@ -425,8 +494,14 @@ async def reveal_project(
             if content_bytes:
                 try:
                     content = content_bytes.decode("utf-8")
-                    project_files[rel_path] = content
-                    logger.debug(f"Read file: {rel_path} ({len(content)} chars)")
+
+                    # 只将可预览的前端文件添加到 project_files（排除 README.md 等文档）
+                    if is_preview_file(filename):
+                        project_files[rel_path] = content
+                        logger.debug(f"Read preview file: {rel_path} ({len(content)} chars)")
+                    else:
+                        # 文档文件只记录日志，不添加到预览
+                        logger.debug(f"Skipping doc file for preview: {rel_path}")
                 except UnicodeDecodeError:
                     logger.debug(f"Failed to decode file as UTF-8: {rel_path}")
                     continue

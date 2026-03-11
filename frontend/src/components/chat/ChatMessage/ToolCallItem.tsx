@@ -9,6 +9,35 @@ import DocumentPreview from "../../documents/DocumentPreview";
 import { getFileTypeInfo } from "../../documents/utils";
 import { getFullUrl } from "../../../services/api";
 import ProjectPreview from "../../documents/previews/ProjectPreview";
+import { MarkdownContent } from "./MarkdownContent";
+
+// 检测文本是否可能是 markdown 格式
+function isMarkdownText(text: string): boolean {
+  // 检查常见的 markdown 语法
+  const markdownPatterns = [
+    /^#{1,6}\s/m, // 标题 (# ## ###)
+    /^\*\s/m, // 无序列表 (* )
+    /^-{1,3}\s/m, // 无序列表 (- -- ---)
+    /^\d+\.\s/m, // 有序列表 (1. 2. )
+    /\[.+\]\(.+\)/, // 链接 [text](url)
+    /\*\*.+\*\*/, // 粗体 **text**
+    /\*.+\*/, // 斜体 *text*
+    /`[^`]+`/, // 行内代码 `code`
+    /^```[\s\S]*?^```/m, // 代码块
+    /^\s*>/m, // 引用 >
+    /\|.+\|/, // 表格
+  ];
+
+  // 至少匹配 2 种 markdown 模式才认为是 markdown
+  let matchCount = 0;
+  for (const pattern of markdownPatterns) {
+    if (pattern.test(text)) {
+      matchCount++;
+      if (matchCount >= 2) return true;
+    }
+  }
+  return false;
+}
 
 // Collapsible Tool Call Item (compact design)
 export function ToolCallItem({
@@ -68,9 +97,15 @@ export function ToolCallItem({
               <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                 {t("chat.message.result")}
               </div>
-              <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
-                {result}
-              </pre>
+              {isMarkdownText(result) ? (
+                <div className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto">
+                  <MarkdownContent content={result} />
+                </div>
+              ) : (
+                <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+                  {result}
+                </pre>
+              )}
             </div>
           )}
 
@@ -144,15 +179,22 @@ export function FileRevealItem({
 
   if (result) {
     try {
-      // Try to extract JSON from content field (if format is content='...' name='...')
-      let jsonStr = result;
-      const contentMatch = result.match(/content='(.+?)'(\s|$)/);
-      if (contentMatch) {
-        // Handle escaped single quotes and possible nested quotes
-        jsonStr = contentMatch[1].replace(/\\'/g, "'");
-      }
+      // result 可能是字符串（需要 JSON.parse）或对象（直接使用）
+      let parsed: FileRevealResult;
 
-      const parsed: FileRevealResult = JSON.parse(jsonStr);
+      if (typeof result === "object") {
+        // 已经是对象，直接使用
+        parsed = result as FileRevealResult;
+      } else {
+        // 字符串，需要解析
+        let jsonStr = result;
+        const contentMatch = result.match(/content='(.+?)'(\s|$)/);
+        if (contentMatch) {
+          // Handle escaped single quotes and possible nested quotes
+          jsonStr = contentMatch[1].replace(/\\'/g, "'");
+        }
+        parsed = JSON.parse(jsonStr);
+      }
 
       // 检查是否为新格式（有 key 和 url 字段）
       if ("key" in parsed && "url" in parsed) {
@@ -342,7 +384,9 @@ export function ProjectRevealItem({
 
   if (result) {
     try {
-      const parsed: ProjectRevealResult = JSON.parse(result);
+      // result 可能是字符串（需要 JSON.parse）或对象（直接使用）
+      const parsed: ProjectRevealResult =
+        typeof result === "string" ? JSON.parse(result) : result;
 
       if (parsed.error) {
         error = parsed.message || parsed.error;
@@ -364,8 +408,11 @@ export function ProjectRevealItem({
   if (isPending) {
     return (
       <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900">
-        <div className="p-2.5 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
-          <LoadingSpinner size="sm" className="text-white" />
+        <div className="p-2.5 rounded-lg bg-stone-100 dark:bg-stone-800">
+          <LoadingSpinner
+            size="sm"
+            className="text-stone-600 dark:text-stone-400"
+          />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
@@ -423,14 +470,14 @@ export function ProjectRevealItem({
   return (
     <div className="my-2 sm:my-3">
       {/* Full screen preview modal */}
-      {showFullPreview && (
+      {showFullPreview &&
         createPortal(
           <div
-            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4"
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-2 sm:p-4"
             onClick={() => setShowFullPreview(false)}
           >
             <div
-              className="w-full max-w-6xl h-[90vh] bg-white dark:bg-stone-900 rounded-2xl overflow-hidden shadow-2xl"
+              className="w-full h-full sm:h-[90vh] sm:max-w-6xl bg-white dark:bg-stone-900 rounded-none sm:rounded-2xl overflow-hidden shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <ProjectPreview
@@ -439,19 +486,19 @@ export function ProjectRevealItem({
                 files={files}
                 entry={entry}
                 onClose={() => setShowFullPreview(false)}
+                isFullscreen
               />
             </div>
           </div>,
-          document.body
-        )
-      )}
+          document.body,
+        )}
 
       {/* Compact preview card */}
       <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white">
+            <div className="p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
               <Code2 size={16} />
             </div>
             <div>
@@ -459,7 +506,9 @@ export function ProjectRevealItem({
                 {projectName || t("project.untitled", "未命名项目")}
               </h4>
               <p className="text-xs text-stone-500 dark:text-stone-400">
-                {t("project.fileCount", "{{count}} 个文件", { count: fileCount })}
+                {t("project.fileCount", "{{count}} 个文件", {
+                  count: fileCount,
+                })}
                 {template !== "static" && ` · ${template}`}
               </p>
             </div>
@@ -467,7 +516,7 @@ export function ProjectRevealItem({
 
           <button
             onClick={() => setShowFullPreview(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-300 text-xs font-medium transition-colors"
           >
             <ExternalLink size={14} />
             <span>{t("project.expand", "展开")}</span>
@@ -475,7 +524,7 @@ export function ProjectRevealItem({
         </div>
 
         {/* Preview area - inline Sandpack */}
-        <div className="h-[300px] bg-stone-900">
+        <div className="h-[300px] sm:h-[450px] bg-stone-900">
           {success && Object.keys(files).length > 0 && (
             <ProjectPreview
               name={projectName}
@@ -483,6 +532,7 @@ export function ProjectRevealItem({
               files={files}
               entry={entry}
               showHeader={false}
+              showTabs={true}
             />
           )}
         </div>

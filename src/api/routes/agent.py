@@ -5,6 +5,7 @@ Agent 路由
 每个 Agent 就是一个 Graph，流式请求接入 graph 后输出 SSE 事件。
 """
 
+import json
 import logging
 import uuid
 
@@ -129,6 +130,41 @@ REVEAL_FILE_TOOLS = [
                 name="description",
                 type="string",
                 description="对文件内容的简要描述，帮助用户理解为什么要查看这个文件",
+                required=False,
+            ),
+        ],
+    ),
+]
+
+# Reveal Project 工具定义
+REVEAL_PROJECT_TOOLS = [
+    ToolInfo(
+        name="reveal_project",
+        description="向用户展示一个前端项目（多文件预览），当 AI 生成了包含多个文件的前端项目（HTML/CSS/JS 或 React/Vue 项目）时，使用此工具让用户可以在沙箱环境中预览整个项目",
+        category="builtin",
+        parameters=[
+            ToolParamInfo(
+                name="project_path",
+                type="string",
+                description="项目目录路径（包含 index.html 或 package.json 的目录）",
+                required=True,
+            ),
+            ToolParamInfo(
+                name="name",
+                type="string",
+                description="项目名称（可选，默认使用目录名）",
+                required=False,
+            ),
+            ToolParamInfo(
+                name="description",
+                type="string",
+                description="项目描述（可选）",
+                required=False,
+            ),
+            ToolParamInfo(
+                name="template",
+                type="string",
+                description="项目模板类型（可选，自动检测：react/vue/vanilla/static）",
                 required=False,
             ),
         ],
@@ -283,7 +319,13 @@ async def chat_stream(
             base_url=base_url,
         ):
             # event 格式: {"event": "xxx", "data": {...}}
-            yield f"event: {event['event']}\ndata: {event['data']}\n\n"
+            # 确保 data 被正确序列化为 JSON
+            data_str = (
+                event["data"]
+                if isinstance(event["data"], str)
+                else json.dumps(event["data"], ensure_ascii=False)
+            )
+            yield f"event: {event['event']}\ndata: {data_str}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -307,10 +349,12 @@ async def list_tools(
     tools.extend(HUMAN_TOOLS)
 
     # 2. Reveal File 工具
-    if settings.ENABLE_SANDBOX:
-        tools.extend(REVEAL_FILE_TOOLS)
+    tools.extend(REVEAL_FILE_TOOLS)
 
-    # 3. Add Skill 工具
+    # 3. Reveal Project 工具
+    tools.extend(REVEAL_PROJECT_TOOLS)
+
+    # 4. Add Skill 工具
     if settings.ENABLE_SANDBOX:
         tools.extend(ADD_SKILL_TOOLS)
 
