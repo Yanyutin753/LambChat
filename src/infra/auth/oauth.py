@@ -4,7 +4,9 @@ OAuth 认证服务
 支持 Google、GitHub、Apple OAuth 登录。
 """
 
+import hashlib
 import logging
+import secrets
 from typing import Any, Dict, Optional
 
 import httpx
@@ -16,6 +18,9 @@ from src.kernel.config import settings
 from src.kernel.schemas.user import OAuthProvider, Token, User, UserCreate
 
 logger = logging.getLogger(__name__)
+
+# State token 存储过期时间（秒）
+STATE_EXPIRY_SECONDS = 300  # 5 分钟
 
 
 class OAuthUserInfo(BaseModel):
@@ -38,6 +43,27 @@ class OAuthService:
     def __init__(self):
         self.storage = UserStorage()
         self._oauth_clients: Dict[str, AsyncOAuth2Client] = {}
+        self._state_cache: Dict[str, str] = {}  # state -> provider 映射
+
+    def generate_state(self, provider: OAuthProvider) -> str:
+        """生成安全的 state token"""
+        state = secrets.token_urlsafe(32)
+        # 存储 state 与 provider 的映射（内存缓存，生产环境应使用 Redis）
+        self._state_cache[state] = provider.value
+        return state
+
+    def verify_state(self, state: str, provider: OAuthProvider) -> bool:
+        """验证 state token"""
+        if not state or state not in self._state_cache:
+            logger.warning(f"OAuth state not found or invalid")
+            return False
+        
+        stored_provider = self._state_cache.pop(state, None)
+        if stored_provider != provider.value:
+            logger.warning(f"OAuth state provider mismatch: expected {provider.value}, got {stored_provider}")
+            return False
+        
+        return True
 
     def _get_client(self, provider: OAuthProvider) -> Optional[AsyncOAuth2Client]:
         """获取 OAuth 客户端"""
@@ -163,14 +189,18 @@ class OAuthService:
         Args:
             provider: OAuth 提供商
             code: 授权码
-            state: CSRF 状态码
-            redirect_uri: OAuth 回调 URL（从请求中构建）
+            state: CSRF 状态码（需要验证）
 
         Returns:
             Token 或 None
         """
         if not self.is_provider_enabled(provider):
             logger.warning(f"OAuth provider {provider.value} is not enabled")
+            return None
+
+        # 验证 state 参数防止 CSRF 攻击
+        if not self.verify_state(state, provider):
+            logger.error(f"OAuth state verification failed for {provider.value}")
             return None
 
         client = self._get_client(provider)

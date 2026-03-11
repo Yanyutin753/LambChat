@@ -120,7 +120,7 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
     if hasattr(backend, "adownload_files"):
         try:
             download_responses = await backend.adownload_files([file_path])
-            if download_responses and download_responses[0].content:
+            if download_responses and len(download_responses) > 0 and download_responses[0].content:
                 logger.info(f"Read file {file_path} via adownload_files")
                 return download_responses[0].content
         except Exception as e:
@@ -129,7 +129,7 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
     if hasattr(backend, "download_files"):
         try:
             download_responses = backend.download_files([file_path])
-            if download_responses and download_responses[0].content:
+            if download_responses and len(download_responses) > 0 and download_responses[0].content:
                 logger.info(f"Read file {file_path} via download_files")
                 return download_responses[0].content
         except Exception as e:
