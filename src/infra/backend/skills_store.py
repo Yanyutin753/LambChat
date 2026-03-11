@@ -13,9 +13,9 @@ Skills Store Backend
 """
 
 import asyncio
-import concurrent.futures
 import logging
 import re
+import threading
 from typing import TYPE_CHECKING, Any, Optional
 
 from deepagents.backends.protocol import (
@@ -31,7 +31,7 @@ from deepagents.backends.protocol import (
 from src.infra.skill.storage import SkillStorage
 
 if TYPE_CHECKING:
-    from motor.motor_asyncio import AsyncIOMotorClient
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -40,21 +40,65 @@ SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
 SKILLS_ROOT_PATTERN = re.compile(r"^/skills/?$")
 SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
 
+# 全局 SkillStorage 实例缓存（按用户 ID）
+_storage_cache: dict[str, SkillStorage] = {}
+_storage_lock = threading.Lock()
+
+
+def _get_cached_storage(user_id: str) -> SkillStorage:
+    """
+    获取缓存的 SkillStorage 实例（线程安全单例）
+
+    每个 user_id 对应一个 SkillStorage 实例，避免重复创建 MongoDB 连接。
+    """
+    with _storage_lock:
+        if user_id not in _storage_cache:
+            _storage_cache[user_id] = SkillStorage()
+        return _storage_cache[user_id]
+
 
 def _run_async(coro):
     """
     在同步上下文中安全地运行异步协程。
 
-    如果当前有运行中的事件循环（如 FastAPI 环境），
-    使用 ThreadPoolExecutor 在新线程中运行。
-    否则直接使用 asyncio.run()。
+    使用场景：
+    - 同步方法（read/write/edit/ls_info）被外部同步代码调用
+    - CLI 工具或测试脚本
+
+    注意：
+    - 在 FastAPI 异步环境中，应该直接调用异步方法（aread/awrite 等）
+    - deepagents 内部会正确处理同步/异步调用
+
+    实现策略：
+    1. 如果没有运行中的事件循环 → 使用 asyncio.run()
+    2. 如果已有运行中的事件循环 → 在新线程中创建新事件循环运行
+       （这避免了 Motor 客户端绑定到错误事件循环的问题）
     """
     try:
         asyncio.get_running_loop()
-        # 已在异步上下文中，使用线程池运行
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result()
+        # 已在异步上下文中
+        # 在新线程中创建新的事件循环运行，避免 Motor 客户端事件循环绑定问题
+        result = None
+        exception = None
+
+        def run_in_thread():
+            nonlocal result, exception
+            try:
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                result = new_loop.run_until_complete(coro)
+                new_loop.close()
+            except Exception as e:
+                exception = e
+
+        thread = threading.Thread(target=run_in_thread)
+        thread.start()
+        thread.join()
+
+        if exception:
+            raise exception
+        return result
+
     except RuntimeError:
         # 没有运行中的事件循环，直接运行
         return asyncio.run(coro)
@@ -83,13 +127,13 @@ class SkillsStoreBackend(BackendProtocol):
         """
         self._user_id = user_id
         self._runtime = runtime
+        # 使用缓存的 SkillStorage 实例
         self._storage: Optional[SkillStorage] = None
-        self._client: Optional["AsyncIOMotorClient"] = None
 
     def _get_storage(self) -> SkillStorage:
-        """获取 SkillStorage 实例"""
+        """获取 SkillStorage 实例（使用全局缓存）"""
         if self._storage is None:
-            self._storage = SkillStorage()
+            self._storage = _get_cached_storage(self._user_id)
         return self._storage
 
     def _parse_skill_path(self, path: str) -> Optional[tuple[str, str]]:
@@ -571,12 +615,8 @@ class SkillsStoreBackend(BackendProtocol):
         return self.glob_info(pattern, path)
 
     def close(self) -> None:
-        """关闭连接"""
-        if self._storage:
-            try:
-                _run_async(self._storage.close())
-            except Exception:
-                pass
+        """关闭连接（SkillStorage 由全局缓存管理，不在此关闭）"""
+        pass
 
 
 def create_skills_backend(user_id: str, runtime: Any = None) -> SkillsStoreBackend:
