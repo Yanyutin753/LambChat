@@ -698,8 +698,9 @@
       "validation": {
         "contentRequired": "请输入内容",
         "descriptionRequired": "请输入描述",
-        "nameInvalid": "名称只能包含字母、数字、下划线和连字符",
-        "nameRequired": "请输入技能名称"
+        "nameInvalid": "名称只能包含字母、数字、下划线、连字符、点和中文",
+        "nameRequired": "请输入技能名称",
+        "nameTooLong": "名称不能超过100个字符"
       }
     },
     "foundSkills": "找到 {{count}} 个技能 - 选择要安装的",

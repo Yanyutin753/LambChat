@@ -104,8 +104,11 @@ export function SkillForm({
 
     if (!name.trim()) {
       newErrors.name = t("skills.form.validation.nameRequired");
-    } else if (!/^[a-zA-Z0-9_-]+$/.test(name.trim())) {
+    } else if (!/^[\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\-.]+$/.test(name.trim())) {
+      // Allow: letters, numbers, underscores, Chinese, Japanese (Hiragana/Katakana), Korean, hyphens, dots
       newErrors.name = t("skills.form.validation.nameInvalid");
+    } else if (name.trim().length > 100) {
+      newErrors.name = t("skills.form.validation.nameTooLong");
     }
 
     if (!description.trim()) {

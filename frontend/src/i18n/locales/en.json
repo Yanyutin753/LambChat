@@ -699,8 +699,9 @@
       "validation": {
         "contentRequired": "Content is required",
         "descriptionRequired": "Description is required",
-        "nameInvalid": "Name can only contain letters, numbers, underscores, and hyphens",
-        "nameRequired": "Name is required"
+        "nameInvalid": "Name can only contain letters, numbers, underscores, hyphens, dots, and CJK characters",
+        "nameRequired": "Name is required",
+        "nameTooLong": "Name cannot exceed 100 characters"
       }
     },
     "foundSkills": "Found {{count}} skill(s) - select to install",
