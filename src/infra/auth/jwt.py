@@ -125,11 +125,19 @@ def verify_token(token: str) -> TokenPayload:
     """
     payload = decode_token(token)
 
+    # 验证必要字段存在
+    if "sub" not in payload:
+        raise AuthenticationError("Token 缺少 sub 字段")
+    if "exp" not in payload:
+        raise AuthenticationError("Token 缺少 exp 字段")
+    if "iat" not in payload:
+        raise AuthenticationError("Token 缺少 iat 字段")
+
     return TokenPayload(
-        sub=payload.get("sub", ""),
+        sub=payload["sub"],
         username=payload.get("username", ""),
         roles=payload.get("roles", []),
         permissions=payload.get("permissions", []),
-        exp=datetime.fromtimestamp(payload.get("exp", 0), tz=timezone.utc),
-        iat=datetime.fromtimestamp(payload.get("iat", 0), tz=timezone.utc),
+        exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
+        iat=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
     )

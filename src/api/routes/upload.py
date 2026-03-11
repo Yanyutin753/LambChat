@@ -249,13 +249,17 @@ async def upload_file(
 def _get_image_content_type(data: bytes) -> str:
     """Detect image content type from binary data using magic bytes"""
     # Check magic bytes to detect image type
-    if data[:8] == b"\x89PNG\r\n\x1a\n":
+    # Safety check: ensure data is long enough for magic byte detection
+    if len(data) < 2:
+        return "image/png"  # Default for empty/very small data
+
+    if len(data) >= 8 and data[:8] == b"\x89PNG\r\n\x1a\n":
         return "image/png"
     elif data[:2] == b"\xff\xd8":
         return "image/jpeg"
-    elif data[:6] in (b"GIF87a", b"GIF89a"):
+    elif len(data) >= 6 and data[:6] in (b"GIF87a", b"GIF89a"):
         return "image/gif"
-    elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+    elif len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "image/webp"
     elif data[:2] in (b"BM", b"BA"):
         return "image/bmp"
