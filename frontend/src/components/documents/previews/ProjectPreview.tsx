@@ -45,6 +45,9 @@ interface ProjectPreviewProps {
   entry?: string;
   onClose?: () => void;
   showHeader?: boolean;
+  showTabs?: boolean;
+  showFileExplorer?: boolean;
+  isFullscreen?: boolean;
 }
 
 // 自定义布局组件
@@ -52,41 +55,58 @@ function CustomLayout({
   showExplorer,
   showEditor,
   showPreview,
+  isFullscreen,
 }: {
   showExplorer: boolean;
   showEditor: boolean;
   showPreview: boolean;
+  isFullscreen?: boolean;
 }) {
   return (
-    <SandpackLayout className="!h-full !min-h-[400px]">
+    <SandpackLayout
+      className={clsx(
+        "!h-full",
+        isFullscreen ? "!min-h-[calc(100vh-120px)]" : "!min-h-[400px]",
+      )}
+    >
       {/* 文件浏览器 */}
       {showExplorer && (
         <SandpackFileExplorer
-          className="!w-48 shrink-0"
+          className="!w-48 !h-full shrink-0"
           autoHiddenFiles={false}
         />
       )}
 
-      {/* 代码编辑器 */}
-      {showEditor && (
+      {/* 代码编辑器 - 始终渲染，用 CSS 控制显示/隐藏 */}
+      <div
+        className={clsx(
+          "flex-1 !min-w-0 !h-full overflow-hidden",
+          !showEditor && "hidden",
+        )}
+      >
         <SandpackCodeEditor
-          className="flex-1 !min-w-0"
+          className="!h-full"
           showTabs
           showLineNumbers
           showInlineErrors
           showRunButton={false}
         />
-      )}
+      </div>
 
-      {/* 预览 */}
-      {showPreview && (
+      {/* 预览 - 始终渲染，用 CSS 控制显示/隐藏 */}
+      <div
+        className={clsx(
+          "flex-1 !min-w-0 !h-full overflow-hidden",
+          !showPreview && "hidden",
+        )}
+      >
         <SandpackPreview
-          className="flex-1 !min-w-0"
+          className="!h-full"
           showNavigator
           showRefreshButton
           showOpenInCodeSandbox={false}
         />
-      )}
+      </div>
     </SandpackLayout>
   );
 }
@@ -98,11 +118,15 @@ export default function ProjectPreview({
   entry,
   onClose,
   showHeader = true,
+  showTabs = true,
+  showFileExplorer = false,
+  isFullscreen: externalFullscreen,
 }: ProjectPreviewProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
-  const [showExplorer, setShowExplorer] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showExplorer, setShowExplorer] = useState(showFileExplorer);
+  const [internalFullscreen, setInternalFullscreen] = useState(false);
+  const isFullscreen = externalFullscreen || internalFullscreen;
 
   // 检测并转换文件格式
   const sandpackFiles = useMemo(() => {
@@ -117,9 +141,6 @@ export default function ProjectPreview({
     return result;
   }, [files]);
 
-  // 获取 Sandpack 模板
-  const sandpackTemplate = TEMPLATE_MAP[template] || "vanilla";
-
   // 获取入口文件
   const entryFile = useMemo(() => {
     if (entry) return entry;
@@ -129,6 +150,15 @@ export default function ProjectPreview({
     if (sandpackFiles["/main.js"]) return "/main.js";
     return Object.keys(sandpackFiles)[0] || "/index.js";
   }, [entry, sandpackFiles]);
+
+  // 获取 Sandpack 模板 - 如果入口是 HTML 用 static，否则用传入的模板
+  const sandpackTemplate = useMemo(() => {
+    // 如果入口是 HTML 文件，使用 static 模板
+    if (entryFile?.endsWith(".html") || template === "static") {
+      return "static";
+    }
+    return TEMPLATE_MAP[template] || "vanilla";
+  }, [template, entryFile]);
 
   // 文件数量
   const fileCount = Object.keys(sandpackFiles).length;
@@ -150,89 +180,103 @@ export default function ProjectPreview({
         "flex flex-col bg-white dark:bg-stone-900 overflow-hidden",
         isFullscreen
           ? "fixed inset-0 z-[300]"
-          : "h-full min-h-[500px] rounded-xl border border-stone-200 dark:border-stone-700"
+          : "h-full min-h-[300px] sm:min-h-[500px] rounded-xl border border-stone-200 dark:border-stone-700",
       )}
     >
       {/* 工具栏 */}
       {showHeader && (
-        <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900 shrink-0 gap-2 sm:gap-0">
           {/* 左侧：项目信息 */}
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white">
-              <Code2 size={18} />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white">
+              <Code2 size={16} />
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate max-w-[120px] sm:max-w-none">
                 {name || t("project.untitled", "未命名项目")}
               </h3>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                {t("project.fileCount", "{{count}} 个文件", { count: fileCount })}
+              <p className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
+                {t("project.fileCount", "{{count}} 个文件", {
+                  count: fileCount,
+                })}
                 {template !== "static" && ` · ${template}`}
               </p>
             </div>
           </div>
 
           {/* 中间：标签切换 */}
-          <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 rounded-lg p-1">
-            <button
-              onClick={() => setActiveTab("preview")}
-              className={clsx(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-                activeTab === "preview"
-                  ? "bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm"
-                  : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
-              )}
-            >
-              <Play size={14} />
-              <span>{t("project.preview", "预览")}</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("code")}
-              className={clsx(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-                activeTab === "code"
-                  ? "bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm"
-                  : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
-              )}
-            >
-              <Code2 size={14} />
-              <span>{t("project.code", "代码")}</span>
-            </button>
-          </div>
+          {showTabs && (
+            <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 rounded-lg p-0.5 sm:p-1">
+              <button
+                onClick={() => setActiveTab("preview")}
+                className={clsx(
+                  "flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                  activeTab === "preview"
+                    ? "bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm"
+                    : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300",
+                )}
+              >
+                <Play size={14} />
+                <span className="hidden sm:inline">
+                  {t("project.preview", "预览")}
+                </span>
+              </button>
+              <button
+                onClick={() => setActiveTab("code")}
+                className={clsx(
+                  "flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md text-xs font-medium transition-colors",
+                  activeTab === "code"
+                    ? "bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-sm"
+                    : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300",
+                )}
+              >
+                <Code2 size={14} />
+                <span className="hidden sm:inline">
+                  {t("project.code", "代码")}
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* 右侧：操作按钮 */}
-          <div className="flex items-center gap-1">
-            {/* 文件浏览器切换 */}
-            <button
-              onClick={() => setShowExplorer(!showExplorer)}
-              className={clsx(
-                "p-2 rounded-lg transition-colors",
-                showExplorer
-                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                  : "text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
-              )}
-              title={t("project.toggleExplorer", "切换文件浏览器")}
-            >
-              <FolderTree size={18} />
-            </button>
+          <div className="flex items-center gap-0.5 sm:gap-1">
+            {/* 文件浏览器切换 - 仅在启用时显示 */}
+            {showFileExplorer && (
+              <button
+                onClick={() => setShowExplorer(!showExplorer)}
+                className={clsx(
+                  "p-1.5 sm:p-2 rounded-lg transition-colors",
+                  showExplorer
+                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                    : "text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800",
+                )}
+                title={t("project.toggleExplorer", "切换文件浏览器")}
+              >
+                <FolderTree size={16} />
+              </button>
+            )}
 
             {/* 全屏按钮 */}
             <button
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-              title={isFullscreen ? t("project.exitFullscreen") : t("project.fullscreen")}
+              onClick={() => setInternalFullscreen(!internalFullscreen)}
+              className="p-1.5 sm:p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              title={
+                isFullscreen
+                  ? t("project.exitFullscreen")
+                  : t("project.fullscreen")
+              }
             >
-              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
 
             {/* 关闭按钮 */}
             {onClose && (
               <button
                 onClick={onClose}
-                className="p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                className="p-1.5 sm:p-2 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
                 title={t("common.close")}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             )}
           </div>
@@ -240,7 +284,12 @@ export default function ProjectPreview({
       )}
 
       {/* Sandpack 区域 */}
-      <div className="flex-1 min-h-0">
+      <div
+        className={clsx(
+          "flex-1 min-h-0 h-[200px] sm:h-auto",
+          isFullscreen && "h-[calc(100vh-120px)]",
+        )}
+      >
         <SandpackProvider
           template={sandpackTemplate}
           files={sandpackFiles}
@@ -255,8 +304,9 @@ export default function ProjectPreview({
         >
           <CustomLayout
             showExplorer={showExplorer}
-            showEditor={activeTab === "code" || true}
-            showPreview={activeTab === "preview" || true}
+            showEditor={activeTab === "code"}
+            showPreview={activeTab === "preview"}
+            isFullscreen={isFullscreen}
           />
         </SandpackProvider>
       </div>
@@ -291,17 +341,19 @@ export function ProjectPreviewCompact({
     <div className="my-2 sm:my-3">
       <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
         {/* 工具栏 */}
-        <div className="flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white">
+        <div className="flex items-center justify-between px-2 sm:px-4 py-2 sm:py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white shrink-0">
               <Code2 size={16} />
             </div>
-            <div>
-              <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100">
+            <div className="min-w-0">
+              <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate max-w-[100px] sm:max-w-none">
                 {name || t("project.untitled", "未命名项目")}
               </h4>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                {t("project.fileCount", "{{count}} 个文件", { count: fileCount })}
+              <p className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
+                {t("project.fileCount", "{{count}} 个文件", {
+                  count: fileCount,
+                })}
               </p>
             </div>
           </div>
@@ -309,16 +361,18 @@ export function ProjectPreviewCompact({
           {onExpand && (
             <button
               onClick={onExpand}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium transition-colors"
+              className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium transition-colors shrink-0"
             >
               <ExternalLink size={14} />
-              <span>{t("project.expand", "展开预览")}</span>
+              <span className="hidden sm:inline">
+                {t("project.expand", "展开预览")}
+              </span>
             </button>
           )}
         </div>
 
         {/* 预览区域 */}
-        <div className="h-[400px]">
+        <div className="h-[250px] sm:h-[400px]">
           <SandpackProvider
             template={sandpackTemplate}
             files={files}
@@ -331,7 +385,7 @@ export function ProjectPreviewCompact({
               },
             }}
           >
-            <SandpackLayout className="!h-full !min-h-[400px]">
+            <SandpackLayout className="!h-full !min-h-[250px] sm:!min-h-[400px]">
               <SandpackPreview
                 className="flex-1"
                 showNavigator

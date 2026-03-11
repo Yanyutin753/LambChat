@@ -329,7 +329,7 @@ export function updateSubagentResultInParts(
 export function updateToolResultInDepth(
   parts: MessagePart[],
   toolCallId: string,
-  result: string,
+  result: string | Record<string, unknown>,
   success: boolean,
   error?: string,
   _targetDepth?: number,
@@ -393,7 +393,7 @@ export function updateToolResultInDepth(
 export function updateToolResultInPartsById(
   parts: MessagePart[],
   toolCallId: string,
-  result: string,
+  result: string | Record<string, unknown>,
   success: boolean,
   error?: string,
 ): MessagePart[] | null {

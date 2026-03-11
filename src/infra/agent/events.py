@@ -4,6 +4,7 @@ DeepAgent 事件处理模块
 处理 DeepAgent 的 astream_events 事件并转发到 Presenter。
 """
 
+import json
 import logging
 import uuid
 from typing import Any
@@ -405,37 +406,54 @@ class AgentEventProcessor:
     ) -> None:
         """处理工具调用结束"""
         out = event.get("data", {}).get("output", "")
-        # 使用 run_id 作为 tool_call_id，保证与 start 一致
-        run_id = event.get("run_id", "")
-        tool_call_id = run_id or f"tool_{uuid.uuid4().hex[:8]}"
+        tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex[:8]}"
 
-        # 检测是否是错误
-        is_error = False
-        error_message = None
-        if isinstance(out, dict):
-            # 检查是否有错误标记
-            if out.get("error") or out.get("status") == "error":
-                is_error = True
-                error_message = out.get("error") or out.get("message") or str(out)
-        elif isinstance(out, str):
-            # 检测各种错误格式
-            error_indicators = [
-                "Error:",
-                "ValidationError",
-                "[MCP Tool Error]",
-                "failed",
-                "error",
-                "exception",
-                "Traceback",
-            ]
-            if any(indicator.lower() in out.lower() for indicator in error_indicators):
-                is_error = True
-                error_message = out
+        # 提取 ToolMessage content
+        raw = out.content if hasattr(out, "content") and not isinstance(out, str) else out
+        if hasattr(raw, "content") and not isinstance(raw, str):
+            raw = raw.content
+        raw = (
+            "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in raw)
+            if isinstance(raw, list)
+            else str(raw)
+            if not isinstance(raw, str)
+            else raw
+        )
+
+        # 错误检测
+        is_error, error_message = False, None
+        if isinstance(raw, dict):
+            if raw.get("error") or raw.get("status") == "error":
+                is_error, error_message = True, raw.get("error") or raw.get("message") or str(raw)
+        elif isinstance(raw, str):
+            lower = raw.lower()
+            if any(
+                e in lower
+                for e in (
+                    "error:",
+                    "validationerror",
+                    "[mcp tool error]",
+                    "failed",
+                    "exception",
+                    "traceback",
+                )
+            ):
+                is_error, error_message = True, raw
+
+        # JSON 解析
+        result: Any = raw
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    result = parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
 
         await self.presenter.emit(
             self.presenter.present_tool_result(
                 tool_name,
-                str(out),
+                result if isinstance(result, dict) else str(result),
                 tool_call_id=tool_call_id,
                 success=not is_error,
                 error=error_message,

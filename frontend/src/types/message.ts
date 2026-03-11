@@ -86,7 +86,7 @@ export interface ToolPart {
   id?: string;
   name: string;
   args: Record<string, unknown>;
-  result?: string;
+  result?: string | Record<string, unknown>;
   success?: boolean;
   error?: string;
   isPending?: boolean;
@@ -116,7 +116,7 @@ export interface ToolCall {
 export interface ToolResult {
   id?: string;
   name: string;
-  result: string;
+  result: string | Record<string, unknown>;
   success: boolean;
 }
 

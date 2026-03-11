@@ -21,7 +21,14 @@ ENCRYPTED_MARKER = "__encrypted__"
 
 # 密钥派生参数
 _KDF_ITERATIONS = 100000  # PBKDF2 迭代次数
-_KDF_SALT = b"lambchat-mcp-encryption-v1"  # 固定盐值（生产环境应使用配置）
+
+
+def _get_kdf_salt() -> bytes:
+    """获取PBKDF2盐值，从配置读取并转换为bytes"""
+    salt = settings.MCP_ENCRYPTION_SALT
+    if not salt:
+        raise RuntimeError("MCP_ENCRYPTION_SALT is not configured")
+    return salt.encode("utf-8")
 
 
 class DecryptionError(Exception):
@@ -52,7 +59,7 @@ def _get_fernet() -> Fernet:
     key = hashlib.pbkdf2_hmac(
         "sha256",
         settings.JWT_SECRET_KEY.encode("utf-8"),
-        _KDF_SALT,
+        _get_kdf_salt(),
         _KDF_ITERATIONS,
         dklen=32,
     )

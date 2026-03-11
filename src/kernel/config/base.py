@@ -12,7 +12,13 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 from .constants import JWT_SECRET_KEY_MIN_LENGTH
-from .utils import COMMIT_HASH, GIT_TAG, PROJECT_ROOT, expand_jwt_secret_key, get_app_version
+from .utils import (
+    COMMIT_HASH,
+    GIT_TAG,
+    PROJECT_ROOT,
+    expand_jwt_secret_key,
+    get_app_version,
+)
 
 if TYPE_CHECKING:
     from src.infra.storage.s3 import S3Config
@@ -71,6 +77,7 @@ class Settings(BaseSettings):
 
     # MCP Settings
     ENABLE_MCP: bool = True
+    MCP_ENCRYPTION_SALT: Optional[str] = None  # 默认随机生成，确保加密一致性
 
     # Session Settings
     SESSION_MAX_RUNS_PER_SESSION: int = 100
@@ -204,6 +211,11 @@ class Settings(BaseSettings):
                 "JWT_SECRET_KEY not set or using placeholder value. "
                 f"Generated random secret key: {self.JWT_SECRET_KEY[:8]}..."
             )
+
+        # Generate random MCP_ENCRYPTION_SALT if not set
+        if not self.MCP_ENCRYPTION_SALT:
+            self.MCP_ENCRYPTION_SALT = secrets.token_urlsafe(16)
+            logger.info("MCP_ENCRYPTION_SALT not set, generated random salt")
         # Expand short JWT_SECRET_KEY to meet minimum length requirement
         elif len(self.JWT_SECRET_KEY) < JWT_SECRET_KEY_MIN_LENGTH:
             original_key = self.JWT_SECRET_KEY

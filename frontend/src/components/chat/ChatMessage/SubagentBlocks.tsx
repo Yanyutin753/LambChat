@@ -314,7 +314,12 @@ function SubagentToolItem({
                   {t("chat.message.result")}
                 </div>
                 <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 max-h-24 overflow-auto">
-                  {truncateText(part.result || "", 500)}
+                  {truncateText(
+                    typeof part.result === "string"
+                      ? part.result
+                      : JSON.stringify(part.result),
+                    500,
+                  )}
                 </pre>
               </div>
             )}
