@@ -5,18 +5,19 @@ Session-Sandbox 绑定管理器
 - 沙箱存储在 session.metadata 中
 - 对话结束时 stop 而非 delete
 - 下次对话时从 stopped/archived 状态恢复
-- 使用 CompositeBackend 组合 Sandbox 和 Skills Store
+- 使用 deepagents.CompositeBackend 组合 Sandbox 和 Skills Store
 """
 
 import asyncio
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 from daytona import CreateSandboxFromSnapshotParams, Daytona, DaytonaConfig
+from deepagents.backends import CompositeBackend
 
-from src.infra.backend.composite import CompositeBackend, create_composite_backend
 from src.infra.backend.daytona import DaytonaBackend
+from src.infra.backend.skills_store import create_skills_backend
 from src.infra.session.manager import SessionManager
 from src.kernel.config import settings
 from src.kernel.schemas.session import SessionUpdate
@@ -65,8 +66,7 @@ class SessionSandboxManager:
         self._session_manager = SessionManager()
         self._daytona_client: Optional[Daytona] = None
         # 内存缓存: session_id -> (sandbox_id, backend)
-        # backend 是 CompositeBackend 类型
-        self._cache: dict[str, tuple[str, Union["SandboxBackendProtocol", CompositeBackend]]] = {}
+        self._cache: dict[str, tuple[str, CompositeBackend]] = {}
 
     def _get_daytona_client(self) -> Daytona:
         """获取或创建 Daytona 客户端"""
@@ -82,7 +82,7 @@ class SessionSandboxManager:
         self,
         session_id: str,
         user_id: str,
-    ) -> tuple[Union["SandboxBackendProtocol", CompositeBackend], str]:
+    ) -> tuple[CompositeBackend, str]:
         """
         获取或创建沙箱
 
@@ -315,13 +315,13 @@ class SessionSandboxManager:
     async def _create_backend(
         self,
         sandbox_id: str,
-        user_id: Optional[str] = None,
-    ) -> Union["SandboxBackendProtocol", CompositeBackend]:
+        user_id: str,
+    ) -> CompositeBackend:
         """
-        为已存在的沙箱创建 backend 包装
+        为已存在的沙箱创建 CompositeBackend
 
-        如果提供了 user_id，返回 CompositeBackend（组合 Sandbox + Skills Store）。
-        否则返回原始的 DaytonaBackend（向后兼容）。
+        使用 deepagents.CompositeBackend 组合 Sandbox 和 Skills Store。
+        /skills/ 路径映射到 MongoDB，其他路径映射到 Sandbox。
         """
 
         def _sync_create_backend():
@@ -329,13 +329,16 @@ class SessionSandboxManager:
             sandbox = client.get(sandbox_id)
             daytona_backend = DaytonaBackend(sandbox=sandbox)
 
-            # 如果有 user_id，创建 CompositeBackend
-            if user_id:
-                return create_composite_backend(
-                    sandbox_backend=daytona_backend,
-                    user_id=user_id,
-                )
-            return daytona_backend
+            # 创建 Skills Store Backend
+            skills_backend = create_skills_backend(user_id=user_id)
+
+            # 使用 deepagents.CompositeBackend 组合
+            return CompositeBackend(
+                default=daytona_backend,
+                routes={
+                    "/skills/": skills_backend,
+                },
+            )
 
         return await asyncio.wait_for(
             asyncio.to_thread(_sync_create_backend),
@@ -346,7 +349,7 @@ class SessionSandboxManager:
         self,
         session_id: str,
         user_id: str,
-    ) -> tuple[Union["SandboxBackendProtocol", CompositeBackend], str]:
+    ) -> tuple[CompositeBackend, str]:
         """创建新沙箱并绑定到 session（替换旧的）
 
         Returns:
@@ -365,10 +368,15 @@ class SessionSandboxManager:
             sandbox = client.create(params)
             daytona_backend = DaytonaBackend(sandbox=sandbox)
 
-            # 创建 CompositeBackend（组合 Sandbox + Skills Store）
-            composite_backend = create_composite_backend(
-                sandbox_backend=daytona_backend,
-                user_id=user_id,
+            # 创建 Skills Store Backend
+            skills_backend = create_skills_backend(user_id=user_id)
+
+            # 使用 deepagents.CompositeBackend 组合
+            composite_backend = CompositeBackend(
+                default=daytona_backend,
+                routes={
+                    "/skills/": skills_backend,
+                },
             )
             return composite_backend, sandbox.get_work_dir()
 

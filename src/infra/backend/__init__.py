@@ -1,6 +1,5 @@
 """Backend implementations for file operations."""
 
-from .composite import CompositeBackend, create_composite_backend
 from .context import (
     clear_user_context,
     get_session_id,
@@ -27,7 +26,4 @@ __all__ = [
     # Skills Store Backend
     "SkillsStoreBackend",
     "create_skills_backend",
-    # Composite Backend
-    "CompositeBackend",
-    "create_composite_backend",
 ]
