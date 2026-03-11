@@ -26,8 +26,8 @@ from src.infra.backend import (
 from src.infra.backend.deepagent import create_memory_backend_factory
 from src.infra.llm.client import LLMClient
 from src.infra.sandbox import SessionSandboxManager
-from src.infra.skill import load_skill_files
 from src.infra.skill.loader import build_skills_prompt
+from src.infra.skill.storage import SkillStorage
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.postgres import create_postgres_store
 from src.infra.writer.present import Presenter
@@ -222,10 +222,26 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
 
-    # 加载技能文件和技能列表（一次数据库查询）
-    skill_result = await load_skill_files(context.user_id)
-    initial_skill_files = skill_result["files"]
-    skills_list = skill_result["skills"]
+    # 获取技能列表（用于构建 skills prompt，不需要预加载文件）
+    # SkillsStoreBackend 现在可以直接读写 MongoDB
+    skills_list: list[dict] = []
+    if settings.ENABLE_SKILLS and context.user_id:
+        try:
+            storage = SkillStorage()
+            effective_skills = await storage.get_effective_skills(context.user_id)
+            skills_data = effective_skills.get("skills", {})
+            for skill_name, skill_data in skills_data.items():
+                skill_dict = (
+                    skill_data.model_dump()
+                    if hasattr(skill_data, "model_dump")
+                    else (dict(skill_data) if not isinstance(skill_data, dict) else skill_data)
+                )
+                skill_dict["is_system"] = skill_dict.get("is_system", True)
+                if skill_dict.get("enabled", True):
+                    skills_list.append(skill_dict)
+            logger.info(f"Loaded {len(skills_list)} skills for user: {tenant_id}")
+        except Exception as e:
+            logger.warning(f"Failed to load skills list: {e}")
 
     # 创建 Backend 工厂和获取系统提示
     backend_factory, system_prompt, store = await _create_backend_and_prompt(
@@ -247,9 +263,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 创建内层 graph (deep agent)
     inner_checkpointer = await get_async_checkpointer()
 
-    # 注意：不使用 SkillsMiddleware（skills=None），而是使用 load_skill_files + build_skills_prompt
-    # 这样可以确保每次对话都能获取最新的技能列表
-    # SkillsMiddleware 会缓存 skills_metadata，导致技能更新后不会刷新
+    # 注意：不使用 SkillsMiddleware（skills=None）
+    # SkillsStoreBackend 直接连接 MongoDB，LLM 可以通过 read_file/write_file 实时读写 skills
+    # build_skills_prompt 只用于构建 skills 列表提示，告诉 LLM 有哪些 skills 可用
 
     inner_graph = create_deep_agent(
         model=llm,
@@ -286,11 +302,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     event_processor = AgentEventProcessor(presenter)
 
     # 流式处理事件（带重试，处理 429 等错误）
+    # 注意：不再传递 files 参数，SkillsStoreBackend 可以直接读写 MongoDB
     await _run_with_retry(
         graph=inner_graph,
         input_data={
             "messages": all_messages,
-            "files": initial_skill_files,
         },
         config=inner_config,
         event_processor=event_processor,
@@ -350,16 +366,19 @@ async def _create_backend_and_prompt(
         # 不使用长期存储，使用内存 store
         store = None
 
+    # 获取 user_id 用于 skills 读写
+    user_id = context.user_id or "default"
+
     if not settings.ENABLE_SANDBOX:
         # 非沙箱模式
         if settings.ENABLE_LONG_TERM_STORAGE:
             logger.info(
                 f"Sandbox disabled, using CompositeBackend with PostgresStore for assistant: {assistant_id}"
             )
-            backend_factory = create_postgres_backend_factory(assistant_id)
+            backend_factory = create_postgres_backend_factory(assistant_id, user_id=user_id)
         else:
             logger.info(f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}")
-            backend_factory = create_memory_backend_factory(assistant_id)
+            backend_factory = create_memory_backend_factory(assistant_id, user_id=user_id)
         return (
             backend_factory,
             DEFAULT_SYSTEM_PROMPT.replace("{skills}", skills_prompt),
@@ -383,8 +402,11 @@ async def _create_backend_and_prompt(
 
         # 发送沙箱就绪事件
         try:
+            # 获取 sandbox_id：CompositeBackend.default 可能是 SandboxBackendProtocol
+            # 需要安全地访问 id 属性
+            sandbox_id = getattr(sandbox_backend.default, "id", "unknown")
             await presenter.emit_sandbox_ready(
-                sandbox_id=sandbox_backend.id,
+                sandbox_id=sandbox_id,
                 work_dir=work_dir,
             )
         except Exception as e:
@@ -397,7 +419,7 @@ async def _create_backend_and_prompt(
             "{skills}", skills_prompt
         )
         return (
-            create_sandbox_backend_factory(sandbox_backend, assistant_id),
+            create_sandbox_backend_factory(sandbox_backend, assistant_id, user_id=user_id),
             system_prompt,
             store,
         )

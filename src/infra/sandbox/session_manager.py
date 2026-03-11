@@ -5,22 +5,22 @@ Session-Sandbox 绑定管理器
 - 沙箱存储在 session.metadata 中
 - 对话结束时 stop 而非 delete
 - 下次对话时从 stopped/archived 状态恢复
+- 使用 deepagents.CompositeBackend 组合 Sandbox 和 Skills Store
 """
 
 import asyncio
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from daytona import CreateSandboxFromSnapshotParams, Daytona, DaytonaConfig
+from deepagents.backends import CompositeBackend
 
 from src.infra.backend.daytona import DaytonaBackend
+from src.infra.backend.skills_store import create_skills_backend
 from src.infra.session.manager import SessionManager
 from src.kernel.config import settings
 from src.kernel.schemas.session import SessionUpdate
-
-if TYPE_CHECKING:
-    from deepagents.backends.protocol import SandboxBackendProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class SessionSandboxManager:
         self._session_manager = SessionManager()
         self._daytona_client: Optional[Daytona] = None
         # 内存缓存: session_id -> (sandbox_id, backend)
-        self._cache: dict[str, tuple[str, "SandboxBackendProtocol"]] = {}
+        self._cache: dict[str, tuple[str, CompositeBackend]] = {}
 
     def _get_daytona_client(self) -> Daytona:
         """获取或创建 Daytona 客户端"""
@@ -79,9 +79,12 @@ class SessionSandboxManager:
         self,
         session_id: str,
         user_id: str,
-    ) -> tuple["SandboxBackendProtocol", str]:
+    ) -> tuple[CompositeBackend, str]:
         """
         获取或创建沙箱
+
+        返回 CompositeBackend，组合了 Sandbox 和 Skills Store。
+        LLM 可以通过 /skills/ 路径读写用户技能。
 
         流程：
         1. 检查内存缓存
@@ -91,7 +94,7 @@ class SessionSandboxManager:
         5. 不存在或恢复失败 → 创建新沙箱，覆盖绑定
 
         Returns:
-            tuple[SandboxBackendProtocol, str]: (backend, work_dir)
+            tuple[CompositeBackend, str]: (composite_backend, work_dir)
         """
         # 1. 检查内存缓存
         if session_id in self._cache:
@@ -136,7 +139,7 @@ class SessionSandboxManager:
                 # 4. 尝试恢复
                 try:
                     await self._start_sandbox(sandbox_id)
-                    backend = await self._create_backend(sandbox_id)
+                    backend = await self._create_backend(sandbox_id, user_id=user_id)
                     self._cache[session_id] = (sandbox_id, backend)
                     await self._update_session_metadata(session_id, sandbox_id, "running")
                     logger.info(f"[SessionSandboxManager] Resumed sandbox {sandbox_id}")
@@ -154,7 +157,7 @@ class SessionSandboxManager:
             elif state in READY_STATES:
                 # 沙箱已在运行，直接使用
                 try:
-                    backend = await self._create_backend(sandbox_id)
+                    backend = await self._create_backend(sandbox_id, user_id=user_id)
                     self._cache[session_id] = (sandbox_id, backend)
                     work_dir = await self._get_work_dir(sandbox_id)
                     return backend, work_dir
@@ -306,13 +309,33 @@ class SessionSandboxManager:
             timeout=DEFAULT_DAYTONA_TIMEOUT,
         )
 
-    async def _create_backend(self, sandbox_id: str) -> "SandboxBackendProtocol":
-        """为已存在的沙箱创建 backend 包装"""
+    async def _create_backend(
+        self,
+        sandbox_id: str,
+        user_id: str,
+    ) -> CompositeBackend:
+        """
+        为已存在的沙箱创建 CompositeBackend
+
+        使用 deepagents.CompositeBackend 组合 Sandbox 和 Skills Store。
+        /skills/ 路径映射到 MongoDB，其他路径映射到 Sandbox。
+        """
 
         def _sync_create_backend():
             client = self._get_daytona_client()
             sandbox = client.get(sandbox_id)
-            return DaytonaBackend(sandbox=sandbox)
+            daytona_backend = DaytonaBackend(sandbox=sandbox)
+
+            # 创建 Skills Store Backend
+            skills_backend = create_skills_backend(user_id=user_id)
+
+            # 使用 deepagents.CompositeBackend 组合
+            return CompositeBackend(
+                default=daytona_backend,
+                routes={
+                    "/skills/": skills_backend,
+                },
+            )
 
         return await asyncio.wait_for(
             asyncio.to_thread(_sync_create_backend),
@@ -323,11 +346,11 @@ class SessionSandboxManager:
         self,
         session_id: str,
         user_id: str,
-    ) -> tuple["SandboxBackendProtocol", str]:
+    ) -> tuple[CompositeBackend, str]:
         """创建新沙箱并绑定到 session（替换旧的）
 
         Returns:
-            tuple[SandboxBackendProtocol, str]: (backend, work_dir)
+            tuple[CompositeBackend, str]: (composite_backend, work_dir)
         """
 
         def _sync_create():
@@ -340,7 +363,19 @@ class SessionSandboxManager:
                 snapshot=settings.DAYTONA_IMAGE if settings.DAYTONA_IMAGE else None,
             )
             sandbox = client.create(params)
-            return DaytonaBackend(sandbox=sandbox), sandbox.get_work_dir()
+            daytona_backend = DaytonaBackend(sandbox=sandbox)
+
+            # 创建 Skills Store Backend
+            skills_backend = create_skills_backend(user_id=user_id)
+
+            # 使用 deepagents.CompositeBackend 组合
+            composite_backend = CompositeBackend(
+                default=daytona_backend,
+                routes={
+                    "/skills/": skills_backend,
+                },
+            )
+            return composite_backend, sandbox.get_work_dir()
 
         backend, work_dir = await asyncio.wait_for(
             asyncio.to_thread(_sync_create),
