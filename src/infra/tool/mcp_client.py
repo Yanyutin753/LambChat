@@ -224,7 +224,7 @@ class MCPClientManager:
                     return
 
             # 从文件读取配置（向后兼容，仅当 use_database=False 时）
-            config = self._load_config_from_file()
+            config = await self._load_config_from_file()
             if config:
                 await self._initialize_with_config(config)
             else:

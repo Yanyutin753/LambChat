@@ -7,13 +7,14 @@ from functools import lru_cache
 from typing import Any, Optional
 
 import redis.asyncio as redis
+from redis.asyncio import Redis
 
 from src.infra.storage.base import StorageBase
 from src.kernel.config import settings
 
 
 @lru_cache
-def get_redis_client():
+def get_redis_client() -> Redis:
     """获取 Redis 客户端（单例）"""
     return redis.from_url(
         settings.REDIS_URL,
