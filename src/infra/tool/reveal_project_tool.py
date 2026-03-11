@@ -230,11 +230,14 @@ async def reveal_project(
 
     if backend is None:
         logger.warning("Backend not available from runtime")
-        return json.dumps({
-            "type": "project_reveal",
-            "error": "backend_not_available",
-            "message": "无法访问文件系统",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "type": "project_reveal",
+                "error": "backend_not_available",
+                "message": "无法访问文件系统",
+            },
+            ensure_ascii=False,
+        )
 
     # 规范化路径
     project_path = project_path.rstrip("/")
@@ -252,7 +255,7 @@ async def reveal_project(
                 # 计算相对路径
                 rel_path = file_path
                 if rel_path.startswith(project_path):
-                    rel_path = rel_path[len(project_path):]
+                    rel_path = rel_path[len(project_path) :]
                 if not rel_path.startswith("/"):
                     rel_path = "/" + rel_path
 
@@ -286,10 +289,22 @@ async def reveal_project(
         # 方式2: 如果 backend 没有 list，尝试读取常见文件
         else:
             common_files = [
-                "index.html", "index.js", "index.jsx", "index.ts", "index.tsx",
-                "App.js", "App.jsx", "App.ts", "App.tsx",
-                "main.js", "main.jsx", "main.ts", "main.tsx",
-                "styles.css", "style.css", "App.css",
+                "index.html",
+                "index.js",
+                "index.jsx",
+                "index.ts",
+                "index.tsx",
+                "App.js",
+                "App.jsx",
+                "App.ts",
+                "App.tsx",
+                "main.js",
+                "main.jsx",
+                "main.ts",
+                "main.tsx",
+                "styles.css",
+                "style.css",
+                "App.css",
                 "package.json",
             ]
 
@@ -304,11 +319,14 @@ async def reveal_project(
                         continue
 
         if not project_files:
-            return json.dumps({
-                "type": "project_reveal",
-                "error": "no_files_found",
-                "message": f"在 {project_path} 中没有找到前端文件",
-            }, ensure_ascii=False)
+            return json.dumps(
+                {
+                    "type": "project_reveal",
+                    "error": "no_files_found",
+                    "message": f"在 {project_path} 中没有找到前端文件",
+                },
+                ensure_ascii=False,
+            )
 
         # 检测或使用指定的模板
         detected_template = template or detect_template(project_files)
@@ -337,11 +355,14 @@ async def reveal_project(
 
     except Exception as e:
         logger.error(f"Error revealing project {project_path}: {e}")
-        return json.dumps({
-            "type": "project_reveal",
-            "error": str(e),
-            "message": f"读取项目失败: {e}",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "type": "project_reveal",
+                "error": str(e),
+                "message": f"读取项目失败: {e}",
+            },
+            ensure_ascii=False,
+        )
 
 
 def get_reveal_project_tool() -> BaseTool:
