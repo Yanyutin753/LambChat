@@ -178,28 +178,72 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
     return None
 
 
+def _list_files_via_execute(backend: Any, dir_path: str, timeout: int = 30) -> list[str]:
+    """通过 execute 命令递归列出目录下的所有文件
+
+    使用 find 命令列出文件，排除 node_modules 等目录
+
+    Args:
+        backend: 后端实例（需要有 execute 方法）
+        dir_path: 目录路径
+        timeout: 命令超时时间（秒）
+
+    Returns:
+        所有文件的完整路径列表
+    """
+    if not hasattr(backend, "execute"):
+        logger.debug("Backend does not have execute method")
+        return []
+
+    # 构建 find 命令，排除常见的不需要的目录
+    ignore_dirs = [
+        "node_modules",
+        ".git",
+        ".venv",
+        "__pycache__",
+        "dist",
+        "build",
+        ".next",
+        ".nuxt",
+        "coverage",
+    ]
+
+    # 使用 find 命令，只列出文件（不包括目录）
+    prune_args = " ".join([f'-name "{d}" -prune -o' for d in ignore_dirs])
+    cmd = f'find "{dir_path}" {prune_args} -type f 2>/dev/null'
+
+    try:
+        result = backend.execute(cmd, timeout=timeout)
+        if result.exit_code != 0:
+            logger.debug(f"find command failed: {result.output}")
+            return []
+
+        # 解析输出
+        files = []
+        for line in result.output.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # 再次过滤隐藏文件和特殊文件
+            name = os.path.basename(line)
+            if should_ignore(name):
+                continue
+            files.append(line)
+
+        return files
+    except Exception as e:
+        logger.debug(f"Failed to list files via execute: {e}")
+        return []
+
+
 def _list_files_from_backend(backend: Any, dir_path: str) -> list[str]:
-    """列出目录下的所有文件"""
-    files = []
+    """列出目录下的所有文件（递归）"""
+    # 优先使用 execute 方式（更通用）
+    if hasattr(backend, "execute"):
+        return _list_files_via_execute(backend, dir_path)
 
-    # 方式1: 使用 list 方法
-    if hasattr(backend, "list"):
-        try:
-            items = backend.list(dir_path)
-            for item in items:
-                if isinstance(item, dict):
-                    path = item.get("path", "")
-                    is_dir = item.get("is_dir", False) or item.get("type") == "directory"
-                else:
-                    path = str(item)
-                    is_dir = False
-
-                if path and not is_dir:
-                    files.append(path)
-        except Exception as e:
-            logger.debug(f"list failed for {dir_path}: {e}")
-
-    return files
+    logger.debug("Backend has no execute method, cannot list files")
+    return []
 
 
 @tool
