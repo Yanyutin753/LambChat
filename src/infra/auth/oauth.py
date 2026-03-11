@@ -4,13 +4,16 @@ OAuth 认证服务
 支持 Google、GitHub、Apple OAuth 登录。
 """
 
+import base64
 import hashlib
+import json
 import logging
 import secrets
 from typing import Any, Dict, Optional
 
 import httpx
 from authlib.integrations.httpx_client import AsyncOAuth2Client
+from authlib.jose import JsonWebKey, jwt
 from pydantic import BaseModel
 
 from src.infra.user.storage import UserStorage
@@ -19,8 +22,11 @@ from src.kernel.schemas.user import OAuthProvider, Token, User, UserCreate
 
 logger = logging.getLogger(__name__)
 
-# State token 存储过期时间（秒）
-STATE_EXPIRY_SECONDS = 300  # 5 分钟
+# HTTP 请求超时设置（秒）
+HTTP_TIMEOUT = 10.0
+
+# State 存储（简单内存存储，生产环境应使用 Redis）
+_oauth_states: Dict[str, str] = {}  # state -> provider
 
 
 class OAuthUserInfo(BaseModel):
@@ -43,27 +49,6 @@ class OAuthService:
     def __init__(self):
         self.storage = UserStorage()
         self._oauth_clients: Dict[str, AsyncOAuth2Client] = {}
-        self._state_cache: Dict[str, str] = {}  # state -> provider 映射
-
-    def generate_state(self, provider: OAuthProvider) -> str:
-        """生成安全的 state token"""
-        state = secrets.token_urlsafe(32)
-        # 存储 state 与 provider 的映射（内存缓存，生产环境应使用 Redis）
-        self._state_cache[state] = provider.value
-        return state
-
-    def verify_state(self, state: str, provider: OAuthProvider) -> bool:
-        """验证 state token"""
-        if not state or state not in self._state_cache:
-            logger.warning(f"OAuth state not found or invalid")
-            return False
-        
-        stored_provider = self._state_cache.pop(state, None)
-        if stored_provider != provider.value:
-            logger.warning(f"OAuth state provider mismatch: expected {provider.value}, got {stored_provider}")
-            return False
-        
-        return True
 
     def _get_client(self, provider: OAuthProvider) -> Optional[AsyncOAuth2Client]:
         """获取 OAuth 客户端"""
@@ -149,6 +134,9 @@ class OAuthService:
             logger.error(f"Failed to get OAuth client for {provider.value}")
             return None
 
+        # 存储 state 用于后续验证
+        _oauth_states[state] = provider.value
+
         try:
             if provider == OAuthProvider.GOOGLE:
                 url, _ = client.create_authorization_url(
@@ -177,6 +165,8 @@ class OAuthService:
                 return url
         except Exception as e:
             logger.error(f"Failed to create authorization URL for {provider.value}: {e}")
+            # 清理无效的 state
+            _oauth_states.pop(state, None)
 
         return None
 
@@ -189,18 +179,25 @@ class OAuthService:
         Args:
             provider: OAuth 提供商
             code: 授权码
-            state: CSRF 状态码（需要验证）
+            state: CSRF 状态码
+            redirect_uri: OAuth 回调 URL（从请求中构建）
 
         Returns:
             Token 或 None
         """
-        if not self.is_provider_enabled(provider):
-            logger.warning(f"OAuth provider {provider.value} is not enabled")
+        # 验证 state 参数（CSRF 防护）
+        stored_provider = _oauth_states.pop(state, None)
+        if not stored_provider:
+            logger.error(f"OAuth state 验证失败: state={state} 不存在或已过期")
+            return None
+        if stored_provider != provider.value:
+            logger.error(
+                f"OAuth state 验证失败: 期望 provider={stored_provider}, 实际={provider.value}"
+            )
             return None
 
-        # 验证 state 参数防止 CSRF 攻击
-        if not self.verify_state(state, provider):
-            logger.error(f"OAuth state verification failed for {provider.value}")
+        if not self.is_provider_enabled(provider):
+            logger.warning(f"OAuth provider {provider.value} is not enabled")
             return None
 
         client = self._get_client(provider)
@@ -268,7 +265,7 @@ class OAuthService:
         if not access_token:
             return None
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             resp = await client.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
                 headers={"Authorization": f"Bearer {access_token}"},
@@ -289,7 +286,7 @@ class OAuthService:
         if not access_token:
             return None
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             # 获取用户信息
             resp = await client.get(
                 "https://api.github.com/user",
@@ -321,38 +318,68 @@ class OAuthService:
         )
 
     async def _get_apple_user_info(self, token: Dict[str, Any]) -> Optional[OAuthUserInfo]:
-        """获取 Apple 用户信息"""
-        # Apple 使用 ID token 直接解析用户信息
-        import base64
-        import json
+        """
+        获取 Apple 用户信息
 
+        验证 Apple ID Token 的签名，确保令牌未被伪造。
+        """
         id_token = token.get("id_token")
         if not id_token:
+            logger.warning("Apple OAuth: No id_token in response")
             return None
 
-        # 解码 ID token
-        parts = id_token.split(".")
-        if len(parts) != 3:
+        try:
+            # 获取 Apple 公钥
+            async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+                jwks_resp = await client.get("https://appleid.apple.com/auth/keys")
+                jwks_data = jwks_resp.json()
+
+            # 解码 JWT header 获取 kid
+            header_b64 = id_token.split(".")[0]
+            padding = 4 - len(header_b64) % 4
+            if padding != 4:
+                header_b64 += "=" * padding
+            header = json.loads(base64.urlsafe_b64decode(header_b64))
+            kid = header.get("kid")
+
+            # 找到匹配的公钥
+            jwk = None
+            for key in jwks_data.get("keys", []):
+                if key.get("kid") == kid:
+                    jwk = key
+                    break
+
+            if not jwk:
+                logger.error(f"Apple OAuth: No matching public key found for kid={kid}")
+                return None
+
+            # 使用 authlib 验证 JWT
+            public_key = JsonWebKey.import_key(jwk)
+            claims = jwt.decode(
+                id_token,
+                public_key,
+                claims_options={
+                    "iss": {"essential": True, "values": ["https://appleid.apple.com"]},
+                    "aud": {"essential": True, "values": [settings.OAUTH_APPLE_CLIENT_ID]},
+                },
+            )
+
+            if "sub" not in claims:
+                logger.warning("Apple OAuth: Missing 'sub' in id_token claims")
+                return None
+
+            return OAuthUserInfo(
+                provider=OAuthProvider.APPLE,
+                oauth_id=claims["sub"],
+                email=claims.get("email", ""),
+                username=claims.get("email", "").split("@")[0]
+                if claims.get("email")
+                else f"apple_{claims['sub'][:8]}",
+                avatar_url=None,
+            )
+        except Exception as e:
+            logger.error(f"Apple OAuth: Failed to verify id_token: {e}")
             return None
-
-        # 解码 payload
-        payload = parts[1]
-        # 添加 padding 如果需要
-        padding = 4 - len(payload) % 4
-        if padding != 4:
-            payload += "=" * padding
-
-        data = json.loads(base64.urlsafe_b64decode(payload))
-
-        return OAuthUserInfo(
-            provider=OAuthProvider.APPLE,
-            oauth_id=data["sub"],
-            email=data.get("email", ""),
-            username=data.get("email", "").split("@")[0]
-            if data.get("email")
-            else f"apple_{data['sub'][:8]}",
-            avatar_url=None,
-        )
 
     async def _find_or_create_user(self, user_info: OAuthUserInfo) -> Optional[User]:
         """

@@ -4,8 +4,7 @@
 提供用户的数据库操作。
 """
 
-import asyncio
-import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -14,11 +13,37 @@ from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, ValidationError
 from src.kernel.schemas.user import User, UserCreate, UserInDB, UserUpdate
 
-logger = logging.getLogger(__name__)
 
-# Module-level lock for index creation
-_index_lock = asyncio.Lock()
-_indexes_ensured = False
+def _escape_regex(text: str) -> str:
+    """
+    转义正则表达式特殊字符，防止 ReDoS 攻击
+
+    Args:
+        text: 用户输入的搜索文本
+
+    Returns:
+        转义后的安全正则表达式字符串
+    """
+    # 转义所有正则表达式特殊字符
+    return re.escape(text)
+
+
+def _safe_search_pattern(text: str) -> str:
+    """
+    创建安全的搜索模式
+
+    使用转义后的文本，并添加锚定以避免意外匹配。
+    对于邮箱等包含特殊字符的搜索，确保正确转义。
+
+    Args:
+        text: 用户输入的搜索文本
+
+    Returns:
+        安全的正则表达式模式
+    """
+    escaped = _escape_regex(text)
+    # 不添加锚定，允许部分匹配（如搜索 "john" 匹配 "johnson"）
+    return escaped
 
 
 class UserStorage:
@@ -40,46 +65,41 @@ class UserStorage:
             client = get_mongo_client()
             db = client[settings.MONGODB_DB]
             self._collection = db["users"]
+            # 确保在第一次访问时创建索引
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果事件循环正在运行，调度索引创建
+                    asyncio.create_task(self._ensure_indexes())
+                else:
+                    # 否则同步运行
+                    loop.run_until_complete(self._ensure_indexes())
+            except RuntimeError:
+                # 如果没有事件循环，忽略（会在第一次异步操作时创建）
+                pass
         return self._collection
 
     async def _ensure_indexes(self):
-        """确保必要的索引存在（包括唯一索引）并迁移旧用户数据
+        """确保必要的索引存在（包括唯一索引）并迁移旧用户数据"""
+        try:
+            collection = self.collection  # 使用属性而不是直接访问 _collection
+            # 创建唯一索引防止并发竞态条件
+            await collection.create_index("username", unique=True, background=True)
+            await collection.create_index("email", unique=True, background=True)
+            # 其他常用查询索引
+            await collection.create_index("oauth_provider", background=True)
+            await collection.create_index("reset_token", background=True, sparse=True)
+            await collection.create_index("verification_token", background=True, sparse=True)
 
-        此方法应该只在应用启动时调用一次，而不是在每次访问集合时调用。
-        使用模块级锁确保只创建一次索引。
-        """
-        global _indexes_ensured
+            # 自动迁移旧用户：将 None 改为 True
+            await self._migrate_legacy_users()
+        except Exception as e:
+            # 索引创建失败不应阻止应用启动
+            import logging
 
-        if _indexes_ensured:
-            return
-
-        async with _index_lock:
-            # Double check after acquiring lock
-            if _indexes_ensured:
-                return
-
-            try:
-                collection = self.collection  # 使用属性而不是直接访问 _collection
-                # 创建唯一索引防止并发竞态条件
-                await collection.create_index("username", unique=True, background=True)
-                await collection.create_index("email", unique=True, background=True)
-                # 其他常用查询索引
-                await collection.create_index("oauth_provider", background=True)
-                await collection.create_index("reset_token", background=True, sparse=True)
-                await collection.create_index("verification_token", background=True, sparse=True)
-
-                # 自动迁移旧用户：将 None 改为 True
-                await self._migrate_legacy_users()
-
-                _indexes_ensured = True
-                logger.info("User storage indexes ensured successfully")
-            except Exception as e:
-                # 索引创建失败不应阻止应用启动
-                logger.warning(f"Failed to create indexes: {e}")
-
-    async def ensure_indexes(self):
-        """Public method to ensure indexes exist - should be called at application startup"""
-        await self._ensure_indexes()
+            logging.getLogger(__name__).warning(f"Failed to create indexes: {e}")
 
     async def _migrate_legacy_users(self):
         """迁移旧用户数据：将 email_verified 和 is_active 从 None 改为 True"""
@@ -90,7 +110,9 @@ class UserStorage:
                 {"$set": {"email_verified": True}},
             )
             if result1.modified_count > 0:
-                logger.info(
+                import logging
+
+                logging.getLogger(__name__).info(
                     f"[Migration] Updated email_verified for {result1.modified_count} users"
                 )
 
@@ -100,11 +122,15 @@ class UserStorage:
                 {"$set": {"is_active": True}},
             )
             if result2.modified_count > 0:
-                logger.info(
+                import logging
+
+                logging.getLogger(__name__).info(
                     f"[Migration] Updated is_active for {result2.modified_count} users"
                 )
         except Exception as e:
-            logger.warning(f"[Migration] Failed to migrate legacy users: {e}")
+            import logging
+
+            logging.getLogger(__name__).warning(f"[Migration] Failed to migrate legacy users: {e}")
 
     async def create(self, user_data: UserCreate) -> UserInDB:
         """
@@ -371,9 +397,11 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
+            # 使用安全的搜索模式防止 ReDoS 攻击
+            escaped_search = _safe_search_pattern(search)
             query["$or"] = [
-                {"username": {"$regex": search, "$options": "i"}},
-                {"email": {"$regex": search, "$options": "i"}},
+                {"username": {"$regex": escaped_search, "$options": "i"}},
+                {"email": {"$regex": escaped_search, "$options": "i"}},
             ]
 
         cursor = self.collection.find(query).skip(skip).limit(limit)
@@ -404,9 +432,11 @@ class UserStorage:
         if is_active is not None:
             query["is_active"] = is_active
         if search:
+            # 使用安全的搜索模式防止 ReDoS 攻击
+            escaped_search = _safe_search_pattern(search)
             query["$or"] = [
-                {"username": {"$regex": search, "$options": "i"}},
-                {"email": {"$regex": search, "$options": "i"}},
+                {"username": {"$regex": escaped_search, "$options": "i"}},
+                {"email": {"$regex": escaped_search, "$options": "i"}},
             ]
         return await self.collection.count_documents(query)
 

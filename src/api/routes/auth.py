@@ -951,8 +951,8 @@ async def verify_email(request_data: VerifyEmailRequest):
         )
 
     # 如果用户已有角色（如第一个管理员用户），保留；否则赋予默认角色
+    default_role = settings.DEFAULT_USER_ROLE or "user"
     if not user.roles:
-        default_role = settings.DEFAULT_USER_ROLE or "user"
         roles = [default_role]
     else:
         roles = user.roles
@@ -970,9 +970,9 @@ async def verify_email(request_data: VerifyEmailRequest):
     )
 
     logger.info(
-        "[Auth] Email verified and account activated for user %s with role %s",
+        "[Auth] Email verified and account activated for user %s with roles %s",
         user.username,
-        default_role,
+        ", ".join(roles) if roles else "none",
     )
 
     return {"message": "邮箱验证成功，账户已激活"}
