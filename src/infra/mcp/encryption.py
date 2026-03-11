@@ -30,6 +30,18 @@ class DecryptionError(Exception):
     pass
 
 
+def _get_fernet_legacy() -> Fernet:
+    """
+    获取旧版Fernet加密实例（向后兼容）
+
+    使用单次 SHA256 哈希派生密钥（PR #52 之前的方式）
+    仅用于解密旧数据，不用于新加密。
+    """
+    key = hashlib.sha256(settings.JWT_SECRET_KEY.encode()).digest()
+    fernet_key = base64.urlsafe_b64encode(key)
+    return Fernet(fernet_key)
+
+
 def _get_fernet() -> Fernet:
     """
     获取Fernet加密实例，使用PBKDF2从JWT_SECRET_KEY派生密钥
@@ -94,6 +106,10 @@ def decrypt_value(value: Any) -> Any:
     1. 加密格式: {"__encrypted__": "base64_encoded_data"}
     2. 明文格式: {"key": "value"}
 
+    支持向后兼容：
+    - 先尝试新密钥（PBKDF2）解密
+    - 失败后尝试旧密钥（SHA256）解密
+
     Args:
         value: 要解密的值
 
@@ -115,19 +131,24 @@ def decrypt_value(value: Any) -> Any:
         if not encrypted_str:
             return value
 
+        encrypted_bytes = base64.b64decode(encrypted_str.encode("utf-8"))
+
+        # 先尝试新密钥（PBKDF2）
         try:
             fernet = _get_fernet()
-            # 解码
-            encrypted_bytes = base64.b64decode(encrypted_str.encode("utf-8"))
-            # 解密
             decrypted_bytes = fernet.decrypt(encrypted_bytes)
-            # 反序列化为dict
             return json.loads(decrypted_bytes.decode("utf-8"))
-        except Exception as e:
-            # 解密失败 - 抛出异常让调用方决定如何处理
-            # 不再静默返回空字典，避免调用方误以为配置为空
-            logger.error(f"解密失败: {e}")
-            raise DecryptionError(f"解密失败: {e}") from e
+        except Exception:
+            # 新密钥失败，尝试旧密钥（SHA256）向后兼容
+            try:
+                fernet_legacy = _get_fernet_legacy()
+                decrypted_bytes = fernet_legacy.decrypt(encrypted_bytes)
+                logger.info("使用旧版密钥解密成功，建议重新保存配置以使用新密钥")
+                return json.loads(decrypted_bytes.decode("utf-8"))
+            except Exception as e:
+                # 两种密钥都失败
+                logger.error(f"解密失败（尝试了新旧密钥）: {e}")
+                raise DecryptionError(f"解密失败: {e}") from e
 
     # 明文格式（向后兼容）
     return value
