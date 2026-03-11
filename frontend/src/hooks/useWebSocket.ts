@@ -18,6 +18,11 @@ interface UseWebSocketOptions {
   enabled?: boolean;
 }
 
+// Exponential backoff configuration
+const INITIAL_RECONNECT_DELAY = 1000; // 1 second
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds
+const RECONNECT_DELAY_MULTIPLIER = 1.5;
+
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const { onTaskComplete, enabled = true } = options;
   const wsRef = useRef<WebSocket | null>(null);
@@ -30,6 +35,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   // Track connection state to prevent race conditions
   const isConnectingRef = useRef(false);
   const isDisconnectingRef = useRef(false);
+
+  // Exponential backoff state
+  const reconnectAttemptRef = useRef(0);
 
   // Update ref when callback changes
   useEffect(() => {
@@ -106,6 +114,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         ws.send(JSON.stringify({ type: "auth", token }));
         isConnectingRef.current = false;
         setIsConnected(true);
+        // Reset reconnect attempt counter on successful connection
+        reconnectAttemptRef.current = 0;
       };
 
       ws.onmessage = (event) => {
@@ -138,11 +148,23 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           reconnectTimeoutRef.current === null &&
           !wasManualDisconnect
         ) {
+          // Calculate delay with exponential backoff
+          const delay = Math.min(
+            INITIAL_RECONNECT_DELAY *
+              Math.pow(RECONNECT_DELAY_MULTIPLIER, reconnectAttemptRef.current),
+            MAX_RECONNECT_DELAY,
+          );
+          reconnectAttemptRef.current++;
+
+          console.log(
+            `[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptRef.current})...`,
+          );
+
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log("[WebSocket] Reconnecting...");
             reconnectTimeoutRef.current = null;
             connect();
-          }, 3000);
+          }, delay);
         }
       };
 
@@ -174,6 +196,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }
     isConnectingRef.current = false;
     setIsConnected(false);
+    // Reset reconnect attempt counter on manual disconnect
+    reconnectAttemptRef.current = 0;
     // NOTE: Don't reset isDisconnectingRef here - let the onclose handler do it
     // This prevents race conditions where connect() is called before the socket finishes closing
   }, []);
