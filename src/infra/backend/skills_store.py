@@ -1,0 +1,622 @@
+"""
+Skills Store Backend
+
+为 DeepAgent 提供 Skills 的读写后端，连接到 MongoDB。
+
+路径格式：/skills/{skill_name}/{file_path}
+
+特性：
+- 读取：从 MongoDB 获取 skill 文件的 content
+- 写入：更新 MongoDB 中 skill 的 files 字段
+- 编辑：在 skill 文件中进行字符串替换
+- 列表：列出所有 skills 或某个 skill 下的文件
+"""
+
+import asyncio
+import logging
+import re
+from typing import TYPE_CHECKING, Any, Optional
+
+from deepagents.backends.protocol import (
+    BackendProtocol,
+    EditResult,
+    FileDownloadResponse,
+    FileInfo,
+    FileUploadResponse,
+    GrepMatch,
+    WriteResult,
+)
+
+from src.infra.skill.storage import SkillStorage
+
+if TYPE_CHECKING:
+    from motor.motor_asyncio import AsyncIOMotorClient
+
+logger = logging.getLogger(__name__)
+
+# 路径格式：/skills/{skill_name}/{file_path}
+SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
+SKILLS_ROOT_PATTERN = re.compile(r"^/skills/?$")
+SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
+
+
+class SkillsStoreBackend(BackendProtocol):
+    """
+    Skills 存储后端
+
+    将 /skills/ 路径映射到 MongoDB 中的 skills 集合。
+
+    支持：
+    - 读取：read("/skills/my-skill/SKILL.md")
+    - 写入：write("/skills/my-skill/SKILL.md", content)
+    - 编辑：edit("/skills/my-skill/SKILL.md", old, new)
+    - 列表：ls_info("/skills/") 或 ls_info("/skills/my-skill/")
+    """
+
+    def __init__(self, user_id: str, runtime: Any = None):
+        """
+        初始化 Skills Store Backend
+
+        Args:
+            user_id: 用户 ID，用于获取用户可见的 skills
+            runtime: ToolRuntime 实例（可选，用于兼容性）
+        """
+        self._user_id = user_id
+        self._runtime = runtime
+        self._storage: Optional[SkillStorage] = None
+        self._client: Optional["AsyncIOMotorClient"] = None
+
+    def _get_storage(self) -> SkillStorage:
+        """获取 SkillStorage 实例"""
+        if self._storage is None:
+            self._storage = SkillStorage()
+        return self._storage
+
+    def _parse_skill_path(self, path: str) -> Optional[tuple[str, str]]:
+        """
+        解析 skills 路径
+
+        Args:
+            path: 文件路径，如 /skills/my-skill/SKILL.md
+
+        Returns:
+            (skill_name, file_path) 或 None（如果路径无效）
+        """
+        match = SKILLS_PATH_PATTERN.match(path)
+        if match:
+            return match.group(1), match.group(2)
+        return None
+
+    def _is_skills_root(self, path: str) -> bool:
+        """检查是否是 skills 根路径"""
+        return bool(SKILLS_ROOT_PATTERN.match(path))
+
+    def _is_skill_dir(self, path: str) -> bool:
+        """检查是否是某个 skill 的目录"""
+        return bool(SKILLS_DIR_PATTERN.match(path))
+
+    def _get_skill_name_from_dir(self, path: str) -> Optional[str]:
+        """从目录路径获取 skill 名称"""
+        match = SKILLS_DIR_PATTERN.match(path)
+        if match:
+            return match.group(1)
+        return None
+
+    def _format_content_with_line_numbers(
+        self, content: str, offset: int = 0, limit: int = 2000
+    ) -> str:
+        """
+        格式化内容为带行号的格式（类似 cat -n）
+
+        Args:
+            content: 文件内容
+            offset: 起始行号（0-indexed）
+            limit: 最大行数
+
+        Returns:
+            带行号的格式化内容
+        """
+        lines = content.split("\n")
+        start = offset
+        end = min(offset + limit, len(lines))
+
+        result_lines = []
+        for i in range(start, end):
+            line_num = i + 1  # 1-indexed
+            line_content = lines[i]
+            # 截断超长行
+            if len(line_content) > 2000:
+                line_content = line_content[:2000] + "..."
+            result_lines.append(f"{line_num:6d}\t{line_content}")
+
+        return "\n".join(result_lines)
+
+    # ==========================================
+    # 读取操作
+    # ==========================================
+
+    def read(
+        self,
+        file_path: str,
+        offset: int = 0,
+        limit: int = 2000,
+    ) -> str:
+        """读取 skill 文件内容（同步，内部调用异步）"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.aread(file_path, offset, limit))
+
+    async def aread(
+        self,
+        file_path: str,
+        offset: int = 0,
+        limit: int = 2000,
+    ) -> str:
+        """
+        异步读取 skill 文件
+
+        Args:
+            file_path: /skills/{skill_name}/{file_path}
+            offset: 起始行号（0-indexed）
+            limit: 最大行数
+
+        Returns:
+            带行号的文件内容，或错误信息字符串
+        """
+        parsed = self._parse_skill_path(file_path)
+        if not parsed:
+            return f"Error: Invalid skills path: {file_path}. Expected /skills/{{skill_name}}/{{file_path}}"
+
+        skill_name, file_name = parsed
+        storage = self._get_storage()
+
+        try:
+            # 先尝试用户 skill
+            files = await storage.get_skill_files(skill_name, user_id=self._user_id)
+            if not files:
+                # 再尝试系统 skill
+                files = await storage.get_skill_files(skill_name, user_id=None)
+
+            if not files:
+                return f"Error: Skill '{skill_name}' not found"
+
+            if file_name not in files:
+                return f"Error: File '{file_name}' not found in skill '{skill_name}'"
+
+            content = files[file_name]
+            return self._format_content_with_line_numbers(content, offset, limit)
+
+        except Exception as e:
+            logger.error(f"Failed to read {file_path}: {e}")
+            return f"Error: {e}"
+
+    # ==========================================
+    # 写入操作
+    # ==========================================
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        """写入 skill 文件（同步，内部调用异步）"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.awrite(file_path, content))
+
+    async def awrite(self, file_path: str, content: str) -> WriteResult:
+        """
+        异步写入 skill 文件
+
+        Args:
+            file_path: /skills/{skill_name}/{file_path}
+            content: 文件内容
+
+        Returns:
+            WriteResult 表示操作结果
+        """
+        parsed = self._parse_skill_path(file_path)
+        if not parsed:
+            return WriteResult(
+                error=f"Invalid skills path: {file_path}. Expected /skills/{{skill_name}}/{{file_path}}"
+            )
+
+        skill_name, file_name = parsed
+        storage = self._get_storage()
+
+        try:
+            # 检查 skill 是否存在（用户 skill 或系统 skill）
+            user_skill = await storage.get_user_skill(skill_name, self._user_id)
+            system_skill = await storage.get_system_skill(skill_name)
+
+            if user_skill:
+                # 更新用户 skill
+                files = await storage.get_skill_files(skill_name, user_id=self._user_id)
+                files[file_name] = content
+                await storage.sync_skill_files(skill_name, files, user_id=self._user_id)
+                logger.info(f"Updated user skill '{skill_name}' file '{file_name}'")
+
+            elif system_skill:
+                # 系统技能是只读的，创建用户副本
+                logger.info(f"Creating user copy of system skill '{skill_name}'")
+
+                from src.kernel.schemas.skill import SkillCreate, SkillSource
+
+                skill_create = SkillCreate(
+                    name=skill_name,
+                    description=system_skill.description,
+                    content=system_skill.content,
+                    files={**system_skill.files, file_name: content},
+                    enabled=True,
+                    source=SkillSource.MANUAL,
+                )
+                await storage.create_user_skill(skill_create, self._user_id)
+                logger.info(f"Created user skill '{skill_name}' with modified file '{file_name}'")
+
+            else:
+                # Skill 不存在，自动创建新的用户 skill
+                logger.info(f"Creating new user skill '{skill_name}'")
+                from src.kernel.schemas.skill import SkillCreate, SkillSource
+
+                # 尝试从 SKILL.md 解析名称和描述
+                name = skill_name
+                description = "Skill created by LLM"
+
+                if file_name == "SKILL.md":
+                    lines = content.split("\n")
+                    for line in lines:
+                        if line.startswith("# "):
+                            name = line[2:].strip()
+                            desc_lines = []
+                            for desc_line in lines[lines.index(line) + 1 :]:
+                                if desc_line.startswith("#") or desc_line.startswith("```"):
+                                    break
+                                if desc_line.strip():
+                                    desc_lines.append(desc_line.strip())
+                            if desc_lines:
+                                description = " ".join(desc_lines)[:200]
+                            break
+
+                skill_create = SkillCreate(
+                    name=name,
+                    description=description,
+                    content=content if file_name == "SKILL.md" else "",
+                    files={file_name: content},
+                    enabled=True,
+                    source=SkillSource.MANUAL,
+                )
+                await storage.create_user_skill(skill_create, self._user_id)
+                logger.info(f"Created user skill '{name}' with file '{file_name}'")
+
+            # 清除缓存
+            await storage._invalidate_user_skills_cache(self._user_id)
+
+            return WriteResult(path=file_path, files_update=None)
+
+        except Exception as e:
+            logger.error(f"Failed to write {file_path}: {e}", exc_info=True)
+            return WriteResult(error=str(e))
+
+    # ==========================================
+    # 编辑操作
+    # ==========================================
+
+    def edit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        """编辑 skill 文件（同步，内部调用异步）"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.aedit(file_path, old_string, new_string, replace_all))
+
+    async def aedit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        """
+        异步编辑 skill 文件
+
+        Args:
+            file_path: /skills/{skill_name}/{file_path}
+            old_string: 要替换的字符串
+            new_string: 新字符串
+            replace_all: 是否替换所有出现
+
+        Returns:
+            EditResult 表示操作结果
+        """
+        parsed = self._parse_skill_path(file_path)
+        if not parsed:
+            return EditResult(error=f"Invalid skills path: {file_path}")
+
+        skill_name, file_name = parsed
+        storage = self._get_storage()
+
+        try:
+            # 只能编辑用户 skill
+            user_skill = await storage.get_user_skill(skill_name, self._user_id)
+            if not user_skill:
+                return EditResult(
+                    error=f"User skill '{skill_name}' not found. Cannot edit system skill files."
+                )
+
+            files = await storage.get_skill_files(skill_name, user_id=self._user_id)
+            if file_name not in files:
+                return EditResult(error=f"File '{file_name}' not found in skill '{skill_name}'")
+
+            content = files[file_name]
+
+            # 检查 old_string 是否存在
+            if old_string not in content:
+                return EditResult(error=f"String not found in file: {old_string[:50]}...")
+
+            # 检查唯一性（如果不是 replace_all）
+            if not replace_all:
+                count = content.count(old_string)
+                if count > 1:
+                    return EditResult(
+                        error=f"Found {count} occurrences. Use replace_all=True or provide more context."
+                    )
+
+            # 执行替换
+            if replace_all:
+                new_content = content.replace(old_string, new_string)
+                occurrences = content.count(old_string)
+            else:
+                new_content = content.replace(old_string, new_string, 1)
+                occurrences = 1
+
+            # 更新文件
+            files[file_name] = new_content
+            await storage.sync_skill_files(skill_name, files, user_id=self._user_id)
+
+            # 清除缓存
+            await storage._invalidate_user_skills_cache(self._user_id)
+
+            logger.info(
+                f"Edited user skill '{skill_name}' file '{file_name}' ({occurrences} replacements)"
+            )
+            return EditResult(path=file_path, files_update=None, occurrences=occurrences)
+
+        except Exception as e:
+            logger.error(f"Failed to edit {file_path}: {e}")
+            return EditResult(error=str(e))
+
+    # ==========================================
+    # 列表操作
+    # ==========================================
+
+    def ls_info(self, path: str) -> list[FileInfo]:
+        """列出文件（同步，内部调用异步）"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.als_info(path))
+
+    async def als_info(self, path: str) -> list[FileInfo]:
+        """
+        异步列出 skills 或文件
+
+        Args:
+            path: /skills/ 或 /skills/{skill_name}/
+
+        Returns:
+            list[FileInfo] 包含文件/目录信息
+        """
+        storage = self._get_storage()
+
+        try:
+            # 列出所有 skills
+            if self._is_skills_root(path):
+                effective_skills = await storage.get_effective_skills(self._user_id)
+                skills = effective_skills.get("skills", {})
+
+                entries: list[FileInfo] = []
+                for skill_name in skills.keys():
+                    entries.append(
+                        FileInfo(
+                            path=f"/skills/{skill_name}/",
+                            is_dir=True,
+                        )
+                    )
+
+                return entries
+
+            # 列出某个 skill 下的文件
+            if self._is_skill_dir(path):
+                skill_name = self._get_skill_name_from_dir(path)
+                if not skill_name:
+                    return []
+
+                # 先尝试用户 skill
+                files = await storage.get_skill_files(skill_name, user_id=self._user_id)
+                if not files:
+                    # 再尝试系统 skill
+                    files = await storage.get_skill_files(skill_name, user_id=None)
+
+                if files is None:
+                    files = {}
+
+                skill_entries: list[FileInfo] = []
+                for file_name in files.keys():
+                    skill_entries.append(
+                        FileInfo(
+                            path=f"/skills/{skill_name}/{file_name}",
+                            is_dir=False,
+                            size=len(files[file_name]),
+                        )
+                    )
+
+                return skill_entries
+
+            return []
+
+        except Exception as e:
+            logger.error(f"Failed to list {path}: {e}")
+            return []
+
+    # ==========================================
+    # 批量操作
+    # ==========================================
+
+    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        """批量读取文件（同步）"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.adownload_files(paths))
+
+    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        """批量读取文件（异步）"""
+        results = []
+        for path in paths:
+            parsed = self._parse_skill_path(path)
+            if not parsed:
+                results.append(FileDownloadResponse(path=path, content=None, error="invalid_path"))
+                continue
+
+            skill_name, file_name = parsed
+            storage = self._get_storage()
+
+            try:
+                # 先尝试用户 skill
+                files = await storage.get_skill_files(skill_name, user_id=self._user_id)
+                if not files:
+                    # 再尝试系统 skill
+                    files = await storage.get_skill_files(skill_name, user_id=None)
+
+                if not files or file_name not in files:
+                    results.append(
+                        FileDownloadResponse(path=path, content=None, error="file_not_found")
+                    )
+                    continue
+
+                content = files[file_name]
+                content_bytes = content.encode("utf-8") if isinstance(content, str) else content
+                results.append(FileDownloadResponse(path=path, content=content_bytes, error=None))
+
+            except Exception:
+                # 使用 permission_denied 表示一般性错误
+                results.append(
+                    FileDownloadResponse(path=path, content=None, error="permission_denied")
+                )
+
+        return results
+
+    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        """批量写入文件（同步）"""
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        return loop.run_until_complete(self.aupload_files(files))
+
+    async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        """批量写入文件（异步）"""
+        results = []
+        for path, content in files:
+            content_str = content.decode("utf-8") if isinstance(content, bytes) else content
+            result = await self.awrite(path, content_str)
+            if result.error:
+                # 使用 permission_denied 表示一般性错误
+                results.append(FileUploadResponse(path=path, error="permission_denied"))
+            else:
+                results.append(FileUploadResponse(path=path, error=None))
+
+        return results
+
+    # ==========================================
+    # 搜索操作（grep）
+    # ==========================================
+
+    def grep_raw(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+    ) -> list[GrepMatch] | str:
+        """在 skill 文件中搜索文本模式"""
+        # Skills backend 不支持 grep，返回提示信息
+        return "grep is not supported for skills backend. Use read() to view file content."
+
+    async def agrep_raw(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+    ) -> list[GrepMatch] | str:
+        """异步版本"""
+        return self.grep_raw(pattern, path, glob)
+
+    # ==========================================
+    # Glob 操作
+    # ==========================================
+
+    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+        """使用 glob 模式查找文件"""
+        # 简化实现：只支持列出所有 skills
+        if path == "/skills/" or path == "/skills":
+            return self.ls_info("/skills/")
+        return []
+
+    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+        """异步版本"""
+        return self.glob_info(pattern, path)
+
+    # ==========================================
+    # 属性
+    # ==========================================
+
+    @property
+    def id(self) -> str:
+        """Backend ID"""
+        return f"skills-{self._user_id}"
+
+    def close(self) -> None:
+        """关闭连接"""
+        if self._storage:
+            try:
+                # SkillStorage 有 close 方法
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(self._storage.close())
+            except Exception:
+                pass
+
+
+def create_skills_backend(user_id: str, runtime: Any = None) -> SkillsStoreBackend:
+    """
+    创建 Skills Store Backend
+
+    Args:
+        user_id: 用户 ID
+        runtime: ToolRuntime 实例（可选）
+
+    Returns:
+        SkillsStoreBackend 实例
+    """
+    return SkillsStoreBackend(user_id=user_id, runtime=runtime)

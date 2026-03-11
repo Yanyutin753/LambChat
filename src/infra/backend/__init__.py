@@ -11,6 +11,7 @@ from .deepagent import (
     create_postgres_backend_factory,
     create_sandbox_backend_factory,
 )
+from .skills_store import SkillsStoreBackend, create_skills_backend
 
 __all__ = [
     # Context
@@ -22,4 +23,7 @@ __all__ = [
     "create_memory_backend_factory",
     "create_postgres_backend_factory",
     "create_sandbox_backend_factory",
+    # Skills Store Backend
+    "SkillsStoreBackend",
+    "create_skills_backend",
 ]

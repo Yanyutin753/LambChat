@@ -350,16 +350,19 @@ async def _create_backend_and_prompt(
         # 不使用长期存储，使用内存 store
         store = None
 
+    # 获取 user_id 用于 skills 读写
+    user_id = context.user_id or "default"
+
     if not settings.ENABLE_SANDBOX:
         # 非沙箱模式
         if settings.ENABLE_LONG_TERM_STORAGE:
             logger.info(
                 f"Sandbox disabled, using CompositeBackend with PostgresStore for assistant: {assistant_id}"
             )
-            backend_factory = create_postgres_backend_factory(assistant_id)
+            backend_factory = create_postgres_backend_factory(assistant_id, user_id=user_id)
         else:
             logger.info(f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}")
-            backend_factory = create_memory_backend_factory(assistant_id)
+            backend_factory = create_memory_backend_factory(assistant_id, user_id=user_id)
         return (
             backend_factory,
             DEFAULT_SYSTEM_PROMPT.replace("{skills}", skills_prompt),
@@ -397,7 +400,7 @@ async def _create_backend_and_prompt(
             "{skills}", skills_prompt
         )
         return (
-            create_sandbox_backend_factory(sandbox_backend, assistant_id),
+            create_sandbox_backend_factory(sandbox_backend, assistant_id, user_id=user_id),
             system_prompt,
             store,
         )
