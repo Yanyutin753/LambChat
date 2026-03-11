@@ -15,6 +15,7 @@ from src.infra.tool.mcp_client import MCPClientManager
 
 # Reveal File 工具 - 向用户展示文件
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
+from src.infra.tool.reveal_project_tool import get_reveal_project_tool
 from src.kernel.config import settings
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,10 @@ class AgentContext:
         reveal_file_tool = get_reveal_file_tool()
         self.tools.append(reveal_file_tool)
         logger.info("[AgentContext] Added reveal_file tool")
+
+        reveal_project_tool = get_reveal_project_tool()
+        self.tools.append(reveal_project_tool)
+        logger.info("[AgentContext] Added reveal_project tool")
 
         add_skill_tool = get_add_skill_tool()
         self.tools.append(add_skill_tool)

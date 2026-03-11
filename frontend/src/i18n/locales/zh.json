@@ -213,6 +213,22 @@
     "showing": "显示第 {{start}}-{{end}} 条",
     "skip": "跳过"
   },
+  "project": {
+    "untitled": "未命名项目",
+    "fileCount": "{{count}} 个文件",
+    "preview": "预览",
+    "code": "代码",
+    "reset": "重置",
+    "resetFiles": "重置文件",
+    "toggleExplorer": "切换文件浏览器",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏",
+    "expand": "展开",
+    "loading": "加载项目中...",
+    "error": "项目加载失败",
+    "empty": "空项目",
+    "noFiles": "没有找到可预览的文件"
+  },
   "documents": {
     "ascending": "升序",
     "binary": "二进制文件",

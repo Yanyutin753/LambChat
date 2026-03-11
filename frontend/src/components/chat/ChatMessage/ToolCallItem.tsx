@@ -1,12 +1,14 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { clsx } from "clsx";
-import { Wrench, ExternalLink } from "lucide-react";
+import { Wrench, ExternalLink, Code2, FolderTree } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CollapsiblePill, ImageViewer } from "../../common";
 import type { CollapsibleStatus } from "../../common";
 import DocumentPreview from "../../documents/DocumentPreview";
 import { getFileTypeInfo } from "../../documents/utils";
 import { getFullUrl } from "../../../services/api";
+import ProjectPreview from "../../documents/previews/ProjectPreview";
 
 // Collapsible Tool Call Item (compact design)
 export function ToolCallItem({
@@ -298,6 +300,193 @@ export function FileRevealItem({
           </div>
         )}
       </button>
+    </div>
+  );
+}
+
+// Project Reveal Item - for showing reveal_project tool results
+interface ProjectRevealResult {
+  type: "project_reveal";
+  name: string;
+  description?: string;
+  template: "react" | "vue" | "vanilla" | "static";
+  files: Record<string, string>;
+  entry?: string;
+  path?: string;
+  file_count?: number;
+  error?: string;
+  message?: string;
+}
+
+export function ProjectRevealItem({
+  args,
+  result,
+  success,
+  isPending,
+}: {
+  args: Record<string, unknown>;
+  result?: string;
+  success?: boolean;
+  isPending?: boolean;
+}) {
+  const { t } = useTranslation();
+  const [showFullPreview, setShowFullPreview] = useState(false);
+
+  // Parse result
+  let projectName = "";
+  let template: "react" | "vue" | "vanilla" | "static" = "vanilla";
+  let files: Record<string, string> = {};
+  let entry: string | undefined;
+  let fileCount = 0;
+  let error = "";
+
+  if (result) {
+    try {
+      const parsed: ProjectRevealResult = JSON.parse(result);
+
+      if (parsed.error) {
+        error = parsed.message || parsed.error;
+      } else {
+        projectName = parsed.name || "";
+        template = parsed.template || "vanilla";
+        files = parsed.files || {};
+        entry = parsed.entry;
+        fileCount = parsed.file_count || Object.keys(files).length;
+      }
+    } catch {
+      error = "Failed to parse project data";
+    }
+  } else {
+    projectName = (args.name as string) || "";
+  }
+
+  // Pending state
+  if (isPending) {
+    return (
+      <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900">
+        <div className="p-2.5 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500">
+          <LoadingSpinner size="sm" className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
+            {projectName || t("project.loading", "加载项目中...")}
+          </div>
+          <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+            {(args.project_path as string) || ""}
+          </div>
+        </div>
+        <div className="text-xs text-amber-600 dark:text-amber-400">
+          {t("chat.message.running")}
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+        <div className="p-2.5 rounded-lg bg-red-100 dark:bg-red-900/30">
+          <Code2 size={20} className="text-red-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-red-700 dark:text-red-300 truncate">
+            {projectName || t("project.error", "项目加载失败")}
+          </div>
+          <div className="text-xs text-red-500 dark:text-red-400 truncate mt-0.5">
+            {error}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty files
+  if (Object.keys(files).length === 0) {
+    return (
+      <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+        <div className="p-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+          <FolderTree size={20} className="text-amber-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-amber-700 dark:text-amber-300 truncate">
+            {projectName || t("project.empty", "空项目")}
+          </div>
+          <div className="text-xs text-amber-500 dark:text-amber-400 truncate mt-0.5">
+            {t("project.noFiles", "没有找到可预览的文件")}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="my-2 sm:my-3">
+      {/* Full screen preview modal */}
+      {showFullPreview && (
+        createPortal(
+          <div
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4"
+            onClick={() => setShowFullPreview(false)}
+          >
+            <div
+              className="w-full max-w-6xl h-[90vh] bg-white dark:bg-stone-900 rounded-2xl overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ProjectPreview
+                name={projectName}
+                template={template}
+                files={files}
+                entry={entry}
+                onClose={() => setShowFullPreview(false)}
+              />
+            </div>
+          </div>,
+          document.body
+        )
+      )}
+
+      {/* Compact preview card */}
+      <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 text-white">
+              <Code2 size={16} />
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                {projectName || t("project.untitled", "未命名项目")}
+              </h4>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                {t("project.fileCount", "{{count}} 个文件", { count: fileCount })}
+                {template !== "static" && ` · ${template}`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowFullPreview(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium transition-colors"
+          >
+            <ExternalLink size={14} />
+            <span>{t("project.expand", "展开")}</span>
+          </button>
+        </div>
+
+        {/* Preview area - inline Sandpack */}
+        <div className="h-[300px] bg-stone-900">
+          {success && Object.keys(files).length > 0 && (
+            <ProjectPreview
+              name={projectName}
+              template={template}
+              files={files}
+              entry={entry}
+              showHeader={false}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

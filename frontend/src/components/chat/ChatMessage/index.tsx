@@ -11,7 +11,7 @@ import type {
 } from "../../../types";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
-import { ToolCallItem, FileRevealItem } from "./ToolCallItem";
+import { ToolCallItem, FileRevealItem, ProjectRevealItem } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { FeedbackButtons } from "./FeedbackButtons";
@@ -364,6 +364,17 @@ function MessagePartRenderer({
     if (part.name === "reveal_file") {
       return (
         <FileRevealItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+        />
+      );
+    }
+    // Detect reveal_project tool, use dedicated component
+    if (part.name === "reveal_project") {
+      return (
+        <ProjectRevealItem
           args={part.args}
           result={part.result}
           success={part.success}

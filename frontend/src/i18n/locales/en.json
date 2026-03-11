@@ -213,6 +213,22 @@
     "showing": "Showing {{start}}-{{end}}",
     "skip": "Skip"
   },
+  "project": {
+    "untitled": "Untitled Project",
+    "fileCount": "{{count}} files",
+    "preview": "Preview",
+    "code": "Code",
+    "reset": "Reset",
+    "resetFiles": "Reset files",
+    "toggleExplorer": "Toggle file explorer",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
+    "expand": "Expand",
+    "loading": "Loading project...",
+    "error": "Failed to load project",
+    "empty": "Empty project",
+    "noFiles": "No files to preview"
+  },
   "documents": {
     "ascending": "Ascending",
     "binary": "Binary file",
