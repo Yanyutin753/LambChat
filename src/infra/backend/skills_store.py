@@ -35,8 +35,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# 路径格式：/skills/{skill_name}/{file_path}
-SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
+# 路径格式：
+# - 直接调用: /skills/{skill_name}/{file_path}
+# - 通过 CompositeBackend: {skill_name}/{file_path}（前缀已被去掉）
+SKILLS_PATH_PATTERN = re.compile(r"^(?:/skills/)?([^/]+)/(.+)$")
 SKILLS_ROOT_PATTERN = re.compile(r"^/skills/?$")
 SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
 
@@ -160,19 +162,42 @@ class SkillsStoreBackend(BackendProtocol):
         return None
 
     def _is_skills_root(self, path: str) -> bool:
-        """检查是否是 skills 根路径"""
+        """检查是否是 skills 根路径（支持有/无前缀）"""
+        # 支持空字符串、"/"、"/skills"、"/skills/"
+        if path in ("", "/"):
+            return True
         return bool(SKILLS_ROOT_PATTERN.match(path))
 
     def _is_skill_dir(self, path: str) -> bool:
-        """检查是否是某个 skill 的目录"""
-        return bool(SKILLS_DIR_PATTERN.match(path))
+        """检查是否是某个 skill 的目录（支持有/无前缀）"""
+        # 支持格式: "skill-name/" 或 "/skills/skill-name/"
+        if not path:
+            return False
+        # 去掉可能的 /skills/ 前缀
+        stripped = path
+        if path.startswith("/skills/"):
+            stripped = path[8:]  # 去掉 "/skills/"
+        elif path.startswith("skills/"):
+            stripped = path[7:]  # 去掉 "skills/"
+        # 检查是否是 skill 目录格式: "skill-name/"
+        return stripped.endswith("/") and "/" not in stripped.rstrip("/")
 
     def _get_skill_name_from_dir(self, path: str) -> Optional[str]:
-        """从目录路径获取 skill 名称"""
-        match = SKILLS_DIR_PATTERN.match(path)
-        if match:
-            return match.group(1)
-        return None
+        """从目录路径获取 skill 名称（支持有/无前缀）"""
+        if not path:
+            return None
+        # 去掉可能的 /skills/ 前缀
+        stripped = path
+        if path.startswith("/skills/"):
+            stripped = path[8:]
+        elif path.startswith("skills/"):
+            stripped = path[7:]
+        # 去掉末尾的 /
+        stripped = stripped.rstrip("/")
+        # 检查是否只有一个部分（skill 名称）
+        if "/" in stripped:
+            return None
+        return stripped if stripped else None
 
     def _format_content_with_line_numbers(
         self, content: str, offset: int = 0, limit: int = 2000
