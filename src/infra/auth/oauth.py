@@ -5,10 +5,8 @@ OAuth 认证服务
 """
 
 import base64
-import hashlib
 import json
 import logging
-import secrets
 from typing import Any, Dict, Optional
 
 import httpx

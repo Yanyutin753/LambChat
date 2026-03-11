@@ -95,7 +95,7 @@ class CachedMCPEntry:
 
 def _get_cache_lock(user_id: str) -> asyncio.Lock:
     """获取指定用户的缓存锁（线程安全）
-    
+
     使用 setdefault 确保原子性，防止竞态条件。
     同时定期清理过期和超出限制的缓存条目。
     """
