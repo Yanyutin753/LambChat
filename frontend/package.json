@@ -12,6 +12,8 @@
     "find-large-files": "tsx scripts/find-large-files.ts"
   },
   "dependencies": {
+    "@codesandbox/sandpack-react": "^2.20.0",
+    "@codesandbox/sandpack-themes": "^2.0.21",
     "@excalidraw/excalidraw": "^0.18.0",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@types/dompurify": "^3.0.5",
