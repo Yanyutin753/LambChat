@@ -7,6 +7,7 @@ OAuth 认证服务
 import base64
 import json
 import logging
+import time
 from typing import Any, Dict, Optional
 
 import httpx
@@ -23,8 +24,21 @@ logger = logging.getLogger(__name__)
 # HTTP 请求超时设置（秒）
 HTTP_TIMEOUT = 10.0
 
-# State 存储（简单内存存储，生产环境应使用 Redis）
-_oauth_states: Dict[str, str] = {}  # state -> provider
+# State 过期时间（秒）
+STATE_EXPIRE_SECONDS = 600  # 10 minutes
+
+# State 存储（带过期时间的内存存储）
+_oauth_states: Dict[str, tuple[str, float]] = {}  # state -> (provider, expire_time)
+
+
+def _cleanup_expired_states() -> None:
+    """清理过期的 OAuth state"""
+    current_time = time.time()
+    expired_states = [
+        state for state, (_, expire_time) in _oauth_states.items() if current_time > expire_time
+    ]
+    for state in expired_states:
+        _oauth_states.pop(state, None)
 
 
 class OAuthUserInfo(BaseModel):
@@ -132,8 +146,11 @@ class OAuthService:
             logger.error(f"Failed to get OAuth client for {provider.value}")
             return None
 
-        # 存储 state 用于后续验证
-        _oauth_states[state] = provider.value
+        # 存储 state 用于后续验证（带过期时间）
+        _oauth_states[state] = (provider.value, time.time() + STATE_EXPIRE_SECONDS)
+
+        # 清理过期的 state（惰性清理）
+        _cleanup_expired_states()
 
         try:
             if provider == OAuthProvider.GOOGLE:
@@ -165,6 +182,7 @@ class OAuthService:
             logger.error(f"Failed to create authorization URL for {provider.value}: {e}")
             # 清理无效的 state
             _oauth_states.pop(state, None)
+            return None
 
         return None
 
@@ -184,9 +202,13 @@ class OAuthService:
             Token 或 None
         """
         # 验证 state 参数（CSRF 防护）
-        stored_provider = _oauth_states.pop(state, None)
-        if not stored_provider:
-            logger.error(f"OAuth state 验证失败: state={state} 不存在或已过期")
+        stored_data = _oauth_states.pop(state, None)
+        if not stored_data:
+            logger.error(f"OAuth state 验证失败: state={state} 不存在")
+            return None
+        stored_provider, expire_time = stored_data
+        if time.time() > expire_time:
+            logger.error(f"OAuth state 验证失败: state={state} 已过期")
             return None
         if stored_provider != provider.value:
             logger.error(

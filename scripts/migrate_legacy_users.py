@@ -14,6 +14,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from motor.motor_asyncio import AsyncIOMotorClient
+
 from src.kernel.config import settings
 
 
@@ -60,7 +61,7 @@ async def migrate_legacy_users():
     verified_users = await users_collection.count_documents({"email_verified": True})
     active_users = await users_collection.count_documents({"is_active": True})
 
-    print(f"\n验证结果:")
+    print("\n验证结果:")
     print(f"  总用户数: {total_users}")
     print(f"  email_verified=True: {verified_users}")
     print(f"  is_active=True: {active_users}")

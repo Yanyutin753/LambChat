@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { getAccessToken } from "../services/api";
+import { authFetch } from "../services/api/fetch";
 import type {
   SkillResponse,
   SkillsResponse,
@@ -20,36 +20,6 @@ export type SkillCategory = SkillSource;
 
 const API_BASE = "/api/skills";
 const ADMIN_API_BASE = "/api/admin/skills";
-
-async function authFetch<T>(
-  url: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const token = getAccessToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.detail || `Request failed: ${response.statusText}`,
-    );
-  }
-
-  const text = await response.text();
-  return text ? JSON.parse(text) : (null as T);
-}
 
 export function useSkills(options?: { enabled?: boolean }) {
   const enabled = options?.enabled === true; // Must be explicitly true to fetch

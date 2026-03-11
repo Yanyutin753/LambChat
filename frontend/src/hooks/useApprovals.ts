@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { PendingApproval } from "../types";
+import { authFetch } from "../services/api/fetch";
 
 const API_BASE = "";
 
@@ -14,9 +15,8 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
 
   const fetchApprovals = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/human/pending`);
-      if (response.ok) {
-        const data = await response.json();
+      const data = await authFetch<{ approvals?: PendingApproval[] }>(`${API_BASE}/human/pending`);
+      if (data) {
         const newApprovals = data.approvals || [];
         setApprovals(newApprovals);
         hasApprovalsRef.current = newApprovals.length > 0;
@@ -58,14 +58,14 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
           approved: String(approved),
           response: responseJson,
         });
-        const res = await fetch(
+        const res = await authFetch<{ success: boolean }>(
           `${API_BASE}/human/${approvalId}/respond?${params}`,
           {
             method: "POST",
           },
         );
 
-        if (res.ok) {
+        if (res) {
           setApprovals((prev) => prev.filter((a) => a.id !== approvalId));
           return true;
         }

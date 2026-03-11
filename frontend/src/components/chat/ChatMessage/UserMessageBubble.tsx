@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { clsx } from "clsx";
 import { Copy, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,11 +21,6 @@ export function UserMessageBubble({
   const [previewAttachment, setPreviewAttachment] =
     useState<MessageAttachment | null>(null);
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
-
-  // Debug log for attachments
-  useEffect(() => {
-    console.log("[UserMessageBubble] Rendering with attachments:", attachments);
-  }, [attachments]);
 
   const handleCopy = async () => {
     if (!content) return;

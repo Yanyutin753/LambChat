@@ -186,10 +186,6 @@ export function ChatMessage({
 
   // User message: bubble style, right aligned
   if (isUser) {
-    console.log("[ChatMessage] Rendering user message with attachments:", {
-      messageId: message.id,
-      attachments: message.attachments,
-    });
     return (
       <UserMessageBubble
         content={message.content}

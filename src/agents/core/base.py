@@ -321,7 +321,6 @@ class BaseGraphAgent(ABC):
                                 f"Task interrupted: run_id={presenter.run_id}"
                             )
                         continue
-                        continue
 
                     item_type, item_data = item
 
