@@ -33,7 +33,7 @@ class DecryptionError(Exception):
 def _get_fernet_legacy() -> Fernet:
     """
     获取旧版Fernet加密实例（向后兼容）
-    
+
     使用单次 SHA256 哈希派生密钥（PR #52 之前的方式）
     仅用于解密旧数据，不用于新加密。
     """
