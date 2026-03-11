@@ -402,8 +402,11 @@ async def _create_backend_and_prompt(
 
         # 发送沙箱就绪事件
         try:
+            # 获取 sandbox_id：CompositeBackend.default 可能是 SandboxBackendProtocol
+            # 需要安全地访问 id 属性
+            sandbox_id = getattr(sandbox_backend.default, "id", "unknown")
             await presenter.emit_sandbox_ready(
-                sandbox_id=sandbox_backend.id,
+                sandbox_id=sandbox_id,
                 work_dir=work_dir,
             )
         except Exception as e:

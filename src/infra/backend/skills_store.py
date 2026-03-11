@@ -13,6 +13,7 @@ Skills Store Backend
 """
 
 import asyncio
+import concurrent.futures
 import logging
 import re
 from typing import TYPE_CHECKING, Any, Optional
@@ -38,6 +39,25 @@ logger = logging.getLogger(__name__)
 SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
 SKILLS_ROOT_PATTERN = re.compile(r"^/skills/?$")
 SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
+
+
+def _run_async(coro):
+    """
+    在同步上下文中安全地运行异步协程。
+
+    如果当前有运行中的事件循环（如 FastAPI 环境），
+    使用 ThreadPoolExecutor 在新线程中运行。
+    否则直接使用 asyncio.run()。
+    """
+    try:
+        asyncio.get_running_loop()
+        # 已在异步上下文中，使用线程池运行
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    except RuntimeError:
+        # 没有运行中的事件循环，直接运行
+        return asyncio.run(coro)
 
 
 class SkillsStoreBackend(BackendProtocol):
@@ -142,13 +162,7 @@ class SkillsStoreBackend(BackendProtocol):
         limit: int = 2000,
     ) -> str:
         """读取 skill 文件内容（同步，内部调用异步）"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.aread(file_path, offset, limit))
+        return _run_async(self.aread(file_path, offset, limit))
 
     async def aread(
         self,
@@ -200,13 +214,7 @@ class SkillsStoreBackend(BackendProtocol):
 
     def write(self, file_path: str, content: str) -> WriteResult:
         """写入 skill 文件（同步，内部调用异步）"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.awrite(file_path, content))
+        return _run_async(self.awrite(file_path, content))
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
         """
@@ -313,13 +321,7 @@ class SkillsStoreBackend(BackendProtocol):
         replace_all: bool = False,
     ) -> EditResult:
         """编辑 skill 文件（同步，内部调用异步）"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.aedit(file_path, old_string, new_string, replace_all))
+        return _run_async(self.aedit(file_path, old_string, new_string, replace_all))
 
     async def aedit(
         self,
@@ -403,13 +405,7 @@ class SkillsStoreBackend(BackendProtocol):
 
     def ls_info(self, path: str) -> list[FileInfo]:
         """列出文件（同步，内部调用异步）"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.als_info(path))
+        return _run_async(self.als_info(path))
 
     async def als_info(self, path: str) -> list[FileInfo]:
         """
@@ -479,13 +475,7 @@ class SkillsStoreBackend(BackendProtocol):
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         """批量读取文件（同步）"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.adownload_files(paths))
+        return _run_async(self.adownload_files(paths))
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         """批量读取文件（异步）"""
@@ -526,13 +516,7 @@ class SkillsStoreBackend(BackendProtocol):
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         """批量写入文件（同步）"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.aupload_files(files))
+        return _run_async(self.aupload_files(files))
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         """批量写入文件（异步）"""
@@ -599,11 +583,7 @@ class SkillsStoreBackend(BackendProtocol):
         """关闭连接"""
         if self._storage:
             try:
-                # SkillStorage 有 close 方法
-                import asyncio
-
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(self._storage.close())
+                _run_async(self._storage.close())
             except Exception:
                 pass
 

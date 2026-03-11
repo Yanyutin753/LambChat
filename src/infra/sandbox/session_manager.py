@@ -11,7 +11,7 @@ Session-Sandbox 绑定管理器
 import asyncio
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from daytona import CreateSandboxFromSnapshotParams, Daytona, DaytonaConfig
 from deepagents.backends import CompositeBackend
@@ -21,9 +21,6 @@ from src.infra.backend.skills_store import create_skills_backend
 from src.infra.session.manager import SessionManager
 from src.kernel.config import settings
 from src.kernel.schemas.session import SessionUpdate
-
-if TYPE_CHECKING:
-    from deepagents.backends.protocol import SandboxBackendProtocol
 
 logger = logging.getLogger(__name__)
 
