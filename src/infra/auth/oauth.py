@@ -7,6 +7,7 @@ OAuth 认证服务
 import base64
 import json
 import logging
+import time
 from typing import Any, Dict, Optional
 
 import httpx
@@ -28,6 +29,18 @@ STATE_EXPIRE_SECONDS = 600  # 10 minutes
 
 # State 存储（带过期时间的内存存储）
 _oauth_states: Dict[str, tuple[str, float]] = {}  # state -> (provider, expire_time)
+
+
+def _cleanup_expired_states() -> None:
+    """清理过期的 OAuth state"""
+    current_time = time.time()
+    expired_states = [
+        state
+        for state, (_, expire_time) in _oauth_states.items()
+        if current_time > expire_time
+    ]
+    for state in expired_states:
+        _oauth_states.pop(state, None)
 
 
 class OAuthUserInfo(BaseModel):
@@ -136,7 +149,6 @@ class OAuthService:
             return None
 
         # 存储 state 用于后续验证（带过期时间）
-        import time
         _oauth_states[state] = (provider.value, time.time() + STATE_EXPIRE_SECONDS)
 
         # 清理过期的 state（惰性清理）
@@ -176,18 +188,6 @@ class OAuthService:
 
         return None
 
-
-def _cleanup_expired_states() -> None:
-    """清理过期的 OAuth state"""
-    import time
-    current_time = time.time()
-    expired_states = [
-        state for state, (_, expire_time) in _oauth_states.items()
-        if current_time > expire_time
-    ]
-    for state in expired_states:
-        _oauth_states.pop(state, None)
-
     async def handle_callback(
         self, provider: OAuthProvider, code: str, state: str, redirect_uri: str
     ) -> Optional[Token]:
@@ -204,7 +204,6 @@ def _cleanup_expired_states() -> None:
             Token 或 None
         """
         # 验证 state 参数（CSRF 防护）
-        import time
         stored_data = _oauth_states.pop(state, None)
         if not stored_data:
             logger.error(f"OAuth state 验证失败: state={state} 不存在")
