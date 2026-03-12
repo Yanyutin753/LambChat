@@ -7,7 +7,7 @@ Skills Store Backend
 
 特性：
 - 读取：从 MongoDB 获取 skill 文件的 content
-- 写入：更新 MongoDB 中 skill 的 files 字段，自动通知前端刷新
+- 写入：更新 MongoDB 中 skill 的 files 字段
 - 编辑：在 skill 文件中进行字符串替换
 - 列表：列出所有 skills 或某个 skill 下的文件
 """

@@ -363,13 +363,14 @@ class BaseGraphAgent(ABC):
                         # 检测 /skills/ 路径写入，自动发送 skills:changed 事件
                         if name in ["write_file", "edit_file"] and isinstance(inp, dict):
                             file_path = inp.get("file_path", "")
-                            if str(file_path).startswith("/skills/"):
+                            # 支持带或不带前导斜杠的路径
+                            normalized = str(file_path).lstrip("/")
+                            if normalized.startswith("skills/"):
                                 logger.info(f"[Agent] Skills path modified: {file_path}")
+                                parts = normalized.split("/")
                                 yield presenter.present_skills_changed(
                                     action="updated",
-                                    skill_name=file_path.split("/")[2]
-                                    if len(file_path.split("/")) > 2
-                                    else None,
+                                    skill_name=parts[1] if len(parts) > 1 else None,
                                 )
 
                     # 链结束 - 可能包含节点返回的事件
