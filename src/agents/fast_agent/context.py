@@ -6,9 +6,9 @@ Fast Agent 上下文管理 - 无沙箱，支持工具和 Skills
 
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
-from src.infra.skill import load_skill_files
+from src.infra.skill.storage import SkillStorage
 from src.infra.tool.add_skill_tool import get_add_skill_tool
 from src.infra.tool.human_tool import get_human_tool
 from src.infra.tool.mcp_client import MCPClientManager
@@ -43,7 +43,6 @@ class FastAgentContext:
         self.mcp_manager: Optional[MCPClientManager] = None
         self.tools: List[Any] = []
         self.skills: List[dict] = []
-        self.skill_files: Dict[str, Any] = {}
 
     def filter_tools(self) -> List[Any]:
         """根据 disabled_tools 过滤工具"""
@@ -132,15 +131,23 @@ class FastAgentContext:
         else:
             logger.warning("[FastAgentContext] MCP is disabled (ENABLE_MCP=False)")
 
-        # 加载技能
-        if settings.ENABLE_SKILLS:
+        # 加载技能（使用与 Search Agent 相同的方式，保持一致）
+        if settings.ENABLE_SKILLS and self.user_id:
             try:
-                skill_result = await load_skill_files(self.user_id)
-                self.skill_files = skill_result["files"]
-                self.skills = skill_result["skills"]
+                storage = SkillStorage()
+                effective_skills = await storage.get_effective_skills(self.user_id)
+                skills_data = effective_skills.get("skills", {})
+                for skill_name, skill_data in skills_data.items():
+                    skill_dict = (
+                        skill_data.model_dump()
+                        if hasattr(skill_data, "model_dump")
+                        else (dict(skill_data) if not isinstance(skill_data, dict) else skill_data)
+                    )
+                    skill_dict["is_system"] = skill_dict.get("is_system", True)
+                    if skill_dict.get("enabled", True):
+                        self.skills.append(skill_dict)
                 logger.info(
-                    f"[FastAgentContext] Loaded {len(self.skills)} skills, "
-                    f"{len(self.skill_files)} skill files"
+                    f"[FastAgentContext] Loaded {len(self.skills)} skills for user: {self.user_id}"
                 )
             except Exception as e:
                 logger.warning(f"[FastAgentContext] Failed to load skills: {e}")
