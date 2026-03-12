@@ -396,6 +396,19 @@ class SkillsStoreBackend(BackendProtocol):
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
 
+            # 发送 skills 变更事件
+            if self._runtime:
+                from src.infra.tool.backend_utils import get_backend_from_runtime
+
+                presenter = self._runtime.config.get("configurable", {}).get("presenter") if hasattr(self._runtime, "config") else None
+                if presenter:
+                    # 判断是创建还是更新
+                    action = "created" if (not user_skill and not system_skill) else "updated"
+                    await presenter.emit_skills_changed(
+                        action=action,
+                        skill_name=skill_name,
+                        files_count=1,
+                    )
             return WriteResult(path=file_path, files_update=None)
 
         except Exception as e:
@@ -485,6 +498,16 @@ class SkillsStoreBackend(BackendProtocol):
 
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
+
+            # 发送 skills 变更事件
+            if self._runtime:
+                presenter = self._runtime.config.get("configurable", {}).get("presenter") if hasattr(self._runtime, "config") else None
+                if presenter:
+                    await presenter.emit_skills_changed(
+                        action="updated",
+                        skill_name=skill_name,
+                        files_count=1,
+                    )
 
             logger.info(
                 f"Edited user skill '{skill_name}' file '{file_name}' ({occurrences} replacements)"
