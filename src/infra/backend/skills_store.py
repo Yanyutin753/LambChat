@@ -519,6 +519,7 @@ class SkillsStoreBackend(BackendProtocol):
 
         try:
             # 列出所有 skills
+            # 注意：返回的路径不应包含 /skills/ 前缀，因为 CompositeBackend 会自动添加
             if self._is_skills_root(path):
                 effective_skills = await storage.get_effective_skills(self._user_id)
                 skills = effective_skills.get("skills", {})
@@ -527,7 +528,7 @@ class SkillsStoreBackend(BackendProtocol):
                 for skill_name in skills.keys():
                     entries.append(
                         FileInfo(
-                            path=f"/skills/{skill_name}/",
+                            path=f"/{skill_name}/",
                             is_dir=True,
                         )
                     )
@@ -535,6 +536,7 @@ class SkillsStoreBackend(BackendProtocol):
                 return entries
 
             # 列出某个 skill 下的文件
+            # 注意：返回的路径不应包含 /skills/ 前缀，因为 CompositeBackend 会自动添加
             if self._is_skill_dir(path):
                 skill_name = self._get_skill_name_from_dir(path)
                 if not skill_name:
@@ -553,7 +555,7 @@ class SkillsStoreBackend(BackendProtocol):
                 for file_name in files.keys():
                     skill_entries.append(
                         FileInfo(
-                            path=f"/skills/{skill_name}/{file_name}",
+                            path=f"/{skill_name}/{file_name}",
                             is_dir=False,
                             size=len(files[file_name]),
                         )
@@ -579,7 +581,9 @@ class SkillsStoreBackend(BackendProtocol):
         """批量读取文件（异步）"""
         results = []
         for path in paths:
-            parsed = self._parse_skill_path(path)
+            # 标准化路径，确保有 /skills/ 前缀
+            normalized_path = self._normalize_path(path)
+            parsed = self._parse_skill_path(normalized_path)
             if not parsed:
                 results.append(FileDownloadResponse(path=path, content=None, error="invalid_path"))
                 continue
@@ -659,9 +663,9 @@ class SkillsStoreBackend(BackendProtocol):
 
     def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
         """使用 glob 模式查找文件"""
-        # 简化实现：只支持列出所有 skills
-        if path == "/skills/" or path == "/skills":
-            return self.ls_info("/skills/")
+        # 标准化路径并检查是否是 skills 根路径
+        if self._is_skills_root(path):
+            return self.ls_info("/")
         return []
 
     async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
