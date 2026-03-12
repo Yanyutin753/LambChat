@@ -41,8 +41,9 @@ class UserManager:
             # 检查是否已有用户
             existing_users = await self.storage.list_users(limit=1)
             if not existing_users:
-                # 第一个用户设为管理员
+                # 第一个用户设为管理员，并跳过邮箱验证
                 user_data.roles = ["admin"]
+                user_data.skip_verification = True
             else:
                 # 从设置中读取默认角色
                 default_role = await self.settings_service.get("DEFAULT_USER_ROLE")
