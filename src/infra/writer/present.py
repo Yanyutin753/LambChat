@@ -726,6 +726,7 @@ class Presenter:
         self,
         action: str = "updated",
         skill_name: Optional[str] = None,
+        files_count: int = 0,
     ) -> Dict[str, Any]:
         """输出 Skills 变更通知
 
@@ -734,9 +735,11 @@ class Presenter:
         Args:
             action: 变更类型 ("created", "updated", "deleted")
             skill_name: 变更的 skill 名称（可选）
+            files_count: 变更涉及的文件数量
         """
         data: Dict[str, Any] = {
             "action": action,
+            "files_count": files_count,
             "timestamp": _get_timestamp(),
         }
         if skill_name:

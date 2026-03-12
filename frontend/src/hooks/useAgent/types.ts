@@ -90,6 +90,7 @@ export interface EventData {
   // skills:changed event fields
   action?: string;
   skill_name?: string;
+  files_count?: number;
 }
 
 export interface UseAgentOptions {

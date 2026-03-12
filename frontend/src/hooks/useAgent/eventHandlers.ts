@@ -760,7 +760,7 @@ function handleSkillsChanged(
     ctx.options.onSkillAdded(
       (data.skill_name as string) || "",
       `Skill ${data.action || "updated"}`,
-      0,
+      (data.files_count as number) || 0,
     );
   }
 }
