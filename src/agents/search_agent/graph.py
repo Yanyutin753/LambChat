@@ -23,7 +23,7 @@ from typing import Any, AsyncGenerator, Dict
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import BaseGraphAgent, GraphBuilder, register_agent
-from src.agents.search_agent.context import AgentContext
+from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.nodes import agent_node
 from src.agents.search_agent.state import SearchAgentState
 
@@ -138,9 +138,9 @@ class SearchAgent(BaseGraphAgent):
                 )
             )
 
-        # 创建并初始化 AgentContext
+        # 创建并初始化 SearchAgentContext
         disabled_tools = kwargs.get("disabled_tools")
-        context = AgentContext(
+        context = SearchAgentContext(
             session_id=session_id,
             agent_id=self.agent_id,
             user_id=user_id,
