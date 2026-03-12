@@ -16,7 +16,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
-from src.agents.search_agent.context import AgentContext
+from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.backend import (
@@ -198,7 +198,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     presenter = get_presenter(config)
     configurable = config.get("configurable", {})
-    context: AgentContext = configurable.get("context", AgentContext())
+    context: SearchAgentContext = configurable.get("context", SearchAgentContext())
 
     # 获取 agent_options
     agent_options = configurable.get("agent_options") or {}
@@ -222,38 +222,14 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
 
-    # 获取技能列表（用于构建 skills prompt，不需要预加载文件）
-    # SkillsStoreBackend 现在可以直接读写 MongoDB
-    skills_list: list[dict] = []
-    if settings.ENABLE_SKILLS and context.user_id:
-        try:
-            storage = SkillStorage()
-            effective_skills = await storage.get_effective_skills(context.user_id)
-            skills_data = effective_skills.get("skills", {})
-            for skill_name, skill_data in skills_data.items():
-                skill_dict = (
-                    skill_data.model_dump()
-                    if hasattr(skill_data, "model_dump")
-                    else (dict(skill_data) if not isinstance(skill_data, dict) else skill_data)
-                )
-                skill_dict["is_system"] = skill_dict.get("is_system", True)
-                if skill_dict.get("enabled", True):
-                    skills_list.append(skill_dict)
-            logger.info(f"Loaded {len(skills_list)} skills for user: {tenant_id}")
-        except Exception as e:
-            logger.warning(f"Failed to load skills list: {e}")
-
     # 创建 Backend 工厂和获取系统提示
     backend_factory, system_prompt, store = await _create_backend_and_prompt(
         state=state,
         context=context,
         presenter=presenter,
         assistant_id=assistant_id,
-        skills=skills_list,
+        skills=context.skills,
     )
-
-    # 设置系统提示
-    context.system_prompt = system_prompt
 
     # 过滤工具
     filtered_tools = None
@@ -269,7 +245,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     inner_graph = create_deep_agent(
         model=llm,
-        system_prompt=context.system_prompt,
+        system_prompt=system_prompt,
         backend=backend_factory,
         tools=filtered_tools if filtered_tools else None,
         checkpointer=inner_checkpointer,
@@ -284,7 +260,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "context": context,  # 传递 context 以便工具访问 user_id
             "base_url": configurable.get("base_url", ""),  # 传递 base_url 给工具使用
         },
-        "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
+        "recursion_limit": config.get(
+            "recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION
+        ),
     }
 
     # 从内层 graph 的 checkpoint 获取历史消息
@@ -319,7 +297,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     new_messages = inner_state.values.get("messages", [])
 
-    final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
+    final_messages = (
+        new_messages if len(new_messages) > len(all_messages) else all_messages
+    )
 
     return {
         "output": event_processor.output_text,
@@ -329,7 +309,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
 async def _create_backend_and_prompt(
     state: Dict[str, Any],
-    context: AgentContext,
+    context: SearchAgentContext,
     presenter: Presenter,
     assistant_id: str,
     skills: list[dict],
@@ -375,10 +355,16 @@ async def _create_backend_and_prompt(
             logger.info(
                 f"Sandbox disabled, using CompositeBackend with PostgresStore for assistant: {assistant_id}"
             )
-            backend_factory = create_postgres_backend_factory(assistant_id, user_id=user_id)
+            backend_factory = create_postgres_backend_factory(
+                assistant_id, user_id=user_id
+            )
         else:
-            logger.info(f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}")
-            backend_factory = create_memory_backend_factory(assistant_id, user_id=user_id)
+            logger.info(
+                f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}"
+            )
+            backend_factory = create_memory_backend_factory(
+                assistant_id, user_id=user_id
+            )
         return (
             backend_factory,
             DEFAULT_SYSTEM_PROMPT.replace("{skills}", skills_prompt),
@@ -412,14 +398,18 @@ async def _create_backend_and_prompt(
         except Exception as e:
             logger.warning(f"Failed to emit sandbox:ready event: {e}")
 
-        logger.info(f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}")
+        logger.info(
+            f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}"
+        )
 
         # 格式化沙箱提示词，注入 work_dir 和 skills
         system_prompt = SANDBOX_SYSTEM_PROMPT.replace("{work_dir}", work_dir).replace(
             "{skills}", skills_prompt
         )
         return (
-            create_sandbox_backend_factory(sandbox_backend, assistant_id, user_id=user_id),
+            create_sandbox_backend_factory(
+                sandbox_backend, assistant_id, user_id=user_id
+            ),
             system_prompt,
             store,
         )
