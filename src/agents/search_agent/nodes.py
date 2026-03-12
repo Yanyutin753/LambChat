@@ -26,7 +26,8 @@ from src.infra.backend import (
 from src.infra.backend.deepagent import create_memory_backend_factory
 from src.infra.llm.client import LLMClient
 from src.infra.sandbox import SessionSandboxManager
-from src.infra.skill.loader import build_skills_prompt, load_skill_files
+from src.infra.skill.loader import build_skills_prompt
+from src.infra.skill.storage import SkillStorage
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.postgres import create_postgres_store
 from src.infra.writer.present import Presenter
@@ -221,12 +222,23 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
 
-    # 获取技能列表（使用与 Fast Agent 相同的 load_skill_files 方法，保持一致）
+    # 获取技能列表（用于构建 skills prompt，不需要预加载文件）
+    # SkillsStoreBackend 现在可以直接读写 MongoDB
     skills_list: list[dict] = []
     if settings.ENABLE_SKILLS and context.user_id:
         try:
-            skill_result = await load_skill_files(context.user_id)
-            skills_list = skill_result.get("skills", [])
+            storage = SkillStorage()
+            effective_skills = await storage.get_effective_skills(context.user_id)
+            skills_data = effective_skills.get("skills", {})
+            for skill_name, skill_data in skills_data.items():
+                skill_dict = (
+                    skill_data.model_dump()
+                    if hasattr(skill_data, "model_dump")
+                    else (dict(skill_data) if not isinstance(skill_data, dict) else skill_data)
+                )
+                skill_dict["is_system"] = skill_dict.get("is_system", True)
+                if skill_dict.get("enabled", True):
+                    skills_list.append(skill_dict)
             logger.info(f"Loaded {len(skills_list)} skills for user: {tenant_id}")
         except Exception as e:
             logger.warning(f"Failed to load skills list: {e}")
