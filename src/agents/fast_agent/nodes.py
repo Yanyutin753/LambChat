@@ -149,9 +149,7 @@ async def _run_with_retry(
 # ============================================================================
 
 
-async def fast_agent_node(
-    state: Dict[str, Any], config: RunnableConfig
-) -> Dict[str, Any]:
+async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str, Any]:
     """
     Fast Agent 主节点 - 无沙箱，快速响应
 
@@ -230,9 +228,7 @@ async def fast_agent_node(
             "context": context,
             "base_url": configurable.get("base_url", ""),
         },
-        "recursion_limit": config.get(
-            "recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION
-        ),
+        "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
 
     # 从内层 graph 的 checkpoint 获取历史消息
@@ -268,9 +264,7 @@ async def fast_agent_node(
     inner_state = await inner_graph.aget_state(inner_config)
     new_messages = inner_state.values.get("messages", [])
 
-    final_messages = (
-        new_messages if len(new_messages) > len(all_messages) else all_messages
-    )
+    final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
 
     return {
         "output": event_processor.output_text,

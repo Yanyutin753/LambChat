@@ -27,7 +27,6 @@ from src.infra.backend.deepagent import create_memory_backend_factory
 from src.infra.llm.client import LLMClient
 from src.infra.sandbox import SessionSandboxManager
 from src.infra.skill.loader import build_skills_prompt
-from src.infra.skill.storage import SkillStorage
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.postgres import create_postgres_store
 from src.infra.writer.present import Presenter
@@ -260,9 +259,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "context": context,  # 传递 context 以便工具访问 user_id
             "base_url": configurable.get("base_url", ""),  # 传递 base_url 给工具使用
         },
-        "recursion_limit": config.get(
-            "recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION
-        ),
+        "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
 
     # 从内层 graph 的 checkpoint 获取历史消息
@@ -297,9 +294,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     new_messages = inner_state.values.get("messages", [])
 
-    final_messages = (
-        new_messages if len(new_messages) > len(all_messages) else all_messages
-    )
+    final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
 
     return {
         "output": event_processor.output_text,
@@ -355,16 +350,10 @@ async def _create_backend_and_prompt(
             logger.info(
                 f"Sandbox disabled, using CompositeBackend with PostgresStore for assistant: {assistant_id}"
             )
-            backend_factory = create_postgres_backend_factory(
-                assistant_id, user_id=user_id
-            )
+            backend_factory = create_postgres_backend_factory(assistant_id, user_id=user_id)
         else:
-            logger.info(
-                f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}"
-            )
-            backend_factory = create_memory_backend_factory(
-                assistant_id, user_id=user_id
-            )
+            logger.info(f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}")
+            backend_factory = create_memory_backend_factory(assistant_id, user_id=user_id)
         return (
             backend_factory,
             DEFAULT_SYSTEM_PROMPT.replace("{skills}", skills_prompt),
@@ -398,18 +387,14 @@ async def _create_backend_and_prompt(
         except Exception as e:
             logger.warning(f"Failed to emit sandbox:ready event: {e}")
 
-        logger.info(
-            f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}"
-        )
+        logger.info(f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}")
 
         # 格式化沙箱提示词，注入 work_dir 和 skills
         system_prompt = SANDBOX_SYSTEM_PROMPT.replace("{work_dir}", work_dir).replace(
             "{skills}", skills_prompt
         )
         return (
-            create_sandbox_backend_factory(
-                sandbox_backend, assistant_id, user_id=user_id
-            ),
+            create_sandbox_backend_factory(sandbox_backend, assistant_id, user_id=user_id),
             system_prompt,
             store,
         )

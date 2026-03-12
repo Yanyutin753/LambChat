@@ -116,9 +116,7 @@ class FastAgentContext:
         # MCP 工具
         if settings.ENABLE_MCP:
             try:
-                logger.info(
-                    f"[FastAgentContext] Initializing MCP client for user {self.user_id}"
-                )
+                logger.info(f"[FastAgentContext] Initializing MCP client for user {self.user_id}")
                 self.mcp_manager = MCPClientManager(
                     config_path=None, user_id=self.user_id, use_database=True
                 )
@@ -129,9 +127,7 @@ class FastAgentContext:
                 )
                 self.tools.extend(mcp_tools)
             except Exception as e:
-                logger.error(
-                    f"[FastAgentContext] Failed to load MCP tools: {e}", exc_info=True
-                )
+                logger.error(f"[FastAgentContext] Failed to load MCP tools: {e}", exc_info=True)
         else:
             logger.warning("[FastAgentContext] MCP is disabled (ENABLE_MCP=False)")
 
@@ -156,9 +152,7 @@ class FastAgentContext:
             except Exception as e:
                 logger.warning(f"[FastAgentContext] Failed to load skills: {e}")
 
-        logger.info(
-            f"[FastAgentContext] Setup complete, total {len(self.tools)} tools available"
-        )
+        logger.info(f"[FastAgentContext] Setup complete, total {len(self.tools)} tools available")
 
     async def close(self) -> None:
         """清理"""
