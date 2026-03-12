@@ -7,7 +7,7 @@ Skills Store Backend
 
 特性：
 - 读取：从 MongoDB 获取 skill 文件的 content
-- 写入：更新 MongoDB 中 skill 的 files 字段
+- 写入：更新 MongoDB 中 skill 的 files 字段，自动通知前端刷新
 - 编辑：在 skill 文件中进行字符串替换
 - 列表：列出所有 skills 或某个 skill 下的文件
 """
@@ -31,7 +31,7 @@ from deepagents.backends.protocol import (
 from src.infra.skill.storage import SkillStorage
 
 if TYPE_CHECKING:
-    pass
+    from src.infra.writer.present import Presenter
 
 logger = logging.getLogger(__name__)
 
@@ -132,12 +132,50 @@ class SkillsStoreBackend(BackendProtocol):
 
         Args:
             user_id: 用户 ID，用于获取用户可见的 skills
-            runtime: ToolRuntime 实例（可选，用于兼容性）
+            runtime: ToolRuntime 实例（可选，用于获取 presenter 发送事件）
         """
         self._user_id = user_id
         self._runtime = runtime
         # 使用缓存的 SkillStorage 实例
         self._storage: Optional[SkillStorage] = None
+
+    def _get_presenter(self) -> Optional["Presenter"]:
+        """从 runtime 获取 Presenter（用于发送 skills:changed 事件）"""
+        if self._runtime is None:
+            return None
+
+        try:
+            if hasattr(self._runtime, "config") and self._runtime.config:
+                config = self._runtime.config
+                if isinstance(config, dict):
+                    configurable = config.get("configurable", {})
+                    if isinstance(configurable, dict):
+                        return configurable.get("presenter")
+        except Exception as e:
+            logger.warning(f"Failed to get presenter from runtime: {e}")
+
+        return None
+
+    def _notify_skills_changed(
+        self, action: str = "updated", skill_name: Optional[str] = None
+    ) -> None:
+        """
+        通知前端 skills 列表已变更
+
+        Args:
+            action: 变更类型 ("created", "updated", "deleted")
+            skill_name: 变更的 skill 名称
+        """
+        presenter = self._get_presenter()
+        if presenter is None:
+            logger.debug("Presenter not available, skipping skills:changed notification")
+            return
+
+        try:
+            presenter.present_skills_changed(action=action, skill_name=skill_name)
+            logger.info(f"[SkillsStoreBackend] Sent skills:changed event: {action} {skill_name}")
+        except Exception as e:
+            logger.warning(f"Failed to send skills:changed event: {e}")
 
     def _get_storage(self) -> SkillStorage:
         """获取 SkillStorage 实例（使用全局缓存）"""
@@ -340,6 +378,7 @@ class SkillsStoreBackend(BackendProtocol):
                 files[file_name] = content
                 await storage.sync_skill_files(skill_name, files, user_id=self._user_id)
                 logger.info(f"Updated user skill '{skill_name}' file '{file_name}'")
+                action = "updated"
 
             elif system_skill:
                 # 系统技能是只读的，创建用户副本
@@ -357,6 +396,7 @@ class SkillsStoreBackend(BackendProtocol):
                 )
                 await storage.create_user_skill(skill_create, self._user_id)
                 logger.info(f"Created user skill '{skill_name}' with modified file '{file_name}'")
+                action = "created"
 
             else:
                 # Skill 不存在，自动创建新的用户 skill
@@ -392,9 +432,14 @@ class SkillsStoreBackend(BackendProtocol):
                 )
                 await storage.create_user_skill(skill_create, self._user_id)
                 logger.info(f"Created user skill '{name}' with file '{file_name}'")
+                action = "created"
+                skill_name = name  # 更新为实际创建的 skill 名称
 
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
+
+            # 通知前端 skills 列表已变更
+            self._notify_skills_changed(action=action, skill_name=skill_name)
 
             return WriteResult(path=file_path, files_update=None)
 
@@ -485,6 +530,9 @@ class SkillsStoreBackend(BackendProtocol):
 
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
+
+            # 通知前端 skills 列表已变更
+            self._notify_skills_changed(action="updated", skill_name=skill_name)
 
             logger.info(
                 f"Edited user skill '{skill_name}' file '{file_name}' ({occurrences} replacements)"

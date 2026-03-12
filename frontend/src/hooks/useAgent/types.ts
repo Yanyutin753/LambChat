@@ -31,6 +31,7 @@ export type EventType =
   | "sandbox:ready"
   | "sandbox:error"
   | "token:usage"
+  | "skills:changed"
   | "done"
   | "error";
 
@@ -86,6 +87,9 @@ export interface EventData {
   // user:cancel event fields
   user_id?: string;
   run_id?: string;
+  // skills:changed event fields
+  action?: string;
+  skill_name?: string;
 }
 
 export interface UseAgentOptions {

@@ -722,6 +722,27 @@ class Presenter:
             data["cache_read_tokens"] = cache_read_tokens
         return self._build_event("token:usage", data)
 
+    def present_skills_changed(
+        self,
+        action: str = "updated",
+        skill_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出 Skills 变更通知
+
+        通知前端 skills 列表已发生变更，需要刷新。
+
+        Args:
+            action: 变更类型 ("created", "updated", "deleted")
+            skill_name: 变更的 skill 名称（可选）
+        """
+        data: Dict[str, Any] = {
+            "action": action,
+            "timestamp": _get_timestamp(),
+        }
+        if skill_name:
+            data["skill_name"] = skill_name
+        return self._build_event("skills:changed", data)
+
     def done(self) -> Dict[str, Any]:
         """输出流结束标记"""
         return self._build_event(
