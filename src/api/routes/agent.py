@@ -171,35 +171,6 @@ REVEAL_PROJECT_TOOLS = [
     ),
 ]
 
-# Add Skill 工具定义
-ADD_SKILL_TOOLS = [
-    ToolInfo(
-        name="add_skill_from_path",
-        description="从 backend 目录导入 skill 到用户的 skill 列表。读取指定目录中的所有文件（包括 SKILL.md 和依赖文件），创建为用户的 skill。导入成功后，前端会自动刷新 skill 列表。",
-        category="builtin",
-        parameters=[
-            ToolParamInfo(
-                name="skill_path",
-                type="string",
-                description="skill 目录路径（相对于工作目录或绝对路径），目录中应该包含 SKILL.md 文件作为主文件",
-                required=True,
-            ),
-            ToolParamInfo(
-                name="skill_name",
-                type="string",
-                description="自定义 skill 名称（可选，默认从 SKILL.md 解析）",
-                required=False,
-            ),
-            ToolParamInfo(
-                name="description",
-                type="string",
-                description="skill 描述（可选，默认从 SKILL.md 解析）",
-                required=False,
-            ),
-        ],
-    ),
-]
-
 
 def extract_tool_parameters(tool) -> list[ToolParamInfo]:
     """从 LangChain 工具中提取参数信息"""
@@ -353,10 +324,6 @@ async def list_tools(
 
     # 3. Reveal Project 工具
     tools.extend(REVEAL_PROJECT_TOOLS)
-
-    # 4. Add Skill 工具
-    if settings.ENABLE_SANDBOX:
-        tools.extend(ADD_SKILL_TOOLS)
 
     # 4. MCP 工具（实际连接获取工具列表）
     if settings.ENABLE_MCP:

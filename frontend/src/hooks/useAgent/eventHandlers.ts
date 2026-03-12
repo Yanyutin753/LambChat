@@ -214,6 +214,11 @@ export function handleStreamEvent(
       handleTokenUsage(data, messageId, ctx);
       break;
     }
+
+    case "skills:changed": {
+      handleSkillsChanged(data, ctx);
+      break;
+    }
   }
 }
 
@@ -518,36 +523,6 @@ function handleToolResult(
   };
   const errorMsg = data.error as string | undefined;
 
-  // 只针对 add_skill_from_path 工具处理 callback
-  if (toolName === "add_skill_from_path" && isSuccess && data.result) {
-    try {
-      let jsonStr = data.result;
-
-      // 提取 content='...' 中的 JSON
-      const contentMatch = jsonStr.match(/content='((?:[^'\\]|\\.)*)'/);
-      if (contentMatch) {
-        jsonStr = contentMatch[1].replace(/\\'/g, "'");
-      }
-
-      const resultObj = JSON.parse(jsonStr) as Record<string, unknown>;
-
-      if (resultObj.callback) {
-        const callback = resultObj.callback as Record<string, unknown>;
-        console.log(`[SSE] Callback triggered: ${callback.type}`, callback);
-
-        if (callback.type === "skill_added" && ctx.options?.onSkillAdded) {
-          ctx.options.onSkillAdded(
-            (callback.name as string) || "",
-            (callback.description as string) || "",
-            (callback.files_count as number) || 0,
-          );
-        }
-      }
-    } catch (e) {
-      console.warn("[SSE] Failed to parse add_skill_from_path result:", e);
-    }
-  }
-
   ctx.setMessages((prev) =>
     prev.map((m) => {
       if (m.id !== messageId) return m;
@@ -773,4 +748,19 @@ function handleTokenUsage(
       };
     }),
   );
+}
+
+function handleSkillsChanged(
+  data: EventData,
+  ctx: EventHandlerContext,
+): void {
+  console.log("[SSE] Skills changed event received:", data);
+
+  if (ctx.options?.onSkillAdded) {
+    ctx.options.onSkillAdded(
+      (data.skill_name as string) || "",
+      `Skill ${data.action || "updated"}`,
+      (data.files_count as number) || 0,
+    );
+  }
 }

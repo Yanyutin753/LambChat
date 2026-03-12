@@ -7,7 +7,6 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from src.infra.skill import load_skill_files
-from src.infra.tool.add_skill_tool import get_add_skill_tool
 from src.infra.tool.human_tool import get_human_tool
 from src.infra.tool.mcp_client import MCPClientManager
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
@@ -47,9 +46,7 @@ class SearchAgentContext:
         if not self.disabled_tools:
             return self.tools
 
-        builtin_tools = frozenset(
-            ["ask_human", "reveal_file", "reveal_project", "add_skill_from_path"]
-        )
+        builtin_tools = frozenset(["ask_human", "reveal_file", "reveal_project"])
 
         disabled_set = set(self.disabled_tools)
         mcp_servers = set()
@@ -106,10 +103,6 @@ class SearchAgentContext:
         reveal_project_tool = get_reveal_project_tool()
         self.tools.append(reveal_project_tool)
         logger.info("[SearchAgentContext] Added reveal_project tool")
-
-        add_skill_tool = get_add_skill_tool()
-        self.tools.append(add_skill_tool)
-        logger.info("[SearchAgentContext] Added add_skill_from_path tool")
 
         # MCP 工具
         if settings.ENABLE_MCP:

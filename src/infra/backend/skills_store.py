@@ -132,7 +132,7 @@ class SkillsStoreBackend(BackendProtocol):
 
         Args:
             user_id: 用户 ID，用于获取用户可见的 skills
-            runtime: ToolRuntime 实例（可选，用于兼容性）
+            runtime: ToolRuntime 实例（可选，用于获取 presenter 发送事件）
         """
         self._user_id = user_id
         self._runtime = runtime

@@ -256,25 +256,25 @@ Look for patterns:
 
 **IMPORTANT: Only mount after user confirms the skill works well!**
 
-Ask the user:
-```
-"Would you like me to add this skill to your skills list? I can use add_skill_from_path to mount it."
-```
+Skills are stored in MongoDB and accessible via `/skills/` path. To add a new skill:
 
-If user says yes, call:
-```
-add_skill_from_path(skill_path="path/to/skill-folder")
-```
+1. Create the skill directory:
+   ```
+   /skills/
+   └── my-skill/
+       ├── SKILL.md
+       └── (optional: scripts/, references/, assets/)
+   ```
 
-The tool will:
-1. Read all files in the skill directory
-2. Parse SKILL.md for name and description
-3. Store the skill in the user's skill list
-4. Frontend will auto-refresh
+2. Write SKILL.md with proper frontmatter and instructions
+
+3. **That's it!** The frontend will automatically receive a notification and refresh the skills list when you create or modify skill files.
+
+No additional action needed - the system will automatically detect changes and notify the frontend.
 
 ### Skill Validation
 
-Before mounting, verify using the validation script:
+Before finalizing, verify using the validation script:
 
 ```bash
 python scripts/quick_validate.py <skill-directory>
@@ -342,21 +342,23 @@ See the following for more details:
 ### Creating a Skill (Simple Flow)
 
 1. Understand requirements (4 questions)
-2. Write SKILL.md with template
-3. Show to user, simulate behavior
-4. Iterate based on feedback
-5. Mount with `add_skill_from_path`
+2. Create skill directory under `/skills/`
+3. Write SKILL.md with template
+4. Show to user, simulate behavior
+5. Iterate based on feedback
+6. Done! Frontend will auto-refresh
 
 ### Creating a Skill (Rigorous Flow)
 
 1. Understand requirements
-2. Write SKILL.md
-3. Create evals/evals.json with test cases
-4. Run tests (with_skill + without_skill)
-5. Evaluate results
-6. Iterate until satisfied
-7. Optimize description
-8. Mount with `add_skill_from_path`
+2. Create skill directory under `/skills/`
+3. Write SKILL.md
+4. Create evals/evals.json with test cases
+5. Run tests (with_skill + without_skill)
+6. Evaluate results
+7. Iterate until satisfied
+8. Optimize description
+9. Done! Frontend will auto-refresh
 
 ---
 

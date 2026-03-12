@@ -9,7 +9,7 @@ Skill Packager - 将技能目录打包为可分发的 .skill 文件
     python package_skill.py skills/my-skill
     python package_skill.py skills/my-skill ./dist
 
-注意: 打包后的 .skill 文件可以通过 LambChat 的 add_skill_from_path 工具导入。
+注意: 打包后的 .skill 文件可以通过 LambChat 的前端界面导入到用户的 skill 列表。
 """
 
 import fnmatch
@@ -140,7 +140,7 @@ def main():
         print("\nExample:")
         print("  python package_skill.py skills/my-skill")
         print("  python package_skill.py skills/my-skill ./dist")
-        print("\nThe resulting .skill file can be imported via add_skill_from_path.")
+        print("\nThe resulting .skill file can be imported via the frontend skill manager.")
         sys.exit(1)
 
     skill_path = Path(sys.argv[1])
