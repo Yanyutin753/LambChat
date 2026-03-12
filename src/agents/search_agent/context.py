@@ -1,19 +1,15 @@
 """
-Search Agent 上下文管理
+Search Agent 上下文管理 - 支持工具和 Skills
 """
 
 import logging
 import uuid
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT
+from src.infra.skill import load_skill_files
 from src.infra.tool.add_skill_tool import get_add_skill_tool
-
-# Human-in-the-loop 工具
 from src.infra.tool.human_tool import get_human_tool
 from src.infra.tool.mcp_client import MCPClientManager
-
-# Reveal File 工具 - 向用户展示文件
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
 from src.infra.tool.reveal_project_tool import get_reveal_project_tool
 from src.kernel.config import settings
@@ -21,8 +17,14 @@ from src.kernel.config import settings
 logger = logging.getLogger(__name__)
 
 
-class AgentContext:
-    """Agent 上下文，管理工具和技能"""
+class SearchAgentContext:
+    """
+    Search Agent 上下文 - 支持工具和技能
+
+    特点：
+    - 支持 Skills
+    - 支持 MCP 工具
+    """
 
     def __init__(
         self,
@@ -34,27 +36,17 @@ class AgentContext:
         self.session_id = session_id
         self.agent_id = agent_id
         self.user_id = user_id
-        self.disabled_tools = disabled_tools  # 用户禁用的工具列表
-        self.skills_middleware = None
+        self.disabled_tools = disabled_tools
         self.mcp_manager: Optional[MCPClientManager] = None
         self.tools: List[Any] = []
-        self.system_prompt = DEFAULT_SYSTEM_PROMPT
+        self.skills: List[dict] = []
+        self.skill_files: Dict[str, Any] = {}
 
     def filter_tools(self) -> List[Any]:
-        """
-        根据 disabled_tools 过滤工具
-
-        支持两种模式：
-        1. 精确匹配: "read_file" 匹配名为 "read_file" 的工具
-        2. MCP 模式匹配: "mcp:server_name" 匹配来自该服务器的所有工具
-
-        注意：ask_human 和 reveal_file 是内置工具，始终可用，不受过滤影响。
-        """
-        # 如果 disabled_tools 为 None 或空列表，返回所有工具
+        """根据 disabled_tools 过滤工具"""
         if not self.disabled_tools:
             return self.tools
 
-        # 内置工具，始终可用
         builtin_tools = frozenset(
             ["ask_human", "reveal_file", "reveal_project", "add_skill_from_path"]
         )
@@ -69,7 +61,6 @@ class AgentContext:
             else:
                 exact_names.add(tool_name)
 
-        # 构建 MCP 前缀元组，用于 startswith 批量匹配（避免内层循环）
         mcp_prefixes = tuple(f"{s}:" for s in mcp_servers) if mcp_servers else ()
 
         filtered = []
@@ -83,7 +74,6 @@ class AgentContext:
             if tool_name in exact_names:
                 continue
 
-            # MCP 服务器模式匹配（用 tuple startswith 一次性检查所有前缀）
             if mcp_prefixes and tool_name.startswith(mcp_prefixes):
                 continue
             if mcp_servers and hasattr(tool, "server") and tool.server in mcp_servers:
@@ -92,54 +82,67 @@ class AgentContext:
             filtered.append(tool)
 
         logger.debug(
-            "[AgentContext] Tool filtering: %d/%d tools enabled (disabled: %s)",
+            "[SearchAgentContext] Tool filtering: %d/%d tools enabled",
             len(filtered),
             len(self.tools),
-            self.disabled_tools,
         )
         return filtered
 
     async def setup(self) -> None:
-        """初始化：技能 + 工具"""
+        """初始化：工具 + 技能"""
         logger.info(
-            f"[AgentContext] Starting setup, ENABLE_SKILLS={settings.ENABLE_SKILLS}, ENABLE_MCP={settings.ENABLE_MCP}"
+            f"[SearchAgentContext] Starting setup, ENABLE_SKILLS={settings.ENABLE_SKILLS}, ENABLE_MCP={settings.ENABLE_MCP}"
         )
 
+        # 基础工具
         human_tool = get_human_tool(session_id=self.session_id)
         self.tools.append(human_tool)
-        logger.info("[AgentContext] Added human tool")
+        logger.info("[SearchAgentContext] Added human tool")
 
         reveal_file_tool = get_reveal_file_tool()
         self.tools.append(reveal_file_tool)
-        logger.info("[AgentContext] Added reveal_file tool")
+        logger.info("[SearchAgentContext] Added reveal_file tool")
 
         reveal_project_tool = get_reveal_project_tool()
         self.tools.append(reveal_project_tool)
-        logger.info("[AgentContext] Added reveal_project tool")
+        logger.info("[SearchAgentContext] Added reveal_project tool")
 
         add_skill_tool = get_add_skill_tool()
         self.tools.append(add_skill_tool)
-        logger.info("[AgentContext] Added add_skill_from_path tool")
+        logger.info("[SearchAgentContext] Added add_skill_from_path tool")
 
         # MCP 工具
         if settings.ENABLE_MCP:
             try:
-                logger.info(f"[AgentContext] Initializing MCP client for user {self.user_id}")
+                logger.info(f"[SearchAgentContext] Initializing MCP client for user {self.user_id}")
                 self.mcp_manager = MCPClientManager(
                     config_path=None, user_id=self.user_id, use_database=True
                 )
                 await self.mcp_manager.initialize()
                 mcp_tools = await self.mcp_manager.get_tools()
                 logger.info(
-                    f"[AgentContext] Loaded {len(mcp_tools)} MCP tools: {[t.name for t in mcp_tools]}"
+                    f"[SearchAgentContext] Loaded {len(mcp_tools)} MCP tools: {[t.name for t in mcp_tools]}"
                 )
                 self.tools.extend(mcp_tools)
             except Exception as e:
-                logger.error(f"[AgentContext] Failed to load MCP tools: {e}", exc_info=True)
+                logger.error(f"[SearchAgentContext] Failed to load MCP tools: {e}", exc_info=True)
         else:
-            logger.warning("[AgentContext] MCP is disabled (ENABLE_MCP=False)")
+            logger.warning("[SearchAgentContext] MCP is disabled (ENABLE_MCP=False)")
 
-        logger.info(f"[AgentContext] Setup complete, total {len(self.tools)} tools available")
+        # 加载技能
+        if settings.ENABLE_SKILLS:
+            try:
+                skill_result = await load_skill_files(self.user_id)
+                self.skill_files = skill_result["files"]
+                self.skills = skill_result["skills"]
+                logger.info(
+                    f"[SearchAgentContext] Loaded {len(self.skills)} skills, "
+                    f"{len(self.skill_files)} skill files"
+                )
+            except Exception as e:
+                logger.warning(f"[SearchAgentContext] Failed to load skills: {e}")
+
+        logger.info(f"[SearchAgentContext] Setup complete, total {len(self.tools)} tools available")
 
     async def close(self) -> None:
         """清理"""

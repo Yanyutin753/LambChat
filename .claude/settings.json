@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile src/agents/search_agent/nodes.py src/agents/search_agent/context.py)",
+      "Bash(git checkout:*)",
+      "Bash(python -m py_compile src/agents/search_agent/nodes.py)",
+      "Bash(git add:*)",
+      "Bash(git rebase:*)"
+    ]
+  }
+}
