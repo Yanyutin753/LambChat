@@ -244,11 +244,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     event_processor = AgentEventProcessor(presenter)
 
     # 流式处理事件（带重试）
+    # 注意：不预加载 skill_files，通过 SkillsStoreBackend 实时读写
     await _run_with_retry(
         graph=inner_graph,
         input_data={
             "messages": all_messages,
-            "files": context.skill_files,
+            "files": {},  # 不预加载，通过 SkillsStoreBackend 实时读写
         },
         config=inner_config,
         event_processor=event_processor,
