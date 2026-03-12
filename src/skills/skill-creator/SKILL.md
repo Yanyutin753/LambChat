@@ -256,11 +256,11 @@ Look for patterns:
 
 **IMPORTANT: Only mount after user confirms the skill works well!**
 
-Skills are stored directly in `src/skills/` directory. To add a new skill:
+Skills are stored in MongoDB and accessible via `/skills/` path. To add a new skill:
 
-1. Create the skill directory under `src/skills/`:
+1. Create the skill directory:
    ```
-   src/skills/
+   /skills/
    └── my-skill/
        ├── SKILL.md
        └── (optional: scripts/, references/, assets/)
@@ -342,7 +342,7 @@ See the following for more details:
 ### Creating a Skill (Simple Flow)
 
 1. Understand requirements (4 questions)
-2. Create skill directory under `src/skills/`
+2. Create skill directory under `/skills/`
 3. Write SKILL.md with template
 4. Show to user, simulate behavior
 5. Iterate based on feedback
@@ -351,7 +351,7 @@ See the following for more details:
 ### Creating a Skill (Rigorous Flow)
 
 1. Understand requirements
-2. Create skill directory under `src/skills/`
+2. Create skill directory under `/skills/`
 3. Write SKILL.md
 4. Create evals/evals.json with test cases
 5. Run tests (with_skill + without_skill)

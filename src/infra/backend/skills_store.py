@@ -31,7 +31,7 @@ from deepagents.backends.protocol import (
 from src.infra.skill.storage import SkillStorage
 
 if TYPE_CHECKING:
-    from src.infra.writer.present import Presenter
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -138,50 +138,6 @@ class SkillsStoreBackend(BackendProtocol):
         self._runtime = runtime
         # 使用缓存的 SkillStorage 实例
         self._storage: Optional[SkillStorage] = None
-
-    def _get_presenter(self) -> Optional["Presenter"]:
-        """从 runtime 获取 Presenter（用于发送 skills:changed 事件）"""
-        if self._runtime is None:
-            return None
-
-        try:
-            if hasattr(self._runtime, "config") and self._runtime.config:
-                config = self._runtime.config
-                if isinstance(config, dict):
-                    configurable = config.get("configurable", {})
-                    if isinstance(configurable, dict):
-                        return configurable.get("presenter")
-        except Exception as e:
-            logger.warning(f"Failed to get presenter from runtime: {e}")
-
-        return None
-
-    def _notify_skills_changed(
-        self,
-        action: str = "updated",
-        skill_name: Optional[str] = None,
-        files_count: int = 0,
-    ) -> None:
-        """
-        通知前端 skills 列表已变更
-
-        Args:
-            action: 变更类型 ("created", "updated", "deleted")
-            skill_name: 变更的 skill 名称
-            files_count: 变更涉及的文件数量
-        """
-        presenter = self._get_presenter()
-        if presenter is None:
-            logger.debug("Presenter not available, skipping skills:changed notification")
-            return
-
-        try:
-            presenter.present_skills_changed(
-                action=action, skill_name=skill_name, files_count=files_count
-            )
-            logger.info(f"[SkillsStoreBackend] Sent skills:changed event: {action} {skill_name}")
-        except Exception as e:
-            logger.warning(f"Failed to send skills:changed event: {e}")
 
     def _get_storage(self) -> SkillStorage:
         """获取 SkillStorage 实例（使用全局缓存）"""
@@ -373,11 +329,6 @@ class SkillsStoreBackend(BackendProtocol):
         skill_name, file_name = parsed
         storage = self._get_storage()
 
-        # 默认 action
-        action = "created"
-        final_skill_name = skill_name
-        files_count = 1
-
         try:
             # 检查 skill 是否存在（用户 skill 或系统 skill）
             user_skill = await storage.get_user_skill(skill_name, self._user_id)
@@ -389,8 +340,6 @@ class SkillsStoreBackend(BackendProtocol):
                 files[file_name] = content
                 await storage.sync_skill_files(skill_name, files, user_id=self._user_id)
                 logger.info(f"Updated user skill '{skill_name}' file '{file_name}'")
-                action = "updated"
-                files_count = len(files)
 
             elif system_skill:
                 # 系统技能是只读的，创建用户副本
@@ -408,8 +357,6 @@ class SkillsStoreBackend(BackendProtocol):
                 )
                 await storage.create_user_skill(skill_create, self._user_id)
                 logger.info(f"Created user skill '{skill_name}' with modified file '{file_name}'")
-                action = "created"
-                files_count = len(system_skill.files) + 1
 
             else:
                 # Skill 不存在，自动创建新的用户 skill
@@ -445,15 +392,9 @@ class SkillsStoreBackend(BackendProtocol):
                 )
                 await storage.create_user_skill(skill_create, self._user_id)
                 logger.info(f"Created user skill '{name}' with file '{file_name}'")
-                final_skill_name = name  # 更新为实际创建的 skill 名称
 
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
-
-            # 通知前端 skills 列表已变更
-            self._notify_skills_changed(
-                action=action, skill_name=final_skill_name, files_count=files_count
-            )
 
             return WriteResult(path=file_path, files_update=None)
 
@@ -544,11 +485,6 @@ class SkillsStoreBackend(BackendProtocol):
 
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
-
-            # 通知前端 skills 列表已变更
-            self._notify_skills_changed(
-                action="updated", skill_name=skill_name, files_count=len(files)
-            )
 
             logger.info(
                 f"Edited user skill '{skill_name}' file '{file_name}' ({occurrences} replacements)"
