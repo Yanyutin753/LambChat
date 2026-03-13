@@ -183,7 +183,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         thinking={"type": "enabled"} if enable_thinking else None,
     )
     llm_init_time = time.time() - llm_start
-    logger.debug(f"[FastAgent] LLM init: {llm_init_time * 1000:.3f}ms")
+    logger.info(f"[FastAgent] LLM init: {llm_init_time * 1000:.3f}ms")
 
     # 多租户隔离
     tenant_id = context.user_id or "default"
@@ -196,7 +196,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             skills_start = time.time()
             skills_prompt = await build_skills_prompt(context.skills)
             skills_init_time = time.time() - skills_start
-            logger.debug(f"[FastAgent] Skills prompt init: {skills_init_time * 1000:.3f}ms")
+            logger.info(f"[FastAgent] Skills prompt init: {skills_init_time * 1000:.3f}ms")
         except Exception as e:
             logger.warning(f"Failed to build skills prompt: {e}")
 
@@ -209,7 +209,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         assistant_id=assistant_id, user_id=context.user_id
     )
     backend_init_time = time.time() - backend_start
-    logger.debug(f"[FastAgent] Backend init: {backend_init_time * 1000:.3f}ms")
+    logger.info(f"[FastAgent] Backend init: {backend_init_time * 1000:.3f}ms")
     logger.info(f"[FastAgent] Using in-memory backend for assistant: {assistant_id}")
 
     # 过滤工具
@@ -221,7 +221,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     checkpointer_start = time.time()
     inner_checkpointer = await get_async_checkpointer()
     checkpointer_init_time = time.time() - checkpointer_start
-    logger.debug(f"[FastAgent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
+    logger.info(f"[FastAgent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
 
     graph_compile_start = time.time()
     inner_graph = create_deep_agent(
@@ -234,7 +234,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         skills=None,
     ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
     graph_compile_time = time.time() - graph_compile_start
-    logger.debug(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
+    logger.info(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
     inner_config: RunnableConfig = {
         "configurable": {
