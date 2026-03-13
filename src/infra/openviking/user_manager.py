@@ -67,10 +67,12 @@ class OpenVikingUserStorage:
     async def _get_redis(self):
         """获取 Redis 客户端。"""
         try:
+            from redis.asyncio import Redis
+
             from src.infra.storage.redis import get_redis_client
 
-            client = get_redis_client()
-            client.ping()  # sync call
+            client: Redis = get_redis_client()
+            await client.ping()  # type: ignore[misc]
             return client
         except Exception:
             return None

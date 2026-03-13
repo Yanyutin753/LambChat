@@ -26,7 +26,7 @@ Reveal Project 工具
 import json
 import logging
 import os
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
@@ -403,10 +403,12 @@ async def _list_files_recursive(backend: Any, dir_path: str) -> list[str]:
 
 @tool
 async def reveal_project(
-    project_path: str,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    template: Optional[ProjectTemplate] = None,
+    project_path: Annotated[str, "项目目录路径，包含 index.html 或 package.json 的目录"],
+    name: Annotated[Optional[str], "项目名称（可选，默认使用目录名）"] = None,
+    description: Annotated[Optional[str], "项目描述（可选）"] = None,
+    template: Annotated[
+        Optional[ProjectTemplate], "项目模板类型（可选，自动检测：react/vue/vanilla/static）"
+    ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """

@@ -66,6 +66,7 @@ class OpenVikingClient:
         query: str,
         target_uri: Optional[str] = None,
         limit: int = 10,
+        score_threshold: Optional[float] = None,
     ) -> Any:
         """
         简单检索：无 session context。
@@ -74,6 +75,7 @@ class OpenVikingClient:
             query: 搜索查询
             target_uri: 搜索范围限制
             limit: 返回结果数量
+            score_threshold: 相关度阈值（0-1），过滤低于此分数的结果
 
         Returns:
             FindResult 对象
@@ -81,6 +83,8 @@ class OpenVikingClient:
         kwargs: dict = {"query": query, "limit": limit}
         if target_uri:
             kwargs["target_uri"] = target_uri
+        if score_threshold is not None:
+            kwargs["score_threshold"] = score_threshold
 
         return await self._client.find(**kwargs)
 
@@ -105,6 +109,183 @@ class OpenVikingClient:
     async def close(self) -> None:
         """关闭客户端连接。"""
         await self._client.close()
+
+    # ==================== File System API ====================
+
+    async def ls(
+        self,
+        uri: str,
+        simple: bool = False,
+        recursive: bool = False,
+        **kwargs,
+    ) -> list:
+        """
+        列出目录内容。
+
+        Args:
+            uri: Viking URI
+            simple: 返回简化的路径列表
+            recursive: 递归列出子目录
+            **kwargs: 其他参数 (output, abs_limit, show_all_hidden, node_limit)
+
+        Returns:
+            目录项列表
+        """
+        return await self._client.ls(uri, simple=simple, recursive=recursive, **kwargs)
+
+    async def read(self, uri: str, offset: int = 0, limit: int = -1) -> str:
+        """
+        读取资源内容。
+
+        Args:
+            uri: Viking URI
+            offset: 起始偏移量
+            limit: 读取行数（-1 表示全部）
+
+        Returns:
+            资源内容
+        """
+        return await self._client.read(uri, offset=offset, limit=limit)
+
+    async def rm(self, uri: str, recursive: bool = False) -> None:
+        """
+        删除资源。
+
+        Args:
+            uri: Viking URI
+            recursive: 递归删除目录
+        """
+        await self._client.rm(uri, recursive=recursive)
+
+    async def stat(self, uri: str) -> dict:
+        """
+        获取资源状态。
+
+        Args:
+            uri: Viking URI
+
+        Returns:
+            资源状态信息
+        """
+        return await self._client.stat(uri)
+
+    async def glob(self, pattern: str, uri: str = "viking://") -> dict:
+        """
+        模式匹配搜索。
+
+        Args:
+            pattern: glob 模式
+            uri: 搜索起始 URI
+
+        Returns:
+            匹配结果
+        """
+        return await self._client.glob(pattern, uri=uri)
+
+    async def mkdir(self, uri: str) -> None:
+        """
+        创建目录。
+
+        Args:
+            uri: Viking URI
+        """
+        await self._client.mkdir(uri)
+
+    async def mv(self, from_uri: str, to_uri: str) -> None:
+        """
+        移动资源。
+
+        Args:
+            from_uri: 源 URI
+            to_uri: 目标 URI
+        """
+        await self._client.mv(from_uri, to_uri)
+
+    async def tree(self, uri: str, **kwargs) -> dict:
+        """
+        获取目录树结构。
+
+        Args:
+            uri: Viking URI
+            **kwargs: 其他参数 (output, abs_limit, show_all_hidden, node_limit)
+
+        Returns:
+            目录树结构
+        """
+        return await self._client.tree(uri, **kwargs)
+
+    async def abstract(self, uri: str) -> str:
+        """
+        获取资源的 L0 摘要。
+
+        Args:
+            uri: Viking URI
+
+        Returns:
+            L0 摘要内容
+        """
+        return await self._client.abstract(uri)
+
+    async def overview(self, uri: str) -> str:
+        """
+        获取资源的 L1 概览。
+
+        Args:
+            uri: Viking URI
+
+        Returns:
+            L1 概览内容
+        """
+        return await self._client.overview(uri)
+
+    async def add_resource(
+        self,
+        path: str,
+        to: Optional[str] = None,
+        parent: Optional[str] = None,
+        reason: str = "",
+        instruction: str = "",
+        wait: bool = False,
+        timeout: Optional[float] = None,
+        **kwargs,
+    ) -> dict:
+        """
+        添加资源到 OpenViking。
+
+        Args:
+            path: 本地文件路径或 URL
+            to: 目标 URI（必须不存在）
+            parent: 父目录 URI（必须存在）
+            reason: 添加原因
+            instruction: 处理指令
+            wait: 是否等待处理完成
+            timeout: 等待超时时间
+
+        Returns:
+            添加结果
+        """
+        return await self._client.add_resource(
+            path=path,
+            to=to,
+            parent=parent,
+            reason=reason,
+            instruction=instruction,
+            wait=wait,
+            timeout=timeout,
+            **kwargs,
+        )
+
+    async def wait_processed(self, timeout: Optional[float] = None) -> dict:
+        """
+        等待所有处理任务完成。
+
+        Args:
+            timeout: 超时时间
+
+        Returns:
+            处理状态
+        """
+        return await self._client.wait_processed(timeout=timeout)
 
     # ==================== Admin API (多租户) ====================
 

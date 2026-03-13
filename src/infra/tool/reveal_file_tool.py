@@ -27,7 +27,7 @@ Reveal File 工具
 import json
 import logging
 import mimetypes
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
@@ -180,8 +180,10 @@ async def _read_file_from_backend(backend: Any, file_path: str) -> Optional[byte
 
 @tool
 async def reveal_file(
-    file_path: str,
-    description: Optional[str] = None,
+    file_path: Annotated[str, "要展示的文件路径（绝对路径或相对于工作目录的路径）"],
+    description: Annotated[
+        Optional[str], "对文件内容的简要描述，帮助用户理解为什么要查看这个文件"
+    ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """

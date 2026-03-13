@@ -6,7 +6,7 @@ OpenViking Session 生命周期管理
 
 设计原则：
 - Session 贯穿整个 LambChat 会话，不频繁重建
-- 只在 LambChat session 结束时 commit（提取长期记忆）
+- 只在 LambChat session 结束时 commit（触发 OpenViking 自动记忆提取）
 - 同 session 内使用 search() 智能检索，利用对话上下文
 - 跨 session 记忆通过 find() 检索用户的 memories
 
