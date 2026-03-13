@@ -151,9 +151,7 @@ async def add_pooled_connection(
 async def cleanup_expired_connections() -> int:
     """清理过期的连接，返回清理的数量"""
     async with _pool_lock:
-        expired_servers = [
-            name for name, conn in _connection_pool.items() if conn.is_expired()
-        ]
+        expired_servers = [name for name, conn in _connection_pool.items() if conn.is_expired()]
 
         for server_name in expired_servers:
             pooled = _connection_pool.pop(server_name, None)
