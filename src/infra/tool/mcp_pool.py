@@ -8,12 +8,10 @@ MCP 服务器连接池
 import asyncio
 import logging
 import time
-from typing import Any, Optional
+from typing import Any, Optional, Set
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
-
-from src.infra.storage.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +21,23 @@ _connection_pool: dict[str, "PooledConnection"] = {}
 # 连接池锁
 _pool_lock = asyncio.Lock()
 
+# 后台任务追踪集合
+_background_tasks: Set[asyncio.Task] = set()
+
+# 清理计数器
+_cleanup_counter = 0
+
+# 清理检查间隔
+CLEANUP_CHECK_INTERVAL = 20
+
 # 连接过期时间（秒），默认 30 分钟
 CONNECTION_TTL = 1800
+
+
+def _track_background_task(task: asyncio.Task) -> None:
+    """追踪后台任务，完成后自动从集合中移除"""
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 class PooledConnection:
@@ -76,6 +89,9 @@ async def get_pooled_connection(
     Returns:
         tuple: (client, tools) - 客户端和工具列表
     """
+    # 定期清理过期连接
+    await _maybe_cleanup()
+
     async with _pool_lock:
         # 检查连接池
         if server_name in _connection_pool:
@@ -144,10 +160,15 @@ async def cleanup_expired_connections() -> int:
             if pooled:
                 try:
                     # 尝试关闭客户端
-                    # 注意：MultiServerMCPClient 可能没有 close 方法
-                    # 这里只是尝试，失败也不影响
-                    if hasattr(pooled.client, "close"):
-                        await pooled.client.close()
+                    # MultiServerMCPClient 使用 async context manager 模式
+                    if hasattr(pooled.client, "__aexit__"):
+                        task = asyncio.create_task(
+                            pooled.client.__aexit__(None, None, None)
+                        )
+                        _track_background_task(task)
+                    elif hasattr(pooled.client, "close"):
+                        task = asyncio.create_task(pooled.client.close())
+                        _track_background_task(task)
                 except Exception as e:
                     logger.debug(f"[MCP Pool] Error closing client: {e}")
 
@@ -155,6 +176,15 @@ async def cleanup_expired_connections() -> int:
             logger.info(f"[MCP Pool] Cleaned up {len(expired_servers)} expired connections")
 
         return len(expired_servers)
+
+
+async def _maybe_cleanup() -> None:
+    """定期清理过期连接"""
+    global _cleanup_counter
+    _cleanup_counter += 1
+    if _cleanup_counter >= CLEANUP_CHECK_INTERVAL:
+        _cleanup_counter = 0
+        await cleanup_expired_connections()
 
 
 async def get_pool_stats() -> dict[str, Any]:

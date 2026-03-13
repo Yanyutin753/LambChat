@@ -4,6 +4,7 @@ FastAPI 主应用
 API 入口点。
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
