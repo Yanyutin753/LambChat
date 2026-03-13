@@ -208,6 +208,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     attachments = state.get("attachments", [])
 
     # 创建 LLM
+    llm_start = time.time()
     llm = LLMClient.get_deep_agent_model(
         api_base=settings.LLM_API_BASE,
         api_key=settings.LLM_API_KEY,
@@ -216,12 +217,16 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         max_tokens=settings.LLM_MAX_TOKENS,
         thinking={"type": "enabled"} if enable_thinking else None,
     )
+    llm_init_time = time.time() - llm_start
+    logger.debug(f"[Agent] LLM init: {llm_init_time * 1000:.3f}ms")
 
     # 多租户隔离
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
+    logger.info(f"tenant_id: {tenant_id}")
 
     # 创建 Backend 工厂和获取系统提示
+    backend_start = time.time()
     backend_factory, system_prompt, store = await _create_backend_and_prompt(
         state=state,
         context=context,
@@ -229,6 +234,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         assistant_id=assistant_id,
         skills=context.skills,
     )
+    backend_init_time = time.time() - backend_start
+    logger.debug(f"[Agent] Backend init: {backend_init_time * 1000:.3f}ms")
 
     # 过滤工具
     filtered_tools = None
@@ -236,12 +243,17 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         filtered_tools = context.filter_tools()
 
     # 创建内层 graph (deep agent)
+    checkpointer_start = time.time()
     inner_checkpointer = await get_async_checkpointer()
+    checkpointer_init_time = time.time() - checkpointer_start
+    logger.debug(f"[Agent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
 
     # 注意：不使用 SkillsMiddleware（skills=None）
     # SkillsStoreBackend 直接连接 MongoDB，LLM 可以通过 read_file/write_file 实时读写 skills
     # build_skills_prompt 只用于构建 skills 列表提示，告诉 LLM 有哪些 skills 可用
 
+    # 创建 graph（带计时）
+    graph_compile_start = time.time()
     inner_graph = create_deep_agent(
         model=llm,
         system_prompt=system_prompt,
@@ -251,6 +263,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         store=store,  # 传递 PostgresStore
         skills=None,  # 禁用 SkillsMiddleware，使用 build_skills_prompt 代替
     ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
+    graph_compile_time = time.time() - graph_compile_start
+    logger.debug(f"[Agent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
     inner_config: RunnableConfig = {
         "configurable": {

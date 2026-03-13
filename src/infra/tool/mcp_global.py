@@ -1,7 +1,8 @@
 """
-全局 MCP 管理器 - 分布式优化版（安全锁 + 内存管理）
+全局 MCP 管理器 - 分布式优化版（安全锁 + 内存管理 + Pub/Sub 缓存同步）
 
 使用全局单例 + Redis 分布式锁（Lua 脚本），避免重复初始化。
+使用 Redis Pub/Sub 实现跨实例缓存失效通知。
 """
 
 import asyncio
@@ -36,6 +37,12 @@ MAX_GLOBAL_ENTRIES = 500
 # Redis 键前缀
 LOCK_KEY_PREFIX = "mcp_init_lock:"
 DONE_KEY_PREFIX = "mcp_init_done:"
+
+# MCP 缓存失效 Pub/Sub 频道
+MCP_CACHE_INVALIDATE_CHANNEL = "mcp:cache:invalidate"
+
+# 当前实例的唯一标识（用于避免处理自己发送的消息）
+_INSTANCE_ID = str(uuid.uuid4())[:8]
 
 # Lua 脚本：安全释放锁
 RELEASE_LOCK_SCRIPT = """
