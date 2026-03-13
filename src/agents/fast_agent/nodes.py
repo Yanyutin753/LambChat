@@ -173,6 +173,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     attachments = state.get("attachments", [])
 
     # 创建 LLM
+    llm_start = time.time()
     llm = LLMClient.get_deep_agent_model(
         api_base=settings.LLM_API_BASE,
         api_key=settings.LLM_API_KEY,
@@ -181,6 +182,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         max_tokens=settings.LLM_MAX_TOKENS,
         thinking={"type": "enabled"} if enable_thinking else None,
     )
+    llm_init_time = time.time() - llm_start
+    logger.debug(f"[FastAgent] LLM init: {llm_init_time * 1000:.3f}ms")
 
     # 多租户隔离
     tenant_id = context.user_id or "default"
@@ -190,7 +193,10 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     skills_prompt = ""
     if settings.ENABLE_SKILLS and context.skills:
         try:
+            skills_start = time.time()
             skills_prompt = await build_skills_prompt(context.skills)
+            skills_init_time = time.time() - skills_start
+            logger.debug(f"[FastAgent] Skills prompt init: {skills_init_time * 1000:.3f}ms")
         except Exception as e:
             logger.warning(f"Failed to build skills prompt: {e}")
 
@@ -198,9 +204,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     system_prompt = FAST_SYSTEM_PROMPT.replace("{skills}", skills_prompt)
 
     # 使用内存 backend（无沙箱）
+    backend_start = time.time()
     backend_factory = create_memory_backend_factory(
         assistant_id=assistant_id, user_id=context.user_id
     )
+    backend_init_time = time.time() - backend_start
+    logger.debug(f"[FastAgent] Backend init: {backend_init_time * 1000:.3f}ms")
     logger.info(f"[FastAgent] Using in-memory backend for assistant: {assistant_id}")
 
     # 过滤工具
@@ -209,8 +218,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         filtered_tools = context.filter_tools()
 
     # 创建内层 graph (deep agent)
+    checkpointer_start = time.time()
     inner_checkpointer = await get_async_checkpointer()
+    checkpointer_init_time = time.time() - checkpointer_start
+    logger.debug(f"[FastAgent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
 
+    graph_compile_start = time.time()
     inner_graph = create_deep_agent(
         model=llm,
         system_prompt=system_prompt,
@@ -220,6 +233,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         store=None,  # Fast Agent 不使用长期存储
         skills=None,
     ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
+    graph_compile_time = time.time() - graph_compile_start
+    logger.debug(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
     inner_config: RunnableConfig = {
         "configurable": {
