@@ -162,10 +162,8 @@ async def cleanup_expired_connections() -> int:
                     # 尝试关闭客户端
                     # MultiServerMCPClient 使用 async context manager 模式
                     if hasattr(pooled.client, "__aexit__"):
-                        task = asyncio.create_task(
-                            pooled.client.__aexit__(None, None, None)
-                        )
-                        _track_background_task(task)
+                        # __aexit__ 返回 None，不需要返回值
+                        await pooled.client.__aexit__(None, None, None)  # type: ignore[func-returns-value]
                     elif hasattr(pooled.client, "close"):
                         task = asyncio.create_task(pooled.client.close())
                         _track_background_task(task)
@@ -190,13 +188,10 @@ async def _maybe_cleanup() -> None:
 async def get_pool_stats() -> dict[str, Any]:
     """获取连接池统计信息"""
     async with _pool_lock:
-        stats = {
-            "total_connections": len(_connection_pool),
-            "servers": [],
-        }
+        servers_list: list[dict[str, Any]] = []
 
         for server_name, conn in _connection_pool.items():
-            stats["servers"].append(
+            servers_list.append(
                 {
                     "server_name": server_name,
                     "tools_count": len(conn.tools),
@@ -204,5 +199,10 @@ async def get_pool_stats() -> dict[str, Any]:
                     "is_expired": conn.is_expired(),
                 }
             )
+
+        stats: dict[str, Any] = {
+            "total_connections": len(_connection_pool),
+            "servers": servers_list,
+        }
 
         return stats

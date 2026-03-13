@@ -10,7 +10,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional, Set
+from typing import Any, Optional, Set
 
 from langchain_core.tools import BaseTool
 
@@ -423,7 +423,7 @@ async def warmup_global_cache(user_ids: list[str]) -> None:
             await _warmup_user(user_id)
 
     await asyncio.gather(*[_warmup_with_limit(uid) for uid in user_ids])
-    
+
     elapsed = time.time() - start_time
     logger.info(f"[Global MCP] Warmup complete in {elapsed:.2f}s for {len(user_ids)} users")
 
@@ -448,15 +448,15 @@ async def warmup_active_users_mcp(limit: int = 10) -> None:
 
     try:
         # 获取所有用户 ID
-        from src.kernel.config import settings
         from src.infra.storage.mongodb import get_mongo_client
+        from src.kernel.config import settings
 
         client = get_mongo_client()
         db = client[settings.MONGODB_DB]
         users_collection = db["users"]
 
         # 查询所有用户（去重）
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {"$group": {"_id": "$_id"}},
         ]
 
