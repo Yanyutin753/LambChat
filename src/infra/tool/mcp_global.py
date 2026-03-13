@@ -403,49 +403,60 @@ async def warmup_global_cache(user_ids: list[str]) -> None:
 
 async def warmup_active_users_mcp(days: int = 7, limit: int = 10) -> None:
     """
-    预热活跃用户的 MCP 缓存
+    预热所有用户的 MCP 缓存
     
-    获取最近 N 天内有活动的用户，并预热他们的 MCP 配置。
+    获取所有用户 ID，并预热他们的 MCP 配置。
     这可以显著减少首次请求的延迟。
     
+    优化策略：
+    - 限制并发数，避免资源耗尽
+    - 后台执行，不阻塞应用启动
+    - 失败的用户不影响其他用户
+    
     Args:
-        days: 查询最近多少天的活跃用户（默认 7 天）
-        limit: 最多预热多少个用户（默认 10 个）
+        days: 保留参数（向后兼容）
+        limit: 最多预热多少个用户（默认 10 个，0 表示无限制）
     """
     from datetime import datetime, timedelta
     
-    logger.info(f"[Global MCP] Starting warmup for active users (last {days} days)")
+    logger.info("[Global MCP] Starting MCP warmup for all users")
+    start_time = time.time()
     
     try:
-        # 获取最近活跃的用户 ID
+        # 获取所有用户 ID
         from src.kernel.config import settings
         from src.infra.storage.mongodb import get_mongo_client
         
         client = get_mongo_client()
         db = client[settings.MONGODB_DB]
-        sessions_collection = db[settings.MONGODB_SESSIONS_COLLECTION]
+        users_collection = db["users"]
         
-        # 查询最近活跃的用户（去重）
-        cutoff_date = datetime.now() - timedelta(days=days)
+        # 查询所有用户（去重）
         pipeline = [
-            {"$match": {"updated_at": {"$gte": cutoff_date}}},
-            {"$group": {"_id": "$user_id"}},
-            {"$limit": limit}
+            {"$group": {"_id": "$_id"}},
         ]
         
-        cursor = sessions_collection.aggregate(pipeline)
-        user_docs = await cursor.to_list(length=limit)
-        user_ids = [doc["_id"] for doc in user_docs if doc["_id"]]
+        if limit > 0:
+            pipeline.append({"$limit": limit})
+        
+        cursor = users_collection.aggregate(pipeline)
+        user_docs = await cursor.to_list(length=limit if limit > 0 else None)
+        user_ids = [str(doc["_id"]) for doc in user_docs]
         
         if not user_ids:
-            logger.info("[Global MCP] No active users found, skipping warmup")
+            logger.info("[Global MCP] No users found, skipping warmup")
             return
+        
+        logger.info(f"[Global MCP] Found {len(user_ids)} users to warm up")
         
         # 预热这些用户的 MCP 缓存
         await warmup_global_cache(user_ids)
         
+        elapsed = time.time() - start_time
+        logger.info(f"[Global MCP] Warmup completed in {elapsed:.2f}s for {len(user_ids)} users")
+        
     except Exception as e:
-        logger.warning(f"[Global MCP] Failed to warmup active users: {e}")
+        logger.warning(f"[Global MCP] Failed to warmup users: {e}")
 
 
 async def warmup_default_servers() -> None:
