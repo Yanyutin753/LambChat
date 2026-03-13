@@ -10,12 +10,14 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional, Set
+from typing import TYPE_CHECKING, Any, Optional, Set
 
 from langchain_core.tools import BaseTool
 
 from src.infra.storage.redis import get_redis_client
-from src.infra.tool.mcp_client import MCPClientManager
+
+if TYPE_CHECKING:
+    from src.infra.tool.mcp_client import MCPClientManager
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ end
 class GlobalMCPEntry:
     """全局 MCP 缓存条目"""
 
-    manager: MCPClientManager
+    manager: "MCPClientManager"
     tools: list[BaseTool]
     created_at: float = field(default_factory=time.time)
     last_access: float = field(default_factory=time.time)
@@ -221,7 +223,9 @@ def _cleanup_excess_entries() -> int:
     return to_remove
 
 
-async def get_global_mcp_tools(user_id: str) -> tuple[list[BaseTool], Optional[MCPClientManager]]:
+async def get_global_mcp_tools(
+    user_id: str,
+) -> tuple[list[BaseTool], Optional["MCPClientManager"]]:
     """
     获取全局 MCP 工具（单例 + 缓存 + 分布式锁）
 
@@ -312,6 +316,9 @@ async def get_global_mcp_tools(user_id: str) -> tuple[list[BaseTool], Optional[M
 
             # 6. 创建新的 MCPClientManager
             logger.info(f"[Global MCP] Creating manager for user {user_id}")
+            # 延迟导入避免循环依赖
+            from src.infra.tool.mcp_client import MCPClientManager
+
             manager = MCPClientManager(
                 config_path=None,
                 user_id=user_id,
