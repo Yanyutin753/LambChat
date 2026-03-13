@@ -218,7 +218,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         thinking={"type": "enabled"} if enable_thinking else None,
     )
     llm_init_time = time.time() - llm_start
-    logger.info(f"[SearchAgent] LLM init: {llm_init_time * 1000:.3f}ms")
+    logger.debug(f"[Agent] LLM init: {llm_init_time * 1000:.3f}ms")
 
     # 多租户隔离
     tenant_id = context.user_id or "default"
@@ -235,7 +235,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         skills=context.skills,
     )
     backend_init_time = time.time() - backend_start
-    logger.info(f"[SearchAgent] Backend init: {backend_init_time * 1000:.3f}ms")
+    logger.debug(f"[Agent] Backend init: {backend_init_time * 1000:.3f}ms")
 
     # 过滤工具
     filtered_tools = None
@@ -246,7 +246,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     checkpointer_start = time.time()
     inner_checkpointer = await get_async_checkpointer()
     checkpointer_init_time = time.time() - checkpointer_start
-    logger.info(f"[SearchAgent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
+    logger.debug(f"[Agent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
 
     # 注意：不使用 SkillsMiddleware（skills=None）
     # SkillsStoreBackend 直接连接 MongoDB，LLM 可以通过 read_file/write_file 实时读写 skills
@@ -264,7 +264,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         skills=None,  # 禁用 SkillsMiddleware，使用 build_skills_prompt 代替
     ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
     graph_compile_time = time.time() - graph_compile_start
-    logger.info(f"[SearchAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")
+    logger.debug(f"[Agent] Graph compile: {graph_compile_time * 1000:.3f}ms")
 
     inner_config: RunnableConfig = {
         "configurable": {
