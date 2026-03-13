@@ -105,6 +105,12 @@ async def lifespan(app: FastAPI):
     from src.infra.skill.builtin import init_builtin_skills
 
     await init_builtin_skills()
+    
+    # 预热 MCP 连接（后台执行，不阻塞启动）
+    from src.infra.tool.mcp_global import warmup_active_users_mcp
+    
+    asyncio.create_task(warmup_active_users_mcp())
+    logger.info("MCP warmup task started in background")
 
     yield
 
