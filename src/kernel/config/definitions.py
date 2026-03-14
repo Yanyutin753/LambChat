@@ -84,6 +84,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "LLM API 最大重试次数（用于处理 429 等错误）",
         "default": 3,
     },
+    "LLM_MAX_INPUT_TOKENS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LLM,
+        "description": "LLM 上下文窗口大小，用于 DeepAgent 自动压缩对话（设为 None 则使用模型默认值）",
+        "default": None,
+        "nullable": True,
+    },
     # ============================================
     # Session Settings
     # ============================================

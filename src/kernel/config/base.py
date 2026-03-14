@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 4096
     LLM_MAX_RETRIES: int = 3
+    LLM_MAX_INPUT_TOKENS: int | None = None  # DeepAgent summarization trigger threshold
 
     # MCP Settings
     ENABLE_MCP: bool = True

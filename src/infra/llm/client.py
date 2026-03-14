@@ -104,6 +104,7 @@ class LLMClient:
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
+        profile: Optional[dict] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """
@@ -116,6 +117,7 @@ class LLMClient:
             api_key: API 密钥
             api_base: 自定义 API 端点
             thinking: Anthropic extended thinking 配置，如 {"type": "enabled"}
+            profile: 模型配置文件，如 {"max_input_tokens": 400000}
             **kwargs: 其他模型特定参数
 
         Returns:
@@ -136,6 +138,7 @@ class LLMClient:
 
         # 构建缓存 key（thinking dict 转 tuple 以便 hash）
         thinking_key = tuple(sorted(thinking.items())) if thinking else None
+        profile_key = tuple(sorted(profile.items())) if profile else None
         cache_key = (
             provider,
             model_name,
@@ -144,6 +147,7 @@ class LLMClient:
             api_key,
             api_base,
             thinking_key,
+            profile_key,
         )
 
         if cache_key in LLMClient._model_cache:
@@ -159,6 +163,7 @@ class LLMClient:
                 api_key=api_key,
                 api_base=api_base,
                 thinking=thinking,
+                profile=profile,
                 **kwargs,
             )
         elif provider == "minimax":
@@ -169,6 +174,7 @@ class LLMClient:
                 api_key=api_key,
                 api_base=api_base,
                 thinking=thinking,
+                profile=profile,
                 **kwargs,
             )
         elif provider == "zai":
@@ -179,6 +185,7 @@ class LLMClient:
                 api_key=api_key,
                 api_base=api_base,
                 thinking=thinking,
+                profile=profile,
                 **kwargs,
             )
         else:
@@ -188,6 +195,7 @@ class LLMClient:
                 max_tokens=max_tokens,
                 api_key=api_key,
                 api_base=api_base,
+                profile=profile,
                 **kwargs,
             )
 
@@ -202,6 +210,7 @@ class LLMClient:
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
+        profile: Optional[dict] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """创建 Anthropic Claude 模型"""
@@ -217,6 +226,7 @@ class LLMClient:
             api_key=SecretStr(api_key) if api_key else None,  # type: ignore[arg-type]
             thinking=thinking,
             base_url=api_base if api_base else None,
+            profile=profile,
             **kwargs,
         )
 
@@ -227,6 +237,7 @@ class LLMClient:
         max_tokens: Optional[int] = None,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
+        profile: Optional[dict] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """创建 OpenAI 或 OpenAI 兼容模型"""
@@ -240,6 +251,7 @@ class LLMClient:
             streaming=True,
             api_key=api_key,  # type: ignore[arg-type]
             base_url=api_base if api_base else None,
+            profile=profile,
             **kwargs,
         )
 
@@ -247,6 +259,7 @@ class LLMClient:
     @traceable(name="get_deep_agent_model", run_type="llm")
     def get_deep_agent_model(
         model: Optional[str] = None,
+        profile: Optional[dict] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """
@@ -254,13 +267,19 @@ class LLMClient:
 
         Args:
             model: 模型名称
+            profile: 模型配置文件，如 {"max_input_tokens": 400000}
             **kwargs: 其他参数
 
         Returns:
             配置好的 LangChain 模型
         """
+        # 如果没有传入 profile，且 settings 中有 LLM_MAX_INPUT_TOKENS，则构建 profile
+        if profile is None and settings.LLM_MAX_INPUT_TOKENS is not None:
+            profile = {"max_input_tokens": settings.LLM_MAX_INPUT_TOKENS}
+
         return LLMClient.get_model(
             model=model or settings.LLM_MODEL,
+            profile=profile,
             **kwargs,
         )
 
