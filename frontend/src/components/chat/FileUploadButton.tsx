@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, memo, useEffect } from "react";
-import { Paperclip, Image, Video, Music, FileText } from "lucide-react";
+import { Paperclip, Image, Video, Music, FileText, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { uploadApi } from "../../services/api";
@@ -39,6 +39,10 @@ const CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
   document: FileText,
 };
 
+// Auto-detect category type for mixed file selection
+type AutoCategory = "auto";
+const AUTO_CATEGORY: AutoCategory = "auto";
+
 function getFileCategory(file: File): FileCategory {
   const type = file.type.toLowerCase();
   if (type.startsWith("image/")) return "image";
@@ -56,9 +60,9 @@ export const FileUploadButton = memo(function FileUploadButton({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<FileCategory | null>(
-    null,
-  );
+  const [selectedCategory, setSelectedCategory] = useState<
+    FileCategory | AutoCategory | null
+  >(null);
 
   // Get available categories based on permissions
   const availableCategories = Object.keys(CATEGORY_PERMISSIONS).filter((cat) =>
@@ -67,6 +71,11 @@ export const FileUploadButton = memo(function FileUploadButton({
 
   // Check if user has any upload permission
   const canUpload = availableCategories.length > 0;
+
+  // Build accept string for auto mode (all permitted types)
+  const autoAccept = availableCategories
+    .map((cat) => CATEGORY_ACCEPT_MAP[cat])
+    .join(",");
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -154,20 +163,28 @@ export const FileUploadButton = memo(function FileUploadButton({
   );
 
   // Handle category selection from dropdown
-  const handleCategorySelect = (category: FileCategory) => {
+  const handleCategorySelect = (category: FileCategory | AutoCategory) => {
     setSelectedCategory(category);
     setShowDropdown(false);
 
     // Update file input accept filter and click
     if (fileInputRef.current) {
-      fileInputRef.current.accept = CATEGORY_ACCEPT_MAP[category];
+      if (category === AUTO_CATEGORY) {
+        // Auto mode: accept all permitted file types
+        fileInputRef.current.accept = autoAccept;
+      } else {
+        fileInputRef.current.accept = CATEGORY_ACCEPT_MAP[category];
+      }
       fileInputRef.current.click();
     }
   };
 
   // Handle file input change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files, selectedCategory || undefined);
+    // In auto mode, don't pass category - let handleFiles auto-detect
+    const category =
+      selectedCategory === AUTO_CATEGORY ? undefined : selectedCategory;
+    handleFiles(e.target.files, category || undefined);
     e.target.value = "";
   };
 
@@ -197,6 +214,16 @@ export const FileUploadButton = memo(function FileUploadButton({
       {/* Dropdown menu */}
       {showDropdown && (
         <div className="absolute bottom-full left-0 mb-2 z-50 min-w-[140px] rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+          {/* Auto-detect option - upload multiple files of any type */}
+          <button
+            type="button"
+            onClick={() => handleCategorySelect(AUTO_CATEGORY)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-700 transition-colors border-b border-gray-100 dark:border-stone-700"
+          >
+            <Upload size={16} />
+            {t("fileUpload.categories.auto", "多文件上传")}
+          </button>
+          {/* Category-specific options */}
           {availableCategories.map((category) => {
             const Icon = CATEGORY_ICONS[category];
             return (
