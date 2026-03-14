@@ -48,7 +48,7 @@ function getFileCategory(file: File): FileCategory {
 }
 
 export const FileUploadButton = memo(function FileUploadButton({
-  attachments: externalAttachments = [],
+  attachments: _attachments = [],
   onAttachmentsChange,
 }: FileUploadButtonProps) {
   const { t } = useTranslation();
@@ -111,7 +111,8 @@ export const FileUploadButton = memo(function FileUploadButton({
           url: "",
         };
 
-        onAttachmentsChange?.([...externalAttachments, tempAttachment]);
+        // Use functional update to support multiple file uploads
+        onAttachmentsChange?.((prev) => [...prev, tempAttachment]);
 
         try {
           const result = await uploadApi.uploadFile(file, {
@@ -150,7 +151,7 @@ export const FileUploadButton = memo(function FileUploadButton({
         }
       }
     },
-    [externalAttachments, hasPermission, onAttachmentsChange],
+    [hasPermission, onAttachmentsChange],
   );
 
   // Handle category selection from dropdown
