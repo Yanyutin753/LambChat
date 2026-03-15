@@ -13,6 +13,7 @@ import { RolesPanel } from "../panels/RolesPanel";
 import { SettingsPanel } from "../panels/SettingsPanel";
 import { MCPPanel } from "../panels/MCPPanel";
 import { FeedbackPanel } from "../panels/FeedbackPanel";
+import { ChannelsPage } from "../pages/ChannelsPage";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";
 import { Loading } from "../common";
@@ -38,7 +39,8 @@ export type TabType =
   | "roles"
   | "settings"
   | "mcp"
-  | "feedback";
+  | "feedback"
+  | "channels";
 
 interface AppContentProps {
   activeTab: TabType;
@@ -793,6 +795,10 @@ export function AppContent({ activeTab }: AppContentProps) {
           ) : activeTab === "feedback" ? (
             <main className="flex-1 overflow-hidden">
               <FeedbackPanel />
+            </main>
+          ) : activeTab === "channels" ? (
+            <main className="flex-1 overflow-hidden">
+              <ChannelsPage />
             </main>
           ) : null}
         </div>

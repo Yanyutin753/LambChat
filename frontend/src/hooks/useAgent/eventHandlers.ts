@@ -282,6 +282,7 @@ function handleAgentCall(
     data.agent_name || data.agent_id || "Unknown Agent",
     data.input || "",
     depth,
+    data.timestamp,
   );
 
   ctx.activeSubagentStackRef.current.push({
@@ -331,6 +332,8 @@ function handleAgentResult(
         data.result || "",
         data.success !== false,
         depth,
+        data.error,
+        data.timestamp,
       );
       return { ...m, parts: newParts };
     }),
@@ -750,10 +753,7 @@ function handleTokenUsage(
   );
 }
 
-function handleSkillsChanged(
-  data: EventData,
-  ctx: EventHandlerContext,
-): void {
+function handleSkillsChanged(data: EventData, ctx: EventHandlerContext): void {
   console.log("[SSE] Skills changed event received:", data);
 
   if (ctx.options?.onSkillAdded) {

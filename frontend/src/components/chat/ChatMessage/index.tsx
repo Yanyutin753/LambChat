@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import toast from "react-hot-toast";
 import { Bot, Copy, Info, Ban } from "lucide-react";
 import type {
@@ -11,11 +11,29 @@ import type {
 } from "../../../types";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
-import { ToolCallItem, FileRevealItem, ProjectRevealItem } from "./ToolCallItem";
-import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
+import {
+  ToolCallItem,
+  FileRevealItem,
+  ProjectRevealItem,
+} from "./ToolCallItem";
+import {
+  ThinkingBlock,
+  SubagentBlock,
+  SandboxItem,
+  SubagentProgress,
+  SynthesisIndicator,
+} from "./SubagentBlocks";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { FeedbackButtons } from "./FeedbackButtons";
 import { ShareButton } from "./ShareButton";
+
+// Helper to extract subagent parts from message parts
+function extractSubagentParts(parts: MessagePart[]) {
+  return parts.filter(
+    (p): p is Extract<MessagePart, { type: "subagent" }> =>
+      p.type === "subagent",
+  );
+}
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -184,6 +202,12 @@ export function ChatMessage({
   // If there are parts, render in order; otherwise fall back to old rendering method
   const hasParts = message.parts && message.parts.length > 0;
 
+  // Extract subagents for progress tracking
+  const subagents = useMemo(() => {
+    if (!hasParts || !message.parts) return [];
+    return extractSubagentParts(message.parts);
+  }, [hasParts, message.parts]);
+
   // User message: bubble style, right aligned
   if (isUser) {
     return (
@@ -238,6 +262,14 @@ export function ChatMessage({
                   isLast={index === message.parts!.length - 1}
                 />
               ))}
+
+              {/* Synthesis indicator */}
+              {subagents.length > 1 && (
+                <SynthesisIndicator
+                  subagents={subagents}
+                  isLoading={message.isStreaming || false}
+                />
+              )}
             </div>
           ) : (
             <>
@@ -408,6 +440,10 @@ function MessagePartRenderer({
         success={part.success}
         isPending={part.isPending}
         parts={part.parts}
+        startedAt={part.startedAt}
+        completedAt={part.completedAt}
+        status={part.status}
+        error={part.error}
       />
     );
   }

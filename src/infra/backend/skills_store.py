@@ -80,33 +80,16 @@ def _run_async(coro):
 
     实现策略：
     1. 如果没有运行中的事件循环 → 使用 asyncio.run()
-    2. 如果已有运行中的事件循环 → 在新线程中创建新事件循环运行
-       （这避免了 Motor 客户端绑定到错误事件循环的问题）
+    2. 如果已有运行中的事件循环 → 使用 run_coroutine_threadsafe 调度到当前循环
+       （Motor 客户端绑定到特定事件循环，必须在该循环上执行）
     """
     try:
-        asyncio.get_running_loop()
+        loop = asyncio.get_running_loop()
         # 已在异步上下文中
-        # 在新线程中创建新的事件循环运行，避免 Motor 客户端事件循环绑定问题
-        result = None
-        exception = None
-
-        def run_in_thread():
-            nonlocal result, exception
-            try:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result = new_loop.run_until_complete(coro)
-                new_loop.close()
-            except Exception as e:
-                exception = e
-
-        thread = threading.Thread(target=run_in_thread)
-        thread.start()
-        thread.join()
-
-        if exception:
-            raise exception
-        return result
+        # Motor 客户端绑定到当前事件循环，必须在该循环上执行
+        # 使用 run_coroutine_threadsafe 将协程调度到当前循环
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()  # 阻塞等待结果
 
     except RuntimeError:
         # 没有运行中的事件循环，直接运行

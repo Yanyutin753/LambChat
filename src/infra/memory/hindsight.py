@@ -84,7 +84,7 @@ class AsyncHindsight:
     that causes issues with running event loops.
     """
 
-    def __init__(self, base_url: str, api_key: str | None = None, timeout: float = 30.0):
+    def __init__(self, base_url: str, api_key: str | None = None, timeout: float = 180.0):
         import hindsight_client_api
         from hindsight_client_api.api import banks_api, memory_api
 
@@ -269,7 +269,7 @@ async def get_hindsight_client() -> Optional[AsyncHindsight]:
             _shared_client = AsyncHindsight(
                 base_url=settings.HINDSIGHT_BASE_URL,
                 api_key=settings.HINDSIGHT_API_KEY or None,
-                timeout=30.0,
+                timeout=180.0,
             )
             logger.info(
                 f"[Hindsight] Created async client for server: {settings.HINDSIGHT_BASE_URL}"

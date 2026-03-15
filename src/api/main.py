@@ -18,8 +18,10 @@ from src.api.middleware.user_context import UserContextMiddleware
 from src.api.routes import (
     agent,
     auth,
+    channels,
     chat,
     feedback,
+    feishu,
     folder,
     health,
     human,
@@ -106,6 +108,17 @@ async def lifespan(app: FastAPI):
 
     await init_builtin_skills()
 
+    # Start Feishu channels for all users with enabled configs
+    try:
+        from src.infra.channel.feishu_handler import setup_feishu_handler
+
+        await setup_feishu_handler(
+            default_agent=settings.DEFAULT_AGENT,
+            show_tools=True,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to start Feishu channels: {e}")
+
     yield
 
     # 关闭时清理
@@ -139,6 +152,15 @@ async def lifespan(app: FastAPI):
 
     rate_limiter = get_rate_limiter()
     await rate_limiter.close()
+
+    # 关闭 Feishu 渠道
+    try:
+        from src.infra.channel.feishu_channel import stop_feishu_channels
+
+        await stop_feishu_channels()
+        logger.info("Feishu channels stopped")
+    except Exception as e:
+        logger.warning(f"Failed to stop Feishu channels: {e}")
 
     logger.info("Shutting down...")
 
@@ -187,6 +209,10 @@ def create_app() -> FastAPI:
     app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
+    # Feishu channel configuration (legacy, will be deprecated)
+    app.include_router(feishu.router, prefix="/api/feishu", tags=["Feishu"])
+    # Generic channel configuration
+    app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
     # WebSocket 路由: /ws 用于实时通知
     app.include_router(websocket.router, tags=["WebSocket"])
 

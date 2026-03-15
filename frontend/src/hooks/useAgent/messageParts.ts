@@ -241,7 +241,12 @@ export function updateSubagentResult(
   result: string,
   success: boolean,
   targetDepth: number,
+  error?: string,
+  timestamp?: string,
 ): MessagePart[] {
+  const completedAt = timestamp ? new Date(timestamp).getTime() : Date.now();
+  const status = success ? "complete" : "error";
+
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (
@@ -255,7 +260,10 @@ export function updateSubagentResult(
         ...p,
         result,
         success,
+        error,
         isPending: false,
+        status,
+        completedAt,
       };
       return newParts;
     }
@@ -266,6 +274,9 @@ export function updateSubagentResult(
         result,
         success,
         targetDepth,
+        error,
+        completedAt,
+        status,
       );
       if (updatedSubagent) {
         const newParts = [...parts];
@@ -286,6 +297,9 @@ export function updateSubagentResultInParts(
   result: string,
   success: boolean,
   targetDepth: number,
+  error?: string,
+  completedAt?: number,
+  status?: "complete" | "error",
 ): MessagePart[] | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
@@ -300,7 +314,10 @@ export function updateSubagentResultInParts(
         ...p,
         result,
         success,
+        error,
         isPending: false,
+        status,
+        completedAt,
       };
       return newParts;
     }
@@ -311,6 +328,9 @@ export function updateSubagentResultInParts(
         result,
         success,
         targetDepth,
+        error,
+        completedAt,
+        status,
       );
       if (updatedParts) {
         const newParts = [...parts];
@@ -490,15 +510,19 @@ export function createSubagentPart(
   agentName: string,
   input: string,
   depth: number,
+  timestamp?: string,
 ): SubagentPart {
+  const startedAt = timestamp ? new Date(timestamp).getTime() : Date.now();
   return {
     type: "subagent",
     agent_id: agentId,
     agent_name: agentName,
     input: input,
     isPending: true,
+    status: "running",
     depth: depth,
     parts: [],
+    startedAt,
   };
 }
 

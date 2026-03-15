@@ -12,6 +12,7 @@ import {
   Server,
   User,
   Star,
+  MessageCircle,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -112,6 +113,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       show: canReadSkills,
     },
     { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
+    {
+      path: "/channels",
+      label: t("nav.channels"),
+      icon: MessageCircle,
+      show: true,
+    },
   ];
 
   return (

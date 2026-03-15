@@ -101,10 +101,16 @@ export interface SubagentPart {
   input: string;
   result?: string;
   success?: boolean;
+  error?: string; // 错误信息
   isPending?: boolean;
   depth: number;
   // 子代理内部的内容（嵌套）
   parts?: MessagePart[];
+  // 时间追踪
+  startedAt?: number; // Unix timestamp (ms)
+  completedAt?: number; // Unix timestamp (ms)
+  // 状态: pending | running | complete | error
+  status?: "pending" | "running" | "complete" | "error";
 }
 
 export interface ToolCall {

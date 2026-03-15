@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { clsx } from "clsx";
 import {
   CheckCircle,
@@ -9,12 +9,28 @@ import {
   Users,
   Wrench,
   Box,
+  Clock,
+  Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CollapsiblePill } from "../../common";
 import type { CollapsibleStatus } from "../../common";
-import type { MessagePart } from "../../../types";
+import type { MessagePart, SubagentPart } from "../../../types";
 import { MarkdownContent, truncateText } from "./MarkdownContent";
+
+/**
+ * Calculate elapsed time between start and end
+ */
+function getElapsedTime(
+  startedAt: number | undefined,
+  completedAt: number | undefined,
+): string | null {
+  if (!startedAt) return null;
+  const end = completedAt ?? Date.now();
+  const seconds = Math.round((end - startedAt) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
 
 // Thinking Block - thinking process display (ChatGPT style)
 export function ThinkingBlock({
@@ -108,6 +124,10 @@ export function SubagentBlock({
   success,
   isPending,
   parts,
+  startedAt,
+  completedAt,
+  status,
+  error,
 }: {
   agent_id: string;
   agent_name: string;
@@ -116,10 +136,24 @@ export function SubagentBlock({
   success?: boolean;
   isPending?: boolean;
   parts?: MessagePart[];
+  startedAt?: number;
+  completedAt?: number;
+  status?: "pending" | "running" | "complete" | "error";
+  error?: string;
 }) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   const hasContent = (parts && parts.length > 0) || result;
+
+  // Calculate elapsed time
+  const elapsed = useMemo(
+    () => getElapsedTime(startedAt, completedAt),
+    [startedAt, completedAt],
+  );
+
+  // Determine effective status
+  const effectiveStatus =
+    status || (isPending ? "running" : success ? "complete" : "error");
 
   // Format agent name: capitalize first letter and convert underscores to spaces
   const formattedAgentName = agent_name
@@ -140,6 +174,7 @@ export function SubagentBlock({
         "my-3 rounded-xl overflow-hidden transition-all duration-200",
         "border border-stone-200 dark:border-stone-700",
         "bg-white dark:bg-stone-900",
+        effectiveStatus === "error" && "border-red-200 dark:border-red-900/50",
       )}
     >
       {/* Header - minimal design */}
@@ -155,23 +190,27 @@ export function SubagentBlock({
         <div
           className={clsx(
             "flex h-7 w-7 items-center justify-center rounded-lg",
-            isPending
+            effectiveStatus === "running"
               ? "bg-blue-100 dark:bg-blue-900/40"
-              : success
+              : effectiveStatus === "complete"
                 ? "bg-emerald-100 dark:bg-emerald-900/40"
-                : "bg-stone-100 dark:bg-stone-800",
+                : effectiveStatus === "error"
+                  ? "bg-red-100 dark:bg-red-900/40"
+                  : "bg-stone-100 dark:bg-stone-800",
           )}
         >
-          {isPending ? (
-            <LoadingSpinner
-              size="sm"
-              className="text-blue-600 dark:text-blue-400"
+          {effectiveStatus === "running" ? (
+            <Loader2
+              size={14}
+              className="text-blue-600 dark:text-blue-400 animate-spin"
             />
-          ) : success ? (
+          ) : effectiveStatus === "complete" ? (
             <CheckCircle
               size={14}
-              className="text-stone-600 dark:text-stone-300"
+              className="text-emerald-600 dark:text-emerald-400"
             />
+          ) : effectiveStatus === "error" ? (
+            <XCircle size={14} className="text-red-600 dark:text-red-400" />
           ) : (
             <Users size={14} className="text-stone-500 dark:text-stone-400" />
           )}
@@ -182,9 +221,15 @@ export function SubagentBlock({
             <span className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
               {formattedAgentName}
             </span>
-            {isPending && (
+            {/* Status badge */}
+            {effectiveStatus === "running" && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium">
                 {t("chat.message.running")}
+              </span>
+            )}
+            {effectiveStatus === "error" && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-medium">
+                {t("chat.message.error")}
               </span>
             )}
           </div>
@@ -194,6 +239,14 @@ export function SubagentBlock({
             </p>
           )}
         </div>
+
+        {/* Elapsed time */}
+        {elapsed && (
+          <div className="flex items-center gap-1 text-xs text-stone-400 dark:text-stone-500">
+            <Clock size={12} />
+            <span>{elapsed}</span>
+          </div>
+        )}
 
         {/* Expand button */}
         {hasContent && (
@@ -234,8 +287,20 @@ export function SubagentBlock({
             </div>
           )}
 
+          {/* Error message */}
+          {error && effectiveStatus === "error" && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50">
+              <div className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">
+                {t("chat.message.error")}
+              </div>
+              <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                {error}
+              </div>
+            </div>
+          )}
+
           {/* Result */}
-          {result && !isPending && (
+          {result && effectiveStatus === "complete" && (
             <div className="p-3 rounded-lg bg-stone-50 dark:bg-stone-800/50 border border-stone-100 dark:border-stone-700">
               <div className="text-xs text-stone-500 dark:text-stone-400 mb-1.5 font-medium">
                 {t("chat.message.result")}
@@ -427,6 +492,10 @@ export function SubagentContentRenderer({
         success={part.success}
         isPending={part.isPending}
         parts={part.parts}
+        startedAt={part.startedAt}
+        completedAt={part.completedAt}
+        status={part.status}
+        error={part.error}
       />
     );
   }
@@ -443,4 +512,33 @@ export function SubagentContentRenderer({
   }
 
   return null;
+}
+
+// Synthesis indicator - shown when all subagents complete but main agent is still processing
+export function SynthesisIndicator({
+  subagents,
+  isLoading,
+}: {
+  subagents: SubagentPart[];
+  isLoading: boolean;
+}) {
+  const { t } = useTranslation();
+
+  const allComplete =
+    subagents.length > 0 &&
+    subagents.every(
+      (s) =>
+        s.status === "complete" ||
+        s.status === "error" ||
+        (!s.isPending && s.status === undefined),
+    );
+
+  if (!allComplete || !isLoading) return null;
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 px-4 py-2 text-sm text-purple-700 dark:text-purple-300 my-2">
+      <Loader2 size={14} className="animate-spin" />
+      {t("chat.message.synthesizing", { count: subagents.length })}
+    </div>
+  );
 }

@@ -83,6 +83,11 @@ function FeedbackPage() {
   return <AppContent activeTab="feedback" />;
 }
 
+function ChannelsPage() {
+  usePageTitle("nav.channels");
+  return <AppContent activeTab="channels" />;
+}
+
 // Main App Component
 function App() {
   const { t } = useTranslation();
@@ -204,6 +209,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/channels/:channelType?"
+            element={
+              <ProtectedRoute>
+                <ChannelsPage />
+              </ProtectedRoute>
+            }
+          />
           {/* OAuth callback page - handles OAuth redirect from backend */}
           <Route path="/auth/callback" element={<OAuthCallback />} />
           {/* Password reset pages - no auth required */}
@@ -212,7 +225,10 @@ function App() {
           {/* Email verification page - no auth required */}
           <Route path="/verify-email" element={<VerifyEmail />} />
           {/* Registration pending verification page - no auth required */}
-          <Route path="/registration-pending" element={<RegistrationPending />} />
+          <Route
+            path="/registration-pending"
+            element={<RegistrationPending />}
+          />
           {/* Public shared session page - no auth required */}
           <Route path="/shared/:shareId" element={<SharedPage />} />
           <Route path="*" element={<NotFoundPage />} />
