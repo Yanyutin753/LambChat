@@ -119,12 +119,14 @@ export function ChannelsPage() {
       (ct) => ct.channel_type === selectedChannel,
     );
     if (metadata) {
-      // Use specialized FeishuPanel for existing Feishu instances (not "new")
-      if (selectedChannel === "feishu" && selectedInstance !== "new") {
+      // Use specialized FeishuPanel for Feishu channel (both new and existing instances)
+      if (selectedChannel === "feishu") {
         const instance = instances[selectedChannel]?.find(
           (i) => i.instance_id === selectedInstance,
         );
-        const status = statuses[`${selectedChannel}:${selectedInstance}`];
+        const status = selectedInstance !== "new" 
+          ? statuses[`${selectedChannel}:${selectedInstance}`]
+          : null;
         return (
           <FeishuPanel
             instanceId={selectedInstance}

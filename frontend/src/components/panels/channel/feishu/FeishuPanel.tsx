@@ -71,6 +71,7 @@ export function FeishuPanel({
   const [isTesting, setIsTesting] = useState(false);
 
   // Form state
+  const [instanceName, setInstanceName] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [appId, setAppId] = useState("");
   const [appSecret, setAppSecret] = useState("");
@@ -108,6 +109,7 @@ export function FeishuPanel({
         | undefined;
       setConfig(feishuConfig ?? null);
       setHasExistingConfig(true);
+      setInstanceName(initialConfig.name || "");
       setEnabled(initialConfig.enabled);
       setAppId(feishuConfig?.app_id || "");
       setEncryptKey(feishuConfig?.encrypt_key || "");
@@ -128,6 +130,7 @@ export function FeishuPanel({
       }
     } else {
       setHasExistingConfig(false);
+      setInstanceName("");
       setEnabled(false);
       setAppId("");
       setAppSecret("");
@@ -148,6 +151,24 @@ export function FeishuPanel({
   const loadConfig = async () => {
     setIsLoading(true);
     try {
+      // For new instances, just set defaults without calling API
+      if (instanceId === "new") {
+        setHasExistingConfig(false);
+        setEnabled(false);
+        setInstanceName("");
+        setAppId("");
+        setAppSecret("");
+        setEncryptKey("");
+        setVerificationToken("");
+        setReactEmoji("THUMBSUP");
+        setCustomEmoji("");
+        setUseCustomEmoji(false);
+        setGroupPolicy("mention");
+        setStatus(null);
+        setIsLoading(false);
+        return;
+      }
+
       const [configResponse, statusResponse] = await Promise.all([
         channelApi.get("feishu", instanceId!),
         channelApi.getStatus("feishu", instanceId!),
@@ -157,6 +178,7 @@ export function FeishuPanel({
         const feishuConfig = configResponse.config as FeishuConfigResponse;
         setConfig(feishuConfig);
         setHasExistingConfig(true);
+        setInstanceName(configResponse.name || "");
         setEnabled(configResponse.enabled);
         setAppId(feishuConfig.app_id || "");
         setEncryptKey(feishuConfig.encrypt_key || "");
@@ -178,6 +200,7 @@ export function FeishuPanel({
         }
       } else {
         setHasExistingConfig(false);
+        setInstanceName("");
         setEnabled(false);
         setAppId("");
         setAppSecret("");
@@ -203,6 +226,12 @@ export function FeishuPanel({
   };
 
   const handleSave = async () => {
+    // Validate instance name for new instances
+    if (!hasExistingConfig && !instanceName.trim()) {
+      toast.error(t("feishu.instanceNameRequired", "Instance name is required"));
+      return;
+    }
+
     if (!appId.trim()) {
       toast.error(t("feishu.appIdRequired", "App ID is required"));
       return;
@@ -255,7 +284,7 @@ export function FeishuPanel({
       } else {
         const created = await channelApi.create({
           channel_type: "feishu",
-          name: instanceId, // Use instanceId as name for now
+          name: instanceName.trim(),
           config: {
             app_id: appId,
             app_secret: appSecret,
@@ -269,12 +298,17 @@ export function FeishuPanel({
         setConfig(feishuConfig);
         setHasExistingConfig(true);
         setAppSecret("");
+        // Navigate to the new instance URL
+        navigate(`/channels/feishu/${created.instance_id}`, { replace: true });
       }
 
       toast.success(t("feishu.saveSuccess", "Feishu configuration saved"));
 
-      const newStatus = await channelApi.getStatus("feishu", instanceId);
-      setStatus(newStatus);
+      // Only fetch status for existing instances
+      if (hasExistingConfig) {
+        const newStatus = await channelApi.getStatus("feishu", instanceId);
+        setStatus(newStatus);
+      }
     } catch (error) {
       console.error("Failed to save Feishu config:", error);
       const errorMessage =
@@ -469,6 +503,23 @@ export function FeishuPanel({
                   />
                 </button>
               </div>
+
+              {/* Instance Name - Only show for new instances */}
+              {!hasExistingConfig && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                    {t("feishu.instanceName", "Instance Name")}{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={instanceName}
+                    onChange={(e) => setInstanceName(e.target.value)}
+                    placeholder={t("feishu.instanceNamePlaceholder", "My Feishu Bot")}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                  />
+                </div>
+              )}
 
               {/* App Credentials */}
               <div className="space-y-3">
