@@ -25,7 +25,7 @@ export function FeishuPanel() {
   const navigate = useNavigate();
 
   // State
-  const [_config, setConfig] = useState<FeishuConfigResponse | null>(null);
+  const [, setConfig] = useState<FeishuConfigResponse | null>(null);
   const [status, setStatus] = useState<FeishuConfigStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -46,6 +46,7 @@ export function FeishuPanel() {
   // Load config on mount
   useEffect(() => {
     loadConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadConfig = async () => {

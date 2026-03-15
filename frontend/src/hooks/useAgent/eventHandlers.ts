@@ -165,6 +165,11 @@ export function handleStreamEvent(
       break;
     }
 
+    case "tool:input": {
+      handleToolInput(data, messageId, depth, ctx);
+      break;
+    }
+
     case "tool:result": {
       handleToolResult(data, messageId, depth, ctx);
       break;
@@ -502,6 +507,89 @@ function handleToolStart(
         ...m,
         toolCalls:
           depth === 0 ? [...(m.toolCalls || []), toolCall] : m.toolCalls,
+        parts: newParts,
+      };
+    }),
+  );
+}
+
+function handleToolInput(
+  data: EventData,
+  messageId: string,
+  depth: number,
+  ctx: EventHandlerContext,
+): void {
+  const toolCallId = data.tool_call_id as string | undefined;
+  const toolName = data.tool || "";
+  const newArgs = data.args || {};
+
+  // 检查是否是 partial 格式
+  const isPartial = "partial" in newArgs;
+
+  ctx.setMessages((prev) =>
+    prev.map((m) => {
+      if (m.id !== messageId) return m;
+      const toolCalls = m.toolCalls || [];
+
+      // 更新 toolCalls 中的参数（只在 depth === 0 时）
+      const updatedToolCalls =
+        depth === 0
+          ? toolCalls.map((tc) => {
+              if (tc.id === toolCallId && tc.name === toolName) {
+                let mergedArgs: Record<string, unknown>;
+
+                if (isPartial) {
+                  // 处理 partial 格式：拼接字符串
+                  const existingArgs = tc.args as Record<string, string>;
+                  const existingPartial = existingArgs.partial || "";
+                  mergedArgs = {
+                    ...tc.args,
+                    partial: existingPartial + newArgs.partial,
+                  };
+                } else {
+                  // 正常合并参数
+                  mergedArgs = { ...tc.args, ...newArgs };
+                }
+
+                return {
+                  ...tc,
+                  args: mergedArgs,
+                };
+              }
+              return tc;
+            })
+          : toolCalls;
+
+      // 更新 parts 中的工具部分 (ToolPart 使用 id 字段)
+      const parts = m.parts || [];
+      const newParts = parts.map((p) => {
+        if (p.type === "tool" && p.id === toolCallId && p.name === toolName) {
+          let mergedArgs: Record<string, unknown>;
+
+          if (isPartial) {
+            // 处理 partial 格式：拼接字符串
+            const existingArgs = p.args as Record<string, string>;
+            const existingPartial = existingArgs.partial || "";
+            mergedArgs = {
+              ...p.args,
+              partial: existingPartial + newArgs.partial,
+            };
+          } else {
+            // 正常合并参数
+            mergedArgs = { ...p.args, ...newArgs };
+          }
+
+          return {
+            ...p,
+            args: mergedArgs,
+          };
+        }
+        return p;
+      });
+
+      return {
+        ...m,
+        toolCalls: updatedToolCalls,
         parts: newParts,
       };
     }),

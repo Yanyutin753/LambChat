@@ -123,7 +123,7 @@ def _build_human_message(text: str, attachments: list[dict] | None) -> HumanMess
 
     # 构建包含附件信息的文本
     enhanced_text = text
-    enhanced_text += "\n\n---\n**用户上传的附件:**"
+    enhanced_text += "\n\n---\n**User Uploaded Attachments:**"
 
     for attachment in attachments:
         url = attachment.get("url", "")
@@ -202,32 +202,26 @@ async def _run_with_retry(
     max_retries: int | None = None,
     base_delay: float = 1.0,
 ) -> None:
-    """
-    带重试的 LLM 流式执行
-
-    遇到 429 等可重试错误时，使用指数退避重试。
-
-    Args:
-        graph: LangGraph 实例
-        input_data: 输入数据
-        config: 运行配置
-        event_processor: 事件处理器
-        max_retries: 最大重试次数（默认从 settings 读取）
-        base_delay: 基础重试延迟（秒）
-    """
+    """带重试的 LLM 流式执行（使用 astream_events）"""
     if max_retries is None:
         max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
 
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
-            async for event in graph.astream_events(input_data, config, version="v2"):
+            # 使用 astream_events API
+            async for event in graph.astream_events(
+                input_data,
+                config,
+                version="v2",
+            ):
+                # 使用 AgentEventProcessor 处理事件
                 await event_processor.process_event(event)
-            return  # 成功完成
+            return
         except Exception as e:
             last_error = e
             if _is_retryable_error(e) and attempt < max_retries - 1:
-                delay = base_delay * (2**attempt)  # 指数退避
+                delay = base_delay * (2**attempt)
                 logger.warning(
                     f"LLM call failed (attempt {attempt + 1}/{max_retries}): {e}. "
                     f"Retrying in {delay}s..."
@@ -236,7 +230,6 @@ async def _run_with_retry(
             else:
                 raise
 
-    # 不应该到达这里
     if last_error is None:
         raise RuntimeError("Unexpected state: no error but loop exhausted")
     raise last_error
@@ -351,11 +344,12 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 传递 messages
     inner_config["configurable"]["messages"] = existing_messages
 
-    # 创建事件处理器
+    # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
+    logger.info("[SearchAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(presenter)
 
-    # 流式处理事件（带重试，处理 429 等错误）
-    # 注意：不再传递 files 参数，SkillsStoreBackend 可以直接读写 MongoDB
+    logger.info("[SearchAgent] Starting _run_with_retry (astream_events)")
+    # 流式处理事件（带重试，使用 astream_events）
     await _run_with_retry(
         graph=inner_graph,
         input_data={

@@ -16,6 +16,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from src.infra.agent import AgentEventProcessor
 from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
 
@@ -278,6 +279,7 @@ class BaseGraphAgent(ABC):
                 """运行 graph 流并将事件放入队列"""
                 nonlocal stream_error, stream_done
                 try:
+                    # 使用 astream_events API
                     async for event in self._graph.astream_events(
                         initial_state,
                         config,
@@ -306,6 +308,9 @@ class BaseGraphAgent(ABC):
             # 中断检查间隔（秒）- 1 秒是性能和响应速度的平衡点
             interrupt_check_interval = 1.0
 
+            # 创建事件处理器
+            event_processor = AgentEventProcessor(presenter)
+
             try:
                 while True:
                     # 使用 wait_for 定期检查中断信号
@@ -330,43 +335,8 @@ class BaseGraphAgent(ABC):
                     if item_type == "error":
                         raise item_data
 
-                    evt_type = item_data.get("event")
-
-                    # LLM token 流
-                    if evt_type == "on_chat_model_stream":
-                        chunk = item_data.get("data", {}).get("chunk")
-                        if chunk and hasattr(chunk, "content") and chunk.content:
-                            yield presenter.present_text(chunk.content)
-
-                    # 工具调用开始
-                    elif evt_type == "on_tool_start":
-                        name = item_data.get("name", "")
-                        inp = item_data.get("data", {}).get("input", {})
-                        if name not in ["read_file", "read_todos", "write_todos"]:
-                            yield presenter.present_tool_start(name, inp)
-
-                    # 工具调用错误
-                    elif evt_type == "on_tool_error":
-                        name = item_data.get("name", "")
-                        error = item_data.get("data", {}).get("error", "")
-                        error_msg = str(error) if error else "Unknown error"
-                        if name not in ["read_file", "read_todos", "write_todos"]:
-                            yield presenter.present_tool_result(name, error_msg, success=False)
-
-                    # 工具调用结束
-                    elif evt_type == "on_tool_end":
-                        name = item_data.get("name", "")
-                        out = item_data.get("data", {}).get("output", "")
-                        if name not in ["read_file", "read_todos", "write_todos"]:
-                            yield presenter.present_tool_result(name, str(out))
-
-                    # 链结束 - 可能包含节点返回的事件
-                    elif evt_type == "on_chain_end":
-                        output = item_data.get("data", {}).get("output", {})
-                        # 如果节点返回了 __events__，发送这些事件
-                        if isinstance(output, dict) and "__events__" in output:
-                            for evt in output["__events__"]:
-                                yield evt
+                    # 使用 AgentEventProcessor 处理事件
+                    await event_processor.process_event(item_data)
 
             finally:
                 # 注销并取消流任务
@@ -384,33 +354,29 @@ class BaseGraphAgent(ABC):
                 try:
                     item_type, item_data = event_queue.get_nowait()
                     if item_type == "event" and item_data:
-                        evt_type = item_data.get("event")
-                        # 只 yield 关键事件类型
-                        if evt_type == "on_chat_model_stream":
-                            chunk = item_data.get("data", {}).get("chunk")
-                            if chunk and hasattr(chunk, "content") and chunk.content:
-                                yield presenter.present_text(chunk.content)
-                        elif evt_type == "on_tool_start":
-                            name = item_data.get("name", "")
-                            inp = item_data.get("data", {}).get("input", {})
-                            if name not in ["read_file", "read_todos", "write_todos"]:
-                                yield presenter.present_tool_start(name, inp)
-                        elif evt_type == "on_tool_error":
-                            name = item_data.get("name", "")
-                            error = item_data.get("data", {}).get("error", "")
-                            error_msg = str(error) if error else "Unknown error"
-                            if name not in ["read_file", "read_todos", "write_todos"]:
-                                yield presenter.present_tool_result(name, error_msg, success=False)
-                        elif evt_type == "on_tool_end":
-                            name = item_data.get("name", "")
-                            out = item_data.get("data", {}).get("output", "")
-                            if name not in ["read_file", "read_todos", "write_todos"]:
-                                yield presenter.present_tool_result(name, str(out))
+                        # 使用 AgentEventProcessor 处理剩余事件
+                        try:
+                            await event_processor.process_event(item_data)
+                        except Exception:
+                            pass
                 except asyncio.QueueEmpty:
                     break
             raise
 
         # 其他异常（TaskInterruptedError, Exception）直接抛给 manager.py 处理
+
+        # 发送 token 使用统计
+        if event_processor.total_input_tokens > 0 or event_processor.total_output_tokens > 0:
+            await presenter.emit(
+                presenter.present_token_usage(
+                    input_tokens=event_processor.total_input_tokens,
+                    output_tokens=event_processor.total_output_tokens,
+                    total_tokens=event_processor.total_tokens
+                    or event_processor.total_input_tokens + event_processor.total_output_tokens,
+                    cache_creation_tokens=event_processor.total_cache_creation_tokens,
+                    cache_read_tokens=event_processor.total_cache_read_tokens,
+                )
+            )
 
         # 发送完成
         yield presenter.done()

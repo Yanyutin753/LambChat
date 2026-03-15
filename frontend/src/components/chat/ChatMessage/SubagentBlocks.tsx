@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { clsx } from "clsx";
 import {
   CheckCircle,
@@ -15,7 +15,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CollapsiblePill } from "../../common";
 import type { CollapsibleStatus } from "../../common";
-import type { MessagePart, SubagentPart } from "../../../types";
+import type { MessagePart } from "../../../types";
 import { MarkdownContent, truncateText } from "./MarkdownContent";
 
 /**
@@ -145,11 +145,31 @@ export function SubagentBlock({
   const [isExpanded, setIsExpanded] = useState(false);
   const hasContent = (parts && parts.length > 0) || result;
 
-  // Calculate elapsed time
-  const elapsed = useMemo(
-    () => getElapsedTime(startedAt, completedAt),
-    [startedAt, completedAt],
-  );
+  // Live elapsed time while running
+  const [liveElapsed, setLiveElapsed] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!startedAt || completedAt) {
+      // Task not started or already completed - clear live timer
+      setLiveElapsed(null);
+      return;
+    }
+
+    // Update immediately
+    setLiveElapsed(getElapsedTime(startedAt, completedAt));
+
+    // Update every second while running
+    const interval = setInterval(() => {
+      setLiveElapsed(getElapsedTime(startedAt, completedAt));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startedAt, completedAt]);
+
+  // Final elapsed time when completed
+  const elapsed = completedAt
+    ? getElapsedTime(startedAt, completedAt)
+    : liveElapsed;
 
   // Determine effective status
   const effectiveStatus =
@@ -512,33 +532,4 @@ export function SubagentContentRenderer({
   }
 
   return null;
-}
-
-// Synthesis indicator - shown when all subagents complete but main agent is still processing
-export function SynthesisIndicator({
-  subagents,
-  isLoading,
-}: {
-  subagents: SubagentPart[];
-  isLoading: boolean;
-}) {
-  const { t } = useTranslation();
-
-  const allComplete =
-    subagents.length > 0 &&
-    subagents.every(
-      (s) =>
-        s.status === "complete" ||
-        s.status === "error" ||
-        (!s.isPending && s.status === undefined),
-    );
-
-  if (!allComplete || !isLoading) return null;
-
-  return (
-    <div className="flex items-center gap-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 px-4 py-2 text-sm text-purple-700 dark:text-purple-300 my-2">
-      <Loader2 size={14} className="animate-spin" />
-      {t("chat.message.synthesizing", { count: subagents.length })}
-    </div>
-  );
 }

@@ -280,6 +280,14 @@ class Presenter:
 
     async def emit(self, event: Dict[str, Any]) -> Dict[str, Any]:
         """发送单个事件（自动保存）"""
+        event_type = event.get("event", "unknown")
+        data = event.get("data", {})
+        agent_id = data.get("agent_id") if isinstance(data, dict) else None
+        depth = data.get("depth") if isinstance(data, dict) else None
+        if agent_id or (depth and depth > 0):
+            logger.info(
+                f"[Presenter.emit] event_type={event_type}, agent_id={agent_id}, depth={depth}"
+            )
         await self.save_event(event)
         return event
 
@@ -456,6 +464,37 @@ class Presenter:
         self._tool_calls.append({"name": tool_name, "input": tool_input})
         return self._build_event(
             "tool:start",
+            {
+                "tool": tool_name,
+                "args": (tool_input if isinstance(tool_input, dict) else {"input": tool_input}),
+                "tool_call_id": tool_call_id,
+                "timestamp": _get_timestamp(),
+            },
+            depth=depth,
+            agent_id=agent_id,
+        )
+
+    def present_tool_input(
+        self,
+        tool_name: str,
+        tool_input: Any,
+        tool_call_id: Optional[str] = None,
+        depth: int = 0,
+        agent_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出工具参数更新（流式工具输入）
+
+        用于流式传递工具参数增量，当参数完整时会合并到 tool:start。
+
+        Args:
+            tool_name: 工具名称
+            tool_input: 工具输入（增量或完整参数）
+            tool_call_id: 工具调用唯一ID
+            depth: 层级深度（0=主代理，1+=子代理）
+            agent_id: 代理ID（用于子代理事件）
+        """
+        return self._build_event(
+            "tool:input",
             {
                 "tool": tool_name,
                 "args": (tool_input if isinstance(tool_input, dict) else {"input": tool_input}),

@@ -11,7 +11,7 @@ import logging
 import re
 import sys
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Optional, cast
 
 if TYPE_CHECKING:
     from src.infra.channel.feishu_channel import FeishuChannelManager
@@ -171,7 +171,7 @@ class FeishuMarkdownAdapter:
     def _fix_lists(cls, text: str) -> str:
         """修复列表格式"""
         lines = text.split("\n")
-        result = []
+        result: list[str] = []
         in_list = False
 
         for line in lines:
@@ -344,12 +344,15 @@ class FeishuResponseCollector:
 
     async def send_card_message(self) -> bool:
         """发送卡片消息（支持回复引用）"""
+        from src.infra.channel.feishu_channel import FeishuChannel
+
         content = self._build_card_content()
-        client = self.manager._channels.get(self.user_id)
-        if not client:
+        base_client = self.manager._channels.get(self.user_id)
+        if not base_client:
             logger.warning(f"[Feishu] No client for user {self.user_id}")
             return False
 
+        client = cast(FeishuChannel, base_client)
         success = await client.send_card_message(
             self.chat_id, content, reply_to_id=self.reply_to_message_id
         )
@@ -368,14 +371,17 @@ class FeishuResponseCollector:
         直接从 S3 storage 读取文件内容，然后上传到飞书。
         """
         from src.api.routes.upload import get_or_init_storage
+        from src.infra.channel.feishu_channel import FeishuChannel
 
         if not self.files_to_reveal:
             return
 
-        client = self.manager._channels.get(self.user_id)
-        if not client:
+        base_client = self.manager._channels.get(self.user_id)
+        if not base_client:
             logger.warning(f"[Feishu] No client for user {self.user_id}")
             return
+
+        client = cast(FeishuChannel, base_client)
 
         try:
             storage = await get_or_init_storage()

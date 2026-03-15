@@ -533,7 +533,7 @@ class FeishuChannel(BaseChannel):
             logger.error(f"Error sending Feishu {msg_type} message: {e}")
             return False
 
-    async def send_message(self, chat_id: str, content: str) -> bool:
+    async def send_message(self, chat_id: str, content: str, **kwargs: Any) -> bool:
         """Send a text message to a chat."""
         if not self._client:
             return False
@@ -1048,6 +1048,7 @@ class FeishuChannelManager(UserChannelManager):
     def __init__(self, message_handler: Optional[Callable] = None):
         super().__init__(message_handler)
         self._storage = ChannelStorage()
+        self._message_handler: Optional[Callable] = message_handler
 
     @classmethod
     def get_instance(cls) -> "FeishuChannelManager":

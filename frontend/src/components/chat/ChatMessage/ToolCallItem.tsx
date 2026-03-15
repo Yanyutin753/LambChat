@@ -55,7 +55,22 @@ export function ToolCallItem({
 }) {
   const { t } = useTranslation();
   const hasResult = result !== undefined;
-  const hasArgs = Object.keys(args).length > 0;
+
+  // 处理 partial 格式：尝试解析或显示原始字符串
+  const displayArgs = (() => {
+    if (args.partial !== undefined) {
+      // 尝试解析 partial JSON
+      try {
+        return JSON.parse(args.partial as string);
+      } catch {
+        // 解析失败，显示原始字符串
+        return { partial: args.partial };
+      }
+    }
+    return args;
+  })();
+
+  const hasArgs = Object.keys(displayArgs).length > 0;
 
   // Map props to CollapsibleStatus
   let status: CollapsibleStatus = "idle";
@@ -86,7 +101,7 @@ export function ToolCallItem({
                 {t("chat.message.args")}
               </div>
               <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto">
-                {JSON.stringify(args, null, 2)}
+                {JSON.stringify(displayArgs, null, 2)}
               </pre>
             </div>
           )}

@@ -96,7 +96,7 @@ def _build_human_message(text: str, attachments: list[dict] | None) -> HumanMess
         return HumanMessage(content=text)
 
     enhanced_text = text
-    enhanced_text += "\n\n---\n**用户上传的附件:**"
+    enhanced_text += "\n\n---\n**User Uploaded Attachments:**"
 
     for attachment in attachments:
         url = attachment.get("url", "")
@@ -173,14 +173,20 @@ async def _run_with_retry(
     max_retries: int | None = None,
     base_delay: float = 1.0,
 ) -> None:
-    """带重试的 LLM 流式执行"""
+    """带重试的 LLM 流式执行（使用 astream_events）"""
     if max_retries is None:
         max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
 
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
-            async for event in graph.astream_events(input_data, config, version="v2"):
+            # 使用 astream_events API
+            async for event in graph.astream_events(
+                input_data,
+                config,
+                version="v2",
+            ):
+                # 使用 AgentEventProcessor 处理事件
                 await event_processor.process_event(event)
             return
         except Exception as e:
@@ -316,10 +322,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 传递 messages
     inner_config["configurable"]["messages"] = existing_messages
 
-    # 创建事件处理器
+    # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
+    logger.info("[FastAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(presenter)
 
-    # 流式处理事件（带重试）
+    logger.info("[FastAgent] Starting _run_with_retry (astream_events)")
+    # 流式处理事件（带重试，使用 astream_events）
     # 注意：不预加载 skill_files，通过 SkillsStoreBackend 实时读写
     await _run_with_retry(
         graph=inner_graph,
@@ -330,6 +338,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         config=inner_config,
         event_processor=event_processor,
     )
+    logger.info("[FastAgent] _run_with_retry completed")
 
     # 发送 token 使用统计事件
     await _emit_token_usage(event_processor, presenter, start_time)

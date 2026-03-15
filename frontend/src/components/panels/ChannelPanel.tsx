@@ -50,7 +50,7 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
   const navigate = useNavigate();
 
   // State
-  const [_config, setConfig] = useState<ChannelConfigResponse | null>(null);
+  const [, setConfig] = useState<ChannelConfigResponse | null>(null);
   const [status, setStatus] = useState<ChannelConfigStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,6 +64,7 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
   // Load config on mount
   useEffect(() => {
     loadConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelType]);
 
   // Initialize form defaults from metadata

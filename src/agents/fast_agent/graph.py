@@ -116,7 +116,7 @@ class FastAgent(BaseGraphAgent):
                     agent_id=self.agent_id,
                     agent_name=self.name,
                     user_id=user_id,
-                    enable_storage=False,
+                    enable_storage=True,
                 )
             )
 

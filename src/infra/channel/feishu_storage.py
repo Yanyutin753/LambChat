@@ -6,7 +6,7 @@ Stores user-level Feishu bot configurations with encrypted sensitive fields.
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from src.infra.mcp.encryption import decrypt_value, encrypt_value
 from src.infra.storage.mongodb import get_mongo_client
@@ -89,7 +89,7 @@ class FeishuStorage:
         if not doc:
             return None
 
-        update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+        update_data: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
 
         if updates.app_id is not None:
             update_data["app_id"] = updates.app_id
@@ -161,7 +161,7 @@ class FeishuStorage:
             configs.append(self._doc_to_config(doc))
         return configs
 
-    def _encrypt_secret(self, secret: str) -> dict:
+    def _encrypt_secret(self, secret: str) -> dict[str, Any] | str:
         """Encrypt a secret string"""
         if not secret:
             return ""

@@ -299,6 +299,73 @@ function processHistoryEvent(
       break;
     }
 
+    case "tool:input": {
+      // 更新工具参数（流式输入）
+      const toolCallId = eventData.tool_call_id;
+      const toolName = eventData.tool || "";
+      const newArgs = eventData.args || {};
+      const parts = msg.parts || [];
+
+      // 检查是否是 partial 格式
+      const isPartial = "partial" in newArgs;
+
+      // 更新 parts 中的工具参数
+      const updatedParts = parts.map((p) => {
+        if (p.type === "tool" && p.id === toolCallId && p.name === toolName) {
+          let mergedArgs: Record<string, unknown>;
+
+          if (isPartial) {
+            // 处理 partial 格式：拼接字符串
+            const existingArgs = p.args as Record<string, string>;
+            const existingPartial = existingArgs.partial || "";
+            mergedArgs = {
+              ...p.args,
+              partial: existingPartial + newArgs.partial,
+            };
+          } else {
+            // 正常合并参数
+            mergedArgs = { ...p.args, ...newArgs };
+          }
+
+          return {
+            ...p,
+            args: mergedArgs,
+          };
+        }
+        return p;
+      });
+      msg.parts = updatedParts;
+
+      // 更新 toolCalls 中的参数
+      const toolCalls = msg.toolCalls || [];
+      const updatedToolCalls = toolCalls.map((tc) => {
+        if (tc.id === toolCallId && tc.name === toolName) {
+          let mergedArgs: Record<string, unknown>;
+
+          if (isPartial) {
+            // 处理 partial 格式：拼接字符串
+            const existingArgs = tc.args as Record<string, string>;
+            const existingPartial = existingArgs.partial || "";
+            mergedArgs = {
+              ...tc.args,
+              partial: existingPartial + newArgs.partial,
+            };
+          } else {
+            // 正常合并参数
+            mergedArgs = { ...tc.args, ...newArgs };
+          }
+
+          return {
+            ...tc,
+            args: mergedArgs,
+          };
+        }
+        return tc;
+      });
+      msg.toolCalls = updatedToolCalls;
+      break;
+    }
+
     case "tool:result": {
       const toolCallId = eventData.tool_call_id;
       const isSuccess =

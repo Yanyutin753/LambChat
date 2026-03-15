@@ -99,7 +99,7 @@ class ChannelStorage:
         if not doc:
             return None
 
-        update_data = {
+        update_data: dict[str, Any] = {
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "config": self._encrypt_config(config),
         }

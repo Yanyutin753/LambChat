@@ -14,6 +14,7 @@ export type EventType =
   | "user:cancel"
   | "thinking"
   | "tool:start"
+  | "tool:input"
   | "tool:result"
   | "todo:created"
   | "todo:updated"

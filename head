@@ -1,0 +1,2 @@
+<frozen runpy>:128: RuntimeWarning: 'src.infra.agent.stream_processor' found in sys.modules after import of package 'src.infra.agent', but prior to execution of 'src.infra.agent.stream_processor'; this may result in unpredictable behaviour
+<frozen runpy>:128: RuntimeWarning: 'src.infra.agent.stream_processor' found in sys.modules after import of package 'src.infra.agent', but prior to execution of 'src.infra.agent.stream_processor'; this may result in unpredictable behaviour
