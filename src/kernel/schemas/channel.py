@@ -83,6 +83,7 @@ class ChannelConfigCreate(BaseModel):
     """
 
     channel_type: ChannelType
+    name: str = Field(description="User-defined name for this channel instance")
     config: dict[str, Any]  # Channel-specific config as dict
 
 
@@ -98,13 +99,17 @@ class ChannelConfigUpdate(BaseModel):
 class ChannelConfigResponse(BaseModel):
     """Channel configuration response (sensitive fields masked)."""
 
+    id: str = Field(alias="instance_id", description="Unique instance identifier")
     channel_type: ChannelType
+    name: str = Field(description="User-defined name for this channel instance")
     user_id: str
     enabled: bool
     config: dict[str, Any]  # Masked config for display
     capabilities: list[ChannelCapability]
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ChannelConfigStatus(BaseModel):

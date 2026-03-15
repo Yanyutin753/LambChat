@@ -129,15 +129,29 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     [createEventHandlerContext],
   );
 
+  // Ref for currentAgent to avoid dependency changes triggering refetch
+  const currentAgentRef = useRef(currentAgent);
+  useEffect(() => {
+    currentAgentRef.current = currentAgent;
+  }, [currentAgent]);
+
   // Fetch available agents
   const fetchAgents = useCallback(async () => {
     setAgentsLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/agents`);
+      const token = getAccessToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const response = await fetch(`${API_BASE}/agents`, { headers });
       if (!response.ok) throw new Error("Failed to fetch agents");
       const data: AgentListResponse = await response.json();
       setAgents(data.agents || []);
-      if (!currentAgent && data.agents?.length > 0) {
+      // Use ref to check currentAgent, avoiding dependency cycle
+      if (!currentAgentRef.current && data.agents?.length > 0) {
         const defaultAgentId = data.default_agent || data.agents[0]?.id || "";
         if (defaultAgentId) {
           setCurrentAgent(defaultAgentId);
@@ -148,12 +162,57 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     } finally {
       setAgentsLoading(false);
     }
-  }, [currentAgent]);
+  }, []); // No dependencies - uses ref instead
 
   // Load agents on mount
   useEffect(() => {
     fetchAgents();
   }, [fetchAgents]);
+
+  // Listen for agent preference updates to refresh agents list and apply new default
+  useEffect(() => {
+    const handleAgentPreferenceUpdated = async () => {
+      // Fetch fresh agents data
+      setAgentsLoading(true);
+      try {
+        const token = getAccessToken();
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const response = await fetch(`${API_BASE}/agents`, { headers });
+        if (!response.ok) throw new Error("Failed to fetch agents");
+        const data: AgentListResponse = await response.json();
+
+        // Update agents list
+        setAgents(data.agents || []);
+
+        // Apply the new default agent if user doesn't have an active session
+        // (i.e., no current messages means it's a good time to switch)
+        const hasActiveSession = messagesRef.current.length > 0;
+        if (!hasActiveSession && data.default_agent) {
+          setCurrentAgent(data.default_agent);
+        }
+      } catch (err) {
+        console.error("Failed to fetch agents after preference update:", err);
+      } finally {
+        setAgentsLoading(false);
+      }
+    };
+
+    window.addEventListener(
+      "agent-preference-updated",
+      handleAgentPreferenceUpdated,
+    );
+    return () => {
+      window.removeEventListener(
+        "agent-preference-updated",
+        handleAgentPreferenceUpdated,
+      );
+    };
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -103,3 +103,20 @@ class RoleManager:
         初始化默认角色
         """
         await self.storage.init_default_roles()
+
+
+# 单例实例
+_role_manager: Optional[RoleManager] = None
+
+
+def get_role_manager() -> RoleManager:
+    """
+    获取角色管理器单例
+
+    Returns:
+        角色管理器实例
+    """
+    global _role_manager
+    if _role_manager is None:
+        _role_manager = RoleManager()
+    return _role_manager

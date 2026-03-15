@@ -1,13 +1,28 @@
 import { createPortal } from "react-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Eye, EyeOff, Loader2, X, Pencil, Check } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Loader2,
+  X,
+  Pencil,
+  Check,
+  Save,
+  AlertCircle,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 import { useBrowserNotification } from "../../hooks/useBrowserNotification";
 import { useVersion } from "../../hooks/useVersion";
-import { Permission, User } from "../../types";
-import { authApi, uploadApi } from "../../services/api";
+import { Permission, User, AgentInfo } from "../../types";
+import {
+  authApi,
+  uploadApi,
+  agentConfigApi,
+  agentApi,
+} from "../../services/api";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 
 interface ProfileModalProps {
   showProfileModal: boolean;
@@ -24,7 +39,7 @@ export function ProfileModal({
   const { user, refreshUser, hasPermission } = useAuth();
   const [userData, setUserData] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "info" | "password" | "notification"
+    "info" | "password" | "notification" | "agent"
   >("info");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -321,6 +336,16 @@ export function ProfileModal({
             }`}
           >
             {t("profile.notifications")}
+          </button>
+          <button
+            onClick={() => setActiveTab("agent")}
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+              activeTab === "agent"
+                ? "text-amber-600 border-b-2 border-amber-600"
+                : "text-gray-500 dark:text-stone-400 hover:text-gray-700 dark:hover:text-stone-200"
+            }`}
+          >
+            {t("agentConfig.defaultAgent")}
           </button>
         </div>
 
@@ -644,6 +669,8 @@ export function ProfileModal({
               </div>
             </div>
           )}
+
+          {activeTab === "agent" && <UserAgentPreferencePanel />}
         </div>
 
         {/* Modal Footer */}
@@ -660,5 +687,163 @@ export function ProfileModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * 用户默认 Agent 设置组件
+ */
+function UserAgentPreferencePanel() {
+  const { t } = useTranslation();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [availableAgents, setAvailableAgents] = useState<AgentInfo[]>([]);
+  const [currentPreference, setCurrentPreference] = useState<string | null>(
+    null,
+  );
+  const [selectedAgent, setSelectedAgent] = useState<string>("");
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [agentsRes, preferenceRes] = await Promise.all([
+        agentApi.list(),
+        agentConfigApi
+          .getUserPreference()
+          .catch(() => ({ default_agent_id: null })),
+      ]);
+
+      setAvailableAgents(agentsRes.agents || []);
+      setCurrentPreference(preferenceRes.default_agent_id);
+      setSelectedAgent(
+        preferenceRes.default_agent_id || agentsRes.default_agent || "",
+      );
+    } catch (err) {
+      const errorMsg = (err as Error).message || t("agentConfig.loadFailed");
+      setError(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleSave = async () => {
+    if (!selectedAgent) return;
+
+    setIsSaving(true);
+    try {
+      await agentConfigApi.setUserPreference(selectedAgent);
+      setCurrentPreference(selectedAgent);
+      toast.success(t("agentConfig.preferenceSaved"));
+      window.dispatchEvent(new CustomEvent("agent-preference-updated"));
+    } catch (err) {
+      toast.error((err as Error).message || t("agentConfig.saveFailed"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const hasChanges = selectedAgent !== currentPreference;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-32 items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-gray-50 dark:bg-stone-700/50 rounded-lg p-4">
+        {availableAgents.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-stone-400">
+            {t("agentConfig.noAvailableAgents")}
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {availableAgents.map((agent) => (
+              <label
+                key={agent.id}
+                className={`flex cursor-pointer items-center gap-3 rounded-md p-3 transition-colors ${
+                  selectedAgent === agent.id
+                    ? "bg-white dark:bg-stone-600 ring-2 ring-amber-500/50"
+                    : "bg-white/50 dark:bg-stone-600/50 hover:bg-white dark:hover:bg-stone-600"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="defaultAgent"
+                  value={agent.id}
+                  checked={selectedAgent === agent.id}
+                  onChange={(e) => setSelectedAgent(e.target.value)}
+                  className="h-4 w-4 border-gray-300 dark:border-stone-500 text-amber-600 focus:ring-amber-500"
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-900 dark:text-stone-100 truncate">
+                    {t(agent.name)}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-stone-400 truncate">
+                    {t(agent.description)}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {hasChanges && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !selectedAgent}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <LoadingSpinner size="sm" />
+                {t("common.saving")}
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                {t("common.save")}
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {currentPreference && !hasChanges && (
+        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-stone-400">
+          <Check size={16} className="text-green-600 dark:text-green-400" />
+          <span>
+            {t("agentConfig.currentPreference", {
+              agentName: t(
+                availableAgents.find((a) => a.id === currentPreference)?.name ||
+                  currentPreference,
+              ),
+            })}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }

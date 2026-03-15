@@ -174,6 +174,19 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "管理反馈",
         "description": "删除和管理所有用户反馈",
     },
+    # Channel - Generic
+    Permission.CHANNEL_READ.value: {
+        "label": "查看渠道",
+        "description": "查看渠道配置和连接状态",
+    },
+    Permission.CHANNEL_WRITE.value: {
+        "label": "配置渠道",
+        "description": "创建和修改渠道配置",
+    },
+    Permission.CHANNEL_DELETE.value: {
+        "label": "删除渠道",
+        "description": "删除渠道配置",
+    },
 }
 
 # 权限分组配置
@@ -257,6 +270,14 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.FEEDBACK_WRITE.value,
             Permission.FEEDBACK_READ.value,
             Permission.FEEDBACK_ADMIN.value,
+        ],
+    },
+    {
+        "name": "渠道管理",
+        "permissions": [
+            Permission.CHANNEL_READ.value,
+            Permission.CHANNEL_WRITE.value,
+            Permission.CHANNEL_DELETE.value,
         ],
     },
 ]

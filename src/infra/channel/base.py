@@ -214,7 +214,7 @@ class UserChannelManager(ABC):
         pass
 
     @abstractmethod
-    async def reload_user(self, user_id: str) -> bool:
+    async def reload_user(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         """Reload a user's channel configuration."""
         pass
 
@@ -222,9 +222,10 @@ class UserChannelManager(ABC):
         """Get a user's channel instance."""
         return self._channels.get(user_id)
 
-    def is_connected(self, user_id: str) -> bool:
+    def is_connected(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         """Check if a user's channel is connected."""
-        channel = self._channels.get(user_id)
+        channel_key = f"{user_id}:{instance_id}" if instance_id else user_id
+        channel = self._channels.get(channel_key)
         return channel is not None and channel.is_running
 
     def get_connected_users(self) -> list[str]:

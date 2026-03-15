@@ -3,15 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import {
-  Shield,
-  Plus,
-  Edit,
-  Trash2,
-  X,
-  AlertCircle,
-  Lock,
-} from "lucide-react";
+import { Shield, Plus, Edit, Trash2, X, AlertCircle, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -24,6 +16,7 @@ import type {
   Role,
   RoleCreate,
   RoleUpdate,
+  RoleLimits,
   PermissionGroup,
   PermissionInfo,
 } from "../../types";
@@ -49,6 +42,9 @@ function RoleFormModal({
   const { t } = useTranslation();
   const [name, setName] = useState(role?.name || "");
   const [description, setDescription] = useState(role?.description || "");
+  const [maxChannels, setMaxChannels] = useState<number | "">(
+    role?.limits?.max_channels ?? "",
+  );
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>(
     role?.permissions || [],
   );
@@ -72,10 +68,15 @@ function RoleFormModal({
     }
 
     try {
+      const limits: RoleLimits = {};
+      if (maxChannels !== "") {
+        limits.max_channels = maxChannels as number;
+      }
       const data: RoleCreate | RoleUpdate = {
         name: name.trim(),
         description: description.trim() || undefined,
         permissions: selectedPermissions as Permission[],
+        limits: Object.keys(limits).length > 0 ? limits : undefined,
       };
       await onSave(data);
       onClose();
@@ -183,6 +184,28 @@ function RoleFormModal({
                 className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20"
                 placeholder={t("roles.descriptionPlaceholder")}
               />
+            </div>
+
+            {/* 最大渠道数量 */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                {t("roles.maxChannels")}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={maxChannels}
+                onChange={(e) =>
+                  setMaxChannels(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+                className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20"
+                placeholder={t("roles.maxChannelsPlaceholder")}
+              />
+              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                {t("roles.maxChannelsHint")}
+              </p>
             </div>
 
             {/* 权限选择 */}
@@ -502,7 +525,9 @@ export function RolesPanel() {
       <PanelHeader
         title={t("roles.title")}
         subtitle={t("roles.subtitle")}
-        icon={<Shield size={18} className="text-stone-600 dark:text-stone-400" />}
+        icon={
+          <Shield size={18} className="text-stone-600 dark:text-stone-400" />
+        }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={t("roles.searchPlaceholder")}

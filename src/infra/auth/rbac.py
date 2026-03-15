@@ -129,6 +129,7 @@ class RBACManager:
                 "name": "admin",
                 "description": "系统管理员 - 拥有所有权限",
                 "permissions": [p.value for p in Permission],
+                "limits": None,  # 无限制
                 "is_system": True,
             },
             {
@@ -155,7 +156,14 @@ class RBACManager:
                     # Feedback
                     Permission.FEEDBACK_WRITE.value,
                     Permission.FEEDBACK_READ.value,
+                    # Channel
+                    Permission.CHANNEL_READ.value,
+                    Permission.CHANNEL_WRITE.value,
+                    Permission.CHANNEL_DELETE.value,
+                    # Agent
+                    Permission.AGENT_READ.value,
                 ],
+                "limits": {"max_channels": 10},
                 "is_system": False,
             },
             {
@@ -166,7 +174,12 @@ class RBACManager:
                     Permission.SESSION_READ.value,
                     Permission.SKILL_READ.value,
                     Permission.MCP_READ.value,
+                    # Channel - read only
+                    Permission.CHANNEL_READ.value,
+                    # Agent
+                    Permission.AGENT_READ.value,
                 ],
+                "limits": {"max_channels": 0},  # 不能创建渠道
                 "is_system": False,
             },
         ]

@@ -6,6 +6,22 @@
     "gitTag": "Git タグ",
     "title": "LambChat について"
   },
+  "agentConfig": {
+    "availableAgents": "利用可能エージェント",
+    "defaultAgent": "デフォルトエージェント",
+    "globalDescription": "グローバルに有効なエージェントを設定します。割り当てられたエージェントのみがロールに割り当てることができます。",
+    "globalTab": "グローバル",
+    "loadFailed": "エージェント設定の読み込みに失敗しました",
+    "noAvailableAgents": "利用可能なエージェントがありません",
+    "preferenceSaved": "デフォルトエージェントの設定を保存しました",
+    "rolesDescription": "各ロールがアクセスできるエージェントを設定します。",
+    "rolesTab": "ロール割り当て",
+    "saveFailed": "設定の保存に失敗しました",
+    "saveSuccess": "設定が正常に保存されました",
+    "selectRole": "ロールを選択",
+    "subtitle": "エージェントの可用性とロール割り当てを管理",
+    "title": "エージェント設定"
+  },
   "agentOptions": {
     "enableThinking": {
       "description": "拡張思考モードを有効にする（Anthropicモデルのみ）",
@@ -145,7 +161,7 @@
     "user": "プロフィール"
   },
   "channel": {
-    "leaveEmpty": "[TODO]channel.leaveEmpty"
+    "leaveEmpty": "現在の値を保持するには空欄のまま"
   },
   "chat": {
     "attachFile": "ファイルを添付",
@@ -210,10 +226,12 @@
     "masked": "••••••••",
     "noResults": "結果が見つかりません",
     "readMode": "読み取り専用",
+    "refresh": "更新",
     "reset": "リセット",
     "resetAll": "すべてリセット",
     "save": "保存",
     "saved": "保存済み",
+    "saving": "保存中...",
     "search": "検索",
     "skip": "スキップ"
   },
@@ -491,6 +509,7 @@
     "userServerVisible": "ユーザーサーバー（自分のみに表示）"
   },
   "nav": {
+    "agents": "エージェント",
     "channels": "チャンネル",
     "chat": "チャット",
     "feedback": "フィードバック",
@@ -584,6 +603,9 @@
     "updateFailed": "ロールの更新に失敗しました",
     "updateSuccess": "ロールが正常に更新されました",
     "updated": "更新済み",
+    "maxChannels": "最大チャンネル数",
+    "maxChannelsPlaceholder": "制限なし",
+    "maxChannelsHint": "このロールのユーザーが作成できるチャンネルの最大数（空欄 = 無制限）",
     "validation": {
       "enterName": "ロール名を入力してください",
       "selectPermission": "少なくとも1つの権限を選択してください"

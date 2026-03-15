@@ -27,7 +27,7 @@ export const channelApi = {
   },
 
   /**
-   * Get all configured channels for current user
+   * Get all configured channel instances for current user
    */
   async list(): Promise<ChannelConfigResponse[]> {
     const response = await authFetch<ChannelListResponse>(
@@ -37,16 +37,29 @@ export const channelApi = {
   },
 
   /**
-   * Get a specific channel configuration
+   * Get all instances of a specific channel type
    */
-  async get(channelType: ChannelType): Promise<ChannelConfigResponse | null> {
-    return authFetch<ChannelConfigResponse | null>(
+  async listByType(channelType: ChannelType): Promise<ChannelConfigResponse[]> {
+    const response = await authFetch<ChannelListResponse>(
       `${API_BASE}/api/channels/${channelType}`,
+    );
+    return response.channels;
+  },
+
+  /**
+   * Get a specific channel instance
+   */
+  async get(
+    channelType: ChannelType,
+    instanceId: string,
+  ): Promise<ChannelConfigResponse | null> {
+    return authFetch<ChannelConfigResponse | null>(
+      `${API_BASE}/api/channels/${channelType}/${instanceId}`,
     );
   },
 
   /**
-   * Create a channel configuration
+   * Create a channel instance
    */
   async create(data: ChannelConfigCreate): Promise<ChannelConfigResponse> {
     return authFetch<ChannelConfigResponse>(
@@ -59,14 +72,15 @@ export const channelApi = {
   },
 
   /**
-   * Update a channel configuration
+   * Update a channel instance
    */
   async update(
     channelType: ChannelType,
+    instanceId: string,
     data: ChannelConfigUpdate,
   ): Promise<ChannelConfigResponse> {
     return authFetch<ChannelConfigResponse>(
-      `${API_BASE}/api/channels/${channelType}`,
+      `${API_BASE}/api/channels/${channelType}/${instanceId}`,
       {
         method: "PUT",
         body: JSON.stringify(data),
@@ -75,11 +89,14 @@ export const channelApi = {
   },
 
   /**
-   * Delete a channel configuration
+   * Delete a channel instance
    */
-  async delete(channelType: ChannelType): Promise<{ message: string }> {
+  async delete(
+    channelType: ChannelType,
+    instanceId: string,
+  ): Promise<{ message: string }> {
     return authFetch<{ message: string }>(
-      `${API_BASE}/api/channels/${channelType}`,
+      `${API_BASE}/api/channels/${channelType}/${instanceId}`,
       {
         method: "DELETE",
       },
@@ -87,22 +104,26 @@ export const channelApi = {
   },
 
   /**
-   * Get channel connection status
+   * Get channel connection status for an instance
    */
-  async getStatus(channelType: ChannelType): Promise<ChannelConfigStatus> {
+  async getStatus(
+    channelType: ChannelType,
+    instanceId: string,
+  ): Promise<ChannelConfigStatus> {
     return authFetch<ChannelConfigStatus>(
-      `${API_BASE}/api/channels/${channelType}/status`,
+      `${API_BASE}/api/channels/${channelType}/${instanceId}/status`,
     );
   },
 
   /**
-   * Test channel connection
+   * Test channel connection for an instance
    */
   async test(
     channelType: ChannelType,
+    instanceId: string,
   ): Promise<{ success: boolean; message: string }> {
     return authFetch<{ success: boolean; message: string }>(
-      `${API_BASE}/api/channels/${channelType}/test`,
+      `${API_BASE}/api/channels/${channelType}/${instanceId}/test`,
       {
         method: "POST",
       },

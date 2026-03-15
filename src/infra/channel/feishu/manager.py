@@ -34,10 +34,18 @@ class FeishuChannelManager(UserChannelManager):
         """Get the singleton instance, consistent with get_feishu_channel_manager()."""
         return get_feishu_channel_manager()
 
-    def _dict_to_config(self, user_id: str, config_dict: dict[str, Any]) -> FeishuConfig:
+    def _dict_to_config(
+        self,
+        user_id: str,
+        config_dict: dict[str, Any],
+        instance_id: Optional[str] = None,
+    ) -> FeishuConfig:
         """Convert a config dict to FeishuConfig."""
+        # Use explicit instance_id, fallback to config_dict's instance_id, then empty string
+        resolved_instance_id = instance_id or config_dict.get("instance_id") or ""
         return FeishuConfig(
             user_id=user_id,
+            instance_id=resolved_instance_id,
             app_id=config_dict.get("app_id") or "",
             app_secret=config_dict.get("app_secret") or "",
             encrypt_key=config_dict.get("encrypt_key") or "",
@@ -100,30 +108,61 @@ class FeishuChannelManager(UserChannelManager):
 
     async def _start_user_client(self, config: FeishuConfig) -> bool:
         """Start a user's Feishu client."""
-        if config.user_id in self._channels:
-            await self._channels[config.user_id].stop()
+        # Use instance_id if available, otherwise use user_id for backward compatibility
+        channel_key = (
+            f"{config.user_id}:{config.instance_id}" if config.instance_id else config.user_id
+        )
+
+        if channel_key in self._channels:
+            await self._channels[channel_key].stop()
 
         client = FeishuChannel(config, self._message_handler)
         success = await client.start()
 
         if success:
-            self._channels[config.user_id] = client
+            self._channels[channel_key] = client
             return True
         return False
 
-    async def reload_user(self, user_id: str) -> bool:
-        """Reload a user's Feishu configuration and restart the client."""
-        config_dict = await self._storage.get_config(user_id, ChannelType.FEISHU)
+    async def reload_user(self, user_id: str, instance_id: Optional[str] = None) -> bool:
+        """Reload a user's Feishu configuration and restart the client.
 
-        # Stop existing client if any
-        if user_id in self._channels:
-            await self._channels[user_id].stop()
-            del self._channels[user_id]
+        Args:
+            user_id: The user ID
+            instance_id: Optional specific instance ID to reload. If None, reloads all instances.
+        """
+        # If instance_id is provided, stop only that specific instance
+        if instance_id:
+            # Check if this specific instance has an active connection
+            channel_key = f"{user_id}:{instance_id}"
+            if channel_key in self._channels:
+                await self._channels[channel_key].stop()
+                del self._channels[channel_key]
+                logger.info(f"Stopped Feishu client for {channel_key}")
 
-        # Start new client if enabled
-        if config_dict and config_dict.get("enabled", True):
-            config = self._dict_to_config(user_id, config_dict)
-            return await self._start_user_client(config)
+            # Check if there's still config for this instance
+            config_dict = await self._storage.get_config(user_id, ChannelType.FEISHU, instance_id)
+            if config_dict and config_dict.get("enabled", True):
+                config = self._dict_to_config(user_id, config_dict, instance_id)
+                return await self._start_user_client(config)
+            return True
+
+        # Legacy behavior: reload all instances for user
+        config_list = await self._storage.list_user_configs(user_id)
+        feishu_configs = [c for c in config_list if c.get("channel_type") == "feishu"]
+
+        # Stop all existing clients
+        for key in list(self._channels.keys()):
+            if key.startswith(user_id):
+                await self._channels[key].stop()
+                del self._channels[key]
+
+        # Start all enabled clients
+        for config_dict in feishu_configs:
+            if config_dict.get("enabled", True):
+                inst_id = config_dict.get("instance_id")
+                config = self._dict_to_config(user_id, config_dict, inst_id)
+                await self._start_user_client(config)
 
         return True
 
@@ -136,9 +175,10 @@ class FeishuChannelManager(UserChannelManager):
 
         return await client.send_message(chat_id, content)
 
-    def is_connected(self, user_id: str) -> bool:
+    def is_connected(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         """Check if a user's Feishu bot is connected."""
-        return user_id in self._channels and self._channels[user_id]._running
+        channel_key = f"{user_id}:{instance_id}" if instance_id else user_id
+        return channel_key in self._channels and self._channels[channel_key]._running
 
 
 # Global instance

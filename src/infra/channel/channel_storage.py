@@ -5,6 +5,7 @@ Supports multiple channel types (Feishu, WeChat, DingTalk, etc.)
 """
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -30,7 +31,7 @@ class ChannelStorage:
     Generic channel configuration storage.
 
     Stores per-user channel configurations in MongoDB.
-    Each user can have one configuration per channel type.
+    Each user can have multiple configurations per channel type (multi-instance support).
     """
 
     def __init__(self):
@@ -45,10 +46,20 @@ class ChannelStorage:
             self._collection = db["user_channel_configs"]
         return self._collection
 
-    async def get_config(self, user_id: str, channel_type: ChannelType) -> Optional[dict[str, Any]]:
-        """Get channel configuration for a user"""
+    async def get_config(
+        self,
+        user_id: str,
+        channel_type: ChannelType,
+        instance_id: Optional[str] = None,
+    ) -> Optional[dict[str, Any]]:
+        """Get channel configuration for a user and optionally instance"""
         collection = self._get_collection()
-        doc = await collection.find_one({"user_id": user_id, "channel_type": channel_type.value})
+
+        query: dict[str, Any] = {"user_id": user_id, "channel_type": channel_type.value}
+        if instance_id:
+            query["instance_id"] = instance_id
+
+        doc = await collection.find_one(query)
         if doc:
             return self._doc_to_config(doc)
         return None
@@ -58,22 +69,21 @@ class ChannelStorage:
         user_id: str,
         channel_type: ChannelType,
         config: dict[str, Any],
+        name: str,
         enabled: bool = True,
     ) -> dict[str, Any]:
         """Create channel configuration for a user"""
         collection = self._get_collection()
 
-        # Check if config already exists
-        existing = await collection.find_one(
-            {"user_id": user_id, "channel_type": channel_type.value}
-        )
-        if existing:
-            raise ValueError(f"{channel_type.value} configuration already exists for this user")
+        # Generate unique instance_id
+        instance_id = str(uuid.uuid4())
 
         now = datetime.now(timezone.utc).isoformat()
         doc = {
             "user_id": user_id,
             "channel_type": channel_type.value,
+            "instance_id": instance_id,
+            "name": name,
             "config": self._encrypt_config(config),
             "enabled": enabled,
             "created_at": now,
@@ -81,7 +91,9 @@ class ChannelStorage:
         }
 
         await collection.insert_one(doc)
-        logger.info(f"Created {channel_type.value} config for user {user_id}")
+        logger.info(
+            f"Created {channel_type.value} config '{name}' ({instance_id}) for user {user_id}"
+        )
 
         return self._doc_to_config(doc)
 
@@ -90,12 +102,16 @@ class ChannelStorage:
         user_id: str,
         channel_type: ChannelType,
         config: dict[str, Any],
+        instance_id: str,
         enabled: Optional[bool] = None,
+        name: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
         """Update channel configuration for a user"""
         collection = self._get_collection()
 
-        doc = await collection.find_one({"user_id": user_id, "channel_type": channel_type.value})
+        doc = await collection.find_one(
+            {"user_id": user_id, "channel_type": channel_type.value, "instance_id": instance_id}
+        )
         if not doc:
             return None
 
@@ -106,27 +122,37 @@ class ChannelStorage:
 
         if enabled is not None:
             update_data["enabled"] = enabled
+        if name is not None:
+            update_data["name"] = name
 
         await collection.update_one(
-            {"user_id": user_id, "channel_type": channel_type.value},
+            {"user_id": user_id, "channel_type": channel_type.value, "instance_id": instance_id},
             {"$set": update_data},
         )
-        logger.info(f"Updated {channel_type.value} config for user {user_id}")
+        logger.info(f"Updated {channel_type.value} config ({instance_id}) for user {user_id}")
 
         updated_doc = await collection.find_one(
-            {"user_id": user_id, "channel_type": channel_type.value}
+            {"user_id": user_id, "channel_type": channel_type.value, "instance_id": instance_id}
         )
         return self._doc_to_config(updated_doc) if updated_doc else None
 
-    async def delete_config(self, user_id: str, channel_type: ChannelType) -> bool:
+    async def delete_config(
+        self,
+        user_id: str,
+        channel_type: ChannelType,
+        instance_id: Optional[str] = None,
+    ) -> bool:
         """Delete channel configuration for a user"""
         collection = self._get_collection()
-        result = await collection.delete_one(
-            {"user_id": user_id, "channel_type": channel_type.value}
-        )
+
+        query: dict[str, Any] = {"user_id": user_id, "channel_type": channel_type.value}
+        if instance_id:
+            query["instance_id"] = instance_id
+
+        result = await collection.delete_one(query)
 
         if result.deleted_count > 0:
-            logger.info(f"Deleted {channel_type.value} config for user {user_id}")
+            logger.info(f"Deleted {channel_type.value} config ({instance_id}) for user {user_id}")
             return True
         return False
 
@@ -134,10 +160,11 @@ class ChannelStorage:
         self,
         user_id: str,
         channel_type: ChannelType,
+        instance_id: Optional[str] = None,
         metadata: Optional[dict[str, Any]] = None,
     ) -> Optional[ChannelConfigResponse]:
         """Get channel configuration response (with masked sensitive fields)"""
-        config = await self.get_config(user_id, channel_type)
+        config = await self.get_config(user_id, channel_type, instance_id)
         if not config:
             return None
 
@@ -151,7 +178,9 @@ class ChannelStorage:
         masked_config = self._mask_config(config, sensitive_fields)
 
         return ChannelConfigResponse(
+            id=config.get("instance_id", ""),
             channel_type=channel_type,
+            name=config.get("name", ""),
             user_id=user_id,
             enabled=config.get("enabled", True),
             config=masked_config,
@@ -160,9 +189,14 @@ class ChannelStorage:
             updated_at=config.get("updated_at"),
         )
 
-    async def get_status(self, user_id: str, channel_type: ChannelType) -> ChannelConfigStatus:
+    async def get_status(
+        self,
+        user_id: str,
+        channel_type: ChannelType,
+        instance_id: Optional[str] = None,
+    ) -> ChannelConfigStatus:
         """Get channel connection status for a user"""
-        config = await self.get_config(user_id, channel_type)
+        config = await self.get_config(user_id, channel_type, instance_id)
         if not config:
             return ChannelConfigStatus(channel_type=channel_type, enabled=False, connected=False)
 
@@ -246,6 +280,9 @@ class ChannelStorage:
 
         return {
             "user_id": doc.get("user_id"),  # Include user_id from document
+            "channel_type": doc.get("channel_type"),
+            "instance_id": doc.get("instance_id"),
+            "name": doc.get("name"),
             **decrypted_config,
             "enabled": doc.get("enabled", True),
             "created_at": doc.get("created_at"),

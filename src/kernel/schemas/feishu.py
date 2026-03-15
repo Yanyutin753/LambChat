@@ -17,6 +17,7 @@ class FeishuGroupPolicy(str, Enum):
 class FeishuConfigBase(BaseModel):
     """Base Feishu configuration schema."""
 
+    instance_id: str = Field("", description="Instance ID for multi-instance support")
     app_id: str = Field(..., description="Feishu/Lark App ID")
     app_secret: str = Field(..., description="Feishu/Lark App Secret")
     encrypt_key: str = Field("", description="Encrypt key for event encryption (optional)")

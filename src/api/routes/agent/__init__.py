@@ -8,6 +8,7 @@ Agent 路由
 import json
 import logging
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -225,11 +226,68 @@ def extract_tool_parameters(tool) -> list[ToolParamInfo]:
 
 
 @router.get("/agents")
-async def list_agents():
-    """列出所有可用的 Agent（按名称排序，默认 agent 排在最前面）"""
+async def list_agents(
+    optional_user: Optional[TokenPayload] = Depends(get_current_user_optional),
+):
+    """列出当前用户可用的 Agent（按名称排序，默认 agent 排在最前面）"""
+    from src.infra.agent.config_storage import get_agent_config_storage
+    from src.infra.user.storage import UserStorage
+
+    # 如果用户未登录，返回空列表
+    if not optional_user:
+        return {
+            "agents": [],
+            "count": 0,
+            "default_agent": settings.DEFAULT_AGENT,
+        }
+
+    # 从数据库获取最新用户信息（包括角色）
+    user_storage = UserStorage()
+    db_user = await user_storage.get_by_id(optional_user.sub)
+
+    # 使用数据库中的角色
+    user_roles = db_user.roles if db_user else optional_user.roles
+    logger.info(
+        f"[Agents API] user_id={optional_user.sub}, db_user={db_user}, user_roles_from_db={user_roles}, user_roles_from_token={optional_user.roles}"
+    )
+
+    storage = get_agent_config_storage()
+
+    # 获取用户的默认 agent 设置
+    user_preference = await storage.get_user_preference(optional_user.sub)
+    default_agent = user_preference.default_agent_id if user_preference else settings.DEFAULT_AGENT
+
+    # 获取用户角色的可用 agents 映射（使用角色ID作为key）
+    role_agent_map = {}
+    role_ids = []  # 用户角色ID列表
+    if user_roles:
+        from src.infra.role.manager import get_role_manager
+
+        role_manager = get_role_manager()
+        for role_name in user_roles:
+            role = await role_manager.get_role_by_name(role_name)
+            if role:
+                role_ids.append(role.id)
+                role_agents = await storage.get_role_agents(role.id)
+                # 空列表表示明确配置了"无权限"，非空列表表示有配置，None表示未配置
+                role_agent_map[role.id] = role_agents
+                logger.info(
+                    f"[Agents API] role_name={role_name}, role_id={role.id}, role_agents={role_agents}"
+                )
+
+    logger.info(f"[Agents API] final role_ids={role_ids}, role_agent_map={role_agent_map}")
+
+    # 获取过滤后的 agents
+    agents = await AgentFactory.get_filtered_agents(
+        user_roles=role_ids,  # 传入角色ID列表
+        role_agent_map=role_agent_map,
+        default_agent_id=default_agent,
+    )
+
     return {
-        "agents": AgentFactory.list_agents(default_agent_id=settings.DEFAULT_AGENT),
-        "default_agent": settings.DEFAULT_AGENT,
+        "agents": agents,
+        "count": len(agents),
+        "default_agent": default_agent,
     }
 
 

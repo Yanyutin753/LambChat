@@ -6,6 +6,25 @@
     "gitTag": "Git Tag",
     "title": "About LambChat"
   },
+  "agentConfig": {
+    "availableAgents": "Available Agents",
+    "currentPreference": "Current default agent: {{agentName}}",
+    "defaultAgent": "Default Agent",
+    "defaultAgentDescription": "Select your default agent for new conversations",
+    "globalDescription": "Configure which agents are available globally. Only enabled agents can be assigned to roles.",
+    "globalTab": "Global",
+    "loadFailed": "Failed to load agent configuration",
+    "noAvailableAgents": "No agents available",
+    "preferenceSaved": "Default agent preference saved",
+    "rolesDescription": "Configure which agents each role can access.",
+    "rolesTab": "Role Assignments",
+    "saveFailed": "Failed to save configuration",
+    "saveSuccess": "Configuration saved successfully",
+    "selectAgentsForRole": "Select agents accessible to {{roleName}} role",
+    "selectRole": "Select a role",
+    "subtitle": "Manage agent availability and role assignments",
+    "title": "Agent Configuration"
+  },
   "agentOptions": {
     "enableThinking": {
       "description": "Enable extended thinking mode (Anthropic models only)",
@@ -235,10 +254,12 @@
     "noResults": "No results found",
     "page": "Page {{page}}",
     "readMode": "Read-only",
+    "refresh": "Refresh",
     "reset": "Reset",
     "resetAll": "Reset All",
     "save": "Save",
     "saved": "Saved",
+    "saving": "common.saving",
     "search": "Search",
     "showing": "Showing {{start}}-{{end}}",
     "skip": "Skip"
@@ -530,6 +551,7 @@
     "userServerVisible": "User Server (only visible to you)"
   },
   "nav": {
+    "agents": "Agents",
     "channels": "Channels",
     "chat": "Chat",
     "feedback": "Feedback",
@@ -626,6 +648,9 @@
     "updateFailed": "Failed to update role",
     "updateSuccess": "Role updated successfully",
     "updated": "Updated",
+    "maxChannels": "Max Channels",
+    "maxChannelsPlaceholder": "No limit",
+    "maxChannelsHint": "Maximum number of channels allowed for users with this role (empty = unlimited)",
     "validation": {
       "enterName": "Please enter role name",
       "selectPermission": "Please select at least one permission"

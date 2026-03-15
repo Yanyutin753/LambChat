@@ -72,6 +72,10 @@ export type {
   AgentInfo,
   AgentListResponse,
   WorkflowStepData,
+  AgentConfig,
+  GlobalAgentConfigResponse,
+  RoleAgentAssignment,
+  UserAgentPreference,
 } from "./agent";
 
 // ============================================
@@ -99,6 +103,7 @@ export {
   type Role,
   type RoleCreate,
   type RoleUpdate,
+  type RoleLimits,
   type LoginRequest,
   type TokenResponse,
   type TokenPayload,

@@ -34,6 +34,7 @@ export {
   type SessionListResponse,
 } from "./api/session";
 export { agentApi } from "./api/agent";
+export { agentConfigApi } from "./api/agent_config";
 export { skillApi } from "./api/skill";
 export { settingsApi } from "./api/settings";
 export { mcpApi } from "./api/mcp";

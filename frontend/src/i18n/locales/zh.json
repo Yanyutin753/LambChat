@@ -6,6 +6,25 @@
     "gitTag": "Git 标签",
     "title": "关于 LambChat"
   },
+  "agentConfig": {
+    "availableAgents": "可用助手",
+    "currentPreference": "当前默认助手：{{agentName}}",
+    "defaultAgent": "默认助手",
+    "defaultAgentDescription": "选择新对话的默认助手",
+    "globalDescription": "配置全局可用的助手。只有启用的助手才能分配给角色。",
+    "globalTab": "全局",
+    "loadFailed": "加载助手配置失败",
+    "noAvailableAgents": "没有可用的助手",
+    "preferenceSaved": "默认助手已保存",
+    "rolesDescription": "配置每个角色可以访问的助手。",
+    "rolesTab": "角色分配",
+    "saveFailed": "保存配置失败",
+    "saveSuccess": "配置保存成功",
+    "selectAgentsForRole": "选择 {{roleName}} 角色可访问的助手",
+    "selectRole": "选择角色",
+    "subtitle": "管理助手可用性和角色分配",
+    "title": "助手配置"
+  },
   "agentOptions": {
     "enableThinking": {
       "description": "启用扩展思考模式（仅限 Anthropic 模型）",
@@ -235,10 +254,12 @@
     "noResults": "未找到结果",
     "page": "第 {{page}} 页",
     "readMode": "只读模式",
+    "refresh": "刷新",
     "reset": "重置",
     "resetAll": "全部重置",
     "save": "保存",
     "saved": "已保存",
+    "saving": "保存中...",
     "search": "搜索",
     "showing": "显示第 {{start}}-{{end}} 条",
     "skip": "跳过"
@@ -529,6 +550,7 @@
     "userServerVisible": "用户服务器（仅对自己可见）"
   },
   "nav": {
+    "agents": "助手",
     "channels": "渠道",
     "chat": "对话",
     "feedback": "反馈",
@@ -625,6 +647,9 @@
     "updateFailed": "更新角色失败",
     "updateSuccess": "角色更新成功",
     "updated": "更新",
+    "maxChannels": "最大渠道数",
+    "maxChannelsPlaceholder": "无限制",
+    "maxChannelsHint": "该角色用户可创建的最大渠道数量（留空 = 无限制）",
     "validation": {
       "enterName": "请输入角色名称",
       "selectPermission": "请至少选择一个权限"

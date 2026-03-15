@@ -118,3 +118,58 @@ class VersionResponse(BaseModel):
     github_url: Optional[str] = Field(None, description="GitHub repository URL")
     has_update: Optional[bool] = Field(None, description="Whether a newer version is available")
     published_at: Optional[str] = Field(None, description="Latest release publish date")
+
+
+# ============================================
+# Agent Config Schemas
+# ============================================
+
+
+class AgentConfig(BaseModel):
+    """Agent configuration (global)."""
+
+    id: str = Field(..., description="Agent ID")
+    name: str = Field(..., description="Agent name")
+    description: str = Field(..., description="Agent description")
+    enabled: bool = Field(True, description="Whether the agent is enabled globally")
+
+
+class AgentConfigUpdate(BaseModel):
+    """Update global agent configuration."""
+
+    agents: list[AgentConfig] = Field(..., description="List of agent configurations")
+
+
+class RoleAgentAssignment(BaseModel):
+    """Role's accessible agents."""
+
+    role_id: str = Field(..., description="Role ID")
+    role_name: str = Field(..., description="Role name")
+    allowed_agents: list[str] = Field(default_factory=list, description="List of allowed agent IDs")
+
+
+class RoleAgentAssignmentUpdate(BaseModel):
+    """Update role's accessible agents."""
+
+    allowed_agents: list[str] = Field(..., description="List of allowed agent IDs")
+
+
+class UserAgentPreference(BaseModel):
+    """User's default agent preference."""
+
+    default_agent_id: Optional[str] = Field(None, description="Default agent ID for the user")
+
+
+class UserAgentPreferenceUpdate(BaseModel):
+    """Update user's default agent preference."""
+
+    default_agent_id: str = Field(..., description="Default agent ID")
+
+
+class GlobalAgentConfigResponse(BaseModel):
+    """Response for global agent config."""
+
+    agents: list[AgentConfig] = Field(
+        ..., description="All registered agents with their enabled status"
+    )
+    available_agents: list[str] = Field(..., description="List of enabled agent IDs")

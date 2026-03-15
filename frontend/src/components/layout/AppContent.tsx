@@ -11,6 +11,7 @@ import { SessionSidebar } from "../panels/SessionSidebar";
 import { UsersPanel } from "../panels/UsersPanel";
 import { RolesPanel } from "../panels/RolesPanel";
 import { SettingsPanel } from "../panels/SettingsPanel";
+import { AgentConfigPanel } from "../panels/AgentConfigPanel";
 import { MCPPanel } from "../panels/MCPPanel";
 import { FeedbackPanel } from "../panels/FeedbackPanel";
 import { ChannelsPage } from "../pages/ChannelsPage";
@@ -40,7 +41,8 @@ export type TabType =
   | "settings"
   | "mcp"
   | "feedback"
-  | "channels";
+  | "channels"
+  | "agents";
 
 interface AppContentProps {
   activeTab: TabType;
@@ -799,6 +801,10 @@ export function AppContent({ activeTab }: AppContentProps) {
           ) : activeTab === "channels" ? (
             <main className="flex-1 overflow-hidden">
               <ChannelsPage />
+            </main>
+          ) : activeTab === "agents" ? (
+            <main className="flex-1 overflow-hidden">
+              <AgentConfigPanel />
             </main>
           ) : null}
         </div>

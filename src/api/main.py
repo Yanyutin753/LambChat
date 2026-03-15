@@ -21,7 +21,6 @@ from src.api.routes import (
     channels,
     chat,
     feedback,
-    feishu,
     folder,
     health,
     human,
@@ -36,6 +35,7 @@ from src.api.routes import (
     websocket,
 )
 from src.api.routes import settings as settings_router
+from src.api.routes.agent import config as agent_config
 from src.infra.logging import get_logger, setup_logging
 from src.kernel.config import initialize_settings, settings
 
@@ -195,6 +195,8 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
     # Agent 路由: /api/agents 列表, /api/{agent_id}/stream 和 /api/{agent_id}/chat
     app.include_router(agent.router, prefix="/api", tags=["Agents"])
+    # Agent 配置路由: /api/agent/config 全局配置和用户偏好
+    app.include_router(agent_config.router, prefix="/api/agent/config", tags=["Agent Config"])
     app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
     app.include_router(user.router, prefix="/api/users", tags=["Users"])
     app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
@@ -209,8 +211,6 @@ def create_app() -> FastAPI:
     app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
-    # Feishu channel configuration (legacy, will be deprecated)
-    app.include_router(feishu.router, prefix="/api/feishu", tags=["Feishu"])
     # Generic channel configuration
     app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
     # WebSocket 路由: /ws 用于实时通知

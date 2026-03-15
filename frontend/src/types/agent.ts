@@ -36,3 +36,33 @@ export interface WorkflowStepData {
   status?: "running" | "completed" | "failed";
   result?: string;
 }
+
+// ============================================
+// Agent Config Types
+// ============================================
+
+// Agent configuration (global)
+export interface AgentConfig {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+// Global agent config response
+export interface GlobalAgentConfigResponse {
+  agents: AgentConfig[];
+  available_agents: string[];
+}
+
+// Role's accessible agents
+export interface RoleAgentAssignment {
+  role_id: string;
+  role_name: string;
+  allowed_agents: string[];
+}
+
+// User's default agent preference
+export interface UserAgentPreference {
+  default_agent_id: string | null;
+}

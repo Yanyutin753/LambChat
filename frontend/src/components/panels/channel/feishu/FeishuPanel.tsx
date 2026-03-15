@@ -15,17 +15,24 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { PanelHeader } from "../../../common/PanelHeader";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
-import {
-  feishuApi,
-  type FeishuConfigResponse,
-  type FeishuConfigStatus,
-} from "../../../../services/api/feishu";
+import { channelApi } from "../../../../services/api/channel";
 import type {
   ChannelConfigResponse,
   ChannelConfigStatus,
 } from "../../../../types/channel";
 
+type FeishuConfigResponse = ChannelConfigResponse["config"] & {
+  app_id: string;
+  encrypt_key: string;
+  verification_token: string;
+  react_emoji: string;
+  group_policy: "open" | "mention";
+};
+
+type FeishuConfigStatus = ChannelConfigStatus;
+
 interface FeishuPanelProps {
+  instanceId: string;
   initialConfig?: ChannelConfigResponse | null;
   initialStatus?: ChannelConfigStatus | null;
   isLoading?: boolean;
@@ -48,6 +55,7 @@ const PREDEFINED_EMOJIS = [
 ];
 
 export function FeishuPanel({
+  instanceId,
   initialConfig,
   initialStatus,
   isLoading: externalIsLoading,
@@ -141,21 +149,22 @@ export function FeishuPanel({
     setIsLoading(true);
     try {
       const [configResponse, statusResponse] = await Promise.all([
-        feishuApi.get(),
-        feishuApi.getStatus(),
+        channelApi.get("feishu", instanceId!),
+        channelApi.getStatus("feishu", instanceId!),
       ]);
 
       if (configResponse) {
-        setConfig(configResponse);
+        const feishuConfig = configResponse.config as FeishuConfigResponse;
+        setConfig(feishuConfig);
         setHasExistingConfig(true);
         setEnabled(configResponse.enabled);
-        setAppId(configResponse.app_id);
-        setEncryptKey(configResponse.encrypt_key || "");
-        setVerificationToken(configResponse.verification_token || "");
-        setGroupPolicy(configResponse.group_policy || "mention");
+        setAppId(feishuConfig.app_id || "");
+        setEncryptKey(feishuConfig.encrypt_key || "");
+        setVerificationToken(feishuConfig.verification_token || "");
+        setGroupPolicy(feishuConfig.group_policy || "mention");
 
         // Check if the emoji is a predefined one or custom
-        const emojiValue = configResponse.react_emoji || "THUMBSUP";
+        const emojiValue = feishuConfig?.react_emoji || "THUMBSUP";
         const isPredefined = PREDEFINED_EMOJIS.some(
           (e) => e.value === emojiValue,
         );
@@ -236,32 +245,43 @@ export function FeishuPanel({
           updateData.verification_token = verificationToken;
         }
 
-        const updated = await feishuApi.update(updateData);
-        setConfig(updated);
+        const updated = await channelApi.update("feishu", instanceId, {
+          config: updateData,
+        });
+        const feishuConfig = updated.config as FeishuConfigResponse;
+        setConfig(feishuConfig);
         setHasExistingConfig(true);
         setAppSecret("");
       } else {
-        const created = await feishuApi.create({
-          app_id: appId,
-          app_secret: appSecret,
-          encrypt_key: encryptKey || undefined,
-          verification_token: verificationToken || undefined,
-          react_emoji: emojiValue,
-          group_policy: groupPolicy,
-          enabled,
+        const created = await channelApi.create({
+          channel_type: "feishu",
+          name: instanceId, // Use instanceId as name for now
+          config: {
+            app_id: appId,
+            app_secret: appSecret,
+            encrypt_key: encryptKey || undefined,
+            verification_token: verificationToken || undefined,
+            react_emoji: emojiValue,
+            group_policy: groupPolicy,
+          },
         });
-        setConfig(created);
+        const feishuConfig = created.config as FeishuConfigResponse;
+        setConfig(feishuConfig);
         setHasExistingConfig(true);
         setAppSecret("");
       }
 
       toast.success(t("feishu.saveSuccess", "Feishu configuration saved"));
 
-      const newStatus = await feishuApi.getStatus();
+      const newStatus = await channelApi.getStatus("feishu", instanceId);
       setStatus(newStatus);
     } catch (error) {
       console.error("Failed to save Feishu config:", error);
-      toast.error(t("feishu.saveError", "Failed to save Feishu configuration"));
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("feishu.saveError", "Failed to save Feishu configuration");
+      toast.error(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -280,7 +300,7 @@ export function FeishuPanel({
     }
 
     try {
-      await feishuApi.delete();
+      await channelApi.delete("feishu", instanceId);
       setConfig(null);
       setHasExistingConfig(false);
       setEnabled(false);
@@ -305,7 +325,7 @@ export function FeishuPanel({
   const handleTest = async () => {
     setIsTesting(true);
     try {
-      const result = await feishuApi.test();
+      const result = await channelApi.test("feishu", instanceId);
       if (result.success) {
         toast.success(
           result.message || t("feishu.testSuccess", "Connection successful"),

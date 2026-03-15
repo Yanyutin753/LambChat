@@ -46,7 +46,9 @@ export interface ConfigField {
 }
 
 export interface ChannelConfigResponse {
+  instance_id: string;
   channel_type: ChannelType;
+  name: string;
   user_id: string;
   enabled: boolean;
   config: Record<string, unknown>;
@@ -65,6 +67,7 @@ export interface ChannelConfigStatus {
 
 export interface ChannelConfigCreate {
   channel_type: ChannelType;
+  name: string;
   config: Record<string, unknown>;
 }
 

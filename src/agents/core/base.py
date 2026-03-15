@@ -522,6 +522,12 @@ class AgentFactory:
     @classmethod
     def list_agents(cls, default_agent_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """列出所有可用 Agent（包含选项配置），按 sort_order 和名称排序，默认 agent 排在最前面"""
+        # 如果注册表为空，尝试发现 agents
+        if not _AGENT_REGISTRY:
+            from src.agents import discover_agents
+
+            discover_agents()
+
         agents = [
             {
                 "id": aid,
@@ -543,6 +549,75 @@ class AgentFactory:
 
         agents.sort(key=sort_key)
         return agents
+
+    @classmethod
+    async def get_filtered_agents(
+        cls,
+        user_roles: List[str],
+        role_agent_map: dict,
+        default_agent_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        获取用户可用的 Agents（根据全局配置和角色配置过滤）
+
+        Args:
+            user_roles: 用户角色列表
+            role_agent_map: 角色ID -> 可用agentID列表 的映射
+            default_agent_id: 默认 agent ID
+
+        Returns:
+            过滤后的 agent 列表
+        """
+        from src.infra.agent.config_storage import get_agent_config_storage
+
+        logger.info(
+            f"[get_filtered_agents] user_roles={user_roles}, role_agent_map={role_agent_map}"
+        )
+
+        # 获取所有注册 agents
+        all_agents = cls.list_agents(default_agent_id)
+        all_agent_ids = {a["id"] for a in all_agents}
+        logger.info(f"[get_filtered_agents] all_agent_ids={all_agent_ids}")
+
+        # 获取全局启用的 agents
+        storage = get_agent_config_storage()
+        enabled_agent_ids = set(await storage.get_enabled_agent_ids())
+        logger.info(f"[get_filtered_agents] enabled_agent_ids={enabled_agent_ids}")
+
+        # 如果没有配置全局设置，则默认所有 agents 都启用
+        if not enabled_agent_ids:
+            enabled_agent_ids = all_agent_ids
+            logger.info("[get_filtered_agents] no global config, using all agents")
+
+        # 获取用户角色可用的 agents
+        role_allowed_agents: set = set()
+        has_any_config = False  # 是否有任何角色配置了 agents
+        for role_id in user_roles:
+            if role_id in role_agent_map:
+                role_agents = role_agent_map[role_id]
+                if role_agents is not None:
+                    has_any_config = True
+                    role_allowed_agents.update(role_agents)
+
+        logger.info(
+            f"[get_filtered_agents] has_any_config={has_any_config}, role_allowed_agents={role_allowed_agents}"
+        )
+
+        # 如果没有角色配置了 agents，则使用全局配置
+        if not has_any_config:
+            role_allowed_agents = enabled_agent_ids
+            logger.info("[get_filtered_agents] no role config, using global config")
+        elif role_allowed_agents:
+            # 有配置且不为空，取交集：既要在全局启用，又要被角色允许
+            role_allowed_agents = role_allowed_agents & enabled_agent_ids
+        # else: 角色明确配置为空列表，返回空
+
+        logger.info(f"[get_filtered_agents] final role_allowed_agents={role_allowed_agents}")
+
+        # 过滤 agents
+        filtered = [a for a in all_agents if a["id"] in role_allowed_agents]
+        logger.info(f"[get_filtered_agents] filtered count={len(filtered)}")
+        return filtered
 
     @classmethod
     async def close_all(cls) -> None:

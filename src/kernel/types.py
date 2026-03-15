@@ -70,6 +70,15 @@ class Permission(str, Enum):
     # Avatar
     AVATAR_UPLOAD = "avatar:upload"
 
+    # Channel - Generic (for unified channel API)
+    CHANNEL_READ = "channel:read"
+    CHANNEL_WRITE = "channel:write"
+    CHANNEL_DELETE = "channel:delete"
+
+    # Agent
+    AGENT_READ = "agent:read"
+    AGENT_ADMIN = "agent:admin"
+
 
 class MessageType(str, Enum):
     """消息类型"""

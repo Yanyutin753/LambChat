@@ -45,6 +45,9 @@ export enum Permission {
   FEEDBACK_WRITE = "feedback:write",
   FEEDBACK_READ = "feedback:read",
   FEEDBACK_ADMIN = "feedback:admin",
+  // Agent
+  AGENT_READ = "agent:read",
+  AGENT_ADMIN = "agent:admin",
 }
 
 // 用户信息
@@ -86,12 +89,19 @@ export interface UserListResponse {
   has_more: boolean;
 }
 
+// 角色限制配置
+export interface RoleLimits {
+  max_channels?: number | null; // 最大渠道数量，null = 无限制
+  [key: string]: number | null | undefined; // 允许扩展
+}
+
 // 角色信息
 export interface Role {
   id: string;
   name: string;
   description?: string;
   permissions: Permission[];
+  limits?: RoleLimits;
   is_system: boolean; // 系统角色不可删除
   created_at: string;
   updated_at: string;
@@ -102,6 +112,7 @@ export interface RoleCreate {
   name: string;
   description?: string;
   permissions: Permission[];
+  limits?: RoleLimits;
 }
 
 // 角色更新请求
@@ -109,6 +120,7 @@ export interface RoleUpdate {
   name?: string;
   description?: string;
   permissions?: Permission[];
+  limits?: RoleLimits;
 }
 
 // 登录请求

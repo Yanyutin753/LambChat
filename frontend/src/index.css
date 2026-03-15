@@ -43,6 +43,28 @@ select:-webkit-autofill:active {
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Theme color - stone tone */
+  --theme-primary: #78716c; /* stone-500 */
+  --theme-primary-hover: #57534e; /* stone-600 */
+  --theme-primary-light: #f5f5f4; /* stone-100 */
+  --theme-ring: #78716c; /* stone-500 */
+  --theme-bg: #fafaf9; /* stone-50 */
+  --theme-bg-card: #ffffff;
+  --theme-border: #e7e5e4; /* stone-200 */
+  --theme-text: #1c1917; /* stone-900 */
+  --theme-text-secondary: #78716c; /* stone-500 */
+}
+
+.dark {
+  --theme-primary: #a8a29e; /* stone-400 */
+  --theme-primary-hover: #d6d3d1; /* stone-300 */
+  --theme-primary-light: #292524; /* stone-800 */
+  --theme-ring: #a8a29e; /* stone-400 */
+  --theme-bg: #0c0a09; /* stone-950 */
+  --theme-bg-card: #1c1917; /* stone-900 */
+  --theme-border: #44403c; /* stone-700 */
+  --theme-text: #fafaf9; /* stone-50 */
+  --theme-text-secondary: #a8a29e; /* stone-400 */
 }
 
 /* Mobile slide-up animation */
@@ -278,13 +300,13 @@ select:-webkit-autofill:active {
   }
 }
 
-/* Button styles - stone based */
+/* Button styles - theme color */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   border-radius: 0.5rem;
-  background-color: #1c1917;
+  background-color: var(--theme-primary);
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
@@ -293,16 +315,16 @@ select:-webkit-autofill:active {
 }
 
 .btn-primary:hover {
-  background-color: #292524;
+  background-color: var(--theme-primary-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .dark .btn-primary {
-  background-color: #f5f5f4;
-  color: #1c1917;
-}
-
-.dark .btn-primary:hover {
-  background-color: #e7e5e4;
+  color: #1e293b;
 }
 
 .btn-secondary {

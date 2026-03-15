@@ -13,6 +13,7 @@ import {
   User,
   Star,
   MessageCircle,
+  Bot,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -42,6 +43,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]) && enableMcp;
   const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
+  const canManageAgents = hasAnyPermission([Permission.AGENT_ADMIN]);
 
   // Update menu position
   const updateMenuPosition = useCallback(() => {
@@ -86,6 +88,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       label: t("nav.roles"),
       icon: Shield,
       show: canManageRoles,
+    },
+    {
+      path: "/agents",
+      label: t("nav.agents"),
+      icon: Bot,
+      show: canManageAgents,
     },
   ];
 

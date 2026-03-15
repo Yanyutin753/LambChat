@@ -13,7 +13,6 @@ import {
   Check,
   X,
   AlertCircle,
-  HelpCircle,
   ArrowLeft,
   MessageCircle,
 } from "lucide-react";
@@ -21,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { FeishuPanel } from "./channel/feishu/FeishuPanel";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 import { channelApi } from "../../services/api/channel";
 import type {
   ChannelType,
@@ -33,35 +32,61 @@ import type {
 
 interface ChannelPanelProps {
   channelType: ChannelType;
+  instanceId: string;
   metadata: ChannelMetadata;
 }
 
-export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
+export function ChannelPanel({
+  channelType,
+  instanceId,
+  metadata,
+}: ChannelPanelProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
+  const isNewInstance = instanceId === "new";
+
   // State
-  const [config, setConfig] = useState<ChannelConfigResponse | null>(null);
   const [status, setStatus] = useState<ChannelConfigStatus | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_config, setConfig] = useState<ChannelConfigResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, unknown>>({});
+  const [instanceName, setInstanceName] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [hasExistingConfig, setHasExistingConfig] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const loadConfig = async () => {
     setIsLoading(true);
     try {
+      if (isNewInstance) {
+        // New instance - don't load anything
+        setHasExistingConfig(false);
+        setEnabled(false);
+        const defaults: Record<string, unknown> = {};
+        metadata.config_fields.forEach((field) => {
+          if (field.default !== undefined) {
+            defaults[field.name] = field.default;
+          }
+        });
+        setFormValues(defaults);
+        setIsLoading(false);
+        return;
+      }
+
       const [configResponse, statusResponse] = await Promise.all([
-        channelApi.get(channelType),
-        channelApi.getStatus(channelType),
+        channelApi.get(channelType, instanceId),
+        channelApi.getStatus(channelType, instanceId),
       ]);
 
       if (configResponse) {
         setConfig(configResponse);
         setHasExistingConfig(true);
         setEnabled(configResponse.enabled);
+        setInstanceName(configResponse.name);
         setFormValues(configResponse.config || {});
       } else {
         setHasExistingConfig(false);
@@ -90,7 +115,7 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
   useEffect(() => {
     loadConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelType]);
+  }, [channelType, instanceId]);
 
   // Initialize form defaults from metadata
   useEffect(() => {
@@ -106,17 +131,6 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
   const requiredFields = useMemo(() => {
     return metadata.config_fields.filter((f) => f.required);
   }, [metadata.config_fields]);
-
-  // Use dedicated panel for feishu channel
-  if (channelType === "feishu") {
-    return (
-      <FeishuPanel
-        initialConfig={config}
-        initialStatus={status}
-        isLoading={isLoading}
-      />
-    );
-  }
 
   const validateForm = (): boolean => {
     for (const field of requiredFields) {
@@ -145,7 +159,7 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
       }
 
       if (hasExistingConfig) {
-        const updated = await channelApi.update(channelType, {
+        const updated = await channelApi.update(channelType, instanceId, {
           config: configData,
           enabled,
         });
@@ -158,12 +172,22 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
           });
         setFormValues(cleared);
       } else {
+        if (!instanceName.trim()) {
+          toast.error(t("channel.nameRequired", "Instance name is required"));
+          setIsSaving(false);
+          return;
+        }
         const created = await channelApi.create({
           channel_type: channelType,
+          name: instanceName.trim(),
           config: configData,
         });
         setConfig(created);
         setHasExistingConfig(true);
+        // Navigate to the new instance - don't fetch status here, it will be fetched after navigation
+        navigate(`/channels/${channelType}/${created.instance_id}`, {
+          replace: true,
+        });
         const cleared = { ...formValues };
         metadata.config_fields
           .filter((f) => f.sensitive)
@@ -171,56 +195,48 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
             cleared[f.name] = "";
           });
         setFormValues(cleared);
+        // Return early to avoid calling getStatus with "new" instanceId
+        setIsSaving(false);
+        toast.success(t("channel.saveSuccess", "Configuration saved"));
+        return;
       }
 
       toast.success(t("channel.saveSuccess", "Configuration saved"));
 
-      const newStatus = await channelApi.getStatus(channelType);
+      const newStatus = await channelApi.getStatus(channelType, instanceId);
       setStatus(newStatus);
     } catch (error) {
       console.error(`Failed to save ${channelType} config:`, error);
-      toast.error(t("channel.saveError", "Failed to save configuration"));
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : t("channel.saveError", "Failed to save configuration");
+      toast.error(errorMessage);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (
-      !window.confirm(
-        t(
-          "channel.deleteConfirm",
-          "Are you sure you want to delete this channel configuration?",
-        ),
-      )
-    ) {
-      return;
-    }
-
     try {
-      await channelApi.delete(channelType);
-      setConfig(null);
-      setHasExistingConfig(false);
-      setEnabled(false);
-      const defaults: Record<string, unknown> = {};
-      metadata.config_fields.forEach((field) => {
-        if (field.default !== undefined) {
-          defaults[field.name] = field.default;
-        }
-      });
-      setFormValues(defaults);
-      setStatus(null);
+      await channelApi.delete(channelType, instanceId);
       toast.success(t("channel.deleteSuccess", "Configuration deleted"));
+      // Navigate back to instance list
+      navigate(`/channels/${channelType}`);
     } catch (error) {
       console.error(`Failed to delete ${channelType} config:`, error);
       toast.error(t("channel.deleteError", "Failed to delete configuration"));
     }
   };
 
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
   const handleTest = async () => {
     setIsTesting(true);
     try {
-      const result = await channelApi.test(channelType);
+      const result = await channelApi.test(channelType, instanceId);
       if (result.success) {
         toast.success(
           result.message || t("channel.testSuccess", "Connection successful"),
@@ -375,168 +391,220 @@ export function ChannelPanel({ channelType, metadata }: ChannelPanelProps) {
   }
 
   return (
-    <div className="flex h-full flex-col min-h-0">
-      {/* Header */}
-      <PanelHeader
-        title={metadata.display_name}
-        subtitle={metadata.description}
-        icon={getChannelIcon()}
-        actions={
-          <button
-            onClick={() => navigate("/channels")}
-            className="btn-secondary"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">{t("common.back")}</span>
-          </button>
-        }
-      />
+    <>
+      <div className="flex h-full flex-col min-h-0">
+        {/* Header */}
+        <PanelHeader
+          title={metadata.display_name}
+          subtitle={metadata.description}
+          icon={getChannelIcon()}
+          actions={
+            <button
+              onClick={() => navigate("/channels")}
+              className="btn-secondary"
+            >
+              <ArrowLeft size={16} />
+              <span className="hidden sm:inline">{t("common.back")}</span>
+            </button>
+          }
+        />
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-        <div className="mx-auto max-w-2xl space-y-4">
-          {/* Status Card */}
-          {hasExistingConfig && status && (
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {status.connected ? (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
-                      <Check
-                        size={16}
-                        className="text-green-600 dark:text-green-400"
-                      />
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="mx-auto max-w-2xl space-y-4">
+            {/* Status Card */}
+            {hasExistingConfig && status && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {status.connected ? (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
+                        <Check
+                          size={16}
+                          className="text-green-600 dark:text-green-400"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
+                        <X
+                          size={16}
+                          className="text-red-600 dark:text-red-400"
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <span
+                        className={`text-sm font-semibold ${
+                          status.connected
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {status.connected
+                          ? t("channel.connected", "Connected")
+                          : t("channel.disconnected", "Disconnected")}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
-                      <X size={16} className="text-red-600 dark:text-red-400" />
-                    </div>
-                  )}
-                  <div>
-                    <span
-                      className={`text-sm font-semibold ${
-                        status.connected
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {status.connected
-                        ? t("channel.connected", "Connected")
-                        : t("channel.disconnected", "Disconnected")}
+                  </div>
+                  <button
+                    onClick={handleTest}
+                    disabled={isTesting || !enabled}
+                    className="btn-secondary btn-sm"
+                  >
+                    {isTesting ? (
+                      <span className="animate-spin">⟳</span>
+                    ) : (
+                      <RefreshCw size={14} />
+                    )}
+                    {t("channel.testConnection", "Test")}
+                  </button>
+                </div>
+                {status.error_message && (
+                  <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
+                    <AlertCircle
+                      size={16}
+                      className="flex-shrink-0 text-red-500 dark:text-red-400"
+                    />
+                    <span className="text-sm text-red-700 dark:text-red-300">
+                      {status.error_message}
                     </span>
                   </div>
-                </div>
-                <button
-                  onClick={handleTest}
-                  disabled={isTesting || !enabled}
-                  className="btn-secondary btn-sm"
-                >
-                  {isTesting ? (
-                    <span className="animate-spin">⟳</span>
-                  ) : (
-                    <RefreshCw size={14} />
-                  )}
-                  {t("channel.testConnection", "Test")}
-                </button>
+                )}
               </div>
-              {status.error_message && (
-                <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
-                  <AlertCircle
-                    size={16}
-                    className="flex-shrink-0 text-red-500 dark:text-red-400"
-                  />
-                  <span className="text-sm text-red-700 dark:text-red-300">
-                    {status.error_message}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+            )}
 
-          {/* Configuration Card */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900">
-            <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {t("channel.configuration", "Configuration")}
-            </h3>
+            {/* Configuration Card */}
+            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900">
+              <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                {t("channel.configuration", "Configuration")}
+              </h3>
 
-            <div className="space-y-4">
-              {/* Enable Toggle */}
-              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-stone-800">
-                <div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {t("channel.enabled", "Enable Channel")}
-                  </span>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {t("channel.enabledDesc", "Enable or disable this channel")}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setEnabled(!enabled)}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    enabled ? "bg-stone-900" : "bg-gray-200 dark:bg-stone-600"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                      enabled ? "translate-x-4" : "translate-x-0.5"
+              <div className="space-y-4">
+                {/* Instance Name - only show for new instances */}
+                {isNewInstance && (
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                      {t("channel.instanceName", "Instance Name")}{" "}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={instanceName}
+                      onChange={(e) => setInstanceName(e.target.value)}
+                      placeholder={t(
+                        "channel.instanceNamePlaceholder",
+                        "e.g., My Work Bot",
+                      )}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                    />
+                  </div>
+                )}
+
+                {/* Instance Name Display - show for existing instances */}
+                {!isNewInstance && hasExistingConfig && (
+                  <div className="rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-stone-800">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                      {t("channel.instanceName", "Instance Name")}
+                    </span>
+                    <p className="text-sm text-gray-900 dark:text-gray-100">
+                      {instanceName}
+                    </p>
+                  </div>
+                )}
+
+                {/* Enable Toggle */}
+                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-stone-800">
+                  <div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                      {t("channel.enabled", "Enable Channel")}
+                    </span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {t(
+                        "channel.enabledDesc",
+                        "Enable or disable this channel",
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setEnabled(!enabled)}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      enabled ? "bg-stone-900" : "bg-gray-200 dark:bg-stone-600"
                     }`}
-                  />
-                </button>
-              </div>
-
-              {/* Dynamic Fields */}
-              {metadata.config_fields.map(renderField)}
-            </div>
-          </div>
-
-          {/* Help Card */}
-          {metadata.setup_guide.length > 0 && (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
-              <div className="flex items-start gap-3">
-                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-blue-100 dark:bg-blue-900/50">
-                  <HelpCircle
-                    size={14}
-                    className="text-blue-600 dark:text-blue-400"
-                  />
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                        enabled ? "translate-x-4" : "translate-x-0.5"
+                      }`}
+                    />
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {t("channel.setupGuide", "Setup Guide")}
-                  </p>
-                  <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-gray-600 dark:text-gray-300">
-                    {metadata.setup_guide.map((step, index) => (
-                      <li key={index} className="leading-relaxed">
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
+
+                {/* Dynamic Fields */}
+                {metadata.config_fields.map(renderField)}
               </div>
             </div>
-          )}
 
-          {/* Actions */}
-          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              onClick={handleDelete}
-              disabled={!hasExistingConfig}
-              className="btn-secondary !text-red-600 hover:!bg-red-50 disabled:opacity-50 dark:hover:!bg-red-900/20"
-            >
-              <Trash2 size={16} />
-              {t("common.delete")}
-            </button>
+            {/* Help Card */}
+            {metadata.setup_guide.length > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      {t("channel.setupGuide", "Setup Guide")}
+                    </p>
+                    <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                      {metadata.setup_guide.map((step, index) => (
+                        <li key={index} className="leading-relaxed">
+                          {step}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            )}
 
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="btn-primary"
-            >
-              {isSaving ? <LoadingSpinner size="sm" /> : <Save size={16} />}
-              {t("common.save")}
-            </button>
+            {/* Actions */}
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                onClick={handleDeleteClick}
+                disabled={!hasExistingConfig}
+                className="btn-secondary !text-red-600 hover:!bg-red-50 disabled:opacity-50 dark:hover:!bg-red-900/20"
+              >
+                <Trash2 size={16} />
+                {t("common.delete")}
+              </button>
+
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="btn-primary"
+              >
+                {isSaving ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+                {t("common.save")}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title={t("channel.deleteTitle", "Delete Channel Instance")}
+        message={t(
+          "channel.deleteConfirmMessage",
+          `Are you sure you want to delete "${instanceName}"? This action cannot be undone.`,
+        )}
+        confirmText={t("common.delete", "Delete")}
+        cancelText={t("common.cancel", "Cancel")}
+        variant="danger"
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          handleDelete();
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+    </>
   );
 }

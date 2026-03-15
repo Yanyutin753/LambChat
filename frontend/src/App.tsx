@@ -88,6 +88,11 @@ function ChannelsPage() {
   return <AppContent activeTab="channels" />;
 }
 
+function AgentsPage() {
+  usePageTitle("nav.agents");
+  return <AppContent activeTab="agents" />;
+}
+
 // Main App Component
 function App() {
   const { t } = useTranslation();
@@ -210,10 +215,18 @@ function App() {
             }
           />
           <Route
-            path="/channels/:channelType?"
+            path="/channels/:channelType?/:instanceId?"
             element={
               <ProtectedRoute>
                 <ChannelsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/agents"
+            element={
+              <ProtectedRoute>
+                <AgentsPage />
               </ProtectedRoute>
             }
           />
