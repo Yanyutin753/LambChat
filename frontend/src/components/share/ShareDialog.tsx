@@ -184,15 +184,17 @@ export function ShareDialog({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div className="fixed inset-0 z-[100] sm:flex sm:items-center sm:justify-center">
       {/* Backdrop - using solid color instead of backdrop-blur for better performance */}
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
-      {/* Dialog */}
-      <div className="relative z-10 w-full max-w-lg mx-4 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] max-h-[90dvh] flex flex-col">
+      {/* Dialog - bottom sheet on mobile, centered on desktop */}
+      <div className="relative z-10 w-full sm:max-w-lg sm:mx-4 bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 sm:duration-200 duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col fixed bottom-0 left-0 right-0 sm:static animate-slide-up-sheet sm:animate-in">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-stone-700">
-          <div className="flex items-center gap-2">
+          {/* Mobile drag handle */}
+          <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-9 h-1 bg-gray-300 dark:bg-stone-600 rounded-full" />
+          <div className="flex items-center gap-2 pt-2 sm:pt-0">
             <Share2 size={20} className="text-stone-500 dark:text-stone-400" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-stone-100">
               {t("share.title")}

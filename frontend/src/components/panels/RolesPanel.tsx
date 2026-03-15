@@ -69,8 +69,11 @@ function RoleFormModal({
 
     try {
       const limits: RoleLimits = {};
-      if (maxChannels !== "") {
-        limits.max_channels = maxChannels as number;
+      if (maxChannels !== "" && maxChannels !== null && maxChannels !== undefined) {
+        const numValue = Number(maxChannels);
+        if (!isNaN(numValue) && numValue >= 0) {
+          limits.max_channels = numValue;
+        }
       }
       const data: RoleCreate | RoleUpdate = {
         name: name.trim(),

@@ -169,6 +169,20 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     fetchAgents();
   }, [fetchAgents]);
 
+  // Refresh agents when page becomes visible (e.g., switching back to /chat tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchAgents();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchAgents]);
+
   // Listen for agent preference updates to refresh agents list and apply new default
   useEffect(() => {
     const handleAgentPreferenceUpdated = async () => {
