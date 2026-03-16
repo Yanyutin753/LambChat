@@ -57,7 +57,7 @@ class RoleStorage:
             "name": role_data.name,
             "description": role_data.description,
             "permissions": [p.value for p in role_data.permissions],
-            "limits": role_data.limits,
+            "limits": role_data.limits.model_dump() if role_data.limits else None,
             "is_system": False,
             "created_at": now,
             "updated_at": now,
@@ -170,7 +170,7 @@ class RoleStorage:
             update_dict["permissions"] = [p.value for p in role_data.permissions]
 
         if role_data.limits is not None:
-            update_dict["limits"] = role_data.limits
+            update_dict["limits"] = role_data.limits.model_dump() if role_data.limits else None
 
         from bson import ObjectId
 
