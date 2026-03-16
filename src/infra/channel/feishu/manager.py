@@ -166,9 +166,39 @@ class FeishuChannelManager(UserChannelManager):
 
         return True
 
+    def _find_channel(
+        self, user_id: str, instance_id: Optional[str] = None
+    ) -> Optional[FeishuChannel]:
+        """Find a channel by user_id, with fallback to prefix match.
+
+        Lookup order:
+        1. Exact match: "user_id:instance_id" (if instance_id provided)
+        2. Exact match: "user_id"
+        3. Prefix match: first key starting with "user_id:"
+        """
+        if instance_id:
+            channel = self._channels.get(f"{user_id}:{instance_id}")
+            if channel:
+                return channel
+
+        channel = self._channels.get(user_id)
+        if channel:
+            return channel
+
+        # Fallback: find first channel whose key starts with "user_id:"
+        prefix = f"{user_id}:"
+        for key, ch in self._channels.items():
+            if key.startswith(prefix):
+                logger.debug(
+                    f"[Feishu] _find_channel fallback: matched key '{key}' for user '{user_id}'"
+                )
+                return ch
+
+        return None
+
     async def send_message(self, user_id: str, chat_id: str, content: str) -> bool:
         """Send a message through a user's Feishu bot."""
-        client = self._channels.get(user_id)
+        client = self._find_channel(user_id)
         if not client:
             logger.warning(f"No Feishu client for user {user_id}")
             return False
@@ -177,8 +207,8 @@ class FeishuChannelManager(UserChannelManager):
 
     def is_connected(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         """Check if a user's Feishu bot is connected."""
-        channel_key = f"{user_id}:{instance_id}" if instance_id else user_id
-        return channel_key in self._channels and self._channels[channel_key]._running
+        channel = self._find_channel(user_id, instance_id)
+        return channel is not None and channel._running
 
 
 # Global instance

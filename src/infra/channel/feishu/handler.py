@@ -153,7 +153,7 @@ class FeishuResponseCollector:
         from src.infra.channel.feishu.channel import FeishuChannel
 
         content = self._build_card_content()
-        base_client = self.manager._channels.get(self.user_id)
+        base_client = self.manager._find_channel(self.user_id)
         if not base_client:
             logger.warning(f"[Feishu] No client for user {self.user_id}")
             return False
@@ -182,7 +182,7 @@ class FeishuResponseCollector:
         if not self.files_to_reveal:
             return
 
-        base_client = self.manager._channels.get(self.user_id)
+        base_client = self.manager._find_channel(self.user_id)
         if not base_client:
             logger.warning(f"[Feishu] No client for user {self.user_id}")
             return

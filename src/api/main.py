@@ -4,6 +4,7 @@ FastAPI 主应用
 API 入口点。
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -108,16 +109,21 @@ async def lifespan(app: FastAPI):
 
     await init_builtin_skills()
 
-    # Start Feishu channels for all users with enabled configs
-    try:
-        from src.infra.channel.feishu.handler import setup_feishu_handler
+    # Start Feishu channels in background (don't block app startup)
+    async def _start_feishu():
+        try:
+            from src.infra.channel.feishu.handler import setup_feishu_handler
 
-        await setup_feishu_handler(
-            default_agent=settings.DEFAULT_AGENT,
-            show_tools=True,
-        )
-    except Exception as e:
-        logger.warning(f"Failed to start Feishu channels: {e}")
+            await setup_feishu_handler(
+                default_agent=settings.DEFAULT_AGENT,
+                show_tools=True,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to start Feishu channels: {e}")
+
+    # Keep task reference to prevent GC from cancelling it
+    _feishu_task = asyncio.create_task(_start_feishu())
+    app.state.feishu_task = _feishu_task
 
     yield
 

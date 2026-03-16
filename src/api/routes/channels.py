@@ -317,18 +317,23 @@ async def delete_channel_instance(
     if not existing:
         raise HTTPException(status_code=404, detail="Channel instance not found")
 
-    # Stop the channel client first
+    # Delete config first, then stop the running channel
+    # (must delete before reload, otherwise reload sees the config and restarts it)
+    deleted = await storage.delete_config(user.sub, channel_type, instance_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Channel instance not found")
+
+    # Stop the channel client after config is removed
     manager_class = registry.get_manager_class(channel_type)
     if manager_class:
         try:
             manager = manager_class.get_instance()
-            await manager.reload_user(user.sub, instance_id)  # Stop specific instance
+            await manager.reload_user(user.sub, instance_id)
         except Exception as e:
-            logger.warning(f"Failed to stop {channel_type} client: {e}")
-
-    deleted = await storage.delete_config(user.sub, channel_type, instance_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Channel instance not found")
+            logger.error(
+                f"Failed to stop {channel_type} client for user {user.sub}, instance {instance_id}. "
+                f"The channel may still be running. Error: {e}"
+            )
 
     return {"message": "Channel instance deleted successfully"}
 

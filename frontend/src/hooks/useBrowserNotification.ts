@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from "react";
+import { isMobileDevice, resetMobileViewport } from "../utils/mobile";
 
 interface NotificationOptions {
   body?: string;
@@ -14,14 +15,6 @@ interface ServiceWorkerNotificationOptions extends NotificationOptions {
   vibrate?: number[];
   requireInteraction?: boolean;
   renotify?: boolean;
-}
-
-// Check if running on mobile device
-function isMobileDevice(): boolean {
-  if (typeof window === "undefined") return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent,
-  );
 }
 
 // Check if Service Worker is supported
@@ -134,6 +127,11 @@ export function useBrowserNotification() {
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
+
+      // Fix mobile viewport zoom after permission dialog dismissal
+      // Mobile browsers (especially iOS Safari) may zoom in when showing system dialogs
+      resetMobileViewport();
+
       return result === "granted";
     } catch (e) {
       console.error("[BrowserNotification] Request permission failed:", e);

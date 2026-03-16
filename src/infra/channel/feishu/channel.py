@@ -261,29 +261,33 @@ class FeishuChannel(BaseChannel):
         self._loop = asyncio.get_running_loop()
         self._set_connection_state(ConnectionState.CONNECTING)
 
-        # Create Lark client for sending messages
-        self._client = (
-            lark.Client.builder()
-            .app_id(self.config.app_id)
-            .app_secret(self.config.app_secret)
-            .log_level(lark.LogLevel.INFO)
-            .build()
-        )
+        # Build SDK clients in executor to avoid blocking the event loop
+        # (lark SDK constructors may make synchronous HTTP calls)
+        def _build_clients():
+            client = (
+                lark.Client.builder()
+                .app_id(self.config.app_id)
+                .app_secret(self.config.app_secret)
+                .log_level(lark.LogLevel.INFO)
+                .build()
+            )
 
-        builder = lark.EventDispatcherHandler.builder(
-            self.config.encrypt_key or "",
-            self.config.verification_token or "",
-        ).register_p2_im_message_receive_v1(self._on_message_sync)
+            builder = lark.EventDispatcherHandler.builder(
+                self.config.encrypt_key or "",
+                self.config.verification_token or "",
+            ).register_p2_im_message_receive_v1(self._on_message_sync)
 
-        event_handler = builder.build()
+            event_handler = builder.build()
 
-        # Create WebSocket client for long connection
-        self._ws_client = lark.ws.Client(
-            self.config.app_id,
-            self.config.app_secret,
-            event_handler=event_handler,
-            log_level=lark.LogLevel.INFO,
-        )
+            ws_client = lark.ws.Client(
+                self.config.app_id,
+                self.config.app_secret,
+                event_handler=event_handler,
+                log_level=lark.LogLevel.INFO,
+            )
+            return client, ws_client
+
+        self._client, self._ws_client = await self._loop.run_in_executor(None, _build_clients)
 
         # Start WebSocket client in a separate thread
         def run_ws():
