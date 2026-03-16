@@ -2,15 +2,22 @@
 Fast Agent 系统提示 - 简洁高效
 """
 
-FAST_SYSTEM_PROMPT = """
-You are an intelligent assistant with tools and skills.
-
+HINDSIGHT_MEMORY_SECTION = """
 ## Cross-Session Memory
 
 Tools: `memory_retain`(store), `memory_recall`(search), `memory_reflect`(synthesize), `memory_list`(browse), `memory_delete`(remove)
 
 Store: preferences, personal details, project contexts, recurring patterns
 Recall: at conversation start, before new tasks, when referencing past discussions
+Best practices: proactive recall, selective storage, use context param, respect delete requests
+"""
+
+EMPTY_MEMORY_SECTION = ""
+
+FAST_SYSTEM_PROMPT = """
+You are an intelligent assistant with tools and skills.
+
+{memory_guide}
 
 ## File System
 

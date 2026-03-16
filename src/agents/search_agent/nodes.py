@@ -53,14 +53,14 @@ def _schedule_auto_retain(
     """
     调度自动记忆存储任务（异步，不阻塞响应）。
 
-    从对话中提取重要信息并异步存储到 Hindsight。
+    只存储用户输入，助手回复由 Hindsight 自动关联。
     """
     if not settings.HINDSIGHT_ENABLED or not user_id:
         return
 
-    # 构建对话摘要
-    summary = _extract_conversation_summary(user_input, assistant_output)
-    if not summary:
+    # 只存用户输入（前 500 字符）
+    user_input_clean = user_input.strip()
+    if not user_input_clean or len(user_input_clean) < 10:
         return
 
     # 延迟导入避免循环依赖
@@ -68,32 +68,55 @@ def _schedule_auto_retain(
 
     schedule_auto_retain(
         user_id=user_id,
-        conversation_summary=summary,
-        context="conversation",
+        conversation_summary=user_input_clean[:500],
+        context="user_query",
     )
 
 
-def _extract_conversation_summary(user_input: str, assistant_output: str) -> str:
+async def _proactive_recall(user_input: str, user_id: str | None) -> str:
     """
-    从对话中提取重要信息用于存储。
+    主动召回相关记忆。
 
-    只存储用户输入中的关键信息，避免存储冗余内容。
+    在每次代理响应前，根据用户输入召回相关记忆（最多 1024 token）。
     """
-    # 简单的摘要：用户输入 + 助手回复的关键部分
-    user_part = user_input.strip()[:500] if user_input else ""
-
-    if not user_part:
+    if not settings.HINDSIGHT_ENABLED or not user_id:
         return ""
 
-    # 构建摘要
-    summary = f"User: {user_part}"
+    try:
+        from src.infra.memory.hindsight import get_hindsight_client
 
-    # 如果助手回复包含重要信息（如确认用户偏好），也包含进来
-    output_part = assistant_output.strip()[:300] if assistant_output else ""
-    if output_part and len(output_part) > 20:
-        summary += f"\nAssistant: {output_part}"
+        client = await get_hindsight_client()
+        if not client:
+            return ""
 
-    return summary
+        from src.infra.memory.hindsight import _get_bank_id, _with_retry
+
+        bank_id = _get_bank_id(user_id)
+
+        results = await _with_retry(
+            lambda: client.recall(
+                bank_id=bank_id,
+                query=user_input[:200],
+                max_tokens=1024,
+                budget="low",
+            )
+        )
+
+        if not results or not results.results:
+            return ""
+
+        memories = []
+        for r in results.results[:3]:
+            memories.append(f"- {r.text}")
+
+        if memories:
+            return "**Relevant Memories:**\n" + "\n".join(memories)
+
+        return ""
+
+    except Exception as e:
+        logger.warning(f"[SearchAgent] Proactive recall failed: {e}")
+        return ""
 
 
 # ============================================================================
@@ -339,7 +362,17 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 构建传入的消息列表（包含附件）
     user_input = state.get("input", "")
     new_message = _build_human_message(user_input, attachments)
-    all_messages = existing_messages + [new_message]
+
+    # 不含记忆的消息列表（用于保存）
+    clean_messages = existing_messages + [new_message]
+
+    # 主动召回相关记忆，作为独立 HumanMessage 注入（仅用于推理，不参与保存）
+    recalled_memories = await _proactive_recall(user_input, context.user_id)
+    if recalled_memories:
+        memory_message = HumanMessage(content=f"[memory context]\n{recalled_memories}")
+        all_messages = existing_messages + [memory_message, new_message]
+    else:
+        all_messages = clean_messages
 
     # 传递 messages
     inner_config["configurable"]["messages"] = existing_messages
@@ -366,7 +399,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     new_messages = inner_state.values.get("messages", [])
 
-    final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
+    final_messages = new_messages if len(new_messages) > len(clean_messages) else clean_messages
 
     # 自动记忆存储（异步，不阻塞响应）
     _schedule_auto_retain(user_input, event_processor.output_text, context.user_id)

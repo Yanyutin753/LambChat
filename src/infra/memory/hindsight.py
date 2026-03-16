@@ -63,7 +63,9 @@ def _get_loop_local(name: str, factory: Callable[[], Any]) -> Any:
 
 def _get_request_semaphore() -> asyncio.Semaphore:
     """Get or create the request semaphore for current event loop."""
-    return _get_loop_local("semaphore", lambda: asyncio.Semaphore(_get_max_concurrent()))
+    return _get_loop_local(
+        "semaphore", lambda: asyncio.Semaphore(_get_max_concurrent())
+    )
 
 
 def _get_client_lock() -> asyncio.Lock:
@@ -84,7 +86,9 @@ class AsyncHindsight:
     that causes issues with running event loops.
     """
 
-    def __init__(self, base_url: str, api_key: str | None = None, timeout: float = 180.0):
+    def __init__(
+        self, base_url: str, api_key: str | None = None, timeout: float = 180.0
+    ):
         import hindsight_client_api
         from hindsight_client_api.api import banks_api, memory_api
 
@@ -172,7 +176,9 @@ class AsyncHindsight:
             tags=tags,
             tags_match=tags_match,
         )
-        return await self._memory_api.reflect(bank_id, request_obj, _request_timeout=self._timeout)
+        return await self._memory_api.reflect(
+            bank_id, request_obj, _request_timeout=self._timeout
+        )
 
     async def list_memories(
         self,
@@ -212,7 +218,10 @@ class AsyncHindsight:
 
         async with aiohttp.ClientSession() as session:
             async with session.put(
-                url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=self._timeout)
+                url,
+                json=body,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=self._timeout),
             ) as resp:
                 resp.raise_for_status()
                 return await resp.json()
@@ -305,23 +314,17 @@ def get_user_id_from_runtime(runtime: Optional[ToolRuntime]) -> Optional[str]:
     return None
 
 
-def _get_bank_id(user_id: str, bank_name: Optional[str] = None) -> str:
+def _get_bank_id(user_id: str) -> str:
     """Generate bank ID for user isolation."""
-    base_id = f"user-{user_id}"
-    if bank_name:
-        safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in bank_name)
-        return f"{base_id}-{safe_name}"
-    return base_id
+    return f"user-{user_id}"
 
 
-async def _ensure_bank_exists(
-    client: AsyncHindsight, bank_id: str, bank_name: Optional[str] = None
-) -> bool:
+async def _ensure_bank_exists(client: AsyncHindsight, bank_id: str) -> bool:
     """Ensure a memory bank exists, creating it if necessary."""
     try:
         await client.create_bank(
             bank_id=bank_id,
-            name=f"{bank_name or 'Default'} Memory Bank",
+            name="Default Memory Bank",
             mission="Store and retrieve user memories for cross-session persistence",
         )
         return True
@@ -371,13 +374,12 @@ async def _with_retry(
 
 @tool
 async def memory_retain(
-    content: Annotated[str, "The memory content to store (facts, observations, experiences)"],
+    content: Annotated[
+        str, "The memory content to store (facts, observations, experiences)"
+    ],
     context: Annotated[
         Optional[str],
         "Optional context or category for this memory (e.g., 'user_preferences', 'project_info')",
-    ] = None,
-    bank_name: Annotated[
-        Optional[str], "Optional bank name for organizing memories (default: 'default')"
     ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
@@ -392,7 +394,9 @@ async def memory_retain(
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
-        return json.dumps({"success": False, "error": "User not authenticated"}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "error": "User not authenticated"}, ensure_ascii=False
+        )
 
     client = await get_hindsight_client()
     if not client:
@@ -402,13 +406,15 @@ async def memory_retain(
         )
 
     try:
-        bank_id = _get_bank_id(user_id, bank_name)
+        bank_id = _get_bank_id(user_id)
 
         # Ensure bank exists
-        await _ensure_bank_exists(client, bank_id, bank_name)
+        await _ensure_bank_exists(client, bank_id)
 
         # Retain the memory
-        await _with_retry(lambda: client.retain(bank_id=bank_id, content=content, context=context))
+        await _with_retry(
+            lambda: client.retain(bank_id=bank_id, content=content, context=context)
+        )
 
         logger.info(f"[Hindsight] Retained memory for user {user_id}: {content}...")
 
@@ -429,11 +435,13 @@ async def memory_retain(
 @tool
 async def memory_recall(
     query: Annotated[str, "The search query to find relevant memories"],
-    bank_name: Annotated[
-        Optional[str],
-        "Optional bank name to search in (default: searches default bank)",
+    max_results: Annotated[
+        int, "Maximum number of memories to return (default: 5)"
+    ] = 5,
+    memory_types: Annotated[
+        Optional[list[str]],
+        "Filter by memory types: ['world'] (facts), ['observation'] (events), ['experience'] (interactions), or None for all types",
     ] = None,
-    max_results: Annotated[int, "Maximum number of memories to return (default: 5)"] = 5,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
@@ -443,11 +451,18 @@ async def memory_recall(
     semantic and will find memories that are conceptually related to the query,
     even if they don't contain exact keyword matches.
 
+    You can filter by memory types:
+    - 'world': Factual knowledge about the world/user
+    - 'observation': Specific events or observations
+    - 'experience': Past interactions and experiences
+
     Returns a list of relevant memories with their content and types.
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
-        return json.dumps({"success": False, "error": "User not authenticated"}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "error": "User not authenticated"}, ensure_ascii=False
+        )
 
     client = await get_hindsight_client()
     if not client:
@@ -457,11 +472,17 @@ async def memory_recall(
         )
 
     try:
-        bank_id = _get_bank_id(user_id, bank_name)
+        bank_id = _get_bank_id(user_id)
 
         # Recall memories
         results = await _with_retry(
-            lambda: client.recall(bank_id=bank_id, query=query, max_tokens=4096, budget="mid")
+            lambda: client.recall(
+                bank_id=bank_id,
+                query=query,
+                types=memory_types,
+                max_tokens=4096,
+                budget="mid",
+            )
         )
 
         memories = []
@@ -495,9 +516,6 @@ async def memory_recall(
 @tool
 async def memory_reflect(
     query: Annotated[str, "The question or topic to reflect on using stored memories"],
-    bank_name: Annotated[
-        Optional[str], "Optional bank name to use (default: uses default bank)"
-    ] = None,
     context: Annotated[
         Optional[str],
         "Optional context to guide the reflection (e.g., 'preparing for a meeting')",
@@ -516,7 +534,9 @@ async def memory_reflect(
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
-        return json.dumps({"success": False, "error": "User not authenticated"}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "error": "User not authenticated"}, ensure_ascii=False
+        )
 
     client = await get_hindsight_client()
     if not client:
@@ -526,11 +546,13 @@ async def memory_reflect(
         )
 
     try:
-        bank_id = _get_bank_id(user_id, bank_name)
+        bank_id = _get_bank_id(user_id)
 
         # Reflect on memories
         answer = await _with_retry(
-            lambda: client.reflect(bank_id=bank_id, query=query, context=context, budget="mid")
+            lambda: client.reflect(
+                bank_id=bank_id, query=query, context=context, budget="mid"
+            )
         )
 
         logger.info(f"[Hindsight] Reflected on query for user {user_id}: {query}...")
@@ -550,9 +572,6 @@ async def memory_reflect(
 
 @tool
 async def memory_list(
-    bank_name: Annotated[
-        Optional[str], "Optional bank name to list memories from (default: 'default')"
-    ] = None,
     memory_type: Annotated[
         Optional[str],
         "Filter by memory type: 'world' (facts), 'observation' (events), 'experience' (interactions), or None for all",
@@ -571,7 +590,9 @@ async def memory_list(
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
-        return json.dumps({"success": False, "error": "User not authenticated"}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "error": "User not authenticated"}, ensure_ascii=False
+        )
 
     client = await get_hindsight_client()
     if not client:
@@ -581,7 +602,7 @@ async def memory_list(
         )
 
     try:
-        bank_id = _get_bank_id(user_id, bank_name)
+        bank_id = _get_bank_id(user_id)
 
         # List memories
         result = await _with_retry(
@@ -626,7 +647,6 @@ async def memory_list(
 @tool
 async def memory_delete(
     memory_id: Annotated[str, "The ID of the memory to delete"],
-    bank_name: Annotated[Optional[str], "Optional bank name (default: 'default')"] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
@@ -637,7 +657,9 @@ async def memory_delete(
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
-        return json.dumps({"success": False, "error": "User not authenticated"}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "error": "User not authenticated"}, ensure_ascii=False
+        )
 
     client = await get_hindsight_client()
     if not client:
@@ -647,11 +669,13 @@ async def memory_delete(
         )
 
     try:
-        bank_id = _get_bank_id(user_id, bank_name)
+        bank_id = _get_bank_id(user_id)
 
         # Delete memory
         if hasattr(client, "delete_memory"):
-            await _with_retry(lambda: client.delete_memory(bank_id=bank_id, memory_id=memory_id))
+            await _with_retry(
+                lambda: client.delete_memory(bank_id=bank_id, memory_id=memory_id)
+            )
             logger.info(f"[Hindsight] Deleted memory {memory_id} for user {user_id}")
         else:
             # Delete operation not supported by current client version
@@ -752,15 +776,17 @@ async def auto_retain_conversation(
             logger.debug("[Hindsight] Client not available, skipping auto-retain")
             return
 
-        bank_id = _get_bank_id(user_id, bank_name)
+        bank_id = _get_bank_id(user_id)
 
         # Ensure bank exists
-        await _ensure_bank_exists(client, bank_id, bank_name)
+        await _ensure_bank_exists(client, bank_id)
 
         # Retain the memory
         await _with_retry(
             lambda: client.retain(
-                bank_id=bank_id, content=conversation_summary, context=context or "auto_retained"
+                bank_id=bank_id,
+                content=conversation_summary,
+                context=context or "auto_retained",
             )
         )
 
