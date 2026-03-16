@@ -192,9 +192,7 @@ async def _run_with_retry(
 # ============================================================================
 
 
-async def fast_agent_node(
-    state: Dict[str, Any], config: RunnableConfig
-) -> Dict[str, Any]:
+async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str, Any]:
     """
     Fast Agent 主节点 - 无沙箱，快速响应
 
@@ -241,16 +239,12 @@ async def fast_agent_node(
             skills_start = time.time()
             skills_prompt = await build_skills_prompt(context.skills)
             skills_init_time = time.time() - skills_start
-            logger.debug(
-                f"[FastAgent] Skills prompt init: {skills_init_time * 1000:.3f}ms"
-            )
+            logger.debug(f"[FastAgent] Skills prompt init: {skills_init_time * 1000:.3f}ms")
         except Exception as e:
             logger.warning(f"Failed to build skills prompt: {e}")
 
     # 构建系统提示
-    memory_guide = (
-        HINDSIGHT_MEMORY_SECTION if settings.HINDSIGHT_ENABLED else EMPTY_MEMORY_SECTION
-    )
+    memory_guide = HINDSIGHT_MEMORY_SECTION if settings.HINDSIGHT_ENABLED else EMPTY_MEMORY_SECTION
     system_prompt = FAST_SYSTEM_PROMPT.replace("{skills}", skills_prompt).replace(
         "{memory_guide}", memory_guide
     )
@@ -274,9 +268,7 @@ async def fast_agent_node(
     checkpointer_start = time.time()
     inner_checkpointer = await get_async_checkpointer()
     checkpointer_init_time = time.time() - checkpointer_start
-    logger.debug(
-        f"[FastAgent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms"
-    )
+    logger.debug(f"[FastAgent] Checkpointer init: {checkpointer_init_time * 1000:.3f}ms")
 
     graph_compile_start = time.time()
     inner_graph = create_deep_agent(
@@ -299,9 +291,7 @@ async def fast_agent_node(
             "base_url": configurable.get("base_url", ""),
             "presenter": presenter,  # 传递 presenter 给工具调用
         },
-        "recursion_limit": config.get(
-            "recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION
-        ),
+        "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
 
     # 从内层 graph 的 checkpoint 获取历史消息
@@ -343,9 +333,7 @@ async def fast_agent_node(
     inner_state = await inner_graph.aget_state(inner_config)
     new_messages = inner_state.values.get("messages", [])
 
-    final_messages = (
-        new_messages if len(new_messages) > len(all_messages) else all_messages
-    )
+    final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
 
     # 自动记忆存储（异步，不阻塞响应）
     _schedule_auto_retain(user_input, event_processor.output_text, context.user_id)

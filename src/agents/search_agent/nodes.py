@@ -306,9 +306,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "base_url": configurable.get("base_url", ""),  # 传递 base_url 给工具使用
             "presenter": presenter,  # 传递 presenter 给工具调用
         },
-        "recursion_limit": config.get(
-            "recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION
-        ),
+        "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
 
     # 从内层 graph 的 checkpoint 获取历史消息
@@ -347,9 +345,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     new_messages = inner_state.values.get("messages", [])
 
-    final_messages = (
-        new_messages if len(new_messages) > len(all_messages) else all_messages
-    )
+    final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
 
     # 自动记忆存储（异步，不阻塞响应）
     _schedule_auto_retain(user_input, event_processor.output_text, context.user_id)
@@ -392,9 +388,7 @@ async def _create_backend_and_prompt(
             logger.warning(f"Failed to build skills prompt: {e}")
 
     # 构建记忆系统提示
-    memory_guide = (
-        HINDSIGHT_MEMORY_SECTION if settings.HINDSIGHT_ENABLED else EMPTY_MEMORY_SECTION
-    )
+    memory_guide = HINDSIGHT_MEMORY_SECTION if settings.HINDSIGHT_ENABLED else EMPTY_MEMORY_SECTION
 
     # 根据设置决定是否使用长期存储
     if settings.ENABLE_LONG_TERM_STORAGE:
@@ -413,16 +407,10 @@ async def _create_backend_and_prompt(
             logger.info(
                 f"Sandbox disabled, using CompositeBackend with PostgresStore for assistant: {assistant_id}"
             )
-            backend_factory = create_postgres_backend_factory(
-                assistant_id, user_id=user_id
-            )
+            backend_factory = create_postgres_backend_factory(assistant_id, user_id=user_id)
         else:
-            logger.info(
-                f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}"
-            )
-            backend_factory = create_memory_backend_factory(
-                assistant_id, user_id=user_id
-            )
+            logger.info(f"Sandbox disabled, using in-memory backend for assistant: {assistant_id}")
+            backend_factory = create_memory_backend_factory(assistant_id, user_id=user_id)
         return (
             backend_factory,
             DEFAULT_SYSTEM_PROMPT.replace("{skills}", skills_prompt).replace(
@@ -458,9 +446,7 @@ async def _create_backend_and_prompt(
         except Exception as e:
             logger.warning(f"Failed to emit sandbox:ready event: {e}")
 
-        logger.info(
-            f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}"
-        )
+        logger.info(f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}")
 
         # 格式化沙箱提示词，注入 work_dir, skills 和 memory_guide
         system_prompt = (
@@ -470,9 +456,7 @@ async def _create_backend_and_prompt(
         )
         # sandbox_backend 是 CompositeBackend(default=DaytonaBackend)，需要提取出 DaytonaBackend
         return (
-            create_sandbox_backend_factory(
-                sandbox_backend.default, assistant_id, user_id=user_id
-            ),
+            create_sandbox_backend_factory(sandbox_backend.default, assistant_id, user_id=user_id),
             system_prompt,
             store,
         )
