@@ -323,7 +323,9 @@ def create_feishu_message_handler(
                 ch_config = await ch_storage.get_config(user_id, ChannelType.FEISHU, instance_id)
                 if ch_config and ch_config.get("agent_id"):
                     agent_to_use = ch_config["agent_id"]
-                    logger.info(f"[Feishu] Using channel agent: {agent_to_use} for instance {instance_id}")
+                    logger.info(
+                        f"[Feishu] Using channel agent: {agent_to_use} for instance {instance_id}"
+                    )
 
             collector = FeishuResponseCollector(
                 manager=manager,
