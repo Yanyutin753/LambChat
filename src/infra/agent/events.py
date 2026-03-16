@@ -429,20 +429,21 @@ class AgentEventProcessor:
         out = data.get("output", "")
         tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex[:8]}"
 
-        # 提取 ToolMessage content（链式提取）
-        raw = out
-        # 使用 or 短路和链式 getattr 替代多次 hasattr
-        raw = getattr(out, "content", None) if not isinstance(out, str) else out
-        raw = getattr(raw, "content", raw) if not isinstance(raw, str) else raw
+        # 提取工具结果内容，适配所有 LangGraph 工具输出类型
+        # 支持的类型:
+        #   1. str — 直接返回
+        #   2. ToolMessage — 取 .content（str/list[dict]/None）
+        #   3. list[ToolMessage] — 合并每个 .content
+        #   4. list[dict] — 多模态内容 [{"type":"text","text":"..."}]
+        #   5. dict {"content": ...} — 简单 dict 包装
+        #   6. Command dict {"goto":[],"update":{"messages":[ToolMessage,...]}}
+        #   7. Command 对象 — 有 .update 属性
+        #   8. dict {"output": ...} — 嵌套输出
+        #   9. 其他 dict — 保留结构化数据
+        #  10. 其他对象 — str()
+        raw = self._extract_tool_output(out)
 
-        # 转换为字符串
-        if isinstance(raw, list):
-            # 使用生成器表达式避免中间列表
-            raw = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in raw)
-        elif not isinstance(raw, str):
-            raw = str(raw)
-
-        # 错误检测（使用字符串视图避免重复 lower() 调用）
+        # 错误检测
         is_error, error_message = False, None
         if isinstance(raw, dict):
             if raw.get("error") or raw.get("status") == "error":
@@ -450,11 +451,10 @@ class AgentEventProcessor:
                 error_message = raw.get("error") or raw.get("message") or str(raw)
         elif isinstance(raw, str):
             raw_lower = raw.lower()
-            # 使用 any 的短路特性
             if any(e in raw_lower for e in _TOOL_ERROR_INDICATORS):
                 is_error, error_message = True, raw
 
-        # JSON 解析（快速检查避免不必要的解析尝试）
+        # JSON 解析（字符串可能是 JSON，尝试解析为结构化数据给前端）
         result: Any = raw
         if isinstance(raw, str) and raw and raw[0] in ("{", "["):
             try:
@@ -475,3 +475,192 @@ class AgentEventProcessor:
                 agent_id=current_agent_id,
             )
         )
+
+    @staticmethod
+    def _extract_tool_output(out: Any) -> Any:
+        """从 LangGraph 工具节点输出中提取可显示内容。
+
+        支持所有 LangGraph + MCP 工具输出类型:
+          1. str — 直接返回
+          2. ToolMessage — 取 .content (优先 .artifact)
+          3. list[BaseMessage] — 合并每个消息的 content
+          4. Command 对象 — 取 .update.messages → 合并 content
+          5. Command dict {"goto":[], "update":{"messages":[...]}}
+          6. dict {"content": ...} / {"output": {"content": ...}}
+          7. list[dict] — MCP 多模态 content blocks (text/image/file/resource)
+          8. 其他 dict — 保留结构化数据
+          9. 其他对象 — str()
+        """
+        if out is None:
+            return ""
+        if isinstance(out, str):
+            return out
+
+        # 1. Command 对象 (langgraph.types.Command)
+        if hasattr(out, "update") and not isinstance(out, dict):
+            update = getattr(out, "update", None)
+            if isinstance(update, dict):
+                messages = update.get("messages")
+                if isinstance(messages, list) and messages:
+                    return AgentEventProcessor._merge_message_contents(messages)
+                return update
+
+        # 2. BaseMessage 对象 (ToolMessage, AIMessage 等)
+        if hasattr(out, "content") and hasattr(out, "type"):
+            content = getattr(out, "content", None)
+            artifact = getattr(out, "artifact", None)
+            if artifact is not None:
+                return artifact
+            if content is not None:
+                return AgentEventProcessor._normalize_content(content)
+            return ""
+
+        # 3. list — [BaseMessage] 或 MCP content blocks [dict]
+        if isinstance(out, list):
+            if out and hasattr(out[0], "content"):
+                return AgentEventProcessor._merge_message_contents(out)
+            return AgentEventProcessor._normalize_content(out)
+
+        # 4. dict
+        if isinstance(out, dict):
+            # 4a. Command dict {"goto":[], "update":{"messages":[...]}}
+            if "update" in out and isinstance(out["update"], dict):
+                messages = out["update"].get("messages")
+                if isinstance(messages, list) and messages:
+                    return AgentEventProcessor._merge_message_contents(messages)
+                return out["update"]
+
+            # 4b. 直接 content key
+            if "content" in out:
+                return AgentEventProcessor._normalize_content(out["content"])
+
+            # 4c. 嵌套 output.content
+            if "output" in out:
+                nested = out["output"]
+                if isinstance(nested, dict) and "content" in nested:
+                    return AgentEventProcessor._normalize_content(nested["content"])
+                if isinstance(nested, str):
+                    return nested
+
+            # 4d. 其他 dict — 保留结构化数据
+            return out
+
+        # 5. 其他对象
+        return str(out)
+
+    @staticmethod
+    def _normalize_content(content: Any) -> Any:
+        """将 content 标准化为可显示格式。
+
+        MCP content block 类型 (经 langchain-mcp-adapter 转换后):
+          {"type": "text", "text": "..."}
+          {"type": "image", "base64": "...", "mime_type": "..."}
+          {"type": "image", "url": "...", "mime_type": "..."}
+          {"type": "file", "url": "...", "mime_type": "..."}
+
+        返回值策略:
+          - 纯文本 (str 或仅 text blocks) → str
+          - 包含 image/file → {"text": str, "blocks": list[dict]}
+          - dict → dict
+        """
+        if isinstance(content, str):
+            return content
+        if isinstance(content, dict):
+            return content
+        if not isinstance(content, list):
+            return str(content)
+
+        # 分离 text 和 media blocks
+        text_parts: list[str] = []
+        media_blocks: list[dict] = []
+
+        for block in content:
+            if isinstance(block, dict):
+                btype = block.get("type", "")
+                if btype == "text" and "text" in block:
+                    text_parts.append(str(block["text"]))
+                elif btype in ("image", "file"):
+                    # 保留给前端的 media block，去掉内部 id
+                    media_block = {k: v for k, v in block.items() if k != "id"}
+                    media_blocks.append(media_block)
+                elif "text" in block:
+                    text_parts.append(str(block["text"]))
+                else:
+                    # 其他未知 block，保留结构
+                    media_block = {k: v for k, v in block.items() if k != "id"}
+                    media_blocks.append(media_block)
+            elif isinstance(block, str):
+                text_parts.append(block)
+            else:
+                text_parts.append(str(block))
+
+        text_result = "".join(text_parts)
+
+        # 有 media blocks → 返回结构化对象给前端
+        if media_blocks:
+            return {"text": text_result, "blocks": media_blocks}
+
+        # 纯文本
+        return text_result if text_result else content
+
+    @staticmethod
+    def _merge_message_contents(messages: list) -> Any:
+        """从消息列表中提取并合并所有 content。
+
+        支持 BaseMessage 对象和 dict 格式的消息。
+        保留 MCP 多模态 block 结构（image/file）。
+        """
+        all_text_parts: list[str] = []
+        all_media_blocks: list[dict] = []
+        has_media = False
+
+        for msg in messages:
+            if isinstance(msg, dict):
+                content = msg.get("content", "")
+                artifact = msg.get("artifact")
+            elif hasattr(msg, "content"):
+                content = getattr(msg, "content", "")
+                artifact = getattr(msg, "artifact", None)
+            else:
+                content = str(msg)
+                artifact = None
+
+            # artifact 优先（结构化数据）
+            if artifact is not None:
+                all_text_parts.append(json.dumps(artifact, ensure_ascii=False))
+                continue
+
+            if isinstance(content, str):
+                all_text_parts.append(content)
+            elif isinstance(content, list):
+                # MCP content blocks
+                for block in content:
+                    if isinstance(block, dict):
+                        btype = block.get("type", "")
+                        if btype == "text" and "text" in block:
+                            all_text_parts.append(str(block["text"]))
+                        elif btype in ("image", "file"):
+                            media_block = {k: v for k, v in block.items() if k != "id"}
+                            all_media_blocks.append(media_block)
+                            has_media = True
+                        elif "text" in block:
+                            all_text_parts.append(str(block["text"]))
+                        else:
+                            media_block = {k: v for k, v in block.items() if k != "id"}
+                            all_media_blocks.append(media_block)
+                            has_media = True
+                    elif isinstance(block, str):
+                        all_text_parts.append(block)
+                    else:
+                        all_text_parts.append(str(block))
+            elif isinstance(content, dict):
+                all_text_parts.append(json.dumps(content, ensure_ascii=False))
+            else:
+                all_text_parts.append(str(content))
+
+        text_result = "\n".join(all_text_parts)
+
+        if has_media:
+            return {"text": text_result, "blocks": all_media_blocks}
+
+        return text_result

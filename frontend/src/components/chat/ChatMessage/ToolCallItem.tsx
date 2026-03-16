@@ -39,6 +39,120 @@ function isMarkdownText(text: string): boolean {
   return false;
 }
 
+// MCP content block 类型 (后端 _normalize_content 返回)
+interface McpContentBlock {
+  type: "text" | "image" | "file";
+  text?: string;
+  base64?: string;
+  url?: string;
+  mime_type?: string;
+}
+
+// MCP 多模态结果格式
+interface McpMultiModalResult {
+  text?: string;
+  blocks?: McpContentBlock[];
+}
+
+// 工具结果渲染组件 — 支持 str / dict / MCP 多模态
+function ToolResultContent({
+  result,
+}: {
+  result?: string | Record<string, unknown>;
+}) {
+  // MCP 多模态格式: {"text": "...", "blocks": [...]}
+  if (
+    typeof result === "object" &&
+    result !== null &&
+    "blocks" in result &&
+    Array.isArray((result as McpMultiModalResult).blocks)
+  ) {
+    const mcp = result as McpMultiModalResult;
+    return (
+      <div className="space-y-1.5">
+        {mcp.text && (
+          <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words">
+            {isMarkdownText(mcp.text) ? (
+              <MarkdownContent content={mcp.text} />
+            ) : (
+              mcp.text
+            )}
+          </pre>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {(mcp.blocks || []).map((block, i) => (
+            <McpBlockPreview key={i} block={block} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 普通字符串
+  if (typeof result === "string") {
+    return isMarkdownText(result) ? (
+      <div className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto">
+        <MarkdownContent content={result} />
+      </div>
+    ) : (
+      <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+        {result}
+      </pre>
+    );
+  }
+
+  // 普通 dict / JSON
+  return (
+    <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+      {JSON.stringify(result, null, 2)}
+    </pre>
+  );
+}
+
+// 单个 MCP content block 的预览
+function McpBlockPreview({ block }: { block: McpContentBlock }) {
+  if (block.type === "image") {
+    const src = block.base64
+      ? `data:${block.mime_type || "image/png"};base64,${block.base64}`
+      : block.url || "";
+    return (
+      <img
+        src={src}
+        alt="tool output"
+        className="max-w-full max-h-48 rounded-md border border-stone-200 dark:border-stone-700 cursor-pointer hover:opacity-80 transition-opacity"
+        onClick={() => src && window.open(src, "_blank")}
+      />
+    );
+  }
+
+  if (block.type === "file") {
+    const url = block.url || "";
+    const fileName = url.split("/").pop() || "file";
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors border border-stone-200 dark:border-stone-700"
+      >
+        <ExternalLink size={12} />
+        {fileName}
+      </a>
+    );
+  }
+
+  // text block (fallback, normally rendered as text)
+  if (block.text) {
+    return (
+      <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words">
+        {block.text}
+      </pre>
+    );
+  }
+
+  return null;
+}
+
 // Collapsible Tool Call Item (compact design)
 export function ToolCallItem({
   name,
@@ -112,17 +226,7 @@ export function ToolCallItem({
               <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                 {t("chat.message.result")}
               </div>
-              {typeof result === "string" && isMarkdownText(result) ? (
-                <div className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto">
-                  <MarkdownContent content={result} />
-                </div>
-              ) : (
-                <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
-                  {typeof result === "string"
-                    ? result
-                    : JSON.stringify(result, null, 2)}
-                </pre>
-              )}
+              <ToolResultContent result={result} />
             </div>
           )}
 
