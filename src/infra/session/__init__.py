@@ -3,6 +3,7 @@
 """
 
 from src.infra.session.dual_writer import DualEventWriter, get_dual_writer
+from src.infra.session.event_compactor import run_compaction, start_compaction_loop
 from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
 
@@ -11,4 +12,6 @@ __all__ = [
     "SessionStorage",
     "DualEventWriter",
     "get_dual_writer",
+    "run_compaction",
+    "start_compaction_loop",
 ]

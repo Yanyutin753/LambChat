@@ -125,12 +125,23 @@ async def lifespan(app: FastAPI):
     _feishu_task = asyncio.create_task(_start_feishu())
     app.state.feishu_task = _feishu_task
 
+    # Start event compaction loop (background task)
+    from src.infra.session.event_compactor import start_compaction_loop
+
+    _compactor_task = asyncio.create_task(start_compaction_loop())
+    app.state.compactor_task = _compactor_task
+
     yield
 
     # 关闭时清理
     from src.agents import AgentFactory
     from src.infra.sandbox import SandboxFactory
     from src.infra.task.manager import get_task_manager
+
+    # 停止事件合并任务
+    if hasattr(app.state, "compactor_task"):
+        app.state.compactor_task.cancel()
+        logger.info("Event compaction task stopped")
 
     # 标记所有运行中的任务为失败
     task_manager = get_task_manager()

@@ -437,6 +437,8 @@ class DualEventWriter:
         exclude_run_id: Optional[str] = None,
         completed_only: bool = True,
         run_ids: Optional[List[str]] = None,
+        limit: int = 500,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         从 MongoDB 读取会话的所有事件（跨 traces 聚合）
@@ -448,6 +450,8 @@ class DualEventWriter:
             exclude_run_id: 可选的运行 ID 排除（用于排除正在运行的 run）
             completed_only: 是否只返回完成的 trace 中的事件（默认 True）
             run_ids: 可选的运行 ID 列表过滤
+            limit: 最大返回事件数（默认 500，0 表示不限制）
+            offset: 跳过前 N 条事件（默认 0）
 
         Returns:
             事件列表
@@ -459,6 +463,8 @@ class DualEventWriter:
             exclude_run_id=exclude_run_id,
             completed_only=completed_only,
             run_ids=run_ids,
+            limit=limit,
+            offset=offset,
         )
 
     async def get_stream_length(self, session_id: str, run_id: Optional[str] = None) -> int:

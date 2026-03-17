@@ -341,6 +341,8 @@ class TraceStorage:
         exclude_run_id: Optional[str] = None,
         completed_only: bool = True,
         run_ids: Optional[List[str]] = None,
+        limit: int = 500,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         获取会话的所有事件（跨 traces 聚合）
@@ -354,6 +356,8 @@ class TraceStorage:
             exclude_run_id: 可选的运行 ID 排除（用于排除正在运行的 run）
             completed_only: 是否只返回成功完成的 trace 中的事件（默认 True）
             run_ids: 可选的运行 ID 列表过滤（用于部分分享等场景）
+            limit: 最大返回事件数（默认 500，0 表示不限制）
+            offset: 跳过前 N 条事件（默认 0）
 
         Returns:
             事件列表，按 run 顺序合并
@@ -370,6 +374,8 @@ class TraceStorage:
             # 排除正在运行的 trace（只返回 running 状态以外的）
             if completed_only:
                 match_query["status"] = {"$ne": "running"}
+            # 排除已归档的原始 traces（避免与 archived trace 重复）
+            match_query["archived"] = {"$ne": True}
 
             # 使用 projection 减少数据传输量，只返回需要的字段
             # 注意: started_at 必须保留，否则 .sort("started_at", 1) 无法利用索引
@@ -393,7 +399,6 @@ class TraceStorage:
                 # 事件类型过滤（服务端过滤，减少内存中处理的数据量）
                 if event_types:
                     events = [e for e in events if e.get("event_type") in event_types]
-                # 添加 trace 信息
                 for event in events:
                     all_events.append(
                         {
@@ -404,6 +409,12 @@ class TraceStorage:
                             "timestamp": event.get("timestamp"),
                         }
                     )
+
+            # 应用 offset/limit 分页
+            if offset > 0:
+                all_events = all_events[offset:]
+            if limit > 0:
+                all_events = all_events[:limit]
 
             logger.debug(
                 f"Session {session_id} (run_id={run_id}) returned {len(all_events)} events"
