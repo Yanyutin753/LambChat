@@ -185,7 +185,7 @@ class FeishuResponseCollector:
 
     async def _build_card_content_async(self, client: "FeishuChannel") -> str:
         """构建飞书卡片消息内容（异步，支持图片上传嵌入）"""
-        elements = []
+        elements: list[dict[str, Any]] = []
 
         # ===== @mention（群聊回复时 @原发送者）=====
         if self.chat_type == "group" and self.sender_id:
