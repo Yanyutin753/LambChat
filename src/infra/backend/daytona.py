@@ -9,6 +9,7 @@
 
 import asyncio
 import os
+import uuid
 
 import daytona
 from daytona import FileDownloadRequest, FileUpload
@@ -26,6 +27,23 @@ logger = get_logger(__name__)
 
 # 默认超时 30 分钟（秒）
 _DEFAULT_TIMEOUT = 30 * 60
+
+# 中文路径临时文件目录
+_TEMP_DIR = "/tmp/__daytona_transfer__"
+
+
+def _needs_ascii_bridge(path: str) -> bool:
+    """判断路径是否包含非 ASCII 字符，需要通过 ASCII 临时路径桥接。"""
+    try:
+        path.encode("ascii")
+        return False
+    except UnicodeEncodeError:
+        return True
+
+
+def _temp_path(original: str) -> str:
+    """为原始路径生成一个唯一的 ASCII 临时路径。"""
+    return f"{_TEMP_DIR}/{uuid.uuid4().hex}"
 
 
 class DaytonaBackend(BaseSandbox):
@@ -91,65 +109,91 @@ class DaytonaBackend(BaseSandbox):
         return await asyncio.to_thread(self.execute, command, timeout=timeout)
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        """Download files from the sandbox."""
-        download_requests: list[FileDownloadRequest] = []
-        responses: list[FileDownloadResponse] = []
+        """Download files from the sandbox.
+
+        对含中文的路径：先用 shell cp 到 ASCII 临时路径，通过 SDK 下载，再 rm 临时文件。
+        纯 ASCII 路径直接走 SDK，不做任何额外处理。
+        """
+        # 原始路径 -> 临时路径的映射（仅中文路径）
+        bridge_map: dict[str, str] = {}
+        # 最终传给 SDK 的路径（中文路径已被替换为临时路径）
+        sdk_path_map: dict[str, str] = {}  # 原始路径 -> SDK 实际使用的路径
 
         for path in paths:
             if not path.startswith("/"):
-                responses.append(
-                    FileDownloadResponse(path=path, content=None, error="invalid_path")
-                )
                 continue
-            download_requests.append(FileDownloadRequest(source=path))
-            responses.append(FileDownloadResponse(path=path, content=None, error=None))
-
-        if not download_requests:
-            return responses
-
-        try:
-            daytona_responses = self._sandbox.fs.download_files(download_requests)
-        except Exception as e:
-            logger.error(f"Daytona fs.download_files failed: {e}")
-            # 返回错误响应
-            return [
-                FileDownloadResponse(path=p, content=None, error=str(e))
-                for p in paths
-                if p.startswith("/")
-            ]
-
-        mapped_responses: list[FileDownloadResponse] = []
-        for resp in daytona_responses:
-            content = resp.result
-            if content is None:
-                logger.debug(f"File not found or empty: {resp.source}")
-                mapped_responses.append(
-                    FileDownloadResponse(
-                        path=resp.source,
-                        content=None,
-                        error="file_not_found",
-                    )
-                )
+            if _needs_ascii_bridge(path):
+                tmp = _temp_path(path)
+                bridge_map[path] = tmp
+                sdk_path_map[path] = tmp
             else:
-                # Ensure content is bytes (Daytona SDK may return str | bytes)
-                content_bytes = content.encode() if isinstance(content, str) else content
-                logger.debug(f"Successfully downloaded: {resp.source} ({len(content_bytes)} bytes)")
-                mapped_responses.append(
-                    FileDownloadResponse(
-                        path=resp.source,
-                        content=content_bytes,
-                        error=None,
-                    )
-                )
+                sdk_path_map[path] = path
 
-        mapped_iter = iter(mapped_responses)
-        for i, path in enumerate(paths):
-            if not path.startswith("/"):
+        # 对中文路径，在沙箱内 cp 到临时位置
+        copy_errors: set[str] = set()
+        for original, tmp in bridge_map.items():
+            result = self.execute(f'mkdir -p "{_TEMP_DIR}" && cp "{original}" "{tmp}"')
+            if result.exit_code != 0:
+                copy_errors.add(original)
+                logger.error(f"Failed to copy {original} -> {tmp}: {result.output}")
+
+        # 构建 SDK 下载请求
+        download_requests: list[FileDownloadRequest] = []
+        valid_paths: list[str] = []  # 没有在 cp 阶段失败的路径
+        for path in paths:
+            if not path.startswith("/") or path in copy_errors:
                 continue
-            responses[i] = next(
-                mapped_iter,
+            sdk_path = sdk_path_map[path]
+            download_requests.append(FileDownloadRequest(source=sdk_path))
+            valid_paths.append(path)
+
+        # SDK 返回结果，key 是 SDK 使用的路径
+        sdk_results: dict[str, FileDownloadResponse] = {}
+        if download_requests:
+            try:
+                daytona_responses = self._sandbox.fs.download_files(download_requests)
+                for resp in daytona_responses:
+                    content = resp.result
+                    if content is None:
+                        sdk_results[resp.source] = FileDownloadResponse(
+                            path=resp.source, content=None, error="file_not_found"
+                        )
+                    else:
+                        content_bytes = content.encode() if isinstance(content, str) else content
+                        sdk_results[resp.source] = FileDownloadResponse(
+                            path=resp.source, content=content_bytes, error=None
+                        )
+            except Exception as e:
+                logger.error(f"Daytona fs.download_files failed: {e}")
+                for path in valid_paths:
+                    sdk_path = sdk_path_map[path]
+                    sdk_results[sdk_path] = FileDownloadResponse(
+                        path=sdk_path, content=None, error=str(e)
+                    )
+
+        # 清理临时文件
+        for tmp in bridge_map.values():
+            self.execute(f'rm -f "{tmp}"')
+
+        # 组装最终结果，还原原始中文路径
+        responses: list[FileDownloadResponse] = []
+        for path in paths:
+            if not path.startswith("/"):
+                responses.append(FileDownloadResponse(path=path, content=None, error="invalid_path"))
+                continue
+            if path in copy_errors:
+                responses.append(FileDownloadResponse(path=path, content=None, error="file_not_found"))
+                continue
+            sdk_path = sdk_path_map[path]
+            resp = sdk_results.get(
+                sdk_path,
                 FileDownloadResponse(path=path, content=None, error="file_not_found"),
             )
+            responses.append(FileDownloadResponse(
+                path=path,
+                content=resp.content,
+                error=resp.error,
+            ))
 
         return responses
 
@@ -158,19 +202,63 @@ class DaytonaBackend(BaseSandbox):
         return await asyncio.to_thread(self.download_files, paths)
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        """Upload files into the sandbox."""
+        """Upload files into the sandbox.
+
+        对含中文的路径：先通过 SDK 上传到 ASCII 临时路径，再用 shell mv 到中文路径。
+        纯 ASCII 路径直接走 SDK，不做任何额外处理。
+        """
+        # 原始路径 -> 临时路径的映射（仅中文路径）
+        bridge_map: dict[str, str] = {}
+        # 最终传给 SDK 的请求
         upload_requests: list[FileUpload] = []
-        responses: list[FileUploadResponse] = []
+        # 请求对应的原始路径
+        request_original_paths: list[str] = []
 
         for path, content in files:
             if not path.startswith("/"):
+                continue
+            if _needs_ascii_bridge(path):
+                tmp = _temp_path(path)
+                bridge_map[path] = tmp
+                upload_requests.append(FileUpload(source=content, destination=tmp))
+            else:
+                upload_requests.append(FileUpload(source=content, destination=path))
+            request_original_paths.append(path)
+
+        # 批量上传
+        upload_errors: dict[str, str] = {}
+        if upload_requests:
+            try:
+                self._sandbox.fs.upload_files(upload_requests)
+            except Exception as e:
+                logger.error(f"Daytona fs.upload_files failed: {e}")
+                for orig_path in request_original_paths:
+                    upload_errors[orig_path] = str(e)
+
+        # 对中文路径执行 mv 还原
+        rename_errors: dict[str, str] = {}
+        for original, tmp in bridge_map.items():
+            if original in upload_errors:
+                # 上传失败，清理临时文件
+                self.execute(f'rm -f "{tmp}"')
+                continue
+            # 确保父目录存在
+            parent = os.path.dirname(original)
+            result = self.execute(f'mkdir -p "{parent}" && mv "{tmp}" "{original}"')
+            if result.exit_code != 0:
+                rename_errors[original] = f"rename failed: {result.output}"
+                logger.warning(f"Failed to rename {tmp} -> {original}: {result.output}")
+                # mv 失败，清理残留的临时文件
+                self.execute(f'rm -f "{tmp}"')
+
+        # 组装结果
+        responses: list[FileUploadResponse] = []
+        for path, _content in files:
+            if not path.startswith("/"):
                 responses.append(FileUploadResponse(path=path, error="invalid_path"))
                 continue
-            upload_requests.append(FileUpload(source=content, destination=path))
-            responses.append(FileUploadResponse(path=path, error=None))
-
-        if upload_requests:
-            self._sandbox.fs.upload_files(upload_requests)
+            error = upload_errors.get(path) or rename_errors.get(path)
+            responses.append(FileUploadResponse(path=path, error=error))
 
         return responses
 
