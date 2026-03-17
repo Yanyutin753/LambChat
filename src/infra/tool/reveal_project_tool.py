@@ -226,6 +226,41 @@ def _find_entry(project_files: dict[str, str]) -> Optional[str]:
     return None
 
 
+def _get_work_dir_from_backend(backend: Any) -> Optional[str]:
+    """从 backend 获取工作目录"""
+    if hasattr(backend, "work_dir"):
+        return backend.work_dir
+    # CompositeBackend 可能需要访问 default backend
+    if hasattr(backend, "_default") and hasattr(backend._default, "work_dir"):
+        return backend._default.work_dir
+    return None
+
+
+def _normalize_project_path(project_path: str, work_dir: Optional[str] = None) -> tuple[str, list[str]]:
+    """
+    规范化项目路径，返回 (主要路径, 备选路径列表)
+    """
+    tried_paths = []
+    
+    # 处理 ~ 开头的路径
+    if project_path.startswith("~/"):
+        if work_dir:
+            normalized = work_dir + project_path[1:]
+            tried_paths.append(normalized)
+        tried_paths.append(project_path)
+        return tried_paths[0], tried_paths[1:]
+    
+    # 处理相对路径
+    if not project_path.startswith("/"):
+        if work_dir:
+            normalized = work_dir.rstrip("/") + "/" + project_path
+            tried_paths.append(normalized)
+        tried_paths.append(project_path)
+        return tried_paths[0], tried_paths[1:]
+    
+    return project_path, []
+
+
 @tool
 async def reveal_project(
     project_path: Annotated[
@@ -267,31 +302,62 @@ async def reveal_project(
             ensure_ascii=False,
         )
 
+    original_path = project_path
     project_path = project_path.rstrip("/")
+    
+    # 获取沙箱工作目录并规范化路径
+    work_dir = _get_work_dir_from_backend(backend)
+    logger.info(f"[reveal_project] work_dir={work_dir}, original_path={original_path}")
+    
+    primary_path, fallback_paths = _normalize_project_path(project_path, work_dir)
+    all_paths = [primary_path] + fallback_paths
+    
     project_name = name or os.path.basename(project_path)
 
     try:
-        all_files = await _list_project_files(backend, project_path)
+        # 尝试所有可能的路径
+        all_files = []
+        used_path = None
+        tried_paths = []
+        
+        for path in all_paths:
+            tried_paths.append(path)
+            all_files = await _list_project_files(backend, path)
+            if all_files:
+                used_path = path
+                logger.info(f"[reveal_project] Found {len(all_files)} files at: {path}")
+                break
+            else:
+                logger.info(f"[reveal_project] No files found at: {path}")
 
         if not all_files:
+            error_detail = f"在 {project_path} 中没有找到文件"
+            if work_dir:
+                error_detail += (
+                    f". Tried paths: {tried_paths}. "
+                    f"Sandbox work_dir: {work_dir}. "
+                    f"Note: Sandbox can only access files under work_dir or /tmp"
+                )
             return json.dumps(
                 {
                     "type": "project_reveal",
                     "error": "no_files_found",
-                    "message": f"在 {project_path} 中没有找到文件",
+                    "message": error_detail,
+                    "tried_paths": tried_paths,
+                    "work_dir": work_dir,
                 },
                 ensure_ascii=False,
             )
 
-        logger.info(f"Found {len(all_files)} files in {project_path}")
+        logger.info(f"Found {len(all_files)} files in {used_path}")
 
         # 收集前端文件
         project_files: dict[str, str] = {}
 
         for file_path in all_files:
             rel_path = (
-                file_path[len(project_path) :]
-                if file_path.startswith(project_path)
+                file_path[len(used_path) :]
+                if file_path.startswith(used_path)
                 else file_path
             )
             if not rel_path.startswith("/"):
@@ -315,7 +381,7 @@ async def reveal_project(
                 {
                     "type": "project_reveal",
                     "error": "no_frontend_files",
-                    "message": f"在 {project_path} 中没有找到前端文件",
+                    "message": f"在 {used_path} 中没有找到前端文件",
                     "scanned_files": len(all_files),
                 },
                 ensure_ascii=False,
@@ -328,7 +394,8 @@ async def reveal_project(
             "template": template or detect_template(project_files),
             "files": project_files,
             "entry": _find_entry(project_files),
-            "path": project_path,
+            "path": used_path,
+            "original_path": original_path,
             "file_count": len(project_files),
         }
 
