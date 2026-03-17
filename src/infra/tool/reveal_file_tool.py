@@ -104,21 +104,33 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
     沙箱（DaytonaBackend）和非沙箱（StateBackend/StoreBackend）均支持 download_files，
     返回原始字节，不包含行号等格式化内容。
     """
+    logger.info(f"[reveal_file] Attempting to download: {file_path}")
+    
     if hasattr(backend, "adownload_files"):
         try:
             responses = await backend.adownload_files([file_path])
-            if responses and responses[0].content:
-                return responses[0].content
+            if responses:
+                resp = responses[0]
+                logger.info(f"[reveal_file] adownload_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}")
+                if resp.content:
+                    return resp.content
+                elif resp.error:
+                    logger.warning(f"[reveal_file] Download error: {resp.error}")
         except Exception as e:
-            logger.info(f"adownload_files failed for {file_path}: {e}")
+            logger.warning(f"[reveal_file] adownload_files failed for {file_path}: {e}")
 
     if hasattr(backend, "download_files"):
         try:
             responses = await asyncio.to_thread(backend.download_files, [file_path])
-            if responses and responses[0].content:
-                return responses[0].content
+            if responses:
+                resp = responses[0]
+                logger.info(f"[reveal_file] download_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}")
+                if resp.content:
+                    return resp.content
+                elif resp.error:
+                    logger.warning(f"[reveal_file] Download error: {resp.error}")
         except Exception as e:
-            logger.info(f"download_files failed for {file_path}: {e}")
+            logger.warning(f"[reveal_file] download_files failed for {file_path}: {e}")
 
     return None
 

@@ -203,9 +203,10 @@ async def _execute_command(backend: Any, command: str) -> Optional[str]:
 
 async def _list_project_files(backend: Any, project_path: str) -> list[str]:
     """递归列出项目目录下的所有文件（使用 find 命令）"""
+    # 设置 LANG 和 LC_ALL 以正确处理中文文件名
     output = await _execute_command(
         backend,
-        f'find "{project_path}" -type f 2>/dev/null | head -200',
+        f'LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 find "{project_path}" -type f 2>/dev/null | head -200',
     )
     if not output:
         return []

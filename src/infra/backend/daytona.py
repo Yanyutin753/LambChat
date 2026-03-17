@@ -107,12 +107,22 @@ class DaytonaBackend(BaseSandbox):
         if not download_requests:
             return responses
 
-        daytona_responses = self._sandbox.fs.download_files(download_requests)
+        try:
+            daytona_responses = self._sandbox.fs.download_files(download_requests)
+        except Exception as e:
+            logger.error(f"Daytona fs.download_files failed: {e}")
+            # 返回错误响应
+            return [
+                FileDownloadResponse(path=p, content=None, error=str(e))
+                for p in paths
+                if p.startswith("/")
+            ]
 
         mapped_responses: list[FileDownloadResponse] = []
         for resp in daytona_responses:
             content = resp.result
             if content is None:
+                logger.debug(f"File not found or empty: {resp.source}")
                 mapped_responses.append(
                     FileDownloadResponse(
                         path=resp.source,
@@ -123,6 +133,7 @@ class DaytonaBackend(BaseSandbox):
             else:
                 # Ensure content is bytes (Daytona SDK may return str | bytes)
                 content_bytes = content.encode() if isinstance(content, str) else content
+                logger.debug(f"Successfully downloaded: {resp.source} ({len(content_bytes)} bytes)")
                 mapped_responses.append(
                     FileDownloadResponse(
                         path=resp.source,
