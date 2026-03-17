@@ -172,4 +172,3 @@ Access the app at `http://localhost:8000`
 <p align="center">
   Made with ❤️ by <a href="https://github.com/Yanyutin753">Clivia</a>
 </p>
-/p>
