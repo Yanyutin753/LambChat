@@ -111,7 +111,9 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
             responses = await backend.adownload_files([file_path])
             if responses:
                 resp = responses[0]
-                logger.info(f"[reveal_file] adownload_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}")
+                logger.info(
+                    f"[reveal_file] adownload_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}"
+                )
                 if resp.content:
                     return resp.content
                 elif resp.error:
@@ -124,7 +126,9 @@ async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[
             responses = await asyncio.to_thread(backend.download_files, [file_path])
             if responses:
                 resp = responses[0]
-                logger.info(f"[reveal_file] download_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}")
+                logger.info(
+                    f"[reveal_file] download_files response: path={resp.path}, error={resp.error}, content_len={len(resp.content) if resp.content else 0}"
+                )
                 if resp.content:
                     return resp.content
                 elif resp.error:

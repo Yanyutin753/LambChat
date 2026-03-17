@@ -180,21 +180,27 @@ class DaytonaBackend(BaseSandbox):
         responses: list[FileDownloadResponse] = []
         for path in paths:
             if not path.startswith("/"):
-                responses.append(FileDownloadResponse(path=path, content=None, error="invalid_path"))
+                responses.append(
+                    FileDownloadResponse(path=path, content=None, error="invalid_path")
+                )
                 continue
             if path in copy_errors:
-                responses.append(FileDownloadResponse(path=path, content=None, error="file_not_found"))
+                responses.append(
+                    FileDownloadResponse(path=path, content=None, error="file_not_found")
+                )
                 continue
             sdk_path = sdk_path_map[path]
             cached_resp: FileDownloadResponse | None = sdk_results.get(sdk_path)
             if cached_resp is None:
                 cached_resp = FileDownloadResponse(path=path, content=None, error="file_not_found")
             # cached_resp.error 已经是正确的类型，直接使用
-            responses.append(FileDownloadResponse(
-                path=path,
-                content=cached_resp.content,
-                error=cached_resp.error,
-            ))
+            responses.append(
+                FileDownloadResponse(
+                    path=path,
+                    content=cached_resp.content,
+                    error=cached_resp.error,
+                )
+            )
 
         return responses
 
@@ -260,7 +266,10 @@ class DaytonaBackend(BaseSandbox):
                 continue
             error_str = upload_errors.get(path) or rename_errors.get(path)
             # 类型转换：确保 error 是允许的类型
-            final_error: Literal["file_not_found", "permission_denied", "is_directory", "invalid_path"] | None = None
+            final_error: (
+                Literal["file_not_found", "permission_denied", "is_directory", "invalid_path"]
+                | None
+            ) = None
             if error_str:
                 if "permission" in error_str.lower():
                     final_error = "permission_denied"

@@ -136,10 +136,7 @@ def _should_skip(rel_path: str) -> bool:
     parts = rel_path.strip("/").split("/")
     filename = parts[-1] if parts else ""
 
-    if any(
-        p in IGNORE_DIRS or (p.startswith(".") and p not in IGNORE_DIRS)
-        for p in parts[:-1]
-    ):
+    if any(p in IGNORE_DIRS or (p.startswith(".") and p not in IGNORE_DIRS) for p in parts[:-1]):
         return True
     if filename.startswith(".") and filename not in IGNORE_FILES:
         return True
@@ -229,9 +226,7 @@ def _find_entry(project_files: dict[str, str]) -> Optional[str]:
 
 @tool
 async def reveal_project(
-    project_path: Annotated[
-        str, "项目目录路径，包含 index.html 或 package.json 的目录"
-    ],
+    project_path: Annotated[str, "项目目录路径，包含 index.html 或 package.json 的目录"],
     name: Annotated[Optional[str], "项目名称（可选，默认使用目录名）"] = None,
     description: Annotated[Optional[str], "项目描述（可选）"] = None,
     template: Annotated[
@@ -291,9 +286,7 @@ async def reveal_project(
 
         for file_path in all_files:
             rel_path = (
-                file_path[len(project_path) :]
-                if file_path.startswith(project_path)
-                else file_path
+                file_path[len(project_path) :] if file_path.startswith(project_path) else file_path
             )
             if not rel_path.startswith("/"):
                 rel_path = "/" + rel_path
