@@ -1,18 +1,13 @@
 /**
  * Stream event handlers for useAgent hook
- * Handles all incoming SSE events and updates messages accordingly
+ * Handles all incoming SSE events and updates messages accordingly.
+ *
+ * Message transformation logic is unified in processMessageEvent (messageParts.ts).
+ * This file handles: SSE parsing, duplicate detection, subagent stack management,
+ * and React state updates (side effects).
  */
 
-import type {
-  Message,
-  ToolCall,
-  ToolResult,
-  ThinkingPart,
-  MessagePart,
-  SandboxPart,
-  TokenUsagePart,
-  MessageAttachment,
-} from "../../types";
+import type { Message } from "../../types";
 import i18n from "../../i18n";
 import type {
   StreamEvent,
@@ -20,41 +15,8 @@ import type {
   SubagentStackItem,
   UseAgentOptions,
 } from "./types";
-import {
-  addPartToDepth,
-  updateSubagentResult,
-  updateToolResultInDepth,
-  createToolPart,
-  createThinkingPart,
-  createSubagentPart,
-  clearAllLoadingStates,
-} from "./messageParts";
-
-/**
- * Convert backend attachments to frontend format
- */
-export function convertAttachments(
-  attachments?: Array<{
-    id: string;
-    key: string;
-    name: string;
-    type: string;
-    mime_type: string;
-    size: number;
-    url: string;
-  }>,
-): MessageAttachment[] | undefined {
-  if (!attachments) return undefined;
-  return attachments.map((a) => ({
-    id: a.id,
-    key: a.key,
-    name: a.name,
-    type: a.type as MessageAttachment["type"],
-    mimeType: a.mime_type,
-    size: a.size,
-    url: a.url,
-  }));
-}
+import { clearAllLoadingStates } from "./messageParts";
+import { convertAttachments, processMessageEvent } from "./eventProcessor";
 
 /**
  * Context passed to event handler
@@ -122,58 +84,23 @@ export function handleStreamEvent(
 
   const depth = data.depth || 0;
 
+  // Events handled entirely by side effects (no message transformation)
   switch (eventType) {
     case "metadata": {
       if (data.session_id && !ctx.sessionIdRef.current) {
         ctx.setSessionId(data.session_id);
       }
-      break;
+      return;
     }
 
     case "user:message": {
       handleUserMessage(data, messageId, eventTimestamp, ctx);
-      break;
+      return;
     }
 
     case "user:cancel": {
-      // Mark the current message as cancelled
       handleError(data, messageId, ctx, true);
-      break;
-    }
-
-    case "agent:call": {
-      handleAgentCall(data, messageId, depth, ctx);
-      break;
-    }
-
-    case "agent:result": {
-      handleAgentResult(data, messageId, depth, ctx);
-      break;
-    }
-
-    case "thinking": {
-      handleThinking(data, messageId, depth, ctx);
-      break;
-    }
-
-    case "message:chunk": {
-      handleMessageChunk(data, messageId, depth, ctx);
-      break;
-    }
-
-    case "tool:start": {
-      handleToolStart(data, messageId, depth, ctx);
-      break;
-    }
-
-    case "tool:input": {
-      handleToolInput(data, messageId, depth, ctx);
-      break;
-    }
-
-    case "tool:result": {
-      handleToolResult(data, messageId, depth, ctx);
-      break;
+      return;
     }
 
     case "done": {
@@ -183,7 +110,7 @@ export function handleStreamEvent(
         ),
       );
       ctx.setConnectionStatus("disconnected");
-      break;
+      return;
     }
 
     case "queue_update": {
@@ -193,52 +120,143 @@ export function handleStreamEvent(
           toast.success(i18n.t("chat.queueStart"), { duration: 2000 });
         });
       }
-      break;
-    }
-
-    case "error": {
-      handleError(data, messageId, ctx);
-      break;
+      return;
     }
 
     case "approval_required": {
       handleApprovalRequired(data, ctx);
-      break;
-    }
-
-    case "sandbox:starting": {
-      handleSandboxStarting(data, messageId, ctx);
-      break;
-    }
-
-    case "sandbox:state": {
-      handleSandboxState(data, messageId, ctx);
-      break;
-    }
-
-    case "sandbox:ready": {
-      handleSandboxReady(data, messageId, ctx);
-      break;
-    }
-
-    case "sandbox:error": {
-      handleSandboxError(data, messageId, ctx);
-      break;
-    }
-
-    case "token:usage": {
-      handleTokenUsage(data, messageId, ctx);
-      break;
+      return;
     }
 
     case "skills:changed": {
-      handleSkillsChanged(data, ctx);
-      break;
+      if (ctx.options?.onSkillAdded) {
+        ctx.options.onSkillAdded(
+          (data.skill_name as string) || "",
+          i18n.t("chat.skillUpdated", { action: data.action || "updated" }),
+          (data.files_count as number) || 0,
+        );
+      }
+      return;
     }
+  }
+
+  // Only process known message-transforming event types
+  const MESSAGE_EVENTS = new Set([
+    "agent:call",
+    "agent:result",
+    "thinking",
+    "message:chunk",
+    "tool:start",
+    "tool:input",
+    "tool:result",
+    "sandbox:starting",
+    "sandbox:ready",
+    "sandbox:error",
+    "sandbox:state",
+    "token:usage",
+    "error",
+  ]);
+  if (!MESSAGE_EVENTS.has(eventType)) {
+    console.warn("[SSE] Unhandled event type:", eventType);
+    return;
+  }
+
+  // Events that transform message state via processMessageEvent
+  const subagentStack = ctx.activeSubagentStackRef.current;
+
+  // Manage subagent stack as side effect
+  if (eventType === "agent:call") {
+    const agentId = data.agent_id || "unknown";
+    subagentStack.push({ agent_id: agentId, depth, message_id: messageId });
+  }
+
+  ctx.setMessages((prev) =>
+    prev.map((m) => {
+      if (m.id !== messageId) return m;
+
+      const result = processMessageEvent(
+        eventType,
+        data,
+        m.parts || [],
+        m.content,
+        m.toolCalls || [],
+        depth,
+        subagentStack,
+        true, // isStreaming
+        messageId,
+      );
+
+      const updated = {
+        ...m,
+        parts: result.parts,
+        content: result.content,
+        toolCalls: result.toolCalls,
+      };
+
+      if (result.toolResult) {
+        updated.toolResults = [...(m.toolResults || []), result.toolResult];
+      }
+      if (result.tokenUsage) {
+        updated.tokenUsage = result.tokenUsage;
+      }
+      if (result.duration) {
+        updated.duration = result.duration;
+      }
+      if (result.cancelled) {
+        updated.isStreaming = false;
+        updated.cancelled = true;
+      }
+
+      return updated;
+    }),
+  );
+
+  // Pop subagent stack after agent:result
+  if (eventType === "agent:result") {
+    const agentId = data.agent_id || "unknown";
+    const stackIndex = subagentStack.findIndex(
+      (item) => item.agent_id === agentId && item.message_id === messageId,
+    );
+    if (stackIndex !== -1) {
+      subagentStack.splice(stackIndex, 1);
+    }
+  }
+
+  // Sandbox side effects
+  if (eventType === "sandbox:starting") {
+    ctx.setIsInitializingSandbox(true);
+    ctx.setSandboxError(null);
+  }
+  if (eventType === "sandbox:ready") {
+    ctx.setIsInitializingSandbox(false);
+  }
+  if (eventType === "sandbox:error") {
+    ctx.setIsInitializingSandbox(false);
+    ctx.setSandboxError(data.error || i18n.t("chat.sandboxInitFailed"));
+  }
+  // sandbox:state is a generic event that maps to the same side effects
+  if (eventType === "sandbox:state") {
+    const state = data.state;
+    if (state === "starting") {
+      ctx.setIsInitializingSandbox(true);
+      ctx.setSandboxError(null);
+    } else if (state === "ready") {
+      ctx.setIsInitializingSandbox(false);
+    } else if (state === "error") {
+      ctx.setIsInitializingSandbox(false);
+      ctx.setSandboxError(data.error || i18n.t("chat.sandboxInitFailed"));
+    }
+  }
+
+  // Error side effects
+  if (eventType === "error") {
+    ctx.setConnectionStatus("disconnected");
+    ctx.setIsInitializingSandbox(false);
+    ctx.options?.onClearApprovals?.();
   }
 }
 
-// Individual event handlers
+// ---- Events handled outside processMessageEvent ----
 
 function handleUserMessage(
   data: EventData,
@@ -286,393 +304,6 @@ function handleUserMessage(
   }
 }
 
-function handleAgentCall(
-  data: EventData,
-  messageId: string,
-  depth: number,
-  ctx: EventHandlerContext,
-): void {
-  const agentId = data.agent_id || "unknown";
-  const subagentPart = createSubagentPart(
-    agentId,
-    data.agent_name || data.agent_id || i18n.t("chat.unknownAgent"),
-    data.input || "",
-    depth,
-    data.timestamp,
-  );
-
-  ctx.activeSubagentStackRef.current.push({
-    agent_id: agentId,
-    depth: depth,
-    message_id: messageId,
-  });
-
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-      const newParts = addPartToDepth(
-        parts,
-        subagentPart,
-        depth,
-        ctx.activeSubagentStackRef.current,
-        agentId,
-        messageId,
-      );
-      return { ...m, parts: newParts };
-    }),
-  );
-}
-
-function handleAgentResult(
-  data: EventData,
-  messageId: string,
-  depth: number,
-  ctx: EventHandlerContext,
-): void {
-  const agentId = data.agent_id || "unknown";
-  const stackIndex = ctx.activeSubagentStackRef.current.findIndex(
-    (item) => item.agent_id === agentId && item.message_id === messageId,
-  );
-  if (stackIndex !== -1) {
-    ctx.activeSubagentStackRef.current.splice(stackIndex, 1);
-  }
-
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-      const newParts = updateSubagentResult(
-        parts,
-        agentId,
-        data.result || "",
-        data.success !== false,
-        depth,
-        data.error,
-        data.timestamp,
-      );
-      return { ...m, parts: newParts };
-    }),
-  );
-}
-
-function handleThinking(
-  data: EventData,
-  messageId: string,
-  depth: number,
-  ctx: EventHandlerContext,
-): void {
-  const content = data.content || "";
-  const thinkingId = data.thinking_id;
-  if (content) {
-    const thinkingPart = createThinkingPart(
-      content,
-      thinkingId,
-      depth,
-      data.agent_id,
-      true,
-    );
-    ctx.setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== messageId) return m;
-        const parts = m.parts || [];
-        if (depth > 0) {
-          const newParts = addPartToDepth(
-            parts,
-            thinkingPart,
-            depth,
-            ctx.activeSubagentStackRef.current,
-            data.agent_id as string,
-            messageId,
-          );
-          return { ...m, parts: newParts };
-        } else {
-          const newParts = [...parts];
-          let existingIndex = -1;
-
-          // 如果有 thinking_id，精确匹配
-          if (thinkingId !== undefined) {
-            existingIndex = newParts.findIndex(
-              (p) => p.type === "thinking" && p.thinking_id === thinkingId,
-            );
-          } else {
-            // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
-            for (let i = newParts.length - 1; i >= 0; i--) {
-              const p = newParts[i];
-              if (p.type === "thinking" && p.thinking_id === undefined) {
-                existingIndex = i;
-                break;
-              }
-            }
-          }
-
-          if (existingIndex >= 0) {
-            const existing = newParts[existingIndex] as ThinkingPart;
-            newParts[existingIndex] = {
-              ...existing,
-              content: existing.content + content,
-              isStreaming: true,
-            };
-          } else {
-            newParts.push(thinkingPart);
-          }
-          return { ...m, parts: newParts };
-        }
-      }),
-    );
-  }
-}
-
-function handleMessageChunk(
-  data: EventData,
-  messageId: string,
-  depth: number,
-  ctx: EventHandlerContext,
-): void {
-  const content = data.content || "";
-  if (content) {
-    ctx.setMessages((prev) => {
-      const targetMessage = prev.find((m) => m.id === messageId);
-      if (!targetMessage) return prev;
-
-      return prev.map((m) => {
-        if (m.id !== messageId) return m;
-        const parts = m.parts || [];
-
-        if (depth > 0) {
-          const textPart = {
-            type: "text" as const,
-            content,
-            depth,
-            agent_id: data.agent_id,
-          };
-          const newParts = addPartToDepth(
-            parts,
-            textPart,
-            depth,
-            ctx.activeSubagentStackRef.current,
-            data.agent_id as string,
-            messageId,
-          );
-          return { ...m, parts: newParts };
-        } else {
-          const newParts = [...parts];
-          const lastPart = newParts[newParts.length - 1];
-          if (lastPart?.type === "text" && !lastPart.depth) {
-            newParts[newParts.length - 1] = {
-              ...lastPart,
-              content: lastPart.content + content,
-            };
-          } else {
-            newParts.push({ type: "text" as const, content });
-          }
-          return {
-            ...m,
-            content: m.content + content,
-            parts: newParts,
-          };
-        }
-      });
-    });
-  }
-}
-
-function handleToolStart(
-  data: EventData,
-  messageId: string,
-  depth: number,
-  ctx: EventHandlerContext,
-): void {
-  const toolCallId = data.tool_call_id as string | undefined;
-  const toolCall: ToolCall = {
-    id: toolCallId,
-    name: data.tool || "",
-    args: data.args || {},
-  };
-  const toolPart = createToolPart(
-    data.tool || "",
-    data.args || {},
-    depth,
-    data.agent_id as string | undefined,
-    toolCallId,
-  );
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-      let newParts: MessagePart[];
-
-      if (depth > 0) {
-        newParts = addPartToDepth(
-          parts,
-          toolPart,
-          depth,
-          ctx.activeSubagentStackRef.current,
-          data.agent_id as string,
-          messageId,
-        );
-      } else {
-        newParts = [...parts, toolPart];
-      }
-      return {
-        ...m,
-        toolCalls:
-          depth === 0 ? [...(m.toolCalls || []), toolCall] : m.toolCalls,
-        parts: newParts,
-      };
-    }),
-  );
-}
-
-function handleToolInput(
-  data: EventData,
-  messageId: string,
-  depth: number,
-  ctx: EventHandlerContext,
-): void {
-  const toolCallId = data.tool_call_id as string | undefined;
-  const toolName = data.tool || "";
-  const newArgs = data.args || {};
-
-  // 检查是否是 partial 格式
-  const isPartial = "partial" in newArgs;
-
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const toolCalls = m.toolCalls || [];
-
-      // 更新 toolCalls 中的参数（只在 depth === 0 时）
-      const updatedToolCalls =
-        depth === 0
-          ? toolCalls.map((tc) => {
-              if (tc.id === toolCallId && tc.name === toolName) {
-                let mergedArgs: Record<string, unknown>;
-
-                if (isPartial) {
-                  // 处理 partial 格式：拼接字符串
-                  const existingArgs = tc.args as Record<string, string>;
-                  const existingPartial = existingArgs.partial || "";
-                  mergedArgs = {
-                    ...tc.args,
-                    partial: existingPartial + newArgs.partial,
-                  };
-                } else {
-                  // 正常合并参数
-                  mergedArgs = { ...tc.args, ...newArgs };
-                }
-
-                return {
-                  ...tc,
-                  args: mergedArgs,
-                };
-              }
-              return tc;
-            })
-          : toolCalls;
-
-      // 更新 parts 中的工具部分 (ToolPart 使用 id 字段)
-      const parts = m.parts || [];
-      const newParts = parts.map((p) => {
-        if (p.type === "tool" && p.id === toolCallId && p.name === toolName) {
-          let mergedArgs: Record<string, unknown>;
-
-          if (isPartial) {
-            // 处理 partial 格式：拼接字符串
-            const existingArgs = p.args as Record<string, string>;
-            const existingPartial = existingArgs.partial || "";
-            mergedArgs = {
-              ...p.args,
-              partial: existingPartial + newArgs.partial,
-            };
-          } else {
-            // 正常合并参数
-            mergedArgs = { ...p.args, ...newArgs };
-          }
-
-          return {
-            ...p,
-            args: mergedArgs,
-          };
-        }
-        return p;
-      });
-
-      return {
-        ...m,
-        toolCalls: updatedToolCalls,
-        parts: newParts,
-      };
-    }),
-  );
-}
-
-function handleToolResult(
-  data: EventData,
-  messageId: string,
-  depth: number,
-  ctx: EventHandlerContext,
-): void {
-  const toolCallId = data.tool_call_id as string | undefined;
-  const toolName = data.tool || "";
-  const isSuccess =
-    data.success !== false && !data.result?.toString().startsWith("Error:");
-  const toolResult: ToolResult = {
-    id: toolCallId,
-    name: toolName,
-    result: data.result || "",
-    success: isSuccess,
-  };
-  const errorMsg = data.error as string | undefined;
-
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-
-      if (depth > 0 || toolCallId) {
-        // 优先使用 tool_call_id 匹配
-        const newParts = updateToolResultInDepth(
-          parts,
-          toolCallId || "",
-          toolResult.result,
-          toolResult.success,
-          errorMsg,
-          depth,
-          data.agent_id as string,
-        );
-        return { ...m, parts: newParts };
-      } else {
-        // 向后兼容：按 name 匹配
-        let updated = false;
-        const newParts = parts.map((p) => {
-          if (
-            p.type === "tool" &&
-            p.name === toolName &&
-            p.isPending &&
-            !updated
-          ) {
-            updated = true;
-            return {
-              ...p,
-              result: toolResult.result,
-              success: toolResult.success,
-              error: errorMsg,
-              isPending: false,
-            };
-          }
-          return p;
-        });
-        return {
-          ...m,
-          toolResults: [...(m.toolResults || []), toolResult],
-          parts: newParts,
-        };
-      }
-    }),
-  );
-}
-
 function handleError(
   data: EventData,
   messageId: string,
@@ -686,7 +317,6 @@ function handleError(
     prev.map((m) => {
       if (m.id !== messageId) return m;
       if (isCancelled) {
-        // For cancellation, preserve content and mark as cancelled
         return {
           ...m,
           isStreaming: false,
@@ -694,7 +324,6 @@ function handleError(
           parts: clearAllLoadingStates(m.parts || []),
         };
       }
-      // Regular error: show error message
       return {
         ...m,
         content: i18n.t("chat.errorPrefix", { error: errorMsg }),
@@ -728,138 +357,5 @@ async function handleApprovalRequired(
     } catch (err) {
       console.warn("[SSE] Failed to check approval status:", err);
     }
-  }
-}
-
-function handleSandboxStarting(
-  data: EventData,
-  messageId: string,
-  ctx: EventHandlerContext,
-): void {
-  ctx.setIsInitializingSandbox(true);
-  ctx.setSandboxError(null);
-  const startingPart: SandboxPart = {
-    type: "sandbox",
-    status: "starting",
-    timestamp: data.timestamp,
-  };
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-      const newParts = parts.some((p) => p.type === "sandbox")
-        ? parts.map((p) => (p.type === "sandbox" ? startingPart : p))
-        : [...parts, startingPart];
-      return { ...m, parts: newParts };
-    }),
-  );
-}
-
-function handleSandboxState(
-  data: EventData,
-  messageId: string,
-  ctx: EventHandlerContext,
-): void {
-  const statePart: SandboxPart = {
-    type: "sandbox",
-    status: data.state as "starting" | "ready" | "error",
-    timestamp: data.timestamp,
-  };
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-      const newParts = parts.some((p) => p.type === "sandbox")
-        ? parts.map((p) => (p.type === "sandbox" ? statePart : p))
-        : [...parts, statePart];
-      return { ...m, parts: newParts };
-    }),
-  );
-}
-
-function handleSandboxReady(
-  data: EventData,
-  messageId: string,
-  ctx: EventHandlerContext,
-): void {
-  ctx.setIsInitializingSandbox(false);
-  const readyPart: SandboxPart = {
-    type: "sandbox",
-    status: "ready",
-    sandbox_id: data.sandbox_id,
-    work_dir: data.work_dir,
-    timestamp: data.timestamp,
-  };
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-      const newParts = parts.some((p) => p.type === "sandbox")
-        ? parts.map((p) => (p.type === "sandbox" ? readyPart : p))
-        : [...parts, readyPart];
-      return { ...m, parts: newParts };
-    }),
-  );
-}
-
-function handleSandboxError(
-  data: EventData,
-  messageId: string,
-  ctx: EventHandlerContext,
-): void {
-  ctx.setIsInitializingSandbox(false);
-  ctx.setSandboxError(data.error || i18n.t("chat.sandboxInitFailed"));
-  const errorPart: SandboxPart = {
-    type: "sandbox",
-    status: "error",
-    error: data.error,
-    timestamp: data.timestamp,
-  };
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      const parts = m.parts || [];
-      const newParts = parts.some((p) => p.type === "sandbox")
-        ? parts.map((p) => (p.type === "sandbox" ? errorPart : p))
-        : [...parts, errorPart];
-      return { ...m, parts: newParts };
-    }),
-  );
-}
-
-function handleTokenUsage(
-  data: EventData,
-  messageId: string,
-  ctx: EventHandlerContext,
-): void {
-  const tokenUsage: TokenUsagePart = {
-    type: "token_usage",
-    input_tokens: data.input_tokens || 0,
-    output_tokens: data.output_tokens || 0,
-    total_tokens: data.total_tokens || 0,
-    cache_creation_tokens: data.cache_creation_tokens || 0,
-    cache_read_tokens: data.cache_read_tokens || 0,
-  };
-  ctx.setMessages((prev) =>
-    prev.map((m) => {
-      if (m.id !== messageId) return m;
-      return {
-        ...m,
-        tokenUsage,
-        duration: data.duration ? data.duration * 1000 : undefined,
-      };
-    }),
-  );
-}
-
-function handleSkillsChanged(data: EventData, ctx: EventHandlerContext): void {
-  console.log("[SSE] Skills changed event received:", data);
-
-  if (ctx.options?.onSkillAdded) {
-    ctx.options.onSkillAdded(
-      (data.skill_name as string) || "",
-      i18n.t("chat.skillUpdated", { action: data.action || "updated" }),
-      (data.files_count as number) || 0,
-    );
   }
 }

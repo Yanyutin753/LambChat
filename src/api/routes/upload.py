@@ -8,7 +8,15 @@ import asyncio
 import base64
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required, require_permissions
@@ -69,7 +77,7 @@ async def get_s3_config_from_settings() -> S3Config:
         custom_domain=settings.S3_CUSTOM_DOMAIN if settings.S3_CUSTOM_DOMAIN else None,
         path_style=_parse_bool(settings.S3_PATH_STYLE),
         public_bucket=_parse_bool(settings.S3_PUBLIC_BUCKET),
-        max_file_size=int(settings.S3_MAX_FILE_SIZE) if settings.S3_MAX_FILE_SIZE else 10485760,
+        max_file_size=(int(settings.S3_MAX_FILE_SIZE) if settings.S3_MAX_FILE_SIZE else 10485760),
     )
 
 

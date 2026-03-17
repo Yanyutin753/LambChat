@@ -4,23 +4,93 @@
 提供 FastAPI 依赖项。
 """
 
+import json
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.infra.auth.jwt import verify_token
+from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
+from src.infra.storage.redis import get_redis_client
 from src.infra.user.manager import UserManager
 from src.infra.user.storage import UserStorage
 from src.kernel.schemas.user import TokenPayload
 
 security = HTTPBearer(auto_error=False)
 
+logger = get_logger(__name__)
+
+# 角色权限缓存 key 前缀和 TTL（按角色名缓存，所有用户共享）
+_ROLE_PERMS_CACHE_PREFIX = "role:perms:"
+_ROLE_PERMS_VERSION_PREFIX = "role:perms_ver:"
+_ROLE_PERMS_CACHE_TTL = 300  # 5 分钟
+
+
+async def _get_role_permissions(role_name: str) -> tuple[list[str], bool]:
+    """
+    从 Redis 缓存或数据库获取单个角色的权限列表
+
+    使用版本号机制，分布式集群友好（不依赖 KEYS 命令）。
+
+    Args:
+        role_name: 角色名称
+
+    Returns:
+        (权限列表, 角色是否存在)
+    """
+    version: str = "0"
+
+    try:
+        redis_client = get_redis_client()
+        raw = await redis_client.get(f"{_ROLE_PERMS_VERSION_PREFIX}{role_name}")
+        version = raw or "0"
+        cache_key = f"{_ROLE_PERMS_CACHE_PREFIX}{role_name}:v{version}"
+
+        cached = await redis_client.get(cache_key)
+        if cached:
+            logger.debug(f"[Auth Cache] Hit for role {role_name}")
+            return json.loads(cached), True
+    except Exception as e:
+        logger.warning(f"[Auth Cache] Redis get failed for role {role_name}: {e}")
+
+    # 缓存未命中，从数据库查询
+    logger.debug(f"[Auth Cache] Miss for role {role_name}")
+    role_storage = RoleStorage()
+    role = await role_storage.get_by_name(role_name)
+
+    permissions: list[str] = []
+    if role:
+        for perm in role.permissions:
+            permissions.append(perm if isinstance(perm, str) else perm.value)
+
+    # 写入 Redis 缓存（CAS: 写入前重新检查版本号，避免 TOCTOU）
+    try:
+        redis_client = get_redis_client()
+        current_version = await redis_client.get(f"{_ROLE_PERMS_VERSION_PREFIX}{role_name}")
+        current_version = current_version or "0"
+        # 版本号未变才写入，防止用旧数据覆盖已被 invalidate 的新 key
+        if current_version == version:
+            cache_key = f"{_ROLE_PERMS_CACHE_PREFIX}{role_name}:v{current_version}"
+            await redis_client.set(
+                cache_key,
+                json.dumps(permissions),
+                ex=_ROLE_PERMS_CACHE_TTL,
+            )
+        else:
+            logger.debug(f"[Auth Cache] Version changed for role {role_name}, skip stale write")
+    except Exception as e:
+        logger.warning(f"[Auth Cache] Redis set failed for role {role_name}: {e}")
+
+    return permissions, role is not None
+
 
 async def _get_user_roles_and_permissions(user_roles: list[str]) -> tuple[list[str], list[str]]:
     """
-    从数据库获取用户最新的角色和权限
+    获取用户角色列表和合并后的权限列表
+
+    每个角色的权限独立缓存，变更某角色只失效该角色的缓存。
 
     Args:
         user_roles: 用户角色列表（从 token 中获取）
@@ -28,21 +98,36 @@ async def _get_user_roles_and_permissions(user_roles: list[str]) -> tuple[list[s
     Returns:
         (角色列表, 权限列表)
     """
-    role_storage = RoleStorage()
     roles = []
     permissions = set()
 
     for role_name in user_roles:
-        role = await role_storage.get_by_name(role_name)
-        if role:
-            roles.append(role.name)
-            for perm in role.permissions:
-                if isinstance(perm, str):
-                    permissions.add(perm)
-                else:
-                    permissions.add(perm.value)
+        perms, exists = await _get_role_permissions(role_name)
+        if exists:
+            roles.append(role_name)
+            permissions.update(perms)
 
     return roles, list(permissions)
+
+
+async def invalidate_role_permissions_cache(role_name: str) -> None:
+    """
+    清除指定角色的权限缓存（分布式集群友好）
+
+    通过递增版本号使旧缓存 key 失效，无需 KEYS 扫描。
+    当角色权限变更时应调用此方法。
+
+    Args:
+        role_name: 需要失效的角色名称
+    """
+    try:
+        redis_client = get_redis_client()
+        version_key = f"{_ROLE_PERMS_VERSION_PREFIX}{role_name}"
+        await redis_client.incr(version_key)
+        # 不设置 TTL，防止版本 key 过期导致版本号回退到 0
+        logger.info(f"[Auth Cache] Invalidated cache for role {role_name} (version bumped)")
+    except Exception as e:
+        logger.warning(f"[Auth Cache] Redis incr failed for role {role_name}: {e}")
 
 
 async def get_current_user(
@@ -104,7 +189,7 @@ async def get_current_user_required(
                 detail="用户不存在",
             )
 
-        # 从数据库动态获取角色和权限
+        # 从缓存/数据库动态获取角色和权限
         roles, permissions = await _get_user_roles_and_permissions(user.roles)
 
         # 更新 payload
@@ -163,7 +248,7 @@ async def get_current_user_from_websocket(
                 detail="用户不存在",
             )
 
-        # 从数据库动态获取角色和权限
+        # 从缓存/数据库动态获取角色和权限
         roles, permissions = await _get_user_roles_and_permissions(user.roles)
 
         # 创建新的 TokenPayload，返回用户信息

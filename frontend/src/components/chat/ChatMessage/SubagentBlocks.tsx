@@ -19,7 +19,7 @@ import type { MessagePart } from "../../../types";
 import { MarkdownContent, truncateText } from "./MarkdownContent";
 
 /**
- * Calculate elapsed time between start and end
+ * Calculate elapsed time between start and end (precise to milliseconds)
  */
 function getElapsedTime(
   startedAt: number | undefined,
@@ -27,9 +27,13 @@ function getElapsedTime(
 ): string | null {
   if (!startedAt) return null;
   const end = completedAt ?? Date.now();
-  const seconds = Math.round((end - startedAt) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const ms = end - startedAt;
+  if (ms < 1000) return `${ms}ms`;
+  const totalSeconds = ms / 1000;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = (totalSeconds % 60).toFixed(1);
+  return `${minutes}m ${remainingSeconds}s`;
 }
 
 // Thinking Block - thinking process display (ChatGPT style)

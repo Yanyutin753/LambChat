@@ -1,3 +1,11 @@
+/**
+ * Message part manipulation utilities.
+ *
+ * Low-level building blocks for creating, updating, and routing
+ * message parts (text, thinking, tool, subagent, sandbox).
+ * Used by eventProcessor.ts (the unified event handler).
+ */
+
 import type {
   MessagePart,
   SubagentPart,
@@ -5,6 +13,79 @@ import type {
   ToolPart,
 } from "../../types";
 import type { SubagentStackItem } from "./types";
+
+// ============================================
+// Part creators
+// ============================================
+
+/**
+ * Create a tool part from tool data.
+ */
+export function createToolPart(
+  toolName: string,
+  args: Record<string, unknown>,
+  depth: number,
+  agentId?: string,
+  toolCallId?: string,
+): ToolPart {
+  return {
+    type: "tool",
+    id: toolCallId,
+    name: toolName,
+    args: args,
+    isPending: true,
+    depth,
+    agent_id: agentId,
+  };
+}
+
+/**
+ * Create a thinking part from thinking data.
+ */
+export function createThinkingPart(
+  content: string,
+  thinkingId: string | undefined,
+  depth: number,
+  agentId?: string,
+  isStreaming = true,
+): ThinkingPart {
+  return {
+    type: "thinking",
+    content,
+    thinking_id: thinkingId,
+    depth,
+    agent_id: agentId,
+    isStreaming,
+  };
+}
+
+/**
+ * Create a subagent part from agent call data.
+ */
+export function createSubagentPart(
+  agentId: string,
+  agentName: string,
+  input: string,
+  depth: number,
+  timestamp?: string,
+): SubagentPart {
+  const startedAt = timestamp ? new Date(timestamp).getTime() : Date.now();
+  return {
+    type: "subagent",
+    agent_id: agentId,
+    agent_name: agentName,
+    input: input,
+    isPending: true,
+    status: "running",
+    depth: depth,
+    parts: [],
+    startedAt,
+  };
+}
+
+// ============================================
+// Depth management
+// ============================================
 
 /**
  * Add a part to the correct depth position in the parts array.
@@ -76,13 +157,11 @@ export function addPartToDepth(
         const thinkingId = part.thinking_id;
         let existingIndex = -1;
 
-        // 如果有 thinking_id，精确匹配
         if (thinkingId !== undefined) {
           existingIndex = existingParts.findIndex(
             (p) => p.type === "thinking" && p.thinking_id === thinkingId,
           );
         } else {
-          // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
           for (let i = existingParts.length - 1; i >= 0; i--) {
             const p = existingParts[i];
             if (p.type === "thinking" && p.thinking_id === undefined) {
@@ -129,8 +208,6 @@ export function addPartToDepth(
   }
 
   // If no matching subagent found, add to top level
-  // Only warn for non-subagent parts (text, thinking, tool) - subagent parts themselves
-  // are expected to be added at the root level when no parent exists
   if (part.type !== "subagent") {
     console.warn(
       "[addPartToDepth] No matching subagent found for depth:",
@@ -175,13 +252,11 @@ export function findAndAddToSubagent(
         const thinkingId = part.thinking_id;
         let existingIndex = -1;
 
-        // 如果有 thinking_id，精确匹配
         if (thinkingId !== undefined) {
           existingIndex = existingParts.findIndex(
             (p) => p.type === "thinking" && p.thinking_id === thinkingId,
           );
         } else {
-          // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
           for (let i = existingParts.length - 1; i >= 0; i--) {
             const p = existingParts[i];
             if (p.type === "thinking" && p.thinking_id === undefined) {
@@ -231,6 +306,10 @@ export function findAndAddToSubagent(
   }
   return null;
 }
+
+// ============================================
+// Subagent result
+// ============================================
 
 /**
  * Update subagent result. Returns new parts array.
@@ -342,9 +421,12 @@ export function updateSubagentResultInParts(
   return null;
 }
 
+// ============================================
+// Tool result
+// ============================================
+
 /**
  * Update tool result at specified depth. Returns new parts array.
- * 直接在 parts 中查找匹配的 tool 并更新（支持 depth=0 的顶级工具）
  */
 export function updateToolResultInDepth(
   parts: MessagePart[],
@@ -355,35 +437,23 @@ export function updateToolResultInDepth(
   _targetDepth?: number,
   targetAgentId?: string,
 ): MessagePart[] {
-  // 先尝试直接匹配顶级的 tool
+  // Try direct match on top-level tools first
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (p.type === "tool" && p.id === toolCallId && p.isPending) {
       const newParts = [...parts];
-      newParts[i] = {
-        ...p,
-        result,
-        success,
-        error,
-        isPending: false,
-      };
+      newParts[i] = { ...p, result, success, error, isPending: false };
       return newParts;
     }
-    // 向后兼容：没有 id 时按 name 匹配
+    // Backward compat: match by name when no id
     if (p.type === "tool" && !p.id && p.isPending) {
       const newParts = [...parts];
-      newParts[i] = {
-        ...p,
-        result,
-        success,
-        error,
-        isPending: false,
-      };
+      newParts[i] = { ...p, result, success, error, isPending: false };
       return newParts;
     }
   }
 
-  // 再尝试在 subagent 内部查找
+  // Then search inside subagents
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     if (p.type === "subagent" && p.parts) {
@@ -419,28 +489,14 @@ export function updateToolResultInPartsById(
 ): MessagePart[] | null {
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
-    // 优先使用 tool_call_id 匹配
     if (p.type === "tool" && p.id === toolCallId && p.isPending) {
       const newParts = [...parts];
-      newParts[i] = {
-        ...p,
-        result,
-        success,
-        error,
-        isPending: false,
-      };
+      newParts[i] = { ...p, result, success, error, isPending: false };
       return newParts;
     }
-    // 向后兼容：如果没有 id，则按 name 匹配
     if (p.type === "tool" && !p.id && p.isPending) {
       const newParts = [...parts];
-      newParts[i] = {
-        ...p,
-        result,
-        success,
-        error,
-        isPending: false,
-      };
+      newParts[i] = { ...p, result, success, error, isPending: false };
       return newParts;
     }
     if (p.type === "subagent" && p.parts) {
@@ -461,70 +517,9 @@ export function updateToolResultInPartsById(
   return null;
 }
 
-/**
- * Create a tool part from tool data.
- */
-export function createToolPart(
-  toolName: string,
-  args: Record<string, unknown>,
-  depth: number,
-  agentId?: string,
-  toolCallId?: string,
-): ToolPart {
-  return {
-    type: "tool",
-    id: toolCallId,
-    name: toolName,
-    args: args,
-    isPending: true,
-    depth,
-    agent_id: agentId,
-  };
-}
-
-/**
- * Create a thinking part from thinking data.
- */
-export function createThinkingPart(
-  content: string,
-  thinkingId: string | undefined,
-  depth: number,
-  agentId?: string,
-  isStreaming = true,
-): ThinkingPart {
-  return {
-    type: "thinking",
-    content,
-    thinking_id: thinkingId,
-    depth,
-    agent_id: agentId,
-    isStreaming,
-  };
-}
-
-/**
- * Create a subagent part from agent call data.
- */
-export function createSubagentPart(
-  agentId: string,
-  agentName: string,
-  input: string,
-  depth: number,
-  timestamp?: string,
-): SubagentPart {
-  const startedAt = timestamp ? new Date(timestamp).getTime() : Date.now();
-  return {
-    type: "subagent",
-    agent_id: agentId,
-    agent_name: agentName,
-    input: input,
-    isPending: true,
-    status: "running",
-    depth: depth,
-    parts: [],
-    startedAt,
-  };
-}
+// ============================================
+// Utility
+// ============================================
 
 /**
  * Clear all loading states in message parts recursively.

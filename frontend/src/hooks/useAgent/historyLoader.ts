@@ -1,28 +1,21 @@
-import type {
-  Message,
-  ToolCall,
-  ToolResult,
-  ToolPart,
-  ThinkingPart,
-  SandboxPart,
-  FormField,
-  MessageAttachment,
-  MessagePart,
-} from "../../types";
+/**
+ * History event loader for useAgent hook
+ * Reconstructs messages from stored events.
+ *
+ * Message transformation logic is unified in processMessageEvent (messageParts.ts).
+ * This file handles: event iteration, message reconstruction, and
+ * user:message / user:cancel / approval_required which are history-specific.
+ */
+
+import type { Message, MessagePart, FormField } from "../../types";
 import i18n from "../../i18n";
 import type {
+  EventData,
   SubagentStackItem,
   HistoryEvent,
   HistoryEventData,
 } from "./types";
-import {
-  addPartToDepth,
-  updateSubagentResult,
-  updateToolResultInDepth,
-  createSubagentPart,
-  createThinkingPart,
-  createToolPart,
-} from "./messageParts";
+import { convertAttachments, processMessageEvent } from "./eventProcessor";
 
 interface ProcessHistoryOptions {
   options?: {
@@ -34,33 +27,6 @@ interface ProcessHistoryOptions {
     }) => void;
   };
   activeSubagentStack: SubagentStackItem[];
-}
-
-/**
- * Convert backend attachment format to frontend format.
- */
-export function convertAttachments(
-  attachments:
-    | Array<{
-        id: string;
-        key: string;
-        name: string;
-        type: string;
-        mime_type: string;
-        size: number;
-        url: string;
-      }>
-    | undefined,
-): MessageAttachment[] | undefined {
-  return attachments?.map((a) => ({
-    id: a.id,
-    key: a.key,
-    name: a.name,
-    type: a.type as "image" | "video" | "audio" | "document",
-    mimeType: a.mime_type,
-    size: a.size,
-    url: a.url,
-  }));
 }
 
 /**
@@ -88,9 +54,6 @@ function processHistoryEvent(
     return null; // Signal to push current assistant and create user message
   }
 
-  // Skip user:cancel - handled separately in reconstructMessagesFromEvents
-  // to preserve the current assistant message with cancelled state
-
   // Skip events that don't contribute to message content
   if (eventType === "metadata" || eventType === "done") {
     return currentAssistantMessage;
@@ -105,7 +68,6 @@ function processHistoryEvent(
       fields?: FormField[];
     };
     if (approvalData.id && opts.options?.onApprovalRequired) {
-      // Check approval status (async, fire and forget)
       fetch(`/human/${approvalData.id}`)
         .then((response) => (response.ok ? response.json() : null))
         .then((approval) => {
@@ -125,11 +87,17 @@ function processHistoryEvent(
     return currentAssistantMessage;
   }
 
+  // CancelledError with no current message — don't create an empty assistant message
+  if (eventType === "error") {
+    const errorData = eventData as { type?: string };
+    if (errorData.type === "CancelledError" && !currentAssistantMessage) {
+      return null;
+    }
+  }
+
   // Ensure assistant message exists for other event types
   let msg = currentAssistantMessage;
   if (!msg) {
-    // Use run_id as message ID for persistence across page refreshes
-    // This ensures the same message gets the same ID, allowing ratings to be matched
     const messageId = event.run_id || crypto.randomUUID();
     msg = {
       id: messageId,
@@ -138,368 +106,60 @@ function processHistoryEvent(
       timestamp: new Date(event.timestamp || Date.now()),
       parts: [],
       isStreaming: false,
-      // Extract run_id from event for message rating
       runId: event.run_id,
     };
   } else if (event.run_id && !msg.runId) {
-    // Update existing message with run_id if not already set
     msg = { ...msg, runId: event.run_id };
   }
 
-  switch (eventType) {
-    case "agent:call": {
-      const subagentPart = createSubagentPart(
-        agentId || "unknown",
-        eventData.agent_name || agentId || i18n.t("chat.unknownAgent"),
-        eventData.input || "",
-        depth,
-      );
-      const parts = msg.parts || [];
-      msg.parts = addPartToDepth(
-        parts,
-        subagentPart,
-        depth,
-        opts.activeSubagentStack,
-        agentId || "unknown",
-      );
-      break;
-    }
+  // Manage subagent stack
+  if (eventType === "agent:call") {
+    opts.activeSubagentStack.push({
+      agent_id: agentId || "unknown",
+      depth,
+      message_id: msg.id,
+    });
+  }
 
-    case "agent:result": {
-      const parts = msg.parts || [];
-      msg.parts = updateSubagentResult(
-        parts,
-        agentId || "unknown",
-        eventData.result || "",
-        eventData.success !== false,
-        depth,
-      );
-      break;
-    }
+  // Use unified event processor
+  const result = processMessageEvent(
+    eventType,
+    eventData as EventData,
+    msg.parts || [],
+    msg.content,
+    msg.toolCalls || [],
+    depth,
+    opts.activeSubagentStack,
+    false, // isStreaming = false for history
+    msg.id,
+  );
 
-    case "thinking": {
-      const thinkingId = eventData.thinking_id;
-      const thinkingContent = eventData.content || "";
-      const parts = msg.parts || [];
-      if (depth > 0) {
-        const thinkingPart = createThinkingPart(
-          thinkingContent,
-          thinkingId,
-          depth,
-          agentId,
-          false,
-        );
-        msg.parts = addPartToDepth(
-          parts,
-          thinkingPart,
-          depth,
-          opts.activeSubagentStack,
-          agentId,
-        );
-      } else {
-        let existingIndex = -1;
+  // Apply result to message
+  msg.parts = result.parts;
+  msg.content = result.content;
+  msg.toolCalls = result.toolCalls;
 
-        // 如果有 thinking_id，精确匹配
-        if (thinkingId !== undefined) {
-          for (let i = parts.length - 1; i >= 0; i--) {
-            const p = parts[i];
-            if (p.type === "thinking" && p.thinking_id === thinkingId) {
-              existingIndex = i;
-              break;
-            }
-          }
-        } else {
-          // 如果没有 thinking_id，找最后一个 thinking part（且也没有 thinking_id）
-          for (let i = parts.length - 1; i >= 0; i--) {
-            const p = parts[i];
-            if (p.type === "thinking" && p.thinking_id === undefined) {
-              existingIndex = i;
-              break;
-            }
-          }
-        }
+  if (result.toolResult) {
+    msg.toolResults = [...(msg.toolResults || []), result.toolResult];
+  }
+  if (result.tokenUsage) {
+    msg.tokenUsage = result.tokenUsage;
+  }
+  if (result.duration) {
+    msg.duration = result.duration;
+  }
+  if (result.cancelled) {
+    msg.cancelled = true;
+  }
 
-        if (existingIndex >= 0) {
-          // Mutate directly for better performance
-          const existing = parts[existingIndex] as ThinkingPart;
-          existing.content += thinkingContent;
-          msg.parts = parts;
-        } else {
-          const thinkingPart = createThinkingPart(
-            thinkingContent,
-            thinkingId,
-            depth,
-            agentId,
-            false,
-          );
-          msg.parts = [...parts, thinkingPart];
-        }
-      }
-      break;
-    }
-
-    case "message:chunk": {
-      const content = eventData.content || "";
-      if (depth > 0) {
-        const textPart = {
-          type: "text" as const,
-          content,
-          depth,
-          agent_id: agentId,
-        };
-        const parts = msg.parts || [];
-        msg.parts = addPartToDepth(
-          parts,
-          textPart,
-          depth,
-          opts.activeSubagentStack,
-          agentId,
-        );
-      } else {
-        msg.content += content;
-        const parts = msg.parts || [];
-        const lastPart = parts[parts.length - 1];
-        if (lastPart?.type === "text" && !lastPart.depth) {
-          // Mutate directly for better performance
-          (lastPart as { content: string }).content += content;
-          msg.parts = parts;
-        } else {
-          msg.parts = [...parts, { type: "text" as const, content }];
-        }
-      }
-      break;
-    }
-
-    case "tool:start": {
-      const toolCallId = eventData.tool_call_id;
-      const toolCall: ToolCall = {
-        id: toolCallId,
-        name: eventData.tool || "",
-        args: eventData.args || {},
-      };
-      const toolPart = createToolPart(
-        eventData.tool || "",
-        eventData.args || {},
-        depth,
-        agentId,
-        toolCallId,
-      );
-      const parts = msg.parts || [];
-      if (depth > 0) {
-        msg.parts = addPartToDepth(
-          parts,
-          toolPart,
-          depth,
-          opts.activeSubagentStack,
-          agentId,
-        );
-      } else {
-        msg.parts = [...parts, toolPart];
-        msg.toolCalls = [...(msg.toolCalls || []), toolCall];
-      }
-      break;
-    }
-
-    case "tool:input": {
-      // 更新工具参数（流式输入）
-      const toolCallId = eventData.tool_call_id;
-      const toolName = eventData.tool || "";
-      const newArgs = eventData.args || {};
-      const parts = msg.parts || [];
-
-      // 检查是否是 partial 格式
-      const isPartial = "partial" in newArgs;
-
-      // 更新 parts 中的工具参数
-      const updatedParts = parts.map((p) => {
-        if (p.type === "tool" && p.id === toolCallId && p.name === toolName) {
-          let mergedArgs: Record<string, unknown>;
-
-          if (isPartial) {
-            // 处理 partial 格式：拼接字符串
-            const existingArgs = p.args as Record<string, string>;
-            const existingPartial = existingArgs.partial || "";
-            mergedArgs = {
-              ...p.args,
-              partial: existingPartial + newArgs.partial,
-            };
-          } else {
-            // 正常合并参数
-            mergedArgs = { ...p.args, ...newArgs };
-          }
-
-          return {
-            ...p,
-            args: mergedArgs,
-          };
-        }
-        return p;
-      });
-      msg.parts = updatedParts;
-
-      // 更新 toolCalls 中的参数
-      const toolCalls = msg.toolCalls || [];
-      const updatedToolCalls = toolCalls.map((tc) => {
-        if (tc.id === toolCallId && tc.name === toolName) {
-          let mergedArgs: Record<string, unknown>;
-
-          if (isPartial) {
-            // 处理 partial 格式：拼接字符串
-            const existingArgs = tc.args as Record<string, string>;
-            const existingPartial = existingArgs.partial || "";
-            mergedArgs = {
-              ...tc.args,
-              partial: existingPartial + newArgs.partial,
-            };
-          } else {
-            // 正常合并参数
-            mergedArgs = { ...tc.args, ...newArgs };
-          }
-
-          return {
-            ...tc,
-            args: mergedArgs,
-          };
-        }
-        return tc;
-      });
-      msg.toolCalls = updatedToolCalls;
-      break;
-    }
-
-    case "tool:result": {
-      const toolCallId = eventData.tool_call_id;
-      const isSuccess =
-        eventData.success !== false &&
-        !eventData.result?.toString().startsWith("Error:");
-      const toolResult: ToolResult = {
-        id: toolCallId,
-        name: eventData.tool || "",
-        result: eventData.result || "",
-        success: isSuccess,
-      };
-      const parts = msg.parts || [];
-      if (depth > 0 || toolCallId) {
-        msg.parts = updateToolResultInDepth(
-          parts,
-          toolCallId || "",
-          eventData.result || "",
-          isSuccess,
-          eventData.error,
-          depth,
-          agentId,
-        );
-      } else {
-        // 向后兼容：按 name 匹配
-        const toolName = eventData.tool || "";
-        const resultContent = eventData.result || "";
-        let updated = false;
-        for (let i = 0; i < parts.length; i++) {
-          const p = parts[i];
-          if (
-            p.type === "tool" &&
-            p.name === toolName &&
-            (p as ToolPart).isPending &&
-            !updated
-          ) {
-            updated = true;
-            // Mutate directly for better performance
-            const toolPart = p as ToolPart;
-            toolPart.result = resultContent;
-            toolPart.success = isSuccess;
-            toolPart.error = eventData.error;
-            toolPart.isPending = false;
-            break;
-          }
-        }
-        msg.parts = parts;
-        msg.toolResults = [...(msg.toolResults || []), toolResult];
-      }
-      break;
-    }
-
-    case "sandbox:starting": {
-      const sandboxPart: SandboxPart = {
-        type: "sandbox",
-        status: "starting",
-        timestamp: eventData.timestamp,
-      };
-      const parts = msg.parts || [];
-      msg.parts = [...parts, sandboxPart];
-      break;
-    }
-
-    case "sandbox:ready": {
-      const parts = msg.parts || [];
-      // Find and update existing sandbox in place
-      for (let i = 0; i < parts.length; i++) {
-        const p = parts[i];
-        if (p.type === "sandbox" && p.status === "starting") {
-          (p as SandboxPart).status = "ready";
-          (p as SandboxPart).sandbox_id = eventData.sandbox_id;
-          (p as SandboxPart).work_dir = eventData.work_dir;
-          (p as SandboxPart).timestamp = eventData.timestamp;
-          break;
-        }
-      }
-      msg.parts = parts;
-      break;
-    }
-
-    case "sandbox:error": {
-      const parts = msg.parts || [];
-      // Update all sandbox parts to error state
-      for (let i = 0; i < parts.length; i++) {
-        const p = parts[i];
-        if (p.type === "sandbox") {
-          (p as SandboxPart).status = "error";
-          (p as SandboxPart).error = eventData.error;
-          (p as SandboxPart).timestamp = eventData.timestamp;
-        }
-      }
-      msg.parts = parts;
-      break;
-    }
-
-    case "token:usage": {
-      const tokenData = event.data as {
-        input_tokens?: number;
-        output_tokens?: number;
-        total_tokens?: number;
-        duration?: number;
-        cache_creation_tokens?: number;
-        cache_read_tokens?: number;
-      };
-      msg.tokenUsage = {
-        type: "token_usage",
-        input_tokens: tokenData.input_tokens || 0,
-        output_tokens: tokenData.output_tokens || 0,
-        total_tokens: tokenData.total_tokens || 0,
-        cache_creation_tokens: tokenData.cache_creation_tokens || 0,
-        cache_read_tokens: tokenData.cache_read_tokens || 0,
-      };
-      msg.duration = tokenData.duration ? tokenData.duration * 1000 : undefined;
-      break;
-    }
-
-    case "error": {
-      const errorData = event.data as {
-        error?: string;
-        type?: string;
-      };
-      if (errorData.type === "CancelledError") {
-        // If currentAssistantMessage is null (already handled by user:cancel),
-        // don't create a new message to avoid duplicates
-        if (!currentAssistantMessage) {
-          return null;
-        }
-        msg.cancelled = true;
-      } else {
-        msg.content = i18n.t("chat.errorPrefix", {
-          error: errorData.error || i18n.t("chat.unknownError"),
-        });
-      }
-      break;
+  // Pop subagent stack after agent:result
+  if (eventType === "agent:result") {
+    const stackIndex = opts.activeSubagentStack.findIndex(
+      (item) =>
+        item.agent_id === (agentId || "unknown") && item.message_id === msg.id,
+    );
+    if (stackIndex !== -1) {
+      opts.activeSubagentStack.splice(stackIndex, 1);
     }
   }
 
@@ -541,20 +201,16 @@ export function reconstructMessagesFromEvents(
         content: eventData.content || "",
         timestamp: new Date(event.timestamp || Date.now()),
         attachments: userAttachments,
-        // Include run_id for message rating
         runId: event.run_id,
       });
       continue;
     }
 
-    // Handle user cancel - add cancelled part to current assistant message
-    // Also mark all pending/running states as completed
+    // Handle user cancel
     if (eventType === "user:cancel") {
       if (currentAssistantMessage) {
-        // Mark all pending tools as completed and stop streaming states
         const updatedParts = (currentAssistantMessage.parts || []).map(
           (part): MessagePart => {
-            // Tool: mark as not pending
             if (part.type === "tool" && part.isPending) {
               return {
                 ...part,
@@ -563,17 +219,12 @@ export function reconstructMessagesFromEvents(
                 success: false,
               };
             }
-            // Thinking: stop streaming
             if (part.type === "thinking" && part.isStreaming) {
-              return {
-                ...part,
-                isStreaming: false,
-              };
+              return { ...part, isStreaming: false };
             }
             return part;
           },
         );
-        // Also stop streaming on the main message
         const updatedMessage = {
           ...currentAssistantMessage,
           isStreaming: false,
@@ -581,14 +232,12 @@ export function reconstructMessagesFromEvents(
         };
         reconstructedMessages.push(updatedMessage);
       } else {
-        // Create an empty assistant message with cancelled part
         reconstructedMessages.push({
           id: crypto.randomUUID(),
           role: "assistant",
           content: "",
           timestamp: new Date(event.timestamp || Date.now()),
           parts: [{ type: "cancelled" }],
-          // Include run_id for feedback/rating
           runId: event.run_id,
         });
       }
@@ -614,11 +263,9 @@ export function reconstructMessagesFromEvents(
 
 /**
  * Get the last event timestamp from sorted events.
- * Uses the already sorted array to avoid re-sorting.
  */
 export function getLastEventTimestamp(events: HistoryEvent[]): Date | null {
   if (events.length === 0) return null;
-  // Find last event with timestamp (events should already be sorted by caller)
   let lastEvent: HistoryEvent | null = null;
   for (let i = events.length - 1; i >= 0; i--) {
     if (events[i].timestamp) {

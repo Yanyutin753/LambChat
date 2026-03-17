@@ -78,7 +78,14 @@ class TraceStorage:
             return
         try:
             # 复合索引：用于 get_session_events 查询
-            # 查询模式: session_id + run_id (可选) + status (可选)
+            # 查询模式: session_id + status (可选) + sort by started_at
+            # 把 status 放在 session_id 后面、started_at 前面，使排序能利用索引
+            await self._collection.create_index(
+                [("session_id", 1), ("status", 1), ("started_at", 1)],
+                name="session_status_started_at_idx",
+                background=True,
+            )
+            # 复合索引：用于按 run_id 查询
             await self._collection.create_index(
                 [("session_id", 1), ("run_id", 1), ("status", 1)],
                 name="session_run_status_idx",
@@ -364,15 +371,26 @@ class TraceStorage:
             if completed_only:
                 match_query["status"] = {"$ne": "running"}
 
+            # 使用 projection 减少数据传输量，只返回需要的字段
+            # 注意: started_at 必须保留，否则 .sort("started_at", 1) 无法利用索引
+            projection: Dict[str, Any] = {
+                "trace_id": 1,
+                "run_id": 1,
+                "started_at": 1,
+                "events.event_type": 1,
+                "events.data": 1,
+                "events.timestamp": 1,
+            }
+
             # 按 started_at 排序获取所有 traces（每个 trace 对应一个 run）
-            cursor = self.collection.find(match_query).sort("started_at", 1)
+            cursor = self.collection.find(match_query, projection).sort("started_at", 1)
             traces = await cursor.to_list(length=None)
 
             # 合并所有事件：按 run 顺序，每个 run 内的事件保持原有顺序
             all_events: List[Dict[str, Any]] = []
             for trace in traces:
                 events = trace.get("events", [])
-                # 事件类型过滤
+                # 事件类型过滤（服务端过滤，减少内存中处理的数据量）
                 if event_types:
                     events = [e for e in events if e.get("event_type") in event_types]
                 # 添加 trace 信息

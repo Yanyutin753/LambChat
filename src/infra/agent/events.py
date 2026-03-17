@@ -173,7 +173,7 @@ class AgentEventProcessor:
         # 提取子代理信息
         subagent_type = inp.get("subagent_type", "unknown") if isinstance(inp, dict) else "unknown"
         description = inp.get("description", "")[:500] if isinstance(inp, dict) else ""
-        run_id = event.get("run_id", uuid.uuid4().hex[:8])
+        run_id = event.get("run_id", uuid.uuid4().hex)
 
         # 获取 checkpoint_ns
         metadata = event.get("metadata", {})
@@ -181,7 +181,7 @@ class AgentEventProcessor:
 
         # 生成 instance_id
         checkpoint_uuid = checkpoint_ns.rpartition(":")[2] if checkpoint_ns else run_id
-        instance_id = f"{subagent_type}_{checkpoint_uuid[:8]}"
+        instance_id = f"{subagent_type}_{checkpoint_uuid}"
 
         # 计算深度
         if "|" in checkpoint_ns:
@@ -405,7 +405,7 @@ class AgentEventProcessor:
     ) -> None:
         """处理工具调用开始"""
         inp: dict[str, Any] = event.get("data", {}).get("input", {})
-        tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex[:8]}"
+        tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex}"
 
         await self._presenter_emit(
             self.presenter.present_tool_start(
@@ -427,7 +427,7 @@ class AgentEventProcessor:
         """处理工具调用结束"""
         data = event.get("data", {})
         out = data.get("output", "")
-        tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex[:8]}"
+        tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex}"
 
         # 提取工具结果内容，适配所有 LangGraph 工具输出类型
         # 支持的类型:

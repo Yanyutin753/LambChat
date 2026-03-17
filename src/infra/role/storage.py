@@ -316,3 +316,7 @@ class RoleStorage:
                         }
                     },
                 )
+                # 系统角色权限可能变更，失效缓存
+                from src.api.deps import invalidate_role_permissions_cache
+
+                await invalidate_role_permissions_cache(role_data["name"])

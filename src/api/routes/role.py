@@ -6,7 +6,11 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.api.deps import get_current_user_required, require_permissions
+from src.api.deps import (
+    get_current_user_required,
+    invalidate_role_permissions_cache,
+    require_permissions,
+)
 from src.infra.role.manager import RoleManager
 from src.kernel.exceptions import ValidationError
 from src.kernel.schemas.role import Role, RoleCreate, RoleUpdate
@@ -82,6 +86,8 @@ async def update_role(
         raise HTTPException(status_code=400, detail=str(e))
     if not role:
         raise HTTPException(status_code=404, detail="角色不存在")
+    # 角色权限变更，失效该角色的缓存
+    await invalidate_role_permissions_cache(target_role.name)
     return role
 
 
@@ -92,10 +98,14 @@ async def delete_role(
 ):
     """删除角色"""
     manager = RoleManager()
+    # 先获取角色名用于缓存失效
+    target_role = await manager.get_role(role_id)
+    if not target_role:
+        raise HTTPException(status_code=404, detail="角色不存在")
     try:
-        success = await manager.delete_role(role_id)
+        await manager.delete_role(role_id)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    if not success:
-        raise HTTPException(status_code=404, detail="角色不存在")
+    # 删除角色，失效该角色的缓存
+    await invalidate_role_permissions_cache(target_role.name)
     return {"status": "deleted"}

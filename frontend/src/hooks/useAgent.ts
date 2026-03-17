@@ -286,22 +286,35 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             (sessionData.metadata?.current_run_id as string) ||
             null;
 
-          let isTaskRunning = false;
-          if (currentRunId) {
-            try {
-              const statusData = await sessionApi.getStatus(
-                targetSessionId,
-                currentRunId,
-              );
-              isTaskRunning =
-                statusData.status === "pending" ||
-                statusData.status === "running";
-            } catch (statusErr) {
-              console.warn("[loadHistory] Failed to check status:", statusErr);
-            }
-          }
+          // 并行发起 events、status 和 feedback 请求，减少串行等待时间
+          const eventsPromise = sessionApi.getEvents(targetSessionId);
+          const statusPromise = currentRunId
+            ? sessionApi.getStatus(targetSessionId, currentRunId).catch((e) => {
+                console.warn("[loadHistory] Failed to check status:", e);
+                return null;
+              })
+            : Promise.resolve(null);
+          const feedbackPromise = canReadFeedback
+            ? feedbackApi
+                .list(0, 100, undefined, undefined, targetSessionId)
+                .catch((e) => {
+                  console.warn("[loadHistory] Failed to load feedback:", e);
+                  return null;
+                })
+            : Promise.resolve(null);
 
-          const eventsData = await sessionApi.getEvents(targetSessionId);
+          const [eventsData, statusData, feedbackList] = await Promise.all([
+            eventsPromise,
+            statusPromise,
+            feedbackPromise,
+          ]);
+
+          let isTaskRunning = false;
+          if (statusData) {
+            isTaskRunning =
+              statusData.status === "pending" ||
+              statusData.status === "running";
+          }
 
           if (eventsData.events && eventsData.events.length > 0) {
             let reconstructedMessages = reconstructMessagesFromEvents(
@@ -310,43 +323,27 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               { options, activeSubagentStack: activeSubagentStackRef.current },
             );
 
-            // Load feedback for this session (only if user has permission)
-            if (canReadFeedback) {
-              try {
-                const feedbackList = await feedbackApi.list(
-                  0,
-                  100,
-                  undefined,
-                  undefined,
-                  targetSessionId,
-                );
-                if (feedbackList && feedbackList.items.length > 0) {
-                  const feedbackMap = new Map(
-                    feedbackList.items.map((f) => [
-                      f.run_id,
-                      { feedback: f.rating, feedbackId: f.id },
-                    ]),
-                  );
-                  reconstructedMessages = reconstructedMessages.map((msg) => {
-                    if (msg.runId) {
-                      const feedbackInfo = feedbackMap.get(msg.runId);
-                      if (feedbackInfo) {
-                        return {
-                          ...msg,
-                          feedback: feedbackInfo.feedback,
-                          feedbackId: feedbackInfo.feedbackId,
-                        };
-                      }
-                    }
-                    return msg;
-                  });
+            // Apply feedback (already loaded in parallel)
+            if (feedbackList && feedbackList.items.length > 0) {
+              const feedbackMap = new Map(
+                feedbackList.items.map((f) => [
+                  f.run_id,
+                  { feedback: f.rating, feedbackId: f.id },
+                ]),
+              );
+              reconstructedMessages = reconstructedMessages.map((msg) => {
+                if (msg.runId) {
+                  const feedbackInfo = feedbackMap.get(msg.runId);
+                  if (feedbackInfo) {
+                    return {
+                      ...msg,
+                      feedback: feedbackInfo.feedback,
+                      feedbackId: feedbackInfo.feedbackId,
+                    };
+                  }
                 }
-              } catch (feedbackErr) {
-                console.warn(
-                  "[loadHistory] Failed to load feedback:",
-                  feedbackErr,
-                );
-              }
+                return msg;
+              });
             }
 
             const lastTimestamp = getLastEventTimestamp(

@@ -24,11 +24,15 @@ export {
   createToolPart,
   createThinkingPart,
   createSubagentPart,
+  clearAllLoadingStates,
 } from "./messageParts";
+
+// Re-export event processor
+export { convertAttachments, processMessageEvent } from "./eventProcessor";
+export type { ProcessMessageEventResult } from "./eventProcessor";
 
 // Re-export history loader utilities
 export {
-  convertAttachments,
   reconstructMessagesFromEvents,
   getLastEventTimestamp,
 } from "./historyLoader";
