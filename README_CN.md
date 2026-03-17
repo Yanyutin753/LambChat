@@ -5,6 +5,8 @@
   <img src="https://img.shields.io/badge/React-19-green.svg" alt="React">
   <img src="https://img.shields.io/badge/FastAPI-Latest-orange.svg" alt="FastAPI">
   <img src="https://img.shields.io/badge/LangGraph-Latest-purple.svg" alt="LangGraph">
+  <img src="https://img.shields.io/badge/MongoDB-Latest-green.svg" alt="MongoDB">
+  <img src="https://img.shields.io/badge/Redis-Latest-red.svg" alt="Redis">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
 </p>
 
@@ -22,15 +24,15 @@
     <td align="center"><b>聊天界面</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/best-practice/login-page-new.png" alt="登录页面" width="400"/></td>
-    <td><img src="docs/images/best-practice/chat-home-new.png" alt="聊天界面" width="400"/></td>
+    <td><img src="docs/images/best-practice/login-page.png" alt="登录页面" width="400"/></td>
+    <td><img src="docs/images/best-practice/chat-home.png" alt="聊天界面" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>流式输出</b></td>
     <td align="center"><b>分享对话框</b></td>
   </tr>
   <tr>
-    <td><img src="docs/images/best-practice/chat-response-new.png" alt="流式输出" width="400"/></td>
+    <td><img src="docs/images/best-practice/chat-response.png" alt="流式输出" width="400"/></td>
     <td><img src="docs/images/best-practice/share-dialog.png" alt="分享对话框" width="400"/></td>
   </tr>
 </table>
@@ -77,46 +79,127 @@
   </tr>
 </table>
 
+## 🏗️ 系统架构
+
+LambChat 采用清晰的分层架构：
+
+```
+┌─────────────────────────────────────────────────┐
+│                    前端层                         │
+│            React 19 + Vite + TailwindCSS         │
+├─────────────────────────────────────────────────┤
+│                 API 层 (FastAPI)                 │
+│  认证 │ 聊天 │ 设置 │ 技能 │ MCP │ ...          │
+├─────────────────────────────────────────────────┤
+│              Agent 层 (LangGraph)                │
+│  核心 Agent │ 快速 Agent │ 搜索 Agent           │
+│  插件系统 │ 子 Agent 嵌套                       │
+├─────────────────────────────────────────────────┤
+│                 基础设施层                        │
+│  认证 │ 会话 │ 工具 │ 技能 │ 记忆 │ MCP        │
+│  任务 │ 反馈 │ 分享 │ 渠道 │ 追踪              │
+├─────────────────────────────────────────────────┤
+│                  存储层                           │
+│   MongoDB（持久化）│ Redis（实时缓存）            │
+│              S3/OSS（文件存储）                   │
+└─────────────────────────────────────────────────┘
+```
+
 ## ✨ 核心特性
 
 ### 🤖 Agent 系统
 - **LangGraph 架构** - 编译图架构，支持细粒度状态管理
+- **多 Agent 类型** - 核心 Agent（默认）、快速 Agent（速度优化）、搜索 Agent（网络搜索）
 - **插件系统** - 使用 `@register_agent("id")` 装饰器快速注册自定义 Agent
 - **流式输出** - 原生支持 SSE (Server-Sent Events)
 - **子 Agent** - 支持多层级 Agent 嵌套
 - **思考模式** - 支持 Anthropic 模型的扩展思考模式
 - **代码解释器** - 内置代码执行与沙箱支持
+- **人工审批** - 敏感操作的人工审批流程
+
+### 🧠 AI 视觉与图像工具
+- **UI 转代码** - 将 UI 截图转换为前端代码、AI 提示词、设计规范或描述
+- **OCR 文字提取** - 从截图中提取文字（代码、终端、文档、通用文本）
+- **错误截图诊断** - 诊断错误信息、堆栈跟踪和异常截图
+- **技术图表理解** - 分析架构图、流程图、UML、ER 图
+- **数据可视化分析** - 从图表、图形和仪表板中提取洞察
+- **UI 差异对比** - 比较两张 UI 截图，识别视觉差异
+- **通用图像分析** - 灵活的图像理解，适用于任何视觉内容
+- **视频分析** - 分析视频内容（MP4/MOV/M4V，最大 8MB）
+
+### 🔍 网络搜索
+- **网络搜索** - 搜索网页，返回标题、URL、摘要、网站图标等丰富结果
+- **域名过滤** - 限制搜索结果到指定域名
+- **时间范围过滤** - 按天/周/月/年过滤
+- **区域支持** - 针对中国或海外区域优化
+- **内容大小控制** - 平衡模式（400-600 字）或详细模式（2500 字）
 
 ### 🔌 MCP 集成
 - **系统级 + 用户级 MCP** - 支持全局和个人 MCP 服务器配置
 - **加密存储** - API Keys 等敏感信息加密存储
 - **动态缓存** - 工具缓存管理，支持手动刷新
 - **多种传输协议** - 支持 stdio、SSE、HTTP 传输
+- **权限控制** - 传输协议级别的访问权限
 
-### 🛠️ Skills 系统
+### 🛠️ 技能系统
 - **双存储** - 文件系统 + MongoDB 双存储备份
-- **访问控制** - 用户级别技能访问控制
-- **GitHub 同步** - 支持从 GitHub 同步自定义 Skills
+- **访问控制** - 用户级别技能访问权限
+- **GitHub 同步** - 支持从 GitHub 同步自定义技能
 - **技能商店** - 浏览和安装社区技能
+- **技能创建器** - 内置技能创建 Agent，含评估工具
+- **5 个技能槽** - 每个会话最多启用 5 个技能
 
 ### 💬 反馈系统
 - **点赞评分** - 简单的赞成/反对反馈
 - **文字评论** - 详细的用户反馈
 - **会话关联** - 反馈与具体会话/消息关联
+- **运行级别统计** - 按运行聚合的反馈统计
 
 ### 📁 文档与文件支持
 - **多格式预览** - PDF / Word / Excel / PPT / Markdown / Mermaid
 - **图片查看器** - 内置图片预览，支持缩放
 - **文件上传** - 拖拽或点击上传多个文件
 - **云存储** - S3 / OSS / MinIO 集成
+- **文件夹管理** - 将对话组织到文件夹中
+- **会话搜索** - 全文搜索所有对话
 
-### 🔐 安全
+### 🔄 实时与存储
+- **双写机制** - Redis 实时写入，MongoDB 持久化存储
+- **WebSocket 支持** - 实时双向通信
+- **自动重连** - 断线后自动恢复对话
+- **会话分享** - 支持公开或需登录的会话分享链接
+- **消息搜索** - 全文搜索所有对话
+
+### 🔐 安全与认证
 - **JWT 认证** - 完整的认证流程，支持 Token 刷新
 - **RBAC 角色** - Admin / User / Guest 三级角色
 - **多租户** - 租户级别的资源隔离
 - **密码加密** - bcrypt 哈希加密
 - **OAuth 支持** - 支持 Google、GitHub 等第三方登录
 - **邮箱验证** - 安全的邮箱验证机制
+- **沙箱执行** - 隔离的代码执行环境
+
+### ⚙️ 任务管理
+- **并发控制** - 任务执行队列，支持并发限制
+- **任务取消** - 取消正在运行的任务
+- **心跳监控** - 任务健康状态监控
+- **发布/订阅** - 事件驱动的任务通知
+- **状态追踪** - 实时任务状态更新
+
+### 🔗 渠道与集成
+- **飞书集成** - 原生支持飞书/Lark 平台
+- **多渠道** - 可扩展的消息平台渠道系统
+- **邮件服务** - 内置邮件通知支持
+- **OpenViking** - 记忆与知识集成
+- **项目管理** - 按项目组织对话
+
+### 📊 可观测性与管理
+- **LangSmith 追踪** - LangSmith 集成的 Agent 追踪
+- **结构化日志** - 上下文感知的结构化日志
+- **健康检查** - API 健康和就绪状态检查端点
+- **用户管理** - 查看和管理用户
+- **角色分配** - 配置每个角色可访问的 Agent
+- **审计日志** - 追踪系统活动
 
 ### 🎨 前端
 - **现代技术栈** - React 19 + Vite + TailwindCSS
@@ -125,25 +208,38 @@
 - **国际化** - 多语言支持（英文、中文，更多语言开发中）
 - **响应式设计** - 移动端、平板、桌面端完美适配
 - **PWA 就绪** - 可安装为渐进式 Web 应用
+- **Agent 切换** - 在核心/快速/搜索 Agent 间切换
 
-### ⚡ 实时 & 存储
-- **双写机制** - Redis 实时写入，MongoDB 持久化存储
-- **自动重连** - 断线后自动恢复对话
-- **会话分享** - 支持公开或需登录的会话分享链接
-- **消息搜索** - 全文搜索所有对话
+## ⚙️ 配置说明
 
-### 🔗 集成
-- **飞书集成** - 原生支持飞书/Lark 平台
-- **通知系统** - 实时通知推送
-- **项目管理** - 按项目组织对话
+LambChat 支持 14 个设置分类，可通过设置页面或环境变量配置：
 
-### 📊 管理功能
-- **用户管理** - 查看和管理用户
-- **角色分配** - 配置每个角色可访问的 Agent
-- **系统监控** - 健康检查和指标监控
-- **审计日志** - 追踪系统活动
+| 分类 | 说明 |
+|------|------|
+| **前端 (Frontend)** | 默认 Agent、欢迎建议、UI 偏好 |
+| **Agent** | 调试模式、日志级别 |
+| **LLM** | 模型选择、温度、最大 Token、API 密钥和基础 URL |
+| **会话 (Session)** | 会话管理设置 |
+| **数据库 (Database)** | MongoDB 连接设置 |
+| **长期存储** | 持久化存储配置 |
+| **安全 (Security)** | 安全策略和加密设置 |
+| **S3** | 云存储（S3/OSS）配置 |
+| **沙箱 (Sandbox)** | 代码沙箱设置 |
+| **技能 (Skills)** | 技能系统配置 |
+| **工具 (Tools)** | 工具系统设置 |
+| **追踪 (Tracing)** | LangSmith 追踪配置 |
+| **用户 (User)** | 用户管理设置 |
+| **记忆 (Memory)** | 记忆系统（hindsight）设置 |
 
-## 🚀 快速开始
+## 🛠️ 开发
+
+### 环境要求
+- Python 3.12+
+- Node.js 18+
+- MongoDB
+- Redis
+
+### 快速开始
 
 ```bash
 # 克隆仓库
@@ -152,8 +248,9 @@ cd LambChat
 
 # 复制环境变量文件
 cp .env.example .env
+# 编辑 .env 填写配置
 
-# Docker 启动
+# Docker 启动（推荐）
 docker-compose up -d
 
 # 或本地运行
@@ -162,6 +259,56 @@ make dev      # 启动开发服务器
 ```
 
 访问 `http://localhost:8000`
+
+### 代码质量
+
+```bash
+# 格式化代码
+ruff format src/
+
+# 检查代码风格
+ruff check src/
+
+# 类型检查
+mypy src/
+```
+
+### 项目结构
+
+```
+src/
+├── agents/          # Agent 实现（核心、快速、搜索）
+├── api/             # FastAPI 路由和中间件
+├── infra/           # 基础设施服务
+│   ├── auth/        # JWT 认证
+│   ├── backend/     # 后端管理
+│   ├── channel/     # 多渠道（飞书等）
+│   ├── email/       # 邮件服务
+│   ├── feedback/    # 反馈系统
+│   ├── folder/      # 文件夹管理
+│   ├── llm/         # LLM 集成
+│   ├── memory/      # 记忆与 hindsight
+│   ├── mcp/         # MCP 协议
+│   ├── openviking/  # OpenViking 集成
+│   ├── role/        # RBAC 角色管理
+│   ├── sandbox/     # 沙箱执行
+│   ├── session/     # 会话管理（双写机制）
+│   ├── settings/    # 设置服务
+│   ├── share/       # 会话分享
+│   ├── skill/       # 技能系统
+│   ├── storage/     # 文件存储
+│   ├── task/        # 任务管理
+│   ├── tool/        # 工具注册与 MCP 客户端
+│   ├── tracing/     # LangSmith 追踪
+│   ├── user/        # 用户管理
+│   └── websocket/   # WebSocket 支持
+├── kernel/          # 核心模型、配置、类型定义
+└── skills/          # 内置技能（技能创建器）
+```
+
+## 🤝 参与贡献
+
+我们欢迎任何贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解指南。
 
 ## 📄 许可证
 
