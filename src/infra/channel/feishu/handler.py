@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Optional, cast
 from src.infra.logging import get_logger
 
 if TYPE_CHECKING:
+    from src.infra.channel.feishu.channel import FeishuChannel
     from src.infra.channel.feishu.manager import FeishuChannelManager
 
 from src.infra.channel.feishu.markdown import FeishuMarkdownAdapter
@@ -78,16 +79,24 @@ class FeishuResponseCollector:
         user_id: str,
         chat_id: str,
         reply_to_message_id: str | None = None,
+        sender_id: str | None = None,
+        chat_type: str | None = None,
     ):
         self.manager = manager
         self.user_id = user_id
         self.chat_id = chat_id
         self.reply_to_message_id = reply_to_message_id
+        self.sender_id = sender_id
+        self.chat_type = chat_type
 
         # 内容收集
         self.text_parts: list[str] = []
         self.tools_used: list[str] = []
         self.files_to_reveal: list[dict] = []
+
+        # 处理中 emoji 控制
+        self._processing_active = False
+        self._processing_task: asyncio.Task | None = None
 
     def append_text(self, chunk: str) -> None:
         """追加文本内容"""
@@ -102,63 +111,66 @@ class FeishuResponseCollector:
         """添加待展示的文件"""
         self.files_to_reveal.append(file_info)
 
-    def _build_card_content(self) -> str:
-        """构建飞书卡片消息内容
+    async def start_processing_indicator(self, message_id: str) -> None:
+        """启动处理中 emoji 循环指示器。"""
+        self._processing_active = True
+        self._processing_task = asyncio.create_task(self._processing_emoji_loop(message_id))
 
-        卡片结构:
-        1. 主要内容（使用 markdown 标签，原生支持代码块、表格等）
-        2. 分隔线
-        3. 工具使用 + 文件信息（元数据区域）
-        """
-        elements = []
+    async def stop_processing_indicator(self) -> None:
+        """停止处理中 emoji 循环指示器。"""
+        self._processing_active = False
+        if self._processing_task and not self._processing_task.done():
+            self._processing_task.cancel()
+            try:
+                await self._processing_task
+            except asyncio.CancelledError:
+                pass
 
-        # ===== 主要内容区域 =====
-        if self.text_parts:
-            raw_content = "".join(self.text_parts)
-            # 使用 markdown 适配器构建 elements（自动处理表格、标题等）
-            elements.extend(FeishuMarkdownAdapter.build_elements(raw_content))
+    async def _processing_emoji_loop(self, message_id: str) -> None:
+        """循环切换 emoji 表示正在处理。"""
+        try:
+            while self._processing_active:
+                for emoji in FeishuChannel.PROCESSING_EMOJIS:
+                    await asyncio.sleep(3)
+                    if not self._processing_active:
+                        break
+                    await self.manager.add_reaction(self.user_id, message_id, emoji)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug(f"[Feishu] Processing emoji error: {e}")
 
-        # ===== 元数据区域（工具 + 文件）=====
-        metadata_parts = []
+    async def _upload_image_from_uri(self, uri: str) -> str | None:
+        """从 send:// URI 读取图片并上传到飞书，返回 image_key。"""
+        from src.api.routes.upload import get_or_init_storage
 
-        # 工具使用
-        if self.tools_used:
-            unique_tools = list(dict.fromkeys(self.tools_used))
-            tool_badges = " ".join(f"`{t}`" for t in unique_tools)
-            metadata_parts.append(f"🔧 {tool_badges}")
+        base_client = self.manager._find_channel(self.user_id)
+        if not base_client:
+            return None
+        client = cast(FeishuChannel, base_client)
 
-        # 文件信息
-        if self.files_to_reveal:
-            file_names = [f.get("name", "未知文件") for f in self.files_to_reveal]
-            metadata_parts.append(f"📎 {', '.join(file_names)}")
-
-        # 如果有元数据，添加分隔线和元数据
-        if metadata_parts:
-            elements.append({"tag": "hr"})
-            elements.append(
-                {"tag": "markdown", "content": " · ".join(metadata_parts)}
-            )
-
-        # 如果没有任何内容
-        if not elements:
-            elements.append({"tag": "div", "text": {"tag": "plain_text", "content": "(无内容)"}})
-
-        # 构建卡片
-        card = {"config": {"wide_screen_mode": True}, "elements": elements}
-
-        return json.dumps(card, ensure_ascii=False)
+        try:
+            # send:// URI maps to S3 key path
+            s3_key = uri.replace("send://", "")
+            storage = await get_or_init_storage()
+            backend = storage._get_backend()
+            image_bytes = await backend.download(s3_key)
+            if not image_bytes:
+                return None
+            return await client.upload_image(image_bytes)
+        except Exception as e:
+            logger.debug(f"[Feishu] Failed to upload image from URI {uri}: {e}")
+            return None
 
     async def send_card_message(self) -> bool:
-        """发送卡片消息（支持回复引用）"""
-        from src.infra.channel.feishu.channel import FeishuChannel
-
-        content = self._build_card_content()
+        """发送卡片消息（支持回复引用、图片嵌入）"""
         base_client = self.manager._find_channel(self.user_id)
         if not base_client:
             logger.warning(f"[Feishu] No client for user {self.user_id}")
             return False
 
         client = cast(FeishuChannel, base_client)
+        content = await self._build_card_content_async(client)
         success = await client.send_card_message(
             self.chat_id, content, reply_to_id=self.reply_to_message_id
         )
@@ -171,13 +183,57 @@ class FeishuResponseCollector:
             logger.warning("[Feishu] Failed to send card message")
         return success
 
+    async def _build_card_content_async(self, client: "FeishuChannel") -> str:
+        """构建飞书卡片消息内容（异步，支持图片上传嵌入）"""
+        elements = []
+
+        # ===== @mention（群聊回复时 @原发送者）=====
+        if self.chat_type == "group" and self.sender_id:
+            elements.append(
+                {
+                    "tag": "markdown",
+                    "content": f'<at user_id="{self.sender_id}"></at>',
+                }
+            )
+
+        # ===== 主要内容区域 =====
+        if self.text_parts:
+            raw_content = "".join(self.text_parts)
+            # 使用带图片上传的适配器构建 elements
+            elements.extend(
+                await FeishuMarkdownAdapter.build_elements_with_images(
+                    raw_content, self._upload_image_from_uri
+                )
+            )
+
+        # ===== 元数据区域（工具 + 文件）=====
+        metadata_parts = []
+
+        if self.tools_used:
+            unique_tools = list(dict.fromkeys(self.tools_used))
+            tool_badges = " ".join(f"`{t}`" for t in unique_tools)
+            metadata_parts.append(f"🔧 {tool_badges}")
+
+        if self.files_to_reveal:
+            file_names = [f.get("name", "未知文件") for f in self.files_to_reveal]
+            metadata_parts.append(f"📎 {', '.join(file_names)}")
+
+        if metadata_parts:
+            elements.append({"tag": "hr"})
+            elements.append({"tag": "markdown", "content": " · ".join(metadata_parts)})
+
+        if not elements:
+            elements.append({"tag": "div", "text": {"tag": "plain_text", "content": "(无内容)"}})
+
+        card = {"config": {"wide_screen_mode": True}, "elements": elements}
+        return json.dumps(card, ensure_ascii=False)
+
     async def upload_and_send_files(self) -> None:
         """上传文件并发送文件卡片
 
         直接从 S3 storage 读取文件内容，然后上传到飞书。
         """
         from src.api.routes.upload import get_or_init_storage
-        from src.infra.channel.feishu.channel import FeishuChannel
 
         if not self.files_to_reveal:
             return
@@ -311,6 +367,9 @@ def create_feishu_message_handler(
             task_manager = get_task_manager()
 
             original_message_id = metadata.get("message_id")
+            sender_id_from_msg = metadata.get("sender_id")
+            chat_type_from_msg = metadata.get("chat_type")
+            attachments = metadata.get("attachments")
 
             # Resolve agent: use per-channel agent_id if configured, else global default
             agent_to_use = default_agent
@@ -332,6 +391,8 @@ def create_feishu_message_handler(
                 user_id=user_id,
                 chat_id=chat_id,
                 reply_to_message_id=original_message_id,
+                sender_id=sender_id_from_msg,
+                chat_type=chat_type_from_msg,
             )
 
             async def executor(
@@ -362,16 +423,25 @@ def create_feishu_message_handler(
                 message=content,
                 user_id=user_id,
                 executor=executor,
+                attachments=attachments,
             )
 
             logger.info(f"[Feishu] Task submitted: session={session_id}, run_id={run_id}")
 
-            await _process_events(
-                collector=collector,
-                session_id=session_id,
-                run_id=run_id,
-                show_tools=show_tools,
-            )
+            # 启动处理中 emoji 指示器
+            if original_message_id:
+                await collector.start_processing_indicator(original_message_id)
+
+            try:
+                await _process_events(
+                    collector=collector,
+                    session_id=session_id,
+                    run_id=run_id,
+                    show_tools=show_tools,
+                )
+            finally:
+                # 停止处理中 emoji 指示器
+                await collector.stop_processing_indicator()
 
             await collector.send_card_message()
             await collector.upload_and_send_files()

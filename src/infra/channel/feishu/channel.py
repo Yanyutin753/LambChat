@@ -7,6 +7,7 @@ Supports per-user bot configurations - each user can have their own Feishu bot.
 import asyncio
 import importlib.util
 import json
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -43,6 +44,17 @@ class FeishuChannel(BaseChannel):
     HEALTH_CHECK_INTERVAL = 30.0  # Check connection health every 30 seconds
     CONNECTION_TIMEOUT = 180.0  # Consider connection dead if no response for 3 minutes
 
+    # Processing status emojis (cycled while agent is working)
+    PROCESSING_EMOJIS = [
+        "StatusInFlight",
+        "OneSecond",
+        "Typing",
+        "OnIt",
+        "Coffee",
+        "OnIt",
+        "EatingFood",
+    ]
+
     def __init__(self, config: FeishuConfig, message_handler: Optional[Callable] = None):
         super().__init__(config, message_handler)
         self._client: Any = None
@@ -51,6 +63,7 @@ class FeishuChannel(BaseChannel):
         self._health_check_thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._processed_message_ids: OrderedDict[str, None] = OrderedDict()
+        self._chat_mode_cache: dict[str, str] = {}  # Cache: chat_id -> "group"|"thread"
 
         # Connection state tracking
         self._connection_state = ConnectionState.DISCONNECTED
@@ -550,6 +563,30 @@ class FeishuChannel(BaseChannel):
                     .build()
                 )
                 response = self._client.im.v1.message.reply(request)
+
+                # If original message was withdrawn (230011), fallback to new message
+                if not response.success() and response.code == 230011:
+                    logger.warning(
+                        f"Original message {reply_to_id} was withdrawn, falling back to new message"
+                    )
+                    from lark_oapi.api.im.v1 import (
+                        CreateMessageRequest,
+                        CreateMessageRequestBody,
+                    )
+
+                    request = (
+                        CreateMessageRequest.builder()
+                        .receive_id_type(receive_id_type)
+                        .request_body(
+                            CreateMessageRequestBody.builder()
+                            .receive_id(receive_id)
+                            .msg_type("interactive")
+                            .content(card_content)
+                            .build()
+                        )
+                        .build()
+                    )
+                    response = self._client.im.v1.message.create(request)
             else:
                 # Use CreateMessageRequest API for new messages
                 from lark_oapi.api.im.v1 import CreateMessageRequest, CreateMessageRequestBody
@@ -797,6 +834,116 @@ class FeishuChannel(BaseChannel):
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._upload_bytes_sync, file_data, file_name)
 
+    def _download_image_sync(self, image_key: str, message_id: str) -> bytes | None:
+        """Download image from Feishu via GetMessageResourceRequest (sync, runs in executor)."""
+        from lark_oapi.api.im.v1 import GetMessageResourceRequest
+
+        try:
+            request = (
+                GetMessageResourceRequest.builder()
+                .message_id(message_id)
+                .file_key(image_key)
+                .type("image")
+                .build()
+            )
+            response = self._client.im.v1.message_resource.get(request)
+            if response.success():
+                return response.file.read()
+            logger.warning(f"Failed to download image: code={response.code}, msg={response.msg}")
+        except Exception as e:
+            logger.error(f"Error downloading Feishu image: {e}")
+        return None
+
+    async def _download_and_store_image(self, image_key: str, message_id: str) -> dict | None:
+        """Download image from Feishu, upload to S3, return attachment info dict."""
+        loop = asyncio.get_running_loop()
+        image_bytes = await loop.run_in_executor(
+            None, self._download_image_sync, image_key, message_id
+        )
+        if not image_bytes:
+            return None
+
+        try:
+            from src.api.routes.upload import get_or_init_storage
+
+            storage = await get_or_init_storage()
+            result = await storage.upload_bytes(
+                data=image_bytes,
+                folder="feishu_images",
+                filename=f"{image_key}.png",
+                content_type="image/png",
+            )
+            url = result.url or storage.get_file_url(result.key)
+            return {
+                "key": result.key,
+                "name": f"{image_key}.png",
+                "type": "image",
+                "url": url,
+            }
+        except Exception as e:
+            logger.error(f"Error uploading Feishu image to S3: {e}")
+            return None
+
+    def _upload_image_sync(self, image_data: bytes) -> str | None:
+        """Upload image to Feishu media library, return image_key (sync, runs in executor)."""
+        from io import BytesIO
+
+        from lark_oapi.api.im.v1 import CreateImageRequest, CreateImageRequestBody
+
+        try:
+            request = (
+                CreateImageRequest.builder()
+                .request_body(
+                    CreateImageRequestBody.builder()
+                    .image_type("message")
+                    .image(BytesIO(image_data))
+                    .build()
+                )
+                .build()
+            )
+            response = self._client.im.v1.image.create(request)
+            if response.success():
+                return response.data.image_key
+            logger.warning(
+                f"Failed to upload image to Feishu: code={response.code}, msg={response.msg}"
+            )
+        except Exception as e:
+            logger.error(f"Error uploading image to Feishu: {e}")
+        return None
+
+    async def upload_image(self, image_data: bytes) -> str | None:
+        """Upload image to Feishu media library asynchronously, return image_key."""
+        if not self._client:
+            return None
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._upload_image_sync, image_data)
+
+    def _get_chat_mode_sync(self, chat_id: str) -> str:
+        """Get chat mode: 'group' (normal) or 'thread' (topic group) via GetChatRequest (sync)."""
+        from lark_oapi.api.im.v1 import GetChatRequest
+
+        try:
+            request = GetChatRequest.builder().chat_id(chat_id).build()
+            response = self._client.im.v1.chat.get(request)
+            if response.success():
+                chat_mode = getattr(response.data, "chat_mode", "group")
+                return "thread" if chat_mode == "topic" else "group"
+            logger.warning(f"Failed to get chat mode for {chat_id}: {response.msg}")
+        except Exception as e:
+            logger.warning(f"Error getting chat mode for {chat_id}: {e}")
+        return "group"
+
+    async def _get_chat_mode(self, chat_id: str) -> str:
+        """Get chat mode with caching."""
+        if chat_id in self._chat_mode_cache:
+            return self._chat_mode_cache[chat_id]
+
+        loop = asyncio.get_running_loop()
+        mode = await loop.run_in_executor(None, self._get_chat_mode_sync, chat_id)
+        self._chat_mode_cache[chat_id] = mode
+        return mode
+
     def _send_file_message_sync(self, chat_id: str, file_key: str, file_name: str) -> bool:
         """Send a file message synchronously."""
         from lark_oapi.api.im.v1 import CreateMessageRequest, CreateMessageRequestBody
@@ -905,11 +1052,12 @@ class FeishuChannel(BaseChannel):
                 )
                 return
 
-            # Add reaction
+            # Add reaction to indicate "seen"
             await self._add_reaction(message_id, self.config.react_emoji)
 
-            # Parse content
+            # Parse content and extract attachments
             content_parts = []
+            attachments = []
 
             try:
                 content_json = json.loads(message.content) if message.content else {}
@@ -922,11 +1070,26 @@ class FeishuChannel(BaseChannel):
                     content_parts.append(text)
 
             elif msg_type == "post":
-                text, _ = extract_post_content(content_json)
+                text, image_keys = extract_post_content(content_json)
                 if text:
                     content_parts.append(text)
+                # Download embedded images from post
+                for img_key in image_keys:
+                    attachment = await self._download_and_store_image(img_key, message_id)
+                    if attachment:
+                        attachments.append(attachment)
 
-            elif msg_type in ("image", "audio", "file", "media"):
+            elif msg_type == "image":
+                image_key = content_json.get("image_key")
+                if image_key:
+                    content_parts.append("[image]")
+                    attachment = await self._download_and_store_image(image_key, message_id)
+                    if attachment:
+                        attachments.append(attachment)
+                else:
+                    content_parts.append("[image]")
+
+            elif msg_type in ("audio", "file", "media"):
                 content_parts.append(MSG_TYPE_MAP.get(msg_type, f"[{msg_type}]"))
 
             elif msg_type in (
@@ -946,20 +1109,40 @@ class FeishuChannel(BaseChannel):
 
             content = "\n".join(content_parts) if content_parts else ""
 
-            if not content:
+            # Replace @_user_N mentions with actual sender
+            content = re.sub(r"@_user_\d+", f"@{sender_id}", content)
+
+            if not content and not attachments:
                 return
 
-            # Forward to message handler via base class method
+            # Determine reply_to and handle topic groups
             reply_to = chat_id if chat_type == "group" else sender_id
+            root_id = None
+
+            if chat_type == "group":
+                chat_mode = await self._get_chat_mode(chat_id)
+                if chat_mode == "thread":
+                    root_id = message.root_id or message_id
+                    # Use root_id as session isolation key
+                    reply_to = f"{chat_id}#{root_id}"
+
+            # Forward to message handler via base class method
+            metadata = {
+                "message_id": message_id,
+                "chat_type": chat_type,
+                "msg_type": msg_type,
+                "sender_id": sender_id,
+            }
+            if root_id:
+                metadata["root_id"] = root_id
+            if attachments:
+                metadata["attachments"] = attachments
+
             await self._handle_message(
                 sender_id=sender_id,
                 chat_id=reply_to,
                 content=content,
-                metadata={
-                    "message_id": message_id,
-                    "chat_type": chat_type,
-                    "msg_type": msg_type,
-                },
+                metadata=metadata,
             )
 
         except Exception as e:

@@ -16,7 +16,7 @@ Feishu Markdown adapter for converting standard Markdown to Feishu card elements
 """
 
 import re
-
+from typing import Any
 
 # 匹配 markdown 表格（表头 + 分隔行 + 数据行）
 _TABLE_RE = re.compile(
@@ -25,6 +25,10 @@ _TABLE_RE = re.compile(
 )
 
 _CODE_BLOCK_RE = re.compile(r"(```[\s\S]*?```)")
+
+# 匹配 send:// 图片 URI（markdown 格式: ![alt](send://...) 和裸格式: send://...）
+_SEND_IMAGE_MD_RE = re.compile(r"!\[([^\]]*)\]\((send://[^)\s]+\.(?:png|jpeg|jpg|gif|bmp|webp))\)")
+_SEND_IMAGE_RAW_RE = re.compile(r"(send://[^)\s]+\.(?:png|jpeg|jpg|gif|bmp|webp))\)?")
 
 
 def _parse_md_table(table_text: str) -> dict | None:
@@ -46,10 +50,7 @@ def _parse_md_table(table_text: str) -> dict | None:
         "tag": "table",
         "page_size": len(rows) + 1,
         "columns": columns,
-        "rows": [
-            {f"c{i}": r[i] if i < len(r) else "" for i in range(len(headers))}
-            for r in rows
-        ],
+        "rows": [{f"c{i}": r[i] if i < len(r) else "" for i in range(len(headers))} for r in rows],
     }
 
 
@@ -81,7 +82,7 @@ class FeishuMarkdownAdapter:
 
         for m in _TABLE_RE.finditer(protected):
             # 表格前的文本
-            before = protected[last_end:m.start()]
+            before = protected[last_end : m.start()]
             if before.strip():
                 before = cls._restore_code_blocks(before, code_blocks)
                 elements.extend(cls._text_to_elements(before))
@@ -115,6 +116,50 @@ class FeishuMarkdownAdapter:
         if not text:
             return text
         return cls._adapt_text(text)
+
+    @classmethod
+    async def build_elements_with_images(cls, text: str, image_uploader: Any) -> list[dict]:
+        """将 markdown 文本转换为飞书卡片 elements，支持 send:// 图片上传嵌入。
+
+        Args:
+            text: markdown 文本，可能包含 send://... 图片 URI
+            image_uploader: 异步回调 async (uri: str) -> str|None，
+                            接收图片 URI 字符串返回飞书 image_key
+
+        Returns:
+            飞书卡片 elements 列表（含 img 元素）
+        """
+        if not text:
+            return []
+
+        # 1. 提取所有 send:// 图片 URI
+        image_uris: list[str] = []
+        for m in _SEND_IMAGE_MD_RE.finditer(text):
+            image_uris.append(m.group(2))
+        for m in _SEND_IMAGE_RAW_RE.finditer(text):
+            uri = m.group(1)
+            if uri not in image_uris:
+                image_uris.append(uri)
+
+        # 2. 从文本中移除 send:// 图片引用
+        cleaned = _SEND_IMAGE_MD_RE.sub("", text)
+        cleaned = _SEND_IMAGE_RAW_RE.sub("", cleaned)
+
+        # 3. 上传图片到飞书
+        image_elements: list[dict] = []
+        for uri in image_uris:
+            try:
+                image_key = await image_uploader(uri)
+                if image_key:
+                    image_elements.append({"tag": "img", "img_key": image_key})
+            except Exception:
+                pass  # Skip failed uploads
+
+        # 4. 对剩余文本构建普通 elements
+        text_elements = cls.build_elements(cleaned.strip())
+
+        # 5. 合并：文本 elements + 图片 elements
+        return text_elements + image_elements
 
     @classmethod
     def _adapt_text(cls, text: str) -> str:

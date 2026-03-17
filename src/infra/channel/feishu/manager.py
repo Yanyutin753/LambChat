@@ -232,6 +232,14 @@ class FeishuChannelManager(UserChannelManager):
 
         return await client.send_message(chat_id, content)
 
+    async def add_reaction(self, user_id: str, message_id: str, emoji_type: str) -> bool:
+        """Add a reaction emoji to a message via a user's Feishu bot."""
+        client = self._find_channel(user_id)
+        if not client:
+            return False
+        await client._add_reaction(message_id, emoji_type)
+        return True
+
     def is_connected(self, user_id: str, instance_id: Optional[str] = None) -> bool:
         """Check if a user's Feishu bot is connected."""
         channel = self._find_channel(user_id, instance_id)
