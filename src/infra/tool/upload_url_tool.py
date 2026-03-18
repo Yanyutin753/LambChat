@@ -12,7 +12,7 @@ from typing import Annotated
 
 import httpx
 from langchain.tools import ToolRuntime, tool
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_backend_from_runtime
@@ -30,7 +30,7 @@ _MAX_FILE_SIZE = 100 * 1024 * 1024
 async def upload_url_to_sandbox(
     url: Annotated[str, "要下载的文件 URL"],
     file_path: Annotated[str, "沙箱内的目标文件路径（绝对路径）"],
-    runtime: Annotated[ToolRuntime, "运行时上下文"],
+    runtime: Annotated[ToolRuntime, InjectedToolArg],
 ) -> str:
     """Download a file from a URL and upload it to the sandbox filesystem.
 
