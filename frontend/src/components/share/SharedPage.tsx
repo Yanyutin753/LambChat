@@ -366,7 +366,10 @@ export function SharedPage() {
                   className="animate-in fade-in slide-in-from-bottom-2"
                   style={{ animationDelay: `${Math.min(index * 50, 300)}ms` }}
                 >
-                  <ChatMessage message={message} />
+                  <ChatMessage
+                    message={message}
+                    isLastMessage={index === messages.length - 1}
+                  />
                 </div>
               ))}
             </div>

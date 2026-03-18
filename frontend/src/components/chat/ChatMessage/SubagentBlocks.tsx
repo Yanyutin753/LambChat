@@ -29,10 +29,10 @@ function getElapsedTime(
   const end = completedAt ?? Date.now();
   const ms = end - startedAt;
   if (ms < 1000) return `${ms}ms`;
-  const totalSeconds = ms / 1000;
-  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)}s`;
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
   const minutes = Math.floor(totalSeconds / 60);
-  const remainingSeconds = (totalSeconds % 60).toFixed(1);
+  const remainingSeconds = totalSeconds % 60;
   return `${minutes}m ${remainingSeconds}s`;
 }
 
@@ -58,7 +58,7 @@ export function ThinkingBlock({
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={clsx(
-          "inline-flex items-center gap-1 px-2.5 py-2 rounded-full text-xs font-medium",
+          "inline-flex items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
           "transition-all bg-stone-200 dark:bg-stone-700",
           "text-stone-600 dark:text-stone-300",
           "hover:bg-stone-300 dark:hover:bg-stone-600 cursor-pointer",

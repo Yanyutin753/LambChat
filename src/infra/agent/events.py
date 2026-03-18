@@ -355,6 +355,7 @@ class AgentEventProcessor:
             await self._presenter_emit(
                 self.presenter.present_text(
                     content,
+                    text_id=chunk_id,
                     depth=current_depth,
                     agent_id=current_agent_id,
                 )
@@ -391,6 +392,7 @@ class AgentEventProcessor:
                         await emit(
                             present_text(
                                 text,
+                                text_id=chunk_id,
                                 depth=current_depth,
                                 agent_id=current_agent_id,
                             )
@@ -406,6 +408,20 @@ class AgentEventProcessor:
         """处理工具调用开始"""
         inp: dict[str, Any] = event.get("data", {}).get("input", {})
         tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex}"
+
+        # write_todos 工具：发送专用 todo 事件，跳过通用工具展示
+        if tool_name == "write_todos":
+            if isinstance(inp, dict):
+                todos = inp.get("todos", [])
+                if isinstance(todos, list) and todos:
+                    await self._presenter_emit(
+                        self.presenter.present_todo(
+                            todos,
+                            depth=current_depth,
+                            agent_id=current_agent_id,
+                        )
+                    )
+            return
 
         await self._presenter_emit(
             self.presenter.present_tool_start(
@@ -425,6 +441,9 @@ class AgentEventProcessor:
         current_depth: int,
     ) -> None:
         """处理工具调用结束"""
+        # write_todos 已在 _handle_tool_start 中处理，跳过
+        if tool_name == "write_todos":
+            return
         data = event.get("data", {})
         out = data.get("output", "")
         tool_call_id = event.get("run_id") or f"tool_{uuid.uuid4().hex}"

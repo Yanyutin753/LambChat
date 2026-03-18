@@ -8,9 +8,11 @@
 
 import type {
   MessagePart,
+  SandboxPart,
   SubagentPart,
   ThinkingPart,
   ToolPart,
+  TodoPart,
 } from "../../types";
 import type { SubagentStackItem } from "./types";
 
@@ -547,8 +549,31 @@ export function clearAllLoadingStates(parts: MessagePart[]): MessagePart[] {
         return {
           ...subagentPart,
           isPending: false,
+          status: "error",
+          completedAt: subagentPart.completedAt || Date.now(),
           parts: updatedParts,
         };
+      }
+      case "todo": {
+        const todoPart = part as TodoPart;
+        const hasInProgress = todoPart.items.some(
+          (i) => i.status === "in_progress",
+        );
+        if (!hasInProgress) return part;
+        return {
+          ...todoPart,
+          isStreaming: false,
+          items: todoPart.items.map((i) =>
+            i.status === "in_progress"
+              ? { ...i, status: "completed" as const }
+              : i,
+          ),
+        };
+      }
+      case "sandbox": {
+        const sandboxPart = part as SandboxPart;
+        if (sandboxPart.status !== "starting") return part;
+        return { ...sandboxPart, status: "error" };
       }
       default:
         return part;

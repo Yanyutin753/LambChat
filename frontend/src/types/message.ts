@@ -38,7 +38,8 @@ export type MessagePart =
   | ThinkingPart
   | SandboxPart
   | TokenUsagePart
-  | CancelledPart;
+  | CancelledPart
+  | TodoPart;
 
 // Sandbox 状态块类型（用于渲染沙箱初始化状态）
 export interface SandboxPart {
@@ -63,6 +64,21 @@ export interface TokenUsagePart {
 // 取消状态块类型
 export interface CancelledPart {
   type: "cancelled";
+}
+
+// Todo 任务列表块类型
+export type TodoStatus = "pending" | "in_progress" | "completed";
+
+export interface TodoItem {
+  content: string;
+  activeForm?: string;
+  status: TodoStatus;
+}
+
+export interface TodoPart {
+  type: "todo";
+  items: TodoItem[];
+  isStreaming?: boolean;
 }
 
 export interface TextPart {

@@ -650,7 +650,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                   <div className="flex h-full flex-col items-center justify-center px-4 py-8">
                     {/* Title */}
                     <div className="flex items-center gap-3 mb-7 sm:mb-9">
-                      <h1 className="text-3xl sm:text-4xl font-semibold text-gray-700 dark:text-stone-200 font-serif">
+                      <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-gray-700 dark:text-stone-200 font-serif">
                         LambChat
                       </h1>
                     </div>
@@ -670,7 +670,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                           className="w-full flex items-center gap-3 rounded-xl border border-gray-200 dark:border-stone-700 px-4 py-3 text-left text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
                         >
                           <span className="text-lg">{suggestion.icon}</span>
-                          <span>{suggestion.text}</span>
+                          <span className="text-sm">{suggestion.text}</span>
                         </button>
                       ))}
                     </div>
@@ -693,13 +693,14 @@ export function AppContent({ activeTab }: AppContentProps) {
                   </div>
                 ) : (
                   <div className="dark:divide-stone-800">
-                    {messages.map((message) => (
+                    {messages.map((message, index) => (
                       <ChatMessage
                         key={message.id}
                         message={message}
                         sessionId={sessionId ?? undefined}
                         sessionName={sessionName ?? undefined}
                         runId={currentRunId ?? undefined}
+                        isLastMessage={index === messages.length - 1}
                       />
                     ))}
                     {/* Session feedback - using per-message ratings instead */}

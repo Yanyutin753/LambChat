@@ -17,6 +17,7 @@ import {
   ProjectRevealItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
+import { TodoBlock } from "./TodoBlock";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { FeedbackButtons } from "./FeedbackButtons";
 import { ShareButton } from "./ShareButton";
@@ -56,6 +57,7 @@ interface ChatMessageProps {
   sessionId?: string;
   sessionName?: string;
   runId?: string;
+  isLastMessage?: boolean;
   onStop?: () => void;
 }
 
@@ -63,9 +65,11 @@ interface ChatMessageProps {
 function TokenDetailsButton({
   tokenUsage,
   duration,
+  isLastMessage,
 }: {
   tokenUsage?: TokenUsagePart;
   duration?: number;
+  isLastMessage?: boolean;
 }) {
   const { t } = useTranslation();
   const [showDetails, setShowDetails] = useState(false);
@@ -96,7 +100,7 @@ function TokenDetailsButton({
         onClick={() => setShowDetails(!showDetails)}
         className={clsx(
           "p-1.5 rounded-md transition-all",
-          "opacity-0 group-hover:opacity-100",
+          !isLastMessage && "opacity-0 group-hover:opacity-100",
           "hover:bg-gray-200 dark:hover:bg-stone-700",
           "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
         )}
@@ -180,6 +184,7 @@ export function ChatMessage({
   sessionId,
   sessionName,
   runId,
+  isLastMessage,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const isUser = message.role === "user";
@@ -216,7 +221,7 @@ export function ChatMessage({
   // Assistant message: left layout
   return (
     <div className="group w-full">
-      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-3 sm:px-6 mb-3 sm:mb-4">
+      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6 mb-3 sm:mb-4">
         {/* Content */}
         <div className="flex-1 overflow-hidden min-w-0">
           {/* Header: Avatar + Role label + Stop button */}
@@ -289,7 +294,7 @@ export function ChatMessage({
               }}
               className={clsx(
                 "p-1.5 rounded-md transition-all",
-                "opacity-0 group-hover:opacity-100",
+                !isLastMessage && "opacity-0 group-hover:opacity-100",
                 "hover:bg-gray-200 dark:hover:bg-stone-700",
                 "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
               )}
@@ -302,6 +307,7 @@ export function ChatMessage({
               <TokenDetailsButton
                 tokenUsage={message.tokenUsage}
                 duration={message.duration}
+                isLastMessage={isLastMessage}
               />
             )}
             {/* Feedback buttons */}
@@ -310,6 +316,7 @@ export function ChatMessage({
                 sessionId={sessionId}
                 runId={message.runId || runId!}
                 currentFeedback={message.feedback}
+                isLastMessage={isLastMessage}
               />
             )}
             {/* Share button */}
@@ -318,6 +325,7 @@ export function ChatMessage({
                 sessionId={sessionId}
                 sessionName={sessionName}
                 runId={message.runId || runId}
+                isLastMessage={isLastMessage}
               />
             )}
           </div>
@@ -427,6 +435,16 @@ function MessagePartRenderer({
         status={part.status}
         sandboxId={part.sandbox_id}
         error={part.error}
+      />
+    );
+  }
+
+  // Todo task list block
+  if (part.type === "todo") {
+    return (
+      <TodoBlock
+        items={part.items}
+        isStreaming={isStreaming && isLast && part.isStreaming}
       />
     );
   }

@@ -15,6 +15,7 @@ import type {
   ToolResult,
   TokenUsagePart,
   SandboxPart,
+  TodoPart,
 } from "../../types";
 import i18n from "../../i18n";
 import type { EventData, SubagentStackItem } from "./types";
@@ -419,6 +420,30 @@ export function processMessageEvent(
 
     // ---- Error ----
 
+    // ---- Todo events ----
+
+    case "todo:created":
+    case "todo:updated": {
+      const todos = (data.todos || []) as TodoPart["items"];
+      if (!todos.length) break;
+      const todoPart: TodoPart = { type: "todo", items: todos, isStreaming };
+      if (depth > 0) {
+        result.parts = addPartToDepth(
+          parts,
+          todoPart,
+          depth,
+          subagentStack,
+          agentId,
+          messageId,
+        );
+      } else {
+        result.parts = upsertTodoPart(parts, todoPart);
+      }
+      break;
+    }
+
+    // ---- Error ----
+
     case "error": {
       const errorMsg = data.error || i18n.t("chat.unknownError");
       const isCancelled = data.type === "CancelledError";
@@ -446,4 +471,14 @@ function upsertSandboxPart(
   return parts.some((p) => p.type === "sandbox")
     ? parts.map((p) => (p.type === "sandbox" ? sandboxPart : p))
     : [...parts, sandboxPart];
+}
+
+/** Replace existing todo part or append if none exists. */
+function upsertTodoPart(
+  parts: MessagePart[],
+  todoPart: TodoPart,
+): MessagePart[] {
+  return parts.some((p) => p.type === "todo")
+    ? parts.map((p) => (p.type === "todo" ? todoPart : p))
+    : [...parts, todoPart];
 }

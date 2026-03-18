@@ -212,6 +212,9 @@
     "sandboxInitFailed": "샌드박스 초기화에 실패했습니다",
     "skillUpdated": "스킬 {{action}}",
     "cancelled": "취소됨",
+    "todo": {
+      "progress": "{{completed}}/{{total}} 완료"
+    },
     "shiftEnterNewLine": "로 줄바꿈",
     "stop": "생성 중지",
     "title": "채팅",

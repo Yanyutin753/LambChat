@@ -239,6 +239,9 @@
     "sandboxInitFailed": "Sandbox initialization failed",
     "skillUpdated": "Skill {{action}}",
     "cancelled": "Cancelled",
+    "todo": {
+      "progress": "{{completed}}/{{total}} completed"
+    },
     "shiftEnterNewLine": "for new line",
     "stop": "Stop generating",
     "title": "Chat",

@@ -355,6 +355,8 @@ export function FileRevealItem({
   const color = fileInfo.color;
   const bg = fileInfo.bg;
   const isImage = fileInfo.category === "image";
+  const isVideo = fileInfo.category === "video";
+  const canPreview = isImage || isVideo;
 
   // Pending state
   if (isPending) {
@@ -422,47 +424,109 @@ export function FileRevealItem({
       )}
 
       {/* File card - ChatGPT style */}
-      <button
-        onClick={() => {
-          if (!filePath || !success) return;
-          if (isImage && s3Url) {
-            setImageViewerSrc(s3Url);
-          } else {
-            setShowPreview(true);
-          }
-        }}
-        className={clsx(
-          "w-full flex items-center gap-3 p-4 rounded-xl border transition-all cursor-pointer text-left",
-          success
-            ? "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600 hover:scale-[1.005] transition-transform"
-            : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 opacity-70",
-        )}
-        disabled={!filePath || !success}
-      >
-        {/* File icon */}
-        <div className={`p-2.5 rounded-lg shrink-0 ${bg}`}>
-          <FileIcon size={20} className={color} />
-        </div>
-
-        {/* File info */}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
-            {fileName}
+      {canPreview && s3Url && success ? (
+        <div
+          className={clsx(
+            "w-full rounded-xl border overflow-hidden transition-all",
+            "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900",
+            "hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600",
+          )}
+        >
+          {/* Inline preview */}
+          <div
+            className="relative group cursor-pointer"
+            onClick={() => isImage && setImageViewerSrc(s3Url)}
+          >
+            {isImage ? (
+              <img
+                src={s3Url}
+                alt={fileName}
+                className="w-full max-h-64 object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <video
+                src={s3Url}
+                controls
+                preload="metadata"
+                className="w-full max-h-64 bg-black"
+                playsInline
+              />
+            )}
+            {/* Hover overlay for images */}
+            {isImage && (
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-white/90 dark:bg-stone-800/90 shadow-lg">
+                  <ExternalLink
+                    size={16}
+                    className="text-stone-600 dark:text-stone-300"
+                  />
+                </div>
+              </div>
+            )}
           </div>
-          {description && (
-            <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-1">
-              {description}
+
+          {/* File info bar */}
+          <div
+            className="flex items-center gap-2 px-3 py-2 bg-stone-50 dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-700"
+            onClick={() => !isImage && setShowPreview(true)}
+          >
+            <div className={`p-1.5 rounded-md shrink-0 ${bg}`}>
+              <FileIcon size={14} className={color} />
+            </div>
+            <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate flex-1">
+              {fileName}
+            </span>
+            {description && (
+              <span className="text-xs text-stone-400 dark:text-stone-500 truncate max-w-[200px]">
+                {description}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => {
+            if (!filePath || !success) return;
+            if (isImage && s3Url) {
+              setImageViewerSrc(s3Url);
+            } else {
+              setShowPreview(true);
+            }
+          }}
+          className={clsx(
+            "w-full flex items-center gap-3 p-4 rounded-xl border transition-all cursor-pointer text-left",
+            success
+              ? "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600 hover:scale-[1.005] transition-transform"
+              : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 opacity-70",
+          )}
+          disabled={!filePath || !success}
+        >
+          {/* File icon */}
+          <div className={`p-2.5 rounded-lg shrink-0 ${bg}`}>
+            <FileIcon size={20} className={color} />
+          </div>
+
+          {/* File info */}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
+              {fileName}
+            </div>
+            {description && (
+              <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-1">
+                {description}
+              </div>
+            )}
+          </div>
+
+          {/* Open icon */}
+          {success && filePath && (
+            <div className="shrink-0 p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+              <ExternalLink size={16} />
             </div>
           )}
-        </div>
-
-        {/* Open icon */}
-        {success && filePath && (
-          <div className="shrink-0 p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
-            <ExternalLink size={16} />
-          </div>
-        )}
-      </button>
+        </button>
+      )}
     </div>
   );
 }

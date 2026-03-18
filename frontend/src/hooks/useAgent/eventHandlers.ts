@@ -106,7 +106,13 @@ export function handleStreamEvent(
     case "done": {
       ctx.setMessages((prev) =>
         prev.map((m) =>
-          m.id === messageId ? { ...m, isStreaming: false } : m,
+          m.id === messageId
+            ? {
+                ...m,
+                isStreaming: false,
+                parts: clearAllLoadingStates(m.parts || []),
+              }
+            : m,
         ),
       );
       ctx.setConnectionStatus("disconnected");
@@ -154,6 +160,8 @@ export function handleStreamEvent(
     "sandbox:error",
     "sandbox:state",
     "token:usage",
+    "todo:created",
+    "todo:updated",
     "error",
   ]);
   if (!MESSAGE_EVENTS.has(eventType)) {

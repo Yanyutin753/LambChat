@@ -96,6 +96,13 @@ export interface EventData {
   // queue_update event fields
   status?: string;
   queue_position?: number;
+  // todo event fields
+  todos?: Array<{
+    content: string;
+    activeForm?: string;
+    status: "pending" | "in_progress" | "completed";
+  }>;
+  updated_index?: number;
 }
 
 export interface UseAgentOptions {
@@ -138,6 +145,12 @@ export interface HistoryEventData {
   sandbox_id?: string;
   work_dir?: string;
   thinking_id?: string;
+  todos?: Array<{
+    content: string;
+    activeForm?: string;
+    status: "pending" | "in_progress" | "completed";
+  }>;
+  updated_index?: number;
   attachments?: Array<{
     id: string;
     key: string;

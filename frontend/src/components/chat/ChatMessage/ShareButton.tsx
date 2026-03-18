@@ -15,6 +15,7 @@ interface ShareButtonProps {
   runId?: string;
   sessionName?: string;
   className?: string;
+  isLastMessage?: boolean;
 }
 
 export function ShareButton({
@@ -22,6 +23,7 @@ export function ShareButton({
   runId,
   sessionName,
   className,
+  isLastMessage,
 }: ShareButtonProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -42,7 +44,7 @@ export function ShareButton({
         onClick={() => setShareDialogOpen(true)}
         className={clsx(
           "flex items-center justify-center rounded-md p-1.5 transition-all",
-          "opacity-0 group-hover:opacity-100",
+          !isLastMessage && "opacity-0 group-hover:opacity-100",
           "text-gray-400 dark:text-stone-500 hover:bg-gray-200 dark:hover:bg-stone-700 hover:text-gray-600 dark:hover:text-stone-300",
           className,
         )}

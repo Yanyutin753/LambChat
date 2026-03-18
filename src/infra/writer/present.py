@@ -205,6 +205,8 @@ class Presenter:
                 data["depth"] = depth
             if agent_id:
                 data["agent_id"] = agent_id
+            elif "agent_id" not in data:
+                data["agent_id"] = self.config.agent_id
         # 保持 dict 格式，不做 json.dumps
         return {"event": event, "data": data}
 
@@ -309,12 +311,17 @@ class Presenter:
         )
 
     def present_text(
-        self, content: str, depth: int = 0, agent_id: Optional[str] = None
+        self,
+        content: str,
+        text_id: Optional[str] = None,
+        depth: int = 0,
+        agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """输出文本内容 (单个事件)
 
         Args:
             content: 文本内容
+            text_id: 文本块的唯一标识（用于前端合并同一块的多个事件）
             depth: 层级深度（0=主代理，1+=子代理）
             agent_id: 代理ID（用于子代理事件）
         """
@@ -322,6 +329,7 @@ class Presenter:
             "message:chunk",
             {
                 "content": content,
+                "text_id": text_id,
                 "timestamp": _get_timestamp(),
             },
             depth=depth,
@@ -348,7 +356,29 @@ class Presenter:
             {
                 "content": content,
                 "thinking_id": thinking_id,
-                "agent_id": agent_id or self.config.agent_id,
+                "timestamp": _get_timestamp(),
+            },
+            depth=depth,
+            agent_id=agent_id,
+        )
+
+    def present_todo(
+        self,
+        todos: list[dict[str, Any]],
+        depth: int = 0,
+        agent_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出任务列表更新
+
+        Args:
+            todos: 任务列表，每项包含 content, status, activeForm
+            depth: 层级深度（0=主代理，1+=子代理）
+            agent_id: 代理ID（用于子代理事件）
+        """
+        return self._build_event(
+            "todo:updated",
+            {
+                "todos": todos,
                 "timestamp": _get_timestamp(),
             },
             depth=depth,
@@ -404,7 +434,6 @@ class Presenter:
             "agent:call",
             {
                 "step": self._step_count,
-                "agent_id": agent_id,
                 "agent_name": agent_name,
                 "input": input_message[:500],
                 "timestamp": _get_timestamp(),
@@ -431,7 +460,6 @@ class Presenter:
             error: 错误信息（如果有）
         """
         data: Dict[str, Any] = {
-            "agent_id": agent_id,
             "result": result,
             "success": success,
             "timestamp": _get_timestamp(),

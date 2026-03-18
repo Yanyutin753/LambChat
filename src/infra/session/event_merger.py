@@ -4,7 +4,7 @@ Event Merger - 事件合并器
 定期合并 trace 中的流式事件，减少事件数量，提升前后端性能。
 
 合并策略:
-- 按 (event_type, agent_id, depth, thinking_id) 分组合并可合并事件（message:chunk, thinking）
+- 按 (event_type, agent_id, depth, thinking_id, text_id) 分组合并可合并事件（message:chunk, thinking）
 - 相同 key 的事件无论是否连续都会合并，支持并发子 agent 交叉事件场景
 - 合并后的事件出现在该 key 首次出现的位置，不可合并的事件（如 tool:start）保持原位
 - 合并后的事件标记为 merged=True，并记录 merged_count、started_at、ended_at
@@ -300,7 +300,7 @@ class EventMerger:
         合并事件列表
 
         策略:
-        - 按 (event_type, agent_id, depth, thinking_id) 分组合并可合并事件
+        - 按 (event_type, agent_id, depth, thinking_id, text_id) 分组合并可合并事件
         - 相同 key 的事件无论是否连续都会合并（支持并发子 agent 交叉事件）
         - 保留原始顺序：合并后的事件出现在该 key 首次出现的位置
         - 不可合并的事件（如 tool:start）保持原位
@@ -309,9 +309,9 @@ class EventMerger:
             return []
 
         # 第一轮：按 key 分组所有可合并事件，同时缓存 key 映射避免重复计算
-        groups: dict[tuple[Any, Any, Any, Any], List[Dict[str, Any]]] = {}
+        groups: dict[tuple[Any, Any, Any, Any, Any], List[Dict[str, Any]]] = {}
         key_cache: dict[
-            int, Optional[tuple[Any, Any, Any, Any]]
+            int, Optional[tuple[Any, Any, Any, Any, Any]]
         ] = {}  # id(event) -> merge key or None
         mergeable = MERGEABLE_EVENT_TYPES
 
@@ -319,7 +319,13 @@ class EventMerger:
             event_type = event.get("event_type")
             if event_type in mergeable:
                 data = event.get("data", {})
-                key = (event_type, data.get("agent_id"), data.get("depth"), data.get("thinking_id"))
+                key = (
+                    event_type,
+                    data.get("agent_id"),
+                    data.get("depth"),
+                    data.get("thinking_id"),
+                    data.get("text_id"),
+                )
                 key_cache[id(event)] = key
                 group = groups.get(key)
                 if group is None:

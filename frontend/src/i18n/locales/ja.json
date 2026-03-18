@@ -212,6 +212,9 @@
     "sandboxInitFailed": "サンドボックスの初期化に失敗しました",
     "skillUpdated": "スキル {{action}}",
     "cancelled": "キャンセル済み",
+    "todo": {
+      "progress": "{{completed}}/{{total}} 完了"
+    },
     "shiftEnterNewLine": "で改行",
     "stop": "生成を停止",
     "title": "チャット",
