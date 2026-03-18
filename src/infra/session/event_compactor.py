@@ -1,15 +1,16 @@
 """
-Event Compactor - 合并已完成 run 的事件以减少存储和查询开销
+Event Compactor - 合并 trace 内的流式事件以减少存储和查询开销
 
-后台扫描已完成(status != running)的 traces，将同一 session 的多个已完成 runs
-合并到一个 archived trace 中，移除冗余 metadata 事件，只保留内容事件。
+后台扫描已完成(status != running)的 traces，将每个 trace 内部连续的流式事件
+（如 message:chunk、thinking）合并为完整的事件，过滤 heartbeat 冗余事件，
+然后更新回原 trace 文档。
 
 使用 Redis 分布式锁防止多实例重复处理。
 """
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from src.infra.logging import get_logger
 from src.infra.session.trace_storage import get_trace_storage
@@ -22,14 +23,17 @@ _COMPACTOR_LOCK_KEY = "event_compactor:lock"
 _COMPACTOR_LOCK_TTL = 300  # 5 分钟锁超时
 
 # 扫描配置
-_BATCH_SIZE = 50  # 每批处理的 session 数量
+_BATCH_SIZE = 100  # 每批处理的 trace 数量
 _SCAN_INTERVAL = 300  # 扫描间隔（秒）
 
-# 需要排除的 metadata 类型事件（保留内容事件）
-_METADATA_EVENT_TYPES = frozenset({"metadata", "token:usage", "heartbeat"})
+# 需要排除的事件类型（只排除心跳）
+_EXCLUDED_EVENT_TYPES = frozenset({"heartbeat"})
 
-# 需要 compact 的最小 run 数量（低于此数量不合并）
-_MIN_RUNS_TO_COMPACT = 2
+# 支持流式合并的事件类型（data.content 是文本片段，需要拼接）
+_STREAM_EVENT_TYPES = frozenset({"message:chunk", "thinking"})
+
+# 合并后的最小事件数缩减比例（低于此比例不值得合并）
+_MIN_REDUCTION_RATIO = 0.2  # 至少减少 20% 的事件数
 
 
 def _utc_now() -> datetime:
@@ -59,162 +63,188 @@ async def _refresh_lock() -> None:
     await redis.expire(_COMPACTOR_LOCK_KEY, _COMPACTOR_LOCK_TTL)
 
 
-def _filter_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """过滤掉 metadata 类型事件，只保留内容事件"""
-    return [e for e in events if e.get("event_type") not in _METADATA_EVENT_TYPES]
-
-
-async def _get_sessions_needing_compaction() -> List[str]:
+def _get_merge_key(event_type: str, data: Dict[str, Any]) -> Optional[str]:
     """
-    查找需要 compact 的 session 列表
+    获取事件的合并分组 key
 
-    条件: 同一 session 有 >= _MIN_RUNS_TO_COMPACT 个已完成的非 archived traces
+    - thinking: 按 thinking_id 分组（同一个 thinking 块）
+    - message:chunk: 按连续性分组（相邻的 chunk 合并）
+    - 其他: 不合并
+    """
+    if event_type == "thinking":
+        thinking_id = data.get("thinking_id")
+        return f"thinking:{thinking_id}" if thinking_id else None
+    elif event_type == "message:chunk":
+        return "message:chunk"
+    return None
+
+
+def _merge_consecutive_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    合并连续的流式事件
+
+    规则:
+    - 连续的 message:chunk 事件合并为一条（content 拼接）
+    - 相同 thinking_id 的连续 thinking 事件合并为一条（content 拼接）
+    - 其他事件类型断开合并
+    """
+    if not events:
+        return events
+
+    result: List[Dict[str, Any]] = []
+    current_event: Optional[Dict[str, Any]] = None
+    current_key: Optional[str] = None
+
+    for event in events:
+        event_type = event.get("event_type", "")
+        data = event.get("data", {}) or {}
+
+        if event_type not in _STREAM_EVENT_TYPES:
+            current_event = None
+            current_key = None
+            result.append(event)
+            continue
+
+        merge_key = _get_merge_key(event_type, data)
+
+        if merge_key is None:
+            current_event = None
+            current_key = None
+            result.append(event)
+            continue
+
+        if current_event is not None and current_key == merge_key:
+            current_data = current_event.get("data", {})
+            current_data["content"] = current_data.get("content", "") + data.get("content", "")
+            if event.get("timestamp"):
+                current_event["timestamp"] = event["timestamp"]
+        else:
+            if current_event is not None:
+                result.append(current_event)
+            current_event = {
+                "event_type": event_type,
+                "data": dict(data),
+                "timestamp": event.get("timestamp"),
+                "run_id": event.get("run_id"),
+                "trace_id": event.get("trace_id"),
+            }
+            current_key = merge_key
+
+    if current_event is not None:
+        result.append(current_event)
+
+    return result
+
+
+def _compact_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    压缩事件列表
+
+    1. 过滤 heartbeat 事件
+    2. 合并连续的流式事件
+    """
+    filtered = [e for e in events if e.get("event_type") not in _EXCLUDED_EVENT_TYPES]
+
+    if not filtered:
+        return filtered
+
+    return _merge_consecutive_events(filtered)
+
+
+async def _get_traces_needing_compaction() -> List[Dict[str, Any]]:
+    """
+    查找需要 compact 的 trace 列表
+
+    条件: 已完成(status != running) 且 未被压缩过的
     """
     storage = get_trace_storage()
 
-    # 使用聚合管道找出有多个已完成 traces 的 session
-    pipeline: List[Dict[str, Any]] = [
-        {
-            "$match": {
-                "status": {"$ne": "running"},
-                "archived": {"$ne": True},
-            }
-        },
-        {
-            "$group": {
-                "_id": "$session_id",
-                "count": {"$sum": 1},
-                "earliest_run": {"$min": "$started_at"},
-            }
-        },
-        {"$match": {"count": {"$gte": _MIN_RUNS_TO_COMPACT}}},
-        {"$sort": {"earliest_run": 1}},
-        {"$limit": _BATCH_SIZE},
-    ]
+    match_query: Dict[str, Any] = {
+        "status": {"$ne": "running"},
+        "compact": {"$ne": True},
+    }
 
     try:
-        results = await storage.collection.aggregate(pipeline).to_list(length=_BATCH_SIZE)
-        return [r["_id"] for r in results]
+        cursor = (
+            storage.collection.find(match_query, {"_id": 1, "trace_id": 1, "event_count": 1})
+            .sort("completed_at", 1)
+            .limit(_BATCH_SIZE)
+        )
+        return await cursor.to_list(length=_BATCH_SIZE)
     except Exception as e:
-        logger.error(f"Failed to find sessions needing compaction: {e}")
+        logger.error(f"Failed to find traces needing compaction: {e}")
         return []
 
 
-async def _compact_session(session_id: str) -> bool:
+async def _compact_trace(trace_info: Dict[str, Any]) -> bool:
     """
-    合并单个 session 的所有已完成 runs 到一个 archived trace
+    压缩单个 trace 内的流式事件
 
-    1. 获取该 session 所有已完成、非 archived 的 traces
-    2. 合并事件，过滤 metadata 类型
-    3. 创建 archived trace
-    4. 标记原始 traces 为 archived
+    1. 获取完整 trace（含 events）
+    2. 合并连续的 message:chunk / thinking 事件
+    3. 过滤 heartbeat 事件
+    4. 更新回原 trace 文档
     """
     storage = get_trace_storage()
-    now = _utc_now()
+    trace_id = trace_info.get("trace_id", "")
+    original_count = trace_info.get("event_count", 0)
 
-    # 获取所有已完成、非 archived 的 traces（包含完整 events）
-    match_query: Dict[str, Any] = {
-        "session_id": session_id,
-        "status": {"$ne": "running"},
-        "archived": {"$ne": True},
-    }
-
-    cursor = storage.collection.find(match_query).sort("started_at", 1)
-    raw_traces = await cursor.to_list(length=200)
-
-    if len(raw_traces) < _MIN_RUNS_TO_COMPACT:
+    if not trace_id or original_count < 5:
         return False
 
-    # 合并所有事件
-    all_events: List[Dict[str, Any]] = []
-    trace_ids: List[str] = []
-    total_event_count = 0
-    run_ids_archived: List[str] = []
-    first_started_at = now
+    trace = await storage.get_trace(trace_id)
+    if not trace:
+        return False
 
-    for trace in raw_traces:
-        trace_id = trace.get("trace_id", "")
-        trace_ids.append(trace_id)
-        total_event_count += trace.get("event_count", 0)
+    events = trace.get("events", [])
+    if not events:
+        return False
 
-        if trace.get("started_at") and trace["started_at"] < first_started_at:
-            first_started_at = trace["started_at"]
+    compacted_events = _compact_events(events)
+    new_count = len(compacted_events)
 
-        run_id = trace.get("run_id", "")
-        if run_id:
-            run_ids_archived.append(run_id)
-
-        events = trace.get("events", [])
-        for event in events:
-            all_events.append(
-                {
-                    "event_type": event.get("event_type"),
-                    "data": event.get("data"),
-                    "timestamp": event.get("timestamp"),
-                    "run_id": run_id,
-                }
+    reduction = original_count - new_count
+    if reduction < max(2, original_count * _MIN_REDUCTION_RATIO):
+        try:
+            await storage.collection.update_one(
+                {"trace_id": trace_id},
+                {"$set": {"compact": True, "updated_at": _utc_now()}},
             )
+        except Exception:
+            pass
+        return False
 
-    # 过滤 metadata 事件
-    filtered_events = _filter_events(all_events)
-
-    if not filtered_events:
-        # 没有内容事件，直接标记为 archived
-        pass
-
-    # 创建 archived trace
-    archived_trace_id = f"archived_{session_id}"
-    archived_doc: Dict[str, Any] = {
-        "trace_id": archived_trace_id,
-        "session_id": session_id,
-        "agent_id": None,
-        "run_id": None,
-        "user_id": raw_traces[0].get("user_id") if raw_traces else None,
-        "events": filtered_events,
-        "event_count": len(filtered_events),
-        "started_at": first_started_at,
-        "updated_at": now,
-        "completed_at": now,
-        "status": "archived",
-        "metadata": {
-            "archived_from": trace_ids,
-            "archived_run_ids": run_ids_archived,
-            "original_event_count": total_event_count,
-        },
-        "archived": True,
-    }
+    run_id = trace.get("run_id", "")
+    for event in compacted_events:
+        if "run_id" not in event or not event.get("run_id"):
+            event["run_id"] = run_id
 
     try:
-        # 使用 upsert 创建/更新 archived trace
         await storage.collection.update_one(
-            {"trace_id": archived_trace_id},
-            {
-                "$set": archived_doc,
-                "$setOnInsert": archived_doc,
-            },
-            upsert=True,
-        )
-
-        # 标记原始 traces 为已归档
-        await storage.collection.update_many(
-            {"trace_id": {"$in": trace_ids}},
+            {"trace_id": trace_id},
             {
                 "$set": {
-                    "archived": True,
-                    "archived_at": now,
-                    "archived_into": archived_trace_id,
+                    "events": compacted_events,
+                    "event_count": new_count,
+                    "compact": True,
+                    "updated_at": _utc_now(),
+                    "metadata.compacted": {
+                        "original_event_count": original_count,
+                        "compacted_event_count": new_count,
+                        "compacted_at": _utc_now().isoformat(),
+                        "reduction": reduction,
+                    },
                 }
             },
         )
 
         logger.info(
-            f"Compacted session {session_id}: "
-            f"{len(raw_traces)} traces -> 1 archived trace, "
-            f"{total_event_count} -> {len(filtered_events)} events"
+            f"Compacted trace {trace_id}: "
+            f"{original_count} -> {new_count} events (reduced {reduction})"
         )
         return True
     except Exception as e:
-        logger.error(f"Failed to compact session {session_id}: {e}")
+        logger.error(f"Failed to compact trace {trace_id}: {e}")
         return False
 
 
@@ -223,34 +253,33 @@ async def run_compaction() -> int:
     执行一次事件合并
 
     Returns:
-        成功合并的 session 数量
+        成功压缩的 trace 数量
     """
     if not await _acquire_lock():
         logger.debug("Compaction already running, skipping")
         return 0
 
     try:
-        sessions = await _get_sessions_needing_compaction()
-        if not sessions:
-            logger.debug("No sessions need compaction")
+        traces = await _get_traces_needing_compaction()
+        if not traces:
+            logger.debug("No traces need compaction")
             return 0
 
-        logger.info(f"Found {len(sessions)} sessions to compact")
+        logger.info(f"Found {len(traces)} traces to compact")
         compacted = 0
 
-        for i, session_id in enumerate(sessions):
+        for i, trace_info in enumerate(traces):
             try:
-                if await _compact_session(session_id):
+                if await _compact_trace(trace_info):
                     compacted += 1
 
-                # 每处理 10 个 session 刷新一次锁
                 if (i + 1) % 10 == 0:
                     await _refresh_lock()
             except Exception as e:
-                logger.error(f"Error compacting session {session_id}: {e}")
+                logger.error(f"Error compacting trace {trace_info.get('trace_id')}: {e}")
                 continue
 
-        logger.info(f"Compaction completed: {compacted}/{len(sessions)} sessions")
+        logger.info(f"Compaction completed: {compacted}/{len(traces)} traces")
         return compacted
     except Exception as e:
         logger.error(f"Compaction failed: {e}")
@@ -271,5 +300,5 @@ async def start_compaction_loop() -> None:
             logger.info("Event compaction loop stopped")
             break
         except Exception as e:
-            logger.error(f"Event compaction loop error: {e}")
-            await asyncio.sleep(60)  # 出错后等待 1 分钟再重试
+            logger.error(f"Compaction loop error: {e}")
+            await asyncio.sleep(60)

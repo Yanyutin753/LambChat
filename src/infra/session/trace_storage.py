@@ -374,8 +374,8 @@ class TraceStorage:
             # 排除正在运行的 trace（只返回 running 状态以外的）
             if completed_only:
                 match_query["status"] = {"$ne": "running"}
-            # 排除已归档的原始 traces（避免与 archived trace 重复）
-            match_query["archived"] = {"$ne": True}
+            # 排除 archived 状态的 traces
+            match_query["status"] = {"$ne": "archived"}
 
             # 使用 projection 减少数据传输量，只返回需要的字段
             # 注意: started_at 必须保留，否则 .sort("started_at", 1) 无法利用索引
