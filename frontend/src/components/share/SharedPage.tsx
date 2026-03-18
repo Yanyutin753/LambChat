@@ -128,7 +128,7 @@ export function SharedPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900 flex items-center justify-center">
+      <div className="min-h-dvh bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900 flex items-center justify-center">
         <div className="flex flex-col items-center gap-6 animate-in fade-in duration-500">
           {/* Animated logo */}
           <div className="relative">
@@ -150,7 +150,7 @@ export function SharedPage() {
   // Auth required error
   if (error === "auth_required") {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900 flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl shadow-stone-900/5 dark:shadow-black/40 border border-stone-200/50 dark:border-stone-800/50 overflow-hidden">
             <div className="p-8 text-center">
@@ -183,7 +183,7 @@ export function SharedPage() {
   // Not found error
   if (error === "not_found" || !data) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900 flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl shadow-stone-900/5 dark:shadow-black/40 border border-stone-200/50 dark:border-stone-800/50 overflow-hidden">
             <div className="p-8 text-center">
@@ -215,7 +215,7 @@ export function SharedPage() {
 
   // Main content
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900">
+    <div className="flex flex-col bg-gradient-to-b from-stone-50 to-white dark:from-stone-950 dark:to-stone-900 h-dvh">
       {/* Floating header with glass effect */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 dark:bg-stone-900/70 border-b border-stone-200/50 dark:border-stone-800/50">
         <div className="max-w-3xl sm:max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -268,10 +268,10 @@ export function SharedPage() {
 
       {/* Messages - scrollable area with session info */}
       <main
-        className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain pb-24"
+        className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain"
         style={{
           WebkitOverflowScrolling: "touch",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 10rem)",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 5rem)",
         }}
       >
         <div className="max-w-3xl sm:max-w-5xl mx-auto">
