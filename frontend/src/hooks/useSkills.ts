@@ -284,6 +284,36 @@ export function useSkills(options?: { enabled?: boolean }) {
     [fetchSkills],
   );
 
+  // Upload skill from ZIP file
+  const uploadSkill = useCallback(
+    async (
+      file: File,
+      asSystem: boolean = false,
+    ): Promise<SkillResponse | null> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const baseUrl = asSystem ? ADMIN_API_BASE : API_BASE;
+        const formData = new FormData();
+        formData.append("file", file);
+        const data: SkillResponse = await authFetch(`${baseUrl}/upload`, {
+          method: "POST",
+          body: formData,
+        });
+        await fetchSkills();
+        return data;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to upload skill",
+        );
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchSkills],
+  );
+
   // Promote user skill to system skill (admin only)
   const promoteSkill = useCallback(
     async (
@@ -435,6 +465,7 @@ export function useSkills(options?: { enabled?: boolean }) {
     exportSkills,
     previewGitHubSkills,
     installGitHubSkills,
+    uploadSkill,
     promoteSkill,
     demoteSkill,
     clearError: () => setError(null),

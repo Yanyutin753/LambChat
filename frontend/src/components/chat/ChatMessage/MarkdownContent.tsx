@@ -122,12 +122,13 @@ function CodeBlock({
             background: "transparent",
           }}
           lineNumberStyle={{
-            minWidth: "2.5em",
+            minWidth: "5em",
+            width: "5em",
             paddingRight: "1em",
-            marginRight: "1em",
             textAlign: "right",
             color: isDark ? "#71717a" : "#a1a1aa",
             borderRight: isDark ? "1px solid #44403c" : "1px solid #e7e5e4",
+            userSelect: "none",
           }}
           codeTagProps={{
             style: {
@@ -157,11 +158,13 @@ function CodeBlock({
                   <span
                     className="select-none shrink-0 text-right pr-4 mr-4"
                     style={{
-                      minWidth: "2.5em",
+                      minWidth: "5em",
+                      width: "5em",
                       color: isDark ? "#71717a" : "#a1a1aa",
                       borderRight: isDark
                         ? "1px solid #44403c"
                         : "1px solid #e7e5e4",
+                      userSelect: "none",
                     }}
                   >
                     {i + 1}

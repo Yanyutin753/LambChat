@@ -878,7 +878,11 @@
     "title": "Skills Management",
     "updateFailed": "Failed to update skill",
     "updateSuccess": "Skill updated successfully",
-    "userSkillVisible": "User Skill (only visible to you)"
+    "userSkillVisible": "User Skill (only visible to you)",
+    "uploadZipTitle": "Upload Skill ZIP",
+    "selectZipFile": "Select ZIP file",
+    "uploading": "Uploading...",
+    "upload": "Upload"
   },
   "tools": {
     "add": "Add",

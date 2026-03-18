@@ -829,7 +829,11 @@
     "title": "スキル管理",
     "updateFailed": "スキルの更新に失敗しました",
     "updateSuccess": "スキルが正常に更新されました",
-    "userSkillVisible": "ユーザースキル（自分のみに表示）"
+    "userSkillVisible": "ユーザースキル（自分のみに表示）",
+    "uploadZipTitle": "スキルZIPをアップロード",
+    "selectZipFile": "ZIPファイルを選択",
+    "uploading": "アップロード中...",
+    "upload": "アップロード"
   },
   "tools": {
     "add": "追加",

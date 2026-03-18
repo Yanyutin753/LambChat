@@ -830,7 +830,11 @@
     "title": "스킬 관리",
     "updateFailed": "스킬 업데이트에 실패했습니다",
     "updateSuccess": "스킬이 성공적으로 업데이트되었습니다",
-    "userSkillVisible": "사용자 스킬 (나에게만 표시)"
+    "userSkillVisible": "사용자 스킬 (나에게만 표시)",
+    "uploadZipTitle": "스킬 ZIP 업로드",
+    "selectZipFile": "ZIP 파일 선택",
+    "uploading": "업로드 중...",
+    "upload": "업로드"
   },
   "tools": {
     "add": "추가",

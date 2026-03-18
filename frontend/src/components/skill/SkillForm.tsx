@@ -1,5 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { Maximize2, Minimize2 } from "lucide-react";
+import Editor from "react-simple-code-editor";
+import Prism from "prismjs";
+import "prismjs/components/prism-clike";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-python";
+import "prismjs/components/prism-markup";
+import "prismjs/components/prism-markdown";
+import "prismjs/components/prism-json";
+import "prismjs/components/prism-yaml";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-sql";
+import "prismjs/components/prism-typescript";
 import type { SkillResponse, SkillCreate } from "../../types";
 
 interface FileEntry {
@@ -38,6 +51,34 @@ Describe what this skill does.
 Example usage here.
 `;
 
+function getLanguageForFile(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  const map: Record<string, string> = {
+    py: "python",
+    js: "javascript",
+    ts: "typescript",
+    tsx: "typescript",
+    jsx: "javascript",
+    md: "markdown",
+    json: "json",
+    yaml: "yaml",
+    yml: "yaml",
+    sh: "bash",
+    bash: "bash",
+    sql: "sql",
+  };
+  return map[ext] || "markup";
+}
+
+function highlightCode(code: string, language: string): string {
+  try {
+    const grammar = Prism.languages[language] || Prism.languages.markup;
+    return Prism.highlight(code, grammar, language);
+  } catch {
+    return code;
+  }
+}
+
 export function SkillForm({
   skill,
   onSave,
@@ -53,6 +94,7 @@ export function SkillForm({
   const [enabled, setEnabled] = useState(skill?.enabled ?? true);
   const [isSystem, setIsSystem] = useState(skill?.is_system ?? false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Files state for multi-file support
   const [files, setFiles] = useState<FileEntry[]>([]);
@@ -98,6 +140,21 @@ export function SkillForm({
     }
     setErrors({});
   }, [skill]);
+
+  // Escape key handler to exit fullscreen
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    },
+    [isFullscreen],
+  );
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -194,7 +251,14 @@ export function SkillForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      className={
+        isFullscreen
+          ? "fixed inset-0 z-50 flex flex-col bg-white p-6 dark:bg-stone-900"
+          : "space-y-4"
+      }
+    >
       {/* Name */}
       <div>
         <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-stone-300">
@@ -248,18 +312,28 @@ export function SkillForm({
       </div>
 
       {/* Files */}
-      <div>
+      <div className={isFullscreen ? "flex flex-1 flex-col gap-2 min-h-0" : ""}>
         <div className="mb-4 flex items-center justify-between">
           <label className="block text-sm font-medium text-gray-700 dark:text-stone-300">
             {t("skills.form.content")}
           </label>
-          <button
-            type="button"
-            onClick={addFile}
-            className="whitespace-nowrap text-xs text-stone-600 hover:text-stone-800 dark:text-amber-500 dark:hover:text-amber-400"
-          >
-            + Add File
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="whitespace-nowrap text-xs text-stone-600 hover:text-stone-800 dark:text-amber-500 dark:hover:text-amber-400"
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen editor"}
+            >
+              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
+            <button
+              type="button"
+              onClick={addFile}
+              className="whitespace-nowrap text-xs text-stone-600 hover:text-stone-800 dark:text-amber-500 dark:hover:text-amber-400"
+            >
+              + Add File
+            </button>
+          </div>
         </div>
 
         {/* File tabs */}
@@ -306,18 +380,43 @@ export function SkillForm({
           />
         </div>
 
-        {/* File content editor */}
-        <textarea
-          value={files[activeFileIndex]?.content || ""}
-          onChange={(e) => updateFileContent(activeFileIndex, e.target.value)}
-          rows={12}
-          placeholder={t("skills.form.contentPlaceholder")}
-          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
-            errors.content
-              ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
-              : ""
-          }`}
-        />
+        {/* File content editor with syntax highlighting */}
+        {(() => {
+          const filePath = files[activeFileIndex]?.path || "";
+          const fileContent = files[activeFileIndex]?.content || "";
+          const lang = getLanguageForFile(filePath);
+          return (
+            <div
+              className={`w-full rounded-lg border overflow-hidden ${
+                errors.content
+                  ? "border-red-300 dark:border-red-700"
+                  : "border-gray-200 dark:border-stone-700"
+              } ${isFullscreen ? "flex-1 min-h-0 flex flex-col" : ""}`}
+            >
+              <Editor
+                value={fileContent}
+                onValueChange={(val) => updateFileContent(activeFileIndex, val)}
+                highlight={(code) => highlightCode(code, lang)}
+                padding={12}
+                placeholder={t("skills.form.contentPlaceholder")}
+                className={`font-mono text-sm focus:outline-none dark:bg-stone-800 dark:text-stone-100 ${
+                  isFullscreen ? "flex-1 min-h-0" : ""
+                }`}
+                style={{
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+                  fontSize: "0.875rem",
+                  lineHeight: "1.5",
+                  minHeight: isFullscreen ? "0" : "12rem",
+                  flex: isFullscreen ? 1 : undefined,
+                  backgroundColor: "var(--color-bg-editor, transparent)",
+                  color: "var(--color-text-editor, inherit)",
+                }}
+                textareaClassName="focus:outline-none"
+              />
+            </div>
+          );
+        })()}
         {errors.content && (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">
             {errors.content}

@@ -877,7 +877,11 @@
     "title": "技能管理",
     "updateFailed": "更新技能失败",
     "updateSuccess": "技能更新成功",
-    "userSkillVisible": "用户技能（仅对自己可见）"
+    "userSkillVisible": "用户技能（仅对自己可见）",
+    "uploadZipTitle": "上传技能 ZIP",
+    "selectZipFile": "选择 ZIP 文件",
+    "uploading": "上传中...",
+    "upload": "上传"
   },
   "tools": {
     "add": "添加",

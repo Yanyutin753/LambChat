@@ -5,9 +5,13 @@ Provides endpoints for managing skill configurations.
 Follows the same pattern as MCP routes for consistency.
 """
 
+import io
+import re
+import zipfile
 from typing import Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+import yaml
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
 from src.api.deps import require_permissions
 from src.infra.skill.github_sync import GitHubSyncService
@@ -31,6 +35,8 @@ from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
 admin_router = APIRouter()
+
+MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 # Dependency to get SkillStorage
@@ -186,6 +192,157 @@ async def install_github_skills(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to install skills: {str(e)}")
+
+
+@router.post("/upload", response_model=SkillResponse, status_code=201)
+async def upload_skill(
+    file: UploadFile,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_skill_storage),
+):
+    """Upload and install a skill from a ZIP file"""
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+
+    try:
+        content = await file.read()
+        if len(content) > MAX_ZIP_SIZE:
+            raise HTTPException(status_code=400, detail="ZIP file too large (max 10MB)")
+        zf = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file")
+
+    try:
+        skill_data = _parse_zip_to_skill(zf)
+
+        # Check if name already exists
+        existing = await storage.get_user_skill(skill_data["name"], user.sub)
+        if existing:
+            raise HTTPException(
+                status_code=400, detail=f"Skill '{skill_data['name']}' already exists"
+            )
+
+        system_existing = await storage.get_system_skill(skill_data["name"])
+        if system_existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Skill '{skill_data['name']}' already exists as a system skill",
+            )
+
+        create_data = SkillCreate(**skill_data)
+        skill = await storage.create_user_skill(create_data, user.sub)
+    finally:
+        zf.close()
+
+    return SkillResponse(
+        name=skill.name,
+        description=skill.description,
+        content=skill.content,
+        files=create_data.files,
+        enabled=skill.enabled,
+        source=skill.source,
+        github_url=skill.github_url,
+        version=skill.version,
+        is_system=False,
+        can_edit=True,
+        created_at=skill.created_at,
+        updated_at=skill.updated_at,
+    )
+
+
+def _parse_zip_to_skill(zf: zipfile.ZipFile) -> dict:
+    """Parse a ZIP file into skill data (name, description, content, files)."""
+    # Collect all files, stripping directory prefixes
+    all_files: dict[str, str] = {}
+    skill_md_content: str | None = None
+
+    # Determine if ZIP has a single top-level directory
+    names = zf.namelist()
+    top_level = set()
+    for n in names:
+        parts = n.split("/")
+        if parts[0]:
+            top_level.add(parts[0])
+
+    prefix = ""
+    if len(top_level) == 1:
+        top = list(top_level)[0]
+        # Verify it is a directory (all other paths start with it/)
+        is_dir = any(n.startswith(top + "/") for n in names)
+        if is_dir:
+            prefix = top + "/"
+
+    for name in names:
+        if (
+            name.endswith("/")
+            or "__MACOSX" in name
+            or name.endswith(".DS_Store")
+            or name.endswith("Thumbs.db")
+            or ".git/" in name
+        ):
+            continue
+        if name.startswith(prefix):
+            rel_path = name[len(prefix) :]
+        else:
+            rel_path = name
+        if not rel_path:
+            continue
+
+        try:
+            raw = zf.read(name)
+        except Exception:
+            continue
+
+        # Skip binary files
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+
+        all_files[rel_path] = text
+
+        if rel_path == "SKILL.md":
+            skill_md_content = text
+
+    if not skill_md_content:
+        raise HTTPException(status_code=400, detail="ZIP must contain a SKILL.md file")
+
+    # Parse YAML frontmatter
+    fm = _parse_frontmatter(skill_md_content)
+
+    skill_name = fm.get("name", "")
+    # Fallback: use directory name from prefix
+    if not skill_name and prefix:
+        skill_name = prefix.rstrip("/")
+    if not skill_name:
+        raise HTTPException(
+            status_code=400, detail="Skill name not found in SKILL.md frontmatter or directory name"
+        )
+
+    # Sanitize skill name
+    if not re.match(r"^[\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\-.]+$", skill_name):
+        raise HTTPException(status_code=400, detail=f"Invalid skill name: {skill_name}")
+
+    return {
+        "name": skill_name,
+        "description": fm.get("description", ""),
+        "content": skill_md_content,
+        "files": all_files,
+        "enabled": fm.get("enabled", True),
+        "version": fm.get("version"),
+        "source": SkillSource.MANUAL,
+    }
+
+
+def _parse_frontmatter(content: str) -> dict:
+    """Parse YAML frontmatter from markdown content."""
+    match = re.match(r"^---\s*\r?\n(.*?)\r?\n---", content, re.DOTALL)
+    if not match:
+        return {}
+    try:
+        return yaml.safe_load(match.group(1)) or {}
+    except yaml.YAMLError:
+        return {}
 
 
 # ==========================================
@@ -516,6 +673,55 @@ async def admin_install_github_skills(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to install skills: {str(e)}")
+
+
+@admin_router.post("/upload", response_model=SkillResponse, status_code=201)
+async def admin_upload_skill(
+    file: UploadFile,
+    user: TokenPayload = Depends(require_permissions("skill:admin")),
+    storage: SkillStorage = Depends(get_skill_storage),
+):
+    """Upload and install a skill from a ZIP file as a system skill (admin only)"""
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+
+    try:
+        content = await file.read()
+        if len(content) > MAX_ZIP_SIZE:
+            raise HTTPException(status_code=400, detail="ZIP file too large (max 10MB)")
+        zf = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file")
+
+    try:
+        skill_data = _parse_zip_to_skill(zf)
+
+        existing = await storage.get_system_skill(skill_data["name"])
+        if existing:
+            raise HTTPException(
+                status_code=400, detail=f"System skill '{skill_data['name']}' already exists"
+            )
+
+        skill_data["source"] = SkillSource.BUILTIN
+        create_data = SkillCreate(**skill_data)
+        skill = await storage.create_system_skill(create_data, user.sub)
+    finally:
+        zf.close()
+
+    return SkillResponse(
+        name=skill.name,
+        description=skill.description,
+        content=skill.content,
+        files=create_data.files,
+        enabled=skill.enabled,
+        source=skill.source,
+        github_url=skill.github_url,
+        version=skill.version,
+        is_system=True,
+        can_edit=True,
+        created_at=skill.created_at,
+        updated_at=skill.updated_at,
+    )
 
 
 # ==========================================

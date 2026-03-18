@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Plus,
   X,
@@ -9,6 +9,7 @@ import {
   Check,
   Github,
   PackageX,
+  Archive,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -43,6 +44,7 @@ export function SkillsPanel() {
     exportSkills,
     previewGitHubSkills,
     installGitHubSkills,
+    uploadSkill,
     promoteSkill,
     demoteSkill,
     clearError,
@@ -69,6 +71,13 @@ export function SkillsPanel() {
   );
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubInstallAsSystem, setGithubInstallAsSystem] = useState(false);
+
+  // ZIP upload state
+  const [showZipModal, setShowZipModal] = useState(false);
+  const [zipFile, setZipFile] = useState<File | null>(null);
+  const [zipUploadAsSystem, setZipUploadAsSystem] = useState(false);
+  const [zipUploading, setZipUploading] = useState(false);
+  const zipInputRef = useRef<HTMLInputElement>(null);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -369,6 +378,37 @@ export function SkillsPanel() {
     );
   };
 
+  const handleZipClick = () => {
+    setZipFile(null);
+    setZipUploadAsSystem(false);
+    setShowZipModal(true);
+  };
+
+  const handleZipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setZipFile(file);
+  };
+
+  const handleZipUpload = async () => {
+    if (!zipFile) return;
+
+    setZipUploading(true);
+    try {
+      const result = await uploadSkill(zipFile, zipUploadAsSystem);
+      if (result) {
+        toast.success(t("skills.createSuccess"));
+        setShowZipModal(false);
+        setZipFile(null);
+      } else {
+        toast.error(t("skills.createFailed"));
+      }
+    } catch (err) {
+      toast.error((err as Error).message || t("skills.operationFailed"));
+    } finally {
+      setZipUploading(false);
+    }
+  };
+
   if (!canRead) {
     return (
       <div className="flex h-full items-center justify-center text-stone-500 dark:text-stone-400">
@@ -414,6 +454,14 @@ export function SkillsPanel() {
               >
                 <Github size={16} className="sm:size-[18px]" />
                 <span className="hidden sm:inline">GitHub</span>
+              </button>
+              <button
+                onClick={handleZipClick}
+                className="btn-secondary"
+                title="Upload ZIP"
+              >
+                <Archive size={16} className="sm:size-[18px]" />
+                <span className="hidden sm:inline">ZIP</span>
               </button>
               <button
                 onClick={handleImportClick}
@@ -796,6 +844,109 @@ export function SkillsPanel() {
                           {t("skills.installCount", {
                             count: selectedGithubSkills.length,
                           })}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ZIP Upload Modal - Bottom Sheet */}
+      {showZipModal && (
+        <>
+          <div
+            className="fixed inset-0 "
+            onClick={() => setShowZipModal(false)}
+          />
+          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+              <div className="bottom-sheet-handle sm:hidden" />
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
+                  {t("skills.uploadZipTitle")}
+                </h3>
+                <button
+                  onClick={() => setShowZipModal(false)}
+                  className="btn-icon"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                      {t("skills.selectZipFile")}
+                    </label>
+                    <input
+                      ref={zipInputRef}
+                      type="file"
+                      accept=".zip"
+                      onChange={handleZipFileChange}
+                      className="block w-full text-sm text-stone-500
+                        file:mr-4 file:rounded-lg file:border-0
+                        file:bg-stone-100 file:px-4 file:py-2
+                        file:text-sm file:font-medium
+                        file:text-stone-700 hover:file:bg-stone-200
+                        dark:file:bg-stone-700 dark:file:text-stone-200
+                        dark:hover:file:bg-stone-600"
+                    />
+                    {zipFile && (
+                      <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                        {zipFile.name} ({(zipFile.size / 1024).toFixed(1)} KB)
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Admin option */}
+                  {canAdmin && (
+                    <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20">
+                      <input
+                        type="checkbox"
+                        id="zipInstallAsSystem"
+                        checked={zipUploadAsSystem}
+                        onChange={(e) =>
+                          setZipUploadAsSystem(e.target.checked)
+                        }
+                        className="h-4 w-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500 dark:border-stone-600 dark:bg-stone-800"
+                      />
+                      <label
+                        htmlFor="zipInstallAsSystem"
+                        className="text-sm text-amber-800 dark:text-amber-200"
+                      >
+                        {t("skills.installAsSystem")}
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowZipModal(false)}
+                      className="btn-secondary"
+                    >
+                      {t("common.cancel")}
+                    </button>
+                    <button
+                      onClick={handleZipUpload}
+                      disabled={zipUploading || !zipFile}
+                      className="btn-primary disabled:opacity-50"
+                    >
+                      {zipUploading ? (
+                        <>
+                          <LoadingSpinner size="sm" />
+                          {t("skills.uploading")}
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={18} />
+                          {t("skills.upload")}
                         </>
                       )}
                     </button>

@@ -82,4 +82,28 @@ export const skillApi = {
       },
     );
   },
+
+  /**
+   * Upload skill from ZIP file
+   */
+  async upload(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return authFetch(`${API_BASE}/api/skills/upload`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  /**
+   * Upload skill from ZIP file as admin (system skill)
+   */
+  async uploadAdmin(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return authFetch(`${API_BASE}/api/admin/skills/upload`, {
+      method: "POST",
+      body: formData,
+    });
+  },
 };

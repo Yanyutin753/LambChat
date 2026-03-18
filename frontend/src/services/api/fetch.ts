@@ -130,7 +130,7 @@ export async function authFetch<T>(
   const { skipAuth = false, headers = {}, ...restOptions } = options;
 
   const finalHeaders: HeadersInit = {
-    "Content-Type": "application/json",
+    ...(restOptions.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...headers,
   };
 

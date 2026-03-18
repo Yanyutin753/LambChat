@@ -62,11 +62,13 @@ const CodeRenderer = memo(function CodeRenderer({
         }}
         showLineNumbers
         lineNumberStyle={{
-          minWidth: "3em",
+          minWidth: "5em",
+          width: "5em",
           paddingRight: "1em",
           textAlign: "right",
           color: isDark ? "#6b7280" : "#9ca3af",
           userSelect: "none",
+          borderRight: isDark ? "1px solid #44403c" : "1px solid #e7e5e4",
         }}
         codeTagProps={{
           style: {
