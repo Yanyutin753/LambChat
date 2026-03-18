@@ -115,8 +115,8 @@ class AskHumanInput(BaseModel):
         description="等待响应的超时时间（秒），范围 10-3600",
     )
     allow_other: bool = Field(
-        default=False,
-        description="是否额外提供一个「其他意见」文本输入框，让用户可以填写选项中没有的建议，返回值中会包含 other 字段",
+        default=True,
+        description="是否额外提供一个「其他意见」文本输入框，让用户可以填写选项中没有的建议，返回值中会包含 _other 字段",
     )
 
     model_config = {
