@@ -59,6 +59,7 @@ class AskHumanTool(BaseTool):
   - required: 是否必填（默认 true）
   - options: 选项列表（仅 select 和 multi_select 类型使用）
 - timeout: 等待响应的超时时间（秒），范围 10-3600，默认 300
+- allow_other: 是否额外提供「其他意见」文本输入框（默认 false），启用后返回值中会包含 other 字段
 
 返回值：
 - 成功时返回 JSON 字符串，包含各字段的值
@@ -106,6 +107,7 @@ class AskHumanTool(BaseTool):
         message: str,
         fields: Optional[List[FormField]] = None,
         timeout: int = 300,
+        allow_other: bool = False,
     ) -> str:
         """
         异步执行：创建审批请求并等待响应
@@ -124,6 +126,19 @@ class AskHumanTool(BaseTool):
 
         # 解析字段并设置默认值
         parsed_fields = self._parse_fields(fields)
+
+        # 如果启用了 allow_other，追加一个独立的「其他意见」文本字段
+        # 使用 _ 前缀命名空间，避免与用户字段冲突
+        if allow_other:
+            parsed_fields.append(
+                FormField(
+                    name="_other",
+                    label="其他意见",
+                    type=FieldType.TEXTAREA,
+                    placeholder="除上述选项外，您还有其他想法或建议吗？",
+                    required=False,
+                )
+            )
 
         # 获取当前请求上下文
         from src.infra.logging.context import TraceContext
