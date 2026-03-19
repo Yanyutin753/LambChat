@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { SkillResponse, SkillCreate } from "../../types";
+import CodeEditor from "./CodeEditor";
 
 interface FileEntry {
   path: string;
@@ -307,17 +308,19 @@ export function SkillForm({
         </div>
 
         {/* File content editor */}
-        <textarea
-          value={files[activeFileIndex]?.content || ""}
-          onChange={(e) => updateFileContent(activeFileIndex, e.target.value)}
-          rows={12}
-          placeholder={t("skills.form.contentPlaceholder")}
-          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
-            errors.content
-              ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
-              : ""
+        <div
+          className={`rounded-lg overflow-hidden border ${
+            errors.content ? "border-red-300 dark:border-red-700" : ""
           }`}
-        />
+        >
+          <CodeEditor
+            value={files[activeFileIndex]?.content || ""}
+            onChange={(content) => updateFileContent(activeFileIndex, content)}
+            filePath={files[activeFileIndex]?.path}
+            placeholder={t("skills.form.contentPlaceholder")}
+            className="h-[28rem]"
+          />
+        </div>
         {errors.content && (
           <p className="mt-1 text-xs text-red-600 dark:text-red-400">
             {errors.content}

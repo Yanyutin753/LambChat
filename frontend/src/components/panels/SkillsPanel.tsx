@@ -9,6 +9,8 @@ import {
   Check,
   Github,
   PackageX,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -61,6 +63,7 @@ export function SkillsPanel() {
     message: string;
   } | null>(null);
   const [showGithubModal, setShowGithubModal] = useState(false);
+  const [isEditorFullscreen, setIsEditorFullscreen] = useState(false);
   const [githubUrl, setGithubUrl] = useState("");
   const [githubBranch, setGithubBranch] = useState("main");
   const [githubSkills, setGithubSkills] = useState<GitHubSkillPreview[]>([]);
@@ -187,6 +190,7 @@ export function SkillsPanel() {
         setShowModal(false);
         setEditingSkill(null);
         setIsCreating(false);
+        setIsEditorFullscreen(false);
       }
     } catch (error) {
       toast.error((error as Error).message || t("skills.operationFailed"));
@@ -200,6 +204,7 @@ export function SkillsPanel() {
     setShowModal(false);
     setEditingSkill(null);
     setIsCreating(false);
+    setIsEditorFullscreen(false);
   };
 
   const handleDelete = async (name: string, isSystem: boolean = false) => {
@@ -511,19 +516,54 @@ export function SkillsPanel() {
       {showModal && (
         <>
           <div className="fixed inset-0 " onClick={handleCancel} />
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
-              <div className="bottom-sheet-handle sm:hidden" />
+          <div
+            className={`${
+              isEditorFullscreen
+                ? "fixed inset-0 z-[200] flex items-stretch"
+                : "modal-bottom-sheet sm:modal-centered-wrapper"
+            }`}
+          >
+            <div
+              className={`${
+                isEditorFullscreen
+                  ? "w-full h-full flex flex-col bg-white dark:bg-stone-900 shadow-2xl"
+                  : "modal-bottom-sheet-content sm:modal-centered-content"
+              }`}
+            >
+              {!isEditorFullscreen && <div className="bottom-sheet-handle sm:hidden" />}
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800 shrink-0">
                 <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {isCreating
                     ? t("skills.createNew")
                     : t("skills.editSkill", { name: editingSkill?.name })}
                 </h3>
-                <button onClick={handleCancel} className="btn-icon">
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setIsEditorFullscreen(!isEditorFullscreen)}
+                    className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+                    title={
+                      isEditorFullscreen
+                        ? t("documents.exitFullscreen")
+                        : t("documents.fullscreen")
+                    }
+                  >
+                    {isEditorFullscreen ? (
+                      <Minimize2
+                        size={18}
+                        className="text-stone-500 dark:text-stone-400"
+                      />
+                    ) : (
+                      <Maximize2
+                        size={18}
+                        className="text-stone-500 dark:text-stone-400"
+                      />
+                    )}
+                  </button>
+                  <button onClick={handleCancel} className="btn-icon">
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               {/* Content */}
               <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">

@@ -119,7 +119,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
           ),
           // Horizontal rule
           hr: () => (
-            <hr className="my-6 border-0 h-px bg-gradient-to-r from-transparent via-stone-300 dark:via-stone-600 to-transparent" />
+            <hr className="my-6 border-0 h-px bg-stone-300 dark:bg-stone-600" />
           ),
           // Strong and emphasis
           strong: ({ children }) => (
