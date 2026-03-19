@@ -3,7 +3,6 @@ import { clsx } from "clsx";
 import { Terminal, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
-import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { extractText } from "./toolUtils";
 
 const ExecuteItem = memo(function ExecuteItem({
@@ -76,14 +75,15 @@ const ExecuteItem = memo(function ExecuteItem({
           </div>
 
           {parsed.output && (
-            <div className="max-h-64 overflow-y-auto rounded-md border border-stone-200/60 dark:border-stone-700/50">
-              <CodeMirrorViewer
-                value={parsed.output}
-                lineNumbers={false}
-                maxHeight="16rem"
-                fontSize="0.75rem"
-              />
-            </div>
+            <pre
+              className={clsx(
+                "text-xs max-h-64 overflow-y-auto rounded-md p-2.5",
+                "bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50",
+                "text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono",
+              )}
+            >
+              {parsed.output}
+            </pre>
           )}
 
           {!isPending && result && (
