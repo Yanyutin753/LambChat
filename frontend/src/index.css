@@ -1090,6 +1090,18 @@ html.dark body {
   /* stone-700 */
 }
 
+.markdown-preview hr {
+  border: none;
+  border-top: 1px solid #d6d3d1;
+  /* stone-300 */
+  margin: 1rem 0;
+}
+
+.dark .markdown-preview hr {
+  border-top-color: #57534e;
+  /* stone-600 */
+}
+
 .markdown-content img {
   max-width: 100%;
   border-radius: 0.75rem;

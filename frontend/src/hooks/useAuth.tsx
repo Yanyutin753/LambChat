@@ -170,17 +170,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  // OAuth 登录 - 重定向到 OAuth 提供商
+  // OAuth 登录 - 直接导航到后端 OAuth 端点，由服务端重定向到提供商
   const loginWithOAuth = useCallback(async (provider: string) => {
-    try {
-      const { authorization_url } =
-        await authApi.getOAuthAuthorizationUrl(provider);
-      // 重定向到 OAuth 授权页面
-      window.location.href = authorization_url;
-    } catch (error) {
-      console.error("OAuth login failed:", error);
-      throw error;
-    }
+    window.location.href = `/api/auth/oauth/${provider}`;
   }, []);
 
   // 处理 OAuth 回调

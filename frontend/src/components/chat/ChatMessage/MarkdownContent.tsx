@@ -270,7 +270,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           // Horizontal rule
           hr: () => (
-            <hr className="my-4 border-0 h-px bg-gradient-to-r from-transparent via-stone-300 dark:via-stone-600 to-transparent" />
+            <hr className="my-4 border-t border-stone-300 dark:border-stone-600" />
           ),
           // Strong and emphasis
           strong: ({ children }) => (

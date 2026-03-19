@@ -105,8 +105,8 @@ async def oauth_login(request: Request, provider: OAuthProviderParam):
             detail="Failed to create authorization URL",
         )
 
-    # 返回授权 URL 和 state
-    return {"authorization_url": auth_url, "state": state}
+    # 直接重定向到 OAuth 提供商授权页面（标准 OAuth 模式）
+    return RedirectResponse(url=auth_url, status_code=302)
 
 
 class OAuthCallbackRequest(BaseModel):
