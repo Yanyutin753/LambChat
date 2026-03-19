@@ -1,8 +1,8 @@
 import { memo, useMemo } from "react";
-import { clsx } from "clsx";
 import { FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
+import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { stripLineNumbers, extractText } from "./toolUtils";
 
 const ReadFileItem = memo(function ReadFileItem({
@@ -46,15 +46,15 @@ const ReadFileItem = memo(function ReadFileItem({
               </span>
             )}
           </div>
-          <pre
-            className={clsx(
-              "text-xs max-h-64 overflow-y-auto rounded-md p-3",
-              "bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50",
-              "text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono",
-            )}
-          >
-            {displayContent}
-          </pre>
+          <div className="max-h-64 overflow-y-auto rounded-md border border-stone-200/60 dark:border-stone-700/50">
+            <CodeMirrorViewer
+              value={displayContent}
+              filePath={filePath}
+              lineNumbers={false}
+              maxHeight="16rem"
+              fontSize="0.75rem"
+            />
+          </div>
         </div>
       )}
     </CollapsiblePill>

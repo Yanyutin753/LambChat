@@ -1,8 +1,8 @@
 import { memo } from "react";
-import { clsx } from "clsx";
 import { Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
+import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { extractText } from "./toolUtils";
 
 const EditFileItem = memo(function EditFileItem({
@@ -42,15 +42,16 @@ const EditFileItem = memo(function EditFileItem({
               <div className="text-xs text-red-500 dark:text-red-400 mb-1 font-medium">
                 -
               </div>
-              <pre
-                className={clsx(
-                  "text-xs max-h-32 overflow-y-auto rounded-md p-2.5",
-                  "bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40",
-                  "text-red-700 dark:text-red-300 whitespace-pre-wrap break-words font-mono",
-                )}
-              >
-                {oldString}
-              </pre>
+              <div className="max-h-32 overflow-y-auto rounded-md border border-red-200/60 dark:border-red-800/40 bg-red-50 dark:bg-red-950/30">
+                <CodeMirrorViewer
+                  value={oldString}
+                  filePath={filePath}
+                  lineNumbers={false}
+                  maxHeight="8rem"
+                  fontSize="0.75rem"
+                  className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
+                />
+              </div>
             </div>
           )}
           {newString && (
@@ -58,15 +59,16 @@ const EditFileItem = memo(function EditFileItem({
               <div className="text-xs text-emerald-500 dark:text-emerald-400 mb-1 font-medium">
                 +
               </div>
-              <pre
-                className={clsx(
-                  "text-xs max-h-32 overflow-y-auto rounded-md p-2.5",
-                  "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40",
-                  "text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap break-words font-mono",
-                )}
-              >
-                {newString}
-              </pre>
+              <div className="max-h-32 overflow-y-auto rounded-md border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/30">
+                <CodeMirrorViewer
+                  value={newString}
+                  filePath={filePath}
+                  lineNumbers={false}
+                  maxHeight="8rem"
+                  fontSize="0.75rem"
+                  className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
+                />
+              </div>
             </div>
           )}
           {result &&

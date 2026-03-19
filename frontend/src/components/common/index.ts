@@ -21,3 +21,6 @@ export {
   formatFileSize,
 } from "./AttachmentCard";
 export type { AttachmentCardProps } from "./AttachmentCard";
+
+export { CodeMirrorViewer, getLangSupport } from "./CodeMirrorViewer";
+export type { CodeMirrorViewerProps } from "./CodeMirrorViewer";
