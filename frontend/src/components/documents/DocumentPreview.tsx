@@ -38,6 +38,7 @@ import {
 // Import preview components
 import CodeRenderer from "./previews/CodeRenderer";
 import MarkdownRenderer from "./previews/MarkdownRenderer";
+import MarkdownPreview from "./previews/MarkdownPreview";
 import PdfPreview from "./previews/PdfPreview";
 import PptPreview from "./previews/PptPreview";
 import WordPreview from "./previews/WordPreview";
@@ -69,6 +70,7 @@ export {
 // Export components for external use
 export { default as CodeRenderer } from "./previews/CodeRenderer";
 export { default as MarkdownRenderer } from "./previews/MarkdownRenderer";
+export { default as MarkdownPreview } from "./previews/MarkdownPreview";
 export { default as PdfPreview } from "./previews/PdfPreview";
 export { default as PptPreview } from "./previews/PptPreview";
 export { default as WordPreview } from "./previews/WordPreview";
@@ -663,9 +665,7 @@ export default function DocumentPreview({
               </div>
             </Suspense>
           ) : markdownFile ? (
-            <div className="p-4 sm:p-6 lg:p-8">
-              <MarkdownRenderer content={data?.content || ""} t={t} />
-            </div>
+            <MarkdownPreview content={data?.content || ""} t={t} />
           ) : (
             <CodeRenderer
               content={data?.content || ""}
