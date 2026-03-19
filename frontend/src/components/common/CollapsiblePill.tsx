@@ -151,7 +151,7 @@ export function CollapsiblePill({
       >
         <StatusIndicator status={status} variant={variant} />
         {icon}
-        <span className="font-mono">{formattedLabel}</span>
+        <span className="font-mono truncate max-w-[200px] sm:max-w-[400px]">{formattedLabel}</span>
         {suffix}
         {canExpand && (
           <ChevronRight

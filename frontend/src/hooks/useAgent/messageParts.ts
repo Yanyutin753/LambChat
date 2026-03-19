@@ -184,6 +184,15 @@ export function addPartToDepth(
         } else {
           newSubagentParts = [...existingParts, part];
         }
+      } else if (part.type === "todo") {
+        // Upsert: replace existing todo or append — each subagent gets at most one todo
+        const todoIdx = existingParts.findIndex((p) => p.type === "todo");
+        if (todoIdx >= 0) {
+          newSubagentParts = [...existingParts];
+          newSubagentParts[todoIdx] = part;
+        } else {
+          newSubagentParts = [...existingParts, part];
+        }
       } else {
         newSubagentParts = [...existingParts, part];
       }

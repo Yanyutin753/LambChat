@@ -116,11 +116,12 @@ function TodoItemRow({ item }: { item: TodoItem }) {
       <div className="min-w-0 flex-1">
         <p
           className={clsx(
-            "text-[13px] leading-snug",
+            "text-[13px] leading-snug truncate",
             config.textClass,
             item.status === "in_progress" &&
               "text-stone-800 dark:text-stone-100",
           )}
+          title={item.content}
         >
           {item.content}
         </p>
