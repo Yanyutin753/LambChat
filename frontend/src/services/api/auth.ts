@@ -190,18 +190,6 @@ export const authApi = {
   },
 
   /**
-   * 发起 OAuth 授权
-   */
-  async getOAuthAuthorizationUrl(
-    provider: string,
-  ): Promise<{ authorization_url: string; state: string }> {
-    return authFetch<{ authorization_url: string; state: string }>(
-      `${API_BASE}/api/auth/oauth/${provider}`,
-      { skipAuth: true },
-    );
-  },
-
-  /**
    * 处理 OAuth 回调
    */
   async handleOAuthCallback(
