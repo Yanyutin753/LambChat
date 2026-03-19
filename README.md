@@ -97,18 +97,8 @@ English | [简体中文](README_CN.md)
 - **Code Interpreter** - Built-in code execution with sandbox support
 - **Human-in-the-Loop** - Approval system for sensitive operations
 
-### 🧠 AI Vision & Image Tools
-- **UI to Artifact** - Convert UI screenshots into frontend code, AI prompts, design specs, or descriptions
-- **OCR Text Extraction** - Extract text from screenshots (code, terminal, docs, general text)
-- **Error Screenshot Diagnosis** - Diagnose error messages, stack traces, and exception screenshots
-- **Technical Diagram Understanding** - Analyze architecture diagrams, flowcharts, UML, ER diagrams
-- **Data Visualization Analysis** - Extract insights from charts, graphs, and dashboards
-- **UI Diff Check** - Compare two UI screenshots to identify visual differences
-- **General Image Analysis** - Flexible image understanding for any visual content
-- **Video Analysis** - Analyze video content (MP4/MOV/M4V, up to 8MB)
-
 ### 🔍 Web Search
-- **Web Search Prime** - Search the web with rich results (title, URL, summary, site icon)
+- **Web Search Agent** - Search the web with rich results (title, URL, summary, site icon)
 - **Domain Filtering** - Limit search results to specific domains
 - **Time Range Filter** - Filter by day/week/month/year
 - **Region Support** - Optimize for CN or US regions
@@ -125,8 +115,7 @@ English | [简体中文](README_CN.md)
 - **Dual Storage** - File system + MongoDB backup
 - **Access Control** - User-level skill permissions
 - **GitHub Sync** - Sync custom skills from GitHub repositories
-- **Skill Store** - Browse and install community skills
-- **Skill Creator** - Built-in skill creation agent with evaluation tools
+- **Skill Creator** - Built-in skill creation toolkit with evaluation tools
 - **5 Skill Slots** - Enable up to 5 skills per session
 
 ### 💬 Feedback System
@@ -148,12 +137,10 @@ English | [简体中文](README_CN.md)
 - **WebSocket Support** - Real-time bidirectional communication
 - **Auto Reconnect** - Resume conversation after disconnection
 - **Session Sharing** - Share conversations with public or authenticated links
-- **Message Search** - Full-text search across all conversations
 
 ### 🔐 Security & Auth
 - **JWT Authentication** - Complete auth flow with token refresh
 - **RBAC Roles** - Admin / User / Guest levels
-- **Multi-tenancy** - Tenant-level resource isolation
 - **Password Encryption** - bcrypt hashing
 - **OAuth Support** - Login with Google, GitHub, etc.
 - **Email Verification** - Secure email-based account verification
@@ -173,20 +160,18 @@ English | [简体中文](README_CN.md)
 - **Project Management** - Organize chats by projects
 
 ### 📊 Observability & Admin
-- **LangSmith Tracing** - LangSmith integration for agent tracing
+- **LangSmith Tracing** - Optional LangSmith integration for agent tracing
 - **Structured Logging** - Context-aware structured logging
 - **Health Check** - API health and readiness endpoints
 - **User Management** - View and manage users
 - **Role Assignment** - Configure agent access per role
-- **Audit Logging** - Track system activities
 
 ### 🎨 Frontend
 - **Modern Stack** - React 19 + Vite + TailwindCSS
 - **ChatGPT Style** - Familiar chat interface
 - **Theme Support** - Dark/Light mode with smooth transitions
-- **i18n** - Multi-language support (English, Chinese, more coming)
+- **i18n** - Multi-language support (English, Chinese, Japanese, Korean)
 - **Responsive Design** - Mobile, tablet, and desktop optimized
-- **PWA Ready** - Install as a progressive web app
 - **Agent Switcher** - Toggle between Core/Fast/Search agents
 
 ## ⚙️ Configuration
