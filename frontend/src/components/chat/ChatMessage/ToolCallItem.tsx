@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { clsx } from "clsx";
-import { Wrench, ExternalLink, Code2, FolderTree, FileText } from "lucide-react";
+import { Wrench, ExternalLink, Code2, FolderTree, FileText, Pencil, FilePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CollapsiblePill, ImageViewer } from "../../common";
 import type { CollapsibleStatus } from "../../common";
@@ -118,6 +118,136 @@ const ReadFileItem = memo(function ReadFileItem({
   );
 });
 
+// Edit File 工具专用渲染 — 显示 old → new 替换
+const EditFileItem = memo(function EditFileItem({
+  args,
+  result,
+  success,
+  isPending,
+}: {
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+}) {
+  const filePath = (args.file_path as string) || "";
+  const fileName = filePath.split("/").pop() || filePath;
+  const oldString = (args.old_string as string) || "";
+  const newString = (args.new_string as string) || "";
+
+  const canExpand = !!oldString || !!newString || !!result;
+
+  return (
+    <CollapsiblePill
+      status={isPending ? "loading" : success ? "success" : "error"}
+      icon={<Pencil size={12} className="shrink-0 opacity-50" />}
+      label={fileName || "Edit"}
+      variant="tool"
+      expandable={canExpand}
+    >
+      {canExpand && (
+        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50">
+          {/* 文件路径 header */}
+          <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono">
+            <span className="truncate">{filePath}</span>
+          </div>
+          {/* old → new */}
+          {oldString && (
+            <div className="mb-2">
+              <div className="text-xs text-red-500 dark:text-red-400 mb-1 font-medium">-</div>
+              <pre
+                className={clsx(
+                  "text-xs max-h-32 overflow-y-auto rounded-md p-2.5",
+                  "bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40",
+                  "text-red-700 dark:text-red-300 whitespace-pre-wrap break-words font-mono",
+                )}
+              >
+                {oldString}
+              </pre>
+            </div>
+          )}
+          {newString && (
+            <div className="mb-2">
+              <div className="text-xs text-emerald-500 dark:text-emerald-400 mb-1 font-medium">+</div>
+              <pre
+                className={clsx(
+                  "text-xs max-h-32 overflow-y-auto rounded-md p-2.5",
+                  "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40",
+                  "text-emerald-700 dark:text-emerald-300 whitespace-pre-wrap break-words font-mono",
+                )}
+              >
+                {newString}
+              </pre>
+            </div>
+          )}
+          {/* result (e.g. success message) */}
+          {result && typeof result === "string" && (
+            <pre className="text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words mt-1">
+              {result}
+            </pre>
+          )}
+        </div>
+      )}
+    </CollapsiblePill>
+  );
+});
+
+// Write File 工具专用渲染 — 显示写入内容
+const WriteFileItem = memo(function WriteFileItem({
+  args,
+  result,
+  success,
+  isPending,
+}: {
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+}) {
+  const filePath = (args.file_path as string) || "";
+  const fileName = filePath.split("/").pop() || filePath;
+  const content = (args.content as string) || "";
+
+  const canExpand = !!content || !!result;
+
+  return (
+    <CollapsiblePill
+      status={isPending ? "loading" : success ? "success" : "error"}
+      icon={<FilePlus size={12} className="shrink-0 opacity-50" />}
+      label={fileName || "Write"}
+      variant="tool"
+      expandable={canExpand}
+    >
+      {canExpand && (
+        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50">
+          {/* 文件路径 header */}
+          <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono">
+            <span className="truncate">{filePath}</span>
+          </div>
+          {/* 写入内容 */}
+          {content && (
+            <pre
+              className={clsx(
+                "text-xs max-h-64 overflow-y-auto rounded-md p-3",
+                "bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50",
+                "text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono",
+              )}
+            >
+              {content}
+            </pre>
+          )}
+          {/* result */}
+          {result && typeof result === "string" && (
+            <pre className="text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words mt-1">
+              {result}
+            </pre>
+          )}
+        </div>
+      )}
+    </CollapsiblePill>
+  );
+});
+
 // 工具结果渲染组件 — 支持 str / dict / MCP 多模态
 function ToolResultContent({
   result,
@@ -218,7 +348,7 @@ function McpBlockPreview({ block }: { block: McpContentBlock }) {
 }
 
 // Collapsible Tool Call Item (compact design)
-export { ReadFileItem };
+export { ReadFileItem, EditFileItem, WriteFileItem };
 
 export function ToolCallItem({
   name,

@@ -305,8 +305,7 @@ export function processMessageEvent(
     case "tool:result": {
       const toolCallId = data.tool_call_id as string | undefined;
       const toolName = data.tool || "";
-      const isSuccess =
-        data.success !== false && !data.result?.toString().startsWith("Error:");
+      const isSuccess = data.success !== false;
       const errorMsg = data.error as string | undefined;
       const resultContent = data.result || "";
 

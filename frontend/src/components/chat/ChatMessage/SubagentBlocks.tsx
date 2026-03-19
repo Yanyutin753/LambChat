@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Brain,
   Users,
-  Wrench,
   Box,
   Clock,
   Loader2,
@@ -16,7 +15,8 @@ import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CollapsiblePill } from "../../common";
 import type { CollapsibleStatus } from "../../common";
 import type { MessagePart } from "../../../types";
-import { MarkdownContent, truncateText } from "./MarkdownContent";
+import { MarkdownContent } from "./MarkdownContent";
+import { MessagePartRenderer } from "./MessagePartRenderer";
 
 /**
  * Calculate elapsed time between start and end (precise to milliseconds)
@@ -301,7 +301,7 @@ export function SubagentBlock({
           {parts && parts.length > 0 && (
             <div className="space-y-2 pl-3 border-l-2 border-stone-200 dark:border-stone-700">
               {parts.map((part, index) => (
-                <SubagentContentRenderer
+                <MessagePartRenderer
                   key={index}
                   part={part}
                   isStreaming={isPending}
@@ -344,77 +344,6 @@ export function SubagentBlock({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-// Subagent internal tool call component (separately extracted to follow hooks rules)
-function SubagentToolItem({
-  part,
-}: {
-  part: Extract<MessagePart, { type: "tool" }>;
-}) {
-  const { t } = useTranslation();
-
-  // Determine status based on part state
-  let status: CollapsibleStatus = "idle";
-  if (part.isPending) {
-    status = "loading";
-  } else if (part.success) {
-    status = "success";
-  } else if (part.result) {
-    status = "error";
-  }
-
-  const hasArgs = part.args && Object.keys(part.args).length > 0;
-  const hasResult = !!part.result;
-  const canExpand = hasArgs || hasResult;
-
-  // Format label: capitalize first letter and convert underscores to spaces
-  const formattedName = part.name
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-
-  return (
-    <div className="rounded-lg overflow-hidden">
-      <CollapsiblePill
-        status={status}
-        icon={<Wrench size={12} className="shrink-0 opacity-50" />}
-        label={formattedName}
-        variant="tool"
-        expandable={canExpand}
-      >
-        {canExpand && (
-          <div className="px-3 pb-2 space-y-2 border-t border-stone-200/50 dark:border-stone-600/50">
-            {hasArgs && (
-              <div>
-                <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
-                  {t("chat.message.parameters")}
-                </div>
-                <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 overflow-auto">
-                  {JSON.stringify(part.args, null, 2)}
-                </pre>
-              </div>
-            )}
-            {hasResult && (
-              <div>
-                <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
-                  {t("chat.message.result")}
-                </div>
-                <pre className="text-xs text-stone-600 dark:text-stone-300 bg-stone-50 dark:bg-stone-800 rounded p-1.5 max-h-24 overflow-auto">
-                  {truncateText(
-                    typeof part.result === "string"
-                      ? part.result
-                      : JSON.stringify(part.result),
-                    500,
-                  )}
-                </pre>
-              </div>
-            )}
-          </div>
-        )}
-      </CollapsiblePill>
     </div>
   );
 }
@@ -468,72 +397,4 @@ export function SandboxItem({
   );
 }
 
-// Subagent internal content renderer (independent from main agent rendering logic)
-export function SubagentContentRenderer({
-  part,
-  isStreaming,
-  isLast,
-}: {
-  part: MessagePart;
-  isStreaming?: boolean;
-  isLast: boolean;
-}) {
-  // Text - use markdown rendering
-  if (part.type === "text") {
-    return (
-      <div className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
-        <MarkdownContent
-          content={part.content || ""}
-          isStreaming={isStreaming && isLast}
-        />
-      </div>
-    );
-  }
 
-  // Tool call - use independent component
-  if (part.type === "tool") {
-    return <SubagentToolItem part={part} />;
-  }
-
-  // Thinking - use ThinkingBlock component
-  if (part.type === "thinking") {
-    return (
-      <ThinkingBlock
-        content={part.content || ""}
-        isStreaming={isStreaming && isLast && part.isStreaming}
-      />
-    );
-  }
-
-  // Nested subagent (recursive)
-  if (part.type === "subagent") {
-    return (
-      <SubagentBlock
-        agent_id={part.agent_id}
-        agent_name={part.agent_name}
-        input={part.input}
-        result={part.result}
-        success={part.success}
-        isPending={part.isPending}
-        parts={part.parts}
-        startedAt={part.startedAt}
-        completedAt={part.completedAt}
-        status={part.status}
-        error={part.error}
-      />
-    );
-  }
-
-  // Sandbox status block
-  if (part.type === "sandbox") {
-    return (
-      <SandboxItem
-        status={part.status}
-        sandboxId={part.sandbox_id}
-        error={part.error}
-      />
-    );
-  }
-
-  return null;
-}
