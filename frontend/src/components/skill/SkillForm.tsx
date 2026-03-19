@@ -5,14 +5,7 @@ import { Maximize2, Minimize2, X, Plus } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { javascript } from "@codemirror/lang-javascript";
-import { python } from "@codemirror/lang-python";
-import { yaml } from "@codemirror/lang-yaml";
-import { json } from "@codemirror/lang-json";
-import { html } from "@codemirror/lang-html";
-import { css } from "@codemirror/lang-css";
-import { sql } from "@codemirror/lang-sql";
+import { getLangSupport } from "../common/CodeMirrorViewer";
 import type { SkillResponse, SkillCreate } from "../../types";
 
 interface FileEntry {
@@ -51,39 +44,6 @@ Describe what this skill does.
 ## Examples
 Example usage here.
 `;
-
-function getLangSupport(filePath?: string) {
-  if (!filePath) return markdown({ base: markdownLanguage });
-  const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-  switch (ext) {
-    case "js":
-    case "jsx":
-      return javascript({ jsx: true });
-    case "ts":
-    case "tsx":
-      return javascript({ jsx: true, typescript: true });
-    case "py":
-      return python();
-    case "md":
-      return markdown({ base: markdownLanguage });
-    case "yaml":
-    case "yml":
-      return yaml();
-    case "json":
-      return json();
-    case "html":
-    case "htm":
-      return html();
-    case "css":
-    case "scss":
-    case "less":
-      return css();
-    case "sql":
-      return sql();
-    default:
-      return markdown({ base: markdownLanguage });
-  }
-}
 
 // CodeMirror-based editor with search/replace, line numbers, syntax highlighting
 function SkillEditor({
@@ -125,7 +85,7 @@ function SkillEditor({
         onChange={onChange}
         theme={isDark ? oneDark : undefined}
         extensions={[
-          getLangSupport(filePath),
+          getLangSupport(filePath) ?? [],
           EditorView.theme({
             "&": { whiteSpace: "pre" },
             ".cm-content": { whiteSpace: "pre" },

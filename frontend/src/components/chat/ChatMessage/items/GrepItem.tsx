@@ -1,8 +1,8 @@
 import { memo, useMemo } from "react";
-import { clsx } from "clsx";
 import { Search, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
+import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { extractText } from "./toolUtils";
 
 const GrepItem = memo(function GrepItem({
@@ -61,39 +61,6 @@ const GrepItem = memo(function GrepItem({
   const canExpand =
     !!pattern || parsedResult.files.length > 0 || parsedResult.lines.length > 0;
 
-  const highlightRe = useMemo(() => {
-    if (!pattern) return null;
-    try {
-      return new RegExp(
-        `(${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
-        "gi",
-      );
-    } catch {
-      return null;
-    }
-  }, [pattern]);
-
-  const highlightPattern = (text: string) => {
-    if (!highlightRe) return text;
-    try {
-      const parts = text.split(highlightRe);
-      return parts.map((part, i) =>
-        i % 2 === 1 ? (
-          <mark
-            key={i}
-            className="bg-yellow-200 dark:bg-yellow-700/60 text-inherit rounded-sm px-0.5"
-          >
-            {part}
-          </mark>
-        ) : (
-          part
-        ),
-      );
-    } catch {
-      return text;
-    }
-  };
-
   return (
     <CollapsiblePill
       status={isPending ? "loading" : success ? "success" : "error"}
@@ -147,29 +114,21 @@ const GrepItem = memo(function GrepItem({
             </div>
           )}
           {outputMode === "content" && parsedResult.lines.length > 0 && (
-            <pre
-              className={clsx(
-                "text-xs max-h-48 overflow-y-auto rounded-md p-2.5",
-                "bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50",
-                "text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono",
-              )}
-            >
-              {parsedResult.lines.slice(0, 50).map((line, i) => (
-                <div
-                  key={i}
-                  className="hover:bg-stone-100 dark:hover:bg-stone-800/50 rounded px-1 -mx-1"
-                >
-                  {highlightPattern(line)}
-                </div>
-              ))}
+            <div className="max-h-48 overflow-y-auto rounded-md border border-stone-200/60 dark:border-stone-700/50">
+              <CodeMirrorViewer
+                value={parsedResult.lines.slice(0, 50).join("\n")}
+                lineNumbers={false}
+                maxHeight="12rem"
+                fontSize="0.75rem"
+              />
               {parsedResult.lines.length > 50 && (
-                <div className="text-stone-400 dark:text-stone-500 mt-1">
+                <div className="text-stone-400 dark:text-stone-500 mt-1 text-xs px-2 pb-2">
                   {t("chat.message.toolMoreLines", {
                     count: parsedResult.lines.length - 50,
                   })}
                 </div>
               )}
-            </pre>
+            </div>
           )}
           {result &&
             (() => {

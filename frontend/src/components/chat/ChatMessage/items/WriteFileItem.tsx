@@ -1,8 +1,8 @@
 import { memo } from "react";
-import { clsx } from "clsx";
 import { FilePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
+import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { extractText } from "./toolUtils";
 
 const WriteFileItem = memo(function WriteFileItem({
@@ -37,15 +37,15 @@ const WriteFileItem = memo(function WriteFileItem({
             <span className="truncate">{filePath}</span>
           </div>
           {content && (
-            <pre
-              className={clsx(
-                "text-xs max-h-64 overflow-y-auto rounded-md p-3",
-                "bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50",
-                "text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono",
-              )}
-            >
-              {content}
-            </pre>
+            <div className="max-h-64 overflow-y-auto rounded-md border border-stone-200/60 dark:border-stone-700/50">
+              <CodeMirrorViewer
+                value={content}
+                filePath={filePath}
+                lineNumbers={false}
+                maxHeight="16rem"
+                fontSize="0.75rem"
+              />
+            </div>
           )}
           {result &&
             (() => {

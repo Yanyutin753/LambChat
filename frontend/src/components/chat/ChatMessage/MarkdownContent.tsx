@@ -3,16 +3,12 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import {
-  oneLight,
-  oneDark,
-} from "react-syntax-highlighter/dist/esm/styles/prism";
-import React, { useEffect, useState, memo } from "react";
+import React, { memo } from "react";
 import { Copy, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { MermaidDiagram } from "./MermaidDiagram";
+import { CodeMirrorViewer } from "../../common/CodeMirrorViewer";
 
 // Code block component with copy button and enhanced styling
 function CodeBlock({
@@ -27,25 +23,10 @@ function CodeBlock({
   isStreaming?: boolean;
 }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+  const [copied, setCopied] = React.useState(false);
   const match = /language-(\w+)/.exec(className || "");
   const language = match ? match[1] : "";
   const codeString = String(children).replace(/\n$/, "");
-
-  // Detect dark mode
-  useEffect(() => {
-    const checkDark = () => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    };
-    checkDark();
-    const observer = new MutationObserver(checkDark);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => observer.disconnect();
-  }, []);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(codeString);
@@ -65,9 +46,6 @@ function CodeBlock({
       </code>
     );
   }
-
-  // Split code into lines for line numbers
-  const codeLines = codeString.split("\n");
 
   return (
     <div className="group relative my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700">
@@ -108,86 +86,14 @@ function CodeBlock({
       </div>
 
       {/* Code content */}
-      {language ? (
-        (() => {
-          const digits = String(codeLines.length).length;
-          const lineNumWidth = `${Math.max(digits, 3) + 1}em`;
-          return (
-        <SyntaxHighlighter
-          language={language}
-          style={isDark ? oneDark : oneLight}
-          showLineNumbers={true}
-          wrapLines={true}
-          customStyle={{
-            margin: 0,
-            padding: "0.75rem",
-            fontSize: "0.75rem",
-            lineHeight: "1.7",
-            background: "transparent",
-          }}
-          lineNumberStyle={{
-            minWidth: lineNumWidth,
-            width: lineNumWidth,
-            paddingRight: "1em",
-            textAlign: "right",
-            color: isDark ? "#71717a" : "#a1a1aa",
-            borderRight: isDark ? "1px solid #44403c" : "1px solid #e7e5e4",
-            userSelect: "none",
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily:
-                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            },
-          }}
-        >
-          {codeString}
-        </SyntaxHighlighter>
-          );
-        })()
-      ) : (
-        /* Plain code block without syntax highlighting (no language specified) */
-        (() => {
-          const digits = String(codeLines.length).length;
-          const lineNumWidth = `${Math.max(digits, 3) + 1}em`;
-          return (
-        <div className="overflow-x-auto">
-          <pre
-            className="p-3 text-xs leading-relaxed font-mono"
-            style={{
-              fontFamily:
-                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-              margin: 0,
-              fontSize: "0.75rem",
-              lineHeight: "1.7",
-            }}
-          >
-            <code>
-              {codeLines.map((line, i) => (
-                <div key={i} className="flex">
-                  <span
-                    className="select-none shrink-0 text-right pr-4 mr-4"
-                    style={{
-                      minWidth: lineNumWidth,
-                      width: lineNumWidth,
-                      color: isDark ? "#71717a" : "#a1a1aa",
-                      borderRight: isDark
-                        ? "1px solid #44403c"
-                        : "1px solid #e7e5e4",
-                      userSelect: "none",
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span className="whitespace-pre">{line}</span>
-                </div>
-              ))}
-            </code>
-          </pre>
-        </div>
-          );
-        })()
-      )}
+      <CodeMirrorViewer
+        value={codeString}
+        language={language || undefined}
+        lineNumbers={true}
+        maxHeight="400px"
+        fontSize="0.75rem"
+        className="[&_.cm-editor]:rounded-none [&_.cm-gutters]:border-r-0"
+      />
     </div>
   );
 }
