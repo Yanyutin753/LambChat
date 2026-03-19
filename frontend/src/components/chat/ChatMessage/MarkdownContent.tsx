@@ -109,6 +109,10 @@ function CodeBlock({
 
       {/* Code content */}
       {language ? (
+        (() => {
+          const digits = String(codeLines.length).length;
+          const lineNumWidth = `${Math.max(digits, 3) + 1}em`;
+          return (
         <SyntaxHighlighter
           language={language}
           style={isDark ? oneDark : oneLight}
@@ -122,8 +126,8 @@ function CodeBlock({
             background: "transparent",
           }}
           lineNumberStyle={{
-            minWidth: "5em",
-            width: "5em",
+            minWidth: lineNumWidth,
+            width: lineNumWidth,
             paddingRight: "1em",
             textAlign: "right",
             color: isDark ? "#71717a" : "#a1a1aa",
@@ -139,8 +143,14 @@ function CodeBlock({
         >
           {codeString}
         </SyntaxHighlighter>
+          );
+        })()
       ) : (
         /* Plain code block without syntax highlighting (no language specified) */
+        (() => {
+          const digits = String(codeLines.length).length;
+          const lineNumWidth = `${Math.max(digits, 3) + 1}em`;
+          return (
         <div className="overflow-x-auto">
           <pre
             className="p-3 text-xs leading-relaxed font-mono"
@@ -158,8 +168,8 @@ function CodeBlock({
                   <span
                     className="select-none shrink-0 text-right pr-4 mr-4"
                     style={{
-                      minWidth: "5em",
-                      width: "5em",
+                      minWidth: lineNumWidth,
+                      width: lineNumWidth,
                       color: isDark ? "#71717a" : "#a1a1aa",
                       borderRight: isDark
                         ? "1px solid #44403c"
@@ -175,6 +185,8 @@ function CodeBlock({
             </code>
           </pre>
         </div>
+          );
+        })()
       )}
     </div>
   );
