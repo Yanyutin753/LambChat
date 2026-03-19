@@ -3,9 +3,6 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Use China mirrors
-RUN npm config set registry https://registry.npmmirror.com
-
 # Copy package files
 COPY frontend/package*.json ./
 
@@ -23,10 +20,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Use China Debian mirror (HTTPS)
-RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list 2>/dev/null || true
-
 # Install Node.js 20.x and build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -38,15 +31,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install uv with China mirror
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip install --no-cache-dir uv
+# Install uv
+RUN pip install --no-cache-dir uv
 
 # Copy dependency files
 COPY pyproject.toml uv.lock* README.md ./
 
-# Install dependencies directly (no venv) with China mirror
-ENV UV_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+# Install dependencies directly (no venv)
 RUN uv sync --frozen --no-dev --no-cache
 
 # Copy source code
