@@ -181,12 +181,14 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
                   }}
                   showLineNumbers
                   lineNumberStyle={{
-                    minWidth: "2.5em",
+                    minWidth: "3.5em",
                     paddingRight: "1em",
+                    marginRight: "0.75em",
                     textAlign: "right",
                     color: isDark ? "#6b7280" : "#9ca3af",
                     userSelect: "none",
                     fontSize: "0.75rem",
+                    borderRight: isDark ? "1px solid #3e4451" : "1px solid #e1e4e8",
                   }}
                   wrapLines={false}
                   wrapLongLines={false}

@@ -125,43 +125,53 @@ function SourceView({
   }, []);
 
   const lines = content.split("\n");
-  const lineNumWidth = String(lines.length).length;
-  const padWidth = Math.max(lineNumWidth, 3); // minimum 3 chars for alignment
+  // Calculate fixed pixel width: ~8px per digit, minimum 3 digits (24px)
+  const lineCount = lines.length;
+  const digitCount = String(lineCount).length;
+  const lineNumWidthPx = Math.max(digitCount, 3) * 8 + 32; // digits + padding
 
   return (
     <div className="w-full h-full overflow-auto bg-stone-100 dark:bg-[#282c34]">
-      <pre className="text-sm leading-relaxed" style={{ fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace', margin: 0, padding: "1rem 1rem 1rem 0" }}>
-        <code>
-          {lines.map((line, i) => (
-            <div key={i} className="flex hover:bg-stone-200/50 dark:hover:bg-white/5">
-              {/* Fixed-width line number column */}
-              <span
-                className="inline-block shrink-0 select-none text-right pr-4 pl-4"
-                style={{
-                  minWidth: `${padWidth + 2}ch`,
-                  color: isDark ? "#6b7280" : "#9ca3af",
-                  fontSize: "0.75rem",
-                  lineHeight: "1.6",
-                  // Add a vertical separator line
-                  borderRight: `1px solid ${isDark ? "#3e4451" : "#e1e4e8"}`,
-                  marginRight: "1rem",
-                }}
-              >
-                {i + 1}
-              </span>
-              {/* Code content */}
-              <span
-                className="flex-1 whitespace-pre"
-                style={{
-                  color: isDark ? "#abb2bf" : "#24292e",
-                  lineHeight: "1.6",
-                }}
-              >
-                {line || " "}
-              </span>
-            </div>
-          ))}
-        </code>
+      <pre
+        className="text-sm leading-relaxed flex flex-col"
+        style={{
+          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+          margin: 0,
+          padding: "1rem 0",
+        }}
+      >
+        {lines.map((line, i) => (
+          <div
+            key={i}
+            className="flex hover:bg-stone-200/50 dark:hover:bg-white/5"
+          >
+            {/* Fixed-width line number column */}
+            <span
+              className="inline-block shrink-0 select-none text-right"
+              style={{
+                width: `${lineNumWidthPx}px`,
+                color: isDark ? "#6b7280" : "#9ca3af",
+                fontSize: "0.75rem",
+                lineHeight: "1.6",
+                paddingRight: "0.75em",
+                borderRight: `1px solid ${isDark ? "#3e4451" : "#e1e4e8"}`,
+                marginRight: "0.75em",
+              }}
+            >
+              {i + 1}
+            </span>
+            {/* Code content */}
+            <span
+              className="flex-1 whitespace-pre"
+              style={{
+                color: isDark ? "#abb2bf" : "#24292e",
+                lineHeight: "1.6",
+              }}
+            >
+              {line || " "}
+            </span>
+          </div>
+        ))}
       </pre>
     </div>
   );

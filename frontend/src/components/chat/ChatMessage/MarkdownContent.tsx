@@ -118,12 +118,12 @@ function CodeBlock({
           background: "transparent",
         }}
         lineNumberStyle={{
-          minWidth: "2.5em",
+          minWidth: "3em",
           paddingRight: "1em",
-          marginRight: "1em",
+          marginRight: "0.75em",
           textAlign: "right",
           color: isDark ? "#71717a" : "#a1a1aa",
-          borderRight: isDark ? "1px solid #44403c" : "1px solid #e7e5e4",
+          borderRight: isDark ? "1px solid #3e4451" : "1px solid #e1e4e8",
         }}
         codeTagProps={{
           style: {
