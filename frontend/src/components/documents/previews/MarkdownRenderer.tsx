@@ -157,6 +157,10 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
             }
 
             // Code block with syntax highlighting
+            const lineCount = codeContent.split("\n").length;
+            const digits = String(lineCount).length;
+            const lineNumMinWidth = `${Math.max(digits, 3) + 1}em`;
+
             return (
               <div className="my-4 rounded-xl overflow-hidden shadow-lg ring-1 ring-stone-200 dark:ring-stone-700">
                 {language && (
@@ -181,7 +185,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
                   }}
                   showLineNumbers
                   lineNumberStyle={{
-                    minWidth: "3.5em",
+                    minWidth: lineNumMinWidth,
                     paddingRight: "1em",
                     marginRight: "0.75em",
                     textAlign: "right",

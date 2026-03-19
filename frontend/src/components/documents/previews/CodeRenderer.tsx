@@ -48,6 +48,11 @@ const CodeRenderer = memo(function CodeRenderer({
     return content;
   }, [content, t]);
 
+  // Dynamic line number width based on total line count
+  const lineCount = useMemo(() => displayContent.split("\n").length, [displayContent]);
+  const digitCount = String(lineCount).length;
+  const lineNumMinWidth = `${Math.max(digitCount, 3) + 1}em`;
+
   return (
     <div className="relative h-full overflow-auto bg-stone-100 dark:bg-[#282c34]">
       <SyntaxHighlighter
@@ -62,7 +67,7 @@ const CodeRenderer = memo(function CodeRenderer({
         }}
         showLineNumbers
         lineNumberStyle={{
-          minWidth: "3.5em",
+          minWidth: lineNumMinWidth,
           paddingRight: "1em",
           marginRight: "0.75em",
           textAlign: "right",

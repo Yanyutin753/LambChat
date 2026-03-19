@@ -105,6 +105,12 @@ function CodeBlock({
       </div>
 
       {/* Code content with syntax highlighting and line numbers */}
+      {/* Dynamic line number width based on actual line count */}
+      {(() => {
+        const lines = codeString.split("\n").length;
+        const digits = String(lines).length;
+        const lineNumMinWidth = `${Math.max(digits, 3) + 1}em`;
+        return (
       <SyntaxHighlighter
         language={language || "text"}
         style={isDark ? oneDark : oneLight}
@@ -118,7 +124,7 @@ function CodeBlock({
           background: "transparent",
         }}
         lineNumberStyle={{
-          minWidth: "3em",
+          minWidth: lineNumMinWidth,
           paddingRight: "1em",
           marginRight: "0.75em",
           textAlign: "right",
@@ -134,6 +140,8 @@ function CodeBlock({
       >
         {codeString}
       </SyntaxHighlighter>
+        );
+      })()}
     </div>
   );
 }
