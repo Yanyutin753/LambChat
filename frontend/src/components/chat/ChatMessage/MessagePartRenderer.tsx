@@ -10,6 +10,8 @@ import {
   ReadFileItem,
   EditFileItem,
   WriteFileItem,
+  GrepItem,
+  LsItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { TodoBlock } from "./TodoBlock";
@@ -84,6 +86,28 @@ export function MessagePartRenderer({
     if (part.name === "Write" || part.name === "write_file") {
       return (
         <WriteFileItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+        />
+      );
+    }
+    // Detect grep tool, use dedicated component
+    if (part.name === "Grep" || part.name === "grep") {
+      return (
+        <GrepItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+        />
+      );
+    }
+    // Detect ls tool, use dedicated component
+    if (part.name === "Ls" || part.name === "ls" || part.name === "list_directory") {
+      return (
+        <LsItem
           args={part.args}
           result={part.result}
           success={part.success}

@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { clsx } from "clsx";
-import { Wrench, ExternalLink, Code2, FolderTree, FileText, Pencil, FilePlus } from "lucide-react";
+import { Wrench, ExternalLink, Code2, FolderTree, FileText, Pencil, FilePlus, Search, FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CollapsiblePill, ImageViewer } from "../../common";
 import type { CollapsibleStatus } from "../../common";
@@ -78,9 +78,8 @@ const ReadFileItem = memo(function ReadFileItem({
 
   // useMemo 缓存行号去除，避免大文件重复计算
   const displayContent = useMemo(() => {
-    if (!result) return "";
-    const raw = typeof result === "string" ? result : JSON.stringify(result, null, 2);
-    return stripLineNumbers(raw);
+    const raw = extractText(result);
+    return raw ? stripLineNumbers(raw) : "";
   }, [result]);
 
   return (
@@ -181,11 +180,14 @@ const EditFileItem = memo(function EditFileItem({
             </div>
           )}
           {/* result (e.g. success message) */}
-          {result && typeof result === "string" && (
-            <pre className="text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words mt-1">
-              {result}
-            </pre>
-          )}
+          {result && (() => {
+            const text = extractText(result);
+            return text ? (
+              <pre className="text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words mt-1">
+                {text}
+              </pre>
+            ) : null;
+          })()}
         </div>
       )}
     </CollapsiblePill>
@@ -237,11 +239,181 @@ const WriteFileItem = memo(function WriteFileItem({
             </pre>
           )}
           {/* result */}
-          {result && typeof result === "string" && (
-            <pre className="text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words mt-1">
-              {result}
+          {result && (() => {
+            const text = extractText(result);
+            return text ? (
+              <pre className="text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words mt-1">
+                {text}
+              </pre>
+            ) : null;
+          })()}
+        </div>
+      )}
+    </CollapsiblePill>
+  );
+});
+
+// Grep 工具专用渲染 — 搜索模式 + 高亮匹配 + 文件列表
+const GrepItem = memo(function GrepItem({
+  args,
+  result,
+  success,
+  isPending,
+}: {
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+}) {
+  const pattern = (args.pattern as string) || "";
+  const searchPath = (args.path as string) || "";
+  const glob = (args.glob as string) || "";
+  const outputMode = (args.output_mode as string) || "files_with_matches";
+
+  // 解析结果：result 可能是字符串，提取匹配行和文件列表
+  const parsedResult = useMemo(() => {
+    if (!result) return { files: [] as string[], lines: [] as string[] };
+    const raw = extractText(result);
+    try {
+      const obj = JSON.parse(raw);
+      if (Array.isArray(obj)) {
+        // [{file, matches: [{line, col, text}]}] 或 [filename, ...]
+        const files: string[] = [];
+        const lines: string[] = [];
+        for (const item of obj) {
+          if (typeof item === "string") {
+            files.push(item);
+          } else if (item && typeof item === "object") {
+            const file = (item as Record<string, unknown>).file as string;
+            if (file) files.push(file);
+            const matches = (item as Record<string, unknown>).matches;
+            if (Array.isArray(matches)) {
+              for (const m of matches) {
+                const match = m as Record<string, unknown>;
+                lines.push(`${file}:${match.line ?? ""}:${match.text ?? ""}`);
+              }
+            }
+          }
+        }
+        return { files, lines };
+      }
+    } catch {
+      // 非 JSON，按行解析 ripgrep 风格输出
+    }
+
+    // 按行解析纯文本结果 (file:line:content 格式)
+    const lines: string[] = raw.split("\n").filter(Boolean);
+    const files = [...new Set(lines.map((l) => l.split(":")[0]).filter(Boolean))];
+    return { files, lines };
+  }, [result]);
+
+  const canExpand = !!pattern || parsedResult.files.length > 0 || parsedResult.lines.length > 0;
+
+  // 高亮搜索模式匹配的文本（使用 useMemo 避免重复编译正则）
+  const highlightRe = useMemo(() => {
+    if (!pattern) return null;
+    try {
+      return new RegExp(`(${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, "gi");
+    } catch {
+      return null;
+    }
+  }, [pattern]);
+
+  const highlightPattern = (text: string) => {
+    if (!highlightRe) return text;
+    try {
+      // split(re) 将匹配项（捕获组）放在奇数索引位置
+      const parts = text.split(highlightRe);
+      return parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <mark key={i} className="bg-yellow-200 dark:bg-yellow-700/60 text-inherit rounded-sm px-0.5">
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      );
+    } catch {
+      return text;
+    }
+  };
+
+  return (
+    <CollapsiblePill
+      status={isPending ? "loading" : success ? "success" : "error"}
+      icon={<Search size={12} className="shrink-0 opacity-50" />}
+      label={`grep: ${pattern || "search"}`}
+      variant="tool"
+      expandable={canExpand}
+    >
+      {canExpand && (
+        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50">
+          {/* 搜索参数 header */}
+          <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono flex-wrap">
+            <span className="text-violet-600 dark:text-violet-400 font-semibold">{pattern}</span>
+            {searchPath && (
+              <span className="text-stone-400 dark:text-stone-500">in {searchPath}</span>
+            )}
+            {glob && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300">
+                {glob}
+              </span>
+            )}
+          </div>
+          {/* 匹配结果 */}
+          {parsedResult.files.length > 0 && (
+            <div className="mb-2">
+              <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
+                {parsedResult.files.length} {parsedResult.files.length === 1 ? "file" : "files"}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {parsedResult.files.slice(0, 10).map((f, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-600 dark:text-stone-300 font-mono"
+                  >
+                    <FileText size={10} className="shrink-0 opacity-40" />
+                    {f.split("/").pop() || f}
+                  </span>
+                ))}
+                {parsedResult.files.length > 10 && (
+                  <span className="text-xs text-stone-400 dark:text-stone-500 px-1">
+                    +{parsedResult.files.length - 10} more
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          {/* 匹配行详情 (content 模式) */}
+          {outputMode === "content" && parsedResult.lines.length > 0 && (
+            <pre
+              className={clsx(
+                "text-xs max-h-48 overflow-y-auto rounded-md p-2.5",
+                "bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50",
+                "text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono",
+              )}
+            >
+              {parsedResult.lines.slice(0, 50).map((line, i) => (
+                <div key={i} className="hover:bg-stone-100 dark:hover:bg-stone-800/50 rounded px-1 -mx-1">
+                  {highlightPattern(line)}
+                </div>
+              ))}
+              {parsedResult.lines.length > 50 && (
+                <div className="text-stone-400 dark:text-stone-500 mt-1">
+                  ... +{parsedResult.lines.length - 50} more lines
+                </div>
+              )}
             </pre>
           )}
+          {/* result 文本（fallback） */}
+          {result && (() => {
+            const text = extractText(result);
+            return text && parsedResult.lines.length === 0 && parsedResult.files.length === 0 ? (
+              <pre className="text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words">
+                {text}
+              </pre>
+            ) : null;
+          })()}
         </div>
       )}
     </CollapsiblePill>
@@ -254,6 +426,9 @@ function ToolResultContent({
 }: {
   result?: string | Record<string, unknown>;
 }) {
+  // 提取纯文本（兼容 LangChain 原生格式）
+  const textContent = extractText(result);
+
   // MCP 多模态格式: {"text": "...", "blocks": [...]}
   if (
     typeof result === "object" &&
@@ -282,15 +457,15 @@ function ToolResultContent({
     );
   }
 
-  // 普通字符串
-  if (typeof result === "string") {
-    return isMarkdownText(result) ? (
+  // 普通文本（包括从 LangChain 格式提取的）
+  if (textContent) {
+    return isMarkdownText(textContent) ? (
       <div className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto">
-        <MarkdownContent content={result} />
+        <MarkdownContent content={textContent} />
       </div>
     ) : (
       <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
-        {result}
+        {textContent}
       </pre>
     );
   }
@@ -347,8 +522,162 @@ function McpBlockPreview({ block }: { block: McpContentBlock }) {
   return null;
 }
 
+// 从工具结果中提取纯文本（兼容 LangChain 原生格式）
+// LangChain 工具返回结果可能是:
+//   - string: 直接返回
+//   - {"content": [{"type": "text", "text": "..."}]}: 提取 text
+//   - {"text": "..."}: 提取 text
+//   - [{"type": "text", "text": "..."}]: 提取 text
+//   - 其他 dict: JSON.stringify
+function extractText(result: string | Record<string, unknown> | undefined): string {
+  if (!result) return "";
+  if (typeof result === "string") return result;
+
+  // {"content": [...]} 格式 (LangChain ToolMessage)
+  const content = result.content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((b: Record<string, unknown>) => b.type === "text" && typeof b.text === "string")
+      .map((b: Record<string, unknown>) => b.text as string)
+      .join("\n");
+  }
+  if (typeof content === "string") return content;
+
+  // 直接 text 字段
+  if (typeof result.text === "string") return result.text;
+
+  // fallback
+  return JSON.stringify(result, null, 2);
+}
+
+// 从工具结果中提取路径列表（兼容 deepagents ls 工具返回的 Python 列表字符串格式）
+// ls 工具返回 str(list[str])，例如: "['/path/file1', '/path/dir1/', '/path/file2']"
+function extractPaths(result: string | Record<string, unknown> | undefined): string[] {
+  const text = extractText(result);
+  if (!text) return [];
+
+  // 尝试 JSON.parse（标准 JSON 数组格式）
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item: unknown) => (typeof item === "string" ? item : String(item)))
+        .filter(Boolean);
+    }
+  } catch {
+    // 非 JSON
+  }
+
+  // 尝试解析 Python 列表字符串格式: "['/a', '/b/']"
+  // Python 用单引号，JSON 用双引号
+  const pythonListMatch = text.match(/^\[([\s\S]*)\]$/);
+  if (pythonListMatch) {
+    try {
+      // 将单引号替换为双引号，转义已有的双引号
+      const jsonStr = pythonListMatch[1]
+        .replace(/\\'/g, "\\'")
+        .replace(/'/g, '"');
+      const parsed = JSON.parse(`[${jsonStr}]`);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item: unknown) => (typeof item === "string" ? item : String(item)))
+          .filter(Boolean);
+      }
+    } catch {
+      // 解析失败，按行处理
+    }
+  }
+
+  // 按行解析（纯文本列表）
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+// LS 工具专用渲染 — 显示目录内容列表
+const LsItem = memo(function LsItem({
+  args,
+  result,
+  success,
+  isPending,
+}: {
+  args: Record<string, unknown>;
+  result?: string | Record<string, unknown>;
+  success?: boolean;
+  isPending?: boolean;
+}) {
+  const dirPath = (args.path as string) || "/";
+
+  // 解析结果为路径列表（兼容 deepagents ls 工具的 Python 列表字符串格式）
+  const entries = useMemo(() => {
+    return extractPaths(result);
+  }, [result]);
+
+  const canExpand = entries.length > 0;
+
+  // 目录路径显示名
+  const displayLabel = dirPath === "/" ? "/" : dirPath.split("/").filter(Boolean).pop() || dirPath;
+
+  return (
+    <CollapsiblePill
+      status={isPending ? "loading" : success ? "success" : "error"}
+      icon={<FolderOpen size={12} className="shrink-0 opacity-50" />}
+      label={displayLabel}
+      variant="tool"
+      expandable={canExpand}
+    >
+      {canExpand && (
+        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50">
+          {/* 目录路径 header */}
+          <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono">
+            <FolderOpen size={12} className="shrink-0 opacity-60" />
+            <span className="truncate">{dirPath}</span>
+            <span className="shrink-0 text-stone-400 dark:text-stone-500">
+              ({entries.length} items)
+            </span>
+          </div>
+          {/* 目录条目列表 */}
+          <div className="max-h-48 overflow-y-auto rounded-md border border-stone-200/60 dark:border-stone-700/50 bg-stone-50 dark:bg-stone-900">
+            {entries.map((entry, i) => {
+              // deepagents ls: 目录以 / 结尾
+              const isDir = entry.endsWith("/") || entry.endsWith("\\");
+              // 取路径最后一段作为显示名
+              const name = isDir ? entry.slice(0, -1).split("/").filter(Boolean).pop() || entry.slice(0, -1) : entry.split("/").filter(Boolean).pop() || entry;
+              return (
+                <div
+                  key={i}
+                  className={clsx(
+                    "flex items-center gap-2 px-3 py-1 text-xs font-mono",
+                    "border-b border-stone-100 dark:border-stone-800 last:border-b-0",
+                    "hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors",
+                  )}
+                >
+                  {isDir ? (
+                    <FolderOpen size={12} className="shrink-0 text-amber-500 dark:text-amber-400" />
+                  ) : (
+                    <FileText size={12} className="shrink-0 text-stone-400 dark:text-stone-500" />
+                  )}
+                  <span className={clsx(
+                    "truncate",
+                    isDir
+                      ? "text-stone-700 dark:text-stone-200 font-medium"
+                      : "text-stone-600 dark:text-stone-300",
+                  )}>
+                    {name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </CollapsiblePill>
+  );
+});
+
 // Collapsible Tool Call Item (compact design)
-export { ReadFileItem, EditFileItem, WriteFileItem };
+export { ReadFileItem, EditFileItem, WriteFileItem, GrepItem, LsItem };
 
 export function ToolCallItem({
   name,
