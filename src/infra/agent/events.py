@@ -664,6 +664,18 @@ class AgentEventProcessor:
         _media = AgentEventProcessor._MCP_MEDIA_TYPES
 
         for block in content:
+            if isinstance(block, list):
+                # 嵌套数组 (LangChain 双层包装)：递归展平
+                nested = AgentEventProcessor._normalize_content(block)
+                if isinstance(nested, str):
+                    text_parts.append(nested)
+                elif isinstance(nested, dict) and "text" in nested:
+                    text_parts.append(nested["text"])
+                    if "blocks" in nested:
+                        media_blocks.extend(nested["blocks"])
+                elif isinstance(nested, dict):
+                    media_blocks.append(nested)
+                continue
             if not isinstance(block, dict):
                 text_parts.append(str(block) if block is not None else "")
                 continue
@@ -723,6 +735,18 @@ class AgentEventProcessor:
                 text_parts.append(content)
             elif isinstance(content, list):
                 for block in content:
+                    if isinstance(block, list):
+                        # 嵌套数组：递归展平
+                        nested = AgentEventProcessor._normalize_content(block)
+                        if isinstance(nested, str):
+                            text_parts.append(nested)
+                        elif isinstance(nested, dict):
+                            if "text" in nested:
+                                text_parts.append(nested["text"])
+                            if "blocks" in nested:
+                                media_blocks.extend(nested["blocks"])
+                                has_media = True
+                        continue
                     if not isinstance(block, dict):
                         text_parts.append(str(block) if block is not None else "")
                         continue

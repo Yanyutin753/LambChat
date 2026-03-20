@@ -5,6 +5,19 @@ import { MarkdownContent } from "../MarkdownContent";
 import type { McpContentBlock, McpMultiModalResult } from "./toolUtils";
 import { isMarkdownText, extractText } from "./toolUtils";
 
+// LangChain content blocks 数组: [{"type": "text", "text": "..."}, ...]
+function isContentBlocksArray(
+  result: unknown,
+): result is McpContentBlock[] {
+  return (
+    Array.isArray(result) &&
+    result.length > 0 &&
+    typeof result[0] === "object" &&
+    result[0] !== null &&
+    "type" in result[0]
+  );
+}
+
 // 单个 MCP content block 的预览
 function McpBlockPreview({ block }: { block: McpContentBlock }) {
   const { t } = useTranslation();
@@ -58,13 +71,44 @@ export function ToolResultContent({
 }) {
   const textContent = extractText(result);
 
-  if (
-    typeof result === "object" &&
-    result !== null &&
-    "blocks" in result &&
-    Array.isArray((result as McpMultiModalResult).blocks)
-  ) {
-    const mcp = result as McpMultiModalResult;
+  // LangChain content blocks 数组: [{"type": "text", "text": "..."}, ...]
+  if (isContentBlocksArray(result)) {
+    const blocks = result as McpContentBlock[];
+    const textParts: string[] = [];
+    const mediaBlocks: McpContentBlock[] = [];
+
+    for (const block of blocks) {
+      if (block.type === "text" && block.text) {
+        textParts.push(block.text);
+      } else if (block.type === "image" || block.type === "file") {
+        mediaBlocks.push(block);
+      }
+    }
+
+    const combinedText = textParts.join("\n");
+    return (
+      <div className="space-y-1.5">
+        {combinedText && (
+          <div className="text-xs text-stone-600 dark:text-stone-300 max-h-64 overflow-y-auto">
+            {isMarkdownText(combinedText) ? (
+              <MarkdownContent content={combinedText} />
+            ) : (
+              combinedText
+            )}
+          </div>
+        )}
+        {mediaBlocks.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {mediaBlocks.map((block, i) => (
+              <McpBlockPreview key={i} block={block} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // MCP 多模态格式: {"text": "...", "blocks": [...]}
     return (
       <div className="space-y-1.5">
         {mcp.text && (
