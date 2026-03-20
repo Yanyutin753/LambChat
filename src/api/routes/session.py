@@ -552,7 +552,7 @@ async def move_session(
     Returns:
         {"status": "moved", "session": updated_session}
     """
-    from src.infra.folder.storage import get_folder_storage
+    from src.infra.folder.storage import get_project_storage
 
     manager = SessionManager()
     storage = SessionStorage()
@@ -569,7 +569,7 @@ async def move_session(
 
     # If project_id provided (not null), verify project exists and belongs to user
     if project_id is not None:
-        project_storage = get_folder_storage()
+        project_storage = get_project_storage()
         project = await project_storage.get_by_id(project_id, user.sub)
         if not project:
             raise HTTPException(status_code=404, detail="项目不存在")

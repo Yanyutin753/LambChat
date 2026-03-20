@@ -8,7 +8,11 @@ import { useTranslation } from "react-i18next";
 import { Plus, ChevronDown, X, Search, FolderPlus } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { useInView } from "react-intersection-observer";
-import { sessionApi, folderApi, type BackendSession } from "../../services/api";
+import {
+  sessionApi,
+  projectApi,
+  type BackendSession,
+} from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { ProjectItem } from "../sidebar/ProjectItem";
@@ -176,7 +180,7 @@ export function SessionSidebar({
   // Load projects
   const loadProjects = async () => {
     try {
-      const projectList = await folderApi.list();
+      const projectList = await projectApi.list();
       setProjects(projectList);
     } catch (err) {
       console.error("Failed to load projects:", err);
@@ -270,7 +274,7 @@ export function SessionSidebar({
     if (!trimmedName) return;
 
     try {
-      const newProject = await folderApi.create({ name: trimmedName });
+      const newProject = await projectApi.create({ name: trimmedName });
       setProjects((prev) => [...prev, newProject]);
       setNewProjectName("");
       toast.success(t("sidebar.projectCreated"));
@@ -288,7 +292,7 @@ export function SessionSidebar({
 
   const handleDeleteProject = async (projectId: string) => {
     try {
-      await folderApi.delete(projectId);
+      await projectApi.delete(projectId);
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
       // Sessions in deleted project become uncategorized (project_id cleared on backend)
       // Refresh sessions to get updated project assignments
@@ -618,7 +622,7 @@ export function SessionSidebar({
               />
             </div>
 
-            {/* New folder button - only show when expanded */}
+            {/* New project button - only show when expanded */}
             {!isProjectsCollapsed && (
               <button
                 onClick={() => setShowNewProjectModal(true)}

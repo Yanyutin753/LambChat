@@ -123,27 +123,6 @@ No need to save to file - just return the result directly.
 - Main agent needs to verify the work? → Save to file
 """
 
-# 子代理调用指南 - 告诉主代理何时需要详细记录
-SUBAGENT_TASK_GUIDE = """
-## Using the `task` Tool (Subagents)
-
-When calling the `task` tool to launch a subagent, add the following instructions in your `description` based on task complexity:
-
-### For Complex/Multi-step Tasks (RESEARCH, ANALYSIS, etc.):
-Include this in your description:
-```
-IMPORTANT: Save all findings, research, and intermediate results to a file at /workspace/subagent_logs/{task_name}.md. Include the file path in your final response in this format: [Evidence saved to: /workspace/subagent_logs/{task_name}.md]
-```
-
-### For Simple Tasks (one-off lookups, simple transformations):
-No need to save to file - just return the result directly.
-
-### Decision Guide:
-- Requires multiple tool calls or research? → Save to file
-- Only needs 1-2 simple operations? → No file needed
-- Main agent needs to verify the work? → Save to file
-"""
-
 SANDBOX_SYSTEM_PROMPT = SANDBOX_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
 DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
 

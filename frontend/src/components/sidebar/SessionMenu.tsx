@@ -118,7 +118,7 @@ export function SessionMenu({
 
   if (!isOpen || !anchorEl) return null;
 
-  // Get favorites folder if it exists
+  // Get favorites project if it exists
   const favoritesProject = projects.find((f) => f.type === "favorites");
   const customProjects = projects.filter((f) => f.type === "custom");
 
@@ -168,7 +168,7 @@ export function SessionMenu({
               <span>{t("sidebar.rename")}</span>
             </button>
 
-            {/* Move to folder */}
+            {/* Move to project */}
             <div className="mt-1">
               <button
                 onClick={() => setShowProjectSubmenu(!showProjectSubmenu)}
@@ -310,7 +310,7 @@ export function SessionMenu({
         <span>{t("sidebar.rename")}</span>
       </button>
 
-      {/* Move to folder section */}
+      {/* Move to project section */}
       <div>
         <button
           onClick={() => setShowProjectSubmenu(!showProjectSubmenu)}
@@ -328,14 +328,14 @@ export function SessionMenu({
           />
         </button>
 
-        {/* Folder submenu - inline expansion */}
+        {/* Project submenu - inline expansion */}
         {showProjectSubmenu && (
           <div className="bg-gray-50 dark:bg-stone-900/50 max-h-60 overflow-y-auto">
             <p className="px-3 py-1.5 text-xs text-stone-400 dark:text-stone-500">
               {t("sidebar.moveToProjectHint")}
             </p>
 
-            {/* Favorites option - only show if favorites folder exists */}
+            {/* Favorites option - only show if favorites project exists */}
             {favoritesProject && (
               <button
                 onClick={() => {
@@ -362,7 +362,7 @@ export function SessionMenu({
               </button>
             )}
 
-            {/* Custom folders */}
+            {/* Custom projects */}
             {customProjects.length > 0 && (
               <>
                 {favoritesProject && (

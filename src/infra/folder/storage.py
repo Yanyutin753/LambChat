@@ -16,7 +16,7 @@ class ProjectStorage:
     Manages projects for organizing user sessions, including the special "favorites" project.
     """
 
-    FOLDER_COLLECTION = "projects"
+    PROJECT_COLLECTION = "projects"
 
     def __init__(self):
         self._collection = None
@@ -29,7 +29,7 @@ class ProjectStorage:
 
             client = get_mongo_client()
             db = client[settings.MONGODB_DB]
-            self._collection = db[self.FOLDER_COLLECTION]
+            self._collection = db[self.PROJECT_COLLECTION]
         return self._collection
 
     async def create(self, project_data: ProjectCreate, user_id: str) -> Project:
@@ -75,7 +75,7 @@ class ProjectStorage:
         project_dict["id"] = str(project_dict.pop("_id"))
         return Project(**project_dict)
 
-    async def list_folders(self, user_id: str) -> list[Project]:
+    async def list_projects(self, user_id: str) -> list[Project]:
         """List all projects for a user, sorted by sort_order."""
         cursor = self.collection.find({"user_id": user_id}).sort("sort_order", 1)
         projects = []
@@ -126,7 +126,7 @@ class ProjectStorage:
         except Exception:
             return False
 
-    async def ensure_favorites_folder(self, user_id: str) -> Project:
+    async def ensure_favorites_project(self, user_id: str) -> Project:
         """Ensure the favorites project exists for a user.
 
         Creates the favorites project if it doesn't exist.
@@ -158,7 +158,7 @@ class ProjectStorage:
 _project_storage: Optional[ProjectStorage] = None
 
 
-def get_folder_storage() -> ProjectStorage:
+def get_project_storage() -> ProjectStorage:
     """Get project storage singleton."""
     global _project_storage
     if _project_storage is None:

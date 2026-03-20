@@ -7,7 +7,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.api.deps import get_current_user_required
-from src.infra.folder.storage import get_folder_storage
+from src.infra.folder.storage import get_project_storage
 from src.infra.session.storage import SessionStorage
 from src.kernel.schemas.project import Project, ProjectCreate, ProjectUpdate
 from src.kernel.schemas.user import TokenPayload
@@ -24,12 +24,12 @@ async def list_projects(
 
     自动确保收藏项目存在。
     """
-    storage = get_folder_storage()
+    storage = get_project_storage()
 
     # Ensure favorites project exists
-    await storage.ensure_favorites_folder(user.sub)
+    await storage.ensure_favorites_project(user.sub)
 
-    projects = await storage.list_folders(user.sub)
+    projects = await storage.list_projects(user.sub)
     return projects
 
 
@@ -43,7 +43,7 @@ async def create_project(
 
     不允许创建 type="favorites" 的项目。
     """
-    storage = get_folder_storage()
+    storage = get_project_storage()
 
     # Prevent creating favorites project manually
     if project_data.type == "favorites":
@@ -67,7 +67,7 @@ async def update_project(
 
     只能更新自己拥有的项目。
     """
-    storage = get_folder_storage()
+    storage = get_project_storage()
 
     # Check if project exists and belongs to user
     project = await storage.get_by_id(project_id, user.sub)
@@ -98,7 +98,7 @@ async def delete_project(
     - 不能删除收藏项目
     - 项目内的会话会被移动到未分类
     """
-    storage = get_folder_storage()
+    storage = get_project_storage()
 
     # Check if project exists and belongs to user
     project = await storage.get_by_id(project_id, user.sub)

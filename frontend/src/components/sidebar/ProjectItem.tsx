@@ -13,7 +13,7 @@ import {
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
-import { folderApi } from "../../services/api";
+import { projectApi } from "../../services/api";
 import { SessionItem } from "./SessionItem";
 import { ProjectMenu } from "./ProjectMenu";
 
@@ -87,7 +87,7 @@ export function ProjectItem({
 
     setIsSaving(true);
     try {
-      const updatedProject = await folderApi.update(project.id, {
+      const updatedProject = await projectApi.update(project.id, {
         name: trimmedName,
       });
       onRenameProject(project.id, updatedProject.name);

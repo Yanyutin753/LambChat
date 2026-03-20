@@ -6,7 +6,7 @@ import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 import type { Project, ProjectCreate, ProjectUpdate } from "../../types";
 
-export const folderApi = {
+export const projectApi = {
   /**
    * List all projects for current user
    */
