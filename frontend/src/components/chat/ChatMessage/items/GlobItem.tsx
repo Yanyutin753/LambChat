@@ -37,7 +37,7 @@ const GlobItem = memo(function GlobItem({
       expandable={canExpand}
     >
       {canExpand && (
-        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50">
+        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 max-h-80 overflow-y-auto">
           <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono flex-wrap">
             <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
               {pattern}

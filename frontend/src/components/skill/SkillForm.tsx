@@ -5,7 +5,7 @@ import { Maximize2, Minimize2, X, Plus } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { getLangSupport } from "../common/CodeMirrorViewer";
+import { getLangSupport } from "../common/getLangSupport";
 import type { SkillResponse, SkillCreate } from "../../types";
 
 interface FileEntry {

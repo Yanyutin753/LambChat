@@ -22,5 +22,7 @@ export {
 } from "./AttachmentCard";
 export type { AttachmentCardProps } from "./AttachmentCard";
 
-export { CodeMirrorViewer, getLangSupport } from "./CodeMirrorViewer";
+export { CodeMirrorViewer } from "./CodeMirrorViewer";
 export type { CodeMirrorViewerProps } from "./CodeMirrorViewer";
+
+export { getLangSupport } from "./getLangSupport";

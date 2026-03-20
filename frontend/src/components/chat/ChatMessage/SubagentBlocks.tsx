@@ -290,7 +290,7 @@ export function SubagentBlock({
 
       {/* Expanded content */}
       {isExpanded && (
-        <div className="px-4 pb-4 space-y-3">
+        <div className="px-4 pb-4 space-y-3 max-h-[500px] overflow-y-auto">
           {/* Separator */}
           <div className="border-t border-stone-100 dark:border-stone-800" />
 
