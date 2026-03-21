@@ -42,7 +42,7 @@ const turndown = new TurndownService({
 
 // Remove empty links, images, and spans that carry no content
 turndown.addRule("removeEmpty", {
-  filter: (node) => {
+  filter: (node: HTMLElement) => {
     return (
       (node.nodeName === "A" || node.nodeName === "SPAN") &&
       !node.textContent?.trim()
@@ -54,7 +54,7 @@ turndown.addRule("removeEmpty", {
 // Preserve tables as Markdown tables
 turndown.addRule("table", {
   filter: "table",
-  replacement: (content, node) => {
+  replacement: (_content: string, node: HTMLElement) => {
     const table = node as HTMLTableElement;
     const rows: string[][] = [];
     table.querySelectorAll("tr").forEach((tr) => {
@@ -103,14 +103,14 @@ turndown.addRule("table", {
 
 // Better code block handling — detect language hints from class names
 turndown.addRule("fencedCodeBlock", {
-  filter: (node) => {
-    return (
+  filter: (node: HTMLElement): boolean => {
+    return !!(
       node.nodeName === "PRE" &&
       node.firstChild &&
       (node.firstChild as HTMLElement).nodeName === "CODE"
     );
   },
-  replacement: (content, node) => {
+  replacement: (_content: string, node: HTMLElement) => {
     const codeEl = node.firstChild as HTMLElement;
     const className = codeEl.className || "";
     const langMatch = className.match(/(?:language-|lang-|hljs\s+)(\w+)/);

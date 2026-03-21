@@ -26,6 +26,7 @@
     "@excalidraw/excalidraw": "^0.18.0",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@types/dompurify": "^3.0.5",
+    "@types/turndown": "^5.0.6",
     "@uiw/react-codemirror": "^4.25.8",
     "clsx": "^2.1.1",
     "dompurify": "^3.3.2",
@@ -50,6 +51,7 @@
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "turndown": "^7.2.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
