@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { APP_NAME } from "../constants";
 
 /**
  * 设置页面标题的 Hook，支持 i18n
@@ -9,7 +10,7 @@ import { useTranslation } from "react-i18next";
  */
 export function usePageTitle(
   title: string,
-  suffix: string = "LambChat",
+  suffix: string = APP_NAME,
   options?: { isI18nKey?: boolean },
 ) {
   const { t } = useTranslation();

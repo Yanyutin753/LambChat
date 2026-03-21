@@ -556,11 +556,14 @@ export function clearAllLoadingStates(parts: MessagePart[]): MessagePart[] {
         const updatedParts = subagentPart.parts
           ? clearAllLoadingStates(subagentPart.parts)
           : [];
+        // Preserve existing terminal status (complete/error) instead of forcing cancelled
+        const wasCompleted = subagentPart.status === "complete";
+        const hadError = subagentPart.status === "error";
         return {
           ...subagentPart,
           isPending: false,
-          cancelled: true,
-          status: "cancelled",
+          cancelled: !wasCompleted && !hadError,
+          status: wasCompleted ? "complete" : hadError ? "error" : "cancelled",
           completedAt: subagentPart.completedAt || Date.now(),
           parts: updatedParts,
         };

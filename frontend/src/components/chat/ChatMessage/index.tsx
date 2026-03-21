@@ -218,7 +218,7 @@ export function ChatMessage({
     <div className="group w-full animate-[fade-in_0.3s_ease-out]">
       <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6 mb-3 sm:mb-4">
         {/* Content */}
-        <div className="min-w-0 min-h-0 overflow-hidden">
+        <div className="min-w-0 min-h-0">
           {/* Header: Avatar + Role label + Stop button */}
           <div className="mb-3 flex items-center gap-2">
             <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-amber-400 dark:bg-stone-800 dark:text-amber-400">

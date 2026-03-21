@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
+import { APP_NAME } from "../../constants";
 
 interface AboutDialogProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-stone-100 font-serif">
-              {t("about.title", "LambChat")}
+              {t("about.title", APP_NAME)}
             </h2>
           </div>
           <button

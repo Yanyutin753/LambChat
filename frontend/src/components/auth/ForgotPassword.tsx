@@ -11,6 +11,7 @@ import { authApi } from "../../services/api";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";
+import { APP_NAME } from "../../constants";
 
 interface ForgotPasswordProps {
   onBackToLogin?: () => void;
@@ -60,7 +61,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
             <img
               src="/icons/icon.svg"
-              alt="LambChat"
+              alt={APP_NAME}
               className="h-6 w-6 rounded"
             />
           </div>
@@ -109,7 +110,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
           <img
             src="/icons/icon.svg"
-            alt="LambChat"
+            alt={APP_NAME}
             className="h-6 w-6 rounded"
           />
         </div>

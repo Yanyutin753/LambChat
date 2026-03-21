@@ -1,28 +1,56 @@
-import { useRef, useEffect, useState, useCallback } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import {
+  useRef,
+  useEffect,
+  useState,
+  useCallback,
+  lazy,
+  Suspense,
+} from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { Check, X } from "lucide-react";
 import { ChatMessage } from "../chat/ChatMessage";
 import { ChatInput } from "../chat/ChatInput";
+import { Virtuoso } from "react-virtuoso";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import type { MessageAttachment } from "../../types";
 import { ApprovalPanel } from "../panels/ApprovalPanel";
-import { SkillsPanel } from "../panels/SkillsPanel";
 import { SessionSidebar } from "../panels/SessionSidebar";
-import { UsersPanel } from "../panels/UsersPanel";
-import { RolesPanel } from "../panels/RolesPanel";
-import { SettingsPanel } from "../panels/SettingsPanel";
-import { AgentConfigPanel } from "../panels/AgentConfigPanel";
-import { MCPPanel } from "../panels/MCPPanel";
-import { FeedbackPanel } from "../panels/FeedbackPanel";
-import { ChannelsPage } from "../pages/ChannelsPage";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";
 import { Loading } from "../common";
 import { AgentSelector } from "../agent/AgentSelector";
 import { ProfileModal } from "../profile/ProfileModal";
 import { UserMenu } from "./UserMenu";
+
+// Lazy-loaded panels for code splitting - only load the panel the user actually views
+const SkillsPanel = lazy(() =>
+  import("../panels/SkillsPanel").then((m) => ({ default: m.SkillsPanel })),
+);
+const UsersPanel = lazy(() =>
+  import("../panels/UsersPanel").then((m) => ({ default: m.UsersPanel })),
+);
+const RolesPanel = lazy(() =>
+  import("../panels/RolesPanel").then((m) => ({ default: m.RolesPanel })),
+);
+const SettingsPanel = lazy(() =>
+  import("../panels/SettingsPanel").then((m) => ({ default: m.SettingsPanel })),
+);
+const AgentConfigPanel = lazy(() =>
+  import("../panels/AgentConfigPanel").then((m) => ({
+    default: m.AgentConfigPanel,
+  })),
+);
+const MCPPanel = lazy(() =>
+  import("../panels/MCPPanel").then((m) => ({ default: m.MCPPanel })),
+);
+const FeedbackPanel = lazy(() =>
+  import("../panels/FeedbackPanel").then((m) => ({ default: m.FeedbackPanel })),
+);
+const ChannelsPage = lazy(() =>
+  import("../pages/ChannelsPage").then((m) => ({ default: m.ChannelsPage })),
+);
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { useAgent } from "../../hooks/useAgent";
 import { useApprovals } from "../../hooks/useApprovals";
@@ -34,6 +62,9 @@ import { useWebSocket } from "../../hooks/useWebSocket";
 import { useBrowserNotification } from "../../hooks/useBrowserNotification";
 import { Permission } from "../../types";
 import { sessionApi } from "../../services/api";
+import { APP_NAME } from "../../constants";
+import { useMessageScroll } from "./AppContent/useMessageScroll";
+import { useSessionSync } from "./AppContent/useSessionSync";
 
 export type TabType =
   | "chat"
@@ -52,8 +83,6 @@ interface AppContentProps {
 
 export function AppContent({ activeTab }: AppContentProps) {
   const { t } = useTranslation();
-  const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
-  const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -406,186 +435,24 @@ export function AppContent({ activeTab }: AppContentProps) {
   const { settings } = useSettingsContext();
   const { hasPermission } = useAuth();
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // Session sync state - controlled by single ref to prevent sync loops
-  const isSyncingRef = useRef(false);
-  // Track if navigation was initiated internally (not from URL)
-  const isInternalNavRef = useRef(false);
-  const [isNearBottom, setIsNearBottom] = useState(true);
+  // Message scroll hook
+  const {
+    messagesContainerRef,
+    messagesEndRef,
+    isNearBottom,
+    showScrollTop,
+    setShowScrollTop,
+    handleScroll,
+    checkIfNearBottom,
+  } = useMessageScroll(messages);
 
-  // Check if user is near the bottom (within 100px)
-  const checkIfNearBottom = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return true;
-    const threshold = 100;
-    const isAtBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight <
-      threshold;
-    setIsNearBottom(isAtBottom);
-    return isAtBottom;
-  }, []);
-
-  // Track previous message count to detect new messages
-  const prevMessagesCountRef = useRef(messages.length);
-
-  // Auto-scroll to bottom when new messages are added or when loading
-  useEffect(() => {
-    const prevCount = prevMessagesCountRef.current;
-    const newCount = messages.length;
-
-    // Scroll to bottom when:
-    // 1. New message is added (count increased)
-    // 2. User is already near bottom
-    if (newCount > prevCount || isNearBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-    }
-
-    prevMessagesCountRef.current = newCount;
-  }, [messages, isNearBottom]);
-
-  // Smart scroll-to-top: detect fast upward scroll and auto-hide
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const scrollTopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastScrollTopRef = useRef(0);
-  const lastScrollTimeRef = useRef(0);
-
-  // Track scroll position
-  const handleScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    checkIfNearBottom();
-
-    const now = Date.now();
-    const scrollTop = container.scrollTop;
-    const dt = now - lastScrollTimeRef.current;
-    const dScroll = lastScrollTopRef.current - scrollTop; // positive = scrolling up
-
-    // Fast scroll-up → show scroll-to-top
-    if (dt < 200 && dScroll > 80 && scrollTop > 300) {
-      setShowScrollTop(true);
-      if (scrollTopTimerRef.current) clearTimeout(scrollTopTimerRef.current);
-      scrollTopTimerRef.current = setTimeout(
-        () => setShowScrollTop(false),
-        3000,
-      );
-    } else if (scrollTop < 300) {
-      setShowScrollTop(false);
-    }
-
-    lastScrollTopRef.current = scrollTop;
-    lastScrollTimeRef.current = now;
-  }, [checkIfNearBottom]);
-
-  // Sync from URL only on initial mount
-  useEffect(() => {
-    if (urlSessionId && !isSyncingRef.current) {
-      isSyncingRef.current = true;
-      loadHistory(urlSessionId).finally(() => {
-        // Delay reset to allow state to settle
-        setTimeout(() => {
-          isSyncingRef.current = false;
-        }, 100);
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount
-
-  // Load session when URL changes (e.g., from toast click)
-  const isLoadingRef = useRef(false);
-  useEffect(() => {
-    // Skip if sessionId is null (new session being created, handled by clearMessages)
-    // This prevents loading old session history after clearMessages is called
-    if (!sessionId) {
-      return;
-    }
-
-    // Skip if urlSessionId is null/undefined (no session in URL)
-    if (!urlSessionId) {
-      return;
-    }
-
-    // Skip if already loading or if sessionId matches URL (no need to reload)
-    if (isLoadingRef.current || sessionId === urlSessionId) {
-      return;
-    }
-
-    // Skip if this was an internal navigation (handled by handleSelectSession)
-    if (isInternalNavRef.current) {
-      isInternalNavRef.current = false;
-      return;
-    }
-
-    isLoadingRef.current = true;
-    loadHistoryRef.current(urlSessionId).finally(() => {
-      isLoadingRef.current = false;
-    });
-  }, [urlSessionId, sessionId]);
-
-  // Sync URL with sessionId state (when sessionId changes from internal actions)
-  // Sync URL with sessionId state (when sessionId changes from internal actions)
-  // Use ref to store location pathname to avoid triggering on every render
-  const locationPathRef = useRef(location.pathname);
-  const locationStateRef = useRef(location.state);
-  locationPathRef.current = location.pathname;
-  locationStateRef.current = location.state;
-
-  useEffect(() => {
-    if (isSyncingRef.current) return;
-
-    // Skip sync if this navigation was initiated externally (e.g., from toast click)
-    // This prevents the sync effect from reverting the user's navigation
-    const externalNavigate = (
-      locationStateRef.current as { externalNavigate?: boolean }
-    )?.externalNavigate;
-    if (externalNavigate) {
-      // Clear the externalNavigate flag without triggering another navigation
-      window.history.replaceState({}, "", locationPathRef.current);
-      return;
-    }
-
-    if (sessionId && sessionId !== urlSessionId) {
-      // New session created - update URL
-      isSyncingRef.current = true;
-      navigate(`/chat/${sessionId}`, { replace: true });
-      setTimeout(() => {
-        isSyncingRef.current = false;
-      }, 100);
-    } else if (!sessionId && urlSessionId) {
-      // Session cleared - clear URL
-      isSyncingRef.current = true;
-      navigate("/chat", { replace: true });
-      setTimeout(() => {
-        isSyncingRef.current = false;
-      }, 100);
-    }
-  }, [sessionId, urlSessionId, navigate]);
-
-  // Handle session selection from sidebar
-  const handleSelectSession = useCallback(
-    async (selectedSessionId: string) => {
-      // loadHistory has its own isLoadingHistoryRef guard, no need to check here
-      try {
-        isInternalNavRef.current = true;
-        await loadHistory(selectedSessionId);
-        // Update URL
-        navigate(`/chat/${selectedSessionId}`);
-        // Scroll to top after loading history
-        messagesContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-      } catch (err) {
-        console.error("[handleSelectSession] Error:", err);
-      }
-    },
-    [navigate, loadHistory],
-  );
-
-  // Handle new session - just clear messages, URL sync is handled by useEffect
-  const handleNewSession = useCallback(() => {
-    isInternalNavRef.current = false;
-    clearMessages();
-  }, [clearMessages]);
+  // Session sync hook
+  const { handleSelectSession, handleNewSession } = useSessionSync({
+    sessionId,
+    loadHistory,
+    clearMessages,
+  });
 
   return (
     <>
@@ -727,7 +594,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                   </button>
                   <div className="flex h-8 items-center gap-2">
                     <span className="text-base font-bold text-gray-700 dark:text-stone-200 font-serif">
-                      LambChat
+                      {APP_NAME}
                     </span>
                   </div>
                 </div>
@@ -791,7 +658,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                         <div className="absolute -inset-3 rounded-[1.75rem] bg-gradient-to-br from-amber-300/30 to-rose-300/20 dark:from-amber-500/10 dark:to-rose-500/5 blur-xl" />
                       </div>
                       <h1 className="welcome-title text-4xl sm:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-stone-800 via-stone-600 to-stone-800 dark:from-stone-50 dark:via-stone-200 dark:to-stone-50 bg-clip-text text-transparent font-serif tracking-tight mb-1 sm:mb-6">
-                        LambChat
+                        {APP_NAME}
                       </h1>
                     </div>
 
@@ -842,7 +709,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                         rel="noopener noreferrer"
                         className="font-medium hover:text-stone-600 dark:hover:text-stone-300 transition-colors font-serif"
                       >
-                        LambChat
+                        {APP_NAME}
                       </a>
                       {versionInfo?.app_version && (
                         <>
@@ -855,8 +722,10 @@ export function AppContent({ activeTab }: AppContentProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className="dark:divide-stone-800">
-                    {messages.map((message, index) => (
+                  <Virtuoso
+                    className="dark:divide-stone-800"
+                    data={messages}
+                    itemContent={(index, message) => (
                       <ChatMessage
                         key={message.id}
                         message={message}
@@ -865,11 +734,13 @@ export function AppContent({ activeTab }: AppContentProps) {
                         runId={currentRunId ?? undefined}
                         isLastMessage={index === messages.length - 1}
                       />
-                    ))}
-                    {/* Session feedback - using per-message ratings instead */}
-
-                    <div ref={messagesEndRef} />
-                  </div>
+                    )}
+                    followOutput="smooth"
+                    initialTopMostItemIndex={messages.length - 1}
+                    components={{
+                      Footer: () => <div ref={messagesEndRef} />,
+                    }}
+                  />
                 )}
               </main>
 
@@ -970,35 +841,99 @@ export function AppContent({ activeTab }: AppContentProps) {
             </>
           ) : activeTab === "skills" ? (
             <main className="flex-1 overflow-hidden">
-              <SkillsPanel />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <SkillsPanel />
+              </Suspense>
             </main>
           ) : activeTab === "users" ? (
             <main className="flex-1 overflow-hidden">
-              <UsersPanel />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <UsersPanel />
+              </Suspense>
             </main>
           ) : activeTab === "roles" ? (
             <main className="flex-1 overflow-hidden">
-              <RolesPanel />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <RolesPanel />
+              </Suspense>
             </main>
           ) : activeTab === "settings" ? (
             <main className="flex-1 overflow-hidden">
-              <SettingsPanel />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <SettingsPanel />
+              </Suspense>
             </main>
           ) : activeTab === "mcp" ? (
             <main className="flex-1 overflow-hidden">
-              <MCPPanel />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <MCPPanel />
+              </Suspense>
             </main>
           ) : activeTab === "feedback" ? (
             <main className="flex-1 overflow-hidden">
-              <FeedbackPanel />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <FeedbackPanel />
+              </Suspense>
             </main>
           ) : activeTab === "channels" ? (
             <main className="flex-1 overflow-hidden">
-              <ChannelsPage />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <ChannelsPage />
+              </Suspense>
             </main>
           ) : activeTab === "agents" ? (
             <main className="flex-1 overflow-hidden">
-              <AgentConfigPanel />
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <AgentConfigPanel />
+              </Suspense>
             </main>
           ) : null}
         </div>

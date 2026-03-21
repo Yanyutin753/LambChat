@@ -11,6 +11,7 @@ import { sessionApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { useSessionList } from "../../hooks/useSession";
 import { useProjectManager } from "../../hooks/useProjectManager";
+import { APP_NAME } from "../../constants";
 import { useTouchDrag } from "../../hooks/useTouchDrag";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { ProjectItem } from "../sidebar/ProjectItem";
@@ -233,7 +234,7 @@ export function SessionSidebar({
         <div className="flex h-7 items-center gap-2">
           <img
             src="/icons/icon.svg"
-            alt="LambChat"
+            alt={APP_NAME}
             className="size-6 rounded-full object-cover ring-1 ring-stone-200 dark:ring-stone-700"
           />
           <a
@@ -242,7 +243,7 @@ export function SessionSidebar({
             rel="noopener noreferrer"
             className="text-md font-semibold leading-none text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors font-serif"
           >
-            LambChat
+            {APP_NAME}
           </a>
         </div>
         <button

@@ -14,6 +14,7 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";
 import { authApi } from "../../services/api";
+import { APP_NAME } from "../../constants";
 
 type AuthMode = "login" | "register";
 
@@ -257,7 +258,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
         >
           <img
             src="/icons/icon.svg"
-            alt="LambChat"
+            alt={APP_NAME}
             className="h-5 w-5 rounded-full"
           />
         </Link>
@@ -281,7 +282,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
           {/* Logo 和标题 */}
           <div className="mb-6 text-center sm:mb-8">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-stone-100 mb-2 tracking-tight font-serif sm:text-3xl">
-              LambChat
+              {APP_NAME}
             </h1>
             <p className="mt-1.5 text-sm text-gray-500 dark:text-stone-400 sm:mt-2">
               {mode === "login" ? t("auth.loginHint") : t("auth.registerHint")}
@@ -581,7 +582,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   rel="noopener noreferrer"
                   className="font-serif text-gray-600 hover:text-gray-900 dark:text-stone-400 dark:hover:text-stone-200"
                 >
-                  LambChat
+                  {APP_NAME}
                 </a>
               </span>
               <span className="text-gray-300 dark:text-stone-600">·</span>

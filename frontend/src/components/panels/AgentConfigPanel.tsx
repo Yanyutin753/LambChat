@@ -582,10 +582,13 @@ export function AgentConfigPanel() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <h4 className="font-medium text-stone-900 dark:text-stone-100 truncate">
-                      {agent.name}
+                      {t(agent.name)}
                     </h4>
+                    <p className="text-sm text-stone-500 dark:text-stone-400 truncate sm:hidden">
+                      {t(agent.description)}
+                    </p>
                     <p className="text-sm text-stone-500 dark:text-stone-400 truncate hidden sm:block">
-                      {agent.description}
+                      {t(agent.description)}
                     </p>
                   </div>
                 </div>

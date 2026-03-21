@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { APP_NAME } from "../../constants";
 import { channelApi } from "../../services/api/channel";
 import { ChannelPanel } from "../panels/ChannelPanel";
 import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
@@ -124,9 +125,10 @@ export function ChannelsPage() {
         const instance = instances[selectedChannel]?.find(
           (i) => i.instance_id === selectedInstance,
         );
-        const status = selectedInstance !== "new" 
-          ? statuses[`${selectedChannel}:${selectedInstance}`]
-          : null;
+        const status =
+          selectedInstance !== "new"
+            ? statuses[`${selectedChannel}:${selectedInstance}`]
+            : null;
         return (
           <FeishuPanel
             instanceId={selectedInstance}
@@ -256,7 +258,7 @@ export function ChannelsPage() {
         title={t("channel.title", "Channels")}
         subtitle={t(
           "channel.description",
-          "Connect your favorite chat platforms to LambChat",
+          `Connect your favorite chat platforms to ${APP_NAME}`,
         )}
         icon={
           <Radio size={18} className="text-stone-600 dark:text-stone-400" />

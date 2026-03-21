@@ -247,23 +247,23 @@ export function SubagentBlock({
             </span>
             {/* Status badge */}
             {effectiveStatus === "running" && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">
                 {t("chat.message.running")}
               </span>
             )}
             {effectiveStatus === "error" && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
                 {t("chat.message.error")}
               </span>
             )}
             {effectiveStatus === "cancelled" && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 font-medium whitespace-nowrap">
                 {t("chat.message.cancelled")}
               </span>
             )}
           </div>
           {input && !isExpanded && (
-            <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5 max-w-md">
+            <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5 max-w-md whitespace-nowrap">
               {input}
             </p>
           )}

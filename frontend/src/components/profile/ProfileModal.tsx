@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
+import { APP_NAME } from "../../constants";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import { ProfilePasswordTab } from "./tabs/ProfilePasswordTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
@@ -125,7 +126,7 @@ export function ProfileModal({
         <div className="px-4 sm:px-5 py-3 border-t border-gray-100 dark:border-stone-700/60 flex items-center justify-between safe-area-bottom">
           <div className="text-xs text-gray-400 dark:text-stone-500">
             <span className="font-semibold text-gray-500 dark:text-stone-400 font-serif">
-              LambChat
+              {APP_NAME}
             </span>
             {versionInfo?.app_version && (
               <span className="ml-1.5">v{versionInfo.app_version}</span>

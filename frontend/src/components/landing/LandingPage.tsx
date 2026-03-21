@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { LanguageToggle } from "../common/LanguageToggle";
 import { useAuth } from "../../hooks/useAuth";
+import { APP_NAME } from "../../constants";
 import {
   FEATURES,
   TECH_STACK,
@@ -187,7 +188,7 @@ export function LandingPage() {
               className="w-6 h-6 sm:w-7 sm:h-7 rounded-md"
             />
             <span className="text-base sm:text-lg font-bold font-serif tracking-tight text-gray-900 dark:text-stone-100">
-              LambChat
+              {APP_NAME}
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
@@ -239,7 +240,7 @@ export function LandingPage() {
               data-reveal-delay="1"
               className="relative text-5xl sm:text-6xl md:text-8xl font-bold font-serif tracking-tight leading-[1.05] mb-5 sm:mb-7 bg-gradient-to-b from-gray-900 via-gray-600 to-gray-400 dark:from-white dark:via-stone-300 dark:to-stone-500 bg-clip-text text-transparent"
             >
-              LambChat
+              {APP_NAME}
             </h1>
           </div>
 
@@ -541,7 +542,7 @@ export function LandingPage() {
                 rel="noopener noreferrer"
                 className="font-serif text-gray-500 hover:text-gray-700 dark:text-stone-400 dark:hover:text-stone-200 transition-colors"
               >
-                LambChat
+                {APP_NAME}
               </a>
             </span>
           </div>

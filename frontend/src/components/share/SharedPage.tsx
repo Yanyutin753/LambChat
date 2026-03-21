@@ -24,6 +24,7 @@ import { shareApi } from "../../services/api/share";
 import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
+import { APP_NAME } from "../../constants";
 
 // Theme management for shared page (independent of main app context)
 function useSharedPageTheme() {
@@ -135,7 +136,7 @@ export function SharedPage() {
             <div className="size-12 rounded-2xl bg-white dark:bg-stone-800 flex items-center justify-center shadow-xl shadow-stone-900/10 dark:shadow-stone-950/50 border border-stone-200 dark:border-stone-700">
               <img
                 src="/icons/icon.svg"
-                alt="LambChat"
+                alt={APP_NAME}
                 className="size-8 rounded-full"
               />
             </div>
@@ -385,11 +386,11 @@ export function SharedPage() {
             <div className="flex items-center gap-2">
               <img
                 src="/icons/icon.svg"
-                alt="LambChat"
+                alt={APP_NAME}
                 className="size-8 rounded-full"
               />
               <span className="text-base font-semibold text-stone-700 dark:text-stone-300 tracking-tight font-serif">
-                LambChat
+                {APP_NAME}
               </span>
             </div>
 

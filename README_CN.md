@@ -276,7 +276,7 @@ src/
 
 ## 📄 许可证
 
-[MIT](LICENSE)
+[MIT](LICENSE) - 项目名称 "LambChat" 及其相关标志不得被更改或移除。
 
 ---
 

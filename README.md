@@ -276,7 +276,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## 📄 License
 
-[MIT](LICENSE)
+[MIT](LICENSE) - The project name "LambChat" and its associated logo may not be changed or removed.
 
 ---
 
