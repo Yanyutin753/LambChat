@@ -287,7 +287,7 @@ export function ApprovalPanel({
   }
 
   return (
-    <div className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-white dark:bg-stone-900">
+    <div className="w-full max-h-[60dvh] shrink min-h-0 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 sm:py-3 bg-white dark:bg-stone-900">
       <div className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* Navigation control bar */}
         {approvals.length > 1 && (
