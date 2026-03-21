@@ -189,7 +189,7 @@ export function SubagentBlock({
   return (
     <div
       className={clsx(
-        "my-3 rounded-xl overflow-hidden",
+        "my-3 rounded-xl overflow-hidden min-w-0 min-h-0",
         "border border-stone-200 dark:border-stone-700",
         "bg-white dark:bg-stone-900",
         effectiveStatus === "error" && "border-red-200 dark:border-red-900/50",
@@ -245,22 +245,6 @@ export function SubagentBlock({
             <span className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
               {formattedAgentName}
             </span>
-            {/* Status badge */}
-            {effectiveStatus === "running" && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium whitespace-nowrap">
-                {t("chat.message.running")}
-              </span>
-            )}
-            {effectiveStatus === "error" && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
-                {t("chat.message.error")}
-              </span>
-            )}
-            {effectiveStatus === "cancelled" && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 font-medium whitespace-nowrap">
-                {t("chat.message.cancelled")}
-              </span>
-            )}
           </div>
           {input && !isExpanded && (
             <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5 max-w-md whitespace-nowrap">
@@ -304,7 +288,7 @@ export function SubagentBlock({
 
           {/* Subagent internal content */}
           {parts && parts.length > 0 && (
-            <div className="space-y-2 pl-3 border-l-2 border-stone-200 dark:border-stone-700 max-h-[400px] overflow-y-auto">
+            <div className="space-y-2 pl-3 border-l-2 border-stone-200 dark:border-stone-700 overflow-y-auto min-w-0">
               {parts.map((part, index) => (
                 <MessagePartRenderer
                   key={index}
@@ -334,7 +318,7 @@ export function SubagentBlock({
               <div className="text-xs text-stone-500 dark:text-stone-400 mb-1.5 font-medium">
                 {t("chat.message.result")}
               </div>
-              <div className="text-xs text-stone-700 dark:text-stone-300 max-h-48 overflow-y-auto leading-relaxed">
+              <div className="text-xs text-stone-700 dark:text-stone-300 overflow-y-auto leading-relaxed">
                 <MarkdownContent content={result} />
               </div>
             </div>

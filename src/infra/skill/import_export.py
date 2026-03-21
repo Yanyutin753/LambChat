@@ -61,6 +61,14 @@ class SkillImportExportMixin:
         """Get user skills collection lazily (must be implemented by subclass)"""
         raise NotImplementedError("Subclass must implement _get_user_collection")
 
+    async def sync_skill_files(self, name: str, files: dict[str, str], user_id: str) -> None:
+        """Sync skill files to storage (must be implemented by subclass)"""
+        raise NotImplementedError("Subclass must implement sync_skill_files")
+
+    async def get_skill_files(self, name: str, user_id: str) -> dict[str, str]:
+        """Get skill files from storage (must be implemented by subclass)"""
+        raise NotImplementedError("Subclass must implement get_skill_files")
+
     async def import_skills(
         self,
         import_data: SkillImportRequest,
@@ -85,11 +93,16 @@ class SkillImportExportMixin:
                 except ValueError:
                     source = SkillSource.MANUAL
 
+                # Get files from import data
+                import_files = config.get("files", {})
+                content = config.get("content", "")
+
                 # Create skill object
                 skill = SkillCreate(
                     name=name,
                     description=config.get("description", ""),
-                    content=config.get("content", ""),
+                    content=content,
+                    files=import_files,
                     enabled=config.get("enabled", True),
                     source=source,
                     github_url=config.get("github_url"),
@@ -121,6 +134,13 @@ class SkillImportExportMixin:
                             ),
                             user_id,
                         )
+                        # Sync files if present in import data
+                        if import_files:
+                            await self.sync_skill_files(name, import_files, user_id="system")
+                        elif content:
+                            await self.sync_skill_files(
+                                name, {"SKILL.md": content}, user_id="system"
+                            )
                     else:
                         await self.create_system_skill(skill, user_id)
                 else:
@@ -136,6 +156,13 @@ class SkillImportExportMixin:
                             ),
                             user_id,
                         )
+                        # Sync files if present in import data
+                        if import_files:
+                            await self.sync_skill_files(name, import_files, user_id=user_id)
+                        elif content:
+                            await self.sync_skill_files(
+                                name, {"SKILL.md": content}, user_id=user_id
+                            )
                     else:
                         await self.create_user_skill(skill, user_id)
 
@@ -157,7 +184,12 @@ class SkillImportExportMixin:
         skills = {}
 
         async for doc in user_collection.find({"user_id": user_id}):
-            skills[doc["name"]] = doc_to_export_dict(doc)
+            result = doc_to_export_dict(doc)
+            # Fetch files from skill_files collection
+            files = await self.get_skill_files(doc["name"], user_id=user_id)
+            if files:
+                result["files"] = files
+            skills[doc["name"]] = result
 
         return SkillExportResponse(skills=skills)
 
@@ -167,7 +199,12 @@ class SkillImportExportMixin:
         skills = {}
 
         async for doc in system_collection.find({}):
-            skills[doc["name"]] = doc_to_export_dict(doc)
+            result = doc_to_export_dict(doc)
+            # Fetch files from skill_files collection
+            files = await self.get_skill_files(doc["name"], user_id="system")
+            if files:
+                result["files"] = files
+            skills[doc["name"]] = result
 
         return SkillExportResponse(skills=skills)
 

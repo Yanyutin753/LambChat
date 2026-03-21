@@ -802,6 +802,16 @@ html.dark .landing-stat-glow {
   animation-name: stat-glow-dark;
 }
 
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 .landing-stat-glow {
   animation: stat-glow 4s ease-in-out infinite;
 }

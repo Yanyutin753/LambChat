@@ -361,10 +361,12 @@ async def get_skill(
     # Try user skill first
     skill = await storage.get_user_skill(name, user.sub)
     if skill:
+        files = await storage.get_skill_files(name, user_id=user.sub)
         return SkillResponse(
             name=skill.name,
             description=skill.description,
             content=skill.content,
+            files=files,
             enabled=skill.enabled,
             source=skill.source,
             github_url=skill.github_url,
@@ -379,10 +381,12 @@ async def get_skill(
     system_skill = await storage.get_system_skill(name)
     if system_skill:
         is_admin = _is_admin(user)
+        files = await storage.get_skill_files(name, user_id=None)
         return SkillResponse(
             name=system_skill.name,
             description=system_skill.description,
             content=system_skill.content,
+            files=files,
             enabled=system_skill.enabled,
             source=system_skill.source,
             github_url=system_skill.github_url,
@@ -481,14 +485,11 @@ async def update_skill(
     # After this point, skill is guaranteed to be not None
     skill = cast(UserSkill | SystemSkill, skill)
 
-    # Determine the correct user_id for file sync
-    final_system_skill = await storage.get_system_skill(skill.name)
-    file_user_id = "system" if final_system_skill else user.sub
-
-    if data.files is not None:
-        await storage.sync_skill_files(skill.name, data.files, user_id=file_user_id)
-    elif data.content is not None:
-        # Backward compatibility: sync content as SKILL.md
+    # Sync content as SKILL.md when files are not explicitly provided
+    # (files sync is handled inside update_system_skill/update_user_skill)
+    if data.content is not None and data.files is None:
+        final_system_skill = await storage.get_system_skill(skill.name)
+        file_user_id = "system" if final_system_skill else user.sub
         await storage.sync_skill_files(skill.name, {"SKILL.md": data.content}, user_id=file_user_id)
 
     # Determine final skill type and response
@@ -741,10 +742,12 @@ async def admin_get_skill(
     if not skill:
         raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
 
+    files = await storage.get_skill_files(name, user_id=None)
     return SkillResponse(
         name=skill.name,
         description=skill.description,
         content=skill.content,
+        files=files,
         enabled=skill.enabled,
         source=skill.source,
         github_url=skill.github_url,
@@ -768,10 +771,9 @@ async def admin_update_skill(
     if not skill:
         raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
 
-    if data.files is not None:
-        await storage.sync_skill_files(skill.name, data.files, user_id="system")
-    elif data.content is not None:
-        # Backward compatibility: sync content as SKILL.md
+    # Sync content as SKILL.md when files are not explicitly provided
+    # (files sync is handled inside update_system_skill)
+    if data.content is not None and data.files is None:
         await storage.sync_skill_files(skill.name, {"SKILL.md": data.content}, user_id="system")
 
     return SkillResponse(

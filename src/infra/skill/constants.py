@@ -2,6 +2,9 @@
 Skill storage constants
 """
 
+# MongoDB collection names
+SKILL_FILES_COLLECTION = "skill_files"
+
 # Redis cache TTL (seconds), default 30 minutes
 SKILLS_CACHE_TTL = 1800
 MCP_TOOLS_METADATA_CACHE_TTL = 1800

@@ -279,6 +279,7 @@
       "parameters": "Parameters",
       "result": "Result",
       "running": "Running...",
+      "generating": "Generating...",
       "subagentProgress": "Subagent progress",
       "synthesizing": "Synthesizing results from {{count}} subagent(s)...",
       "thinking": "Thinking",

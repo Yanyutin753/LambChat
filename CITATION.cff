@@ -1,21 +1,23 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "LambChat"
-version: 2.0.0
-date-released: 2026-01-01
+version: 2.0.1
+date-released: 2026-03-22
 url: "https://github.com/Yanyutin753/LambChat"
-abstract: A production-ready AI Agent system built with FastAPI + LangGraph
+abstract: Full-featured AI DeepAgents system with FastAPI, LangGraph, and LangSmith
 authors:
   - family-names: Yang
     given-names: Clivia
     orcid: https://github.com/Yanyutin753
 keywords:
   - ai
-  - agent
+  - deepagents
   - langgraph
+  - langsmith
   - fastapi
   - react
-  - chatbot
   - llm
+  - multi-agent
+  - tool-use
 license: MIT
 repository-code: "https://github.com/Yanyutin753/LambChat"

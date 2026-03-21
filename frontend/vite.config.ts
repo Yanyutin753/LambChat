@@ -9,6 +9,38 @@ export default defineConfig({
   esbuild: {
     drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-codemirror": [
+            "@uiw/react-codemirror",
+            "@codemirror/lang-css",
+            "@codemirror/lang-html",
+            "@codemirror/lang-javascript",
+            "@codemirror/lang-json",
+            "@codemirror/lang-markdown",
+            "@codemirror/lang-python",
+            "@codemirror/lang-sql",
+            "@codemirror/lang-yaml",
+          ],
+          "vendor-markdown": [
+            "react-markdown",
+            "remark-gfm",
+            "remark-breaks",
+            "remark-math",
+            "rehype-katex",
+            "rehype-highlight",
+          ],
+          "vendor-sandpack": ["@codesandbox/sandpack-react"],
+          "vendor-mermaid": ["mermaid"],
+          "vendor-katex": ["katex"],
+          "vendor-i18n": ["i18next", "react-i18next"],
+        },
+      },
+    },
+  },
   server: {
     host: true, // 监听所有地址 (0.0.0.0)，允许 127.0.0.1 和 localhost 访问
     port: 3001,

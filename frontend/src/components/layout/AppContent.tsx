@@ -3,6 +3,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useMemo,
   lazy,
   Suspense,
 } from "react";
@@ -440,12 +441,53 @@ export function AppContent({ activeTab }: AppContentProps) {
   const {
     messagesContainerRef,
     messagesEndRef,
+    virtuosoRef,
+    virtuosoScrollerRef,
     isNearBottom,
     showScrollTop,
     setShowScrollTop,
-    handleScroll,
-    checkIfNearBottom,
+    handleVirtuosoAtBottomChange,
   } = useMessageScroll(messages);
+
+  // Memoize Virtuoso components to prevent re-renders from resetting scroll
+  const virtuosoComponents = useMemo(
+    () => ({
+      Scroller: ({
+        children,
+        ...props
+      }: React.HTMLAttributes<HTMLDivElement> & {
+        children?: React.ReactNode;
+      }) => (
+        <div
+          ref={(el) => {
+            (
+              virtuosoScrollerRef as React.MutableRefObject<HTMLDivElement | null>
+            ).current = el;
+          }}
+          {...props}
+        >
+          {children}
+        </div>
+      ),
+      Footer: () => <div ref={messagesEndRef} />,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const virtuosoItemContent = useCallback(
+    (index: number, message: (typeof messages)[number]) => (
+      <ChatMessage
+        key={message.id}
+        message={message}
+        sessionId={sessionId ?? undefined}
+        sessionName={sessionName ?? undefined}
+        runId={currentRunId ?? undefined}
+        isLastMessage={index === messages.length - 1}
+      />
+    ),
+    [sessionId, sessionName, currentRunId, messages.length],
+  );
 
   // Session sync hook
   const { handleSelectSession, handleNewSession } = useSessionSync({
@@ -639,9 +681,7 @@ export function AppContent({ activeTab }: AppContentProps) {
               {/* Messages */}
               <main
                 ref={messagesContainerRef}
-                onScroll={handleScroll}
-                className="relative flex-1 overflow-y-auto overflow-x-hidden min-h-0 overscroll-contain pb-5 pt-6"
-                style={{ WebkitOverflowScrolling: "touch" }}
+                className="relative flex-1 overflow-hidden min-h-0 pb-5 pt-6"
               >
                 {/* Session loading indicator - show when loading history (no messages yet) */}
                 {isLoading && messages.length === 0 && (
@@ -723,23 +763,14 @@ export function AppContent({ activeTab }: AppContentProps) {
                   </div>
                 ) : (
                   <Virtuoso
+                    ref={virtuosoRef}
                     className="dark:divide-stone-800"
                     data={messages}
-                    itemContent={(index, message) => (
-                      <ChatMessage
-                        key={message.id}
-                        message={message}
-                        sessionId={sessionId ?? undefined}
-                        sessionName={sessionName ?? undefined}
-                        runId={currentRunId ?? undefined}
-                        isLastMessage={index === messages.length - 1}
-                      />
-                    )}
-                    followOutput="smooth"
+                    atBottomStateChange={handleVirtuosoAtBottomChange}
+                    atBottomThreshold={100}
+                    components={virtuosoComponents}
+                    itemContent={virtuosoItemContent}
                     initialTopMostItemIndex={messages.length - 1}
-                    components={{
-                      Footer: () => <div ref={messagesEndRef} />,
-                    }}
                   />
                 )}
               </main>
@@ -748,13 +779,13 @@ export function AppContent({ activeTab }: AppContentProps) {
               {messages.length > 0 && showScrollTop && (
                 <button
                   onClick={() => {
-                    messagesContainerRef.current?.scrollTo({
-                      top: 0,
+                    virtuosoRef.current?.scrollToIndex({
+                      index: 0,
                       behavior: "smooth",
                     });
                     setShowScrollTop(false);
                   }}
-                  className="fixed right-2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
                   style={{ bottom: "9rem" }}
                 >
                   <svg
@@ -776,15 +807,15 @@ export function AppContent({ activeTab }: AppContentProps) {
               {messages.length > 0 && !isNearBottom && (
                 <button
                   onClick={() => {
-                    messagesEndRef.current?.scrollIntoView({
+                    virtuosoRef.current?.scrollToIndex({
+                      index: messages.length - 1,
                       behavior: "smooth",
+                      align: "end",
                     });
-                    setTimeout(() => checkIfNearBottom(), 100);
                   }}
-                  className="fixed left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
                   style={{
                     bottom: "9rem",
-                    left: "50%",
                     transform: "translateX(-50%)",
                   }}
                 >

@@ -254,6 +254,7 @@
       "parameters": "パラメータ",
       "result": "結果",
       "running": "実行中...",
+      "generating": "生成中...",
       "thinking": "思考中",
       "thought": "思考済み",
       "tokenCache": "キャッシュ",

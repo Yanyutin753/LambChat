@@ -148,12 +148,11 @@ async def init_builtin_skills() -> int:
                 name,
                 SkillUpdate(
                     description=description,
-                    files=files,
                     content="",  # Use files format
                 ),
                 admin_user_id="system",
             )
-            # Sync files to PostgreSQL
+            # Sync files to skill_files collection
             await storage.sync_skill_files(name, files, user_id="system")
         else:
             # Create new system skill

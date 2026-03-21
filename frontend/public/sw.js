@@ -1,45 +1,109 @@
-// LambChat Service Worker for Mobile Notifications
-// This enables notifications on mobile browsers even when the app is in background
+// LambChat Service Worker
+// Provides: offline caching, mobile notifications, periodic background updates
 
+const CACHE_NAME = "lambchat-v1";
+const STATIC_ASSETS = [
+  "/",
+  "/icons/icon.svg",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+];
 const NOTIFICATION_TAG = "lambchat-notification";
 
-// Install event - cache static assets if needed
+// Install - pre-cache critical static assets
 self.addEventListener("install", (event) => {
-  console.log("[ServiceWorker] Installing...");
+  console.log("[SW] Installing...");
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)),
+  );
 });
 
-// Activate event - clean up old caches
+// Activate - clean up old caches
 self.addEventListener("activate", (event) => {
-  console.log("[ServiceWorker] Activated");
-  event.waitUntil(self.clients.claim());
+  console.log("[SW] Activated");
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)),
+        ),
+      )
+      .then(() => self.clients.claim()),
+  );
+});
+
+// Fetch - network first for API, cache first for static assets
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET requests
+  if (request.method !== "GET") return;
+
+  // Skip cross-origin requests (except our own API)
+  if (url.origin !== self.location.origin) return;
+
+  // API & SSE requests: network only
+  if (url.pathname.startsWith("/api") || url.pathname.startsWith("/ws")) return;
+
+  // Static assets (js, css, images, fonts): cache first, fallback to network
+  if (
+    url.pathname.match(/\.(js|css|svg|png|ico|woff2?|ttf|eot)$/) ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.startsWith("/images/")
+  ) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
+          // Cache successful responses for static assets
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      }),
+    );
+    return;
+  }
+
+  // HTML pages: network first, fallback to cache
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request)),
+  );
 });
 
 // Handle notification click
 self.addEventListener("notificationclick", (event) => {
-  console.log("[ServiceWorker] Notification clicked:", event.notification.tag);
-
+  console.log("[SW] Notification clicked:", event.notification.tag);
   event.notification.close();
 
   const notificationData = event.notification.data || {};
   const urlToOpen = notificationData.url || "/";
 
-  // Focus existing window or open new one
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
-        // Try to find an existing window
         for (const client of clientList) {
           if (client.url.includes(self.location.origin) && "focus" in client) {
-            // Navigate to the specific URL if needed
             if (urlToOpen !== "/" && client.navigate) {
               client.navigate(urlToOpen);
             }
             return client.focus();
           }
         }
-        // No existing window, open a new one
         if (self.clients.openWindow) {
           return self.clients.openWindow(urlToOpen);
         }
@@ -47,14 +111,13 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Handle notification close
-self.addEventListener("notificationclose", (event) => {
-  console.log("[ServiceWorker] Notification closed");
+self.addEventListener("notificationclose", () => {
+  console.log("[SW] Notification closed");
 });
 
-// Handle push events (for future push notification support from server)
+// Push events
 self.addEventListener("push", (event) => {
-  console.log("[ServiceWorker] Push received");
+  console.log("[SW] Push received");
 
   let notificationData = {
     title: "LambChat",
@@ -65,56 +128,46 @@ self.addEventListener("push", (event) => {
     data: { url: "/" },
   };
 
-  // Parse push data if available
   if (event.data) {
     try {
       const pushData = event.data.json();
       notificationData = {
         ...notificationData,
         ...pushData,
-        data: {
-          url: pushData.url || "/",
-        },
+        data: { url: pushData.url || "/" },
       };
-    } catch (e) {
+    } catch {
       notificationData.body = event.data.text();
     }
   }
 
-  const options = {
-    body: notificationData.body,
-    icon: notificationData.icon,
-    badge: notificationData.badge,
-    tag: notificationData.tag,
-    data: notificationData.data,
-    vibrate: [200, 100, 200], // Vibration pattern for mobile
-    requireInteraction: false, // Auto-close on mobile
-    renotify: true, // Notify even if tag is the same
-  };
-
   event.waitUntil(
-    self.registration.showNotification(notificationData.title, options),
-  );
-});
-
-// Message from main thread - used to show notifications from app
-self.addEventListener("message", (event) => {
-  console.log("[ServiceWorker] Message received:", event.data);
-
-  if (event.data && event.data.type === "SHOW_NOTIFICATION") {
-    const { title, options } = event.data.payload;
-
-    const notificationOptions = {
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+    self.registration.showNotification(notificationData.title, {
+      body: notificationData.body,
+      icon: notificationData.icon,
+      badge: notificationData.badge,
+      tag: notificationData.tag,
+      data: notificationData.data,
       vibrate: [200, 100, 200],
       requireInteraction: false,
       renotify: true,
-      ...options,
-    };
+    }),
+  );
+});
 
+// Message from main thread
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SHOW_NOTIFICATION") {
+    const { title, options } = event.data.payload;
     event.waitUntil(
-      self.registration.showNotification(title, notificationOptions),
+      self.registration.showNotification(title, {
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        vibrate: [200, 100, 200],
+        requireInteraction: false,
+        renotify: true,
+        ...options,
+      }),
     );
   }
 });

@@ -279,6 +279,7 @@
       "parameters": "参数",
       "result": "结果",
       "running": "运行中...",
+      "generating": "生成中...",
       "subagentProgress": "子代理进度",
       "synthesizing": "正在综合 {{count}} 个子代理的结果...",
       "thinking": "思考中",

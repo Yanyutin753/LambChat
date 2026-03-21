@@ -1,5 +1,5 @@
 """
-Skill storage using MongoDB with PostgreSQL file storage via agent_files
+Skill storage using MongoDB with skill_files collection
 
 Supports both system-level and user-level skill configurations.
 Skills are stored as metadata in MongoDB, file content in agent_files table with user_id.
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from src.infra.logging import get_logger
 from src.infra.skill.cache import SkillCacheMixin
+from src.infra.skill.constants import SKILL_FILES_COLLECTION
 from src.infra.skill.converters import (
     doc_to_effective_dict,
     doc_to_export_dict,
@@ -58,6 +59,7 @@ class SkillStorage(
         self._system_collection: Optional["AsyncIOMotorCollection"] = None
         self._user_collection: Optional["AsyncIOMotorCollection"] = None
         self._preferences_collection: Optional["AsyncIOMotorCollection"] = None
+        self._skill_files_collection: Optional["AsyncIOMotorCollection"] = None
 
     # ==========================================
     # MongoDB Collection Access
@@ -86,6 +88,14 @@ class SkillStorage(
             db = self._client[settings.MONGODB_DB]
             self._preferences_collection = db["user_skill_preferences"]
         return self._preferences_collection
+
+    def _get_skill_files_collection(self) -> "AsyncIOMotorCollection":
+        """Get skill_files collection lazily"""
+        if self._skill_files_collection is None:
+            self._client = get_mongo_client()
+            db = self._client[settings.MONGODB_DB]
+            self._skill_files_collection = db[SKILL_FILES_COLLECTION]
+        return self._skill_files_collection
 
     # ==========================================
     # Document Conversion (using converters module)
@@ -142,7 +152,6 @@ class SkillStorage(
             "name": skill.name,
             "description": skill.description,
             "content": skill.content,
-            "files": skill.files,
             "enabled": skill.enabled,
             "source": skill.source.value,
             "github_url": skill.github_url,
@@ -155,11 +164,13 @@ class SkillStorage(
 
         await collection.insert_one(doc)
 
-        # Sync files to PostgreSQL with "system" user_id
-        if skill.files:
-            await self.sync_skill_files(skill.name, skill.files, user_id="system")
-        elif skill.content:
-            await self.sync_skill_files(skill.name, {"SKILL.md": skill.content}, user_id="system")
+        # Write files to skill_files collection
+        files_to_sync = skill.files or {}
+        if skill.content and not skill.files:
+            files_to_sync = {"SKILL.md": skill.content}
+
+        if files_to_sync:
+            await self.sync_skill_files(skill.name, files_to_sync, user_id="system")
 
         # Invalidate all users' cache since system skill affects everyone
         await self._invalidate_all_skills_cache()
@@ -191,8 +202,6 @@ class SkillStorage(
             update_data["enabled"] = updates.enabled
         if updates.version is not None:
             update_data["version"] = updates.version
-        if updates.files is not None:
-            update_data["files"] = updates.files
 
         # If renaming, update by old name then find by new name
         query_name = name
@@ -201,6 +210,13 @@ class SkillStorage(
             query_name = updates.name
         else:
             await collection.update_one({"name": name}, {"$set": update_data})
+
+        # Sync files if provided
+        if updates.files is not None:
+            if updates.files:
+                await self.sync_skill_files(query_name, updates.files, user_id="system")
+            else:
+                await self.delete_skill_files(query_name, user_id="system")
 
         updated_doc = await collection.find_one({"name": query_name})
 
@@ -214,7 +230,7 @@ class SkillStorage(
         collection = self._get_system_collection()
         result = await collection.delete_one({"name": name})
 
-        # Delete files from PostgreSQL with "system" user_id
+        # Delete files from skill_files collection with "system" user_id
         if result.deleted_count > 0:
             await self.delete_skill_files(name, user_id="system")
             # Invalidate all users' cache since system skill affects everyone
@@ -251,7 +267,6 @@ class SkillStorage(
             "name": skill.name,
             "description": skill.description,
             "content": skill.content,
-            "files": skill.files,
             "enabled": skill.enabled,
             "source": skill.source.value,
             "github_url": skill.github_url,
@@ -264,7 +279,7 @@ class SkillStorage(
 
         await collection.insert_one(doc)
 
-        # Sync files to PostgreSQL with user_id
+        # Write files to skill_files collection
         files_to_sync = skill.files or {}
         if skill.content and not skill.files:
             files_to_sync = {"SKILL.md": skill.content}
@@ -299,8 +314,6 @@ class SkillStorage(
             update_data["enabled"] = updates.enabled
         if updates.version is not None:
             update_data["version"] = updates.version
-        if updates.files is not None:
-            update_data["files"] = updates.files
 
         # If renaming, update by old name then find by new name
         query_name = name
@@ -309,6 +322,13 @@ class SkillStorage(
             query_name = updates.name
         else:
             await collection.update_one({"name": name, "user_id": user_id}, {"$set": update_data})
+
+        # Sync files if provided
+        if updates.files is not None:
+            if updates.files:
+                await self.sync_skill_files(query_name, updates.files, user_id=user_id)
+            else:
+                await self.delete_skill_files(query_name, user_id=user_id)
 
         updated_doc = await collection.find_one({"name": query_name, "user_id": user_id})
 
@@ -322,7 +342,7 @@ class SkillStorage(
         collection = self._get_user_collection()
         result = await collection.delete_one({"name": name, "user_id": user_id})
 
-        # Delete files from PostgreSQL with user_id
+        # Delete files from skill_files collection
         if result.deleted_count > 0:
             await self.delete_skill_files(name, user_id=user_id)
             # Invalidate cache for this user
@@ -360,7 +380,6 @@ class SkillStorage(
             "name": user_skill.name,
             "description": user_skill.description,
             "content": user_skill.content,
-            "files": user_skill.files,
             "enabled": user_skill.enabled,
             "source": user_skill.source.value,
             "github_url": user_skill.github_url,
@@ -373,13 +392,15 @@ class SkillStorage(
         }
         await system_collection.insert_one(doc)
 
-        # Sync files to PostgreSQL with "system" user_id
-        if user_skill.files:
-            await self.sync_skill_files(name, user_skill.files, user_id="system")
-        elif user_skill.content:
-            await self.sync_skill_files(name, {"SKILL.md": user_skill.content}, user_id="system")
+        # Move files: update user_id from original user to "system"
+        files_collection = self._get_skill_files_collection()
+        resolved_uid = self._resolve_user_id(user_id)
+        await files_collection.update_many(
+            {"skill_name": name, "user_id": resolved_uid},
+            {"$set": {"user_id": "system", "updated_at": now}},
+        )
 
-        # Delete the user skill (this will also delete files from PostgreSQL with user_id)
+        # Delete the user skill document (files already moved to system above)
         await self.delete_user_skill(name, user_id)
 
         return self._doc_to_system_skill(doc)
@@ -414,7 +435,6 @@ class SkillStorage(
             "name": system_skill.name,
             "description": system_skill.description,
             "content": system_skill.content,
-            "files": system_skill.files,
             "enabled": system_skill.enabled,
             "source": system_skill.source.value,
             "github_url": system_skill.github_url,
@@ -426,15 +446,14 @@ class SkillStorage(
         }
         await user_collection.insert_one(doc)
 
-        # Sync files to PostgreSQL with target_user_id
-        if system_skill.files:
-            await self.sync_skill_files(name, system_skill.files, user_id=target_user_id)
-        elif system_skill.content:
-            await self.sync_skill_files(
-                name, {"SKILL.md": system_skill.content}, user_id=target_user_id
-            )
+        # Move files: update user_id from "system" to target_user_id
+        files_collection = self._get_skill_files_collection()
+        await files_collection.update_many(
+            {"skill_name": name, "user_id": "system"},
+            {"$set": {"user_id": target_user_id, "updated_at": now}},
+        )
 
-        # Delete the system skill (this will also delete files from PostgreSQL with "system" user_id)
+        # Delete the system skill document (files already moved to user above)
         await self.delete_system_skill(name)
 
         return self._doc_to_user_skill(doc)
@@ -450,7 +469,7 @@ class SkillStorage(
         Merges system and user configurations, with user preferences taking precedence.
         Only includes skills that are enabled (after applying user preferences).
 
-        Files are loaded directly from the MongoDB skill document's files field.
+        Files are loaded from the separate skill_files collection via batch query.
         """
         from src.infra.skill.constants import SKILLS_CACHE_KEY_PREFIX, SKILLS_CACHE_TTL
 
@@ -477,6 +496,10 @@ class SkillStorage(
         # Get user preferences for system skills
         user_preferences = await self._get_user_preferences(user_id)
 
+        # Collect skill names for batch file fetch
+        system_skill_names: list[str] = []
+        user_skill_names: list[str] = []
+
         # Get system skills and apply user preferences
         system_collection = self._get_system_collection()
         system_skills = {}
@@ -490,28 +513,38 @@ class SkillStorage(
 
             if is_enabled:
                 skill_data = self._doc_to_effective_dict(doc, is_system=True)
-                # Get files directly from MongoDB document's files field
-                skill_files = doc.get("files", {})
-                if skill_files:
-                    skill_data["files"] = skill_files
-                    # Also set content for backward compatibility
-                    if "SKILL.md" in skill_files:
-                        skill_data["content"] = skill_files["SKILL.md"]
                 system_skills[skill_name] = skill_data
+                system_skill_names.append(skill_name)
 
         # Get enabled user skills
         user_collection = self._get_user_collection()
         user_skills = {}
         async for doc in user_collection.find({"user_id": user_id, "enabled": True}):
             skill_data = self._doc_to_effective_dict(doc, is_system=False)
-            # Get files directly from MongoDB document's files field
-            skill_files = doc.get("files", {})
-            if skill_files:
-                skill_data["files"] = skill_files
-                # Also set content for backward compatibility
-                if "SKILL.md" in skill_files:
-                    skill_data["content"] = skill_files["SKILL.md"]
             user_skills[doc["name"]] = skill_data
+            user_skill_names.append(doc["name"])
+
+        # Batch-fetch files for all skills in one query
+        skill_keys = [(name, "system") for name in system_skill_names] + [
+            (name, user_id) for name in user_skill_names
+        ]
+        files_map = await self.batch_get_skill_files(skill_keys)
+
+        # Attach files to system skills
+        for name in system_skill_names:
+            skill_files = files_map.get((name, "system"), {})
+            if skill_files:
+                system_skills[name]["files"] = skill_files
+                if "SKILL.md" in skill_files:
+                    system_skills[name]["content"] = skill_files["SKILL.md"]
+
+        # Attach files to user skills
+        for name in user_skill_names:
+            skill_files = files_map.get((name, user_id), {})
+            if skill_files:
+                user_skills[name]["files"] = skill_files
+                if "SKILL.md" in skill_files:
+                    user_skills[name]["content"] = skill_files["SKILL.md"]
 
         # Merge (user skills override system skills with same name)
         result = {**system_skills, **user_skills}
@@ -538,6 +571,7 @@ class SkillStorage(
         Get all skills visible to a user.
 
         Returns system skills (with user preferences applied) + user's own skills.
+        Files are fetched from the skill_files collection.
         """
         skills = []
 
@@ -546,18 +580,35 @@ class SkillStorage(
 
         # Get system skills
         system_collection = self._get_system_collection()
+        system_docs: list[dict[str, Any]] = []
         async for doc in system_collection.find({}):
             # Apply user preference if exists, otherwise use system default
             skill_name = doc["name"]
             if skill_name in user_preferences:
                 doc = copy.deepcopy(doc)
                 doc["enabled"] = user_preferences[skill_name]
-            skill = self._doc_to_response(doc, is_system=True, can_edit=True)
-            skills.append(skill)
+            system_docs.append(doc)
 
         # Get user skills
         user_collection = self._get_user_collection()
+        user_docs: list[dict[str, Any]] = []
         async for doc in user_collection.find({"user_id": user_id}):
+            user_docs.append(doc)
+
+        # Batch-fetch files for all visible skills
+        skill_keys = [(doc["name"], "system") for doc in system_docs] + [
+            (doc["name"], user_id) for doc in user_docs
+        ]
+        files_map = await self.batch_get_skill_files(skill_keys)
+
+        # Build responses with files attached
+        for doc in system_docs:
+            doc["files"] = files_map.get((doc["name"], "system"), {})
+            skill = self._doc_to_response(doc, is_system=True, can_edit=True)
+            skills.append(skill)
+
+        for doc in user_docs:
+            doc["files"] = files_map.get((doc["name"], user_id), {})
             skill = self._doc_to_response(doc, is_system=False, can_edit=True)
             skills.append(skill)
 
@@ -639,6 +690,56 @@ class SkillStorage(
 
         return None
 
+    # ==========================================
+    # Indexes & Migration
+    # ==========================================
+
+    async def ensure_indexes(self) -> None:
+        """Create indexes on the skill_files collection."""
+        collection = self._get_skill_files_collection()
+        await collection.create_index(
+            [("skill_name", 1), ("user_id", 1), ("file_path", 1)],
+            unique=True,
+            background=True,
+        )
+
+    async def migrate_embedded_files(self) -> int:
+        """
+        One-time migration: move embedded files from skill documents to skill_files collection.
+
+        Reads the `files` field from existing skill documents, writes each file
+        to the skill_files collection, then removes the `files` field.
+
+        Returns:
+            Number of skill documents migrated
+        """
+        migrated = 0
+
+        # Migrate system skills
+        system_collection = self._get_system_collection()
+        async for doc in system_collection.find({"files": {"$exists": True, "$ne": {}}}):
+            files = doc.get("files", {})
+            if not files:
+                continue
+            await self.sync_skill_files(doc["name"], files, user_id="system")
+            await system_collection.update_one({"_id": doc["_id"]}, {"$unset": {"files": ""}})
+            migrated += 1
+
+        # Migrate user skills
+        user_collection = self._get_user_collection()
+        async for doc in user_collection.find({"files": {"$exists": True, "$ne": {}}}):
+            files = doc.get("files", {})
+            if not files:
+                continue
+            await self.sync_skill_files(doc["name"], files, user_id=doc["user_id"])
+            await user_collection.update_one({"_id": doc["_id"]}, {"$unset": {"files": ""}})
+            migrated += 1
+
+        if migrated:
+            logger.info(f"Migrated embedded files for {migrated} skills to skill_files collection")
+
+        return migrated
+
     async def close(self):
         """Close MongoDB connection"""
         if self._client:
@@ -647,3 +748,4 @@ class SkillStorage(
             self._system_collection = None
             self._user_collection = None
             self._preferences_collection = None
+            self._skill_files_collection = None

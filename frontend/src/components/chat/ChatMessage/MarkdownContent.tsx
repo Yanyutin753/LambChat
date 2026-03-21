@@ -146,7 +146,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal space-y-1.5 mb-3 pl-5 marker:text-stone-500 dark:marker-stone-400 marker:font-semibold">
+            <ol className="list-decimal list-inside space-y-1.5 mb-3 pl-5 marker:text-stone-500 dark:marker-stone-400 marker:font-semibold">
               {children}
             </ol>
           ),
@@ -258,9 +258,6 @@ export const MarkdownContent = memo(function MarkdownContent({
       >
         {content}
       </ReactMarkdown>
-      {isStreaming && (
-        <span className="inline-block h-4 w-1.5 animate-pulse bg-amber-400 ml-0.5 rounded-sm align-middle" />
-      )}
     </span>
   );
 });

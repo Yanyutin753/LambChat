@@ -24,6 +24,28 @@ if (typeof window !== "undefined" && isMobileDevice()) {
   });
 }
 
+// Register Service Worker for PWA support (production only)
+if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => {
+        console.log("[SW] Registered:", registration.scope);
+
+        // Check for updates periodically
+        setInterval(
+          () => {
+            registration.update();
+          },
+          60 * 60 * 1000,
+        ); // every hour
+      })
+      .catch((error) => {
+        console.warn("[SW] Registration failed:", error);
+      });
+  });
+}
+
 // 开发时临时禁用 StrictMode 避免 SSE 双重连接问题
 // 生产环境可以重新启用
 createRoot(document.getElementById("root")!).render(

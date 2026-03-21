@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Bot, Copy, Info } from "lucide-react";
+import { Bot, Copy, Info, Sparkles } from "lucide-react";
 import type {
   Message,
   MessagePart,
@@ -16,6 +16,7 @@ import { UserMessageBubble } from "./UserMessageBubble";
 import { MessagePartRenderer } from "./MessagePartRenderer";
 import { FeedbackButtons } from "./FeedbackButtons";
 import { ShareButton } from "./ShareButton";
+import { CollapsiblePill } from "../../common/CollapsiblePill";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -274,6 +275,18 @@ export function ChatMessage({
                 </div>
               )}
             </>
+          )}
+          {/* Streaming indicator - bottom of message */}
+          {message.isStreaming && (
+            <div className="mt-3 px-2">
+              <CollapsiblePill
+                status="loading"
+                icon={<Sparkles size={12} className="shrink-0 opacity-50" />}
+                label={t("chat.message.generating")}
+                variant="tool"
+                expandable={false}
+              />
+            </div>
           )}
         </div>
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}

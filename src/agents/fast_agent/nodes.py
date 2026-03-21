@@ -15,12 +15,12 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
+from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
 from src.agents.fast_agent.context import FastAgentContext
 from src.agents.fast_agent.prompt import (
     EMPTY_MEMORY_SECTION,
     FAST_SYSTEM_PROMPT,
     HINDSIGHT_MEMORY_SECTION,
-    SUBAGENT_PROMPT,
 )
 from src.infra.agent import AgentEventProcessor
 from src.infra.backend.deepagent import create_persistent_backend_factory

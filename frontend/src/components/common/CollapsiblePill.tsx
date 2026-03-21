@@ -158,7 +158,7 @@ export function CollapsiblePill({
     .join(" ");
 
   return (
-    <div className="my-1">
+    <div className="my-1 min-w-0">
       <button
         onClick={handleToggle}
         className={clsx(

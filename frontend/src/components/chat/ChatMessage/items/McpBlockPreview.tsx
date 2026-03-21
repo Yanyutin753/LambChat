@@ -52,7 +52,7 @@ function McpBlockPreview({ block }: { block: McpContentBlock }) {
 
   if (block.text) {
     return (
-      <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+      <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words max-h-32 overflow-y-auto min-w-0">
         {block.text}
       </pre>
     );
@@ -209,7 +209,7 @@ function JsonFallback({ data }: { data: unknown }) {
 
   return (
     <div>
-      <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+      <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words min-w-0">
         {display}
       </pre>
       {needsTruncation && (
@@ -223,7 +223,7 @@ function JsonFallback({ data }: { data: unknown }) {
       )}
       {expanded && str.length > MAX_JSON_COLLAPSED && (
         <div className="mt-1 max-h-64 overflow-y-auto">
-          <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words">
+          <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words min-w-0">
             {str}
           </pre>
         </div>

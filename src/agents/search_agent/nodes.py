@@ -16,13 +16,13 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
+from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
 from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT,
     EMPTY_MEMORY_SECTION,
     HINDSIGHT_MEMORY_SECTION,
     SANDBOX_SYSTEM_PROMPT,
-    SUBAGENT_PROMPT,
 )
 from src.infra.agent import AgentEventProcessor
 from src.infra.backend import (

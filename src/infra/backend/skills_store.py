@@ -34,6 +34,13 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+
+def _is_duplicate_key_error(exc: Exception) -> bool:
+    """检查是否是 MongoDB duplicate key 错误"""
+    msg = str(exc).lower()
+    return "duplicate" in msg or "e11000" in msg or "duplicatekey" in msg
+
+
 # 路径格式：/skills/{skill_name}/{file_path}
 # 内部统一使用带 /skills/ 前缀的路径
 SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
@@ -252,19 +259,23 @@ class SkillsStoreBackend(BackendProtocol):
         storage = await self._get_storage()
 
         try:
-            # 先尝试用户 skill
-            files = await storage.get_skill_files(skill_name, user_id=self._user_id)
-            if not files:
-                # 再尝试系统 skill
-                files = await storage.get_skill_files(skill_name, user_id=None)
+            # Try single-file query first (user skill, then system skill)
+            content = await storage.get_skill_file(skill_name, file_name, user_id=self._user_id)
+            if content is None:
+                content = await storage.get_skill_file(skill_name, file_name, user_id=None)
 
-            if not files:
-                return f"Error: Skill '{skill_name}' not found"
-
-            if file_name not in files:
+            if content is None:
+                # Skill might exist but file might not — check if skill exists (without loading content)
+                paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
+                if not paths:
+                    paths = await storage.list_skill_file_paths(skill_name, user_id=None)
+                if not paths:
+                    return f"Error: Skill '{skill_name}' not found"
+                if file_name not in paths:
+                    return f"Error: File '{file_name}' not found in skill '{skill_name}'"
+                # file exists in paths but get_skill_file returned None — should not happen
                 return f"Error: File '{file_name}' not found in skill '{skill_name}'"
 
-            content = files[file_name]
             return self._format_content_with_line_numbers(content, offset, limit)
 
         except Exception as e:
@@ -308,32 +319,39 @@ class SkillsStoreBackend(BackendProtocol):
             system_skill = await storage.get_system_skill(skill_name)
 
             if user_skill:
-                # 更新用户 skill
-                files = await storage.get_skill_files(skill_name, user_id=self._user_id)
-                files[file_name] = content
-                await storage.sync_skill_files(skill_name, files, user_id=self._user_id)
+                # 原子更新单个文件，避免并发写入时 read-modify-write 竞态
+                await storage.set_skill_file(skill_name, file_name, content, user_id=self._user_id)
                 logger.info(f"Updated user skill '{skill_name}' file '{file_name}'")
 
             elif system_skill:
                 # 系统技能是只读的，创建用户副本
-                logger.info(f"Creating user copy of system skill '{skill_name}'")
-
                 from src.kernel.schemas.skill import SkillCreate, SkillSource
 
-                skill_create = SkillCreate(
-                    name=skill_name,
-                    description=system_skill.description,
-                    content=system_skill.content,
-                    files={**system_skill.files, file_name: content},
-                    enabled=True,
-                    source=SkillSource.MANUAL,
-                )
-                await storage.create_user_skill(skill_create, self._user_id)
-                logger.info(f"Created user skill '{skill_name}' with modified file '{file_name}'")
+                try:
+                    skill_create = SkillCreate(
+                        name=skill_name,
+                        description=system_skill.description,
+                        content=system_skill.content,
+                        files={**system_skill.files, file_name: content},
+                        enabled=True,
+                        source=SkillSource.MANUAL,
+                    )
+                    await storage.create_user_skill(skill_create, self._user_id)
+                    logger.info(f"Created user copy of system skill '{skill_name}'")
+                except Exception as create_err:
+                    # 并发写入可能已创建用户副本，降级为原子更新
+                    if _is_duplicate_key_error(create_err):
+                        await storage.set_skill_file(
+                            skill_name, file_name, content, user_id=self._user_id
+                        )
+                        logger.info(
+                            f"System skill '{skill_name}' already copied, updated file '{file_name}'"
+                        )
+                    else:
+                        raise
 
             else:
                 # Skill 不存在，自动创建新的用户 skill
-                logger.info(f"Creating new user skill '{skill_name}'")
                 from src.kernel.schemas.skill import SkillCreate, SkillSource
 
                 # 尝试从 SKILL.md 解析名称和描述
@@ -341,7 +359,6 @@ class SkillsStoreBackend(BackendProtocol):
                 description = "Skill created by LLM"
 
                 if file_name == "SKILL.md":
-                    # Name comes from path, not file content
                     lines = content.split("\n")
                     for line in lines:
                         if line.startswith("# "):
@@ -355,16 +372,26 @@ class SkillsStoreBackend(BackendProtocol):
                                 description = " ".join(desc_lines)[:200]
                             break
 
-                skill_create = SkillCreate(
-                    name=name,
-                    description=description,
-                    content=content if file_name == "SKILL.md" else "",
-                    files={file_name: content},
-                    enabled=True,
-                    source=SkillSource.MANUAL,
-                )
-                await storage.create_user_skill(skill_create, self._user_id)
-                logger.info(f"Created user skill '{name}' with file '{file_name}'")
+                try:
+                    skill_create = SkillCreate(
+                        name=name,
+                        description=description,
+                        content=content if file_name == "SKILL.md" else "",
+                        files={file_name: content},
+                        enabled=True,
+                        source=SkillSource.MANUAL,
+                    )
+                    await storage.create_user_skill(skill_create, self._user_id)
+                    logger.info(f"Created user skill '{name}' with file '{file_name}'")
+                except Exception as create_err:
+                    # 并发写入可能已创建 skill，降级为原子更新
+                    if _is_duplicate_key_error(create_err):
+                        await storage.set_skill_file(
+                            skill_name, file_name, content, user_id=self._user_id
+                        )
+                        logger.info(f"Skill '{name}' already created, updated file '{file_name}'")
+                    else:
+                        raise
 
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
@@ -441,11 +468,9 @@ class SkillsStoreBackend(BackendProtocol):
                     error=f"User skill '{skill_name}' not found. Cannot edit system skill files."
                 )
 
-            files = await storage.get_skill_files(skill_name, user_id=self._user_id)
-            if file_name not in files:
+            content = await storage.get_skill_file(skill_name, file_name, user_id=self._user_id)
+            if content is None:
                 return EditResult(error=f"File '{file_name}' not found in skill '{skill_name}'")
-
-            content = files[file_name]
 
             # 检查 old_string 是否存在
             if old_string not in content:
@@ -467,9 +492,8 @@ class SkillsStoreBackend(BackendProtocol):
                 new_content = content.replace(old_string, new_string, 1)
                 occurrences = 1
 
-            # 更新文件
-            files[file_name] = new_content
-            await storage.sync_skill_files(skill_name, files, user_id=self._user_id)
+            # 原子更新单个文件，避免并发写入时 read-modify-write 竞态
+            await storage.set_skill_file(skill_name, file_name, new_content, user_id=self._user_id)
 
             # 清除缓存
             await storage._invalidate_user_skills_cache(self._user_id)
@@ -537,39 +561,151 @@ class SkillsStoreBackend(BackendProtocol):
 
                 return entries
 
-            # 列出某个 skill 下的文件
-            # 注意：返回的路径不应包含 /skills/ 前缀，因为 CompositeBackend 会自动添加
-            if self._is_skill_dir(path):
-                skill_name = self._get_skill_name_from_dir(path)
-                if not skill_name:
-                    return []
+            # 解析路径：/skills/{skill_name}/{sub_path}
+            parsed = self._parse_skill_path(path)
+            if not parsed:
+                # 可能是 skill 根目录（无子路径）
+                if self._is_skill_dir(path):
+                    skill_name = self._get_skill_name_from_dir(path)
+                    if skill_name:
+                        paths = await self._get_skill_file_paths(storage, skill_name)
+                        return self._build_file_list_from_paths(skill_name, "", paths)
+                return []
 
-                # 先尝试用户 skill
-                files = await storage.get_skill_files(skill_name, user_id=self._user_id)
-                if not files:
-                    # 再尝试系统 skill
-                    files = await storage.get_skill_files(skill_name, user_id=None)
+            skill_name, sub_path = parsed
 
-                if files is None:
-                    files = {}
+            # 如果 sub_path 不含 /，可能是直接列文件或列子目录
+            # 去掉末尾的 / 以统一处理
+            sub_path = sub_path.rstrip("/")
 
-                skill_entries: list[FileInfo] = []
-                for file_name in files.keys():
-                    skill_entries.append(
-                        FileInfo(
-                            path=f"/{skill_name}/{file_name}",
-                            is_dir=False,
-                            size=len(files[file_name]),
-                        )
+            # First try path-only to check for exact file match
+            # For ls on a sub-path, we need to know if it's a file or directory prefix
+            # Check if sub_path is an exact file path
+            content = await storage.get_skill_file(skill_name, sub_path, user_id=self._user_id)
+            if content is None:
+                content = await storage.get_skill_file(skill_name, sub_path, user_id=None)
+
+            if content is not None:
+                # 精确匹配到一个文件 — ls 单文件等同于 glob
+                return [
+                    FileInfo(
+                        path=f"/{skill_name}/{sub_path}",
+                        is_dir=False,
+                        size=len(content),
                     )
+                ]
 
-                return skill_entries
-
-            return []
+            # Otherwise list as directory prefix
+            paths = await self._get_skill_file_paths(storage, skill_name)
+            return self._build_file_list_from_paths(skill_name, sub_path, paths)
 
         except Exception as e:
             logger.error(f"Failed to list {path}: {e}")
             return []
+
+    async def _get_skill_files(self, storage, skill_name: str) -> dict[str, str]:
+        """获取 skill 文件（先用户后系统）"""
+        files = await storage.get_skill_files(skill_name, user_id=self._user_id)
+        if not files:
+            files = await storage.get_skill_files(skill_name, user_id=None)
+        return files or {}
+
+    async def _get_skill_file_paths(self, storage, skill_name: str) -> list[str]:
+        """获取 skill 文件路径（先用户后系统，不加载内容）"""
+        paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
+        if not paths:
+            paths = await storage.list_skill_file_paths(skill_name, user_id=None)
+        return paths or []
+
+    @staticmethod
+    def _build_file_list(skill_name: str, prefix: str, files: dict[str, str]) -> list[FileInfo]:
+        """
+        构建 skill 目录的文件列表，正确处理虚拟子目录。
+
+        Args:
+            skill_name: skill 名称
+            prefix: 子目录前缀（空字符串表示 skill 根目录）
+            files: skill 的所有文件 dict (file_path -> content)
+        """
+        entries: list[FileInfo] = []
+        seen_dirs: set[str] = set()
+
+        prefix_slash = f"{prefix}/" if prefix else ""
+
+        for file_name in files:
+            if not file_name.startswith(prefix_slash):
+                continue
+
+            # 去掉前缀后的相对路径
+            relative = file_name[len(prefix_slash) :]
+
+            # 如果相对路径中还有 /，说明在更深的子目录里
+            slash_idx = relative.find("/")
+            if slash_idx >= 0:
+                # 取第一级子目录名作为虚拟目录
+                dir_name = relative[:slash_idx]
+                if dir_name not in seen_dirs:
+                    seen_dirs.add(dir_name)
+                    entries.append(
+                        FileInfo(
+                            path=f"/{skill_name}/{prefix_slash}{dir_name}/",
+                            is_dir=True,
+                        )
+                    )
+            else:
+                # 直接位于当前目录的文件
+                entries.append(
+                    FileInfo(
+                        path=f"/{skill_name}/{file_name}",
+                        is_dir=False,
+                        size=len(files[file_name]),
+                    )
+                )
+
+        return entries
+
+    @staticmethod
+    def _build_file_list_from_paths(
+        skill_name: str, prefix: str, paths: list[str]
+    ) -> list[FileInfo]:
+        """
+        构建 skill 目录的文件列表（仅路径，无内容大小）。
+
+        Args:
+            skill_name: skill 名称
+            prefix: 子目录前缀（空字符串表示 skill 根目录）
+            paths: skill 的所有文件路径列表
+        """
+        entries: list[FileInfo] = []
+        seen_dirs: set[str] = set()
+
+        prefix_slash = f"{prefix}/" if prefix else ""
+
+        for file_path in paths:
+            if not file_path.startswith(prefix_slash):
+                continue
+
+            relative = file_path[len(prefix_slash) :]
+            slash_idx = relative.find("/")
+            if slash_idx >= 0:
+                dir_name = relative[:slash_idx]
+                if dir_name not in seen_dirs:
+                    seen_dirs.add(dir_name)
+                    entries.append(
+                        FileInfo(
+                            path=f"/{skill_name}/{prefix_slash}{dir_name}/",
+                            is_dir=True,
+                        )
+                    )
+            else:
+                entries.append(
+                    FileInfo(
+                        path=f"/{skill_name}/{file_path}",
+                        is_dir=False,
+                    )
+                )
+
+        return entries
 
     # ==========================================
     # 批量操作
@@ -581,39 +717,59 @@ class SkillsStoreBackend(BackendProtocol):
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         """批量读取文件（异步）"""
-        results = []
+        storage = await self._get_storage()
+
+        # 按 skill_name 分组，减少 MongoDB 查询次数
+        groups: dict[str, list[tuple[str, str]]] = {}  # skill_name -> [(original_path, file_name)]
         for path in paths:
-            # 标准化路径，确保有 /skills/ 前缀
             normalized_path = self._normalize_path(path)
             parsed = self._parse_skill_path(normalized_path)
             if not parsed:
-                results.append(FileDownloadResponse(path=path, content=None, error="invalid_path"))
+                groups.setdefault("__invalid__", []).append((path, ""))
+                continue
+            skill_name, file_name = parsed
+            groups.setdefault(skill_name, []).append((path, file_name))
+
+        results: list[FileDownloadResponse] = []
+
+        if not groups:
+            return results
+
+        # Batch-fetch all skills' files (user + system fallback) in one query
+        skill_keys: list[tuple[str, str]] = []
+        for skill_name in groups:
+            if skill_name == "__invalid__":
+                continue
+            skill_keys.append((skill_name, self._user_id))
+            skill_keys.append((skill_name, "system"))  # system skill fallback
+        files_map = await storage.batch_get_skill_files(skill_keys)
+
+        for skill_name, items in groups.items():
+            if skill_name == "__invalid__":
+                for path, _ in items:
+                    results.append(
+                        FileDownloadResponse(path=path, content=None, error="invalid_path")
+                    )
                 continue
 
-            skill_name, file_name = parsed
-            storage = await self._get_storage()
+            # Check user skill files, then system skill files
+            user_files = files_map.get((skill_name, self._user_id), {})
+            system_files = files_map.get((skill_name, "system"), {})
+            files = user_files or system_files
 
-            try:
-                # 先尝试用户 skill
-                files = await storage.get_skill_files(skill_name, user_id=self._user_id)
-                if not files:
-                    # 再尝试系统 skill
-                    files = await storage.get_skill_files(skill_name, user_id=None)
-
+            for original_path, file_name in items:
                 if not files or file_name not in files:
                     results.append(
-                        FileDownloadResponse(path=path, content=None, error="file_not_found")
+                        FileDownloadResponse(
+                            path=original_path, content=None, error="file_not_found"
+                        )
                     )
                     continue
 
                 content = files[file_name]
                 content_bytes = content.encode("utf-8") if isinstance(content, str) else content
-                results.append(FileDownloadResponse(path=path, content=content_bytes, error=None))
-
-            except Exception:
-                # 使用 permission_denied 表示一般性错误
                 results.append(
-                    FileDownloadResponse(path=path, content=None, error="permission_denied")
+                    FileDownloadResponse(path=original_path, content=content_bytes, error=None)
                 )
 
         return results
@@ -665,14 +821,98 @@ class SkillsStoreBackend(BackendProtocol):
 
     def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
         """使用 glob 模式查找文件"""
-        # 标准化路径并检查是否是 skills 根路径
-        if self._is_skills_root(path):
-            return self.ls_info("/")
-        return []
+        return _run_async(self.aglob_info(pattern, path))
 
     async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
         """异步版本"""
-        return self.glob_info(pattern, path)
+        import fnmatch
+
+        normalized_path = self._normalize_path(path)
+        storage = await self._get_storage()
+
+        try:
+            # 根目录：列出所有 skills
+            if self._is_skills_root(normalized_path):
+                effective_skills = await storage.get_effective_skills(self._user_id)
+                skills = effective_skills.get("skills", {})
+                entries: list[FileInfo] = []
+                for skill_name in skills:
+                    if fnmatch.fnmatch(skill_name, pattern):
+                        entries.append(FileInfo(path=f"/{skill_name}/", is_dir=True))
+                return entries
+
+            # skill 目录或子目录：在 skill 文件中 glob
+            parsed = self._parse_skill_path(normalized_path.rstrip("/"))
+            if not parsed:
+                skill_name = self._get_skill_name_from_dir(normalized_path)
+                if skill_name:
+                    paths = await self._get_skill_file_paths(storage, skill_name)
+                    return self._glob_files_from_paths(skill_name, "", pattern, paths)
+                return []
+
+            skill_name, sub_path = parsed
+            paths = await self._get_skill_file_paths(storage, skill_name)
+            return self._glob_files_from_paths(skill_name, sub_path, pattern, paths)
+
+        except Exception as e:
+            logger.error(f"Failed to glob {path}: {e}")
+            return []
+
+    @staticmethod
+    def _glob_files(
+        skill_name: str, prefix: str, pattern: str, files: dict[str, str]
+    ) -> list[FileInfo]:
+        """在 skill 文件中按 glob 模式匹配"""
+        import fnmatch
+
+        prefix_slash = f"{prefix}/" if prefix else ""
+        entries: list[FileInfo] = []
+
+        for file_name in files:
+            if not file_name.startswith(prefix_slash):
+                continue
+
+            # 去掉前缀后取最后一段（basename）进行匹配
+            relative = file_name[len(prefix_slash) :]
+            basename = relative.rsplit("/", 1)[-1] if "/" in relative else relative
+
+            if fnmatch.fnmatch(basename, pattern):
+                entries.append(
+                    FileInfo(
+                        path=f"/{skill_name}/{file_name}",
+                        is_dir=False,
+                        size=len(files[file_name]),
+                    )
+                )
+
+        return entries
+
+    @staticmethod
+    def _glob_files_from_paths(
+        skill_name: str, prefix: str, pattern: str, paths: list[str]
+    ) -> list[FileInfo]:
+        """在 skill 文件路径中按 glob 模式匹配（无内容大小）"""
+        import fnmatch
+
+        prefix_slash = f"{prefix}/" if prefix else ""
+        entries: list[FileInfo] = []
+
+        for file_path in paths:
+            if not file_path.startswith(prefix_slash):
+                continue
+
+            relative = file_path[len(prefix_slash) :]
+            basename = relative.rsplit("/", 1)[-1] if "/" in relative else relative
+
+            if fnmatch.fnmatch(basename, pattern):
+                entries.append(
+                    FileInfo(
+                        path=f"/{skill_name}/{file_path}",
+                        is_dir=False,
+                    )
+                )
+
+        return entries
 
     def close(self) -> None:
         """关闭连接（SkillStorage 由全局缓存管理，不在此关闭）"""

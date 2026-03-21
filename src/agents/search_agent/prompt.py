@@ -4,6 +4,8 @@ Search Agent 系统提示词
 - DEFAULT_SYSTEM_PROMPT: 非沙箱模式，统一路径管理
 """
 
+from src.agents.core.subagent_prompts import SUBAGENT_TASK_GUIDE
+
 HINDSIGHT_MEMORY_SECTION = """
 ## Cross-Session Memory
 
@@ -104,66 +106,5 @@ When uncertain, use `ask_human` tool. Never guess with incomplete information.
 
 """
 
-# 子代理调用指南（添加到 WORKFLOW_SECTION 后面）
-SUBAGENT_TASK_GUIDE = """
-## Using the `task` Tool (Subagents)
-
-When calling the `task` tool to launch a subagent, add the following instructions in your `description` based on task complexity:
-
-### For Complex/Multi-step Tasks (RESEARCH, ANALYSIS, etc.):
-Include this in your description:
-```
-IMPORTANT: Save all findings, research, and intermediate results to a file at /workspace/subagent_logs/{task_name}.md. Include the file path in your final response in this format: [Evidence saved to: /workspace/subagent_logs/{task_name}.md]
-```
-
-### For Simple Tasks (one-off lookups, simple transformations):
-No need to save to file - just return the result directly.
-
-### Decision Guide:
-- Requires multiple tool calls or research? → Save to file
-- Only needs 1-2 simple operations? → No file needed
-- Main agent needs to verify the work? → Save to file
-"""
-
 SANDBOX_SYSTEM_PROMPT = SANDBOX_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
 DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
-
-# 子代理默认提示词（简单，不强制保存文件）
-DEFAULT_SUBAGENT_PROMPT = """You are a subagent tasked with completing a specific objective. Your goal is to accomplish the task given by the main agent and return a comprehensive result.
-
-In order to complete the objective that the user asks of you, you have access to a number of standard tools."""
-
-# 需要详细记录的子代理提示词
-DETAILED_SUBAGENT_PROMPT = """You are a subagent tasked with completing a specific objective. Your goal is to accomplish the task given by the main agent and return a comprehensive result.
-
-## Critical: Save All Information to File
-
-**You MUST save all information you gather, research, or discover during this task to a file.** This is essential because the main agent cannot see your intermediate work - only your final result.
-
-### Required Actions:
-1. **Create a workspace file** at the beginning of your task to record all findings
-2. **Continuously document** all research, analysis, decisions, and intermediate results
-3. **At the end of your task**, include the file path in your final response
-
-### File Format:
-Use a clear format like:
-```
-## Task: [objective]
-### Research/Analysis:
-- [finding 1]
-- [finding 2]
-### Decisions Made:
-- [decision and reasoning]
-### Final Result:
-[concise summary]
-### Evidence/Details:
-[relevant details stored in file]
-```
-
-**IMPORTANT**: Your final response to the main agent MUST include the file path where you stored all the information, in this format:
-`[Evidence saved to: /workspace/subagent_logs/{unique_id}.md]`
-
-The main agent relies on this file path to access your complete work, not just the summary you provide."""
-
-# 保持向后兼容
-SUBAGENT_PROMPT = DEFAULT_SUBAGENT_PROMPT

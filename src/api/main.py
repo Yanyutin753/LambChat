@@ -106,7 +106,13 @@ async def lifespan(app: FastAPI):
 
     # 初始化内置 skills
     from src.infra.skill.builtin import init_builtin_skills
+    from src.infra.skill.storage import SkillStorage
 
+    skill_storage = SkillStorage()
+    await skill_storage.ensure_indexes()
+    migrated = await skill_storage.migrate_embedded_files()
+    if migrated:
+        logger.info(f"Migrated {migrated} skills to skill_files collection")
     await init_builtin_skills()
 
     # 初始化 TraceStorage（创建索引 + 启动事件合并器）

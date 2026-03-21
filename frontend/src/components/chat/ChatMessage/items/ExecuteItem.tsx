@@ -56,14 +56,22 @@ const ExecuteItem = memo(function ExecuteItem({
 
   return (
     <CollapsiblePill
-      status={isPending ? "loading" : cancelled ? "cancelled" : success ? "success" : "error"}
+      status={
+        isPending
+          ? "loading"
+          : cancelled
+            ? "cancelled"
+            : success
+              ? "success"
+              : "error"
+      }
       icon={<Terminal size={12} className="shrink-0 opacity-50" />}
       label={`${t("chat.message.toolExecute")} ${command.split(" ")[0] || ""}`}
       variant="tool"
       expandable={canExpand}
     >
       {canExpand && (
-        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-80 overflow-y-auto">
+        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-80 overflow-hidden min-w-0">
           <div className="px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono flex items-center gap-2 flex-wrap">
             <span className="text-stone-700 dark:text-stone-200">$</span>
             <span className="text-emerald-600 dark:text-emerald-400">
@@ -79,7 +87,7 @@ const ExecuteItem = memo(function ExecuteItem({
           {parsed.output && (
             <pre
               className={clsx(
-                "text-xs max-h-64 overflow-y-auto rounded-md p-2.5",
+                "text-xs max-h-64 overflow-y-auto rounded-md p-2.5 min-w-0",
                 "bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50",
                 "text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono",
               )}

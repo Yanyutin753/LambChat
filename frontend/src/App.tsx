@@ -1,23 +1,62 @@
-import { useEffect, useState } from "react";
+import { lazy, useEffect, useState } from "react";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
-import { SharedPage } from "./components/share/SharedPage";
-import { OAuthCallback } from "./components/auth/OAuthCallback";
-import { ForgotPassword } from "./components/auth/ForgotPassword";
-import { ResetPassword } from "./components/auth/ResetPassword";
-import { VerifyEmail } from "./components/auth/VerifyEmail";
-import { RegistrationPending } from "./components/auth/RegistrationPending";
-import { LandingPage } from "./components/landing/LandingPage";
-import { AuthPage } from "./components/auth/AuthPage";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import { AppContent } from "./components/layout/AppContent";
-import { NotFoundPage } from "./components/common/NotFoundPage";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { usePageTitle } from "./hooks/usePageTitle";
 import { Permission } from "./types";
 import { sessionApi } from "./services/api";
+
+const SharedPage = lazy(() =>
+  import("./components/share/SharedPage").then((m) => ({
+    default: m.SharedPage,
+  })),
+);
+const OAuthCallback = lazy(() =>
+  import("./components/auth/OAuthCallback").then((m) => ({
+    default: m.OAuthCallback,
+  })),
+);
+const ForgotPassword = lazy(() =>
+  import("./components/auth/ForgotPassword").then((m) => ({
+    default: m.ForgotPassword,
+  })),
+);
+const ResetPassword = lazy(() =>
+  import("./components/auth/ResetPassword").then((m) => ({
+    default: m.ResetPassword,
+  })),
+);
+const VerifyEmail = lazy(() =>
+  import("./components/auth/VerifyEmail").then((m) => ({
+    default: m.VerifyEmail,
+  })),
+);
+const RegistrationPending = lazy(() =>
+  import("./components/auth/RegistrationPending").then((m) => ({
+    default: m.RegistrationPending,
+  })),
+);
+const LandingPage = lazy(() =>
+  import("./components/landing/LandingPage").then((m) => ({
+    default: m.LandingPage,
+  })),
+);
+const AuthPage = lazy(() =>
+  import("./components/auth/AuthPage").then((m) => ({ default: m.AuthPage })),
+);
+const AppContent = lazy(() =>
+  import("./components/layout/AppContent").then((m) => ({
+    default: m.AppContent,
+  })),
+);
+const NotFoundPage = lazy(() =>
+  import("./components/common/NotFoundPage").then((m) => ({
+    default: m.NotFoundPage,
+  })),
+);
 
 // Chat Page Component - handles session name for page title
 function ChatPage() {

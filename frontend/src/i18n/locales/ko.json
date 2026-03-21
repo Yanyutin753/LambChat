@@ -254,6 +254,7 @@
       "parameters": "매개변수",
       "result": "결과",
       "running": "실행 중...",
+      "generating": "생성 중...",
       "thinking": "생각 중",
       "thought": "생각 완료",
       "tokenCache": "캐시",

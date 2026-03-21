@@ -69,13 +69,13 @@ export function ToolCallItem({
       expandable={canExpand}
     >
       {canExpand && (
-        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-80 overflow-y-auto">
+        <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-80 overflow-hidden min-w-0">
           {hasArgs && (
             <div className="p-2 rounded-md bg-stone-50/80 dark:bg-stone-800/50">
               <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                 {t("chat.message.args")}
               </div>
-              <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto max-h-40 overflow-y-auto">
+              <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto max-h-40 overflow-y-auto min-w-0">
                 {JSON.stringify(displayArgs, null, 2)}
               </pre>
             </div>
