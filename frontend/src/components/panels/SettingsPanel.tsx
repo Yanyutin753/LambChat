@@ -374,61 +374,62 @@ export function SettingsPanel() {
           onChange={handleImport}
           className="hidden"
         />
+
         {/* Left Sidebar - Categories (hidden on mobile) */}
-        <div className="hidden w-48 flex-shrink-0 flex-col border-r border-gray-200 bg-gray-50 sm:flex dark:border-stone-700 dark:bg-stone-800">
+        <div className="hidden w-52 flex-shrink-0 flex-col border-r border-stone-200 bg-stone-50 sm:flex dark:border-stone-800 dark:bg-stone-900">
           {/* Sidebar Header */}
-          <div className="flex items-center gap-2 border-b border-gray-200 p-3 dark:border-stone-700">
-            <Settings size={20} className="text-gray-600 dark:text-stone-400" />
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-stone-100">
+          <div className="flex items-center gap-2 border-b border-stone-200 px-4 py-3 dark:border-stone-800">
+            <Settings
+              size={18}
+              className="text-stone-500 dark:text-stone-400"
+            />
+            <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
               {t("settings.title")}
             </h2>
           </div>
 
           {/* Category List */}
-          <nav className="flex-1 overflow-y-auto p-2">
+          <nav className="flex-1 overflow-y-auto px-2 py-1.5">
             {CATEGORY_ORDER.map((category) => {
               const count = settings?.settings[category]?.length ?? 0;
+              const isActive = activeCategory === category;
               return (
                 <button
                   key={category}
                   onClick={() => setActiveCategory(category)}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
-                    activeCategory === category
-                      ? "bg-stone-200 text-stone-800 dark:bg-amber-900/40 dark:text-amber-300"
-                      : "text-gray-600 hover:bg-gray-100 dark:text-stone-400 dark:hover:bg-stone-700"
+                  className={`w-full rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors ${
+                    isActive
+                      ? "bg-stone-200 font-semibold text-stone-900 dark:bg-stone-800 dark:text-stone-100"
+                      : "font-medium text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
                   }`}
                 >
-                  <span>{CATEGORY_LABELS[category]}</span>
-                  <span className="ml-1.5 text-xs opacity-60">({count})</span>
+                  {CATEGORY_LABELS[category]}
+                  <span className="ml-1.5 text-[11px] opacity-50">{count}</span>
                 </button>
               );
             })}
           </nav>
 
-          {/* About Button */}
-          <div className="border-t border-gray-200 p-2 dark:border-stone-700">
+          {/* Bottom actions */}
+          <div className="flex gap-1.5 border-t border-stone-200 px-2 py-2 dark:border-stone-800">
             <button
               onClick={() => setShowAbout(true)}
-              className="flex w-full items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
+              className="btn-secondary flex flex-1 items-center justify-center gap-1 py-1.5 text-xs"
             >
               <Info size={12} />
               {t("common.about", "About")}
             </button>
-          </div>
-
-          {/* Reset All Button */}
-          {canManage && (
-            <div className="border-t border-gray-200 p-2 dark:border-stone-700">
+            {canManage && (
               <button
                 onClick={handleResetAll}
                 disabled={isLoading}
-                className="flex w-full items-center justify-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:bg-stone-900 dark:text-red-400 dark:hover:bg-red-900/20"
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/20"
               >
                 <RotateCcw size={12} />
                 {t("common.resetAll")}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Right Content */}
@@ -517,30 +518,27 @@ export function SettingsPanel() {
 
           {/* Error */}
           {error && (
-            <div className="mx-4 mt-4 flex items-center justify-between rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            <div className="mx-3 mt-3 flex items-center justify-between rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400 sm:mx-4 sm:mt-4">
               <span>{error}</span>
               <button
                 onClick={clearError}
-                className="hover:text-red-900 dark:hover:text-red-300"
+                className="ml-2 opacity-60 hover:opacity-100"
               >
-                <AlertCircle size={18} />
+                <AlertCircle size={16} />
               </button>
             </div>
           )}
 
           {/* Settings List */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6">
             {isLoading && !settings ? (
-              <div className="flex h-full items-center justify-center text-gray-500 dark:text-stone-400">
+              <div className="flex h-full items-center justify-center text-stone-400 dark:text-stone-500">
                 {t("settings.loading")}
               </div>
             ) : filteredSettings.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-gray-500 dark:text-stone-400">
-                <Search
-                  size={48}
-                  className="mb-2 text-gray-300 dark:text-stone-600"
-                />
-                <p>
+              <div className="flex h-full flex-col items-center justify-center text-stone-400 dark:text-stone-500">
+                <Search size={40} className="mb-2 opacity-30" />
+                <p className="text-sm">
                   {searchQuery
                     ? t("settings.noMatch")
                     : t("settings.noSettings")}
@@ -553,28 +551,33 @@ export function SettingsPanel() {
                   const modified = isModified(setting);
                   const justSaved = savedKeys.has(setting.key);
                   const isJson = setting.type === "json";
+                  const isSelect =
+                    setting.key === "DEFAULT_AGENT" ||
+                    setting.key === "DEFAULT_USER_ROLE" ||
+                    setting.type === "boolean" ||
+                    (setting.type === "select" && setting.options);
 
                   return (
                     <div
                       key={setting.key}
-                      className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4 dark:border-stone-700 dark:bg-stone-900"
+                      className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900"
                     >
                       {/* Key and Type */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <code className="rounded bg-gray-100 px-2 py-0.5 text-xs sm:text-sm font-medium text-gray-900 break-all dark:bg-stone-800 dark:text-stone-100">
+                            <code className="rounded-md bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-900 break-all dark:bg-stone-800 dark:text-stone-100">
                               {setting.key}
                             </code>
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              className={`tag text-[11px] ${
                                 TYPE_COLORS[setting.type]
                               }`}
                             >
                               {setting.type}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs sm:text-sm text-gray-600 dark:text-stone-400">
+                          <p className="mt-1 text-xs text-stone-500 sm:text-sm dark:text-stone-400">
                             {setting.description}
                           </p>
                         </div>
@@ -582,80 +585,54 @@ export function SettingsPanel() {
 
                       {/* Edit Input */}
                       <div className="mt-3">
-                        {setting.key === "DEFAULT_AGENT" ? (
-                          <select
-                            value={getDisplayValue(setting)}
-                            onChange={(e) =>
-                              handleValueChange(
-                                setting.key,
-                                e.target.value,
-                                setting.type,
-                              )
-                            }
-                            disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
-                          >
-                            {agents.map((agent) => (
-                              <option key={agent.id} value={agent.id}>
-                                {agent.name || agent.id}
-                              </option>
-                            ))}
-                          </select>
-                        ) : setting.key === "DEFAULT_USER_ROLE" ? (
-                          <select
-                            value={getDisplayValue(setting)}
-                            onChange={(e) =>
-                              handleValueChange(
-                                setting.key,
-                                e.target.value,
-                                setting.type,
-                              )
-                            }
-                            disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
-                          >
-                            {roles.map((role) => (
-                              <option key={role.id} value={role.name}>
-                                {role.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : setting.type === "boolean" ? (
-                          <select
-                            value={getDisplayValue(setting)}
-                            onChange={(e) =>
-                              handleValueChange(
-                                setting.key,
-                                e.target.value,
-                                setting.type,
-                              )
-                            }
-                            disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
-                          >
-                            <option value="true">true</option>
-                            <option value="false">false</option>
-                          </select>
-                        ) : setting.type === "select" && setting.options ? (
-                          <select
-                            value={getDisplayValue(setting)}
-                            onChange={(e) =>
-                              handleValueChange(
-                                setting.key,
-                                e.target.value,
-                                "string",
-                              )
-                            }
-                            disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
-                          >
-                            {setting.options.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
-                        ) : setting.type === "text" ? (
+                        {isSelect && (
+                          <div className="relative">
+                            <select
+                              value={getDisplayValue(setting)}
+                              onChange={(e) =>
+                                handleValueChange(
+                                  setting.key,
+                                  e.target.value,
+                                  setting.type === "select"
+                                    ? "string"
+                                    : setting.type,
+                                )
+                              }
+                              disabled={!canManage}
+                              className="w-full appearance-none rounded-lg border border-stone-300 bg-white py-2 pl-3 pr-9 text-sm text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                            >
+                              {setting.key === "DEFAULT_AGENT" ? (
+                                agents.map((agent) => (
+                                  <option key={agent.id} value={agent.id}>
+                                    {agent.name || agent.id}
+                                  </option>
+                                ))
+                              ) : setting.key === "DEFAULT_USER_ROLE" ? (
+                                roles.map((role) => (
+                                  <option key={role.id} value={role.name}>
+                                    {role.name}
+                                  </option>
+                                ))
+                              ) : setting.type === "boolean" ? (
+                                <>
+                                  <option value="true">true</option>
+                                  <option value="false">false</option>
+                                </>
+                              ) : (
+                                setting.options?.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                            <ChevronDown
+                              size={16}
+                              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+                            />
+                          </div>
+                        )}
+                        {setting.type === "text" && (
                           <textarea
                             value={getDisplayValue(setting)}
                             onChange={(e) =>
@@ -667,9 +644,10 @@ export function SettingsPanel() {
                             }
                             disabled={!canManage}
                             rows={4}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
                           />
-                        ) : isJson ? (
+                        )}
+                        {isJson && (
                           <textarea
                             value={getDisplayValue(setting)}
                             onChange={(e) =>
@@ -680,10 +658,11 @@ export function SettingsPanel() {
                               )
                             }
                             disabled={!canManage}
-                            rows={4}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 font-mono text-xs sm:text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            rows={20}
+                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 font-mono text-xs text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
                           />
-                        ) : (
+                        )}
+                        {!isSelect && setting.type !== "text" && !isJson && (
                           <input
                             type={setting.type === "number" ? "number" : "text"}
                             value={getDisplayValue(setting)}
@@ -695,59 +674,55 @@ export function SettingsPanel() {
                               )
                             }
                             disabled={!canManage}
-                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
                           />
                         )}
                       </div>
 
                       {/* Actions and Info */}
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-2">
-                          {canManage && (
-                            <>
-                              <button
-                                onClick={() => handleSave(setting)}
-                                disabled={!modified || isSaving}
-                                className="flex items-center gap-1 rounded-lg bg-stone-800 px-3 py-1.5 text-xs sm:text-sm font-medium text-white hover:bg-stone-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-700"
-                              >
-                                {justSaved ? (
-                                  <>
-                                    <Check size={14} />
-                                    {t("common.saved")}
-                                  </>
-                                ) : (
-                                  <>
-                                    <Save size={14} />
-                                    {t("common.save")}
-                                  </>
-                                )}
-                              </button>
-                              <button
-                                onClick={() => handleReset(setting.key)}
-                                disabled={isSaving}
-                                className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs sm:text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
-                              >
-                                <RotateCcw size={14} />
-                                {t("common.reset")}
-                              </button>
-                            </>
-                          )}
-                        </div>
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        {canManage && (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleSave(setting)}
+                              disabled={!modified || isSaving}
+                              className="btn-primary flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {justSaved ? (
+                                <>
+                                  <Check size={14} />
+                                  {t("common.saved")}
+                                </>
+                              ) : (
+                                <>
+                                  <Save size={14} />
+                                  {t("common.save")}
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleReset(setting.key)}
+                              disabled={isSaving}
+                              className="btn-secondary flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm disabled:opacity-50"
+                            >
+                              <RotateCcw size={14} />
+                              {t("common.reset")}
+                            </button>
+                          </div>
+                        )}
 
-                        {/* Default Value and Updated Info - hidden on mobile */}
-                        <div className="hidden text-xs text-gray-400 sm:block dark:text-stone-500">
-                          <span className="mr-2">
+                        {/* Default Value and Updated Info */}
+                        <div className="hidden text-xs text-stone-400 sm:block dark:text-stone-500">
+                          <span>
                             {t("common.default")}:{" "}
                             {typeof setting.default_value === "object"
                               ? JSON.stringify(setting.default_value)
                               : String(setting.default_value)}
                           </span>
                           {setting.updated_at && (
-                            <span>
-                              {t("common.lastUpdated")}:{" "}
+                            <span className="ml-2">
                               {new Date(setting.updated_at).toLocaleString()}
-                              {setting.updated_by &&
-                                ` ${t("common.by")} ${setting.updated_by}`}
+                              {setting.updated_by && ` · ${setting.updated_by}`}
                             </span>
                           )}
                         </div>
@@ -755,7 +730,7 @@ export function SettingsPanel() {
 
                       {/* Read-only notice */}
                       {!canManage && (
-                        <div className="mt-2 rounded bg-gray-50 px-2 py-1 text-xs text-gray-500 dark:bg-stone-800 dark:text-stone-500">
+                        <div className="mt-2 rounded-lg bg-stone-50 px-3 py-1.5 text-xs text-stone-400 dark:bg-stone-800 dark:text-stone-500">
                           {t("settings.readOnlyNotice")}
                         </div>
                       )}

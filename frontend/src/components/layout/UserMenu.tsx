@@ -10,10 +10,10 @@ import {
   Shield,
   Settings,
   Server,
-  User,
   Star,
   MessageCircle,
   Bot,
+  User,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -129,6 +129,39 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     },
   ];
 
+  const visibleNav = navItems.filter((i) => i.show);
+  const visibleUser = userSettingsItems.filter((i) => i.show);
+  const visibleSys = systemSettingsItems.filter((i) => i.show);
+  const allItems = [...visibleNav, ...visibleUser, ...visibleSys];
+
+  const menuItems = (
+    <div>
+      {allItems.map((item, idx) => {
+        const needDivider =
+          idx > 0 &&
+          (visibleNav.length === idx ||
+            visibleNav.length + visibleUser.length === idx);
+        return (
+          <div key={item.path}>
+            {needDivider && (
+              <div
+                className="mx-2 border-t"
+                style={{ borderColor: "var(--theme-border)" }}
+              />
+            )}
+            <button
+              onClick={() => handleNavigate(item.path)}
+              className="flex w-full items-center gap-2.5 px-3 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+            >
+              <item.icon size={16} />
+              {item.label}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <>
       <div className="relative" onClick={(e) => e.stopPropagation()}>
@@ -156,101 +189,40 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
         {showMenu &&
           createPortal(
             <div
-              className="fixed z-[100] w-48 sm:w-52 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden animate-scale-in"
+              className="fixed z-[100] w-52 rounded-xl shadow-lg border overflow-hidden animate-scale-in"
               style={{
                 top: `${menuPosition.top}px`,
                 right: `${menuPosition.right}px`,
+                backgroundColor: "var(--theme-bg-card)",
+                borderColor: "var(--theme-border)",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                onClick={() => {
-                  onShowProfile();
-                  setShowMenu(false);
-                }}
-                className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50 transition-colors"
+              {menuItems}
+
+              {/* Bottom: Profile + Logout */}
+              <div
+                className="border-t pt-1"
+                style={{ borderColor: "var(--theme-border)" }}
               >
-                <User size={18} />
-                {t("users.user")}
-              </button>
-
-              {/* Navigation */}
-              <div>
-                {navItems
-                  .filter((item) => item.show)
-                  .map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.path}
-                        onClick={() => handleNavigate(item.path)}
-                        className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
-                      >
-                        <Icon size={18} />
-                        {item.label}
-                      </button>
-                    );
-                  })}
-              </div>
-
-              {/* User Management Section */}
-              {userSettingsItems.some((item) => item.show) && (
-                <div className="border-t border-gray-100 dark:border-stone-700 pt-2 mt-2">
-                  <div className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-stone-500">
-                    {t("nav.userSettings")}
-                  </div>
-                  {userSettingsItems
-                    .filter((item) => item.show)
-                    .map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.path}
-                          onClick={() => handleNavigate(item.path)}
-                          className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
-                        >
-                          <Icon size={18} />
-                          {item.label}
-                        </button>
-                      );
-                    })}
-                </div>
-              )}
-
-              {/* System Settings Section */}
-              {systemSettingsItems.some((item) => item.show) && (
-                <div className="border-t border-gray-100 dark:border-stone-700 pt-2 mt-2">
-                  <div className="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-stone-500">
-                    {t("nav.systemSettings")}
-                  </div>
-                  {systemSettingsItems
-                    .filter((item) => item.show)
-                    .map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <button
-                          key={item.path}
-                          onClick={() => handleNavigate(item.path)}
-                          className="flex w-full items-center gap-3 px-3 py-1 sm:py-2.5 text-left text-sm transition-colors text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50"
-                        >
-                          <Icon size={18} />
-                          {item.label}
-                        </button>
-                      );
-                    })}
-                </div>
-              )}
-
-              {/* Logout */}
-              <div className="border-t border-gray-100 dark:border-stone-700">
+                <button
+                  onClick={() => {
+                    onShowProfile();
+                    setShowMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+                >
+                  <User size={16} />
+                  {t("users.user")}
+                </button>
                 <button
                   onClick={() => {
                     logout();
                     setShowMenu(false);
                   }}
-                  className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-700/50 transition-colors"
+                  className="flex w-full items-center gap-2.5 px-3 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                 >
-                  <LogOut size={18} />
+                  <LogOut size={16} />
                   {t("auth.logout")}
                 </button>
               </div>

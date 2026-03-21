@@ -6,6 +6,7 @@ import {
   Send,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ListOrdered,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -37,7 +38,7 @@ function FormFieldRenderer({
   disabled: boolean;
 }) {
   const baseInputClasses =
-    "w-full rounded-xl border bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50 dark:bg-stone-700 dark:text-stone-100 dark:placeholder-stone-500 dark:border-stone-600 dark:focus:border-stone-500 dark:focus:ring-stone-500/20";
+    "w-full rounded-xl border bg-white pl-4 pr-10 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 disabled:opacity-50 dark:bg-stone-700 dark:text-stone-100 dark:placeholder-stone-500 dark:border-stone-600 dark:focus:border-stone-500 dark:focus:ring-stone-500/20";
 
   switch (field.type) {
     case "text":
@@ -109,21 +110,27 @@ function FormFieldRenderer({
 
     case "select":
       return (
-        <select
-          value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={disabled}
-          className={baseInputClasses}
-        >
-          <option value="" disabled>
-            {field.placeholder || "Select an option"}
-          </option>
-          {field.options?.map((option) => (
-            <option key={option} value={option}>
-              {option}
+        <div className="relative">
+          <select
+            value={(value as string) ?? ""}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            className={`${baseInputClasses} appearance-none`}
+          >
+            <option value="" disabled>
+              {field.placeholder || "Select an option"}
             </option>
-          ))}
-        </select>
+            {field.options?.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={16}
+            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+        </div>
       );
 
     case "multi_select": {

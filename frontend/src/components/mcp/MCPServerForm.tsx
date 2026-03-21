@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Permission } from "../../types";
 import type {
@@ -272,18 +272,24 @@ export function MCPServerForm({
         <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-stone-300">
           {t("mcp.form.transportType")}
         </label>
-        <select
-          value={transport}
-          onChange={(e) => setTransport(e.target.value as MCPTransport)}
-          disabled={isEditing}
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
-        >
-          {availableTransports.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            value={transport}
+            onChange={(e) => setTransport(e.target.value as MCPTransport)}
+            disabled={isEditing}
+            className="w-full appearance-none rounded-lg border border-gray-200 bg-white pl-3 pr-9 py-2 text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+          >
+            {availableTransports.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            size={16}
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-stone-500"
+          />
+        </div>
         {isEditing && (
           <p className="mt-1 text-xs text-gray-500 dark:text-stone-500">
             {t("mcp.form.transportUneditable")}
