@@ -237,14 +237,8 @@ export function AppContent({ activeTab }: AppContentProps) {
         permission,
       });
 
-      // Auto-refresh session history if the completed session is currently viewed
-      if (session_id === sessionId) {
-        console.log(
-          "[AppContent] Task completed for current session, refreshing history:",
-          session_id,
-        );
-        loadHistoryRef.current(session_id);
-      }
+      // Task completed - no auto-refresh of current session history
+      // This prevents the conversation from being refreshed when task completes
 
       // Fetch session name for notification title
       let sessionName = "";
@@ -420,7 +414,6 @@ export function AppContent({ activeTab }: AppContentProps) {
   // Track if navigation was initiated internally (not from URL)
   const isInternalNavRef = useRef(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const [isNearTop, setIsNearTop] = useState(true);
 
   // Check if user is near the bottom (within 100px)
   const checkIfNearBottom = useCallback(() => {
@@ -432,14 +425,6 @@ export function AppContent({ activeTab }: AppContentProps) {
       threshold;
     setIsNearBottom(isAtBottom);
     return isAtBottom;
-  }, []);
-
-  // Check if user is near the top (within 100px)
-  const checkIfNearTop = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return true;
-    const threshold = 100;
-    setIsNearTop(container.scrollTop < threshold);
   }, []);
 
   // Track previous message count to detect new messages
@@ -460,11 +445,39 @@ export function AppContent({ activeTab }: AppContentProps) {
     prevMessagesCountRef.current = newCount;
   }, [messages, isNearBottom]);
 
+  // Smart scroll-to-top: detect fast upward scroll and auto-hide
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrollTopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrollTopRef = useRef(0);
+  const lastScrollTimeRef = useRef(0);
+
   // Track scroll position
   const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
     checkIfNearBottom();
-    checkIfNearTop();
-  }, [checkIfNearBottom, checkIfNearTop]);
+
+    const now = Date.now();
+    const scrollTop = container.scrollTop;
+    const dt = now - lastScrollTimeRef.current;
+    const dScroll = lastScrollTopRef.current - scrollTop; // positive = scrolling up
+
+    // Fast scroll-up → show scroll-to-top
+    if (dt < 200 && dScroll > 80 && scrollTop > 300) {
+      setShowScrollTop(true);
+      if (scrollTopTimerRef.current) clearTimeout(scrollTopTimerRef.current);
+      scrollTopTimerRef.current = setTimeout(
+        () => setShowScrollTop(false),
+        3000,
+      );
+    } else if (scrollTop < 300) {
+      setShowScrollTop(false);
+    }
+
+    lastScrollTopRef.current = scrollTop;
+    lastScrollTimeRef.current = now;
+  }, [checkIfNearBottom]);
 
   // Sync from URL only on initial mount
   useEffect(() => {
@@ -860,6 +873,34 @@ export function AppContent({ activeTab }: AppContentProps) {
                 )}
               </main>
 
+              {/* Scroll to top - smart show on fast upward scroll, auto-hide after 3s */}
+              {messages.length > 0 && showScrollTop && (
+                <button
+                  onClick={() => {
+                    messagesContainerRef.current?.scrollTo({
+                      top: 0,
+                      behavior: "smooth",
+                    });
+                    setShowScrollTop(false);
+                  }}
+                  className="fixed right-2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+                  style={{ bottom: "9rem" }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="w-4 h-4 text-stone-500 dark:text-stone-300"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              )}
+
               {/* Scroll to bottom button - Show when user is not at bottom and messages exist */}
               {messages.length > 0 && !isNearBottom && (
                 <button
@@ -885,33 +926,6 @@ export function AppContent({ activeTab }: AppContentProps) {
                     <path
                       fillRule="evenodd"
                       d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-              )}
-
-              {/* Scroll to top button - Show when user is not at top and messages exist */}
-              {messages.length > 0 && !isNearTop && (
-                <button
-                  onClick={() => {
-                    messagesContainerRef.current?.scrollTo({
-                      top: 0,
-                      behavior: "smooth",
-                    });
-                  }}
-                  className="fixed right-2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
-                  style={{ bottom: "10rem" }}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="w-4 h-4 text-stone-500 dark:text-stone-300"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
                       clipRule="evenodd"
                     />
                   </svg>

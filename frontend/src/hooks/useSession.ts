@@ -27,6 +27,7 @@ export function useSessionList(
   refreshKey?: number,
   isProjectsCollapsed?: boolean,
   setIsProjectsCollapsed?: (collapsed: boolean) => void,
+  sidebarVisible?: boolean,
 ): UseSessionListReturn {
   const [sessions, setSessions] = useState<BackendSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +37,8 @@ export function useSessionList(
   const [error, setError] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  // Track in-flight request's skip to prevent duplicate requests
+  const loadingSkipRef = useRef<number | null>(null);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.1,
@@ -44,6 +47,11 @@ export function useSessionList(
   const loadSessions = async (reset = false) => {
     if (!reset && (isLoading || isLoadingMore)) return;
     if (!reset && !hasMore) return;
+
+    const targetSkip = reset ? 0 : skip;
+    // Skip if already loading this exact skip value (prevents duplicate requests)
+    if (!reset && loadingSkipRef.current === targetSkip) return;
+    loadingSkipRef.current = targetSkip;
 
     if (reset) {
       setIsLoading(true);
@@ -54,10 +62,9 @@ export function useSessionList(
     setError(null);
 
     try {
-      const currentSkip = reset ? 0 : skip;
       const response = await sessionApi.list({
         limit: PAGE_SIZE,
-        skip: currentSkip,
+        skip: targetSkip,
         status: "active",
       });
 
@@ -71,16 +78,21 @@ export function useSessionList(
 
       if (reset) {
         setSessions(newSessions);
+        setSkip(newSessions.length);
       } else {
         setSessions((prev) => [...prev, ...newSessions]);
+        setSkip(targetSkip + newSessions.length);
       }
-      setSkip(currentSkip + newSessions.length);
-      setHasMore(newHasMore);
+      // If no new sessions returned, stop loading even if backend says has_more
+      // (e.g. remaining sessions are filtered out by status=active)
+      setHasMore(newSessions.length > 0 ? newHasMore : false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
+      // Don't reset loadingSkipRef here - let it be cleared after skip is updated
+      // This prevents auto-fill from sending duplicate requests while skip is stale
     }
   };
 
@@ -98,31 +110,62 @@ export function useSessionList(
     }
   }, [inView, hasMore, isLoadingMore, loadMoreSessions]);
 
-  // Auto-fill sidebar: keep loading or expand projects until container is filled
+  // Auto-fill sidebar: expand projects first, then load more if still needed
   const loadSessionsRef = useRef(loadSessions);
   loadSessionsRef.current = loadSessions;
 
   useEffect(() => {
     if (isLoading || isLoadingMore) return;
-    const container = scrollContainerRef.current;
+
+    // sessionListContent renders in both mobile & desktop sidebars.
+    // Query DOM to find the scroll container that has actual dimensions.
+    const allContainers = document.querySelectorAll<HTMLDivElement>(
+      "[data-sidebar-scroll]",
+    );
+    let container: HTMLDivElement | null = null;
+    for (const el of allContainers) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        container = el;
+        break;
+      }
+    }
+
     if (!container || container.scrollHeight > container.clientHeight) return;
 
-    if (hasMore) {
-      loadSessionsRef.current(false);
-    } else if (isProjectsCollapsed && setIsProjectsCollapsed) {
+    // First: expand projects to reveal already-loaded sessions (no network request)
+    if (isProjectsCollapsed && setIsProjectsCollapsed) {
       const hasProjectSessions = sessions.some((s) => s.metadata?.project_id);
       if (hasProjectSessions) {
         setIsProjectsCollapsed(false);
+        return; // re-run after expansion to re-check if container is now full
       }
     }
+
+    // Second: load more sessions only if projects are already expanded
+    if (hasMore) {
+      loadSessionsRef.current(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions, hasMore, isLoading, isLoadingMore, isProjectsCollapsed]);
+  }, [
+    sessions,
+    hasMore,
+    isLoading,
+    isLoadingMore,
+    isProjectsCollapsed,
+    sidebarVisible,
+  ]);
 
   // Initial load on mount / refresh
   useEffect(() => {
     loadSessions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
+
+  // Clear loadingSkipRef after skip is updated to prevent duplicate requests
+  useEffect(() => {
+    loadingSkipRef.current = null;
+  }, [skip]);
 
   return {
     sessions,

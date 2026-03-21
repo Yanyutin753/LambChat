@@ -65,7 +65,12 @@ export function SessionSidebar({
     loadMoreSessions,
     scrollContainerRef,
     loadMoreRef,
-  } = useSessionList(refreshKey, isProjectsCollapsed, setIsProjectsCollapsed);
+  } = useSessionList(
+    refreshKey,
+    isProjectsCollapsed,
+    setIsProjectsCollapsed,
+    mobileOpen,
+  );
 
   const projectManager = useProjectManager();
 
@@ -303,6 +308,7 @@ export function SessionSidebar({
       {/* Session list */}
       <div
         ref={scrollContainerRef}
+        data-sidebar-scroll
         className="flex-1 overflow-y-auto px-2 scrollbar-thin"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
