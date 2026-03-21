@@ -223,7 +223,7 @@ export function FileRevealItem({
       {canPreview && s3Url && success ? (
         <div
           className={clsx(
-            "w-full rounded-xl border overflow-hidden transition-all",
+            "w-full rounded-xl border overflow-hidden transition-colors transition-shadow",
             "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900",
             "hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600",
           )}
@@ -301,9 +301,9 @@ export function FileRevealItem({
             }
           }}
           className={clsx(
-            "w-full flex items-center gap-3 p-4 rounded-xl border transition-all cursor-pointer text-left",
+            "w-full flex items-center gap-3 p-4 rounded-xl border transition-colors transition-transform cursor-pointer text-left",
             success
-              ? "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600 hover:scale-[1.005] transition-transform"
+              ? "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600 hover:scale-[1.005]"
               : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 opacity-70",
           )}
           disabled={!filePath || !success}

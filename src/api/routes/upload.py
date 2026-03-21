@@ -6,7 +6,6 @@ Provides endpoints for file uploads to S3-compatible storage.
 
 import asyncio
 import base64
-import re
 from typing import Any
 
 from fastapi import (
@@ -41,15 +40,6 @@ from src.kernel.config import settings
 from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
-
-_VIDEO_EXTENSIONS = frozenset(
-    {"mp4", "webm", "mov", "avi", "mkv", "m4v", "ogg", "ogv", "flv", "wmv"}
-)
-
-
-def _is_video_key(key: str) -> bool:
-    ext = key.rsplit(".", 1)[-1].lower() if "." in key else ""
-    return ext in _VIDEO_EXTENSIONS
 
 
 def _parse_bool(value: Any) -> bool:
@@ -679,7 +669,7 @@ async def get_file_proxy(
     No authentication required.
 
     Query params:
-        direct: If true, return the URL as JSON instead of redirecting (for video streaming).
+        direct: If true, return the URL as JSON instead of redirecting.
     """
     from fastapi.responses import JSONResponse
 
@@ -739,62 +729,6 @@ async def get_file_proxy(
 
     if direct:
         return JSONResponse({"url": url})
-
-    # Video: proxy through backend to bypass OSS force-download (x-oss-force-download)
-    if _is_video_key(key):
-        import mimetypes as _mt
-
-        content_type, _ = _mt.guess_type(key)
-        if not content_type or not content_type.startswith("video/"):
-            content_type = "video/mp4"
-
-        try:
-            total_size = await backend.get_size(key)
-        except Exception as e:
-            logger.error(f"Failed to stat video {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to read video file")
-
-        range_header = request.headers.get("range")
-
-        if range_header:
-            range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
-            if range_match:
-                start = int(range_match.group(1))
-                end = int(range_match.group(2)) if range_match.group(2) else total_size - 1
-
-                try:
-                    content = await backend.download_range(key, start, end)
-                except Exception as e:
-                    logger.error(f"Failed to download video range {key}: {e}")
-                    raise HTTPException(status_code=500, detail="Failed to read video file")
-
-                return Response(
-                    content=content,
-                    status_code=206,
-                    media_type=content_type,
-                    headers={
-                        "Content-Range": f"bytes {start}-{end}/{total_size}",
-                        "Accept-Ranges": "bytes",
-                        "Content-Disposition": "inline",
-                        "Cache-Control": "public, max-age=86400",
-                    },
-                )
-
-        try:
-            content = await backend.download(key)
-        except Exception as e:
-            logger.error(f"Failed to download video {key}: {e}")
-            raise HTTPException(status_code=500, detail="Failed to read video file")
-
-        return Response(
-            content=content,
-            media_type=content_type,
-            headers={
-                "Accept-Ranges": "bytes",
-                "Content-Disposition": "inline",
-                "Cache-Control": "public, max-age=86400",
-            },
-        )
 
     return Response(
         status_code=302,

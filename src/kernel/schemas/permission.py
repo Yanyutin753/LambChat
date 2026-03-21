@@ -174,6 +174,15 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "管理反馈",
         "description": "删除和管理所有用户反馈",
     },
+    # Agent
+    Permission.AGENT_READ.value: {
+        "label": "读取智能体",
+        "description": "查看智能体配置和状态",
+    },
+    Permission.AGENT_ADMIN.value: {
+        "label": "管理智能体",
+        "description": "创建、修改和删除智能体配置（管理员权限）",
+    },
     # Channel - Generic
     Permission.CHANNEL_READ.value: {
         "label": "查看渠道",
@@ -270,6 +279,13 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.FEEDBACK_WRITE.value,
             Permission.FEEDBACK_READ.value,
             Permission.FEEDBACK_ADMIN.value,
+        ],
+    },
+    {
+        "name": "智能体",
+        "permissions": [
+            Permission.AGENT_READ.value,
+            Permission.AGENT_ADMIN.value,
         ],
     },
     {

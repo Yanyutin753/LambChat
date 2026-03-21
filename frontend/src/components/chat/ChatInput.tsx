@@ -9,6 +9,7 @@ import {
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
+import TurndownService from "turndown";
 import { useTranslation } from "react-i18next";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
@@ -26,6 +27,136 @@ import type {
   AgentOption,
   MessageAttachment,
 } from "../../types";
+
+/** Shared turndown instance — created once, reused on every paste. */
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  hr: "---",
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "*",
+  strongDelimiter: "**",
+});
+
+// Enhance turndown with better rules for common copy-paste scenarios
+
+// Remove empty links, images, and spans that carry no content
+turndown.addRule("removeEmpty", {
+  filter: (node) => {
+    return (
+      (node.nodeName === "A" || node.nodeName === "SPAN") &&
+      !node.textContent?.trim()
+    );
+  },
+  replacement: () => "",
+});
+
+// Preserve tables as Markdown tables
+turndown.addRule("table", {
+  filter: "table",
+  replacement: (content, node) => {
+    const table = node as HTMLTableElement;
+    const rows: string[][] = [];
+    table.querySelectorAll("tr").forEach((tr) => {
+      const cells: string[] = [];
+      tr.querySelectorAll("th, td").forEach((cell) => {
+        cells.push(
+          turndown.turndown(cell.innerHTML).trim().replace(/\n/g, " "),
+        );
+      });
+      rows.push(cells);
+    });
+    if (rows.length === 0) return "";
+
+    // Normalize column count
+    const colCount = Math.max(...rows.map((r) => r.length));
+    const normalized = rows.map((r) =>
+      r.length < colCount ? [...r, ...Array(colCount - r.length).fill("")] : r,
+    );
+
+    // Calculate column widths
+    const colWidths = Array(colCount).fill(0);
+    normalized.forEach((row) =>
+      row.forEach((cell, i) => {
+        colWidths[i] = Math.max(colWidths[i], cell.length);
+      }),
+    );
+
+    const pad = (s: string, w: number) =>
+      s + " ".repeat(Math.max(0, w - s.length));
+    const padRight = (s: string, w: number) =>
+      s.length > w ? s.substring(0, w - 1) + "…" : pad(s, w);
+
+    let md = "";
+    normalized.forEach((row, ri) => {
+      md +=
+        "| " +
+        row.map((c, ci) => padRight(c, colWidths[ci])).join(" | ") +
+        " |\n";
+      if (ri === 0) {
+        md += "| " + colWidths.map((w) => "-".repeat(w)).join(" | ") + " |\n";
+      }
+    });
+    return md.trim() ? "\n\n" + md + "\n" : "";
+  },
+});
+
+// Better code block handling — detect language hints from class names
+turndown.addRule("fencedCodeBlock", {
+  filter: (node) => {
+    return (
+      node.nodeName === "PRE" &&
+      node.firstChild &&
+      (node.firstChild as HTMLElement).nodeName === "CODE"
+    );
+  },
+  replacement: (content, node) => {
+    const codeEl = node.firstChild as HTMLElement;
+    const className = codeEl.className || "";
+    const langMatch = className.match(/(?:language-|lang-|hljs\s+)(\w+)/);
+    const lang = langMatch ? langMatch[1] : "";
+    const code = codeEl.textContent || "";
+    return "\n\n```" + lang + "\n" + code.replace(/\n$/, "") + "\n```\n\n";
+  },
+});
+
+// Clean up pasted content: remove inline styles, empty paragraphs, etc.
+function cleanPastedHtml(div: HTMLDivElement) {
+  // Remove non-content elements
+  div
+    .querySelectorAll("meta, style, script, title, link")
+    .forEach((el) => el.remove());
+
+  // Remove empty paragraphs and divs
+  div.querySelectorAll("p, div").forEach((el) => {
+    if (!el.textContent?.trim() && !el.querySelector("img")) {
+      el.remove();
+    }
+  });
+
+  // Remove class/id attributes (they carry no semantic meaning for markdown)
+  div.querySelectorAll("*").forEach((el) => {
+    el.removeAttribute("class");
+    el.removeAttribute("id");
+    el.removeAttribute("style");
+    el.removeAttribute("data-");
+  });
+
+  // Unwrap <div> and <section> that are just wrappers
+  div.querySelectorAll("div, section").forEach((el) => {
+    const parent = el.parentNode;
+    if (!parent) return;
+    while (el.firstChild) {
+      parent.insertBefore(el.firstChild, el);
+    }
+    parent.removeChild(el);
+  });
+
+  // Convert <br> inside <li> to newlines for better list handling
+  div.querySelectorAll("li br").forEach((br) => {
+    br.replaceWith(document.createTextNode("\n"));
+  });
+}
 
 // Icon mapping for dynamic icon rendering
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -284,61 +415,16 @@ export const ChatInput = memo(function ChatInput({
     const htmlText = clipboardData.getData("text/html");
 
     if (htmlText) {
-      // Convert HTML to plain text with basic formatting preserved as markdown-like
+      e.preventDefault();
+
       const tempDiv = document.createElement("div");
       tempDiv.innerHTML = htmlText;
 
-      // Convert to markdown-like format
-      const processNode = (node: Node): string => {
-        if (node.nodeType === Node.TEXT_NODE) {
-          return node.textContent || "";
-        }
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as HTMLElement;
-          const children = Array.from(el.childNodes).map(processNode).join("");
+      // Clean up common copy-paste artifacts (Word, Google Docs, etc.)
+      cleanPastedHtml(tempDiv);
 
-          switch (el.tagName) {
-            case "B":
-            case "STRONG":
-              return `**${children}**`;
-            case "I":
-            case "EM":
-              return `*${children}*`;
-            case "U":
-              return `<u>${children}</u>`;
-            case "S":
-            case "STRIKE":
-            case "DEL":
-              return `~~${children}~~`;
-            case "A":
-              return `[${children}](${el.getAttribute("href") || ""})`;
-            case "CODE":
-              return `\`${children}\``;
-            case "PRE":
-              return `\n\`\`\`\n${children}\n\`\`\`\n`;
-            case "BLOCKQUOTE":
-              return `> ${children}`;
-            case "LI":
-              return `- ${children}`;
-            case "UL":
-            case "OL":
-              return children;
-            case "BR":
-              return "\n";
-            case "DIV":
-            case "P":
-              return children + "\n";
-            default:
-              return children;
-          }
-        }
-        return "";
-      };
+      const markdownText = turndown.turndown(tempDiv);
 
-      const markdownText = processNode(tempDiv).trim();
-
-      // Insert at cursor position
-      e.preventDefault();
       const textarea = textareaRef.current;
       if (textarea) {
         const start = textarea.selectionStart;
@@ -347,7 +433,6 @@ export const ChatInput = memo(function ChatInput({
           input.substring(0, start) + markdownText + input.substring(end);
         setInput(newValue);
 
-        // Set cursor position after inserted text
         setTimeout(() => {
           textarea.selectionStart = textarea.selectionEnd =
             start + markdownText.length;
@@ -355,7 +440,6 @@ export const ChatInput = memo(function ChatInput({
         }, 0);
       }
     }
-    // If no HTML, let default paste handle plain text
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -425,7 +509,7 @@ export const ChatInput = memo(function ChatInput({
         >
           {/* Attachment preview - top area (ChatGPT style) */}
           {attachments.length > 0 && (
-            <div className="mx-2 mt-2 -mb-1 flex flex-wrap gap-2">
+            <div className="mx-2 mt-2 -mb-1 flex gap-2 overflow-x-auto">
               {attachments.map((attachment) => {
                 const isImage =
                   attachment.mimeType?.startsWith("image/") && attachment.url;
@@ -479,7 +563,7 @@ export const ChatInput = memo(function ChatInput({
                 canSend ? t("chat.placeholder") : t("chat.noPermission")
               }
               disabled={disabled || !canSend}
-              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-3 px-1 resize-none text-[15px] text-gray-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-hidden"
+              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-2 px-1 resize-none text-[15px] text-gray-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-hidden"
               rows={1}
             />
           </div>

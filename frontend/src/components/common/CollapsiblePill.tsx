@@ -163,7 +163,7 @@ export function CollapsiblePill({
         onClick={handleToggle}
         className={clsx(
           "inline-flex items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
-          "transition-all",
+          "transition-colors",
           getButtonStyles(status, variant),
           canExpand && "cursor-pointer",
           !canExpand && "cursor-default",

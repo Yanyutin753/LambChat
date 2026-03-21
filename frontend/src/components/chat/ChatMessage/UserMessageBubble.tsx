@@ -83,7 +83,7 @@ export function UserMessageBubble({
             <button
               onClick={handleCopy}
               className={clsx(
-                "p-1.5 rounded-lg transition-all duration-200",
+                "p-1.5 rounded-lg transition-colors duration-200",
                 "opacity-0 group-hover:opacity-100",
                 "hover:bg-black/5 dark:hover:bg-white/5",
                 copied

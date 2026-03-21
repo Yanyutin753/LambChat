@@ -30,7 +30,11 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const [imgError, setImgError] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 640,
+  );
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   const canReadSkills =
@@ -43,27 +47,47 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]) && enableMcp;
   const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
-  const canManageAgents = hasAnyPermission([Permission.AGENT_ADMIN]);
+  const canManageAgents = hasAnyPermission([Permission.AGENT_READ]);
 
-  // Update menu position
+  // Reactive mobile detection
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Update menu position (desktop only)
   const updateMenuPosition = useCallback(() => {
-    if (buttonRef.current) {
+    if (buttonRef.current && !isMobile) {
       const rect = buttonRef.current.getBoundingClientRect();
       setMenuPosition({
-        top: rect.bottom + 8, // 8px = mt-2
+        top: rect.bottom + 8,
         right: window.innerWidth - rect.right,
       });
     }
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
-    const handleClickOutside = () => setShowMenu(false);
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(target) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(target)
+      ) {
+        setShowMenu(false);
+      }
+    };
     if (showMenu) {
       updateMenuPosition();
-      document.addEventListener("click", handleClickOutside);
+      const timer = setTimeout(() => {
+        document.addEventListener("click", handleClickOutside);
+      }, 0);
       window.addEventListener("resize", updateMenuPosition);
       window.addEventListener("scroll", updateMenuPosition, true);
       return () => {
+        clearTimeout(timer);
         document.removeEventListener("click", handleClickOutside);
         window.removeEventListener("resize", updateMenuPosition);
         window.removeEventListener("scroll", updateMenuPosition, true);
@@ -71,10 +95,37 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     }
   }, [showMenu, updateMenuPosition]);
 
+  // Lock body scroll on mobile when menu is open
+  useEffect(() => {
+    if (showMenu && isMobile) {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    }
+  }, [showMenu, isMobile]);
+
   const handleNavigate = (path: string) => {
     navigate(path);
     setShowMenu(false);
   };
+
+  const navItems = [
+    { path: "/chat", label: t("nav.chat"), icon: MessageSquare, show: true },
+    {
+      path: "/skills",
+      label: t("nav.skills"),
+      icon: Package,
+      show: canReadSkills,
+    },
+    { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
+    {
+      path: "/channels",
+      label: t("nav.channels"),
+      icon: MessageCircle,
+      show: true,
+    },
+  ];
 
   const userSettingsItems = [
     {
@@ -112,63 +163,102 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     },
   ];
 
-  const navItems = [
-    { path: "/chat", label: t("nav.chat"), icon: MessageSquare, show: true },
-    {
-      path: "/skills",
-      label: t("nav.skills"),
-      icon: Package,
-      show: canReadSkills,
-    },
-    { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
-    {
-      path: "/channels",
-      label: t("nav.channels"),
-      icon: MessageCircle,
-      show: true,
-    },
-  ];
-
   const visibleNav = navItems.filter((i) => i.show);
   const visibleUser = userSettingsItems.filter((i) => i.show);
   const visibleSys = systemSettingsItems.filter((i) => i.show);
-  const allItems = [...visibleNav, ...visibleUser, ...visibleSys];
 
-  const menuItems = (
-    <div>
-      {allItems.map((item, idx) => {
-        const needDivider =
-          idx > 0 &&
-          (visibleNav.length === idx ||
-            visibleNav.length + visibleUser.length === idx);
-        return (
-          <div key={item.path}>
-            {needDivider && (
-              <div
-                className="mx-2 border-t"
-                style={{ borderColor: "var(--theme-border)" }}
-              />
-            )}
+  const menuItemClass =
+    "flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] active:scale-[0.98]";
+
+  const dividerClass = "mx-3 my-1 border-t border-[var(--theme-border)]";
+
+  const renderMenuContent = () => (
+    <>
+      {/* Navigation */}
+      {visibleNav.length > 0 && (
+        <div>
+          {visibleNav.map((item) => (
             <button
+              key={item.path}
               onClick={() => handleNavigate(item.path)}
-              className="flex w-full items-center gap-2.5 px-3 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+              className={menuItemClass}
             >
-              <item.icon size={16} />
-              {item.label}
+              <item.icon size={16} strokeWidth={1.8} />
+              <span>{item.label}</span>
             </button>
-          </div>
-        );
-      })}
-    </div>
+          ))}
+        </div>
+      )}
+
+      {/* User Management */}
+      {visibleUser.length > 0 && (
+        <div>
+          {visibleNav.length > 0 && <div className={dividerClass} />}
+          {visibleUser.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => handleNavigate(item.path)}
+              className={menuItemClass}
+            >
+              <item.icon size={16} strokeWidth={1.8} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* System */}
+      {visibleSys.length > 0 && (
+        <div>
+          {(visibleNav.length > 0 || visibleUser.length > 0) && (
+            <div className={dividerClass} />
+          )}
+          {visibleSys.map((item) => (
+            <button
+              key={item.path}
+              onClick={() => handleNavigate(item.path)}
+              className={menuItemClass}
+            >
+              <item.icon size={16} strokeWidth={1.8} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Bottom actions */}
+      <div className="border-t border-[var(--theme-border)] mt-1">
+        <button
+          onClick={() => {
+            onShowProfile();
+            setShowMenu(false);
+          }}
+          className={menuItemClass}
+        >
+          <User size={16} strokeWidth={1.8} />
+          <span>{t("users.user")}</span>
+        </button>
+        <button
+          onClick={() => {
+            logout();
+            setShowMenu(false);
+          }}
+          className={`${menuItemClass} text-red-500/70 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10`}
+        >
+          <LogOut size={16} strokeWidth={1.8} />
+          <span className="flex-1">{t("auth.logout")}</span>
+        </button>
+      </div>
+    </>
   );
 
   return (
     <>
-      <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="relative">
         <button
           ref={buttonRef}
           onClick={() => setShowMenu(!showMenu)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors overflow-hidden"
+          className="flex h-8 w-8 items-center justify-center rounded-lg transition-all hover:ring-2 hover:ring-[var(--theme-primary-light)] active:scale-95 overflow-hidden"
         >
           {user?.avatar_url && !imgError ? (
             <img
@@ -188,45 +278,44 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
 
         {showMenu &&
           createPortal(
-            <div
-              className="fixed z-[100] w-52 rounded-xl shadow-lg border overflow-hidden animate-scale-in"
-              style={{
-                top: `${menuPosition.top}px`,
-                right: `${menuPosition.right}px`,
-                backgroundColor: "var(--theme-bg-card)",
-                borderColor: "var(--theme-border)",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {menuItems}
-
-              {/* Bottom: Profile + Logout */}
+            isMobile ? (
+              // Mobile: bottom sheet with backdrop
               <div
-                className="border-t pt-1"
-                style={{ borderColor: "var(--theme-border)" }}
+                className="fixed inset-0 z-[100] sm:hidden"
+                onClick={() => setShowMenu(false)}
               >
-                <button
-                  onClick={() => {
-                    onShowProfile();
-                    setShowMenu(false);
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+                <div className="fixed inset-0 bg-black/40 animate-fade-in" />
+                <div
+                  ref={menuRef}
+                  className="fixed inset-x-0 bottom-0 z-[101] rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto animate-slide-up-sheet"
+                  style={{ backgroundColor: "var(--theme-bg-card)" }}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <User size={16} />
-                  {t("users.user")}
-                </button>
-                <button
-                  onClick={() => {
-                    logout();
-                    setShowMenu(false);
-                  }}
-                  className="flex w-full items-center gap-2.5 px-3 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
-                >
-                  <LogOut size={16} />
-                  {t("auth.logout")}
-                </button>
+                  {/* Drag handle */}
+                  <div className="flex justify-center pt-3 pb-1">
+                    <div className="w-9 h-1 rounded-full bg-[var(--theme-text-secondary)] opacity-25" />
+                  </div>
+                  {renderMenuContent()}
+                  {/* Safe area for iOS */}
+                  <div className="h-[env(safe-area-inset-bottom)]" />
+                </div>
               </div>
-            </div>,
+            ) : (
+              // Desktop: positioned dropdown
+              <div
+                ref={menuRef}
+                className="fixed z-[100] w-52 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+                style={{
+                  top: `${menuPosition.top}px`,
+                  right: `${menuPosition.right}px`,
+                  backgroundColor: "var(--theme-bg-card)",
+                  borderColor: "var(--theme-border)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {renderMenuContent()}
+              </div>
+            ),
             document.body,
           )}
       </div>

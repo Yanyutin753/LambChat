@@ -94,7 +94,7 @@ function TokenDetailsButton({
         ref={buttonRef}
         onClick={() => setShowDetails(!showDetails)}
         className={clsx(
-          "p-1.5 rounded-md transition-all",
+          "p-1.5 rounded-md transition-colors",
           !isLastMessage && "opacity-0 group-hover:opacity-100",
           "hover:bg-gray-200 dark:hover:bg-stone-700",
           "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
@@ -218,10 +218,10 @@ export function ChatMessage({
     <div className="group w-full animate-[fade-in_0.3s_ease-out]">
       <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6 mb-3 sm:mb-4">
         {/* Content */}
-        <div className="min-w-0 overflow-hidden">
+        <div className="min-w-0 min-h-0 overflow-hidden">
           {/* Header: Avatar + Role label + Stop button */}
           <div className="mb-3 flex items-center gap-2">
-            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-rose-500 text-white shadow-md shadow-amber-200/40 dark:shadow-amber-900/30">
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-amber-400 dark:bg-stone-800 dark:text-amber-400">
               <Bot size={15} />
             </div>
             <span className="text-base sm:text-lg font-semibold text-stone-800 dark:text-stone-100 tracking-tight font-serif">
@@ -288,7 +288,7 @@ export function ChatMessage({
                 }
               }}
               className={clsx(
-                "p-1.5 rounded-md transition-all",
+                "p-1.5 rounded-md transition-colors",
                 !isLastMessage && "opacity-0 group-hover:opacity-100",
                 "hover:bg-gray-200 dark:hover:bg-stone-700",
                 "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",

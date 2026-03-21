@@ -60,7 +60,7 @@ export function ThinkingBlock({
         onClick={() => setIsExpanded(!isExpanded)}
         className={clsx(
           "inline-flex items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
-          "transition-all bg-stone-200 dark:bg-stone-700",
+          "transition-colors bg-stone-200 dark:bg-stone-700",
           "text-stone-600 dark:text-stone-300",
           "hover:bg-stone-300 dark:hover:bg-stone-600 cursor-pointer",
         )}
@@ -189,7 +189,7 @@ export function SubagentBlock({
   return (
     <div
       className={clsx(
-        "my-3 rounded-xl overflow-hidden transition-all duration-200",
+        "my-3 rounded-xl overflow-hidden",
         "border border-stone-200 dark:border-stone-700",
         "bg-white dark:bg-stone-900",
         effectiveStatus === "error" && "border-red-200 dark:border-red-900/50",

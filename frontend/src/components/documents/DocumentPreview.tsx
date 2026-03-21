@@ -114,6 +114,7 @@ export default function DocumentPreview({
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [excalidrawData, setExcalidrawData] = useState<string>("");
   const [viewSource, setViewSource] = useState(false);
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
 
   const fileName = path.split("/").pop() || path;
   const ext = getFileExtension(fileName);
@@ -177,6 +178,7 @@ export default function DocumentPreview({
     setVideoUrl(null);
     setArrayBuffer(null);
     setExcalidrawData("");
+    setResolvedUrl(null);
 
     const loadContent = async () => {
       // 如果传入了外部图片 URL，直接使用
@@ -213,6 +215,8 @@ export default function DocumentPreview({
           if (!url) {
             throw new Error("No URL available");
           }
+
+          setResolvedUrl(url);
 
           // 图片文件直接使用签名 URL
           if (imageFile) {
@@ -370,10 +374,10 @@ export default function DocumentPreview({
 
   const handleDownload = async () => {
     // Cross-origin URLs: fetch as blob to ensure download attribute filename is respected
-    if (signedUrl || externalImageUrl) {
+    const downloadUrl = signedUrl || resolvedUrl || externalImageUrl;
+    if (downloadUrl) {
       try {
-        const url = signedUrl || externalImageUrl || "";
-        const response = await fetch(url);
+        const response = await fetch(downloadUrl);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -385,7 +389,7 @@ export default function DocumentPreview({
         URL.revokeObjectURL(blobUrl);
       } catch {
         // Fallback: open in new tab if fetch fails (e.g., CORS blocked)
-        window.open(signedUrl || externalImageUrl || "", "_blank");
+        window.open(downloadUrl, "_blank");
       }
       return;
     }
@@ -421,7 +425,7 @@ export default function DocumentPreview({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-800 shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-900 dark:to-stone-900">
+        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-800 shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-900 dark:to-stone-900 whitespace-nowrap">
           {/* File Icon */}
           <div
             className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${fileInfo.bg}`}
@@ -437,9 +441,9 @@ export default function DocumentPreview({
               className="font-bold text-stone-900 dark:text-stone-100 text-sm sm:text-base"
               title={fileName}
             >
-              <span className="filename-truncate block">{fileName}</span>
+              <span className="block truncate">{fileName}</span>
             </h3>
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-stone-500 dark:text-stone-400 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-stone-500 dark:text-stone-400">
               {codeFile && (
                 <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-mono text-xs sm:text-xs">
                   {language}
@@ -510,7 +514,11 @@ export default function DocumentPreview({
                 />
               )}
             </button>
-            {(data?.content || s3Key || signedUrl || externalImageUrl) && (
+            {(data?.content ||
+              s3Key ||
+              signedUrl ||
+              externalImageUrl ||
+              resolvedUrl) && (
               <>
                 <button
                   type="button"
