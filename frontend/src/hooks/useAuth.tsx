@@ -21,11 +21,34 @@ import {
 } from "../services/api";
 import { Permission } from "../types";
 import type { User, UserCreate, LoginRequest, AuthState } from "../types";
+import i18n from "../i18n";
+
+/** Apply user metadata preferences from backend */
+function applyUserMetadata(metadata?: { language?: string; theme?: string }) {
+  if (!metadata) return;
+
+  if (metadata.language) {
+    localStorage.setItem("language", metadata.language);
+    i18n.changeLanguage(metadata.language);
+  }
+
+  if (metadata.theme) {
+    localStorage.setItem("lamb-agent-theme", metadata.theme);
+    if (metadata.theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }
+}
 
 // 认证上下文类型
 interface AuthContextType extends AuthState {
   login: (credentials: LoginRequest, turnstileToken?: string) => Promise<void>;
-  register: (userData: UserCreate, turnstileToken?: string) => Promise<{ requiresVerification: boolean; email: string }>;
+  register: (
+    userData: UserCreate,
+    turnstileToken?: string,
+  ) => Promise<{ requiresVerification: boolean; email: string }>;
   loginWithOAuth: (provider: string) => Promise<void>;
   handleOAuthCallback: (
     provider: string,
@@ -80,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const currentUser = await authApi.getCurrentUser();
         setUser(currentUser);
+        applyUserMetadata(currentUser.metadata);
         // 更新动态权限
         if (currentUser.permissions) {
           setDynamicPermissions(
@@ -113,47 +137,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // 登录
-  const login = useCallback(async (credentials: LoginRequest, turnstileToken?: string) => {
-    setIsLoading(true);
-    try {
-      await authApi.login(credentials, turnstileToken);
-      const accessToken = getAccessToken();
-      setToken(accessToken);
-
-      // 获取用户信息
+  const login = useCallback(
+    async (credentials: LoginRequest, turnstileToken?: string) => {
+      setIsLoading(true);
       try {
-        const currentUser = await authApi.getCurrentUser();
-        setUser(currentUser);
-        // 更新动态权限
-        if (currentUser.permissions) {
-          setDynamicPermissions(
-            currentUser.permissions.filter((p): p is Permission =>
-              Object.values(Permission).includes(p as Permission),
-            ),
-          );
-        }
-      } catch {
-        // 获取用户信息失败，清除登录状态
-        authApi.logout();
-        setToken(null);
-        setIsLoading(false);
-        return;
-      }
+        await authApi.login(credentials, turnstileToken);
+        const accessToken = getAccessToken();
+        setToken(accessToken);
 
-      // 登录成功后，跳转到之前的页面
-      const redirectPath = getRedirectPath();
-      if (redirectPath) {
-        clearRedirectPath();
-        window.location.href = redirectPath;
+        // 获取用户信息
+        try {
+          const currentUser = await authApi.getCurrentUser();
+          setUser(currentUser);
+          applyUserMetadata(currentUser.metadata);
+          // 更新动态权限
+          if (currentUser.permissions) {
+            setDynamicPermissions(
+              currentUser.permissions.filter((p): p is Permission =>
+                Object.values(Permission).includes(p as Permission),
+              ),
+            );
+          }
+        } catch {
+          // 获取用户信息失败，清除登录状态
+          authApi.logout();
+          setToken(null);
+          setIsLoading(false);
+          return;
+        }
+
+        // 登录成功后，跳转到之前的页面
+        const redirectPath = getRedirectPath();
+        if (redirectPath) {
+          clearRedirectPath();
+          window.location.href = redirectPath;
+        }
+      } finally {
+        setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   // 注册
   const register = useCallback(
-    async (userData: UserCreate, turnstileToken?: string): Promise<{ requiresVerification: boolean; email: string }> => {
+    async (
+      userData: UserCreate,
+      turnstileToken?: string,
+    ): Promise<{ requiresVerification: boolean; email: string }> => {
       setIsLoading(true);
       try {
         await authApi.register(userData, turnstileToken);
@@ -188,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const currentUser = await authApi.getCurrentUser();
           setUser(currentUser);
+          applyUserMetadata(currentUser.metadata);
           // 更新动态权限
           if (currentUser.permissions) {
             setDynamicPermissions(
@@ -220,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const currentUser = await authApi.getCurrentUser();
       setUser(currentUser);
+      applyUserMetadata(currentUser.metadata);
       // 更新动态权限
       if (currentUser.permissions) {
         setDynamicPermissions(
