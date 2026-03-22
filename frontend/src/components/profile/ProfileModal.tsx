@@ -8,6 +8,7 @@ import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import { ProfilePasswordTab } from "./tabs/ProfilePasswordTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
 import { UserAgentPreferencePanel } from "./UserAgentPreferencePanel";
+import { ProfilePreferencesTab } from "./tabs/ProfilePreferencesTab";
 
 interface ProfileModalProps {
   showProfileModal: boolean;
@@ -22,7 +23,7 @@ export function ProfileModal({
 }: ProfileModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<
-    "info" | "password" | "notification" | "agent"
+    "info" | "password" | "notification" | "agent" | "preferences"
   >("info");
 
   // Reset tab when modal opens
@@ -59,6 +60,7 @@ export function ProfileModal({
     { key: "password", label: t("profile.changePassword") },
     { key: "notification", label: t("profile.notifications") },
     { key: "agent", label: t("agentConfig.defaultAgent") },
+    { key: "preferences", label: t("profile.preferences") },
   ];
 
   return createPortal(
@@ -120,6 +122,7 @@ export function ProfileModal({
           {activeTab === "password" && <ProfilePasswordTab />}
           {activeTab === "notification" && <ProfileNotificationTab />}
           {activeTab === "agent" && <UserAgentPreferencePanel />}
+          {activeTab === "preferences" && <ProfilePreferencesTab />}
         </div>
 
         {/* Modal Footer */}
