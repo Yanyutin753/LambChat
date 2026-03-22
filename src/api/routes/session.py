@@ -497,7 +497,6 @@ async def generate_session_title(
             api_base=title_api_base,
             api_key=title_api_key,
             max_tokens=100,
-            max_retries=max_retries,
         )
         prompt = prompt_template.replace("{lang}", lang).replace("{message}", message[:800])
 
