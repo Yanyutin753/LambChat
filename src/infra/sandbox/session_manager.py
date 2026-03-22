@@ -81,17 +81,20 @@ class E2BSandboxAdapter:
         auto_pause: bool = True,
         auto_resume: bool = True,
     ):
-        from e2b import Sandbox as E2BSandbox
-
-        self._e2b_class = E2BSandbox
         self._api_key = api_key
         self._template = template
         self._timeout = timeout
         self._auto_pause = auto_pause
         self._auto_resume = auto_resume
 
+    def _get_e2b_class(self):
+        from e2b import Sandbox as E2BSandbox
+
+        return E2BSandbox
+
     def create_sandbox(self, user_id: str | None = None) -> tuple[object, str]:
         """创建沙箱，支持 lifecycle 配置和 metadata"""
+        e2b_class = self._get_e2b_class()
 
         kwargs: dict = {
             "template": self._template,
@@ -109,13 +112,14 @@ class E2BSandboxAdapter:
         if user_id:
             kwargs["metadata"] = {"user_id": user_id}
 
-        sandbox = self._e2b_class.create(**kwargs)
+        sandbox = e2b_class.create(**kwargs)
         return sandbox, "/home/user"
 
     def get_sandbox(self, sandbox_id: str) -> object | None:
         """连接到沙箱（自动恢复暂停状态）"""
         try:
-            return self._e2b_class.connect(
+            e2b_class = self._get_e2b_class()
+            return e2b_class.connect(
                 sandbox_id=sandbox_id,
                 timeout=self._timeout,
             )
