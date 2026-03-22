@@ -167,6 +167,16 @@ src/
 └── skills/          # 内置技能
 ```
 
+## ⭐ Star History
+
+<a href="https://star-history.com/#Yanyutin753/LambChat&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Yanyutin753/LambChat&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Yanyutin753/LambChat&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Yanyutin753/LambChat&type=Date" />
+ </picture>
+</a>
+
 ## 📄 许可证
 
 [MIT](LICENSE) — 项目名称 "LambChat" 及其标志不得被更改或移除。

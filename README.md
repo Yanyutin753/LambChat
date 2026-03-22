@@ -167,6 +167,16 @@ src/
 └── skills/          # Built-in skills
 ```
 
+## ⭐ Star History
+
+<a href="https://star-history.com/#Yanyutin753/LambChat&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Yanyutin753/LambChat&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Yanyutin753/LambChat&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Yanyutin753/LambChat&type=Date" />
+ </picture>
+</a>
+
 ## 📄 License
 
 [MIT](LICENSE) — Project name "LambChat" and its logo may not be changed or removed.
