@@ -10,6 +10,21 @@ services:
     volumes:
       - redis-data:/data
 
+  mongodb:
+    image: mongo:7
+    container_name: taskagent-mongodb
+    ports:
+      - "27017:27017"
+    restart: unless-stopped
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   app:
     build:
       context: .
@@ -19,8 +34,12 @@ services:
       - "8080:8080"
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - MONGODB_URL=mongodb://mongodb:27017
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      mongodb:
+        condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./uploads:/app/uploads
@@ -33,3 +52,4 @@ services:
 
 volumes:
   redis-data:
+  mongodb-data:
