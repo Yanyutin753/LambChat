@@ -233,19 +233,14 @@ class SandboxFactory:
             E2BBackend 实例
         """
         try:
-            import os
-
             from e2b import Sandbox as E2BSandbox
 
             from src.infra.backend.e2b import E2BBackend
 
-            # E2B SDK reads API key from environment variable
-            if api_key:
-                os.environ.setdefault("E2B_API_KEY", api_key)
-
             kwargs: dict = {
                 "template": template,
                 "timeout": timeout,
+                "api_key": api_key or None,
             }
             if auto_pause:
                 kwargs["lifecycle"] = {

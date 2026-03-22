@@ -392,7 +392,7 @@ export const ChatInput = memo(function ChatInput({
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(
         textareaRef.current.scrollHeight,
-        200,
+        250,
       )}px`;
     }
   }, [input]);
@@ -563,7 +563,7 @@ export const ChatInput = memo(function ChatInput({
                 canSend ? t("chat.placeholder") : t("chat.noPermission")
               }
               disabled={disabled || !canSend}
-              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-2 px-1 resize-none text-[15px] text-gray-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-hidden"
+              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-2 px-1 resize-none text-[15px] text-gray-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
               rows={1}
             />
           </div>

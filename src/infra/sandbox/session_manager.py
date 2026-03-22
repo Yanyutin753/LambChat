@@ -87,6 +87,16 @@ class E2BSandboxAdapter:
         self._auto_pause = auto_pause
         self._auto_resume = auto_resume
 
+    def _sync_from_settings(self) -> None:
+        """Sync config values from global settings (after DB update)."""
+        from src.kernel.config.base import settings
+
+        self._template = settings.E2B_TEMPLATE
+        self._api_key = settings.E2B_API_KEY
+        self._timeout = settings.E2B_TIMEOUT
+        self._auto_pause = getattr(settings, "E2B_AUTO_PAUSE", True)
+        self._auto_resume = getattr(settings, "E2B_AUTO_RESUME", True)
+
     def _get_e2b_class(self):
         from e2b import Sandbox as E2BSandbox
 
@@ -94,11 +104,13 @@ class E2BSandboxAdapter:
 
     def create_sandbox(self, user_id: str | None = None) -> tuple[object, str]:
         """创建沙箱，支持 lifecycle 配置和 metadata"""
+        self._sync_from_settings()
         e2b_class = self._get_e2b_class()
 
         kwargs: dict = {
             "template": self._template,
             "timeout": self._timeout,
+            "api_key": self._api_key or None,
         }
 
         # Auto-Pause + Auto-Resume lifecycle
@@ -122,6 +134,7 @@ class E2BSandboxAdapter:
             return e2b_class.connect(
                 sandbox_id=sandbox_id,
                 timeout=self._timeout,
+                api_key=self._api_key or None,
             )
         except Exception:
             return None
@@ -578,9 +591,9 @@ class SessionSandboxManager:
         def _sync_create():
             client = self._get_daytona_client()
             params = CreateSandboxFromSnapshotParams(
-                auto_delete_interval=settings.SANDBOX_AUTO_DELETE_INTERVAL,
-                auto_stop_interval=settings.SANDBOX_AUTO_STOP_INTERVAL,
-                auto_archive_interval=settings.SANDBOX_AUTO_ARCHIVE_INTERVAL,
+                auto_delete_interval=settings.DAYTONA_AUTO_DELETE_INTERVAL,
+                auto_stop_interval=settings.DAYTONA_AUTO_STOP_INTERVAL,
+                auto_archive_interval=settings.DAYTONA_AUTO_ARCHIVE_INTERVAL,
                 language="python",
                 snapshot=settings.DAYTONA_IMAGE if settings.DAYTONA_IMAGE else None,
             )
@@ -638,6 +651,7 @@ class SessionSandboxManager:
     async def _get_or_create_e2b(
         self, session_id: str, user_id: str
     ) -> tuple[CompositeBackend, str]:
+        assert self._e2b_adapter is not None
         lock = self._get_user_lock(user_id)
         async with lock:
             if user_id in self._cache:
@@ -676,14 +690,16 @@ class SessionSandboxManager:
     async def _create_and_bind_e2b(
         self, session_id: str, user_id: str
     ) -> tuple[CompositeBackend, str]:
+        assert self._e2b_adapter is not None
+        adapter = self._e2b_adapter
         from src.infra.backend.e2b import E2BBackend
 
         def _sync_create():
-            sandbox, work_dir = self._e2b_adapter.create_sandbox(user_id=user_id)
+            sandbox, work_dir = adapter.create_sandbox(user_id=user_id)
             e2b_backend = E2BBackend(sandbox=sandbox)
             skills_backend = create_skills_backend(user_id=user_id)
             composite = CompositeBackend(default=e2b_backend, routes={"/skills/": skills_backend})
-            return composite, work_dir, self._e2b_adapter.get_sandbox_id(sandbox), sandbox
+            return composite, work_dir, adapter.get_sandbox_id(sandbox), sandbox
 
         backend, work_dir, sandbox_id, provider_obj = await asyncio.to_thread(_sync_create)
         try:
@@ -708,6 +724,7 @@ class SessionSandboxManager:
         )
 
     async def _stop_e2b(self, user_id: str) -> bool:
+        assert self._e2b_adapter is not None
         lock = self._get_user_lock(user_id)
         async with lock:
             if user_id in self._cache:

@@ -4,7 +4,9 @@ DeepAgent 事件处理模块
 处理 DeepAgent 的 astream_events 事件并转发到 Presenter。
 """
 
+import base64
 import json
+import mimetypes
 import uuid
 from io import StringIO
 from typing import Any
@@ -472,6 +474,10 @@ class AgentEventProcessor:
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        # 将结果中的 base64 二进制数据上传到存储，替换为 URL
+        if isinstance(result, dict) and "blocks" in result:
+            await self._upload_binary_blocks(result)
+
         await self._presenter_emit(
             self.presenter.present_tool_result(
                 tool_name,
@@ -483,6 +489,61 @@ class AgentEventProcessor:
                 agent_id=current_agent_id,
             )
         )
+
+    async def _upload_binary_blocks(self, result: dict) -> None:
+        """将 result.blocks 中含 base64 的 block 上传到存储，用 URL 替换 base64。
+
+        原地修改 result dict，无返回值。
+        """
+        blocks = result.get("blocks")
+        if not isinstance(blocks, list):
+            return
+
+        has_binary = any(isinstance(b, dict) and b.get("base64") for b in blocks)
+        if not has_binary:
+            return
+
+        try:
+            from src.infra.storage.s3 import get_storage_service
+            from src.infra.tool.reveal_file_tool import _ensure_storage_initialized
+
+            await _ensure_storage_initialized()
+            storage = get_storage_service()
+        except Exception as e:
+            logger.warning("Failed to initialize storage for binary upload: %s", e)
+            return
+
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            b64_data = block.get("base64")
+            if not b64_data or not isinstance(b64_data, str):
+                continue
+
+            try:
+                raw_bytes = base64.b64decode(b64_data)
+                mime_type = block.get("mime_type", "application/octet-stream")
+                ext = mimetypes.guess_extension(mime_type) or ".bin"
+                ext = ext.lstrip(".")
+                filename = f"binary_{uuid.uuid4().hex[:8]}.{ext}"
+
+                upload_result = await storage.upload_bytes(
+                    data=raw_bytes,
+                    folder="tool_binaries",
+                    filename=filename,
+                    content_type=mime_type,
+                )
+
+                proxy_url = f"/api/upload/file/{upload_result.key}"
+                block.pop("base64", None)
+                block["url"] = proxy_url
+                logger.info(
+                    "Uploaded binary block to storage: %s (%d bytes)",
+                    upload_result.key,
+                    len(raw_bytes),
+                )
+            except Exception as e:
+                logger.warning("Failed to upload binary block: %s", e)
 
     # MCP media block 类型集合，用于快速判断
     _MCP_MEDIA_TYPES = frozenset(("image", "file"))

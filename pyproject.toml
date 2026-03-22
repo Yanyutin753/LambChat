@@ -52,6 +52,7 @@ dependencies = [
     # Memory
     "hindsight-client>=0.4.18",
     "lark-oapi>=1.5.3",
+    "e2b>=2.15.3",
 ]
 
 [dependency-groups]

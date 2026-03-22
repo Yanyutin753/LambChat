@@ -1400,6 +1400,12 @@ html.dark body {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Fix list-inside: prevent <p> from breaking number and text onto separate lines */
+.markdown-preview li > p {
+  display: inline;
+  margin: 0;
+}
+
 .markdown-preview * {
   overflow-anchor: none;
 }

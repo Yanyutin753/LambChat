@@ -7,7 +7,8 @@
  * and React state updates (side effects).
  */
 
-import type { Message } from "../../types";
+import type { Message, FormField } from "../../types";
+import { authFetch } from "../../services/api/fetch";
 import i18n from "../../i18n";
 import type {
   StreamEvent,
@@ -351,9 +352,13 @@ async function handleApprovalRequired(
 ): Promise<void> {
   if (data.id && ctx.options?.onApprovalRequired) {
     try {
-      const response = await fetch(`/human/${data.id}`);
-      if (!response.ok) return;
-      const approval = await response.json();
+      const approval = await authFetch<{
+        status: string;
+        message?: string;
+        type?: string;
+        fields?: FormField[];
+      }>(`/human/${data.id}`);
+      if (!approval) return;
       if (approval && approval.status === "pending") {
         ctx.options?.onApprovalRequired?.({
           id: data.id!,

@@ -8,6 +8,7 @@
  */
 
 import type { Message, MessagePart, FormField } from "../../types";
+import { authFetch } from "../../services/api/fetch";
 import i18n from "../../i18n";
 import type {
   EventData,
@@ -69,8 +70,13 @@ function processHistoryEvent(
       fields?: FormField[];
     };
     if (approvalData.id && opts.options?.onApprovalRequired) {
-      fetch(`/human/${approvalData.id}`)
-        .then((response) => (response.ok ? response.json() : null))
+      authFetch<{
+        status: string;
+        message?: string;
+        type?: string;
+        fields?: FormField[];
+      }>(`/human/${approvalData.id}`)
+        .then((data) => data ?? null)
         .then((approval) => {
           if (approval?.status === "pending") {
             opts.options?.onApprovalRequired?.({

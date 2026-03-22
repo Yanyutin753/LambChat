@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, ExternalLink, FileText } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ImageViewer } from "../../../common/ImageViewer";
 import { MarkdownContent } from "../MarkdownContent";
 import type { McpContentBlock, McpMultiModalResult } from "./toolUtils";
 import { isMarkdownText, extractText } from "./toolUtils";
@@ -17,20 +18,36 @@ function isContentBlocksArray(result: unknown): result is McpContentBlock[] {
 }
 
 // 单个 MCP content block 的预览
-function McpBlockPreview({ block }: { block: McpContentBlock }) {
+export function McpBlockPreview({ block }: { block: McpContentBlock }) {
   const { t } = useTranslation();
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   if (block.type === "image") {
     const src = block.base64
       ? `data:${block.mime_type || "image/png"};base64,${block.base64}`
       : block.url || "";
     return (
-      <img
-        src={src}
-        alt={t("chat.message.toolOutput")}
-        className="max-w-full max-h-48 rounded-md border border-stone-200 dark:border-stone-700 cursor-pointer hover:opacity-80 transition-opacity"
-        onClick={() => src && window.open(src, "_blank")}
-      />
+      <>
+        {!loaded && (
+          <div className="w-48 h-32 rounded-md border border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 animate-pulse" />
+        )}
+        <img
+          src={src}
+          alt={t("chat.message.toolOutput")}
+          className={`max-w-full max-h-48 rounded-md border border-stone-200 dark:border-stone-700 cursor-pointer hover:opacity-80 transition-opacity${
+            !loaded ? " hidden" : ""
+          }`}
+          onClick={() => src && setViewerOpen(true)}
+          onLoad={() => setLoaded(true)}
+        />
+        <ImageViewer
+          src={src}
+          alt={t("chat.message.toolOutput")}
+          isOpen={viewerOpen}
+          onClose={() => setViewerOpen(false)}
+        />
+      </>
     );
   }
 
