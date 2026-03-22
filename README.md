@@ -275,8 +275,6 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ---
 
----
-
 ## 📲 Contact
 
 <p align="center">
