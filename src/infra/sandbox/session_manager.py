@@ -1,11 +1,10 @@
 """
 User-Sandbox 绑定管理器
 
-管理 User 与 Daytona Sandbox 的绑定关系：
+管理 User 与 Sandbox 的绑定关系，支持 Daytona 和 E2B 平台。
 - 沙箱绑定关系存储在 MongoDB user_sandbox_bindings 集合中
 - 每个用户对应一个沙箱，跨 session 共享
-- 沙箱在空闲时由 Daytona 自动 stop/archive
-- 下次对话时从 stopped/archived 状态恢复
+- 沙箱在空闲时自动 stop/archive (Daytona) 或超时销毁 (E2B)
 - 使用 deepagents.CompositeBackend 组合 Sandbox 和 Skills Store
 """
 
@@ -13,9 +12,11 @@ import asyncio
 import threading
 from collections import OrderedDict
 from datetime import datetime
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from daytona import CreateSandboxFromSnapshotParams, Daytona, DaytonaConfig
+if TYPE_CHECKING:
+    from daytona import Daytona
+
 from deepagents.backends import CompositeBackend
 
 from src.infra.backend.daytona import DaytonaBackend
@@ -63,18 +64,64 @@ BINDING_COLLECTION = "user_sandbox_bindings"
 _MAX_LOCKS = 10_000
 
 
+class E2BSandboxAdapter:
+    """E2B 沙箱生命周期适配器"""
+
+    def __init__(self, api_key: str, template: str, timeout: int):
+        from e2b import Sandbox as E2BSandbox
+
+        self._e2b_class = E2BSandbox
+        self._api_key = api_key
+        self._template = template
+        self._timeout = timeout
+
+    def create_sandbox(self) -> tuple[object, str]:
+        sandbox = self._e2b_class.create(template=self._template, timeout=self._timeout)
+        return sandbox, "/home/user"
+
+    def get_sandbox(self, sandbox_id: str) -> object | None:
+        try:
+            return self._e2b_class.connect(sandbox_id=sandbox_id)
+        except Exception:
+            return None
+
+    def get_sandbox_id(self, sandbox) -> str:
+        return sandbox.sandbox_id
+
+    def get_work_dir(self, sandbox) -> str:
+        return "/home/user"
+
+    def stop_sandbox(self, sandbox) -> None:
+        sandbox.kill()
+
+    def sandbox_is_running(self, sandbox) -> bool:
+        try:
+            return sandbox.is_running()
+        except Exception:
+            return False
+
+    def extend_timeout(self, sandbox, timeout: int) -> None:
+        sandbox.set_timeout(timeout)
+
+
 class SessionSandboxManager:
     """管理 User 与 Sandbox 的绑定关系（每个用户一个沙箱，跨 session 共享）"""
 
     def __init__(self):
-        self._daytona_client: Optional[Daytona] = None
+        self._daytona_client: Optional["Daytona"] = None
+        self._e2b_adapter: Optional[E2BSandboxAdapter] = None
         self._collection: Any = None
-        # 内存缓存: user_id -> (sandbox_id, backend)
-        self._cache: dict[str, tuple[str, CompositeBackend]] = {}
-        # 每用户锁，防止并发创建重复沙箱（LRU OrderedDict，超出上限淘汰最久未使用）
+        self._cache: dict[str, tuple[str, CompositeBackend, object | None]] = {}
         self._locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
-        # 用于 _locks 字典的线程安全（asyncio.Lock 创建可能在非 event loop 线程触发）
         self._locks_mutex = threading.Lock()
+
+        platform = settings.SANDBOX_PLATFORM.lower()
+        if platform == "e2b":
+            self._e2b_adapter = E2BSandboxAdapter(
+                api_key=settings.E2B_API_KEY,
+                template=settings.E2B_TEMPLATE,
+                timeout=settings.E2B_TIMEOUT,
+            )
 
     @property
     def _bindings(self):
@@ -106,8 +153,10 @@ class SessionSandboxManager:
         except Exception as e:
             logger.warning(f"Failed to create index on {BINDING_COLLECTION}: {e}")
 
-    def _get_daytona_client(self) -> Daytona:
+    def _get_daytona_client(self):
         """获取或创建 Daytona 客户端"""
+        from daytona import Daytona, DaytonaConfig
+
         if self._daytona_client is None:
             config = DaytonaConfig(
                 api_key=settings.DAYTONA_API_KEY,
@@ -195,12 +244,15 @@ class SessionSandboxManager:
                 "Anonymous users cannot use sandbox features."
             )
 
+        if self._e2b_adapter:
+            return await self._get_or_create_e2b(session_id, user_id)
+
         lock = self._get_user_lock(user_id)
 
         async with lock:
             # 1. 检查内存缓存
             if user_id in self._cache:
-                sandbox_id, backend = self._cache[user_id]
+                sandbox_id, backend, _ = self._cache[user_id]
                 logger.debug(
                     f"[SessionSandboxManager] Cache hit: user={user_id}, sandbox={sandbox_id}"
                 )
@@ -239,7 +291,7 @@ class SessionSandboxManager:
                     try:
                         await self._start_sandbox(sandbox_id)
                         backend = await self._create_backend(sandbox_id, user_id=user_id)
-                        self._cache[user_id] = (sandbox_id, backend)
+                        self._cache[user_id] = (sandbox_id, backend, None)
                         await self._save_binding(user_id, sandbox_id, "running")
                         logger.info(f"[SessionSandboxManager] Resumed sandbox {sandbox_id}")
                         work_dir = await self._get_work_dir(sandbox_id)
@@ -255,7 +307,7 @@ class SessionSandboxManager:
                 elif state in READY_STATES:
                     try:
                         backend = await self._create_backend(sandbox_id, user_id=user_id)
-                        self._cache[user_id] = (sandbox_id, backend)
+                        self._cache[user_id] = (sandbox_id, backend, None)
                         await self._save_binding(user_id, sandbox_id, "running")
                         work_dir = await self._get_work_dir(sandbox_id)
                         return backend, work_dir
@@ -293,13 +345,16 @@ class SessionSandboxManager:
                 "Anonymous users cannot use sandbox features."
             )
 
+        if self._e2b_adapter:
+            return await self._stop_e2b(user_id)
+
         lock = self._get_user_lock(user_id)
 
         async with lock:
             sandbox_id: str | None = None
 
             if user_id in self._cache:
-                sandbox_id, _ = self._cache[user_id]
+                sandbox_id, _, _ = self._cache[user_id]
             else:
                 binding = await self._get_binding(user_id)
                 sandbox_id = binding.get("sandbox_id") if binding else None
@@ -444,6 +499,7 @@ class SessionSandboxManager:
         Returns:
             tuple[CompositeBackend, str]: (composite_backend, work_dir)
         """
+        from daytona import CreateSandboxFromSnapshotParams
 
         def _sync_create():
             client = self._get_daytona_client()
@@ -488,7 +544,7 @@ class SessionSandboxManager:
             raise
 
         # 更新内存缓存
-        self._cache[user_id] = (sandbox_id, backend)
+        self._cache[user_id] = (sandbox_id, backend, None)
 
         logger.info(
             f"[SessionSandboxManager] Created sandbox {sandbox_id} for user {user_id} (session={session_id})"
@@ -498,9 +554,96 @@ class SessionSandboxManager:
 
     def _delete_sandbox(self, sandbox_id: str) -> None:
         """删除沙箱（同步，用于 to_thread）"""
+
         client = self._get_daytona_client()
         sandbox = client.get(sandbox_id)
         sandbox.delete()
+
+    # ── E2B platform methods ──────────────────────────────────────────
+
+    async def _get_or_create_e2b(
+        self, session_id: str, user_id: str
+    ) -> tuple[CompositeBackend, str]:
+        lock = self._get_user_lock(user_id)
+        async with lock:
+            if user_id in self._cache:
+                sandbox_id, backend, provider_obj = self._cache[user_id]
+                try:
+                    if self._e2b_adapter.sandbox_is_running(provider_obj):
+                        self._e2b_adapter.extend_timeout(provider_obj, settings.E2B_TIMEOUT)
+                        await self._save_binding(user_id, sandbox_id, "running")
+                        return backend, self._e2b_adapter.get_work_dir(provider_obj)
+                except Exception as e:
+                    logger.warning(f"[E2B] Cache hit but sandbox {sandbox_id} unhealthy: {e}")
+                del self._cache[user_id]
+
+            binding = await self._get_binding(user_id)
+            metadata_sandbox_id = binding.get("sandbox_id") if binding else None
+            if metadata_sandbox_id:
+                provider_obj = await asyncio.to_thread(
+                    self._e2b_adapter.get_sandbox, metadata_sandbox_id
+                )
+                if provider_obj and self._e2b_adapter.sandbox_is_running(provider_obj):
+                    try:
+                        self._e2b_adapter.extend_timeout(provider_obj, settings.E2B_TIMEOUT)
+                        backend = self._build_composite_backend(provider_obj, user_id)
+                        self._cache[user_id] = (metadata_sandbox_id, backend, provider_obj)
+                        await self._save_binding(user_id, metadata_sandbox_id, "running")
+                        return backend, self._e2b_adapter.get_work_dir(provider_obj)
+                    except Exception as e:
+                        logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
+
+            return await self._create_and_bind_e2b(session_id, user_id)
+
+    async def _create_and_bind_e2b(
+        self, session_id: str, user_id: str
+    ) -> tuple[CompositeBackend, str]:
+        from src.infra.backend.e2b import E2BBackend
+
+        def _sync_create():
+            sandbox, work_dir = self._e2b_adapter.create_sandbox()
+            e2b_backend = E2BBackend(sandbox=sandbox)
+            skills_backend = create_skills_backend(user_id=user_id)
+            composite = CompositeBackend(default=e2b_backend, routes={"/skills/": skills_backend})
+            return composite, work_dir, self._e2b_adapter.get_sandbox_id(sandbox), sandbox
+
+        backend, work_dir, sandbox_id, provider_obj = await asyncio.to_thread(_sync_create)
+        try:
+            await self._save_binding(user_id, sandbox_id, "running", is_new=True)
+        except Exception as e:
+            logger.error(f"[E2B] Created {sandbox_id} but failed to save binding: {e}")
+            try:
+                await asyncio.to_thread(self._e2b_adapter.stop_sandbox, provider_obj)
+            except Exception:
+                pass
+            raise
+        self._cache[user_id] = (sandbox_id, backend, provider_obj)
+        logger.info(f"[E2B] Created sandbox {sandbox_id} for user {user_id} (session={session_id})")
+        return backend, work_dir
+
+    def _build_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:
+        from src.infra.backend.e2b import E2BBackend
+
+        return CompositeBackend(
+            default=E2BBackend(sandbox=provider_obj),
+            routes={"/skills/": create_skills_backend(user_id=user_id)},
+        )
+
+    async def _stop_e2b(self, user_id: str) -> bool:
+        lock = self._get_user_lock(user_id)
+        async with lock:
+            if user_id in self._cache:
+                sandbox_id, _, provider_obj = self._cache[user_id]
+                try:
+                    await asyncio.to_thread(self._e2b_adapter.stop_sandbox, provider_obj)
+                    self._cache.pop(user_id, None)
+                    await self._save_binding(user_id, sandbox_id, "stopped")
+                    logger.info(f"[E2B] Stopped sandbox {sandbox_id} for user {user_id}")
+                    return True
+                except Exception as e:
+                    logger.error(f"[E2B] Failed to stop sandbox: {e}")
+                    return False
+            return False
 
     def clear_cache(self, user_id: str) -> None:
         """清除内存缓存（用于测试或强制刷新）"""
@@ -510,7 +653,7 @@ class SessionSandboxManager:
         """停止所有缓存中的沙箱并清理资源（应用关闭时调用）"""
         # 复制一份，避免迭代过程中修改
         entries = list(self._cache.items())
-        for user_id, (sandbox_id, _backend) in entries:
+        for user_id, (sandbox_id, _backend, provider_obj) in entries:
             try:
                 await self.stop(user_id)
             except Exception as e:
