@@ -569,3 +569,43 @@ class UserStorage:
             },
         )
         return result.modified_count > 0
+
+    async def update_metadata(self, user_id: str, metadata: dict) -> Optional[User]:
+        """
+        部分更新用户 metadata（merge 方式）
+
+        Args:
+            user_id: 用户 ID
+            metadata: 要合并的 metadata 字段
+
+        Returns:
+            更新后的用户
+        """
+        from bson import ObjectId
+
+        # Fetch current metadata
+        user_dict = await self.collection.find_one({"_id": ObjectId(user_id)})
+        if not user_dict:
+            from src.kernel.exceptions import NotFoundError
+
+            raise NotFoundError(f"用户 '{user_id}' 不存在")
+
+        current_metadata = user_dict.get("metadata") or {}
+        merged = {**current_metadata, **metadata}
+
+        result = await self.collection.find_one_and_update(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "metadata": merged,
+                    "updated_at": datetime.now(),
+                }
+            },
+            return_document=True,
+        )
+
+        if not result:
+            raise NotFoundError(f"用户 '{user_id}' 不存在")
+
+        result["id"] = str(result.pop("_id"))
+        return User(**result)
