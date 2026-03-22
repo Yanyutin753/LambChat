@@ -1,231 +1,144 @@
-# LambChat
+<div align="center">
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.12+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/React-19-green.svg" alt="React">
-  <img src="https://img.shields.io/badge/FastAPI-Latest-orange.svg" alt="FastAPI">
-  <img src="https://img.shields.io/badge/deepagents-Latest-purple.svg" alt="deepagents">
-  <img src="https://img.shields.io/badge/MongoDB-Latest-green.svg" alt="MongoDB">
-  <img src="https://img.shields.io/badge/Redis-Latest-red.svg" alt="Redis">
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
-</p>
+# 🐑 LambChat
 
-English | [简体中文](README_CN.md)
+**A production-ready AI Agent system built with FastAPI + deepagents**
 
-> A production-ready AI Agent system built with FastAPI + deepagents
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)]()
+[![React](https://img.shields.io/badge/React-19-green.svg)]()
+[![FastAPI](https://img.shields.io/badge/FastAPI-Latest-orange.svg)]()
+[![deepagents](https://img.shields.io/badge/deepagents-Latest-purple.svg)]()
+[![MongoDB](https://img.shields.io/badge/MongoDB-Latest-green.svg)]()
+[![Redis](https://img.shields.io/badge/Redis-Latest-red.svg)]()
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+[English](README.md) · [简体中文](README_CN.md) · [Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
 
 ## 📸 Screenshots
 
-### Main Interface
+| | | |
+|:---:|:---:|:---:|
+| <img src="docs/images/best-practice/login-page.png" width="280" alt="Login"><br>**Login** | <img src="docs/images/best-practice/chat-home.png" width="280" alt="Chat"><br>**Chat** | <img src="docs/images/best-practice/chat-response.png" width="280" alt="Streaming"><br>**Streaming** |
+| <img src="docs/images/best-practice/skills-page.png" width="280" alt="Skills"><br>**Skills** | <img src="docs/images/best-practice/mcp-page.png" width="280" alt="MCP"><br>**MCP Config** | <img src="docs/images/best-practice/share-dialog.png" width="280" alt="Share"><br>**Share** |
+| <img src="docs/images/best-practice/roles-page.png" width="280" alt="Roles"><br>**Roles** | <img src="docs/images/best-practice/settings-page.png" width="280" alt="Settings"><br>**Settings** | <img src="docs/images/best-practice/mobile-view.png" width="200" alt="Mobile"><br>**Mobile** |
 
-<table>
-  <tr>
-    <td align="center"><b>Login Page</b></td>
-    <td align="center"><b>Chat Interface</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/best-practice/login-page.png" alt="Login Page" width="400"/></td>
-    <td><img src="docs/images/best-practice/chat-home.png" alt="Chat Interface" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Streaming Response</b></td>
-    <td align="center"><b>Share Dialog</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/best-practice/chat-response.png" alt="Streaming Response" width="400"/></td>
-    <td><img src="docs/images/best-practice/share-dialog.png" alt="Share Dialog" width="400"/></td>
-  </tr>
-</table>
+## 🏗️ Architecture
 
-### Management Panels
-
-<table>
-  <tr>
-    <td align="center"><b>Skills Management</b></td>
-    <td align="center"><b>MCP Configuration</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/best-practice/skills-page.png" alt="Skills Management" width="400"/></td>
-    <td><img src="docs/images/best-practice/mcp-page.png" alt="MCP Configuration" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>System Settings</b></td>
-    <td align="center"><b>Feedback System</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/best-practice/settings-page.png" alt="System Settings" width="400"/></td>
-    <td><img src="docs/images/best-practice/feedback-page.png" alt="Feedback System" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Shared Session</b></td>
-    <td align="center"><b>Role Management</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/best-practice/shared-page.png" alt="Shared Session" width="400"/></td>
-    <td><img src="docs/images/best-practice/roles-page.png" alt="Role Management" width="400"/></td>
-  </tr>
-</table>
-
-### Responsive Design
-
-<table>
-  <tr>
-    <td align="center"><b>Mobile View</b></td>
-    <td align="center"><b>Tablet View</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/images/best-practice/mobile-view.png" alt="Mobile View" width="250"/></td>
-    <td><img src="docs/images/best-practice/tablet-view.png" alt="Tablet View" width="350"/></td>
-  </tr>
-</table>
-
-## 🏗️ Architecture Overview
-
-<p align="center">
-  <img src="docs/images/best-practice/architecture.png" alt="LambChat Architecture" width="600"/>
-</p>
+<p align="center"><img src="docs/images/best-practice/architecture.png" width="600" alt="Architecture"></p>
 
 ## ✨ Features
 
-### 🤖 Agent System
-- **deepagents Architecture** - Compiled graph with fine-grained state management
-- **Multi-Agent Types** - Core Agent (default), Fast Agent (optimized speed), Search Agent (general-purpose search)
-- **Plugin System** - Register custom agents with `@register_agent("id")` decorator
-- **Streaming Output** - Native SSE (Server-Sent Events) support
-- **Sub-agents** - Multi-level agent nesting support
-- **Thinking Mode** - Extended thinking mode for Anthropic models
-- **Human-in-the-Loop** - Approval system for sensitive operations
+<details>
+<summary><b>🤖 Agent System</b></summary>
 
-### 🔌 MCP Integration
-- **System + User Level MCP** - Global and personal MCP server configs
-- **Encrypted Storage** - Sensitive data like API keys are encrypted
-- **Dynamic Caching** - Tool caching with manual refresh support
-- **Multiple Transports** - Support for stdio, SSE, and HTTP transports
-- **Permission Control** - Transport-level access permissions
+- **deepagents Architecture** — Compiled graph with fine-grained state management
+- **Multi-Agent Types** — Core / Fast / Search agents
+- **Plugin System** — `@register_agent("id")` decorator for custom agents
+- **Streaming Output** — Native SSE support
+- **Sub-agents** — Multi-level nesting
+- **Thinking Mode** — Extended thinking for Anthropic models
+- **Human-in-the-Loop** — Approval system for sensitive operations
 
-### 🛠️ Skills System
-- **Dual Storage** - File system + MongoDB backup
-- **Access Control** - User-level skill permissions
-- **GitHub Sync** - Sync custom skills from GitHub repositories
-- **Skill Creator** - Built-in skill creation toolkit with evaluation tools
+</details>
 
-### 💬 Feedback System
-- **Thumbs Rating** - Simple positive/negative feedback
-- **Text Comments** - Detailed user feedback
-- **Session Linking** - Feedback tied to specific sessions/messages
-- **Run-Level Stats** - Aggregate feedback statistics per run
+<details>
+<summary><b>🔌 MCP Integration</b></summary>
 
-### 📁 Document & File Support
-- **Multi-format Preview** - PDF / Word / Excel / PPT / Markdown / Mermaid
-- **Image Viewer** - Built-in image preview with zoom support
-- **File Upload** - Drag & drop or click to upload multiple files
-- **Cloud Storage** - S3 / OSS / MinIO integration
-- **Project Management** - Organize conversations into projects
-- **Session Search** - Full-text search across all conversations
+- **System + User Level** — Global and per-user MCP configs
+- **Encrypted Storage** — API keys encrypted at rest
+- **Dynamic Caching** — Tool caching with manual refresh
+- **Multiple Transports** — stdio / SSE / HTTP
+- **Permission Control** — Transport-level access control
 
-### 🔄 Real-time & Storage
-- **Dual-write Mechanism** - Redis for real-time, MongoDB for persistence
-- **WebSocket Support** - Real-time bidirectional communication
-- **Auto Reconnect** - Resume conversation after disconnection
-- **Session Sharing** - Share conversations with public or authenticated links
+</details>
 
-### 🔐 Security & Auth
-- **JWT Authentication** - Complete auth flow with token refresh
-- **RBAC Roles** - Admin / User / Guest levels
-- **Password Encryption** - bcrypt hashing
-- **OAuth Support** - Login with Google, GitHub, etc.
-- **Email Verification** - Secure email-based account verification
-- **Sandbox Execution** - Isolated code execution environment
+<details>
+<summary><b>🛠️ Skills System</b></summary>
 
-### ⚙️ Task Management
-- **Concurrency Control** - Task execution queue with concurrency limits
-- **Cancellation** - Cancel running tasks
-- **Heartbeat** - Task health monitoring
-- **Pub/Sub** - Event-driven task notifications
-- **Status Tracking** - Real-time task status updates
+- **Dual Storage** — File system + MongoDB backup
+- **Access Control** — User-level permissions
+- **GitHub Sync** — Import skills from GitHub repos
+- **Skill Creator** — Built-in creation toolkit with evaluation tools
 
-### 🔗 Channels & Integrations
-- **Feishu (Lark)** - Native integration with Lark/Feishu platform
-- **Multi-Channel** - Extensible channel system for messaging platforms
-- **Email Service** - Built-in email notification support
-- **Project Management** - Organize chats by projects
+</details>
 
-### 📊 Observability & Admin
-- **LangSmith Tracing** - Optional LangSmith integration for agent tracing
-- **Structured Logging** - Context-aware structured logging
-- **Health Check** - API health and readiness endpoints
-- **User Management** - View and manage users
-- **Role Assignment** - Configure agent access per role
+<details>
+<summary><b>💬 Feedback · 📁 Files · 🔄 Realtime · 🔐 Auth · ⚙️ Tasks · 📊 Observability</b></summary>
 
-### 🎨 Frontend
-- **Modern Stack** - React 19 + Vite + TailwindCSS
-- **ChatGPT Style** - Familiar chat interface
-- **Theme Support** - Dark/Light mode with smooth transitions
-- **i18n** - Multi-language support (English, Chinese, Japanese, Korean)
-- **Responsive Design** - Mobile, tablet, and desktop optimized
-- **Agent Switcher** - Toggle between Core/Fast/Search agents
+- **Feedback** — Thumbs rating, text comments, session-linked, run-level stats
+- **Documents** — PDF / Word / Excel / PPT / Markdown / Mermaid preview + image viewer
+- **Cloud Storage** — S3 / OSS / MinIO integration, drag & drop upload
+- **Realtime** — Dual-write (Redis + MongoDB), WebSocket, auto-reconnect, session sharing
+- **Security** — JWT, RBAC (Admin/User/Guest), bcrypt, OAuth, email verification, sandbox
+- **Tasks** — Concurrency control, cancellation, heartbeat, pub/sub notifications
+- **Observability** — LangSmith tracing, structured logging, health checks
+- **Channels** — Feishu (Lark) native integration, extensible multi-channel system
+
+</details>
+
+<details>
+<summary><b>🎨 Frontend</b></summary>
+
+- **React 19 + Vite + TailwindCSS**
+- **ChatGPT-style** interface with dark/light theme
+- **i18n** — English, Chinese, Japanese, Korean
+- **Responsive** — Mobile, tablet, desktop
+
+</details>
 
 ## ⚙️ Configuration
 
-LambChat supports 14 setting categories, configurable via the Settings page or environment variables:
+14 setting categories configurable via UI or environment variables:
 
 | Category | Description |
 |----------|-------------|
-| **Frontend** | Default agent, welcome suggestions, UI preferences |
-| **Agent** | Debug mode, logging level |
-| **LLM** | Model selection, temperature, max tokens, API key & base URL |
-| **Session** | Session management settings |
-| **Database** | MongoDB connection settings |
-| **Long-term Storage** | Persistent storage configuration |
-| **Security** | Security policies and encryption |
-| **S3** | Cloud storage (S3/OSS) configuration |
-| **Sandbox** | Code sandbox settings |
-| **Skills** | Skill system configuration |
-| **Tools** | Tool system settings |
-| **Tracing** | LangSmith and tracing configuration |
-| **User** | User management settings |
-| **Memory** | Memory system (hindsight) settings |
+| Frontend | Default agent, welcome suggestions, UI preferences |
+| Agent | Debug mode, logging level |
+| LLM | Model, temperature, max tokens, API key & base URL |
+| Session | Session management |
+| Database | MongoDB connection |
+| Storage | Persistent storage, S3/OSS/MinIO |
+| Security | Encryption & security policies |
+| Sandbox | Code sandbox settings |
+| Skills | Skill system config |
+| Tools | Tool system settings |
+| Tracing | LangSmith & tracing |
+| User | User management |
+| Memory | Memory system (hindsight) |
 
-## 🛠️ Development
+## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.12+
-- Node.js 18+
-- MongoDB
-- Redis
 
-### Quick Start
+- Python 3.12+ · Node.js 18+ · MongoDB · Redis
+
+### Setup
 
 ```bash
-# Clone repository
 git clone https://github.com/Yanyutin753/LambChat.git
 cd LambChat
 
-# Copy environment file
-cp .env.example .env
-# Edit .env with your configuration
+cp .env.example .env   # Edit with your config
 
-# Start with Docker (recommended)
+# Docker (recommended)
 docker-compose up -d
 
-# Or run locally
-make install  # Install dependencies
-make dev      # Start development server
+# Or local development
+make install && make dev
 ```
 
-Access the app at `http://localhost:8000`
+→ Open **http://localhost:8000**
 
 ### Code Quality
 
 ```bash
-# Format code
-ruff format src/
-
-# Check style
-ruff check src/
-
-# Type check
-mypy src/
+ruff format src/    # Format
+ruff check src/     # Lint
+mypy src/           # Type check
 ```
 
 ### Project Structure
@@ -233,61 +146,37 @@ mypy src/
 ```
 src/
 ├── agents/          # Agent implementations (core, fast, search)
-├── api/             # FastAPI routes and middleware
+├── api/             # FastAPI routes & middleware
 ├── infra/           # Infrastructure services
-│   ├── agent/       # Agent config & event storage
+│   ├── agent/       # Agent config & events
 │   ├── auth/        # JWT authentication
-│   ├── backend/     # Backend management
 │   ├── channel/     # Multi-channel (Feishu, etc.)
-│   ├── email/       # Email service
 │   ├── feedback/    # Feedback system
-│   ├── folder/      # Project management
 │   ├── llm/         # LLM integration
-│   ├── logging/     # Structured logging
-│   ├── memory/      # Memory & hindsight
 │   ├── mcp/         # MCP protocol
-│   ├── patches/     # Monkey patches and compat fixes
-│   ├── role/        # RBAC role management
+│   ├── memory/      # Memory & hindsight
+│   ├── role/        # RBAC
 │   ├── sandbox/     # Sandbox execution
 │   ├── session/     # Session management (dual-write)
-│   ├── service/     # Base service classes
-│   ├── settings/    # Settings service
-│   ├── share/       # Session sharing
 │   ├── skill/       # Skills system
-│   ├── storage/     # File storage (S3/OSS/MinIO)
+│   ├── storage/     # S3/OSS/MinIO
 │   ├── task/        # Task management
 │   ├── tool/        # Tool registry & MCP client
-│   ├── tracing/     # LangSmith tracing
-│   ├── user/        # User management
-│   ├── websocket.py # WebSocket support
-│   └── writer/      # Response writer
+│   └── ...
 ├── kernel/          # Core schemas, config, types
-└── skills/          # Built-in skills (skill-creator)
+└── skills/          # Built-in skills
 ```
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## 📄 License
 
-[MIT](LICENSE) - The project name "LambChat" and its associated logo may not be changed or removed.
+[MIT](LICENSE) — Project name "LambChat" and its logo may not be changed or removed.
 
 ---
 
-## 📲 Contact
+<div align="center">
 
-<p align="center">
-  <a href="mailto:3254822118@qq.com">
-    <img src="https://img.shields.io/badge/Email-3254822118%40qq.com-D14836?style=flat-square&logo=gmail&logoColor=white" />
-  </a>
-  <a href="https://github.com/Yanyutin753">
-    <img src="https://img.shields.io/badge/GitHub-Yanyutin753-181717?style=flat-square&logo=github&logoColor=white" />
-  </a>
-</p>
+Made with ❤️ by [Clivia](https://github.com/Yanyutin753)
 
----
+[📧 3254822118@qq.com](mailto:3254822118@qq.com) · [GitHub](https://github.com/Yanyutin753)
 
-<p align="center">
-  Made with ❤️ by <a href="https://github.com/Yanyutin753">Clivia</a>
-</p>
+</div>
