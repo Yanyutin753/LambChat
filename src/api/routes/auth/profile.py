@@ -38,6 +38,12 @@ class UsernameUpdateRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
 
 
+class MetadataUpdateRequest(BaseModel):
+    """Request schema for updating user metadata (partial merge)"""
+
+    metadata: dict
+
+
 @router.post("/change-password")
 async def change_password(
     request: PasswordChangeRequest,
@@ -155,3 +161,41 @@ async def update_username(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+
+@router.put("/profile/metadata")
+async def update_user_metadata(
+    request: MetadataUpdateRequest,
+    current_user: TokenPayload = Depends(get_current_user_required),
+):
+    """
+    部分更新当前用户 metadata（merge 方式）
+
+    metadata 中的字段会与现有 metadata 合并。
+    支持的字段: language (str), theme (str: light/dark)
+    """
+    from src.infra.user.storage import UserStorage
+
+    storage = UserStorage()
+
+    # Validate language if provided
+    supported_languages = {"en", "zh", "ja", "ko", "ru"}
+    if "language" in request.metadata:
+        lang = request.metadata["language"]
+        if lang not in supported_languages:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported language: {lang}. Supported: {', '.join(sorted(supported_languages))}",
+            )
+
+    # Validate theme if provided
+    if "theme" in request.metadata:
+        theme = request.metadata["theme"]
+        if theme not in ("light", "dark"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid theme: {theme}. Must be 'light' or 'dark'.",
+            )
+
+    updated_user = await storage.update_metadata(current_user.sub, request.metadata)
+    return updated_user
