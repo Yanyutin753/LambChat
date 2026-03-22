@@ -118,7 +118,7 @@ export function useMessageScroll(
       scroller.removeEventListener("scroll", handleScroll);
       if (timer) clearTimeout(timer);
     };
-  }, [messages.length > 0]);
+  }, [messages.length]);
 
   // Auto-scroll to bottom when new messages arrive AND user hasn't scrolled up
   useEffect(() => {

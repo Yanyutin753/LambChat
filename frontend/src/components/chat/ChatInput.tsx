@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, memo, useCallback } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import toast from "react-hot-toast";
 import {
   ArrowUp,
