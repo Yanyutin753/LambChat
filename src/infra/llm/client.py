@@ -135,6 +135,8 @@ class LLMClient:
         api_key = api_key or settings.LLM_API_KEY
         api_base = api_base or settings.LLM_API_BASE
 
+        kwargs.pop("max_retries", None)
+
         if provider in _ANTHROPIC_PROVIDERS:
             return ChatAnthropic(
                 model_name=model_name,
