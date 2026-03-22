@@ -6,6 +6,7 @@ Sandbox 模块
 
 from .base import (
     DaytonaConfig,
+    E2BConfig,
     ModalConfig,
     RunloopConfig,
     SandboxConfig,
@@ -21,6 +22,7 @@ __all__ = [
     "RunloopConfig",
     "DaytonaConfig",
     "ModalConfig",
+    "E2BConfig",
     # 工厂
     "SandboxFactory",
     "get_sandbox_config_from_settings",

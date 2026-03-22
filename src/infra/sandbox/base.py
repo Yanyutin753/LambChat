@@ -60,6 +60,16 @@ class ModalConfig(SandboxConfig):
     api_key: str = ""  # Modal 通常使用环境变量
 
 
+@dataclass
+class E2BConfig(SandboxConfig):
+    """E2B 配置"""
+
+    platform: str = field(default="e2b", init=False)
+    api_key: str = ""
+    template: str = "base"
+    timeout: int = 3600
+
+
 # =============================================================================
 # 工厂类
 # =============================================================================
@@ -199,6 +209,52 @@ class SandboxFactory:
             raise ImportError("Please install langchain-modal: pip install langchain-modal") from e
 
     @classmethod
+    def create_e2b(
+        cls,
+        api_key: str,
+        template: str = "base",
+        timeout: int = 3600,
+    ) -> "SandboxBackendProtocol":
+        """
+        创建 E2B Sandbox
+
+        Args:
+            api_key: E2B API Key
+            template: 沙箱模板名称 (default: "base")
+            timeout: 沙箱超时时间（秒）
+
+        Returns:
+            E2BBackend 实例
+        """
+        try:
+            import os
+
+            from e2b import Sandbox as E2BSandbox
+
+            from src.infra.backend.e2b import E2BBackend
+
+            # E2B SDK reads API key from environment variable
+            if api_key:
+                os.environ.setdefault("E2B_API_KEY", api_key)
+
+            sandbox = E2BSandbox.create(
+                template=template,
+                timeout=timeout,
+            )
+            backend = E2BBackend(sandbox=sandbox, timeout=timeout)
+
+            # 注册以便追踪和关闭
+            sandbox_id = sandbox.sandbox_id
+            cls._sandbox_registry[sandbox_id] = (backend, sandbox)
+            logger.info(
+                f"Created E2B sandbox: {sandbox_id}, template={template}, timeout={timeout}s"
+            )
+
+            return backend
+        except ImportError as e:
+            raise ImportError("Please install e2b: pip install e2b") from e
+
+    @classmethod
     async def close_sandbox(
         cls,
         sandbox_id: str,
@@ -238,6 +294,9 @@ class SandboxFactory:
                 elif "modal" in module_name:
                     # Modal: sandbox.terminate()
                     provider_obj.terminate()
+                elif "e2b" in module_name:
+                    # E2B: sandbox.kill()
+                    provider_obj.kill()
                 else:
                     logger.warning(f"Unknown provider type: {module_name}")
 
@@ -371,6 +430,14 @@ class SandboxFactory:
                 app_name=config.app_name,
                 ttl_seconds=config.ttl_seconds,
             )
+        elif config.platform == "e2b":
+            if not isinstance(config, E2BConfig):
+                raise ValueError("Invalid config type for e2b platform")
+            return cls.create_e2b(
+                api_key=config.api_key,
+                template=config.template,
+                timeout=config.timeout,
+            )
         else:
             raise ValueError(f"Unknown sandbox platform: {config.platform}")
 
@@ -401,6 +468,12 @@ def get_sandbox_config_from_settings() -> SandboxConfig:
             app_name=getattr(settings, "MODAL_APP_NAME", ""),
             api_key=getattr(settings, "MODAL_API_KEY", ""),
             ttl_seconds=getattr(settings, "SANDBOX_TTL_SECONDS", 3600),
+        )
+    elif platform == "e2b":
+        return E2BConfig(
+            api_key=getattr(settings, "E2B_API_KEY", ""),
+            template=getattr(settings, "E2B_TEMPLATE", "base"),
+            timeout=getattr(settings, "E2B_TIMEOUT", 3600),
         )
     else:
         raise ValueError(f"Unsupported sandbox platform: {platform}")
