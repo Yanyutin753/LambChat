@@ -3,24 +3,32 @@
 使用 E2B Python SDK 提供沙箱命令执行和文件操作。
 支持 Firecracker microVM 隔离，~150ms 冷启动。
 
-注意：
-- E2B sandbox 有 timeout，需要在工作期间定期调 set_timeout() 续期。
+特性：
+- 原生 Filesystem API：ls_info / read / write / glob_info 直接走 E2B SDK，不经过 shell
+- Auto-Pause + Auto-Resume：超时自动暂停（保留状态），下次操作自动恢复
+- Commands streaming：支持 on_stdout/on_stderr 回调实时输出
+- Metadata 标记：创建沙箱时传入 user_id 用于可观测性
 - 所有同步 SDK 调用通过 asyncio.to_thread 在线程池中执行，避免阻塞事件循环。
 """
 
 import asyncio
 import os
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from deepagents.backends.protocol import (
     ExecuteResponse,
     FileDownloadResponse,
+    FileInfo,
     FileUploadResponse,
+    WriteResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
 
 from src.infra.logging import get_logger
 from src.kernel.config import settings
+
+if TYPE_CHECKING:
+    from e2b import Sandbox as E2BSandbox
 
 logger = get_logger(__name__)
 
@@ -33,11 +41,14 @@ class E2BBackend(BaseSandbox):
 
     使用 e2b Python SDK 执行命令和操作文件。
     所有同步 SDK 调用通过 asyncio.to_thread 在线程池中执行，避免阻塞事件循环。
+
+    文件操作 (ls_info, read, write, glob_info) 使用 E2B 原生 Filesystem API，
+    绕过 shell 命令，性能更好且更安全。
     """
 
     def __init__(
         self,
-        sandbox: object,  # e2b.Sandbox — 避免 top-level import
+        sandbox: "E2BSandbox",
         timeout: int | None = None,
     ):
         self._sandbox = sandbox
@@ -53,6 +64,10 @@ class E2BBackend(BaseSandbox):
     def work_dir(self) -> str:
         return "/home/user"
 
+    # =========================================================================
+    # Command execution
+    # =========================================================================
+
     def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
         effective_timeout = min(timeout or self._timeout, self._timeout)
 
@@ -61,8 +76,11 @@ class E2BBackend(BaseSandbox):
                 cmd=command,
                 timeout=effective_timeout,
             )
+            output = result.stdout or ""
+            if result.stderr:
+                output = f"{output}\n{result.stderr}" if output else result.stderr
             return ExecuteResponse(
-                output=result.stdout or "",
+                output=output,
                 exit_code=result.exit_code,
                 truncated=False,
             )
@@ -96,6 +114,165 @@ class E2BBackend(BaseSandbox):
                 exit_code=-1,
                 truncated=False,
             )
+
+    def execute_with_callbacks(
+        self,
+        command: str,
+        *,
+        on_stdout: Callable[[str], None] | None = None,
+        on_stderr: Callable[[str], None] | None = None,
+        timeout: int | None = None,
+    ) -> ExecuteResponse:
+        """执行命令并实时流式输出 stdout/stderr
+
+        Args:
+            command: 要执行的命令
+            on_stdout: stdout 行回调
+            on_stderr: stderr 行回调
+            timeout: 命令超时（秒）
+
+        Returns:
+            ExecuteResponse（包含完整输出）
+        """
+        effective_timeout = min(timeout or self._timeout, self._timeout)
+        stdout_parts: list[str] = []
+        stderr_parts: list[str] = []
+
+        def _on_stdout(line: str) -> None:
+            stdout_parts.append(line)
+            if on_stdout:
+                on_stdout(line)
+
+        def _on_stderr(line: str) -> None:
+            stderr_parts.append(line)
+            if on_stderr:
+                on_stderr(line)
+
+        try:
+            result = self._sandbox.commands.run(
+                cmd=command,
+                timeout=effective_timeout,
+                on_stdout=_on_stdout,
+                on_stderr=_on_stderr,
+            )
+            output = "\n".join(stdout_parts)
+            if stderr_parts:
+                output = (
+                    f"{output}\n{chr(10).join(stderr_parts)}" if output else "\n".join(stderr_parts)
+                )
+            return ExecuteResponse(
+                output=output,
+                exit_code=result.exit_code,
+                truncated=False,
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "timeout" in error_msg.lower():
+                return ExecuteResponse(
+                    output=f"Command timed out after {effective_timeout} seconds",
+                    exit_code=-1,
+                    truncated=False,
+                )
+            return ExecuteResponse(
+                output=f"Command failed: {e}",
+                exit_code=-1,
+                truncated=False,
+            )
+
+    # =========================================================================
+    # Native Filesystem API (override BaseSandbox shell-based defaults)
+    # =========================================================================
+
+    def ls_info(self, path: str) -> list[FileInfo]:
+        """使用 E2B 原生 files.list() 列出目录"""
+        try:
+            entries = self._sandbox.files.list(path=path)
+            result: list[FileInfo] = []
+            for entry in entries:
+                info: FileInfo = {"path": entry.path}
+                if hasattr(entry, "is_dir"):
+                    info["is_dir"] = entry.is_dir
+                if hasattr(entry, "size"):
+                    info["size"] = entry.size
+                result.append(info)
+            return result
+        except Exception as e:
+            logger.warning(f"E2B files.list({path}) failed: {e}, falling back to execute()")
+            return super().ls_info(path)
+
+    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
+        """使用 E2B 原生 files.read() 读取文件，支持 offset/limit 行号"""
+        try:
+            content = self._sandbox.files.read(path=file_path, format="text")
+            lines = content.split("\n")
+            # offset 是 0-indexed 行号，limit 是最大行数
+            selected = lines[offset : offset + limit]
+            # 添加行号，与 BaseSandbox 默认行为一致
+            numbered = []
+            for i, line in enumerate(selected, start=offset + 1):
+                numbered.append(f"{i}\t{line}")
+            return "\n".join(numbered)
+        except Exception as e:
+            logger.warning(f"E2B files.read({file_path}) failed: {e}, falling back to execute()")
+            return super().read(file_path, offset, limit)
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        """使用 E2B 原生 files.write() 写入文件"""
+        try:
+            self._sandbox.files.write(path=file_path, data=content)
+            return WriteResult(path=file_path)
+        except Exception as e:
+            error_msg = str(e).lower()
+            error: str | None = None
+            if "permission" in error_msg:
+                error = "permission_denied"
+            elif "directory" in error_msg:
+                error = "is_directory"
+            else:
+                error = "file_not_found"
+            logger.error(f"E2B files.write({file_path}) failed: {e}")
+            return WriteResult(path=file_path, error=error)
+
+    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+        """使用 E2B 原生 files.list() 递归搜索匹配 glob 模式的文件
+
+        E2B 没有 glob API，所以用 list 递归列出后在 Python 端过滤。
+        """
+        try:
+            import fnmatch
+
+            # 递归列出目录内容
+            entries = self._sandbox.files.list(path=path)
+            result: list[FileInfo] = []
+
+            def _match_glob(entries_list: list[Any], current_path: str) -> None:
+                for entry in entries_list:
+                    full_path = entry.path
+                    name = os.path.basename(full_path)
+                    if fnmatch.fnmatch(name, pattern):
+                        info: FileInfo = {"path": full_path}
+                        if hasattr(entry, "is_dir"):
+                            info["is_dir"] = entry.is_dir
+                        if hasattr(entry, "size"):
+                            info["size"] = entry.size
+                        result.append(info)
+                    # 递归进入子目录
+                    if hasattr(entry, "is_dir") and getattr(entry, "is_dir", False):
+                        try:
+                            sub_entries = self._sandbox.files.list(path=full_path)
+                            _match_glob(sub_entries, full_path)
+                        except Exception:
+                            pass
+
+            _match_glob(entries, path)
+            return result
+        except Exception as e:
+            logger.warning(f"E2B glob_info({pattern}) failed: {e}, falling back to execute()")
+            return super().glob_info(pattern, path)
+
+    # =========================================================================
+    # File upload / download (already native, no change needed to logic)
+    # =========================================================================
 
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         responses: list[FileUploadResponse] = []
@@ -146,3 +323,58 @@ class E2BBackend(BaseSandbox):
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         return await asyncio.to_thread(self.download_files, paths)
+
+    # =========================================================================
+    # Sandbox lifecycle helpers
+    # =========================================================================
+
+    def get_info(self) -> dict[str, Any]:
+        """获取沙箱信息 (sandbox_id, state, template, metadata, started_at, end_at)"""
+        try:
+            info = self._sandbox.get_info()
+            return {
+                "sandbox_id": info.sandbox_id,
+                "state": info.state.name.lower()
+                if hasattr(info.state, "name")
+                else str(info.state),
+                "template": info.template_id,
+                "metadata": info.metadata,
+                "started_at": info.started_at.isoformat() if info.started_at else None,
+                "end_at": info.end_at.isoformat() if info.end_at else None,
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get sandbox info: {e}")
+            return {"sandbox_id": self.id, "state": "unknown"}
+
+    def get_metrics(self) -> list[dict[str, Any]]:
+        """获取沙箱资源使用指标 (CPU, memory, disk)"""
+        try:
+            metrics = self._sandbox.get_metrics()
+            return [
+                {
+                    "timestamp": m.timestamp.isoformat()
+                    if hasattr(m, "timestamp") and m.timestamp
+                    else None,
+                    "cpu_percent": getattr(m, "cpu_percent", None),
+                    "memory_usage_bytes": getattr(m, "memory_usage_bytes", None),
+                    "disk_usage_bytes": getattr(m, "disk_usage_bytes", None),
+                }
+                for m in metrics
+            ]
+        except Exception as e:
+            logger.warning(f"Failed to get sandbox metrics: {e}")
+            return []
+
+    def snapshot(self) -> str:
+        """创建沙箱快照（保留文件系统和内存状态）
+
+        Returns:
+            snapshot_id
+        """
+        result = self._sandbox.snapshot()
+        return result.snapshot_id
+
+    def pause(self) -> None:
+        """暂停沙箱（保留文件系统和内存状态，可随时恢复）"""
+        self._sandbox.pause()
+        logger.info(f"[E2B] Paused sandbox {self.id}")

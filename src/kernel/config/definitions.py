@@ -296,6 +296,20 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 3600,
         "depends_on": {"key": "SANDBOX_PLATFORM", "value": "e2b"},
     },
+    "E2B_AUTO_PAUSE": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SANDBOX,
+        "description": "Automatically pause sandbox on timeout instead of killing (preserves filesystem and memory state)",
+        "default": True,
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "e2b"},
+    },
+    "E2B_AUTO_RESUME": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SANDBOX,
+        "description": "Automatically resume paused sandbox on next activity (requires E2B_AUTO_PAUSE)",
+        "default": True,
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "e2b"},
+    },
     # ============================================
     # Skills Settings
     # ============================================

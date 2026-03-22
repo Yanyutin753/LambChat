@@ -65,23 +65,60 @@ _MAX_LOCKS = 10_000
 
 
 class E2BSandboxAdapter:
-    """E2B 沙箱生命周期适配器"""
+    """E2B 沙箱生命周期适配器
 
-    def __init__(self, api_key: str, template: str, timeout: int):
+    支持：
+    - Auto-Pause + Auto-Resume：超时自动暂停，下次操作自动恢复
+    - Metadata：创建沙箱时传入 user_id 用于可观测性
+    - Pause/Resume：stop() 时暂停而非 kill，保留数据
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        template: str,
+        timeout: int,
+        auto_pause: bool = True,
+        auto_resume: bool = True,
+    ):
         from e2b import Sandbox as E2BSandbox
 
         self._e2b_class = E2BSandbox
         self._api_key = api_key
         self._template = template
         self._timeout = timeout
+        self._auto_pause = auto_pause
+        self._auto_resume = auto_resume
 
-    def create_sandbox(self) -> tuple[object, str]:
-        sandbox = self._e2b_class.create(template=self._template, timeout=self._timeout)
+    def create_sandbox(self, user_id: str | None = None) -> tuple[object, str]:
+        """创建沙箱，支持 lifecycle 配置和 metadata"""
+
+        kwargs: dict = {
+            "template": self._template,
+            "timeout": self._timeout,
+        }
+
+        # Auto-Pause + Auto-Resume lifecycle
+        if self._auto_pause:
+            kwargs["lifecycle"] = {
+                "on_timeout": "pause",
+                "auto_resume": self._auto_resume,
+            }
+
+        # Metadata 用于可观测性
+        if user_id:
+            kwargs["metadata"] = {"user_id": user_id}
+
+        sandbox = self._e2b_class.create(**kwargs)
         return sandbox, "/home/user"
 
     def get_sandbox(self, sandbox_id: str) -> object | None:
+        """连接到沙箱（自动恢复暂停状态）"""
         try:
-            return self._e2b_class.connect(sandbox_id=sandbox_id)
+            return self._e2b_class.connect(
+                sandbox_id=sandbox_id,
+                timeout=self._timeout,
+            )
         except Exception:
             return None
 
@@ -91,7 +128,25 @@ class E2BSandboxAdapter:
     def get_work_dir(self, sandbox) -> str:
         return "/home/user"
 
+    def pause_sandbox(self, sandbox) -> None:
+        """暂停沙箱（保留文件系统和内存状态）"""
+        try:
+            sandbox.pause()
+        except Exception as e:
+            logger.warning(f"[E2B] Failed to pause sandbox: {e}")
+
     def stop_sandbox(self, sandbox) -> None:
+        """停止沙箱 — 优先 pause（保留状态），失败则 kill"""
+        try:
+            sandbox.pause()
+        except Exception:
+            try:
+                sandbox.kill()
+            except Exception:
+                pass
+
+    def kill_sandbox(self, sandbox) -> None:
+        """永久销毁沙箱（数据丢失）"""
         sandbox.kill()
 
     def sandbox_is_running(self, sandbox) -> bool:
@@ -102,6 +157,19 @@ class E2BSandboxAdapter:
 
     def extend_timeout(self, sandbox, timeout: int) -> None:
         sandbox.set_timeout(timeout)
+
+    def get_sandbox_info(self, sandbox) -> dict:
+        """获取沙箱状态信息"""
+        try:
+            info = sandbox.get_info()
+            return {
+                "sandbox_id": info.sandbox_id,
+                "state": info.state.name.lower()
+                if hasattr(info.state, "name")
+                else str(info.state),
+            }
+        except Exception:
+            return {"sandbox_id": self.get_sandbox_id(sandbox), "state": "unknown"}
 
 
 class SessionSandboxManager:
@@ -121,6 +189,8 @@ class SessionSandboxManager:
                 api_key=settings.E2B_API_KEY,
                 template=settings.E2B_TEMPLATE,
                 timeout=settings.E2B_TIMEOUT,
+                auto_pause=getattr(settings, "E2B_AUTO_PAUSE", True),
+                auto_resume=getattr(settings, "E2B_AUTO_RESUME", True),
             )
 
     @property
@@ -580,15 +650,19 @@ class SessionSandboxManager:
             binding = await self._get_binding(user_id)
             metadata_sandbox_id = binding.get("sandbox_id") if binding else None
             if metadata_sandbox_id:
+                # Sandbox.connect() 会自动恢复暂停的沙箱
                 provider_obj = await asyncio.to_thread(
                     self._e2b_adapter.get_sandbox, metadata_sandbox_id
                 )
-                if provider_obj and self._e2b_adapter.sandbox_is_running(provider_obj):
+                if provider_obj:
                     try:
                         self._e2b_adapter.extend_timeout(provider_obj, settings.E2B_TIMEOUT)
                         backend = self._build_composite_backend(provider_obj, user_id)
                         self._cache[user_id] = (metadata_sandbox_id, backend, provider_obj)
-                        await self._save_binding(user_id, metadata_sandbox_id, "running")
+                        info = self._e2b_adapter.get_sandbox_info(provider_obj)
+                        await self._save_binding(
+                            user_id, metadata_sandbox_id, info.get("state", "running")
+                        )
                         return backend, self._e2b_adapter.get_work_dir(provider_obj)
                     except Exception as e:
                         logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
@@ -601,7 +675,7 @@ class SessionSandboxManager:
         from src.infra.backend.e2b import E2BBackend
 
         def _sync_create():
-            sandbox, work_dir = self._e2b_adapter.create_sandbox()
+            sandbox, work_dir = self._e2b_adapter.create_sandbox(user_id=user_id)
             e2b_backend = E2BBackend(sandbox=sandbox)
             skills_backend = create_skills_backend(user_id=user_id)
             composite = CompositeBackend(default=e2b_backend, routes={"/skills/": skills_backend})
@@ -635,10 +709,11 @@ class SessionSandboxManager:
             if user_id in self._cache:
                 sandbox_id, _, provider_obj = self._cache[user_id]
                 try:
+                    # stop_sandbox 优先 pause（保留数据），失败则 kill
                     await asyncio.to_thread(self._e2b_adapter.stop_sandbox, provider_obj)
                     self._cache.pop(user_id, None)
-                    await self._save_binding(user_id, sandbox_id, "stopped")
-                    logger.info(f"[E2B] Stopped sandbox {sandbox_id} for user {user_id}")
+                    await self._save_binding(user_id, sandbox_id, "paused")
+                    logger.info(f"[E2B] Paused sandbox {sandbox_id} for user {user_id}")
                     return True
                 except Exception as e:
                     logger.error(f"[E2B] Failed to stop sandbox: {e}")

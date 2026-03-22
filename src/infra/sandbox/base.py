@@ -68,6 +68,8 @@ class E2BConfig(SandboxConfig):
     api_key: str = ""
     template: str = "base"
     timeout: int = 3600
+    auto_pause: bool = True
+    auto_resume: bool = True
 
 
 # =============================================================================
@@ -214,6 +216,8 @@ class SandboxFactory:
         api_key: str,
         template: str = "base",
         timeout: int = 3600,
+        auto_pause: bool = True,
+        auto_resume: bool = True,
     ) -> "SandboxBackendProtocol":
         """
         创建 E2B Sandbox
@@ -222,6 +226,8 @@ class SandboxFactory:
             api_key: E2B API Key
             template: 沙箱模板名称 (default: "base")
             timeout: 沙箱超时时间（秒）
+            auto_pause: 超时自动暂停（保留状态）
+            auto_resume: 下次操作自动恢复暂停的沙箱
 
         Returns:
             E2BBackend 实例
@@ -237,10 +243,17 @@ class SandboxFactory:
             if api_key:
                 os.environ.setdefault("E2B_API_KEY", api_key)
 
-            sandbox = E2BSandbox.create(
-                template=template,
-                timeout=timeout,
-            )
+            kwargs: dict = {
+                "template": template,
+                "timeout": timeout,
+            }
+            if auto_pause:
+                kwargs["lifecycle"] = {
+                    "on_timeout": "pause",
+                    "auto_resume": auto_resume,
+                }
+
+            sandbox = E2BSandbox.create(**kwargs)
             backend = E2BBackend(sandbox=sandbox, timeout=timeout)
 
             # 注册以便追踪和关闭
@@ -437,6 +450,8 @@ class SandboxFactory:
                 api_key=config.api_key,
                 template=config.template,
                 timeout=config.timeout,
+                auto_pause=config.auto_pause,
+                auto_resume=config.auto_resume,
             )
         else:
             raise ValueError(f"Unknown sandbox platform: {config.platform}")
@@ -474,6 +489,8 @@ def get_sandbox_config_from_settings() -> SandboxConfig:
             api_key=getattr(settings, "E2B_API_KEY", ""),
             template=getattr(settings, "E2B_TEMPLATE", "base"),
             timeout=getattr(settings, "E2B_TIMEOUT", 3600),
+            auto_pause=getattr(settings, "E2B_AUTO_PAUSE", True),
+            auto_resume=getattr(settings, "E2B_AUTO_RESUME", True),
         )
     else:
         raise ValueError(f"Unsupported sandbox platform: {platform}")

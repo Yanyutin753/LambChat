@@ -134,6 +134,8 @@ class Settings(BaseSettings):
     E2B_API_KEY: str = ""
     E2B_TEMPLATE: str = "base"
     E2B_TIMEOUT: int = 3600
+    E2B_AUTO_PAUSE: bool = True
+    E2B_AUTO_RESUME: bool = True
 
     # Skills Settings
     ENABLE_SKILLS: bool = True
