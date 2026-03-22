@@ -203,7 +203,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Sandbox platform to use",
         "default": "runloop",
         "depends_on": "ENABLE_SANDBOX",
-        "options": ["runloop", "daytona", "modal"],
+        "options": ["runloop", "daytona", "modal", "e2b"],
     },
     "RUNLOOP_API_KEY": {
         "type": SettingType.STRING,
@@ -274,6 +274,27 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Modal App Name",
         "default": "",
         "depends_on": {"key": "SANDBOX_PLATFORM", "value": "modal"},
+    },
+    "E2B_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SANDBOX,
+        "description": "E2B API Key",
+        "default": "",
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "e2b"},
+    },
+    "E2B_TEMPLATE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.SANDBOX,
+        "description": "E2B sandbox template name (e.g. 'base')",
+        "default": "base",
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "e2b"},
+    },
+    "E2B_TIMEOUT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SANDBOX,
+        "description": "E2B sandbox timeout in seconds (max 3600 on Hobby, 86400 on Pro)",
+        "default": 3600,
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "e2b"},
     },
     # ============================================
     # Skills Settings

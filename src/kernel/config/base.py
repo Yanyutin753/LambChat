@@ -130,6 +130,11 @@ class Settings(BaseSettings):
     SANDBOX_AUTO_DELETE_INTERVAL: int = 1440
     MODAL_APP_NAME: str = ""
 
+    # E2B Settings
+    E2B_API_KEY: str = ""
+    E2B_TEMPLATE: str = "base"
+    E2B_TIMEOUT: int = 3600
+
     # Skills Settings
     ENABLE_SKILLS: bool = True
 
