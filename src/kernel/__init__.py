@@ -4,11 +4,9 @@
 零依赖的核心模块，包含：
 - 异常定义
 - 类型/协议定义
-- 事件构建器
 - Pydantic 模型
 """
 
-from src.kernel.events import EventBuilder
 from src.kernel.exceptions import (
     AgentError,
     AuthenticationError,
@@ -32,8 +30,6 @@ __all__ = [
     "ConfigurationError",
     "NotFoundError",
     "ValidationError",
-    # 事件
-    "EventBuilder",
     # 类型
     "Permission",
     "AgentProtocol",

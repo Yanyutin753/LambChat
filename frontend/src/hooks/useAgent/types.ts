@@ -14,21 +14,12 @@ export type EventType =
   | "user:cancel"
   | "thinking"
   | "tool:start"
-  | "tool:input"
   | "tool:result"
-  | "todo:created"
   | "todo:updated"
   | "agent:call"
   | "agent:result"
-  | "observation"
-  | "code"
-  | "file"
-  | "message:complete"
-  | "workflow:step_start"
-  | "workflow:step_end"
   | "approval_required"
   | "sandbox:starting"
-  | "sandbox:state"
   | "sandbox:ready"
   | "sandbox:error"
   | "token:usage"
@@ -65,7 +56,6 @@ export interface EventData {
   choices?: string[];
   default?: string;
   // sandbox event fields
-  state?: string;
   sandbox_id?: string;
   work_dir?: string;
   // token:usage event fields

@@ -31,6 +31,7 @@ _TOOL_ERROR_INDICATORS = frozenset(
         "validationerror",
         "[mcp tool error]",
         "failed",
+        "command failed",
         "exception",
         "traceback",
     )
@@ -62,7 +63,13 @@ class AgentEventProcessor:
         "total_cache_read_tokens",
         "_debug_enabled",
         "_presenter_emit",
+        # Chunk batching state
+        "_chunk_buffer",
+        "_chunk_buffer_key",
     )
+
+    # Batch config: flush after this many characters accumulated
+    _CHUNK_FLUSH_SIZE = 200
 
     def __init__(self, presenter: Presenter):
         self.presenter = presenter
@@ -77,11 +84,62 @@ class AgentEventProcessor:
         self.total_cache_read_tokens = 0
         # 缓存 presenter.emit 方法引用
         self._presenter_emit = presenter.emit
+        # Chunk batching: (buffered_text, depth, agent_id, text_id)
+        self._chunk_buffer = ""
+        self._chunk_buffer_key: tuple[int, str | None, str | None] | None = None
 
     @property
     def output_text(self) -> str:
         """获取累积的输出文本"""
         return self._output_buffer.getvalue()
+
+    async def _flush_chunk_buffer(self) -> None:
+        """Flush buffered text chunks as a single event."""
+        if not self._chunk_buffer:
+            return
+
+        text = self._chunk_buffer
+        key = self._chunk_buffer_key
+        self._chunk_buffer = ""
+        self._chunk_buffer_key = None
+
+        if key is None:
+            return
+
+        depth, agent_id, text_id = key
+        await self._presenter_emit(
+            self.presenter.present_text(
+                text,
+                text_id=text_id,
+                depth=depth,
+                agent_id=agent_id,
+            )
+        )
+
+    def _buffer_text_chunk(
+        self,
+        text: str,
+        depth: int,
+        agent_id: str | None,
+        text_id: str | None,
+    ) -> bool:
+        """
+        Buffer a text chunk. Returns True if the caller should flush immediately.
+
+        Chunks with the same (depth, agent_id) key are merged.
+        Flush is triggered when buffer exceeds _CHUNK_FLUSH_SIZE or key changes.
+        """
+        key = (depth, agent_id, text_id)
+
+        # Key changed — flush old buffer first
+        if self._chunk_buffer_key is not None and key != self._chunk_buffer_key:
+            return True  # Caller must call _flush_chunk_buffer
+
+        self._chunk_buffer += text
+        self._chunk_buffer_key = key
+
+        # Flush when buffer exceeds size threshold
+        return len(self._chunk_buffer) >= self._CHUNK_FLUSH_SIZE
 
     def _get_checkpoint_ns(self, metadata: dict[str, Any]) -> str:
         """从 metadata 中获取 checkpoint_ns"""
@@ -156,12 +214,15 @@ class AgentEventProcessor:
         # 使用 match 分发事件
         match evt_type:
             case "on_chat_model_end":
+                await self._flush_chunk_buffer()
                 self._handle_token_usage(event)
             case "on_chat_model_stream":
                 await self._handle_chat_stream(event, current_agent_id, current_depth)
             case "on_tool_start":
+                await self._flush_chunk_buffer()
                 await self._handle_tool_start(event, tool_name, current_agent_id, current_depth)
             case "on_tool_end":
+                await self._flush_chunk_buffer()
                 await self._handle_tool_end(event, tool_name, current_agent_id, current_depth)
 
     async def _handle_task_start(self, event: StreamEvent) -> None:
@@ -333,7 +394,7 @@ class AgentEventProcessor:
         current_agent_id: str | None,
         current_depth: int,
     ) -> None:
-        """处理聊天流式输出"""
+        """处理聊天流式输出（带 chunk batching）"""
         data = event["data"]
         chunk = data.get("chunk")
         if not chunk:
@@ -346,20 +407,16 @@ class AgentEventProcessor:
         if isinstance(content, str) and content:
             if current_depth == 0:
                 self._output_buffer.write(content)
-            await self._presenter_emit(
-                self.presenter.present_text(
-                    content,
-                    text_id=chunk_id,
-                    depth=current_depth,
-                    agent_id=current_agent_id,
-                )
+            should_flush = self._buffer_text_chunk(
+                content, current_depth, current_agent_id, chunk_id
             )
+            if should_flush:
+                await self._flush_chunk_buffer()
             return
 
         # 处理列表内容（Anthropic 格式）
         if isinstance(content, list):
             present_thinking = self.presenter.present_thinking
-            present_text = self.presenter.present_text
             emit = self._presenter_emit
 
             for block in content:
@@ -383,14 +440,11 @@ class AgentEventProcessor:
                         self.thinking_ids[current_agent_id] = None
                         if current_depth == 0:
                             self._output_buffer.write(text)
-                        await emit(
-                            present_text(
-                                text,
-                                text_id=chunk_id,
-                                depth=current_depth,
-                                agent_id=current_agent_id,
-                            )
+                        should_flush = self._buffer_text_chunk(
+                            text, current_depth, current_agent_id, chunk_id
                         )
+                        if should_flush:
+                            await self._flush_chunk_buffer()
 
     async def _handle_tool_start(
         self,

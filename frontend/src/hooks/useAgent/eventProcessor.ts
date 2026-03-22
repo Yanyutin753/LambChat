@@ -255,53 +255,6 @@ export function processMessageEvent(
       break;
     }
 
-    case "tool:input": {
-      const toolCallId = data.tool_call_id as string | undefined;
-      const toolName = data.tool || "";
-      const newArgs = data.args || {};
-      const isPartial = "partial" in newArgs;
-
-      const updatedParts = parts.map((p) => {
-        if (p.type === "tool" && p.id === toolCallId && p.name === toolName) {
-          let mergedArgs: Record<string, unknown>;
-          if (isPartial) {
-            const existingArgs = p.args as Record<string, string>;
-            const existingPartial = existingArgs.partial || "";
-            mergedArgs = {
-              ...p.args,
-              partial: existingPartial + newArgs.partial,
-            };
-          } else {
-            mergedArgs = { ...p.args, ...newArgs };
-          }
-          return { ...p, args: mergedArgs };
-        }
-        return p;
-      });
-      result.parts = updatedParts;
-
-      if (depth === 0) {
-        result.toolCalls = toolCalls.map((tc) => {
-          if (tc.id === toolCallId && tc.name === toolName) {
-            let mergedArgs: Record<string, unknown>;
-            if (isPartial) {
-              const existingArgs = tc.args as Record<string, string>;
-              const existingPartial = existingArgs.partial || "";
-              mergedArgs = {
-                ...tc.args,
-                partial: existingPartial + newArgs.partial,
-              };
-            } else {
-              mergedArgs = { ...tc.args, ...newArgs };
-            }
-            return { ...tc, args: mergedArgs };
-          }
-          return tc;
-        });
-      }
-      break;
-    }
-
     case "tool:result": {
       const toolCallId = data.tool_call_id as string | undefined;
       const toolName = data.tool || "";
@@ -385,23 +338,6 @@ export function processMessageEvent(
       break;
     }
 
-    case "sandbox:state": {
-      const state = data.state as "starting" | "ready" | "error" | undefined;
-      if (!state) break;
-      const sandboxPart: SandboxPart = {
-        type: "sandbox",
-        status: state,
-        ...(state === "ready" && {
-          sandbox_id: data.sandbox_id,
-          work_dir: data.work_dir,
-        }),
-        ...(state === "error" && { error: data.error }),
-        timestamp: data.timestamp,
-      };
-      result.parts = upsertSandboxPart(parts, sandboxPart);
-      break;
-    }
-
     // ---- Token usage ----
 
     case "token:usage": {
@@ -421,7 +357,6 @@ export function processMessageEvent(
 
     // ---- Todo events ----
 
-    case "todo:created":
     case "todo:updated": {
       const todos = (data.todos || []) as TodoPart["items"];
       if (!todos.length) break;

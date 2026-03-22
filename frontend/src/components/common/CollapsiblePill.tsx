@@ -188,9 +188,7 @@ export function CollapsiblePill({
       </button>
 
       {isExpanded && hasChildren && (
-        <div className="mt-1 animate-[fade-in_150ms_ease-out] max-h-[500px] overflow-y-auto">
-          {children}
-        </div>
+        <div className="mt-1 animate-[fade-in_150ms_ease-out]">{children}</div>
       )}
     </div>
   );

@@ -13,19 +13,14 @@ from src.agents.core import (
     _AGENT_REGISTRY,
     # 工厂
     AgentFactory,
-    # 旧版兼容
-    AgentGraphBuilder,
     # 基类
     BaseGraphAgent,
-    EdgeDefinition,
     GraphBuilder,
-    NodeDefinition,
     get_agent_class,
     # 辅助
     get_presenter,
     list_registered_agents,
     register_agent,
-    route_by_tool_calls,
 )
 
 
@@ -63,9 +58,4 @@ __all__ = [
     "get_agent_async",
     "list_agents",
     "discover_agents",
-    # 旧版兼容
-    "AgentGraphBuilder",
-    "NodeDefinition",
-    "EdgeDefinition",
-    "route_by_tool_calls",
 ]

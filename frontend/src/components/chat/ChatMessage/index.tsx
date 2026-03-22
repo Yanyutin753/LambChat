@@ -61,10 +61,12 @@ interface ChatMessageProps {
 function TokenDetailsButton({
   tokenUsage,
   duration,
+  timestamp,
   isLastMessage,
 }: {
   tokenUsage?: TokenUsagePart;
   duration?: number;
+  timestamp?: Date;
   isLastMessage?: boolean;
 }) {
   const { t } = useTranslation();
@@ -168,6 +170,23 @@ function TokenDetailsButton({
                 </span>
               </div>
             )}
+            {timestamp && (
+              <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5">
+                <span className="text-gray-500 dark:text-stone-400">
+                  {t("chat.message.startTime")}
+                </span>
+                <span className="text-gray-700 dark:text-stone-200 font-medium tabular-nums">
+                  {new Date(timestamp).toLocaleString([], {
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -228,6 +247,17 @@ export function ChatMessage({
             <span className="text-base sm:text-lg font-semibold text-stone-800 dark:text-stone-100 tracking-tight font-serif">
               {t("chat.message.assistant")}
             </span>
+            {message.timestamp && (
+              <span className="text-xs text-stone-400 dark:text-stone-500 ml-1.5 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                {new Date(message.timestamp).toLocaleString([], {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
           </div>
 
           {/* Streaming/Thinking indicator */}
@@ -315,6 +345,7 @@ export function ChatMessage({
               <TokenDetailsButton
                 tokenUsage={message.tokenUsage}
                 duration={message.duration}
+                timestamp={message.timestamp}
                 isLastMessage={isLastMessage}
               />
             )}

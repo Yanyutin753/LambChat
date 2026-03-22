@@ -488,6 +488,7 @@ async def generate_session_title(
     title_api_base = settings.SESSION_TITLE_API_BASE or settings.LLM_API_BASE
     title_api_key = settings.SESSION_TITLE_API_KEY or settings.LLM_API_KEY
     prompt_template = settings.SESSION_TITLE_PROMPT
+    max_retries = settings.LLM_MAX_RETRIES
 
     # 使用 LLM 生成标题
     try:
@@ -495,6 +496,8 @@ async def generate_session_title(
             model=title_model,
             api_base=title_api_base,
             api_key=title_api_key,
+            max_tokens=100,
+            max_retries=max_retries,
         )
         prompt = prompt_template.replace("{lang}", lang).replace("{message}", message[:800])
 

@@ -18,12 +18,6 @@ from src.agents.core.base import (
     list_registered_agents,
     register_agent,
 )
-from src.agents.core.graph import (
-    AgentGraphBuilder,
-    EdgeDefinition,
-    NodeDefinition,
-    route_by_tool_calls,
-)
 
 __all__ = [
     # 基类
@@ -38,9 +32,4 @@ __all__ = [
     "AgentFactory",
     # 辅助
     "get_presenter",
-    # 旧版兼容
-    "AgentGraphBuilder",
-    "NodeDefinition",
-    "EdgeDefinition",
-    "route_by_tool_calls",
 ]

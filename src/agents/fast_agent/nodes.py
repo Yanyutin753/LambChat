@@ -4,17 +4,21 @@ Fast Agent 节点 - 无沙箱，快速响应
 基于 deep_agent/nodes.py 简化，移除沙箱相关逻辑。
 """
 
-import asyncio
 import time
 import uuid
 from typing import Any, Dict
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import CompiledSubAgent, SubAgent
-from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.agents.core.base import get_presenter
+from src.agents.core.node_utils import (
+    build_human_message,
+    emit_token_usage,
+    run_with_retry,
+    schedule_auto_retain,
+)
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
 from src.agents.fast_agent.context import FastAgentContext
 from src.agents.fast_agent.prompt import (
@@ -32,165 +36,6 @@ from src.infra.storage.mongodb_store import create_store
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
-
-
-# ============================================================================
-# 自动记忆存储
-# ============================================================================
-
-
-def _schedule_auto_retain(
-    user_input: str,
-    assistant_output: str,
-    user_id: str | None,
-) -> None:
-    """
-    调度自动记忆存储任务（异步，不阻塞响应）。
-
-    只存储用户输入，助手回复由记忆后端自动关联。
-    统一接口自动选择 Hindsight 或 memU 后端。
-    """
-    if not settings.ENABLE_MEMORY or not user_id:
-        return
-
-    # 只存用户输入（前 500 字符）
-    user_input_clean = user_input.strip()
-    if not user_input_clean or len(user_input_clean) < 10:
-        return
-
-    # 延迟导入避免循环依赖
-    from src.infra.memory.tools import schedule_auto_retain
-
-    schedule_auto_retain(
-        user_id=user_id,
-        conversation_summary=user_input_clean[:500],
-        context="user_query",
-    )
-
-
-# ============================================================================
-# 消息构建工具
-# ============================================================================
-
-
-def _build_human_message(text: str, attachments: list[dict] | None) -> HumanMessage:
-    """
-    构建 HumanMessage，将附件信息以文本形式附加到消息中
-    """
-    if not attachments:
-        return HumanMessage(content=text)
-
-    enhanced_text = text
-    enhanced_text += "\n\n---\n**User Uploaded Attachments:**"
-
-    for attachment in attachments:
-        url = attachment.get("url", "")
-        name = attachment.get("name", "未知文件")
-        file_type = attachment.get("type", "document")
-        mime_type = attachment.get("mime_type", "")
-        size = attachment.get("size", 0)
-
-        if not url:
-            continue
-
-        size_str = ""
-        if size:
-            if size < 1024:
-                size_str = f"{size} B"
-            elif size < 1024 * 1024:
-                size_str = f"{size / 1024:.1f} KB"
-            else:
-                size_str = f"{size / (1024 * 1024):.1f} MB"
-
-        enhanced_text += f"\n\n**[{name}]**"
-        enhanced_text += f"\n- 类型: {file_type}"
-        if mime_type:
-            enhanced_text += f" ({mime_type})"
-        if size_str:
-            enhanced_text += f"\n- 大小: {size_str}"
-        enhanced_text += f"\n- 链接: {url}"
-
-    return HumanMessage(content=enhanced_text)
-
-
-# ============================================================================
-# LLM 重试工具
-# ============================================================================
-
-
-def _is_retryable_error(error: Exception) -> bool:
-    """判断错误是否可重试（429、网络错误等）"""
-    error_str = str(error).lower()
-    error_type = type(error).__name__.lower()
-
-    retryable_patterns = [
-        "429",  # rate limit
-        "503",  # service unavailable
-        "502",  # bad gateway
-        "504",  # gateway timeout
-        "timeout",
-        "connection",
-        "network",
-        "reset",
-        "refused",
-        "overloaded",
-    ]
-
-    retryable_types = [
-        "timeouterror",
-        "connectionerror",
-        "connectionreseterror",
-    ]
-
-    if any(pattern in error_str for pattern in retryable_patterns):
-        return True
-    if any(rt in error_type for rt in retryable_types):
-        return True
-
-    return False
-
-
-async def _run_with_retry(
-    graph,
-    input_data: dict,
-    config: RunnableConfig,
-    event_processor: "AgentEventProcessor",
-    max_retries: int | None = None,
-    base_delay: float | None = None,
-) -> None:
-    """带重试的 LLM 流式执行（使用 astream_events）"""
-    if max_retries is None:
-        max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
-    if base_delay is None:
-        base_delay = getattr(settings, "LLM_RETRY_DELAY", 1.0)
-
-    last_error: Exception | None = None
-    for attempt in range(max_retries):
-        try:
-            # 使用 astream_events API
-            async for event in graph.astream_events(
-                input_data,
-                config,
-                version="v2",
-            ):
-                # 使用 AgentEventProcessor 处理事件
-                await event_processor.process_event(event)
-            return
-        except Exception as e:
-            last_error = e
-            if _is_retryable_error(e) and attempt < max_retries - 1:
-                delay = base_delay * (2**attempt)
-                logger.warning(
-                    f"LLM call failed (attempt {attempt + 1}/{max_retries}): {e}. "
-                    f"Retrying in {delay}s..."
-                )
-                await asyncio.sleep(delay)
-            else:
-                raise
-
-    if last_error is None:
-        raise RuntimeError("Unexpected state: no error but loop exhausted")
-    raise last_error
 
 
 # ============================================================================
@@ -320,7 +165,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 构建传入的消息列表（包含附件）
     user_input = state.get("input", "")
-    new_message = _build_human_message(user_input, attachments)
+    new_message = build_human_message(user_input, attachments)
 
     # 消息列表（记忆召回改为由 agent 通过 tool 主动触发）
     all_messages = existing_messages + [new_message]
@@ -332,10 +177,10 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     logger.info("[FastAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(presenter)
 
-    logger.info("[FastAgent] Starting _run_with_retry (astream_events)")
+    logger.info("[FastAgent] Starting run_with_retry (astream_events)")
     # 流式处理事件（带重试，使用 astream_events）
     # 注意：不预加载 skill_files，通过 SkillsStoreBackend 实时读写
-    await _run_with_retry(
+    await run_with_retry(
         graph=inner_graph,
         input_data={
             "messages": all_messages,
@@ -344,10 +189,10 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         config=inner_config,
         event_processor=event_processor,
     )
-    logger.info("[FastAgent] _run_with_retry completed")
+    logger.info("[FastAgent] run_with_retry completed")
 
     # 发送 token 使用统计事件
-    await _emit_token_usage(event_processor, presenter, start_time)
+    await emit_token_usage(event_processor, presenter, start_time)
 
     # 获取内层 graph 的最终状态
     inner_state = await inner_graph.aget_state(inner_config)
@@ -356,41 +201,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
 
     # 自动记忆存储（异步，不阻塞响应）
-    _schedule_auto_retain(user_input, event_processor.output_text, context.user_id)
+    schedule_auto_retain(user_input, event_processor.output_text, context.user_id)
 
     return {
         "output": event_processor.output_text,
         "messages": final_messages,
     }
-
-
-async def _emit_token_usage(
-    event_processor: AgentEventProcessor,
-    presenter,
-    start_time: float,
-) -> None:
-    """发送 token 使用统计事件"""
-    total_input_tokens = event_processor.total_input_tokens
-    total_output_tokens = event_processor.total_output_tokens
-    total_tokens = event_processor.total_tokens
-    cache_creation_tokens = event_processor.total_cache_creation_tokens
-    cache_read_tokens = event_processor.total_cache_read_tokens
-
-    if total_input_tokens > 0 or total_output_tokens > 0 or total_tokens > 0:
-        if total_tokens == 0:
-            total_tokens = total_input_tokens + total_output_tokens
-
-        duration = time.time() - start_time
-        try:
-            await presenter.emit(
-                presenter.present_token_usage(
-                    input_tokens=total_input_tokens,
-                    output_tokens=total_output_tokens,
-                    total_tokens=total_tokens,
-                    duration=duration,
-                    cache_creation_tokens=cache_creation_tokens,
-                    cache_read_tokens=cache_read_tokens,
-                )
-            )
-        except Exception as e:
-            logger.warning(f"Failed to emit token:usage event: {e}")

@@ -452,24 +452,30 @@ export function AppContent({ activeTab }: AppContentProps) {
   // Memoize Virtuoso components to prevent re-renders from resetting scroll
   const virtuosoComponents = useMemo(
     () => ({
-      Scroller: ({
-        children,
-        ...props
-      }: React.HTMLAttributes<HTMLDivElement> & {
-        children?: React.ReactNode;
-      }) => (
-        <div
-          ref={(el) => {
-            (
-              virtuosoScrollerRef as React.MutableRefObject<HTMLDivElement | null>
-            ).current = el;
-          }}
-          {...props}
-        >
-          {children}
-        </div>
-      ),
-      Footer: () => <div ref={messagesEndRef} />,
+      Scroller: (
+        scrollerProps: React.HTMLAttributes<HTMLDivElement> & {
+          children?: React.ReactNode;
+          ref?: React.Ref<HTMLDivElement>;
+        },
+      ) => {
+        const { children, ref: virtuosoRef, ...props } = scrollerProps;
+        return (
+          <div
+            {...props}
+            ref={(el: HTMLDivElement | null) => {
+              virtuosoScrollerRef.current = el;
+              if (typeof virtuosoRef === "function") virtuosoRef(el);
+              else if (virtuosoRef)
+                (
+                  virtuosoRef as React.MutableRefObject<HTMLDivElement | null>
+                ).current = el;
+            }}
+          >
+            {children}
+          </div>
+        );
+      },
+      Footer: () => <div ref={messagesEndRef} className="h-6" />,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -681,7 +687,7 @@ export function AppContent({ activeTab }: AppContentProps) {
               {/* Messages */}
               <main
                 ref={messagesContainerRef}
-                className="relative flex-1 overflow-hidden min-h-0 pb-5 pt-6"
+                className="relative flex-1 overflow-hidden min-h-0 pt-6"
               >
                 {/* Session loading indicator - show when loading history (no messages yet) */}
                 {isLoading && messages.length === 0 && (
@@ -798,12 +804,12 @@ export function AppContent({ activeTab }: AppContentProps) {
                 )}
               </main>
 
-              {/* Scroll to top - smart show on fast upward scroll, auto-hide after 3s */}
+              {/* Scroll to top - show on fast upward scroll, auto-hide after 3s */}
               {messages.length > 0 && showScrollTop && (
                 <button
                   onClick={() => {
-                    virtuosoRef.current?.scrollToIndex({
-                      index: 0,
+                    virtuosoRef.current?.scrollTo({
+                      top: 0,
                       behavior: "smooth",
                     });
                     setShowScrollTop(false);
@@ -830,10 +836,9 @@ export function AppContent({ activeTab }: AppContentProps) {
               {messages.length > 0 && !isNearBottom && (
                 <button
                   onClick={() => {
-                    virtuosoRef.current?.scrollToIndex({
-                      index: messages.length - 1,
+                    virtuosoRef.current?.scrollTo({
+                      top: Number.MAX_SAFE_INTEGER,
                       behavior: "smooth",
-                      align: "end",
                     });
                   }}
                   className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"

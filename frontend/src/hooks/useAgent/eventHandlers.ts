@@ -154,14 +154,11 @@ export function handleStreamEvent(
     "thinking",
     "message:chunk",
     "tool:start",
-    "tool:input",
     "tool:result",
     "sandbox:starting",
     "sandbox:ready",
     "sandbox:error",
-    "sandbox:state",
     "token:usage",
-    "todo:created",
     "todo:updated",
     "error",
   ]);
@@ -242,19 +239,6 @@ export function handleStreamEvent(
   if (eventType === "sandbox:error") {
     ctx.setIsInitializingSandbox(false);
     ctx.setSandboxError(data.error || i18n.t("chat.sandboxInitFailed"));
-  }
-  // sandbox:state is a generic event that maps to the same side effects
-  if (eventType === "sandbox:state") {
-    const state = data.state;
-    if (state === "starting") {
-      ctx.setIsInitializingSandbox(true);
-      ctx.setSandboxError(null);
-    } else if (state === "ready") {
-      ctx.setIsInitializingSandbox(false);
-    } else if (state === "error") {
-      ctx.setIsInitializingSandbox(false);
-      ctx.setSandboxError(data.error || i18n.t("chat.sandboxInitFailed"));
-    }
   }
 
   // Error side effects

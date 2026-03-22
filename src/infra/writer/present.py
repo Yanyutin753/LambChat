@@ -14,7 +14,6 @@ Writer 模块 - 统一流式输出 + 事件存储
 - agent:call: 调用子 Agent
 - agent:result: 子 Agent 返回结果
 - observation: 观察/状态更新
-- workflow:step: 工作流步骤
 - done: 流结束
 - error: 错误
 """
@@ -385,35 +384,6 @@ class Presenter:
             agent_id=agent_id,
         )
 
-    def present_observation(
-        self,
-        title: str,
-        content: Any,
-        observation_type: str = "info",
-        depth: int = 0,
-        agent_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """输出观察/状态更新
-
-        Args:
-            title: 标题
-            content: 内容
-            observation_type: 类型
-            depth: 层级深度（0=主代理，1+=子代理）
-            agent_id: 代理ID（用于子代理事件）
-        """
-        return self._build_event(
-            "observation",
-            {
-                "title": title,
-                "content": content,
-                "type": observation_type,
-                "timestamp": _get_timestamp(),
-            },
-            depth=depth,
-            agent_id=agent_id,
-        )
-
     def present_agent_call(
         self,
         agent_id: str,
@@ -503,37 +473,6 @@ class Presenter:
             agent_id=agent_id,
         )
 
-    def present_tool_input(
-        self,
-        tool_name: str,
-        tool_input: Any,
-        tool_call_id: Optional[str] = None,
-        depth: int = 0,
-        agent_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """输出工具参数更新（流式工具输入）
-
-        用于流式传递工具参数增量，当参数完整时会合并到 tool:start。
-
-        Args:
-            tool_name: 工具名称
-            tool_input: 工具输入（增量或完整参数）
-            tool_call_id: 工具调用唯一ID
-            depth: 层级深度（0=主代理，1+=子代理）
-            agent_id: 代理ID（用于子代理事件）
-        """
-        return self._build_event(
-            "tool:input",
-            {
-                "tool": tool_name,
-                "args": (tool_input if isinstance(tool_input, dict) else {"input": tool_input}),
-                "tool_call_id": tool_call_id,
-                "timestamp": _get_timestamp(),
-            },
-            depth=depth,
-            agent_id=agent_id,
-        )
-
     def present_tool_result(
         self,
         tool_name: str,
@@ -609,94 +548,6 @@ class Presenter:
             agent_id=agent_id,
         )
 
-    def present_workflow_step(
-        self,
-        step_name: str,
-        step_id: Optional[str] = None,
-        status: str = "running",
-        result: Optional[str] = None,
-        depth: int = 0,
-        agent_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """输出工作流步骤
-
-        Args:
-            step_name: 步骤名称
-            step_id: 步骤ID
-            status: 状态
-            result: 结果
-            depth: 层级深度（0=主代理，1+=子代理）
-            agent_id: 代理ID（用于子代理事件）
-        """
-        event_type = "workflow:step_start" if status == "running" else "workflow:step_end"
-        data = {
-            "step_id": step_id or step_name,
-            "step_name": step_name,
-            "status": status,
-            "timestamp": _get_timestamp(),
-        }
-        if result:
-            data["result"] = result[: self.config.max_result_length]
-        return self._build_event(event_type, data, depth=depth, agent_id=agent_id)
-
-    def present_code(
-        self,
-        code: str,
-        language: str = "python",
-        filename: Optional[str] = None,
-        depth: int = 0,
-        agent_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """输出代码块
-
-        Args:
-            code: 代码内容
-            language: 语言
-            filename: 文件名
-            depth: 层级深度（0=主代理，1+=子代理）
-            agent_id: 代理ID（用于子代理事件）
-        """
-        return self._build_event(
-            "code",
-            {
-                "language": language,
-                "code": code,
-                "filename": filename,
-                "timestamp": _get_timestamp(),
-            },
-            depth=depth,
-            agent_id=agent_id,
-        )
-
-    def present_file(
-        self,
-        path: str,
-        action: str = "created",
-        content_preview: Optional[str] = None,
-        depth: int = 0,
-        agent_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """输出文件操作
-
-        Args:
-            path: 文件路径
-            action: 操作类型
-            content_preview: 内容预览
-            depth: 层级深度（0=主代理，1+=子代理）
-            agent_id: 代理ID（用于子代理事件）
-        """
-        return self._build_event(
-            "file",
-            {
-                "path": path,
-                "action": action,
-                "preview": content_preview[:500] if content_preview else None,
-                "timestamp": _get_timestamp(),
-            },
-            depth=depth,
-            agent_id=agent_id,
-        )
-
     def present_user_message(
         self, content: str, attachments: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
@@ -713,17 +564,6 @@ class Presenter:
         return self._build_event(
             "sandbox:starting",
             {"timestamp": _get_timestamp()},
-        )
-
-    def present_sandbox_state(self, state: str) -> Dict[str, Any]:
-        """输出沙箱状态更新
-
-        Args:
-            state: 沙箱状态（如 creating, restoring, starting, running 等）
-        """
-        return self._build_event(
-            "sandbox:state",
-            {"state": state, "timestamp": _get_timestamp()},
         )
 
     def present_sandbox_ready(
@@ -907,12 +747,6 @@ class Presenter:
     async def emit_sandbox_starting(self) -> Dict[str, Any]:
         """输出沙箱开始初始化并保存"""
         event = self.present_sandbox_starting()
-        await self.save_event(event)
-        return event
-
-    async def emit_sandbox_state(self, state: str) -> Dict[str, Any]:
-        """输出沙箱状态更新并保存"""
-        event = self.present_sandbox_state(state)
         await self.save_event(event)
         return event
 
