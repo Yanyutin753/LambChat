@@ -15,8 +15,9 @@ import uuid
 from datetime import datetime
 from typing import Callable, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.deps import require_permissions
 from src.infra.logging import get_logger
 from src.infra.storage.mongodb import (
     ApprovalResponse,
@@ -190,7 +191,7 @@ def _cleanup_approval(approval_id: str) -> None:
 # ============================================================================
 
 
-@router.get("/pending")
+@router.get("/pending", dependencies=[Depends(require_permissions("chat:write"))])
 async def get_pending_approvals():
     """
     获取待处理的审批列表
@@ -201,7 +202,7 @@ async def get_pending_approvals():
     return {"approvals": [a.model_dump() for a in pending], "count": len(pending)}
 
 
-@router.post("/{approval_id}/respond")
+@router.post("/{approval_id}/respond", dependencies=[Depends(require_permissions("chat:write"))])
 async def respond_to_approval(
     approval_id: str,
     approved: bool = Query(..., description="是否批准"),
@@ -241,7 +242,7 @@ async def respond_to_approval(
     return {"status": "success", "approval_id": approval_id, "approved": approved}
 
 
-@router.get("/{approval_id}")
+@router.get("/{approval_id}", dependencies=[Depends(require_permissions("chat:write"))])
 async def get_approval(approval_id: str):
     """获取单个审批详情"""
     approval = await _approval_storage.get(approval_id)
@@ -253,7 +254,7 @@ async def get_approval(approval_id: str):
     return approval.model_dump()
 
 
-@router.delete("/{approval_id}")
+@router.delete("/{approval_id}", dependencies=[Depends(require_permissions("chat:write"))])
 async def cancel_approval(approval_id: str):
     """取消审批请求"""
     approval = await _approval_storage.get(approval_id)

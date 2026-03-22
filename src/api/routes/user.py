@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from starlette.responses import Response
 
-from src.api.deps import get_current_user_required, require_permissions
+from src.api.deps import require_permissions
 from src.infra.user.manager import UserManager
 from src.kernel.schemas.user import TokenPayload, User, UserCreate, UserListResponse, UserUpdate
 
@@ -56,7 +56,7 @@ async def get_user(
 async def update_user(
     user_id: str,
     user_data: UserUpdate,
-    current_user: TokenPayload = Depends(get_current_user_required),
+    current_user: TokenPayload = Depends(require_permissions("user:write")),
 ):
     """更新用户"""
     manager = UserManager()

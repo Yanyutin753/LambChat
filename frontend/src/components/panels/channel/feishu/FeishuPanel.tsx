@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../../../hooks/useAuth";
+import { Permission } from "../../../../types";
 import { PanelHeader } from "../../../common/PanelHeader";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
 import { ChannelAgentSelect } from "../ChannelAgentSelect";
@@ -62,7 +64,11 @@ export function FeishuPanel({
   isLoading: externalIsLoading,
 }: FeishuPanelProps) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
   const navigate = useNavigate();
+
+  const canWrite = hasPermission(Permission.CHANNEL_WRITE);
+  const canDelete = hasPermission(Permission.CHANNEL_DELETE);
 
   // State
   const [, setConfig] = useState<FeishuConfigResponse | null>(null);
@@ -234,7 +240,9 @@ export function FeishuPanel({
   const handleSave = async () => {
     // Validate instance name for new instances
     if (!hasExistingConfig && !instanceName.trim()) {
-      toast.error(t("feishu.instanceNameRequired", "Instance name is required"));
+      toast.error(
+        t("feishu.instanceNameRequired", "Instance name is required"),
+      );
       return;
     }
 
@@ -523,7 +531,10 @@ export function FeishuPanel({
                     type="text"
                     value={instanceName}
                     onChange={(e) => setInstanceName(e.target.value)}
-                    placeholder={t("feishu.instanceNamePlaceholder", "My Feishu Bot")}
+                    placeholder={t(
+                      "feishu.instanceNamePlaceholder",
+                      "My Feishu Bot",
+                    )}
                     className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
                   />
                 </div>
@@ -784,23 +795,27 @@ export function FeishuPanel({
 
           {/* Actions */}
           <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              onClick={handleDelete}
-              disabled={!hasExistingConfig}
-              className="btn-secondary !text-red-600 hover:!bg-red-50 disabled:opacity-50 dark:hover:!bg-red-900/20"
-            >
-              <Trash2 size={16} />
-              {t("common.delete")}
-            </button>
+            {canDelete && (
+              <button
+                onClick={handleDelete}
+                disabled={!hasExistingConfig}
+                className="btn-secondary !text-red-600 hover:!bg-red-50 disabled:opacity-50 dark:hover:!bg-red-900/20"
+              >
+                <Trash2 size={16} />
+                {t("common.delete")}
+              </button>
+            )}
 
-            <button
-              onClick={handleSave}
-              disabled={isSaving || !appId.trim()}
-              className="btn-primary"
-            >
-              {isSaving ? <LoadingSpinner size="sm" /> : <Save size={16} />}
-              {t("common.save")}
-            </button>
+            {canWrite && (
+              <button
+                onClick={handleSave}
+                disabled={isSaving || !appId.trim()}
+                className="btn-primary"
+              >
+                {isSaving ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+                {t("common.save")}
+              </button>
+            )}
           </div>
         </div>
       </div>

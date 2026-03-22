@@ -280,7 +280,12 @@ function App() {
           <Route
             path="/channels/:channelType?/:instanceId?"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute
+                permissions={[Permission.CHANNEL_READ]}
+                redirectTo="/chat"
+                showToast
+                toastMessage={t("errors.noPermission")}
+              >
                 <ChannelsPage />
               </ProtectedRoute>
             }

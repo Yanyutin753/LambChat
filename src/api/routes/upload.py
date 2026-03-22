@@ -477,7 +477,11 @@ class SignedUrlResponse(BaseModel):
     expires_in: int
 
 
-@router.post("/signed-urls", response_model=SignedUrlResponse)
+@router.post(
+    "/signed-urls",
+    response_model=SignedUrlResponse,
+    dependencies=[Depends(require_permissions("file:upload"))],
+)
 async def get_signed_urls(
     request: SignedUrlRequest,
     current_user: TokenPayload = Depends(get_current_user_required),
@@ -543,7 +547,11 @@ async def get_signed_urls(
     return SignedUrlResponse(urls=urls, expires_in=request.expires)
 
 
-@router.get("/signed-url", response_model=SignedUrlItem)
+@router.get(
+    "/signed-url",
+    response_model=SignedUrlItem,
+    dependencies=[Depends(require_permissions("file:upload"))],
+)
 async def get_single_signed_url(
     key: str,
     expires: int = 3600,
@@ -593,66 +601,6 @@ async def get_single_signed_url(
     except Exception as e:
         logger.warning(f"Failed to generate signed URL for {key}: {e}")
         return SignedUrlItem(key=key, error=str(e))
-
-
-class SignedUrlResponseSimple(BaseModel):
-    """Simple response for signed URL"""
-
-    url: str
-    expires_in: int
-
-
-@router.get("/signed-url/simple")
-async def get_signed_url_simple(
-    key: str,
-    expires: int = 3600,
-    current_user: TokenPayload = Depends(get_current_user_required),
-) -> SignedUrlResponseSimple:
-    """
-    Get a presigned URL for a private S3 object (simple response)
-
-    This endpoint returns just the URL string, useful for direct use in img src, etc.
-
-    Args:
-        key: S3 object key
-        expires: URL expiration time in seconds (default 1 hour, max 24 hours)
-        current_user: Current authenticated user
-
-    Returns:
-        Signed URL and expiration time
-    """
-    if not get_s3_enabled():
-        raise HTTPException(
-            status_code=503,
-            detail="File storage is not enabled. Please configure S3 settings.",
-        )
-
-    # Validate expires range
-    if expires < 60 or expires > 86400:
-        raise HTTPException(
-            status_code=400,
-            detail="expires must be between 60 and 86400 seconds",
-        )
-
-    storage = await get_or_init_storage()
-    backend = storage._get_backend()
-
-    try:
-        if isinstance(backend, LocalStorageBackend):
-            exists = await backend.exists(key)
-            if not exists:
-                raise HTTPException(status_code=404, detail="File not found")
-            return SignedUrlResponseSimple(url=f"/api/upload/file/{key}", expires_in=0)
-        # If bucket is public, return direct URL
-        if storage._config.public_bucket:
-            url = await storage.get_file_url(key)
-            return SignedUrlResponseSimple(url=url, expires_in=0)
-        else:
-            url = await storage.get_presigned_url(key, expires)
-            return SignedUrlResponseSimple(url=url, expires_in=expires)
-    except Exception as e:
-        logger.warning(f"Failed to generate signed URL for {key}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/file/{key:path}")

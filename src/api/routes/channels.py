@@ -60,7 +60,11 @@ async def _validate_agent_id(agent_id: str | None, user: TokenPayload) -> None:
             )
 
 
-@router.get("/types", response_model=ChannelTypeListResponse)
+@router.get(
+    "/types",
+    response_model=ChannelTypeListResponse,
+    dependencies=[Depends(require_permissions(Permission.CHANNEL_READ))],
+)
 async def get_channel_types():
     """Get all available channel types with metadata"""
     registry = get_registry()

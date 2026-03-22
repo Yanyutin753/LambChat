@@ -47,6 +47,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]) && enableMcp;
   const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
+  const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canManageAgents = hasAnyPermission([Permission.AGENT_READ]);
 
   // Reactive mobile detection
@@ -123,7 +124,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       path: "/channels",
       label: t("nav.channels"),
       icon: MessageCircle,
-      show: true,
+      show: canReadChannels,
     },
   ];
 

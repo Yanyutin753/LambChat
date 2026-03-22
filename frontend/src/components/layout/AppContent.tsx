@@ -730,7 +730,13 @@ export function AppContent({ activeTab }: AppContentProps) {
                         })()?.map((suggestion, i) => (
                           <button
                             key={suggestion.text}
-                            onClick={() => sendMessage(suggestion.text)}
+                            onClick={() => {
+                              if (!canSendMessage) {
+                                toast.error(t("chat.noPermissionHint"));
+                                return;
+                              }
+                              sendMessage(suggestion.text);
+                            }}
                             className="welcome-card group flex items-center gap-3 sm:gap-3.5 rounded-xl sm:rounded-2xl border border-stone-200/70 dark:border-stone-700/40 px-4 py-3.5 sm:px-5 sm:py-4 text-left text-sm text-stone-700 dark:text-stone-200 bg-white/60 dark:bg-stone-800/30 backdrop-blur-sm hover:bg-white dark:hover:bg-stone-800/60 hover:border-stone-300/80 dark:hover:border-stone-600/50 transition-all duration-300 hover:shadow-md hover:shadow-stone-200/40 dark:hover:shadow-stone-900/40 hover:-translate-y-0.5"
                             style={{ animationDelay: `${0.4 + i * 80}ms` }}
                           >

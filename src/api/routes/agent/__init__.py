@@ -295,7 +295,7 @@ async def list_agents(
 async def chat(
     agent_id: str,
     request: AgentRequest,
-    user: TokenPayload = Depends(get_current_user_optional),
+    user: TokenPayload = Depends(get_current_user_required),
 ):
     """
     非流式聊天接口

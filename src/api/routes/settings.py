@@ -33,7 +33,7 @@ async def get_settings(
 @router.get("/{key}", response_model=SettingItem)
 async def get_setting(
     key: str,
-    _: TokenPayload = Depends(get_current_user_required),
+    _: TokenPayload = Depends(require_permissions("settings:manage")),
     service: SettingsService = Depends(get_settings_service),
 ):
     """Get single setting by key"""

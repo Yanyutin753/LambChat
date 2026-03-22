@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { APP_NAME } from "../../constants";
 import { channelApi } from "../../services/api/channel";
 import { ChannelPanel } from "../panels/ChannelPanel";
@@ -39,7 +41,10 @@ function getChannelIcon(iconName: string, className?: string) {
 
 export function ChannelsPage() {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
   const navigate = useNavigate();
+
+  const canWrite = hasPermission(Permission.CHANNEL_WRITE);
   const { channelType: selectedChannel, instanceId: selectedInstance } =
     useParams<{
       channelType?: string;
@@ -164,13 +169,15 @@ export function ChannelsPage() {
             <Radio size={18} className="text-stone-600 dark:text-stone-400" />
           }
           actions={
-            <button
-              onClick={() => navigate(`/channels/${selectedChannel}/new`)}
-              className="btn-primary btn-sm"
-            >
-              <Plus size={16} />
-              <span>{t("channel.addInstance", "Add Instance")}</span>
-            </button>
+            canWrite && (
+              <button
+                onClick={() => navigate(`/channels/${selectedChannel}/new`)}
+                className="btn-primary btn-sm"
+              >
+                <Plus size={16} />
+                <span>{t("channel.addInstance", "Add Instance")}</span>
+              </button>
+            )
           }
         />
 
@@ -180,15 +187,17 @@ export function ChannelsPage() {
               <p className="text-sm text-stone-500 dark:text-stone-400">
                 {t("channel.noInstances", "No instances configured")}
               </p>
-              <button
-                onClick={() => navigate(`/channels/${selectedChannel}/new`)}
-                className="mt-4 btn-primary"
-              >
-                <Plus size={16} />
-                <span>
-                  {t("channel.addFirstInstance", "Add First Instance")}
-                </span>
-              </button>
+              {canWrite && (
+                <button
+                  onClick={() => navigate(`/channels/${selectedChannel}/new`)}
+                  className="mt-4 btn-primary"
+                >
+                  <Plus size={16} />
+                  <span>
+                    {t("channel.addFirstInstance", "Add First Instance")}
+                  </span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="mx-auto max-w-full space-y-3 p-3 sm:p-4">

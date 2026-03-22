@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -44,7 +46,11 @@ export function ChannelPanel({
   metadata,
 }: ChannelPanelProps) {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
   const navigate = useNavigate();
+
+  const canWrite = hasPermission(Permission.CHANNEL_WRITE);
+  const canDelete = hasPermission(Permission.CHANNEL_DELETE);
 
   const isNewInstance = instanceId === "new";
 
@@ -582,23 +588,27 @@ export function ChannelPanel({
 
             {/* Actions */}
             <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                onClick={handleDeleteClick}
-                disabled={!hasExistingConfig}
-                className="btn-secondary !text-red-600 hover:!bg-red-50 disabled:opacity-50 dark:hover:!bg-red-900/20"
-              >
-                <Trash2 size={16} />
-                {t("common.delete")}
-              </button>
+              {canDelete && (
+                <button
+                  onClick={handleDeleteClick}
+                  disabled={!hasExistingConfig}
+                  className="btn-secondary !text-red-600 hover:!bg-red-50 disabled:opacity-50 dark:hover:!bg-red-900/20"
+                >
+                  <Trash2 size={16} />
+                  {t("common.delete")}
+                </button>
+              )}
 
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="btn-primary"
-              >
-                {isSaving ? <LoadingSpinner size="sm" /> : <Save size={16} />}
-                {t("common.save")}
-              </button>
+              {canWrite && (
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="btn-primary"
+                >
+                  {isSaving ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+                  {t("common.save")}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -45,6 +45,10 @@ export enum Permission {
   FEEDBACK_WRITE = "feedback:write",
   FEEDBACK_READ = "feedback:read",
   FEEDBACK_ADMIN = "feedback:admin",
+  // Channel
+  CHANNEL_READ = "channel:read",
+  CHANNEL_WRITE = "channel:write",
+  CHANNEL_DELETE = "channel:delete",
   // Agent
   AGENT_READ = "agent:read",
   AGENT_ADMIN = "agent:admin",
