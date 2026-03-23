@@ -1,7 +1,8 @@
 """
 Builtin skills initialization
 
-Load skills from src/skills/ directory into the database on startup.
+Load skills from src/skills/ directory into the marketplace on startup.
+Simplified architecture: builtin skills are pre-loaded into the marketplace.
 """
 
 from pathlib import Path
@@ -10,8 +11,8 @@ from typing import Optional
 import yaml
 
 from src.infra.logging import get_logger
-from src.infra.skill.storage import SkillStorage
-from src.kernel.schemas.skill import SkillCreate, SkillSource
+from src.infra.skill.marketplace import MarketplaceStorage
+from src.infra.skill.types import MarketplaceSkillCreate, MarketplaceSkillUpdate
 
 logger = get_logger(__name__)
 
@@ -19,36 +20,37 @@ logger = get_logger(__name__)
 BUILTIN_SKILLS_DIR = Path(__file__).parent.parent.parent / "skills"
 
 
-def _parse_skill_md(content: str) -> tuple[Optional[str], Optional[str]]:
+def _parse_skill_md(content: str) -> tuple[Optional[str], Optional[str], Optional[list[str]]]:
     """
-    Parse SKILL.md frontmatter to extract name and description.
+    Parse SKILL.md frontmatter to extract name, description, and tags.
 
     Args:
         content: SKILL.md file content
 
     Returns:
-        (name, description) tuple
+        (name, description, tags) tuple
     """
     if not content.startswith("---"):
-        return None, None
+        return None, None, None
 
     # Extract frontmatter
     parts = content.split("---", 2)
     if len(parts) < 3:
-        return None, None
+        return None, None, None
 
     frontmatter_text = parts[1].strip()
 
     try:
         frontmatter = yaml.safe_load(frontmatter_text)
         if not isinstance(frontmatter, dict):
-            return None, None
+            return None, None, None
 
         name = frontmatter.get("name")
-        description = frontmatter.get("description")
-        return name, description
+        description = frontmatter.get("description", "")
+        tags = frontmatter.get("tags", [])
+        return name, description, tags
     except yaml.YAMLError:
-        return None, None
+        return None, None, None
 
 
 def _read_skill_directory(skill_path: Path) -> Optional[dict[str, str]]:
@@ -94,8 +96,8 @@ async def init_builtin_skills() -> int:
 
     This function:
     1. Scans src/skills/ for skill directories
-    2. For each directory with a SKILL.md file, creates/updates a system skill
-    3. Skills are created with source=BUILTIN
+    2. For each directory with a SKILL.md file, upserts a marketplace skill
+    3. Syncs skill files to the marketplace files collection
 
     Returns:
         Number of skills initialized
@@ -104,7 +106,7 @@ async def init_builtin_skills() -> int:
         logger.info(f"Builtin skills directory not found: {BUILTIN_SKILLS_DIR}")
         return 0
 
-    storage = SkillStorage()
+    marketplace = MarketplaceStorage()
     initialized_count = 0
 
     # Scan skill directories
@@ -127,7 +129,7 @@ async def init_builtin_skills() -> int:
 
         # Parse SKILL.md for metadata
         skill_md_content = files.get("SKILL.md", "")
-        name, description = _parse_skill_md(skill_md_content)
+        name, description, tags = _parse_skill_md(skill_md_content)
 
         if not name:
             name = skill_dir.name
@@ -136,40 +138,42 @@ async def init_builtin_skills() -> int:
         if not description:
             description = f"Builtin skill: {name}"
 
-        # Check if skill already exists
-        existing = await storage.get_system_skill(name)
+        # Upsert marketplace skill metadata
+        try:
+            existing = await marketplace.get_marketplace_skill(name)
+            if existing:
+                # Update existing
+                logger.debug(f"Updating builtin skill in marketplace: {name}")
+                await marketplace.update_marketplace_skill(
+                    name,
+                    MarketplaceSkillUpdate(
+                        description=description,
+                        tags=tags or [],
+                    ),
+                )
+            else:
+                # Create new
+                logger.info(f"Creating builtin skill in marketplace: {name}")
+                await marketplace.create_marketplace_skill(
+                    MarketplaceSkillCreate(
+                        skill_name=name,
+                        description=description,
+                        tags=tags or [],
+                    ),
+                    admin_user_id="system",
+                )
+        except ValueError as e:
+            logger.warning(f"Failed to upsert marketplace skill {name}: {e}")
+            continue
 
-        if existing:
-            # Update existing skill
-            logger.debug(f"Updating builtin skill: {name}")
-            from src.kernel.schemas.skill import SkillUpdate
-
-            await storage.update_system_skill(
-                name,
-                SkillUpdate(
-                    description=description,
-                    content="",  # Use files format
-                ),
-                admin_user_id="system",
-            )
-            # Sync files to skill_files collection
-            await storage.sync_skill_files(name, files, user_id="system")
-        else:
-            # Create new system skill
-            logger.info(f"Creating builtin skill: {name}")
-            skill_create = SkillCreate(
-                name=name,
-                description=description,
-                content="",  # Use files format
-                files=files,
-                enabled=True,
-                source=SkillSource.BUILTIN,
-            )
-            await storage.create_system_skill(skill_create, admin_user_id="system")
+        # Sync files to marketplace
+        await marketplace.sync_marketplace_files(name, files)
 
         initialized_count += 1
 
+    await marketplace.close()
+
     if initialized_count > 0:
-        logger.info(f"Initialized {initialized_count} builtin skills")
+        logger.info(f"Initialized {initialized_count} builtin skills in marketplace")
 
     return initialized_count

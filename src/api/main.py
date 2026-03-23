@@ -111,15 +111,16 @@ async def lifespan(app: FastAPI):
     await task_manager.cleanup_stale_tasks()
     logger.info("Stale tasks cleaned up")
 
+    # 启动 Redis pub/sub 监听器（支持分布式任务取消）
+    await task_manager.start_pubsub_listener()
+    logger.info("Task pub/sub listener started")
+
     # 初始化内置 skills
     from src.infra.skill.builtin import init_builtin_skills
     from src.infra.skill.storage import SkillStorage
 
     skill_storage = SkillStorage()
     await skill_storage.ensure_indexes()
-    migrated = await skill_storage.migrate_embedded_files()
-    if migrated:
-        logger.info(f"Migrated {migrated} skills to skill_files collection")
     await init_builtin_skills()
 
     # 初始化 TraceStorage（创建索引 + 启动事件合并器）
@@ -161,6 +162,11 @@ async def lifespan(app: FastAPI):
 
     # 标记所有运行中的任务为失败
     task_manager = get_task_manager()
+
+    # 先停止 pub/sub 监听器，再关闭任务
+    await task_manager.stop_pubsub_listener()
+    logger.info("Task pub/sub listener stopped")
+
     await task_manager.shutdown()
     logger.info("Background tasks marked as failed")
 
@@ -260,7 +266,18 @@ def create_app() -> FastAPI:
     app.include_router(project.router, prefix="/api/projects", tags=["Projects"])
     app.include_router(share.router, prefix="/api/share", tags=["Share"])
     app.include_router(skill.router, prefix="/api/skills", tags=["Skills"])
-    app.include_router(skill.admin_router, prefix="/api/admin/skills", tags=["Skills Admin"])
+
+    # User marketplace API
+    from src.api.routes.marketplace import router as marketplace_router
+
+    app.include_router(marketplace_router, prefix="/api/marketplace", tags=["Marketplace"])
+
+    # Admin marketplace API
+    from src.api.routes.admin.marketplace import router as admin_marketplace_router
+
+    app.include_router(
+        admin_marketplace_router, prefix="/api/admin/marketplace", tags=["Admin:Marketplace"]
+    )
     app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
     app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])
     app.include_router(mcp.admin_router, prefix="/api/admin/mcp", tags=["MCP Admin"])
