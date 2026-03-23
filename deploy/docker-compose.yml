@@ -17,9 +17,9 @@ services:
     volumes:
       - mongodb-data:/data/db
 
-  lamb-agent:
-    container_name: lambchat-agent
-    image: ghcr.io/yanyutin753/lambagent:latest
+  lambchat:
+    container_name: lambchat
+    image: ghcr.io/yanyutin753/lambchat:latest
     restart: always
     ports:
       - "8000:8000"
