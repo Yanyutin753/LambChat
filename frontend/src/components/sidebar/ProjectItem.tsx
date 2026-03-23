@@ -29,6 +29,7 @@ interface ProjectItemProps {
   onRenameProject: (projectId: string, name: string) => void;
   onDeleteProject: (projectId: string) => void;
   draggingSessionId?: string | null;
+  onNewSessionInProject?: (projectId: string) => void;
 }
 
 export function ProjectItem({
@@ -43,6 +44,7 @@ export function ProjectItem({
   onRenameProject,
   onDeleteProject,
   draggingSessionId,
+  onNewSessionInProject,
 }: ProjectItemProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
