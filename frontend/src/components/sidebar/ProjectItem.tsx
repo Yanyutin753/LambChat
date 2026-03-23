@@ -283,6 +283,11 @@ export function ProjectItem({
           onClose={() => setIsMenuOpen(false)}
           onRename={handleStartEdit}
           onDelete={() => onDeleteProject(project.id)}
+          onNewSessionInProject={
+            onNewSessionInProject
+              ? () => onNewSessionInProject(project.id)
+              : undefined
+          }
           anchorEl={menuAnchor}
         />
       )}
