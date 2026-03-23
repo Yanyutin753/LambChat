@@ -359,6 +359,10 @@ class UserConcurrencyLimiter:
                         disabled_tools=disabled_tools,
                         agent_options=agent_options,
                         attachments=attachments,
+                        existing_trace_id=task_ctx.get("trace_id") if task_ctx else None,
+                        user_message_written=task_ctx.get("user_message_written", False)
+                        if task_ctx
+                        else False,
                     )
                 )
                 task_manager._tasks[run_id] = task

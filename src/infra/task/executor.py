@@ -58,6 +58,8 @@ class TaskExecutor:
         disabled_tools: Optional[List[str]] = None,
         agent_options: Optional[Dict[str, Any]] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
+        existing_trace_id: Optional[str] = None,
+        user_message_written: bool = False,
     ) -> None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -78,6 +80,7 @@ class TaskExecutor:
                     agent_id=agent_id,
                     user_id=user_id,
                     run_id=run_id,  # 传递 run_id
+                    trace_id=existing_trace_id,  # reuse trace from queued path
                     enable_storage=True,
                 )
             )
@@ -96,17 +99,26 @@ class TaskExecutor:
 
             await presenter._ensure_trace()
 
+            # Check if user:message was already written (queued path wrote it to MongoDB)
+            # In single-worker, also check _run_info (set by chat.py); in multi-worker, use parameter
+            already_written = user_message_written or self._run_info.get(run_id, {}).get(
+                "user_message_written", False
+            )
+
             # 立即发送 user:message 事件（任务开始时固定发送）
-            if message:
+            if message and not already_written:
                 await presenter.emit_user_message(message, attachments=attachments)
 
-            # 保存 trace_id 和 agent_id 到 run_info
-            self._run_info[run_id] = {
+            # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
+            run_info_entry = {
                 "session_id": session_id,
                 "trace_id": presenter.trace_id,
                 "agent_id": agent_id,
                 "user_id": user_id,
             }
+            if already_written:
+                run_info_entry["user_message_written"] = True
+            self._run_info[run_id] = run_info_entry
 
             dual_writer = get_dual_writer()
 

@@ -108,70 +108,70 @@ async def init_builtin_skills() -> int:
 
     marketplace = MarketplaceStorage()
     initialized_count = 0
+    try:
+        # Scan skill directories
+        for skill_dir in BUILTIN_SKILLS_DIR.iterdir():
+            if not skill_dir.is_dir():
+                continue
+            if skill_dir.name.startswith("."):
+                continue
 
-    # Scan skill directories
-    for skill_dir in BUILTIN_SKILLS_DIR.iterdir():
-        if not skill_dir.is_dir():
-            continue
-        if skill_dir.name.startswith("."):
-            continue
+            skill_md_path = skill_dir / "SKILL.md"
+            if not skill_md_path.exists():
+                logger.debug(f"Skipping {skill_dir.name}: no SKILL.md found")
+                continue
 
-        skill_md_path = skill_dir / "SKILL.md"
-        if not skill_md_path.exists():
-            logger.debug(f"Skipping {skill_dir.name}: no SKILL.md found")
-            continue
+            # Read all skill files
+            files = _read_skill_directory(skill_dir)
+            if not files:
+                logger.warning(f"Skipping {skill_dir.name}: no files found")
+                continue
 
-        # Read all skill files
-        files = _read_skill_directory(skill_dir)
-        if not files:
-            logger.warning(f"Skipping {skill_dir.name}: no files found")
-            continue
+            # Parse SKILL.md for metadata
+            skill_md_content = files.get("SKILL.md", "")
+            name, description, tags = _parse_skill_md(skill_md_content)
 
-        # Parse SKILL.md for metadata
-        skill_md_content = files.get("SKILL.md", "")
-        name, description, tags = _parse_skill_md(skill_md_content)
+            if not name:
+                name = skill_dir.name
+                logger.info(f"Using directory name as skill name: {name}")
 
-        if not name:
-            name = skill_dir.name
-            logger.info(f"Using directory name as skill name: {name}")
+            if not description:
+                description = f"Builtin skill: {name}"
 
-        if not description:
-            description = f"Builtin skill: {name}"
+            # Upsert marketplace skill metadata
+            try:
+                existing = await marketplace.get_marketplace_skill(name)
+                if existing:
+                    # Update existing
+                    logger.debug(f"Updating builtin skill in marketplace: {name}")
+                    await marketplace.update_marketplace_skill(
+                        name,
+                        MarketplaceSkillUpdate(
+                            description=description,
+                            tags=tags or [],
+                        ),
+                    )
+                else:
+                    # Create new
+                    logger.info(f"Creating builtin skill in marketplace: {name}")
+                    await marketplace.create_marketplace_skill(
+                        MarketplaceSkillCreate(
+                            skill_name=name,
+                            description=description,
+                            tags=tags or [],
+                        ),
+                        admin_user_id="system",
+                    )
+            except ValueError as e:
+                logger.warning(f"Failed to upsert marketplace skill {name}: {e}")
+                continue
 
-        # Upsert marketplace skill metadata
-        try:
-            existing = await marketplace.get_marketplace_skill(name)
-            if existing:
-                # Update existing
-                logger.debug(f"Updating builtin skill in marketplace: {name}")
-                await marketplace.update_marketplace_skill(
-                    name,
-                    MarketplaceSkillUpdate(
-                        description=description,
-                        tags=tags or [],
-                    ),
-                )
-            else:
-                # Create new
-                logger.info(f"Creating builtin skill in marketplace: {name}")
-                await marketplace.create_marketplace_skill(
-                    MarketplaceSkillCreate(
-                        skill_name=name,
-                        description=description,
-                        tags=tags or [],
-                    ),
-                    admin_user_id="system",
-                )
-        except ValueError as e:
-            logger.warning(f"Failed to upsert marketplace skill {name}: {e}")
-            continue
+            # Sync files to marketplace
+            await marketplace.sync_marketplace_files(name, files)
 
-        # Sync files to marketplace
-        await marketplace.sync_marketplace_files(name, files)
-
-        initialized_count += 1
-
-    await marketplace.close()
+            initialized_count += 1
+    finally:
+        await marketplace.close()
 
     if initialized_count > 0:
         logger.info(f"Initialized {initialized_count} builtin skills in marketplace")

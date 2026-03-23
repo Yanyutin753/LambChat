@@ -1,5 +1,7 @@
-import { createContext, useContext, ReactNode } from "react";
+import { createContext, useContext, ReactNode, useCallback } from "react";
 import { useSettings } from "../hooks/useSettings";
+import { useAuth } from "../hooks/useAuth";
+import { authApi } from "../services/api";
 import type { SettingsResponse } from "../types";
 
 interface SettingsContextValue {
@@ -20,6 +22,7 @@ interface SettingsContextValue {
   importSettings: (
     file: File,
   ) => Promise<{ success: boolean; updatedCount: number; errors: string[] }>;
+  updateMcpEnabled: (enabled: boolean) => Promise<boolean>;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(
@@ -27,6 +30,7 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(
 );
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { user, refreshUser } = useAuth();
   const {
     settings,
     isLoading,
@@ -41,9 +45,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     importSettings,
   } = useSettings();
 
+  // Get mcp_enabled from user metadata (stored in database, not settings)
+  const enableMcp = user?.metadata?.mcp_enabled ?? false;
+
+  const updateMcpEnabled = useCallback(
+    async (enabled: boolean): Promise<boolean> => {
+      try {
+        await authApi.updateMetadata({ mcp_enabled: enabled });
+        await refreshUser();
+        return true;
+      } catch (err) {
+        console.error("Failed to update mcp_enabled:", err);
+        return false;
+      }
+    },
+    [refreshUser],
+  );
+
   const value: SettingsContextValue = {
     settings,
-    enableMcp: getBooleanSetting("ENABLE_MCP"),
+    enableMcp,
     enableSkills: getBooleanSetting("ENABLE_SKILLS"),
     isLoading,
     error,
@@ -54,6 +75,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     clearError,
     exportSettings,
     importSettings,
+    updateMcpEnabled,
   };
 
   return (

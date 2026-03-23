@@ -14,6 +14,7 @@ import {
   MessageCircle,
   Bot,
   User,
+  ShoppingBag,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -39,6 +40,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
 
   const canReadSkills =
     hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
+  const canAdminMarketplace = hasAnyPermission([Permission.SKILL_ADMIN]);
   const canManageUsers = hasAnyPermission([
     Permission.USER_READ,
     Permission.USER_WRITE,
@@ -118,6 +120,18 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       label: t("nav.skills"),
       icon: Package,
       show: canReadSkills,
+    },
+    {
+      path: "/marketplace",
+      label: t("nav.marketplace"),
+      icon: ShoppingBag,
+      show: canReadSkills,
+    },
+    {
+      path: "/admin/marketplace",
+      label: t("nav.adminMarketplace"),
+      icon: ShoppingBag,
+      show: canAdminMarketplace,
     },
     { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
     {

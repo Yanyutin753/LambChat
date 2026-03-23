@@ -58,7 +58,7 @@ export function RegistrationPending() {
       {/* 左上角返回按钮 */}
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <div
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80"
+          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80"
           onClick={handleGoToLogin}
         >
           <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-stone-400" />
@@ -66,7 +66,7 @@ export function RegistrationPending() {
       </div>
 
       {/* 右上角按钮 */}
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1 backdrop-blur-sm dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
         <LanguageToggle />
         <ThemeToggle />
       </div>

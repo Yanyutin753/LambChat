@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { ExternalLink, Code2, FolderTree } from "lucide-react";
+import { ExternalLink, Code2, FolderTree, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../../common";
 import ProjectPreview from "../../../documents/previews/ProjectPreview";
+import { exportProjectZip } from "../../../../utils/exportProjectZip";
 
 interface ProjectRevealResult {
   type: "project_reveal";
@@ -169,29 +170,38 @@ export function ProjectRevealItem({
         )}
 
       <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
-        <div className="flex items-center justify-between px-4 py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400">
+        <div className="flex items-center justify-between px-2 sm:px-4 py-2 sm:py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className="p-1.5 sm:p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 shrink-0">
               <Code2 size={16} />
             </div>
-            <div>
-              <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100">
+            <div className="min-w-0">
+              <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate max-w-[100px] sm:max-w-none">
                 {projectName || t("project.untitled")}
               </h4>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
+              <p className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
                 {t("project.fileCount", { count: fileCount })}
                 {template !== "static" && ` · ${template}`}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={() => setShowFullPreview(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 text-stone-700 dark:text-stone-300 text-xs font-medium transition-colors"
-          >
-            <ExternalLink size={14} />
-            <span>{t("project.expand")}</span>
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => exportProjectZip(files, projectName)}
+              className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">{t("project.exportZip")}</span>
+            </button>
+            <button
+              onClick={() => setShowFullPreview(true)}
+              className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
+            >
+              <ExternalLink size={14} />
+              <span className="hidden sm:inline">{t("project.expand")}</span>
+            </button>
+          </div>
         </div>
 
         <div className="h-[300px] sm:h-[450px] bg-stone-900">

@@ -53,8 +53,9 @@ export function SessionSidebar({
   const [searchQuery, setSearchQuery] = useState("");
   const [imgError, setImgError] = useState(false);
   const [internalCollapsed, setInternalCollapsed] = useState(true);
-  const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(true);
+  const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(false);
   const [isChatsCollapsed, setIsChatsCollapsed] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const handleNewSessionInProject = useCallback(
     (projectId: string) => {
@@ -86,6 +87,7 @@ export function SessionSidebar({
     isProjectsCollapsed,
     setIsProjectsCollapsed,
     mobileOpen,
+    isChatsCollapsed,
   );
 
   const projectManager = useProjectManager();
@@ -224,6 +226,31 @@ export function SessionSidebar({
     }
   }, [newSession, setSessions]);
 
+  // ─── Keyboard shortcuts ──────────────────────────────────────────
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const modifier = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modifier && e.key === "k") {
+        e.preventDefault();
+        document
+          .querySelector<HTMLInputElement>(
+            '[data-sidebar-scroll] input[type="text"]',
+          )
+          ?.focus();
+      }
+      if (modifier && e.key === "n") {
+        e.preventDefault();
+        onNewSession();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onNewSession]);
+
   // ─── Derived data ───────────────────────────────────────────────
 
   const handleSessionUpdate = (updatedSession: BackendSession) => {
@@ -231,6 +258,8 @@ export function SessionSidebar({
       prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)),
     );
   };
+
+  // ─── Search filter ──────────────────────────────────────────────
 
   const filteredSessions = sessions.filter((session) => {
     if (!searchQuery.trim()) return true;
@@ -325,6 +354,9 @@ export function SessionSidebar({
               <X size={12} />
             </button>
           )}
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-stone-400 dark:text-stone-500 bg-stone-200/50 dark:bg-stone-700/50 rounded">
+            ⌘K
+          </kbd>
         </div>
       </div>
 
@@ -332,7 +364,7 @@ export function SessionSidebar({
       <div
         ref={scrollContainerRef}
         data-sidebar-scroll
-        className="flex-1 overflow-y-auto px-2 scrollbar-thin"
+        className="flex-1 overflow-y-auto px-2 scrollbar-thin relative"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -340,7 +372,27 @@ export function SessionSidebar({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onScroll={(e) => {
+          const target = e.currentTarget;
+          setIsScrolled(target.scrollTop > 100);
+        }}
       >
+        {/* Scroll to top button */}
+        {isScrolled && (
+          <button
+            onClick={() =>
+              scrollContainerRef.current?.scrollTo({
+                top: 0,
+                behavior: "smooth",
+              })
+            }
+            className="absolute top-16 right-3 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-md hover:bg-stone-50 dark:hover:bg-stone-700 transition-all"
+            title="Scroll to top"
+          >
+            <ChevronDown size={14} className="rotate-180 text-stone-500" />
+          </button>
+        )}
+
         {(pullDistance > 0 || isLoadingMore) && (
           <div
             className="flex items-center justify-center py-2 text-gray-400 dark:text-stone-500 transition-all"
@@ -441,6 +493,7 @@ export function SessionSidebar({
                         loadSessions(true),
                       )
                     }
+                    onUpdateIcon={projectManager.handleUpdateIcon}
                     draggingSessionId={
                       touchDrag.touchDropTarget === favoritesProject.id
                         ? touchDrag.draggingSessionId
@@ -478,6 +531,7 @@ export function SessionSidebar({
                           loadSessions(true),
                         )
                       }
+                      onUpdateIcon={projectManager.handleUpdateIcon}
                       draggingSessionId={
                         touchDrag.touchDropTarget === project.id
                           ? touchDrag.draggingSessionId
@@ -488,6 +542,11 @@ export function SessionSidebar({
                     />
                   );
                 })}
+
+            {/* Divider */}
+            {!isProjectsCollapsed && (
+              <div className="border-t border-dashed border-stone-300 dark:border-stone-600 mx-2 mt-2 mb-2 opacity-40" />
+            )}
 
             {/* Uncategorized sessions (by time) */}
             {(() => {
@@ -664,31 +723,47 @@ export function SessionSidebar({
             <p className="text-xs text-stone-400 dark:text-stone-500">
               {t("sidebar.projectHint")}
             </p>
-            <input
-              ref={(el) => {
-                if (el) el.focus();
-              }}
-              type="text"
-              value={projectManager.newProjectName}
-              onChange={(e) => projectManager.setNewProjectName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  projectManager.handleCreateProject();
-                  projectManager.setShowNewProjectModal(false);
+
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-stone-200 dark:border-stone-600 bg-stone-50 dark:bg-stone-700/50 focus-within:ring-2 focus-within:ring-stone-400/50 focus-within:border-stone-300 dark:focus-within:border-stone-500 transition-all">
+              <input
+                type="text"
+                value={projectManager.newProjectIcon}
+                onChange={(e) =>
+                  projectManager.setNewProjectIcon(e.target.value)
                 }
-                if (e.key === "Escape") {
-                  projectManager.setShowNewProjectModal(false);
-                  projectManager.setNewProjectName("");
+                placeholder="Icon"
+                className="w-20 text-sm bg-transparent text-stone-500 dark:text-stone-400 placeholder-stone-400 focus:outline-none"
+              />
+              <div className="w-px h-5 bg-stone-300 dark:bg-stone-600" />
+              <input
+                ref={(el) => {
+                  if (el) el.focus();
+                }}
+                type="text"
+                value={projectManager.newProjectName}
+                onChange={(e) =>
+                  projectManager.setNewProjectName(e.target.value)
                 }
-              }}
-              placeholder={t("sidebar.projectName")}
-              className="w-full px-3 py-2.5 text-sm rounded-lg border border-stone-200 dark:border-stone-600 bg-stone-50 dark:bg-stone-700/50 text-stone-700 dark:text-stone-200 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/50 focus:border-stone-300 dark:focus:border-stone-500 transition-all"
-            />
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    projectManager.handleCreateProject();
+                    projectManager.setShowNewProjectModal(false);
+                  }
+                  if (e.key === "Escape") {
+                    projectManager.setShowNewProjectModal(false);
+                    projectManager.setNewProjectName("");
+                  }
+                }}
+                placeholder={t("sidebar.projectName")}
+                className="flex-1 text-sm bg-transparent text-stone-700 dark:text-stone-200 placeholder-stone-400 focus:outline-none"
+              />
+            </div>
             <div className="flex justify-end gap-2 pt-1">
               <button
                 onClick={() => {
                   projectManager.setShowNewProjectModal(false);
                   projectManager.setNewProjectName("");
+                  projectManager.setNewProjectIcon("📁");
                 }}
                 className="px-4 py-2 text-sm font-medium text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-all"
               >

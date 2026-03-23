@@ -166,7 +166,7 @@ export function ProfileInfoTab() {
             </div>
           )}
           {isUploading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full backdrop-blur-sm">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
               <Loader2 size={24} className="animate-spin text-white" />
             </div>
           )}

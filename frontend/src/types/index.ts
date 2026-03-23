@@ -47,20 +47,23 @@ export type {
 // ============================================
 export type {
   SkillSource,
-  SkillBase,
+  UserSkill,
+  UserSkillDetail,
+  SkillFileResponse,
+  SkillToggleResponse,
   SkillResponse,
   SkillsResponse,
   SkillCreate,
   SkillUpdate,
-  SkillToggleResponse,
-  SkillImportRequest,
-  SkillImportResponse,
-  SkillExportResponse,
-  SkillMoveRequest,
-  SkillMoveResponse,
-  GitHubSkillPreview,
-  GitHubPreviewResponse,
-  GitHubInstallRequest,
+  MarketplaceSkillResponse,
+  MarketplaceSkillFilesResponse,
+  MarketplaceSkillFileResponse,
+  MarketplaceInstallResponse,
+  MarketplaceUpdateResponse,
+  TagsResponse,
+  AdminMarketplaceSkillCreate,
+  AdminMarketplaceSkillUpdate,
+  // Legacy
   SkillMetadata,
   SkillContent,
   SkillListResponse,
@@ -199,6 +202,7 @@ export interface Project {
   user_id: string;
   name: string;
   type: "favorites" | "custom";
+  icon?: string;
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -207,10 +211,12 @@ export interface Project {
 export interface ProjectCreate {
   name: string;
   type?: "custom";
+  icon?: string;
   sort_order?: number;
 }
 
 export interface ProjectUpdate {
   name?: string;
+  icon?: string;
   sort_order?: number;
 }

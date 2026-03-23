@@ -66,6 +66,7 @@ export interface User {
   metadata?: {
     language?: string;
     theme?: string;
+    mcp_enabled?: boolean;
     [key: string]: unknown;
   };
   created_at: string;

@@ -1,109 +1,188 @@
 /**
- * Skill API - 技能管理
+ * Skill API - 技能管理 (Simplified Architecture)
+ *
+ * New architecture: skills are stored as individual files in MongoDB.
+ * - /api/skills/ - list, get, delete user skills
+ * - /api/skills/{name}/files/{path} - read/write individual files
+ * - /api/skills/{name}/toggle - enable/disable
+ * - /api/marketplace/ - browse and install from marketplace
  */
 
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import type {
+  UserSkill,
+  UserSkillDetail,
+  SkillFileResponse,
+  SkillToggleResponse,
+  SkillCreate,
+  MarketplaceInstallResponse,
+} from "../../types/skill";
+
+const SKILLS_API = `${API_BASE}/api/skills`;
 
 export const skillApi = {
   /**
-   * 列出技能
+   * List all user skills
    */
-  async list() {
-    return authFetch(`${API_BASE}/api/skills`);
+  async list(): Promise<UserSkill[]> {
+    return authFetch(`${SKILLS_API}/`);
   },
 
   /**
-   * 获取技能详情
+   * Get skill detail (with files list)
    */
-  async get(skillPath: string) {
-    return authFetch(`${API_BASE}/api/skills/${encodeURIComponent(skillPath)}`);
+  async get(skillName: string): Promise<UserSkillDetail> {
+    return authFetch(`${SKILLS_API}/${encodeURIComponent(skillName)}`);
   },
 
   /**
-   * 创建技能
+   * Get skill file content
    */
-  async create(data: {
-    name: string;
-    description: string;
-    content: string;
-    enabled?: boolean;
-  }) {
-    return authFetch(`${API_BASE}/api/skills`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  },
-
-  /**
-   * 更新技能
-   */
-  async update(
-    skillPath: string,
-    data: {
-      name?: string;
-      description?: string;
-      content?: string;
-      enabled?: boolean;
-      is_system?: boolean;
-      files?: Record<string, string>;
-    },
-  ) {
+  async getFile(
+    skillName: string,
+    filePath: string,
+  ): Promise<SkillFileResponse> {
     return authFetch(
-      `${API_BASE}/api/skills/${encodeURIComponent(skillPath)}`,
+      `${SKILLS_API}/${encodeURIComponent(
+        skillName,
+      )}/files/${encodeURIComponent(filePath)}`,
+    );
+  },
+
+  /**
+   * Update skill file content
+   */
+  async updateFile(
+    skillName: string,
+    filePath: string,
+    content: string,
+  ): Promise<{ message: string }> {
+    return authFetch(
+      `${SKILLS_API}/${encodeURIComponent(
+        skillName,
+      )}/files/${encodeURIComponent(filePath)}`,
       {
         method: "PUT",
-        body: JSON.stringify(data),
+        body: JSON.stringify({ content }),
       },
     );
   },
 
   /**
-   * 删除技能
+   * Create skill - writes all files to /api/skills/{name}/files/{path}
+   * For new architecture, we write files individually
    */
-  async delete(skillPath: string) {
-    return authFetch(
-      `${API_BASE}/api/skills/${encodeURIComponent(skillPath)}`,
-      {
-        method: "DELETE",
-      },
+  async create(data: SkillCreate): Promise<{ message: string }> {
+    // Build files dict from content (SKILL.md) or explicit files
+    const filesToWrite: Record<string, string> = {};
+
+    if (data.files && Object.keys(data.files).length > 0) {
+      // Use explicit files from form
+      Object.entries(data.files).forEach(([path, content]) => {
+        filesToWrite[path] = content;
+      });
+    } else {
+      // Fallback to content as SKILL.md
+      filesToWrite["SKILL.md"] = data.content;
+    }
+
+    // Write all files
+    await Promise.all(
+      Object.entries(filesToWrite).map(([filePath, content]) =>
+        authFetch(
+          `${SKILLS_API}/${encodeURIComponent(
+            data.name,
+          )}/files/${encodeURIComponent(filePath)}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({ content }),
+          },
+        ),
+      ),
     );
+
+    return { message: "Skill created" };
   },
 
   /**
-   * 切换技能启用状态
+   * Update skill metadata and content
    */
-  async toggle(skillPath: string, enabled: boolean) {
-    return authFetch(
-      `${API_BASE}/api/skills/${encodeURIComponent(skillPath)}/toggle`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({ enabled }),
-      },
-    );
+  async update(
+    skillName: string,
+    data: { description?: string; content?: string; enabled?: boolean },
+  ): Promise<{ message: string }> {
+    // Update SKILL.md if content changed
+    if (data.content !== undefined) {
+      await authFetch(
+        `${SKILLS_API}/${encodeURIComponent(skillName)}/files/SKILL.md`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ content: data.content }),
+        },
+      );
+    }
+
+    // Toggle if enabled changed
+    if (data.enabled !== undefined) {
+      await this.toggle(skillName, data.enabled);
+    }
+
+    return { message: "Updated" };
   },
 
   /**
-   * Upload skill from ZIP file
+   * Delete (uninstall) user skill
    */
-  async upload(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    return authFetch(`${API_BASE}/api/skills/upload`, {
-      method: "POST",
-      body: formData,
+  async delete(skillName: string): Promise<{ message: string }> {
+    return authFetch(`${SKILLS_API}/${encodeURIComponent(skillName)}`, {
+      method: "DELETE",
     });
   },
 
   /**
-   * Upload skill from ZIP file as admin (system skill)
+   * Toggle skill enabled state
    */
-  async uploadAdmin(file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    return authFetch(`${API_BASE}/api/admin/skills/upload`, {
-      method: "POST",
-      body: formData,
+  async toggle(
+    skillName: string,
+    enabled?: boolean,
+  ): Promise<SkillToggleResponse> {
+    if (enabled !== undefined) {
+      // If we know the desired state, we need to check current state
+      // The toggle endpoint just flips, so we need to be careful
+      const current = await this.get(skillName);
+      if (current.enabled !== enabled) {
+        return authFetch(
+          `${SKILLS_API}/${encodeURIComponent(skillName)}/toggle`,
+          { method: "PATCH" },
+        );
+      }
+      return {
+        skill_name: skillName,
+        enabled: current.enabled,
+        message: `Skill '${skillName}' is already ${
+          enabled ? "enabled" : "disabled"
+        }`,
+      };
+    }
+    // Toggle (flip current state)
+    return authFetch(`${SKILLS_API}/${encodeURIComponent(skillName)}/toggle`, {
+      method: "PATCH",
     });
+  },
+
+  /**
+   * Install skill from marketplace
+   */
+  async installFromMarketplace(
+    skillName: string,
+  ): Promise<MarketplaceInstallResponse> {
+    const marketplaceApi = `${API_BASE}/api/marketplace`;
+    return authFetch(
+      `${marketplaceApi}/${encodeURIComponent(skillName)}/install`,
+      {
+        method: "POST",
+      },
+    );
   },
 };

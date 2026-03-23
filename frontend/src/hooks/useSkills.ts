@@ -1,42 +1,77 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { authFetch } from "../services/api/fetch";
+/**
+ * useSkills hook - Simplified Architecture
+ *
+ * New backend stores skills as individual files. This hook:
+ * - Fetches skill list from /api/skills/ (basic info only)
+ * - Fetches full skill details (with files) on demand
+ * - Composes SkillResponse for frontend components
+ */
+
+import { useState, useCallback, useEffect } from "react";
+import { skillApi } from "../services/api/skill";
 import type {
   SkillResponse,
-  SkillsResponse,
-  SkillCreate,
-  SkillUpdate,
-  SkillToggleResponse,
-  SkillImportRequest,
-  SkillImportResponse,
-  SkillExportResponse,
-  SkillMoveResponse,
-  GitHubPreviewResponse,
-  GitHubInstallRequest,
   SkillSource,
-} from "../types";
+  UserSkill,
+  UserSkillDetail,
+  SkillCreate,
+} from "../types/skill";
 
-// Skill category for grouping (based on source)
-export type SkillCategory = SkillSource;
+// Map installed_from to SkillSource
+function mapInstalledToSource(installed_from: string): SkillSource {
+  switch (installed_from) {
+    case "builtin":
+      return "builtin";
+    case "marketplace":
+      return "marketplace";
+    case "manual":
+    default:
+      return "manual";
+  }
+}
 
-const API_BASE = "/api/skills";
-const ADMIN_API_BASE = "/api/admin/skills";
+// Compose full SkillResponse from UserSkill + files content
+function composeSkillResponse(
+  userSkill: UserSkill,
+  _detail?: UserSkillDetail,
+  filesContent?: Record<string, string>,
+): SkillResponse {
+  // Use description from API directly (extracted from SKILL.md by backend)
+  const description = userSkill.description || userSkill.skill_name;
 
-export function useSkills(options?: { enabled?: boolean }) {
-  const enabled = options?.enabled === true; // Must be explicitly true to fetch
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+  // If filesContent provided, use it; otherwise files will be fetched on demand
+  const files = filesContent || {};
+
+  return {
+    name: userSkill.skill_name,
+    description,
+    enabled: userSkill.enabled,
+    source: mapInstalledToSource(userSkill.installed_from),
+    files,
+    file_count: userSkill.file_count,
+    is_system: userSkill.installed_from === "builtin",
+    can_edit: userSkill.installed_from !== "builtin",
+    installed_from: userSkill.installed_from,
+    created_at: userSkill.created_at,
+    updated_at: userSkill.updated_at,
+  };
+}
+
+export function useSkills() {
   const [skills, setSkills] = useState<SkillResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch all skills
+  // Fetch all skills (basic info only)
   const fetchSkills = useCallback(async () => {
-    if (!enabledRef.current) return; // Skip if feature is disabled
     setIsLoading(true);
     setError(null);
     try {
-      const data: SkillsResponse = await authFetch(`${API_BASE}/`);
-      setSkills(data.skills ?? []);
+      const userSkills: UserSkill[] = await skillApi.list();
+      // For list view, we don't fetch full details immediately
+      // Components that need details will fetch them on demand
+      const composed = userSkills.map((u) => composeSkillResponse(u));
+      setSkills(composed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch skills");
     } finally {
@@ -44,13 +79,35 @@ export function useSkills(options?: { enabled?: boolean }) {
     }
   }, []);
 
-  // Get single skill
+  // Fetch single skill with full details
   const getSkill = useCallback(
     async (name: string): Promise<SkillResponse | null> => {
       try {
-        return await authFetch<SkillResponse>(
-          `${API_BASE}/${encodeURIComponent(name)}`,
-        );
+        const [userSkill, detail] = await Promise.all([
+          skillApi
+            .list()
+            .then((list) => list.find((s) => s.skill_name === name)),
+          skillApi.get(name),
+        ]);
+
+        if (!userSkill) return null;
+
+        // Fetch all files content
+        const filesContent: Record<string, string> = {};
+        if (detail.files) {
+          await Promise.all(
+            detail.files.map(async (filePath) => {
+              try {
+                const fileResp = await skillApi.getFile(name, filePath);
+                filesContent[filePath] = fileResp.content;
+              } catch {
+                // File might not be readable
+              }
+            }),
+          );
+        }
+
+        return composeSkillResponse(userSkill, detail, filesContent);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch skill");
         return null;
@@ -59,25 +116,18 @@ export function useSkills(options?: { enabled?: boolean }) {
     [],
   );
 
-  // Create skill (auto-selects admin API for system skills)
+  // Create skill
   const createSkill = useCallback(
-    async (
-      skill: SkillCreate,
-      isSystem: boolean = false,
-    ): Promise<SkillResponse | null> => {
+    async (data: SkillCreate): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
       try {
-        const baseUrl = isSystem ? ADMIN_API_BASE : API_BASE;
-        const data: SkillResponse = await authFetch(`${baseUrl}/`, {
-          method: "POST",
-          body: JSON.stringify(skill),
-        });
+        await skillApi.create(data);
         await fetchSkills();
-        return data;
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to create skill");
-        return null;
+        return false;
       } finally {
         setIsLoading(false);
       }
@@ -85,29 +135,21 @@ export function useSkills(options?: { enabled?: boolean }) {
     [fetchSkills],
   );
 
-  // Update skill (auto-selects admin API for system skills)
+  // Update skill
   const updateSkill = useCallback(
     async (
       name: string,
-      updates: SkillUpdate,
-      isSystem: boolean = false,
-    ): Promise<SkillResponse | null> => {
+      updates: { description?: string; content?: string; enabled?: boolean },
+    ): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
       try {
-        const baseUrl = isSystem ? ADMIN_API_BASE : API_BASE;
-        const data: SkillResponse = await authFetch(
-          `${baseUrl}/${encodeURIComponent(name)}`,
-          {
-            method: "PUT",
-            body: JSON.stringify(updates),
-          },
-        );
+        await skillApi.update(name, updates);
         await fetchSkills();
-        return data;
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to update skill");
-        return null;
+        return false;
       } finally {
         setIsLoading(false);
       }
@@ -115,16 +157,13 @@ export function useSkills(options?: { enabled?: boolean }) {
     [fetchSkills],
   );
 
-  // Delete skill (auto-selects admin API for system skills)
+  // Delete skill
   const deleteSkill = useCallback(
-    async (name: string, isSystem: boolean = false): Promise<boolean> => {
+    async (name: string): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
       try {
-        const baseUrl = isSystem ? ADMIN_API_BASE : API_BASE;
-        await authFetch(`${baseUrl}/${encodeURIComponent(name)}`, {
-          method: "DELETE",
-        });
+        await skillApi.delete(name);
         await fetchSkills();
         return true;
       } catch (err) {
@@ -137,250 +176,33 @@ export function useSkills(options?: { enabled?: boolean }) {
     [fetchSkills],
   );
 
-  // Toggle skill enabled status (optimistic update - no global loading)
-  const toggleSkill = useCallback(
-    async (name: string): Promise<SkillResponse | null> => {
-      // Optimistic update - immediately update local state
+  // Toggle skill
+  const toggleSkill = useCallback(async (name: string): Promise<boolean> => {
+    // Optimistic update
+    setSkills((prev) =>
+      prev.map((s) => (s.name === name ? { ...s, enabled: !s.enabled } : s)),
+    );
+
+    try {
+      await skillApi.toggle(name);
+      return true;
+    } catch (err) {
+      // Rollback on error
       setSkills((prev) =>
         prev.map((s) => (s.name === name ? { ...s, enabled: !s.enabled } : s)),
       );
+      setError(err instanceof Error ? err.message : "Failed to toggle skill");
+      return false;
+    }
+  }, []);
 
-      setError(null);
-      try {
-        const data: SkillToggleResponse = await authFetch(
-          `${API_BASE}/${encodeURIComponent(name)}/toggle`,
-          {
-            method: "PATCH",
-          },
-        );
-        // Update with server response
-        setSkills((prev) =>
-          prev.map((s) =>
-            s.name === name ? { ...s, enabled: data.skill.enabled } : s,
-          ),
-        );
-        return data.skill;
-      } catch (err) {
-        // Rollback on error
-        setSkills((prev) =>
-          prev.map((s) =>
-            s.name === name ? { ...s, enabled: !s.enabled } : s,
-          ),
-        );
-        setError(err instanceof Error ? err.message : "Failed to toggle skill");
-        return null;
-      }
-    },
-    [],
-  );
-
-  // Import skills from JSON
-  const importSkills = useCallback(
-    async (
-      request: SkillImportRequest,
-      asSystem: boolean = false,
-    ): Promise<SkillImportResponse | null> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const baseUrl = asSystem ? ADMIN_API_BASE : API_BASE;
-        const data: SkillImportResponse = await authFetch(`${baseUrl}/import`, {
-          method: "POST",
-          body: JSON.stringify(request),
-        });
-        await fetchSkills();
-        return data;
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to import skills",
-        );
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [fetchSkills],
-  );
-
-  // Export skills to JSON
-  const exportSkills = useCallback(
-    async (asSystem: boolean = false): Promise<SkillExportResponse | null> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const baseUrl = asSystem ? ADMIN_API_BASE : API_BASE;
-        return await authFetch<SkillExportResponse>(`${baseUrl}/export`);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to export skills",
-        );
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [],
-  );
-
-  // Preview skills from GitHub repository
-  const previewGitHubSkills = useCallback(
-    async (
-      request: GitHubInstallRequest,
-    ): Promise<GitHubPreviewResponse | null> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        return await authFetch<GitHubPreviewResponse>(
-          `${API_BASE}/github/preview`,
-          {
-            method: "POST",
-            body: JSON.stringify(request),
-          },
-        );
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to preview GitHub skills",
-        );
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [],
-  );
-
-  // Install skills from GitHub repository
-  const installGitHubSkills = useCallback(
-    async (
-      request: GitHubInstallRequest,
-      asSystem: boolean = false,
-    ): Promise<SkillImportResponse | null> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const baseUrl = asSystem ? ADMIN_API_BASE : API_BASE;
-        const data: SkillImportResponse = await authFetch(
-          `${baseUrl}/github/install`,
-          {
-            method: "POST",
-            body: JSON.stringify(request),
-          },
-        );
-        await fetchSkills();
-        return data;
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to install GitHub skills",
-        );
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [fetchSkills],
-  );
-
-  // Upload skill from ZIP file
-  const uploadSkill = useCallback(
-    async (
-      file: File,
-      asSystem: boolean = false,
-    ): Promise<SkillResponse | null> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const baseUrl = asSystem ? ADMIN_API_BASE : API_BASE;
-        const formData = new FormData();
-        formData.append("file", file);
-        const data: SkillResponse = await authFetch(`${baseUrl}/upload`, {
-          method: "POST",
-          body: formData,
-        });
-        await fetchSkills();
-        return data;
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to upload skill",
-        );
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [fetchSkills],
-  );
-
-  // Promote user skill to system skill (admin only)
-  const promoteSkill = useCallback(
-    async (
-      name: string,
-      ownerUserId: string,
-    ): Promise<SkillMoveResponse | null> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data: SkillMoveResponse = await authFetch(
-          `${ADMIN_API_BASE}/${encodeURIComponent(name)}/promote`,
-          {
-            method: "POST",
-            body: JSON.stringify({ target_user_id: ownerUserId }),
-          },
-        );
-        await fetchSkills();
-        return data;
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to promote skill",
-        );
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [fetchSkills],
-  );
-
-  // Demote system skill to user skill (admin only)
-  const demoteSkill = useCallback(
-    async (
-      name: string,
-      targetUserId: string,
-    ): Promise<SkillMoveResponse | null> => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data: SkillMoveResponse = await authFetch(
-          `${ADMIN_API_BASE}/${encodeURIComponent(name)}/demote`,
-          {
-            method: "POST",
-            body: JSON.stringify({ target_user_id: targetUserId }),
-          },
-        );
-        await fetchSkills();
-        return data;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to demote skill");
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [fetchSkills],
-  );
-
-  // Toggle all skills in a category
+  // Toggle category (not applicable in new architecture - just toggle all)
   const toggleCategory = useCallback(
-    async (category: SkillCategory, enabled: boolean): Promise<void> => {
-      const skillsInCategory = skills.filter((s) => s.source === category);
-      for (const skill of skillsInCategory) {
-        if (skill.enabled !== enabled) {
-          await toggleSkill(skill.name);
-        }
-      }
+    async (_category: SkillSource, enabled: boolean): Promise<void> => {
+      const promises = skills
+        .filter((s) => s.source === _category && s.enabled !== enabled)
+        .map((s) => toggleSkill(s.name));
+      await Promise.all(promises);
     },
     [skills, toggleSkill],
   );
@@ -388,21 +210,12 @@ export function useSkills(options?: { enabled?: boolean }) {
   // Toggle all skills
   const toggleAll = useCallback(
     async (enabled: boolean): Promise<void> => {
-      for (const skill of skills) {
-        if (skill.enabled !== enabled) {
-          await toggleSkill(skill.name);
-        }
-      }
+      const promises = skills
+        .filter((s) => s.enabled !== enabled)
+        .map((s) => toggleSkill(s.name));
+      await Promise.all(promises);
     },
     [skills, toggleSkill],
-  );
-
-  // Toggle skill wrapper that returns void for SkillSelector compatibility
-  const toggleSkillWrapper = useCallback(
-    async (name: string): Promise<void> => {
-      await toggleSkill(name);
-    },
-    [toggleSkill],
   );
 
   // Get enabled skill names
@@ -412,14 +225,14 @@ export function useSkills(options?: { enabled?: boolean }) {
 
   // Get category stats
   const getCategoryStats = useCallback(() => {
-    const stats: Record<SkillCategory, { enabled: number; total: number }> = {
+    const stats: Record<SkillSource, { enabled: number; total: number }> = {
       builtin: { enabled: 0, total: 0 },
-      github: { enabled: 0, total: 0 },
+      marketplace: { enabled: 0, total: 0 },
       manual: { enabled: 0, total: 0 },
     };
 
     skills.forEach((skill) => {
-      const cat = skill.source as SkillCategory;
+      const cat = skill.source;
       if (stats[cat]) {
         stats[cat].total++;
         if (skill.enabled) {
@@ -431,18 +244,14 @@ export function useSkills(options?: { enabled?: boolean }) {
     return stats;
   }, [skills]);
 
-  // Enabled count
+  // Stats
   const enabledCount = skills.filter((s) => s.enabled).length;
-
-  // Total count
   const totalCount = skills.length;
 
-  // Initial load - only fetch when enabled
+  // Initial load
   useEffect(() => {
-    if (enabled) {
-      fetchSkills();
-    }
-  }, [fetchSkills, enabled]);
+    fetchSkills();
+  }, [fetchSkills]);
 
   return {
     skills,
@@ -454,20 +263,12 @@ export function useSkills(options?: { enabled?: boolean }) {
     updateSkill,
     deleteSkill,
     toggleSkill,
-    toggleSkillWrapper,
     toggleCategory,
     toggleAll,
     getEnabledSkillNames,
     getCategoryStats,
     enabledCount,
     totalCount,
-    importSkills,
-    exportSkills,
-    previewGitHubSkills,
-    installGitHubSkills,
-    uploadSkill,
-    promoteSkill,
-    demoteSkill,
     clearError: () => setError(null),
   };
 }

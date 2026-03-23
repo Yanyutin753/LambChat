@@ -7,9 +7,9 @@ import {
   Check,
   X,
   Plus,
-  Github,
   FileCode,
   Settings,
+  Store,
 } from "lucide-react";
 import type { SkillResponse, SkillSource } from "../../types";
 
@@ -24,13 +24,13 @@ interface SkillSelectorProps {
 
 const sourceIcons: Record<SkillSource, typeof FileCode> = {
   builtin: Settings,
-  github: Github,
+  marketplace: Store,
   manual: FileCode,
 };
 
 const sourceColors: Record<SkillSource, string> = {
   builtin: "text-stone-500 dark:text-amber-400",
-  github: "text-gray-600 dark:text-gray-400",
+  marketplace: "text-purple-600 dark:text-purple-400",
   manual: "text-blue-600 dark:text-blue-400",
 };
 
@@ -90,7 +90,7 @@ export function SkillSelector({
   };
 
   const ModalContent = () => (
-    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[480px] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden">
+    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
         {/* Mobile drag handle */}

@@ -239,14 +239,6 @@ export function SessionItem({
             : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
         } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""}`}
       >
-        {/* Favorite star icon */}
-        {isFavorite && (
-          <Star
-            size={13}
-            className="flex-shrink-0 text-amber-500 fill-amber-500"
-          />
-        )}
-
         {/* Title - editable or display */}
         <div className="min-w-0 flex-1">
           {isEditing ? (

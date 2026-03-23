@@ -873,9 +873,6 @@ class MCPStorage:
         return doc
 
     async def close(self):
-        """Close MongoDB connection"""
-        if self._client:
-            self._client.close()
-            self._client = None
-            self._system_collection = None
-            self._user_collection = None
+        """Close MongoDB connection (only clears local refs, does not close global client)"""
+        self._system_collection = None
+        self._user_collection = None

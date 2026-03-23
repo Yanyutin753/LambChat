@@ -223,7 +223,7 @@ export function LandingPage() {
         <div className="relative max-w-3xl sm:max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <div
             data-reveal
-            className="inline-flex items-center gap-2 rounded-full border border-gray-200/60 dark:border-stone-700/40 bg-white/60 dark:bg-stone-800/40 px-3 py-1 sm:px-4 sm:py-1.5 mb-6 sm:mb-8 text-[11px] sm:text-xs font-medium text-gray-500 dark:text-stone-400 backdrop-blur-sm shadow-sm"
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200/60 dark:border-stone-700/40 bg-white/60 dark:bg-stone-800/40 px-3 py-1 sm:px-4 sm:py-1.5 mb-6 sm:mb-8 text-[11px] sm:text-xs font-medium text-gray-500 dark:text-stone-400  shadow-sm"
           >
             <span className="relative flex h-2 w-2">
               <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -268,7 +268,7 @@ export function LandingPage() {
               href="https://github.com/Yanyutin753/LambChat"
               target="_blank"
               rel="noopener noreferrer"
-              className="group inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-gray-200/80 dark:border-stone-700/50 bg-white/60 dark:bg-stone-800/40 px-5 py-3 sm:px-6 sm:py-3.5 text-sm font-medium text-gray-700 dark:text-stone-300 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:hover:bg-stone-800/80 hover:shadow-md hover:border-gray-300 dark:hover:border-stone-600 active:translate-y-0 backdrop-blur-sm"
+              className="group inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-gray-200/80 dark:border-stone-700/50 bg-white/60 dark:bg-stone-800/40 px-5 py-3 sm:px-6 sm:py-3.5 text-sm font-medium text-gray-700 dark:text-stone-300 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:hover:bg-stone-800/80 hover:shadow-md hover:border-gray-300 dark:hover:border-stone-600 active:translate-y-0 "
             >
               <GitHubIcon />
               {t("landing.viewOnGitHub")}
@@ -285,7 +285,7 @@ export function LandingPage() {
                 key={tech.label}
                 data-reveal
                 data-reveal-delay={String(i + 1)}
-                className={`inline-flex items-center rounded-lg sm:rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium backdrop-blur-sm shadow-sm ${tech.color}`}
+                className={`inline-flex items-center rounded-lg sm:rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium  shadow-sm ${tech.color}`}
               >
                 {tech.label}
               </span>

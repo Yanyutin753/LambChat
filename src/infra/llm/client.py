@@ -217,6 +217,31 @@ class LLMClient:
         """获取 LangGraph 配置的模型。"""
         return LLMClient.get_model(model=model, **kwargs)
 
+    @staticmethod
+    def clear_cache_by_model(model_pattern: Optional[str] = None) -> int:
+        """清除匹配的模型缓存条目。
+
+        Args:
+            model_pattern: 模型名匹配模式（支持子串匹配），None 表示清除所有
+
+        Returns:
+            清除的条目数量
+        """
+        if model_pattern is None:
+            count = len(LLMClient._model_cache)
+            LLMClient._model_cache.clear()
+            return count
+
+        to_delete = []
+        for key in LLMClient._model_cache:
+            _, model_name, *_ = key
+            if model_pattern in model_name:
+                to_delete.append(key)
+
+        for key in to_delete:
+            del LLMClient._model_cache[key]
+        return len(to_delete)
+
 
 @lru_cache
 def get_llm_client() -> LLMClient:

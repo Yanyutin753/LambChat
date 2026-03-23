@@ -78,7 +78,7 @@ function SkillEditor({
     <div
       className={`${
         className || ""
-      } [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto`}
+      } h-full min-h-0 flex flex-col [&_.cm-editor]:!flex-1 [&_.cm-editor]:min-h-0 [&_.cm-scroller]:!overflow-auto`}
     >
       <CodeMirror
         value={value}
@@ -102,7 +102,7 @@ function SkillEditor({
           closeBrackets: true,
           indentOnInput: true,
         }}
-        className="h-full"
+        className="min-h-0 flex-1"
       />
     </div>
   );

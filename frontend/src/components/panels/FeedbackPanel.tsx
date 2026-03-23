@@ -68,7 +68,7 @@ function DeleteConfirmModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 z-50 bg-black/50  transition-opacity"
         onClick={onCancel}
       />
       {/* Modal */}
@@ -133,7 +133,7 @@ function FeedbackDetailModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 z-50 bg-black/50  transition-opacity"
         onClick={onClose}
       />
       {/* Modal */}
@@ -382,7 +382,12 @@ export function FeedbackPanel() {
       <PanelHeader
         title={t("feedback.title")}
         subtitle={t("feedback.subtitle")}
-        icon={<MessageSquare size={18} className="text-stone-600 dark:text-stone-400" />}
+        icon={
+          <MessageSquare
+            size={18}
+            className="text-stone-600 dark:text-stone-400"
+          />
+        }
         actions={
           <div className="relative w-full sm:w-44">
             <select
@@ -399,8 +404,18 @@ export function FeedbackPanel() {
               <option value="down">{t("feedback.negative")}</option>
             </select>
             <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </div>
           </div>

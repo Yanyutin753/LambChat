@@ -13,6 +13,8 @@ interface UseProjectManagerReturn {
   loadProjects: () => Promise<void>;
   newProjectName: string;
   setNewProjectName: (name: string) => void;
+  newProjectIcon: string;
+  setNewProjectIcon: (icon: string) => void;
   showNewProjectModal: boolean;
   setShowNewProjectModal: (show: boolean) => void;
   handleCreateProject: () => Promise<void>;
@@ -21,6 +23,7 @@ interface UseProjectManagerReturn {
     projectId: string,
     onAfter?: () => void,
   ) => Promise<void>;
+  handleUpdateIcon: (projectId: string, icon: string) => Promise<void>;
   handleMoveSession: (
     sessionId: string,
     projectId: string | null,
@@ -31,6 +34,7 @@ export function useProjectManager(): UseProjectManagerReturn {
   const { t } = useTranslation();
   const [projects, setProjects] = useState<Project[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectIcon, setNewProjectIcon] = useState("📁");
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
 
   const loadProjects = useCallback(async () => {
@@ -47,9 +51,13 @@ export function useProjectManager(): UseProjectManagerReturn {
     if (!trimmedName) return;
 
     try {
-      const newProject = await projectApi.create({ name: trimmedName });
+      const newProject = await projectApi.create({
+        name: trimmedName,
+        icon: newProjectIcon || undefined,
+      });
       setProjects((prev) => [...prev, newProject]);
       setNewProjectName("");
+      setNewProjectIcon("📁");
       toast.success(t("sidebar.projectCreated"));
     } catch (err) {
       console.error("Failed to create project:", err);
@@ -95,16 +103,33 @@ export function useProjectManager(): UseProjectManagerReturn {
     }
   };
 
+  const handleUpdateIcon = async (projectId: string, icon: string) => {
+    try {
+      const updated = await projectApi.update(projectId, { icon });
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === projectId ? { ...p, icon: updated.icon } : p,
+        ),
+      );
+    } catch (err) {
+      console.error("Failed to update icon:", err);
+      toast.error(t("sidebar.iconUpdateFailed"));
+    }
+  };
+
   return {
     projects,
     loadProjects,
     newProjectName,
     setNewProjectName,
+    newProjectIcon,
+    setNewProjectIcon,
     showNewProjectModal,
     setShowNewProjectModal,
     handleCreateProject,
     handleRenameProject,
     handleDeleteProject,
     handleMoveSession,
+    handleUpdateIcon,
   };
 }

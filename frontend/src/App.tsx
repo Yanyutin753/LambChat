@@ -99,6 +99,16 @@ function SkillsPage() {
   return <AppContent activeTab="skills" />;
 }
 
+function MarketplacePage() {
+  usePageTitle("nav.marketplace");
+  return <AppContent activeTab="marketplace" />;
+}
+
+function AdminMarketplacePage() {
+  usePageTitle("nav.adminMarketplace");
+  return <AppContent activeTab="admin-marketplace" />;
+}
+
 function UsersPage() {
   usePageTitle("nav.users");
   return <AppContent activeTab="users" />;
@@ -209,6 +219,32 @@ function App() {
                 toastMessage={t("errors.noPermission")}
               >
                 <SkillsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/marketplace"
+            element={
+              <ProtectedRoute
+                permissions={[Permission.SKILL_READ]}
+                redirectTo="/chat"
+                showToast
+                toastMessage={t("errors.noPermission")}
+              >
+                <MarketplacePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/marketplace"
+            element={
+              <ProtectedRoute
+                permissions={[Permission.SKILL_ADMIN]}
+                redirectTo="/chat"
+                showToast
+                toastMessage={t("errors.noPermission")}
+              >
+                <AdminMarketplacePage />
               </ProtectedRoute>
             }
           />

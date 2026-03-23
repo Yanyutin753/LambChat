@@ -4,8 +4,8 @@ import {
   ToggleRight,
   Edit3,
   Trash2,
-  Github,
   Package,
+  ShoppingBag,
   User,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,7 +21,7 @@ interface SkillCardProps {
 const SOURCE_COLORS: Record<string, string> = {
   builtin:
     "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-  github:
+  marketplace:
     "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300",
   manual: "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
 };
@@ -31,7 +31,7 @@ const DEFAULT_SOURCE_COLOR =
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
   builtin: <Package size={10} />,
-  github: <Github size={10} />,
+  marketplace: <ShoppingBag size={10} />,
   manual: <User size={10} />,
 };
 
@@ -89,21 +89,6 @@ export function SkillCard({
           <p className="mt-2 text-sm text-stone-600 dark:text-stone-400 line-clamp-2">
             {skill.description || t("skills.noDescription")}
           </p>
-
-          {/* GitHub URL */}
-          {skill.github_url && (
-            <div className="mt-1 text-xs text-stone-500 dark:text-stone-500 truncate">
-              <Github size={12} className="inline mr-1" />
-              {skill.github_url}
-            </div>
-          )}
-
-          {/* Version */}
-          {skill.version && (
-            <div className="mt-1 text-xs text-stone-400 dark:text-stone-500">
-              v{skill.version}
-            </div>
-          )}
 
           {/* Timestamps */}
           {skill.updated_at && (

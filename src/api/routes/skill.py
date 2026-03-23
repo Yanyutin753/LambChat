@@ -31,9 +31,28 @@ async def list_user_skills(
 ):
     """列出用户安装的所有 Skills"""
     skills = await storage.list_user_skills(user.sub)
+    if not skills:
+        return []
+
+    # 批量获取所有 skill 的文件
+    skill_keys = [(s["skill_name"], user.sub) for s in skills]
+    all_files = await storage.batch_get_skill_files(skill_keys)
+
+    def extract_description(files: dict[str, str]) -> str:
+        """从 SKILL.md 提取 description"""
+        content = files.get("SKILL.md", "")
+        for line in content.splitlines():
+            if line.startswith("description:"):
+                return line.split("description:", 1)[1].strip().strip('"').strip("'")
+            if line.startswith("# "):
+                return line[2:].strip()
+        return ""
+
     return [
         UserSkill(
             skill_name=s["skill_name"],
+            description=extract_description(all_files.get((s["skill_name"], user.sub), {})),
+            files=list(all_files.get((s["skill_name"], user.sub), {}).keys()),
             enabled=s["enabled"],
             file_count=s["file_count"],
             installed_from=s.get("installed_from"),

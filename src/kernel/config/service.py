@@ -69,6 +69,16 @@ async def refresh_settings(key: Optional[str] = None) -> None:
     if _settings_service is None:
         return
 
+    # Settings that affect LLM model cache (used for title generation etc.)
+    llm_affected_settings = {
+        "SESSION_TITLE_MODEL",
+        "SESSION_TITLE_API_BASE",
+        "SESSION_TITLE_API_KEY",
+        "LLM_API_BASE",
+        "LLM_API_KEY",
+        "LLM_MAX_RETRIES",
+    }
+
     if key:
         # Refresh single setting
         setting = await _settings_service._storage.get_raw(key)
@@ -76,12 +86,32 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         if setting and setting.value is not None and setting.value != "":
             _settings_cache[key] = setting.value
             setattr(settings, key, setting.value)
+            # Clear LLM model cache if this setting affects it
+            if key in llm_affected_settings:
+                from src.infra.llm.client import LLMClient
+
+                cleared = LLMClient.clear_cache_by_model()
+                logger.info(
+                    f"[Settings] Cleared {cleared} LLM model cache entries after setting '{key}' changed"
+                )
     else:
         # Refresh all settings
         all_settings = await _settings_service.get_all(admin_mode=True, mask_sensitive=False)
+        any_llm_setting_changed = False
         for items in all_settings.values():
             for item in items:
                 # Only update if value is not None AND not an empty string
                 if item and item.value is not None and item.value != "":
                     _settings_cache[item.key] = item.value
                     setattr(settings, item.key, item.value)
+                    if item.key in llm_affected_settings:
+                        any_llm_setting_changed = True
+
+        # Clear LLM model cache if any affected setting changed
+        if any_llm_setting_changed:
+            from src.infra.llm.client import LLMClient
+
+            cleared = LLMClient.clear_cache_by_model()
+            logger.info(
+                f"[Settings] Cleared {cleared} LLM model cache entries after settings refresh"
+            )

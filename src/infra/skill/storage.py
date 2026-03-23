@@ -447,9 +447,6 @@ class SkillStorage:
             logger.warning(f"[Skills Cache] Redis delete failed: {e}")
 
     async def close(self):
-        """关闭连接"""
-        if self._client:
-            self._client.close()
-            self._client = None
-            self._files_collection = None
-            self._toggles_collection = None
+        """关闭连接（仅清理本地引用，不关闭全局 MongoDB 客户端）"""
+        self._files_collection = None
+        self._toggles_collection = None

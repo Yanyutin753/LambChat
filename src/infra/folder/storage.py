@@ -39,6 +39,7 @@ class ProjectStorage:
         project_dict = {
             "name": project_data.name,
             "type": project_data.type,
+            "icon": project_data.icon,
             "sort_order": project_data.sort_order,
             "user_id": user_id,
             "created_at": now,
@@ -95,6 +96,9 @@ class ProjectStorage:
         if project_data.name is not None:
             update_dict["name"] = project_data.name
 
+        if project_data.icon is not None:
+            update_dict["icon"] = project_data.icon
+
         if project_data.sort_order is not None:
             update_dict["sort_order"] = project_data.sort_order
 
@@ -142,6 +146,7 @@ class ProjectStorage:
         project_dict = {
             "name": "Favorites",
             "type": "favorites",
+            "icon": "Star",
             "sort_order": 0,  # Favorites always first
             "user_id": user_id,
             "created_at": now,

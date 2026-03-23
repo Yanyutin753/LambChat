@@ -254,7 +254,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <Link
           to="/"
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80"
         >
           <img
             src="/icons/icon.svg"
@@ -265,7 +265,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
       </div>
 
       {/* 右上角按钮 */}
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1 backdrop-blur-sm dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
         <LanguageToggle />
         <ThemeToggle />
       </div>
@@ -290,7 +290,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
           </div>
 
           {/* 表单卡片 */}
-          <div className="w-full rounded-2xl border border-gray-200/60 bg-white/90 p-5 shadow-xl backdrop-blur-sm dark:border-stone-700/40 dark:bg-stone-900/90 sm:p-8">
+          <div className="w-full rounded-2xl border border-gray-200/60 bg-white/90 p-5 shadow-xl  dark:border-stone-700/40 dark:bg-stone-900/90 sm:p-8">
             {/* OAuth 登录按钮 - 放在最上面 */}
             {oauthProviders.length > 0 && (
               <div className="mb-4 space-y-2.5 sm:mb-6 sm:space-y-3">

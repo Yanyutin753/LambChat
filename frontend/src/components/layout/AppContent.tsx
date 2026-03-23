@@ -29,6 +29,16 @@ import { UserMenu } from "./UserMenu";
 const SkillsPanel = lazy(() =>
   import("../panels/SkillsPanel").then((m) => ({ default: m.SkillsPanel })),
 );
+const MarketplacePanel = lazy(() =>
+  import("../panels/MarketplacePanel").then((m) => ({
+    default: m.MarketplacePanel,
+  })),
+);
+const AdminMarketplacePanel = lazy(() =>
+  import("../panels/AdminMarketplacePanel").then((m) => ({
+    default: m.AdminMarketplacePanel,
+  })),
+);
 const UsersPanel = lazy(() =>
   import("../panels/UsersPanel").then((m) => ({ default: m.UsersPanel })),
 );
@@ -71,6 +81,8 @@ import { useSessionSync } from "./AppContent/useSessionSync";
 export type TabType =
   | "chat"
   | "skills"
+  | "marketplace"
+  | "admin-marketplace"
   | "users"
   | "roles"
   | "settings"
@@ -933,6 +945,30 @@ export function AppContent({ activeTab }: AppContentProps) {
                 }
               >
                 <SkillsPanel />
+              </Suspense>
+            </main>
+          ) : activeTab === "marketplace" ? (
+            <main className="flex-1 overflow-hidden">
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <MarketplacePanel />
+              </Suspense>
+            </main>
+          ) : activeTab === "admin-marketplace" ? (
+            <main className="flex-1 overflow-hidden">
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <Loading size="lg" />
+                  </div>
+                }
+              >
+                <AdminMarketplacePanel />
               </Suspense>
             </main>
           ) : activeTab === "users" ? (

@@ -1,18 +1,21 @@
-import { useState, useEffect, useRef } from "react";
-import {
-  Plus,
-  X,
-  Search,
-  Download,
-  Upload,
-  FolderOpen,
-  Check,
-  Github,
-  PackageX,
-  Archive,
-} from "lucide-react";
+/**
+ * SkillsPanel - Simplified Architecture
+ *
+ * New backend supports:
+ * - List, get, create, update, delete user skills
+ * - Toggle skill enabled/disabled
+ * - Marketplace browse and install
+ *
+ * Removed features (not in new backend):
+ * - GitHub import
+ * - ZIP upload
+ * - JSON import/export
+ * - Promote/demote system skills
+ */
+
+import { useState, useEffect } from "react";
+import { Plus, X, FolderOpen, PackageX } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Pagination } from "../common/Pagination";
@@ -23,11 +26,7 @@ import { useSkills } from "../../hooks/useSkills";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
-import type {
-  SkillResponse,
-  SkillCreate,
-  GitHubSkillPreview,
-} from "../../types";
+import type { SkillResponse, SkillCreate } from "../../types";
 
 export function SkillsPanel() {
   const { t } = useTranslation();
@@ -40,45 +39,15 @@ export function SkillsPanel() {
     updateSkill,
     deleteSkill,
     toggleSkill,
-    importSkills,
-    exportSkills,
-    previewGitHubSkills,
-    installGitHubSkills,
-    uploadSkill,
-    promoteSkill,
-    demoteSkill,
     clearError,
-  } = useSkills({ enabled: enableSkills });
-  const { hasAnyPermission, user } = useAuth();
+  } = useSkills();
+  const { hasAnyPermission } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isFormFullscreen, setIsFormFullscreen] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importJson, setImportJson] = useState("");
-  const [importOverwrite, setImportOverwrite] = useState(false);
-  const [importResult, setImportResult] = useState<{
-    success: boolean;
-    message: string;
-  } | null>(null);
-  const [showGithubModal, setShowGithubModal] = useState(false);
-  const [githubUrl, setGithubUrl] = useState("");
-  const [githubBranch, setGithubBranch] = useState("main");
-  const [githubSkills, setGithubSkills] = useState<GitHubSkillPreview[]>([]);
-  const [selectedGithubSkills, setSelectedGithubSkills] = useState<string[]>(
-    [],
-  );
-  const [githubLoading, setGithubLoading] = useState(false);
-  const [githubInstallAsSystem, setGithubInstallAsSystem] = useState(false);
-
-  // ZIP upload state
-  const [showZipModal, setShowZipModal] = useState(false);
-  const [zipFile, setZipFile] = useState<File | null>(null);
-  const [zipUploadAsSystem, setZipUploadAsSystem] = useState(false);
-  const [zipUploading, setZipUploading] = useState(false);
-  const zipInputRef = useRef<HTMLInputElement>(null);
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -99,7 +68,6 @@ export function SkillsPanel() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteConfirmData, setDeleteConfirmData] = useState<{
     name: string;
-    isSystem: boolean;
   } | null>(null);
 
   const canRead = hasAnyPermission([Permission.SKILL_READ]);
@@ -132,65 +100,21 @@ export function SkillsPanel() {
 
   const handleSave = async (
     data: SkillCreate,
-    isSystem: boolean,
+    _isSystem: boolean,
   ): Promise<boolean> => {
     let success = false;
 
     try {
       if (isCreating) {
-        const result = await createSkill(data, isSystem);
-        success = result !== null;
+        success = await createSkill(data);
         if (success) {
-          toast.success(t("skills.createSuccess"));
-        } else {
-          toast.error(t("skills.createFailed"));
+          // toast.success(t("skills.createSuccess")); // TODO: wire toast
         }
       } else if (editingSkill) {
-        // Check if skill type is changing (use isSystem param from SkillForm)
-        const typeChanging = isSystem !== editingSkill.is_system;
-
-        if (typeChanging && canAdmin) {
-          // Handle type change
-          if (isSystem) {
-            const result = await promoteSkill(
-              editingSkill.name,
-              user?.id || "",
-            );
-            success = result !== null;
-            if (success) {
-              toast.success(t("skills.promoteSuccess"));
-            } else {
-              toast.error(t("skills.promoteFailed"));
-            }
-          } else {
-            const result = await demoteSkill(editingSkill.name, user?.id || "");
-            success = result !== null;
-            if (success) {
-              toast.success(t("skills.demoteSuccess"));
-            } else {
-              toast.error(t("skills.demoteFailed"));
-            }
-          }
-        } else {
-          // Normal update - include is_system if admin (for switching type)
-          const result = await updateSkill(
-            editingSkill.name,
-            {
-              description: data.description,
-              content: data.content,
-              enabled: data.enabled,
-              is_system: canAdmin ? isSystem : undefined,
-              files: data.files,
-            },
-            editingSkill.is_system,
-          );
-          success = result !== null;
-          if (success) {
-            toast.success(t("skills.updateSuccess"));
-          } else {
-            toast.error(t("skills.updateFailed"));
-          }
-        }
+        success = await updateSkill(editingSkill.name, {
+          description: data.description,
+          content: data.content,
+        });
       }
 
       if (success) {
@@ -198,8 +122,7 @@ export function SkillsPanel() {
         setEditingSkill(null);
         setIsCreating(false);
       }
-    } catch (error) {
-      toast.error((error as Error).message || t("skills.operationFailed"));
+    } catch (err) {
       success = false;
     }
 
@@ -213,18 +136,15 @@ export function SkillsPanel() {
     setIsFormFullscreen(false);
   };
 
-  const handleDelete = async (name: string, isSystem: boolean = false) => {
-    setDeleteConfirmData({ name, isSystem });
+  const handleDelete = async (name: string) => {
+    setDeleteConfirmData({ name });
     setIsDeleteConfirmOpen(true);
   };
 
   const confirmDelete = async () => {
     if (!deleteConfirmData) return;
     try {
-      await deleteSkill(deleteConfirmData.name, deleteConfirmData.isSystem);
-      toast.success(t("skills.deleteSuccess"));
-    } catch (error) {
-      toast.error((error as Error).message || t("skills.deleteFailed"));
+      await deleteSkill(deleteConfirmData.name);
     } finally {
       setIsDeleteConfirmOpen(false);
       setDeleteConfirmData(null);
@@ -238,177 +158,6 @@ export function SkillsPanel() {
 
   const handleToggle = async (name: string) => {
     await toggleSkill(name);
-  };
-
-  const handleExport = async () => {
-    try {
-      const result = await exportSkills();
-      if (result && result.skills) {
-        const blob = new Blob(
-          [JSON.stringify({ skills: result.skills }, null, 2)],
-          { type: "application/json" },
-        );
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "skills.json";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success(t("skills.exportSuccess"));
-      } else {
-        toast.error(t("skills.exportFailed"));
-      }
-    } catch (error) {
-      toast.error((error as Error).message || t("skills.exportFailed"));
-    }
-  };
-
-  const handleImportClick = () => {
-    setImportJson("");
-    setImportOverwrite(false);
-    setImportResult(null);
-    setShowImportModal(true);
-  };
-
-  const handleImport = async () => {
-    setImportResult(null);
-
-    try {
-      const parsed = JSON.parse(importJson);
-      if (!parsed.skills || typeof parsed.skills !== "object") {
-        setImportResult({
-          success: false,
-          message: "Invalid format: missing skills object",
-        });
-        toast.error(t("skills.invalidFormat"));
-        return;
-      }
-
-      const result = await importSkills({
-        skills: parsed.skills,
-        overwrite: importOverwrite,
-      });
-
-      if (result) {
-        const message = `${result.message}${
-          result.errors.length > 0
-            ? `\nErrors: ${result.errors.join(", ")}`
-            : ""
-        }`;
-        setImportResult({ success: true, message });
-
-        if (result.errors.length === 0) {
-          toast.success(t("skills.importSuccess"));
-          setTimeout(() => {
-            setShowImportModal(false);
-            setImportJson("");
-            setImportResult(null);
-          }, 1500);
-        }
-      }
-    } catch {
-      setImportResult({ success: false, message: "Invalid JSON format" });
-      toast.error(t("skills.invalidJson"));
-    }
-  };
-
-  const handleGithubClick = () => {
-    setGithubUrl("");
-    setGithubBranch("main");
-    setGithubSkills([]);
-    setSelectedGithubSkills([]);
-    setGithubInstallAsSystem(false);
-    setShowGithubModal(true);
-  };
-
-  const handleGithubPreview = async () => {
-    if (!githubUrl.trim()) return;
-
-    setGithubLoading(true);
-    setGithubSkills([]);
-
-    try {
-      const result = await previewGitHubSkills({
-        repo_url: githubUrl,
-        branch: githubBranch,
-      });
-
-      if (result) {
-        setGithubSkills(result.skills);
-        setSelectedGithubSkills(result.skills.map((s) => s.name));
-      }
-    } catch (err) {
-      console.error("Failed to preview GitHub skills:", err);
-    } finally {
-      setGithubLoading(false);
-    }
-  };
-
-  const handleGithubInstall = async () => {
-    if (selectedGithubSkills.length === 0) return;
-
-    setGithubLoading(true);
-
-    try {
-      await installGitHubSkills(
-        {
-          repo_url: githubUrl,
-          branch: githubBranch,
-          skill_names: selectedGithubSkills,
-          as_system: githubInstallAsSystem,
-        },
-        githubInstallAsSystem,
-      );
-
-      setShowGithubModal(false);
-      setGithubUrl("");
-      setGithubBranch("main");
-      setGithubSkills([]);
-      setSelectedGithubSkills([]);
-    } catch (err) {
-      console.error("Failed to install GitHub skills:", err);
-    } finally {
-      setGithubLoading(false);
-    }
-  };
-
-  const toggleGithubSkill = (name: string) => {
-    setSelectedGithubSkills((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
-    );
-  };
-
-  const handleZipClick = () => {
-    setZipFile(null);
-    setZipUploadAsSystem(false);
-    setShowZipModal(true);
-  };
-
-  const handleZipFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setZipFile(file);
-  };
-
-  const handleZipUpload = async () => {
-    if (!zipFile) return;
-
-    setZipUploading(true);
-    try {
-      const result = await uploadSkill(zipFile, zipUploadAsSystem);
-      if (result) {
-        toast.success(t("skills.createSuccess"));
-        setShowZipModal(false);
-        setZipFile(null);
-      } else {
-        toast.error(t("skills.createFailed"));
-      }
-    } catch (err) {
-      toast.error((err as Error).message || t("skills.operationFailed"));
-    } finally {
-      setZipUploading(false);
-    }
   };
 
   if (!canRead) {
@@ -448,44 +197,10 @@ export function SkillsPanel() {
         searchPlaceholder={t("skills.searchPlaceholder")}
         actions={
           canWrite && (
-            <>
-              <button
-                onClick={handleGithubClick}
-                className="btn-secondary"
-                title={t("skills.importFromGitHub")}
-              >
-                <Github size={16} className="sm:size-[18px]" />
-                <span className="hidden sm:inline">GitHub</span>
-              </button>
-              <button
-                onClick={handleZipClick}
-                className="btn-secondary"
-                title="Upload ZIP"
-              >
-                <Archive size={16} className="sm:size-[18px]" />
-                <span className="hidden sm:inline">ZIP</span>
-              </button>
-              <button
-                onClick={handleImportClick}
-                className="btn-secondary"
-                title={t("skills.importFromJSON")}
-              >
-                <Upload size={16} className="sm:size-[18px]" />
-                <span className="hidden sm:inline">{t("common.import")}</span>
-              </button>
-              <button
-                onClick={handleExport}
-                className="btn-secondary"
-                title={t("skills.exportToJSON")}
-              >
-                <Download size={16} className="sm:size-[18px]" />
-                <span className="hidden sm:inline">{t("common.export")}</span>
-              </button>
-              <button onClick={handleCreate} className="btn-primary">
-                <Plus size={16} />
-                <span className="hidden sm:inline">{t("skills.newSkill")}</span>
-              </button>
-            </>
+            <button onClick={handleCreate} className="btn-primary">
+              <Plus size={16} />
+              <span className="hidden sm:inline">{t("skills.newSkill")}</span>
+            </button>
           )
         }
       />
@@ -591,374 +306,6 @@ export function SkillsPanel() {
                   isAdmin={canAdmin}
                   onFullscreenChange={setIsFormFullscreen}
                 />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Import Modal - Bottom Sheet */}
-      {showImportModal && (
-        <>
-          <div
-            className="fixed inset-0 "
-            onClick={() => setShowImportModal(false)}
-          />
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
-              <div className="bottom-sheet-handle sm:hidden" />
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                  {t("skills.importSkills")}
-                </h3>
-                <button
-                  onClick={() => setShowImportModal(false)}
-                  className="btn-icon"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                      {t("skills.jsonConfig")}
-                    </label>
-                    <textarea
-                      value={importJson}
-                      onChange={(e) => setImportJson(e.target.value)}
-                      rows={10}
-                      placeholder={`{
-  "skills": {
-    "skill-name": {
-      "description": "A helpful skill",
-      "content": "You are a helpful assistant that...",
-      "enabled": true
-    }
-  }
-}`}
-                      className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 font-mono text-sm text-stone-900 placeholder-stone-400 focus:border-stone-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="importOverwrite"
-                      checked={importOverwrite}
-                      onChange={(e) => setImportOverwrite(e.target.checked)}
-                      className="h-4 w-4 rounded border-stone-300 text-stone-600 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-800"
-                    />
-                    <label
-                      htmlFor="importOverwrite"
-                      className="text-sm text-stone-700 dark:text-stone-300"
-                    >
-                      {t("skills.overwriteExisting")}
-                    </label>
-                  </div>
-
-                  {importResult && (
-                    <div
-                      className={`flex items-center gap-2 rounded-xl p-3 ${
-                        importResult.success
-                          ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                      }`}
-                    >
-                      {importResult.success ? (
-                        <Check size={20} className="flex-shrink-0" />
-                      ) : (
-                        <X size={20} className="flex-shrink-0" />
-                      )}
-                      <span className="whitespace-pre-wrap text-sm">
-                        {importResult.message}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setShowImportModal(false)}
-                      className="btn-secondary"
-                    >
-                      {t("common.cancel")}
-                    </button>
-                    <button
-                      onClick={handleImport}
-                      disabled={isLoading || !importJson.trim()}
-                      className="btn-primary disabled:opacity-50"
-                    >
-                      {isLoading ? (
-                        <>
-                          <LoadingSpinner size="sm" />
-                          {t("common.importing")}
-                        </>
-                      ) : (
-                        <>
-                          <Upload size={18} />
-                          {t("common.import")}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* GitHub Import Modal - Bottom Sheet */}
-      {showGithubModal && (
-        <>
-          <div
-            className="fixed inset-0 "
-            onClick={() => setShowGithubModal(false)}
-          />
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
-              <div className="bottom-sheet-handle sm:hidden" />
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                  {t("skills.importFromGitHubTitle")}
-                </h3>
-                <button
-                  onClick={() => setShowGithubModal(false)}
-                  className="btn-icon"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
-                <div className="space-y-4">
-                  {/* Repository URL */}
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                      {t("skills.repositoryUrl")}
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={githubUrl}
-                        onChange={(e) => setGithubUrl(e.target.value)}
-                        placeholder="https://github.com/owner/repo"
-                        className="flex-1 rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
-                      />
-                      <input
-                        type="text"
-                        value={githubBranch}
-                        onChange={(e) => setGithubBranch(e.target.value)}
-                        placeholder="main"
-                        className="w-24 rounded-xl border border-stone-200 px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
-                      />
-                      <button
-                        onClick={handleGithubPreview}
-                        disabled={githubLoading || !githubUrl.trim()}
-                        className="btn-secondary disabled:opacity-50"
-                      >
-                        {githubLoading ? (
-                          <LoadingSpinner size="sm" />
-                        ) : (
-                          <Search size={18} />
-                        )}
-                        <span className="hidden sm:inline">Preview</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Skills Preview */}
-                  {githubSkills.length > 0 && (
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                        {t("skills.foundSkills", {
-                          count: githubSkills.length,
-                        })}
-                      </label>
-                      <div className="max-h-60 space-y-2 overflow-y-auto rounded-xl border border-stone-200 p-2 dark:border-stone-700">
-                        {githubSkills.map((skill) => (
-                          <label
-                            key={skill.name}
-                            className="flex cursor-pointer items-start gap-2 rounded-xl p-2 hover:bg-stone-50 dark:hover:bg-stone-800"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedGithubSkills.includes(
-                                skill.name,
-                              )}
-                              onChange={() => toggleGithubSkill(skill.name)}
-                              className="mt-0.5 h-4 w-4 rounded border-stone-300 text-stone-600 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-800"
-                            />
-                            <div className="flex-1">
-                              <div className="font-medium text-stone-900 dark:text-stone-100">
-                                {skill.name}
-                              </div>
-                              <div className="text-xs text-stone-500 dark:text-stone-400">
-                                {skill.description || t("skills.noDescription")}
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Admin option */}
-                  {canAdmin && selectedGithubSkills.length > 0 && (
-                    <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20">
-                      <input
-                        type="checkbox"
-                        id="githubInstallAsSystem"
-                        checked={githubInstallAsSystem}
-                        onChange={(e) =>
-                          setGithubInstallAsSystem(e.target.checked)
-                        }
-                        className="h-4 w-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500 dark:border-stone-600 dark:bg-stone-800"
-                      />
-                      <label
-                        htmlFor="githubInstallAsSystem"
-                        className="text-sm text-amber-800 dark:text-amber-200"
-                      >
-                        {t("skills.installAsSystem")}
-                      </label>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setShowGithubModal(false)}
-                      className="btn-secondary"
-                    >
-                      {t("common.cancel")}
-                    </button>
-                    <button
-                      onClick={handleGithubInstall}
-                      disabled={
-                        githubLoading || selectedGithubSkills.length === 0
-                      }
-                      className="btn-primary disabled:opacity-50"
-                    >
-                      {githubLoading ? (
-                        <>
-                          <LoadingSpinner size="sm" />
-                          {t("skills.installing")}
-                        </>
-                      ) : (
-                        <>
-                          <Github size={18} />
-                          {t("skills.installCount", {
-                            count: selectedGithubSkills.length,
-                          })}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ZIP Upload Modal - Bottom Sheet */}
-      {showZipModal && (
-        <>
-          <div
-            className="fixed inset-0 "
-            onClick={() => setShowZipModal(false)}
-          />
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
-              <div className="bottom-sheet-handle sm:hidden" />
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                  {t("skills.uploadZipTitle")}
-                </h3>
-                <button
-                  onClick={() => setShowZipModal(false)}
-                  className="btn-icon"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                      {t("skills.selectZipFile")}
-                    </label>
-                    <input
-                      ref={zipInputRef}
-                      type="file"
-                      accept=".zip"
-                      onChange={handleZipFileChange}
-                      className="block w-full text-sm text-stone-500
-                        file:mr-4 file:rounded-lg file:border-0
-                        file:bg-stone-100 file:px-4 file:py-2
-                        file:text-sm file:font-medium
-                        file:text-stone-700 hover:file:bg-stone-200
-                        dark:file:bg-stone-700 dark:file:text-stone-200
-                        dark:hover:file:bg-stone-600"
-                    />
-                    {zipFile && (
-                      <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                        {zipFile.name} ({(zipFile.size / 1024).toFixed(1)} KB)
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Admin option */}
-                  {canAdmin && (
-                    <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20">
-                      <input
-                        type="checkbox"
-                        id="zipInstallAsSystem"
-                        checked={zipUploadAsSystem}
-                        onChange={(e) => setZipUploadAsSystem(e.target.checked)}
-                        className="h-4 w-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500 dark:border-stone-600 dark:bg-stone-800"
-                      />
-                      <label
-                        htmlFor="zipInstallAsSystem"
-                        className="text-sm text-amber-800 dark:text-amber-200"
-                      >
-                        {t("skills.installAsSystem")}
-                      </label>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => setShowZipModal(false)}
-                      className="btn-secondary"
-                    >
-                      {t("common.cancel")}
-                    </button>
-                    <button
-                      onClick={handleZipUpload}
-                      disabled={zipUploading || !zipFile}
-                      className="btn-primary disabled:opacity-50"
-                    >
-                      {zipUploading ? (
-                        <>
-                          <LoadingSpinner size="sm" />
-                          {t("skills.uploading")}
-                        </>
-                      ) : (
-                        <>
-                          <Upload size={18} />
-                          {t("skills.upload")}
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

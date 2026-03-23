@@ -205,11 +205,8 @@ class SettingsStorage:
             return result.deleted_count
 
     async def close(self):
-        """Close MongoDB connection"""
-        if self._client:
-            self._client.close()
-            self._client = None
-            self._collection = None
+        """Close MongoDB connection (only clears local refs, does not close global client)"""
+        self._collection = None
 
 
 # Re-export for backward compatibility
