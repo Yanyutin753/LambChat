@@ -206,6 +206,7 @@ export function AppContent({ activeTab }: AppContentProps) {
     clearMessages,
     selectAgent,
     loadHistory,
+    setPendingProjectId,
   } = useAgent({
     onApprovalRequired: (approval) => {
       // When SSE receives approval_required event, add directly to approvals list
@@ -550,6 +551,7 @@ export function AppContent({ activeTab }: AppContentProps) {
               handleNewSession();
               setMobileSidebarOpen(false);
             }}
+            onSetPendingProjectId={setPendingProjectId}
             newSession={newlyCreatedSession}
             mobileOpen={mobileSidebarOpen}
             onMobileClose={() => setMobileSidebarOpen(false)}
