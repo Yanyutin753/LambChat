@@ -68,4 +68,5 @@ docs/plans/
 node_modules/
 .claude/
 docs/superpowers/
+.worktrees/
 docs/
