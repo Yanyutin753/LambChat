@@ -61,6 +61,7 @@ import { useSkills } from "../../hooks/useSkills";
 import { useVersion } from "../../hooks/useVersion";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { useBrowserNotification } from "../../hooks/useBrowserNotification";
+import { useProjectManager } from "../../hooks/useProjectManager";
 import { Permission } from "../../types";
 import { sessionApi } from "../../services/api";
 import { APP_NAME } from "../../constants";
@@ -192,6 +193,8 @@ export function AppContent({ activeTab }: AppContentProps) {
     fetchSkills,
   } = useSkills({ enabled: enableSkills });
 
+  const projectManager = useProjectManager();
+
   const {
     messages,
     sessionId,
@@ -207,6 +210,8 @@ export function AppContent({ activeTab }: AppContentProps) {
     selectAgent,
     loadHistory,
     setPendingProjectId,
+    autoExpandProjectId,
+    currentProjectId,
   } = useAgent({
     onApprovalRequired: (approval) => {
       // When SSE receives approval_required event, add directly to approvals list
@@ -516,7 +521,7 @@ export function AppContent({ activeTab }: AppContentProps) {
       <div className="flex h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-900">
         {/* Drag overlay */}
         {isPageDragging && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-500/5 dark:bg-stone-500/10 backdrop-blur-sm transition-colors">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-500/5 dark:bg-stone-500/10  transition-colors">
             <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-stone-400 dark:border-stone-500 bg-white/95 dark:bg-stone-800/95 px-16 py-12 shadow-xl transition-colors">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -552,6 +557,7 @@ export function AppContent({ activeTab }: AppContentProps) {
               setMobileSidebarOpen(false);
             }}
             onSetPendingProjectId={setPendingProjectId}
+            autoExpandProjectId={autoExpandProjectId}
             newSession={newlyCreatedSession}
             mobileOpen={mobileSidebarOpen}
             onMobileClose={() => setMobileSidebarOpen(false)}
@@ -619,6 +625,30 @@ export function AppContent({ activeTab }: AppContentProps) {
                     agentsLoading={agentsLoading}
                     onSelectAgent={selectAgent}
                   />
+
+                  {/* Project tag */}
+                  {currentProjectId &&
+                    (() => {
+                      const project = projectManager.projects.find(
+                        (p) => p.id === currentProjectId,
+                      );
+                      if (!project) return null;
+                      return (
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-700/50 border border-stone-200 dark:border-stone-600/40">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="size-3 text-stone-400 dark:text-stone-500"
+                          >
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z" />
+                          </svg>
+                          <span className="text-xs text-stone-500 dark:text-stone-400 truncate max-w-[120px]">
+                            {project.name}
+                          </span>
+                        </div>
+                      );
+                    })()}
                 </>
               ) : (
                 /* Page Title for non-chat pages */
@@ -694,7 +724,7 @@ export function AppContent({ activeTab }: AppContentProps) {
               >
                 {/* Session loading indicator - show when loading history (no messages yet) */}
                 {isLoading && messages.length === 0 && (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-stone-900/80 backdrop-blur-sm">
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-stone-900/80 ">
                     <Loading size="lg" />
                   </div>
                 )}
@@ -746,7 +776,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                               }
                               sendMessage(suggestion.text);
                             }}
-                            className="welcome-card group flex items-center gap-3 sm:gap-3.5 rounded-xl sm:rounded-2xl border border-stone-200/70 dark:border-stone-700/40 px-4 py-3.5 sm:px-5 sm:py-4 text-left text-sm text-stone-700 dark:text-stone-200 bg-white/60 dark:bg-stone-800/30 backdrop-blur-sm hover:bg-white dark:hover:bg-stone-800/60 hover:border-stone-300/80 dark:hover:border-stone-600/50 transition-all duration-300 hover:shadow-md hover:shadow-stone-200/40 dark:hover:shadow-stone-900/40 hover:-translate-y-0.5"
+                            className="welcome-card group flex items-center gap-3 sm:gap-3.5 rounded-xl sm:rounded-2xl border border-stone-200/70 dark:border-stone-700/40 px-4 py-3.5 sm:px-5 sm:py-4 text-left text-sm text-stone-700 dark:text-stone-200 bg-white/60 dark:bg-stone-800/30  hover:bg-white dark:hover:bg-stone-800/60 hover:border-stone-300/80 dark:hover:border-stone-600/50 transition-all duration-300 hover:shadow-md hover:shadow-stone-200/40 dark:hover:shadow-stone-900/40 hover:-translate-y-0.5"
                             style={{ animationDelay: `${0.4 + i * 80}ms` }}
                           >
                             <span className="flex items-center justify-center size-9 sm:size-10 rounded-xl bg-stone-100 dark:bg-stone-700/60 text-lg sm:text-xl shrink-0 group-hover:scale-110 group-hover:bg-stone-200/80 dark:group-hover:bg-stone-600/50 transition-all duration-300">
@@ -812,7 +842,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                   onClick={() => {
                     scrollToTop();
                   }}
-                  className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
                   style={{ bottom: "9rem" }}
                 >
                   <svg
@@ -836,7 +866,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                   onClick={() => {
                     scrollToBottom();
                   }}
-                  className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
                   style={{
                     bottom: "9rem",
                     transform: "translateX(-50%)",

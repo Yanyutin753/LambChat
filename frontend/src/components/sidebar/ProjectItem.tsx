@@ -30,6 +30,7 @@ interface ProjectItemProps {
   onDeleteProject: (projectId: string) => void;
   draggingSessionId?: string | null;
   onNewSessionInProject?: (projectId: string) => void;
+  forceExpandProjectId?: string | null;
 }
 
 export function ProjectItem({
@@ -45,6 +46,7 @@ export function ProjectItem({
   onDeleteProject,
   draggingSessionId,
   onNewSessionInProject,
+  forceExpandProjectId,
 }: ProjectItemProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -61,6 +63,13 @@ export function ProjectItem({
   const touchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFavorites = project.type === "favorites";
+
+  // Auto-expand when a new session is created in this project
+  useEffect(() => {
+    if (forceExpandProjectId === project.id) {
+      setIsExpanded(true);
+    }
+  }, [forceExpandProjectId, project.id]);
 
   // Start editing
   const handleStartEdit = () => {

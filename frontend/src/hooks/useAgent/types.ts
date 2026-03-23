@@ -167,6 +167,7 @@ export interface UseAgentReturn {
   isLoading: boolean;
   error: string | null;
   sessionId: string | null;
+  currentProjectId: string | null;
   currentRunId: string | null;
   agents: AgentInfo[];
   currentAgent: string;
@@ -188,6 +189,7 @@ export interface UseAgentReturn {
   loadHistory: (targetSessionId: string, targetRunId?: string) => Promise<void>;
   reconnectSSE: () => Promise<void>;
   setPendingProjectId: (id: string | null) => void;
+  autoExpandProjectId: string | null;
 }
 
 // Backend session type (simplified)

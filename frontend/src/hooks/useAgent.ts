@@ -52,6 +52,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string>("");
@@ -67,6 +68,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
   const pendingProjectIdRef = useRef<string | null>(null);
+  const autoExpandProjectIdRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const isLoadingHistoryRef = useRef(false);
   const isSendingRef = useRef(false);
@@ -281,6 +283,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
         if (sessionData) {
           setSessionId(targetSessionId);
+          setCurrentProjectId(
+            (sessionData.metadata?.project_id as string) || null,
+          );
 
           const currentRunId =
             targetRunId ||
@@ -516,6 +521,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             metadata: projectId ? { project_id: projectId } : {},
           };
           setNewlyCreatedSession(newSession);
+          setCurrentProjectId(projectId);
 
           sessionApi
             .generateTitle(newSessionId, content, i18n.language)
@@ -734,7 +740,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     reconnectSSE: handleReconnectSSE,
     setPendingProjectId: (id: string | null) => {
       pendingProjectIdRef.current = id;
+      autoExpandProjectIdRef.current = id;
     },
+    autoExpandProjectId: autoExpandProjectIdRef.current,
+    currentProjectId,
   };
 }
 

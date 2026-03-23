@@ -130,7 +130,7 @@ export function ProjectMenu({
                 className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
                 <Plus size={18} />
-                <span>{t("chat.newSession")}</span>
+                <span>{t("sidebar.newChat")}</span>
               </button>
             )}
 
@@ -204,7 +204,7 @@ export function ProjectMenu({
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
         >
           <Plus size={14} />
-          <span>{t("chat.newSession")}</span>
+          <span>{t("sidebar.newChat")}</span>
         </button>
       )}
 

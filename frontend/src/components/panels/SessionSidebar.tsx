@@ -30,6 +30,8 @@ interface SessionSidebarProps {
   onToggleCollapsed?: (collapsed: boolean) => void;
   onShowProfile?: () => void;
   onSetPendingProjectId?: (projectId: string | null) => void;
+  /** Project ID to auto-expand after a new session is created in it */
+  autoExpandProjectId?: string | null;
 }
 
 export function SessionSidebar({
@@ -44,6 +46,7 @@ export function SessionSidebar({
   onToggleCollapsed,
   onShowProfile,
   onSetPendingProjectId,
+  autoExpandProjectId,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -51,6 +54,7 @@ export function SessionSidebar({
   const [imgError, setImgError] = useState(false);
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(true);
+  const [isChatsCollapsed, setIsChatsCollapsed] = useState(false);
 
   const handleNewSessionInProject = useCallback(
     (projectId: string) => {
@@ -191,6 +195,13 @@ export function SessionSidebar({
   };
 
   // ─── Effects ────────────────────────────────────────────────────
+
+  // Auto-expand projects section when a new session is created in a project
+  useEffect(() => {
+    if (autoExpandProjectId) {
+      setIsProjectsCollapsed(false);
+    }
+  }, [autoExpandProjectId]);
 
   // Load projects on mount / refresh
   useEffect(() => {
@@ -473,6 +484,7 @@ export function SessionSidebar({
                           : null
                       }
                       onNewSessionInProject={handleNewSessionInProject}
+                      forceExpandProjectId={autoExpandProjectId}
                     />
                   );
                 })}
@@ -487,41 +499,62 @@ export function SessionSidebar({
                 uncategorizedSessions,
                 t,
               );
-              return groupedUncategorized.map((group) => (
-                <div key={group.label}>
-                  <div className="px-2 py-1.5 mt-1 text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 select-none">
-                    {group.label}
+              return (
+                <>
+                  {/* Chats section header */}
+                  <div
+                    onClick={() => setIsChatsCollapsed(!isChatsCollapsed)}
+                    className="px-2 py-1.5 mt-1 flex justify-between items-center text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 hover:text-stone-500 dark:hover:text-stone-400 cursor-pointer transition-colors select-none"
+                  >
+                    <h2>{t("sidebar.chats")}</h2>
+                    <ChevronDown
+                      size={12}
+                      className={`transition-transform duration-200 ${
+                        isChatsCollapsed ? "-rotate-90" : ""
+                      }`}
+                    />
                   </div>
-                  <div className="space-y-0.5">
-                    {group.sessions
-                      .filter((session) => session.id)
-                      .map((session) => (
-                        <SessionItem
-                          key={session.id}
-                          session={session}
-                          isActive={currentSessionId === session.id}
-                          projects={projects}
-                          onSelect={() => selectAndClose(session.id)}
-                          onDelete={() =>
-                            setDeleteConfirm({
-                              isOpen: true,
-                              sessionId: session.id,
-                            })
-                          }
-                          onMoveToProject={(projectId) =>
-                            handleMoveSession(session.id, projectId)
-                          }
-                          onSessionUpdate={handleSessionUpdate}
-                          isFavorite={false}
-                          onDragStartTouch={touchDrag.handleDragStartTouch}
-                          isDraggingTouch={
-                            touchDrag.draggingSessionId === session.id
-                          }
-                        />
-                      ))}
-                  </div>
-                </div>
-              ));
+
+                  {!isChatsCollapsed &&
+                    groupedUncategorized.map((group) => (
+                      <div key={group.label}>
+                        <div className="px-2 py-1.5 mt-1 text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 select-none">
+                          {group.label}
+                        </div>
+                        <div className="space-y-0.5">
+                          {group.sessions
+                            .filter((session) => session.id)
+                            .map((session) => (
+                              <SessionItem
+                                key={session.id}
+                                session={session}
+                                isActive={currentSessionId === session.id}
+                                projects={projects}
+                                onSelect={() => selectAndClose(session.id)}
+                                onDelete={() =>
+                                  setDeleteConfirm({
+                                    isOpen: true,
+                                    sessionId: session.id,
+                                  })
+                                }
+                                onMoveToProject={(projectId) =>
+                                  handleMoveSession(session.id, projectId)
+                                }
+                                onSessionUpdate={handleSessionUpdate}
+                                isFavorite={false}
+                                onDragStartTouch={
+                                  touchDrag.handleDragStartTouch
+                                }
+                                isDraggingTouch={
+                                  touchDrag.draggingSessionId === session.id
+                                }
+                              />
+                            ))}
+                        </div>
+                      </div>
+                    ))}
+                </>
+              );
             })()}
 
             <div ref={loadMoreRef} className="flex justify-center py-2">
@@ -621,7 +654,7 @@ export function SessionSidebar({
       {projectManager.showNewProjectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40"
             onClick={() => projectManager.setShowNewProjectModal(false)}
           />
           <div className="relative bg-white dark:bg-stone-800 rounded-xl shadow-2xl p-5 w-[90vw] max-w-md space-y-3">
