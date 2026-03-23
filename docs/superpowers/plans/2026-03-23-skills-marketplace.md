@@ -2266,6 +2266,258 @@ class SkillResponse(BaseModel):
 
 ---
 
+## Task 13: 修复并发问题（基于审核反馈）
+
+**Files:**
+- Modify: `src/infra/skill/toggles.py`
+- Modify: `src/api/routes/skills.py`
+- Modify: `src/api/routes/marketplace.py`
+- Modify: `src/scripts/migrate_skills_to_marketplace.py`
+
+---
+
+- [ ] **Step 1: 修复 upsert_toggle 竞态条件**
+
+使用 `find_one_and_update` 替代 `find_one` + `update_one` / `insert_one`：
+
+```python
+async def upsert_toggle(
+    self,
+    skill_name: str,
+    user_id: str,
+    enabled: bool = True,
+    installed_from: Optional[InstalledFrom] = None,
+) -> SkillToggle:
+    """Upsert 开关记录（原子操作，避免竞态）"""
+    collection = self._get_toggles_collection()
+    now = datetime.now(timezone.utc).isoformat()
+
+    update_data = {
+        "enabled": enabled,
+        "updated_at": now,
+    }
+    if installed_from:
+        update_data["installed_from"] = installed_from.value
+
+    # 使用 find_one_and_update 进行原子 upsert
+    result = await collection.find_one_and_update(
+        {"skill_name": skill_name, "user_id": user_id},
+        {
+            "$set": update_data,
+            "$setOnInsert": {
+                "skill_name": skill_name,
+                "user_id": user_id,
+                "installed_from": (installed_from or InstalledFrom.MANUAL).value,
+                "created_at": now,
+            },
+        },
+        upsert=True,
+        return_document=True,
+    )
+
+    return SkillToggle(
+        skill_name=result["skill_name"],
+        user_id=result["user_id"],
+        enabled=result.get("enabled", True),
+        installed_from=InstalledFrom(result.get("installed_from", "manual")),
+        created_at=result.get("created_at"),
+        updated_at=result.get("updated_at"),
+    )
+```
+
+- [ ] **Step 2: 修复 delete_user_skill 竞态条件**
+
+```python
+@router.delete("/{name}")
+async def delete_user_skill(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("skill:delete")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """删除（卸载）用户的 Skill"""
+    # 同时删除文件和开关（在 storage 层用 bulk_write 原子操作）
+    await storage.delete_skill_and_toggle(name, user.sub)
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {"message": f"Skill '{name}' deleted"}
+```
+
+在 `storage.py` 添加 `delete_skill_and_toggle`：
+
+```python
+async def delete_skill_and_toggle(self, skill_name: str, user_id: str) -> None:
+    """原子删除 Skill 文件和开关"""
+    from pymongo import DeleteOne
+
+    files_coll = self._get_files_collection()
+    toggles_coll = self._get_toggles_collection()
+
+    operations = [
+        DeleteOne({"skill_name": skill_name, "user_id": user_id}),
+        DeleteOne({"skill_name": skill_name, "user_id": user_id}),
+    ]
+    # 使用 bulk_write 原子执行（需要 MongoDB 支持）
+    try:
+        await toggles_coll.bulk_write([operations[1]])
+        await files_coll.bulk_write([operations[0]])
+    except Exception:
+        # 回退：分开删除
+        await files_coll.delete_many({"skill_name": skill_name, "user_id": user_id})
+        await toggles_coll.delete_one({"skill_name": skill_name, "user_id": user_id})
+```
+
+- [ ] **Step 3: 修复 update_from_marketplace 的 installed_from**
+
+```python
+@router.post("/{name}/update")
+async def update_from_marketplace(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+    storage: SkillStorage = Depends(get_storage),
+):
+    # ... 检查 ...
+
+    # 更新文件
+    marketplace_files = await marketplace.get_marketplace_files(name)
+    await storage.sync_skill_files(name, marketplace_files, user.sub)
+
+    # 关键：更新 installed_from 为 MARKETPLACE
+    await storage.upsert_toggle(
+        name, user.sub,
+        enabled=True,
+        installed_from=InstalledFrom.MARKETPLACE,
+    )
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {...}
+```
+
+- [ ] **Step 4: 修复迁移脚本的 installed_from 判断**
+
+```python
+async for doc in old_prefs.find({}):
+    user_id = doc["user_id"]
+    skill_name = doc["skill_name"]
+    enabled = doc.get("enabled", True)
+
+    # 判断来源：如果 skill_files 中 user_id="system" 则为商城来源
+    has_system_version = await old_files.find_one({
+        "skill_name": skill_name,
+        "user_id": "system"
+    })
+    installed_from = "marketplace" if has_system_version else "manual"
+
+    await new_toggles.update_one(
+        {"skill_name": skill_name, "user_id": user_id},
+        {
+            "$set": {
+                "enabled": enabled,
+                "installed_from": installed_from,
+                "updated_at": doc.get("updated_at"),
+            },
+            "$setOnInsert": {
+                "created_at": doc.get("created_at"),
+            },
+        },
+        upsert=True,
+    )
+```
+
+- [ ] **Step 5: 添加 ensure_indexes 调用**
+
+在 `src/infra/skill/__init__.py` 或启动脚本中添加：
+
+```python
+async def init_skill_indexes():
+    """初始化索引（应用启动时调用一次）"""
+    storage = SkillStorage()
+    toggles = TogglesStorage()
+    marketplace = MarketplaceStorage()
+
+    await storage.ensure_indexes()
+    await toggles.ensure_indexes()
+    await marketplace.ensure_indexes()
+
+    await storage.close()
+    await toggles.close()
+    await marketplace.close()
+```
+
+---
+
+## Task 14: 补充 API 问题（基于审核反馈）
+
+**Files:**
+- Modify: `src/api/routes/marketplace.py`
+
+---
+
+- [ ] **Step 1: 修复 API 路由前缀**
+
+```python
+# src/api/main.py - 路由注册
+from src.api.routes.marketplace import router as marketplace_router
+from src.api.routes.admin.marketplace import router as admin_marketplace_router
+
+# 用户商城：/api/marketplace
+api_router.include_router(marketplace_router, prefix="/marketplace", tags=["marketplace"])
+
+# 管理员商城：/api/admin/marketplace
+# admin_marketplace_router 已有 prefix="/admin/marketplace"
+api_router.include_router(admin_marketplace_router, tags=["admin:marketplace"])
+```
+
+- [ ] **Step 2: 添加商城 Skill 文件列表 API**
+
+```python
+@router.get("/{name}/files")
+async def list_marketplace_skill_files(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("skill:read")),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """列出商城 Skill 的所有文件路径"""
+    paths = await marketplace.list_marketplace_file_paths(name)
+    if not paths:
+        skill = await marketplace.get_marketplace_skill(name)
+        if not skill:
+            raise HTTPException(status_code=404, detail="Skill not found")
+    return {"files": paths}
+```
+
+- [ ] **Step 3: 添加分页支持**
+
+```python
+@router.get("/", response_model=list[MarketplaceSkillResponse])
+async def list_marketplace_skills(
+    tags: Optional[str] = None,
+    search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    user: TokenPayload = Depends(require_permissions("skill:read")),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """列出所有商城 Skills（分页）"""
+    tag_list = tags.split(",") if tags else None
+    skills = await marketplace.list_marketplace_skills_paginated(
+        tags=tag_list, search=search, skip=skip, limit=limit
+    )
+    total = await marketplace.count_marketplace_skills(tags=tag_list, search=search)
+    return {
+        "items": skills,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
+```
+
+---
+
 ## 验收标准
 
 每个 Task 完成后应验证：
@@ -2274,6 +2526,19 @@ class SkillResponse(BaseModel):
 3. API 路由正确注册
 4. 迁移脚本能正确运行
 5. DeepAgent 能正常加载 skills
+6. 并发操作不会导致数据不一致
+7. 缓存失效正确触发
+
+## 审核修复
+
+- ✅ upsert_toggle 使用 `find_one_and_update` 避免竞态
+- ✅ delete_user_skill 使用原子操作
+- ✅ update_from_marketplace 更新 installed_from
+- ✅ 迁移脚本正确判断 installed_from 来源
+- ✅ 添加 ensure_indexes 调用
+- ✅ 修复 API 路由前缀
+- ✅ 添加商城文件列表 API
+- ✅ 添加分页支持
 
 ---
 
@@ -2283,3 +2548,5 @@ class SkillResponse(BaseModel):
 2. **迁移前备份**：运行迁移脚本前先备份数据库
 3. **API 兼容**：保留原有 `/api/skills/` 路由的用户体验
 4. **缓存失效**：所有写入操作后都要失效 Redis 缓存
+5. **并发安全**：使用 `find_one_and_update` 避免竞态条件
+6. **索引初始化**：应用启动时调用 `ensure_indexes()`
