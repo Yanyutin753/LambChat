@@ -489,10 +489,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           queue_position?: number;
         };
 
-        // Clear pending project ID after use
-        pendingProjectIdRef.current = null;
         const newSessionId = submitData.session_id;
         const newRunId = submitData.run_id;
+        const projectId = pendingProjectIdRef.current;
+
+        // Clear pending project ID after use
+        pendingProjectIdRef.current = null;
 
         // Handle queued status — show toast and wait via SSE
         if (submitData.status === "queued") {
@@ -511,7 +513,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             created_at: now,
             updated_at: now,
             is_active: true,
-            metadata: {},
+            metadata: projectId ? { project_id: projectId } : {},
           };
           setNewlyCreatedSession(newSession);
 
