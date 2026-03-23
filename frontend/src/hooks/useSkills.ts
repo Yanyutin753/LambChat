@@ -47,23 +47,24 @@ function composeSkillResponse(
     description,
     enabled: userSkill.enabled,
     source: mapInstalledToSource(userSkill.installed_from),
+    content: files["SKILL.md"] || "",
     files,
     file_count: userSkill.file_count,
-    is_system: userSkill.installed_from === "builtin",
-    can_edit: userSkill.installed_from !== "builtin",
     installed_from: userSkill.installed_from,
     created_at: userSkill.created_at,
     updated_at: userSkill.updated_at,
   };
 }
 
-export function useSkills() {
+export function useSkills(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled !== false; // Default to true
   const [skills, setSkills] = useState<SkillResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch all skills (basic info only)
   const fetchSkills = useCallback(async () => {
+    if (!enabled) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -77,7 +78,7 @@ export function useSkills() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   // Fetch single skill with full details
   const getSkill = useCallback(
@@ -196,6 +197,11 @@ export function useSkills() {
     }
   }, []);
 
+  // Toggle skill wrapper (for compatibility)
+  const toggleSkillWrapper = useCallback(async (name: string): Promise<void> => {
+    await toggleSkill(name);
+  }, [toggleSkill]);
+
   // Toggle category (not applicable in new architecture - just toggle all)
   const toggleCategory = useCallback(
     async (_category: SkillSource, enabled: boolean): Promise<void> => {
@@ -244,6 +250,68 @@ export function useSkills() {
     return stats;
   }, [skills]);
 
+  // Upload skill from ZIP file
+  const uploadSkill = useCallback(
+    async (file: File): Promise<boolean> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await skillApi.uploadZip(file);
+        await fetchSkills();
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to upload skill");
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchSkills],
+  );
+
+  // Preview skills from GitHub repository
+  const previewGitHubSkills = useCallback(
+    async (
+      repoUrl: string,
+      branch: string = "main",
+    ): Promise<{ repo_url: string; branch: string; skills: Array<{ name: string; path: string; description: string }> } | null> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        return await skillApi.previewGitHub(repoUrl, branch);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to preview GitHub skills");
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  // Install skills from GitHub repository
+  const installGitHubSkills = useCallback(
+    async (
+      repoUrl: string,
+      skillNames: string[],
+      branch: string = "main",
+    ): Promise<{ message: string; installed: string[]; errors: string[] } | null> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await skillApi.installGitHub(repoUrl, skillNames, branch);
+        await fetchSkills();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to install GitHub skills");
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchSkills],
+  );
+
   // Stats
   const enabledCount = skills.filter((s) => s.enabled).length;
   const totalCount = skills.length;
@@ -263,8 +331,12 @@ export function useSkills() {
     updateSkill,
     deleteSkill,
     toggleSkill,
+    toggleSkillWrapper,
     toggleCategory,
     toggleAll,
+    uploadSkill,
+    previewGitHubSkills,
+    installGitHubSkills,
     getEnabledSkillNames,
     getCategoryStats,
     enabledCount,

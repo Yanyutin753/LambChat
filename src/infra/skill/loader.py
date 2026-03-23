@@ -64,6 +64,8 @@ async def load_skill_files(user_id: Optional[str]) -> SkillLoadResult:
                 if hasattr(skill_data, "model_dump")
                 else (dict(skill_data) if not isinstance(skill_data, dict) else skill_data)
             )
+            # 确保 name 字段存在
+            skill_dict["name"] = skill_dict.get("name", skill_name)
             skill_dict["is_system"] = skill_dict.get("is_system", True)
             is_enabled = skill_dict.get("enabled", True)
             if is_enabled:

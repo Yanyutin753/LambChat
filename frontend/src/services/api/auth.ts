@@ -8,6 +8,7 @@ import type {
   LoginRequest,
   TokenResponse,
   PermissionsResponse,
+  RegisterResponse,
 } from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
@@ -47,7 +48,10 @@ export const authApi = {
   /**
    * 用户注册
    */
-  async register(userData: UserCreate, turnstileToken?: string): Promise<User> {
+  async register(
+    userData: UserCreate,
+    turnstileToken?: string,
+  ): Promise<RegisterResponse> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -55,7 +59,7 @@ export const authApi = {
       headers["X-Turnstile-Token"] = turnstileToken;
     }
 
-    return authFetch<User>(`${API_BASE}/api/auth/register`, {
+    return authFetch<RegisterResponse>(`${API_BASE}/api/auth/register`, {
       method: "POST",
       skipAuth: true,
       body: JSON.stringify(userData),

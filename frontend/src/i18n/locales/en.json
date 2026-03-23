@@ -924,7 +924,6 @@
     },
     "confirmDelete": "Delete Skill",
     "confirmDeleteMessage": "Are you sure you want to delete skill \"{{name}}\"? This action cannot be undone.",
-    "createAsSystem": "Create as System Skill (visible to all users)",
     "createFailed": "Failed to create skill",
     "createFirst": "Create your first skill",
     "createNew": "Create New Skill",
@@ -941,7 +940,6 @@
     "form": {
       "content": "Content (Markdown with optional YAML frontmatter)",
       "contentPlaceholder": "# Skill instructions...",
-      "createAsSystem": "Create as system skill (visible to all users)",
       "createSkill": "Create Skill",
       "description": "Description",
       "descriptionPlaceholder": "Brief description of what this skill does",
@@ -950,7 +948,6 @@
       "nameCannotChange": "Skill name cannot be changed",
       "namePlaceholder": "my-skill-name",
       "saveChanges": "Save Changes",
-      "systemSkill": "System skill (visible to all users)",
       "validation": {
         "contentRequired": "Content is required",
         "descriptionRequired": "Description is required",
@@ -985,7 +982,6 @@
     "searchPlaceholder": "Search skills...",
     "selectZipFile": "Select ZIP file",
     "subtitle": "Create and manage custom skills to enhance AI assistant capabilities",
-    "systemSkillVisible": "System Skill (visible to all users)",
     "title": "Skills Management",
     "updateFailed": "Failed to update skill",
     "updateSuccess": "Skill updated successfully",

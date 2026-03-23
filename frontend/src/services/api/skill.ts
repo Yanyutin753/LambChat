@@ -110,16 +110,43 @@ export const skillApi = {
    */
   async update(
     skillName: string,
-    data: { description?: string; content?: string; enabled?: boolean },
+    data: { description?: string; content?: string; enabled?: boolean; files?: Record<string, string>; deletedFiles?: string[] },
   ): Promise<{ message: string }> {
-    // Update SKILL.md if content changed
-    if (data.content !== undefined) {
+    // Update SKILL.md if content changed (legacy single-file mode)
+    if (data.content !== undefined && !data.files) {
       await authFetch(
         `${SKILLS_API}/${encodeURIComponent(skillName)}/files/SKILL.md`,
         {
           method: "PUT",
           body: JSON.stringify({ content: data.content }),
         },
+      );
+    }
+
+    // Sync all files (multi-file mode)
+    if (data.files) {
+      await Promise.all(
+        Object.entries(data.files).map(([filePath, content]) =>
+          authFetch(
+            `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
+            {
+              method: "PUT",
+              body: JSON.stringify({ content }),
+            },
+          ),
+        ),
+      );
+    }
+
+    // Delete removed files
+    if (data.deletedFiles && data.deletedFiles.length > 0) {
+      await Promise.all(
+        data.deletedFiles.map((filePath) =>
+          authFetch(
+            `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
+            { method: "DELETE" },
+          ),
+        ),
       );
     }
 
@@ -184,5 +211,52 @@ export const skillApi = {
         method: "POST",
       },
     );
+  },
+
+  /**
+   * Upload skill from ZIP file
+   */
+  async uploadZip(file: File): Promise<{ message: string; skill_name: string; file_count: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    return authFetch(`${SKILLS_API}/upload`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  /**
+   * Preview skills from GitHub repository
+   */
+  async previewGitHub(
+    repoUrl: string,
+    branch: string = "main",
+  ): Promise<{
+    repo_url: string;
+    branch: string;
+    skills: Array<{ name: string; path: string; description: string }>;
+  }> {
+    return authFetch(`${API_BASE}/api/github/preview`, {
+      method: "POST",
+      body: JSON.stringify({ repo_url: repoUrl, branch }),
+    });
+  },
+
+  /**
+   * Install skills from GitHub repository
+   */
+  async installGitHub(
+    repoUrl: string,
+    skillNames: string[],
+    branch: string = "main",
+  ): Promise<{
+    message: string;
+    installed: string[];
+    errors: string[];
+  }> {
+    return authFetch(`${API_BASE}/api/github/install`, {
+      method: "POST",
+      body: JSON.stringify({ repo_url: repoUrl, branch, skill_names: skillNames }),
+    });
   },
 };

@@ -108,6 +108,7 @@ export {
   type UserCreate,
   type UserUpdate,
   type UserListResponse,
+  type RegisterResponse,
   type Role,
   type RoleCreate,
   type RoleUpdate,

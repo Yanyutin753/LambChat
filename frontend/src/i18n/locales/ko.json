@@ -874,7 +874,6 @@
     },
     "confirmDelete": "스킬 삭제",
     "confirmDeleteMessage": "스킬 \"{{name}}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
-    "createAsSystem": "시스템 스킬로 생성 (모든 사용자에게 표시)",
     "createFailed": "스킬 생성에 실패했습니다",
     "createFirst": "첫 번째 스킬 만들기",
     "createNew": "새 스킬 만들기",
@@ -891,7 +890,6 @@
     "form": {
       "content": "내용 (Markdown 및 선택적 YAML frontmatter 지원)",
       "contentPlaceholder": "# 스킬 지침...",
-      "createAsSystem": "시스템 스킬로 생성 (모든 사용자에게 표시)",
       "createSkill": "스킬 만들기",
       "description": "설명",
       "descriptionPlaceholder": "이 스킬이 무엇을 하는지 간단히 설명",
@@ -900,7 +898,6 @@
       "nameCannotChange": "스킬 이름은 변경할 수 없습니다",
       "namePlaceholder": "my-skill-name",
       "saveChanges": "변경 사항 저장",
-      "systemSkill": "시스템 스킬 (모든 사용자에게 표시)",
       "validation": {
         "contentRequired": "내용을 입력하세요",
         "descriptionRequired": "설명을 입력하세요",
@@ -935,7 +932,6 @@
     "searchPlaceholder": "스킬 검색...",
     "selectZipFile": "ZIP 파일 선택",
     "subtitle": "사용자 정의 스킬을 만들고 관리하여 AI 어시스턴트 기능 향상",
-    "systemSkillVisible": "시스템 스킬 (모든 사용자에게 표시)",
     "title": "스킬 관리",
     "updateFailed": "스킬 업데이트에 실패했습니다",
     "updateSuccess": "스킬이 성공적으로 업데이트되었습니다",

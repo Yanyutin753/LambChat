@@ -873,7 +873,6 @@
     },
     "confirmDelete": "スキルを削除",
     "confirmDeleteMessage": "スキル「{{name}}」を削除しますか？この操作は取り消せません。",
-    "createAsSystem": "システムスキルとして作成（すべてのユーザーに表示）",
     "createFailed": "スキルの作成に失敗しました",
     "createFirst": "最初のスキルを作成",
     "createNew": "新規スキル作成",
@@ -890,7 +889,6 @@
     "form": {
       "content": "コンテンツ（MarkdownとオプションのYAML frontmatterに対応）",
       "contentPlaceholder": "# スキル指示...",
-      "createAsSystem": "システムスキルとして作成（すべてのユーザーに表示）",
       "createSkill": "スキルを作成",
       "description": "説明",
       "descriptionPlaceholder": "このスキルの簡単な説明",
@@ -899,7 +897,6 @@
       "nameCannotChange": "スキル名は変更できません",
       "namePlaceholder": "my-skill-name",
       "saveChanges": "変更を保存",
-      "systemSkill": "システムスキル（すべてのユーザーに表示）",
       "validation": {
         "contentRequired": "コンテンツを入力してください",
         "descriptionRequired": "説明を入力してください",
@@ -934,7 +931,6 @@
     "searchPlaceholder": "スキルを検索...",
     "selectZipFile": "ZIPファイルを選択",
     "subtitle": "カスタムスキルを作成・管理してAIアシスタントの機能を拡張",
-    "systemSkillVisible": "システムスキル（すべてのユーザーに表示）",
     "title": "スキル管理",
     "updateFailed": "スキルの更新に失敗しました",
     "updateSuccess": "スキルが正常に更新されました",

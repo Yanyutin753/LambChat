@@ -22,6 +22,7 @@ from src.api.routes import (
     channels,
     chat,
     feedback,
+    github,
     health,
     human,
     mcp,
@@ -96,13 +97,6 @@ async def lifespan(app: FastAPI):
     agent_config_storage = get_agent_config_storage()
     await agent_config_storage.ensure_indexes()
     logger.info("Agent config storage indexes initialized")
-
-    # 初始化默认角色
-    from src.infra.role.manager import RoleManager
-
-    role_manager = RoleManager()
-    await role_manager.init_default_roles()
-    logger.info("Default roles initialized")
 
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager
@@ -265,6 +259,7 @@ def create_app() -> FastAPI:
     app.include_router(project.router, prefix="/api/projects", tags=["Projects"])
     app.include_router(share.router, prefix="/api/share", tags=["Share"])
     app.include_router(skill.router, prefix="/api/skills", tags=["Skills"])
+    app.include_router(github.router, prefix="/api/github", tags=["GitHub"])
 
     # User marketplace API
     from src.api.routes.marketplace import router as marketplace_router

@@ -343,11 +343,13 @@ class SkillsMiddleware:
         try:
             effective = await self._manager.get_effective_skills()
             skills = []
-            for _, skill in effective.items():
+            for skill_name, skill in effective.items():
                 if hasattr(skill, "model_dump"):
                     skill_dict = skill.model_dump()
                 else:
                     skill_dict = dict(skill) if not isinstance(skill, dict) else skill
+                # 确保 name 字段存在
+                skill_dict["name"] = skill_dict.get("name", skill_name)
                 skill_dict["is_system"] = skill_dict.get("is_system", True)
                 skills.append(skill_dict)
             return [s for s in skills if s.get("enabled", True)]

@@ -5,7 +5,11 @@
 Simplified architecture: files + toggle, no system/user split.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import io
+import zipfile
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
 from src.api.deps import require_permissions
 from src.infra.skill.storage import SkillStorage
@@ -19,9 +23,141 @@ def get_storage() -> SkillStorage:
     return SkillStorage()
 
 
+MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+def _parse_zip_content(zip_content: bytes) -> tuple[str, dict[str, str]]:
+    """
+    解析 ZIP 内容，提取 skill 名称和文件。
+
+    Returns:
+        tuple: (skill_name, files_dict)
+    """
+    if len(zip_content) > MAX_ZIP_SIZE:
+        raise ValueError("ZIP file too large (max 10MB)")
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(zip_content))
+    except zipfile.BadZipFile:
+        raise ValueError("Invalid ZIP file")
+
+    try:
+        all_files: dict[str, str] = {}
+
+        names = zf.namelist()
+        top_level = set()
+        for n in names:
+            parts = n.split("/")
+            if parts[0]:
+                top_level.add(parts[0])
+
+        prefix = ""
+        if len(top_level) == 1:
+            top = list(top_level)[0]
+            is_dir = any(n.startswith(top + "/") for n in names)
+            if is_dir:
+                prefix = top + "/"
+
+        for name in names:
+            if (
+                name.endswith("/")
+                or "__MACOSX" in name
+                or name.endswith(".DS_Store")
+                or name.endswith("Thumbs.db")
+                or ".git/" in name
+            ):
+                continue
+            if name.startswith(prefix):
+                rel_path = name[len(prefix) :]
+            else:
+                rel_path = name
+            if not rel_path:
+                continue
+
+            try:
+                raw = zf.read(name)
+            except Exception:
+                continue
+
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            all_files[rel_path] = text
+
+        # 从 SKILL.md 提取 skill 名称
+        skill_name = None
+        skill_md = all_files.get("SKILL.md", "")
+        for line in skill_md.splitlines():
+            if line.startswith("name:"):
+                skill_name = line.split("name:", 1)[1].strip().strip('"').strip("'")
+                break
+
+        # 如果没有 name 字段，使用顶级目录名或第一个文件名
+        if not skill_name:
+            if prefix:
+                skill_name = prefix.rstrip("/")
+            elif all_files:
+                first_file = list(all_files.keys())[0]
+                skill_name = first_file.split("/")[0] if "/" in first_file else first_file
+
+        if not skill_name:
+            raise ValueError("Cannot determine skill name from ZIP")
+
+        return skill_name, all_files
+    finally:
+        zf.close()
+
+
 # ==========================================
 # 用户 Skills API
 # ==========================================
+
+
+@router.post("/upload", status_code=201)
+async def upload_skill_from_zip(
+    file: UploadFile,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """从 ZIP 文件上传创建技能"""
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+
+    try:
+        content = await file.read()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to read file content")
+
+    try:
+        skill_name, files = _parse_zip_content(content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 检查是否已存在
+    existing = await storage.get_skill_files(skill_name, user.sub)
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Skill '{skill_name}' already exists"
+        )
+
+    # 创建技能文件
+    for file_path, file_content in files.items():
+        await storage.set_skill_file(skill_name, file_path, file_content, user.sub)
+
+    # 创建开关记录
+    await storage.upsert_toggle(skill_name, user.sub, enabled=True)
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {
+        "message": f"Skill '{skill_name}' created",
+        "skill_name": skill_name,
+        "file_count": len(files),
+    }
 
 
 @router.get("/", response_model=list[UserSkill])
@@ -119,6 +255,22 @@ async def update_skill_file(
     await storage.invalidate_user_cache(user.sub)
 
     return {"message": "File updated"}
+
+
+@router.delete("/{name}/files/{path:path}")
+async def delete_skill_file(
+    name: str,
+    path: str,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """删除 Skill 的单个文件"""
+    await storage.delete_skill_file(name, path, user.sub)
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {"message": f"File '{path}' deleted"}
 
 
 @router.delete("/{name}")

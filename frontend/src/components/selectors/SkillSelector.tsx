@@ -47,7 +47,7 @@ export function SkillSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<
     Set<SkillSource>
-  >(new Set(["builtin", "github", "manual"]));
+  >(new Set(["builtin", "marketplace", "manual"]));
 
   // 锁定滚动
   useEffect(() => {
@@ -231,11 +231,6 @@ export function SkillSelector({
                                 <span className="text-[12px] sm:text-[13px] font-medium text-stone-700 dark:text-stone-200 truncate">
                                   {skill.name}
                                 </span>
-                                {skill.is_system && (
-                                  <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
-                                    {t("skillSelector.system")}
-                                  </span>
-                                )}
                               </div>
                               <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed">
                                 {skill.description ||

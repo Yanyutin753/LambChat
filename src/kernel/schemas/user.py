@@ -69,6 +69,13 @@ class User(UserBase):
         from_attributes = True
 
 
+class RegisterResponse(BaseModel):
+    """Registration response."""
+
+    user: User
+    requires_verification: bool  # 是否需要邮箱验证
+
+
 class UserListResponse(BaseModel):
     """Paginated user list response."""
 

@@ -15,7 +15,7 @@ interface SkillCardProps {
   skill: SkillResponse;
   onToggle: (name: string) => void;
   onEdit: (skill: SkillResponse) => void;
-  onDelete: (name: string, isSystem: boolean) => void;
+  onDelete: (name: string) => void;
 }
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -67,17 +67,6 @@ export function SkillCard({
               {SOURCE_ICONS[skill.source]}
               {sourceLabel}
             </span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                skill.is_system
-                  ? "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
-                  : "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300"
-              }`}
-            >
-              {skill.is_system
-                ? t("skills.card.system")
-                : t("skills.card.user")}
-            </span>
             {!skill.enabled && (
               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500 dark:bg-stone-800 dark:text-stone-500">
                 {t("skills.card.disabled")}
@@ -117,24 +106,20 @@ export function SkillCard({
               <ToggleLeft size={20} />
             )}
           </button>
-          {skill.can_edit && (
-            <>
-              <button
-                onClick={() => onEdit(skill)}
-                className="btn-icon"
-                title={t("skills.card.edit")}
-              >
-                <Edit3 size={20} />
-              </button>
-              <button
-                onClick={() => onDelete(skill.name, skill.is_system)}
-                className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                title={t("skills.card.delete")}
-              >
-                <Trash2 size={20} />
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => onEdit(skill)}
+            className="btn-icon"
+            title={t("skills.card.edit")}
+          >
+            <Edit3 size={20} />
+          </button>
+          <button
+            onClick={() => onDelete(skill.name)}
+            className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            title={t("skills.card.delete")}
+          >
+            <Trash2 size={20} />
+          </button>
         </div>
       </div>
     </div>

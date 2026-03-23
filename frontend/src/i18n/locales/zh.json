@@ -923,7 +923,6 @@
     },
     "confirmDelete": "删除技能",
     "confirmDeleteMessage": "确定要删除技能 \"{{name}}\" 吗？此操作不可撤销。",
-    "createAsSystem": "创建为系统技能（对所有用户可见）",
     "createFailed": "创建技能失败",
     "createFirst": "创建您的第一个技能",
     "createNew": "创建新技能",
@@ -940,7 +939,6 @@
     "form": {
       "content": "内容（支持 Markdown 和可选的 YAML frontmatter）",
       "contentPlaceholder": "# 技能指令...",
-      "createAsSystem": "创建为系统技能（对所有用户可见）",
       "createSkill": "创建技能",
       "description": "描述",
       "descriptionPlaceholder": "简要描述此技能的用途",
@@ -949,7 +947,6 @@
       "nameCannotChange": "技能名称无法更改",
       "namePlaceholder": "my-skill-name",
       "saveChanges": "保存更改",
-      "systemSkill": "系统技能（对所有用户可见）",
       "validation": {
         "contentRequired": "请输入内容",
         "descriptionRequired": "请输入描述",
@@ -959,6 +956,7 @@
       }
     },
     "foundSkills": "找到 {{count}} 个技能 - 选择要安装的",
+    "githubRepoUrl": "GitHub 仓库地址",
     "importFromGitHub": "从 GitHub 导入",
     "importFromGitHubTitle": "从 GitHub 导入技能",
     "importFromJSON": "从 JSON 导入",
@@ -983,8 +981,9 @@
     "repositoryUrl": "仓库 URL",
     "searchPlaceholder": "搜索技能...",
     "selectZipFile": "选择 ZIP 文件",
+    "selectSkillsToInstall": "选择要安装的技能",
+    "installSelected": "安装 {{count}} 个技能",
     "subtitle": "创建和管理自定义技能，增强 AI 助手能力",
-    "systemSkillVisible": "系统技能（对所有用户可见）",
     "title": "技能管理",
     "updateFailed": "更新技能失败",
     "updateSuccess": "技能更新成功",

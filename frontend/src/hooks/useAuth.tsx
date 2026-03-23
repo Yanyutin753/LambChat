@@ -187,11 +187,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ): Promise<{ requiresVerification: boolean; email: string }> => {
       setIsLoading(true);
       try {
-        await authApi.register(userData, turnstileToken);
-        // 不再自动登录，返回是否需要验证
-        // 根据 REQUIRE_EMAIL_VERIFICATION 配置，用户可能需要先验证邮箱
+        const response = await authApi.register(userData, turnstileToken);
         return {
-          requiresVerification: true, // 注册成功后需要验证邮箱
+          requiresVerification: response.requires_verification,
           email: userData.email,
         };
       } finally {

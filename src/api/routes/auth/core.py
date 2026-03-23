@@ -15,6 +15,7 @@ from src.kernel.exceptions import ValidationError
 from src.kernel.schemas.permission import PermissionsResponse, get_permissions_response
 from src.kernel.schemas.user import (
     LoginRequest,
+    RegisterResponse,
     Token,
     TokenPayload,
     User,
@@ -29,7 +30,7 @@ security = HTTPBearer()
 logger = get_logger(__name__)
 
 
-@router.post("/register", response_model=User)
+@router.post("/register", response_model=RegisterResponse)
 async def register(user_data: UserCreate, request: Request):
     """用户注册"""
     # 检查是否允许注册
@@ -55,7 +56,8 @@ async def register(user_data: UserCreate, request: Request):
         user = await manager.register(user_data)
 
         # 如果要求邮箱验证，发送验证邮件
-        if settings.REQUIRE_EMAIL_VERIFICATION:
+        requires_verification = settings.REQUIRE_EMAIL_VERIFICATION
+        if requires_verification:
             from src.infra.email import get_email_service
 
             email_service = await get_email_service()
@@ -94,7 +96,7 @@ async def register(user_data: UserCreate, request: Request):
             else:
                 logger.warning("[Auth] Email verification required but email service not enabled")
 
-        return user
+        return RegisterResponse(user=user, requires_verification=requires_verification)
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -15,10 +15,9 @@ interface FileEntry {
 
 interface SkillFormProps {
   skill?: SkillResponse | null;
-  onSave: (data: SkillCreate, isSystem: boolean) => Promise<boolean>;
+  onSave: (data: SkillCreate) => Promise<boolean>;
   onCancel: () => void;
   isLoading?: boolean;
-  isAdmin?: boolean;
   onFullscreenChange?: (fullscreen: boolean) => void;
 }
 
@@ -199,7 +198,6 @@ export function SkillForm({
   onSave,
   onCancel,
   isLoading = false,
-  isAdmin = false,
   onFullscreenChange,
 }: SkillFormProps) {
   const { t } = useTranslation();
@@ -208,7 +206,6 @@ export function SkillForm({
   const [name, setName] = useState(skill?.name ?? "");
   const [description, setDescription] = useState(skill?.description ?? "");
   const [enabled, setEnabled] = useState(skill?.enabled ?? true);
-  const [isSystem, setIsSystem] = useState(skill?.is_system ?? false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -253,12 +250,10 @@ export function SkillForm({
       setName(skill.name);
       setDescription(skill.description);
       setEnabled(skill.enabled);
-      setIsSystem(skill.is_system);
     } else {
       setName("");
       setDescription("");
       setEnabled(true);
-      setIsSystem(false);
       setFiles([{ path: "SKILL.md", content: DEFAULT_CONTENT }]);
     }
     setErrors({});
@@ -330,11 +325,10 @@ export function SkillForm({
       description: description.trim(),
       content: skillMdContent,
       enabled,
-      source: isSystem ? "builtin" : "manual",
       files: filesDict,
     };
 
-    const success = await onSave(data, isSystem);
+    const success = await onSave(data);
     if (success && !isEditing) {
       setName("");
       setDescription("");
@@ -410,13 +404,6 @@ export function SkillForm({
                 onChange={setEnabled}
                 label={t("skills.form.enabled")}
               />
-              {isAdmin && (
-                <Toggle
-                  checked={isSystem}
-                  onChange={setIsSystem}
-                  label={t("skills.form.systemSkill")}
-                />
-              )}
             </div>
           </div>
 
@@ -605,17 +592,6 @@ export function SkillForm({
               onChange={setEnabled}
               label={t("skills.form.enabled")}
             />
-            {isAdmin && (
-              <Toggle
-                checked={isSystem}
-                onChange={setIsSystem}
-                label={
-                  isEditing
-                    ? t("skills.form.systemSkill")
-                    : t("skills.form.createAsSystem")
-                }
-              />
-            )}
             {isEditing && (
               <span className="text-xs text-stone-400 dark:text-stone-500">
                 {t("skills.form.nameCannotChange")}

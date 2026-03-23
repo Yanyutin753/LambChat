@@ -81,6 +81,12 @@ export interface UserCreate {
   roles?: string[];
 }
 
+// 注册响应
+export interface RegisterResponse {
+  user: User;
+  requires_verification: boolean;
+}
+
 // 用户更新请求
 export interface UserUpdate {
   username?: string;

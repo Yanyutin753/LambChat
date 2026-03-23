@@ -407,7 +407,21 @@ class SkillStorage:
         for name in enabled_names:
             files = files_map.get((name, user_id), {})
             if files:  # 只包含有文件的 skill
+                # 从 SKILL.md frontmatter 解析 description
+                description = ""
+                if "SKILL.md" in files:
+                    try:
+                        from src.infra.skill.builtin import _parse_skill_md
+
+                        _, parsed_desc, _ = _parse_skill_md(files["SKILL.md"])
+                        if parsed_desc:
+                            description = parsed_desc
+                    except Exception:
+                        pass
+
                 result["skills"][name] = {
+                    "name": name,
+                    "description": description or f"Skill: {name}",
                     "files": files,
                     "enabled": True,
                 }

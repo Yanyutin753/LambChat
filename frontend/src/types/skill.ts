@@ -22,8 +22,11 @@ export interface UserSkill {
 }
 
 // User skill with files list (from GET /api/skills/{name})
-export interface UserSkillDetail extends UserSkill {
+export interface UserSkillDetail {
   files?: string[];
+  enabled?: boolean;
+  skill_name?: string;
+  description?: string;
 }
 
 // Skill file content response
@@ -48,10 +51,9 @@ export interface SkillResponse {
   description: string;
   enabled: boolean;
   source: SkillSource;
+  content?: string; // Main SKILL.md content
   files: Record<string, string>;
   file_count: number;
-  is_system: boolean;
-  can_edit: boolean;
   installed_from: "manual" | "marketplace" | "builtin";
   created_at?: string;
   updated_at?: string;
