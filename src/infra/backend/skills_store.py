@@ -35,12 +35,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _is_duplicate_key_error(exc: Exception) -> bool:
-    """检查是否是 MongoDB duplicate key 错误"""
-    msg = str(exc).lower()
-    return "duplicate" in msg or "e11000" in msg or "duplicatekey" in msg
-
-
 # 路径格式：/skills/{skill_name}/{file_path}
 # 内部统一使用带 /skills/ 前缀的路径
 SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
@@ -259,16 +253,11 @@ class SkillsStoreBackend(BackendProtocol):
         storage = await self._get_storage()
 
         try:
-            # Try single-file query first (user skill, then system skill)
-            content = await storage.get_skill_file(skill_name, file_name, user_id=self._user_id)
-            if content is None:
-                content = await storage.get_skill_file(skill_name, file_name, user_id=None)
+            content = await storage.get_skill_file(skill_name, file_name, self._user_id)
 
             if content is None:
                 # Skill might exist but file might not — check if skill exists (without loading content)
                 paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
-                if not paths:
-                    paths = await storage.list_skill_file_paths(skill_name, user_id=None)
                 if not paths:
                     return f"Error: Skill '{skill_name}' not found"
                 if file_name not in paths:
@@ -291,17 +280,7 @@ class SkillsStoreBackend(BackendProtocol):
         return _run_async(self.awrite(file_path, content))
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
-        """
-        异步写入 skill 文件
-
-        Args:
-            file_path: 文件路径（会自动添加 /skills/ 前缀）
-            content: 文件内容
-
-        Returns:
-            WriteResult 表示操作结果
-        """
-        # 标准化路径，确保有 /skills/ 前缀
+        """异步写入 skill 文件（无需注册 - 写文件即 skill 存在）"""
         file_path = self._normalize_path(file_path)
 
         parsed = self._parse_skill_path(file_path)
@@ -314,87 +293,14 @@ class SkillsStoreBackend(BackendProtocol):
         storage = await self._get_storage()
 
         try:
-            # 检查 skill 是否存在（用户 skill 或系统 skill）
-            user_skill = await storage.get_user_skill(skill_name, self._user_id)
-            system_skill = await storage.get_system_skill(skill_name)
+            # 直接 upsert 文件（user_id = 当前用户）
+            await storage.set_skill_file(skill_name, file_name, content, self._user_id)
 
-            if user_skill:
-                # 原子更新单个文件，避免并发写入时 read-modify-write 竞态
-                await storage.set_skill_file(skill_name, file_name, content, user_id=self._user_id)
-                logger.info(f"Updated user skill '{skill_name}' file '{file_name}'")
+            # 确保开关记录存在（enabled=True）
+            await storage.upsert_toggle(skill_name, self._user_id, enabled=True)
 
-            elif system_skill:
-                # 系统技能是只读的，创建用户副本
-                from src.kernel.schemas.skill import SkillCreate, SkillSource
-
-                try:
-                    skill_create = SkillCreate(
-                        name=skill_name,
-                        description=system_skill.description,
-                        content=system_skill.content,
-                        files={**system_skill.files, file_name: content},
-                        enabled=True,
-                        source=SkillSource.MANUAL,
-                    )
-                    await storage.create_user_skill(skill_create, self._user_id)
-                    logger.info(f"Created user copy of system skill '{skill_name}'")
-                except Exception as create_err:
-                    # 并发写入可能已创建用户副本，降级为原子更新
-                    if _is_duplicate_key_error(create_err):
-                        await storage.set_skill_file(
-                            skill_name, file_name, content, user_id=self._user_id
-                        )
-                        logger.info(
-                            f"System skill '{skill_name}' already copied, updated file '{file_name}'"
-                        )
-                    else:
-                        raise
-
-            else:
-                # Skill 不存在，自动创建新的用户 skill
-                from src.kernel.schemas.skill import SkillCreate, SkillSource
-
-                # 尝试从 SKILL.md 解析名称和描述
-                name = skill_name
-                description = "Skill created by LLM"
-
-                if file_name == "SKILL.md":
-                    lines = content.split("\n")
-                    for line in lines:
-                        if line.startswith("# "):
-                            desc_lines = []
-                            for desc_line in lines[lines.index(line) + 1 :]:
-                                if desc_line.startswith("#") or desc_line.startswith("```"):
-                                    break
-                                if desc_line.strip():
-                                    desc_lines.append(desc_line.strip())
-                            if desc_lines:
-                                description = " ".join(desc_lines)[:200]
-                            break
-
-                try:
-                    skill_create = SkillCreate(
-                        name=name,
-                        description=description,
-                        content=content if file_name == "SKILL.md" else "",
-                        files={file_name: content},
-                        enabled=True,
-                        source=SkillSource.MANUAL,
-                    )
-                    await storage.create_user_skill(skill_create, self._user_id)
-                    logger.info(f"Created user skill '{name}' with file '{file_name}'")
-                except Exception as create_err:
-                    # 并发写入可能已创建 skill，降级为原子更新
-                    if _is_duplicate_key_error(create_err):
-                        await storage.set_skill_file(
-                            skill_name, file_name, content, user_id=self._user_id
-                        )
-                        logger.info(f"Skill '{name}' already created, updated file '{file_name}'")
-                    else:
-                        raise
-
-            # 清除缓存
-            await storage._invalidate_user_skills_cache(self._user_id)
+            # 失效缓存
+            await storage.invalidate_user_cache(self._user_id)
 
             # 发送 skills 变更事件
             if self._runtime:
@@ -404,13 +310,12 @@ class SkillsStoreBackend(BackendProtocol):
                     else None
                 )
                 if presenter:
-                    # 判断是创建还是更新
-                    action = "created" if (not user_skill and not system_skill) else "updated"
                     await presenter.emit_skills_changed(
-                        action=action,
+                        action="updated",
                         skill_name=skill_name,
                         files_count=1,
                     )
+
             return WriteResult(path=file_path, files_update=None)
 
         except Exception as e:
@@ -581,9 +486,7 @@ class SkillsStoreBackend(BackendProtocol):
             # First try path-only to check for exact file match
             # For ls on a sub-path, we need to know if it's a file or directory prefix
             # Check if sub_path is an exact file path
-            content = await storage.get_skill_file(skill_name, sub_path, user_id=self._user_id)
-            if content is None:
-                content = await storage.get_skill_file(skill_name, sub_path, user_id=None)
+            content = await storage.get_skill_file(skill_name, sub_path, self._user_id)
 
             if content is not None:
                 # 精确匹配到一个文件 — ls 单文件等同于 glob
@@ -603,18 +506,9 @@ class SkillsStoreBackend(BackendProtocol):
             logger.error(f"Failed to list {path}: {e}")
             return []
 
-    async def _get_skill_files(self, storage, skill_name: str) -> dict[str, str]:
-        """获取 skill 文件（先用户后系统）"""
-        files = await storage.get_skill_files(skill_name, user_id=self._user_id)
-        if not files:
-            files = await storage.get_skill_files(skill_name, user_id=None)
-        return files or {}
-
     async def _get_skill_file_paths(self, storage, skill_name: str) -> list[str]:
-        """获取 skill 文件路径（先用户后系统，不加载内容）"""
+        """获取 skill 文件路径"""
         paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
-        if not paths:
-            paths = await storage.list_skill_file_paths(skill_name, user_id=None)
         return paths or []
 
     @staticmethod
@@ -735,13 +629,12 @@ class SkillsStoreBackend(BackendProtocol):
         if not groups:
             return results
 
-        # Batch-fetch all skills' files (user + system fallback) in one query
+        # Batch-fetch all skills' files in one query
         skill_keys: list[tuple[str, str]] = []
         for skill_name in groups:
             if skill_name == "__invalid__":
                 continue
             skill_keys.append((skill_name, self._user_id))
-            skill_keys.append((skill_name, "system"))  # system skill fallback
         files_map = await storage.batch_get_skill_files(skill_keys)
 
         for skill_name, items in groups.items():
@@ -752,10 +645,7 @@ class SkillsStoreBackend(BackendProtocol):
                     )
                 continue
 
-            # Check user skill files, then system skill files
-            user_files = files_map.get((skill_name, self._user_id), {})
-            system_files = files_map.get((skill_name, "system"), {})
-            files = user_files or system_files
+            files = files_map.get((skill_name, self._user_id), {})
 
             for original_path, file_name in items:
                 if not files or file_name not in files:
