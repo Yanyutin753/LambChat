@@ -29,6 +29,7 @@ interface SessionSidebarProps {
   isCollapsed?: boolean;
   onToggleCollapsed?: (collapsed: boolean) => void;
   onShowProfile?: () => void;
+  onSetPendingProjectId?: (projectId: string | null) => void;
 }
 
 export function SessionSidebar({
@@ -42,6 +43,7 @@ export function SessionSidebar({
   isCollapsed: externalCollapsed,
   onToggleCollapsed,
   onShowProfile,
+  onSetPendingProjectId,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -49,6 +51,15 @@ export function SessionSidebar({
   const [imgError, setImgError] = useState(false);
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(true);
+
+  const handleNewSessionInProject = useCallback(
+    (projectId: string) => {
+      // passed via onSetPendingProjectId callback
+      onSetPendingProjectId?.(projectId);
+      onNewSession();
+    },
+    [onNewSession, onSetPendingProjectId],
+  );
 
   const isCollapsed = externalCollapsed ?? internalCollapsed;
   const setIsCollapsed = onToggleCollapsed ?? setInternalCollapsed;
@@ -461,6 +472,7 @@ export function SessionSidebar({
                           ? touchDrag.draggingSessionId
                           : null
                       }
+                      onNewSessionInProject={handleNewSessionInProject}
                     />
                   );
                 })}

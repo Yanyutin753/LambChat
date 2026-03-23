@@ -4,7 +4,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit2, Trash2, X } from "lucide-react";
+import { Edit2, Plus, Trash2, X } from "lucide-react";
 import type { Project } from "../../types";
 
 interface ProjectMenuProps {
@@ -13,6 +13,7 @@ interface ProjectMenuProps {
   onClose: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onNewSessionInProject?: (projectId: string) => void;
   anchorEl: HTMLElement | null;
 }
 
@@ -22,6 +23,7 @@ export function ProjectMenu({
   onClose,
   onRename,
   onDelete,
+  onNewSessionInProject,
   anchorEl,
 }: ProjectMenuProps) {
   // _project is available for future use (e.g., showing project info in menu)
@@ -118,6 +120,20 @@ export function ProjectMenu({
 
           {/* Menu items */}
           <div className="px-2 pb-4">
+            {/* New Session */}
+            {onNewSessionInProject && (
+              <button
+                onClick={() => {
+                  onNewSessionInProject(_project.id);
+                  onClose();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              >
+                <Plus size={18} />
+                <span>{t("chat.newSession")}</span>
+              </button>
+            )}
+
             {/* Rename */}
             <button
               onClick={() => {
@@ -177,6 +193,20 @@ export function ProjectMenu({
         <Edit2 size={14} />
         <span>{t("sidebar.rename")}</span>
       </button>
+
+      {/* New Session option */}
+      {onNewSessionInProject && (
+        <button
+          onClick={() => {
+            onNewSessionInProject(_project.id);
+            onClose();
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+        >
+          <Plus size={14} />
+          <span>{t("chat.newSession")}</span>
+        </button>
+      )}
 
       {/* Divider */}
       <div className="h-px bg-gray-200 dark:bg-stone-700 my-1" />

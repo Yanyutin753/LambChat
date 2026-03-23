@@ -187,6 +187,7 @@ export interface UseAgentReturn {
   refreshAgents: () => Promise<void>;
   loadHistory: (targetSessionId: string, targetRunId?: string) => Promise<void>;
   reconnectSSE: () => Promise<void>;
+  setPendingProjectId: (id: string | null) => void;
 }
 
 // Backend session type (simplified)

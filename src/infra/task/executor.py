@@ -376,6 +376,7 @@ class TaskExecutor:
         session_id: str,
         agent_id: str,
         user_id: str,
+        project_id: str | None = None,
     ) -> None:
         """确保 session 记录存在，不存在则创建
 
@@ -396,15 +397,20 @@ class TaskExecutor:
                 return
 
             # 创建新的 session
+            metadata = {"agent_id": agent_id}
+            if project_id:
+                metadata["project_id"] = project_id
             await self._storage.create(
                 SessionCreate(
                     name="新对话",
-                    metadata={"agent_id": agent_id},
+                    metadata=metadata,
                 ),
                 user_id=user_id,
                 session_id=session_id,
             )
-            logger.info(f"Created session {session_id} for user {user_id}")
+            logger.info(
+                f"Created session {session_id} for user {user_id} (project_id={project_id})"
+            )
         except PermissionError:
             raise  # 重新抛出权限错误
         except Exception as e:
