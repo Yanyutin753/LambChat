@@ -16,7 +16,6 @@ from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
     build_human_message,
     emit_token_usage,
-    run_with_retry,
     schedule_auto_retain,
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
@@ -177,19 +176,17 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     logger.info("[FastAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(presenter)
 
-    logger.info("[FastAgent] Starting run_with_retry (astream_events)")
-    # 流式处理事件（带重试，使用 astream_events）
-    # 注意：不预加载 skill_files，通过 SkillsStoreBackend 实时读写
-    await run_with_retry(
-        graph=inner_graph,
-        input_data={
-            "messages": all_messages,
-            "files": {},  # 不预加载，通过 SkillsStoreBackend 实时读写
-        },
-        config=inner_config,
-        event_processor=event_processor,
-    )
-    logger.info("[FastAgent] run_with_retry completed")
+    logger.info("[FastAgent] Starting astream_events")
+    # 流式处理事件（不重试，直接调用）
+    async for event in inner_graph.astream_events(
+        {"messages": all_messages, "files": {}},
+        inner_config,
+        version="v2",
+    ):
+        await event_processor.process_event(event)
+    # Flush any remaining buffered chunks
+    await event_processor._flush_chunk_buffer()
+    logger.info("[FastAgent] astream_events completed")
 
     # 发送 token 使用统计事件
     await emit_token_usage(event_processor, presenter, start_time)

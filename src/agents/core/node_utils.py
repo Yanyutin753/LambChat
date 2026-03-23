@@ -4,10 +4,7 @@ Agent 节点共享工具函数
 从 search_agent/nodes.py 和 fast_agent/nodes.py 中提取的公共逻辑。
 """
 
-import asyncio
-
 from langchain_core.messages import HumanMessage
-from langchain_core.runnables import RunnableConfig
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.logging import get_logger
@@ -93,83 +90,6 @@ def build_human_message(text: str, attachments: list[dict] | None) -> HumanMessa
         enhanced_text += f"\n- 链接: {url}"
 
     return HumanMessage(content=enhanced_text)
-
-
-def is_retryable_error(error: Exception) -> bool:
-    """判断错误是否可重试（429、网络错误等）"""
-    error_str = str(error).lower()
-    error_type = type(error).__name__.lower()
-
-    retryable_patterns = [
-        "429",  # rate limit
-        "503",  # service unavailable
-        "502",  # bad gateway
-        "504",  # gateway timeout
-        "timeout",
-        "connection",
-        "network",
-        "reset",
-        "refused",
-        "overloaded",
-    ]
-
-    retryable_types = [
-        "timeouterror",
-        "connectionerror",
-        "connectionreseterror",
-    ]
-
-    if any(pattern in error_str for pattern in retryable_patterns):
-        return True
-    if any(rt in error_type for rt in retryable_types):
-        return True
-
-    return False
-
-
-async def run_with_retry(
-    graph,
-    input_data: dict,
-    config: RunnableConfig,
-    event_processor: AgentEventProcessor,
-    max_retries: int | None = None,
-    base_delay: float | None = None,
-) -> None:
-    """带重试的 LLM 流式执行（使用 astream_events）"""
-    if max_retries is None:
-        max_retries = getattr(settings, "LLM_MAX_RETRIES", 3)
-    if base_delay is None:
-        base_delay = getattr(settings, "LLM_RETRY_DELAY", 1.0)
-
-    last_error: Exception | None = None
-    for attempt in range(max_retries):
-        try:
-            async for event in graph.astream_events(
-                input_data,
-                config,
-                version="v2",
-            ):
-                await event_processor.process_event(event)
-            # Flush any remaining buffered chunks
-            await event_processor._flush_chunk_buffer()
-            return
-        except Exception as e:
-            last_error = e
-            # Flush any buffered chunks before retrying (avoid data loss)
-            await event_processor._flush_chunk_buffer()
-            if is_retryable_error(e) and attempt < max_retries - 1:
-                delay = base_delay * (2**attempt)
-                logger.warning(
-                    f"LLM call failed (attempt {attempt + 1}/{max_retries}): {e}. "
-                    f"Retrying in {delay}s..."
-                )
-                await asyncio.sleep(delay)
-            else:
-                raise
-
-    if last_error is None:
-        raise RuntimeError("Unexpected state: no error but loop exhausted")
-    raise last_error
 
 
 async def emit_token_usage(

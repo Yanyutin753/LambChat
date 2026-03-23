@@ -17,7 +17,6 @@ from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
     build_human_message,
     emit_token_usage,
-    run_with_retry,
     schedule_auto_retain,
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
@@ -167,16 +166,16 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     logger.info("[SearchAgent] Creating AgentEventProcessor")
     event_processor = AgentEventProcessor(presenter)
 
-    logger.info("[SearchAgent] Starting run_with_retry (astream_events)")
-    # 流式处理事件（带重试，使用 astream_events）
-    await run_with_retry(
-        graph=inner_graph,
-        input_data={
-            "messages": all_messages,
-        },
-        config=inner_config,
-        event_processor=event_processor,
-    )
+    logger.info("[SearchAgent] Starting astream_events")
+    # 流式处理事件（不重试，直接调用）
+    async for event in inner_graph.astream_events(
+        {"messages": all_messages},
+        inner_config,
+        version="v2",
+    ):
+        await event_processor.process_event(event)
+    # Flush any remaining buffered chunks
+    await event_processor._flush_chunk_buffer()
 
     # 发送 token 使用统计事件
     await emit_token_usage(event_processor, presenter, start_time)
