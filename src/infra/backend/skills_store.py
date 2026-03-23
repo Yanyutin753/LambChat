@@ -366,15 +366,13 @@ class SkillsStoreBackend(BackendProtocol):
         storage = await self._get_storage()
 
         try:
-            # 只能编辑用户 skill
-            user_skill = await storage.get_user_skill(skill_name, self._user_id)
-            if not user_skill:
-                return EditResult(
-                    error=f"User skill '{skill_name}' not found. Cannot edit system skill files."
-                )
-
+            # 检查文件是否存在（只需确认 skill 存在 - 即有 toggle 或有文件）
             content = await storage.get_skill_file(skill_name, file_name, user_id=self._user_id)
             if content is None:
+                # 检查 skill 是否有任何文件
+                paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
+                if not paths:
+                    return EditResult(error=f"Skill '{skill_name}' not found")
                 return EditResult(error=f"File '{file_name}' not found in skill '{skill_name}'")
 
             # 检查 old_string 是否存在
@@ -401,7 +399,7 @@ class SkillsStoreBackend(BackendProtocol):
             await storage.set_skill_file(skill_name, file_name, new_content, user_id=self._user_id)
 
             # 清除缓存
-            await storage._invalidate_user_skills_cache(self._user_id)
+            await storage.invalidate_user_cache(self._user_id)
 
             # 发送 skills 变更事件
             if self._runtime:
