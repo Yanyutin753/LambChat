@@ -104,11 +104,6 @@ function MarketplacePage() {
   return <AppContent activeTab="marketplace" />;
 }
 
-function AdminMarketplacePage() {
-  usePageTitle("nav.adminMarketplace");
-  return <AppContent activeTab="admin-marketplace" />;
-}
-
 function UsersPage() {
   usePageTitle("nav.users");
   return <AppContent activeTab="users" />;
@@ -232,19 +227,6 @@ function App() {
                 toastMessage={t("errors.noPermission")}
               >
                 <MarketplacePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/marketplace"
-            element={
-              <ProtectedRoute
-                permissions={[Permission.SKILL_ADMIN]}
-                redirectTo="/chat"
-                showToast
-                toastMessage={t("errors.noPermission")}
-              >
-                <AdminMarketplacePage />
               </ProtectedRoute>
             }
           />

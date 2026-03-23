@@ -185,7 +185,6 @@ interface ChatInputProps {
   toolsLoading?: boolean;
   enabledToolsCount?: number;
   totalToolsCount?: number;
-  enableMcp?: boolean;
   // Skills
   skills?: SkillResponse[];
   onToggleSkill?: (name: string) => Promise<void>;
@@ -353,7 +352,6 @@ export const ChatInput = memo(function ChatInput({
   toolsLoading: _toolsLoading,
   enabledToolsCount = 0,
   totalToolsCount = 0,
-  enableMcp = true,
   // Skills
   skills = [],
   onToggleSkill,
@@ -584,8 +582,7 @@ export const ChatInput = memo(function ChatInput({
               {/* Other tool buttons in scrollable container */}
               <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
                 {/* Tool selector button */}
-                {enableMcp &&
-                  onToggleTool &&
+                {onToggleTool &&
                   onToggleCategory &&
                   onToggleAll && (
                     <ToolSelector

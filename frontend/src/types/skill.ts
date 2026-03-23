@@ -19,6 +19,8 @@ export interface UserSkill {
   installed_from: "manual" | "marketplace" | "builtin";
   created_at?: string;
   updated_at?: string;
+  is_published: boolean;
+  marketplace_is_active: boolean;
 }
 
 // User skill with files list (from GET /api/skills/{name})
@@ -27,6 +29,8 @@ export interface UserSkillDetail {
   enabled?: boolean;
   skill_name?: string;
   description?: string;
+  is_published?: boolean;
+  marketplace_is_active?: boolean;
 }
 
 // Skill file content response
@@ -39,6 +43,13 @@ export interface SkillToggleResponse {
   skill_name: string;
   enabled: boolean;
   message: string;
+}
+
+// Publish to marketplace request
+export interface PublishToMarketplaceRequest {
+  description?: string;
+  tags?: string[];
+  version?: string;
 }
 
 // ============================================
@@ -57,6 +68,8 @@ export interface SkillResponse {
   installed_from: "manual" | "marketplace" | "builtin";
   created_at?: string;
   updated_at?: string;
+  is_published: boolean;
+  marketplace_is_active: boolean;
 }
 
 // Skills list response
@@ -95,7 +108,19 @@ export interface MarketplaceSkillResponse {
   created_at?: string;
   updated_at?: string;
   created_by?: string;
+  created_by_username?: string;
+  is_active: boolean;
+  is_owner: boolean;
   file_count: number;
+}
+
+// Direct create in marketplace request
+export interface MarketplaceCreateRequest {
+  skill_name: string;
+  description?: string;
+  tags?: string[];
+  version?: string;
+  files: Record<string, string>;
 }
 
 // Marketplace skill files response
@@ -121,25 +146,6 @@ export interface MarketplaceUpdateResponse extends MarketplaceInstallResponse {}
 // Tags response
 export interface TagsResponse {
   tags: string[];
-}
-
-// ============================================
-// Admin Marketplace Types (from /api/admin/marketplace/)
-// ============================================
-
-// Admin create marketplace skill request
-export interface AdminMarketplaceSkillCreate {
-  skill_name: string;
-  description?: string;
-  tags?: string[];
-  version?: string;
-}
-
-// Admin update marketplace skill request
-export interface AdminMarketplaceSkillUpdate {
-  description?: string;
-  tags?: string[];
-  version?: string;
 }
 
 // ============================================

@@ -7,6 +7,7 @@ import {
   Package,
   ShoppingBag,
   User,
+  Globe,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SkillResponse } from "../../types";
@@ -16,6 +17,9 @@ interface SkillCardProps {
   onToggle: (name: string) => void;
   onEdit: (skill: SkillResponse) => void;
   onDelete: (name: string) => void;
+  onPublish?: (name: string) => void;
+  isPublished?: boolean;
+  marketplaceIsActive?: boolean;
 }
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -40,6 +44,9 @@ export function SkillCard({
   onToggle,
   onEdit,
   onDelete,
+  onPublish,
+  isPublished,
+  marketplaceIsActive,
 }: SkillCardProps) {
   const { t } = useTranslation();
   const sourceLabel = t(`skillSelector.sources.${skill.source}`, skill.source);
@@ -67,6 +74,12 @@ export function SkillCard({
               {SOURCE_ICONS[skill.source]}
               {sourceLabel}
             </span>
+            {isPublished && (
+              <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                <Globe size={10} />
+                {t("skills.card.published")}
+              </span>
+            )}
             {!skill.enabled && (
               <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500 dark:bg-stone-800 dark:text-stone-500">
                 {t("skills.card.disabled")}
@@ -113,6 +126,33 @@ export function SkillCard({
           >
             <Edit3 size={20} />
           </button>
+          {skill.source === "manual" && onPublish && (
+            <button
+              onClick={() => onPublish(skill.name)}
+              className="btn-icon"
+              title={
+                isPublished
+                  ? t("skills.card.republish")
+                  : t("skills.card.publishToMarketplace")
+              }
+            >
+              {isPublished ? (
+                marketplaceIsActive === false ? (
+                  <Globe
+                    size={20}
+                    className="text-amber-500 dark:text-amber-400"
+                  />
+                ) : (
+                  <Globe
+                    size={20}
+                    className="text-green-600 dark:text-green-500"
+                  />
+                )
+              ) : (
+                <Globe size={20} className="text-stone-400 dark:text-stone-500" />
+              )}
+            </button>
+          )}
           <button
             onClick={() => onDelete(skill.name)}
             className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"

@@ -98,6 +98,55 @@ async def fetch_github_dir(
         return resp.json()
 
 
+async def fetch_all_files_recursive(
+    owner: str,
+    repo: str,
+    branch: str,
+    dir_path: str = "",
+    prefix: str = "",
+) -> dict[str, str]:
+    """
+    递归获取 GitHub 目录下所有文件内容
+
+    Args:
+        owner: GitHub owner
+        repo: GitHub repo
+        branch: 分支名
+        dir_path: GitHub 上的目录路径
+        prefix: 文件路径前缀（用于相对路径）
+
+    Returns:
+        {相对文件路径: 文件内容}
+    """
+    files: dict[str, str] = {}
+
+    try:
+        contents = await fetch_github_dir(owner, repo, branch, dir_path)
+    except Exception as e:
+        logger.warning(f"Failed to fetch GitHub dir {owner}/{repo}/{dir_path}: {e}")
+        return files
+
+    for item in contents:
+        # 跳过隐藏文件和 __pycache__
+        if item["name"].startswith(".") or item["name"] == "__pycache__":
+            continue
+
+        if item["type"] == "file":
+            content = await fetch_github_file(owner, repo, branch, item["path"])
+            if content is not None:
+                rel_path = f"{prefix}{item['name']}" if prefix else item["name"]
+                files[rel_path] = content
+        elif item["type"] == "dir":
+            # 递归进入子目录
+            sub_prefix = f"{prefix}{item['name']}/" if prefix else f"{item['name']}/"
+            sub_files = await fetch_all_files_recursive(
+                owner, repo, branch, item["path"], sub_prefix
+            )
+            files.update(sub_files)
+
+    return files
+
+
 async def fetch_github_file(
     owner: str,
     repo: str,
@@ -111,6 +160,59 @@ async def fetch_github_file(
         if resp.status_code != 200:
             return None
         return resp.text
+
+
+def _parse_skill_md(skill_md: str, fallback_name: str, fallback_source: str) -> dict[str, Any]:
+    """从 SKILL.md 内容解析技能名称和描述，支持 YAML 多行值（|, >）"""
+    name = fallback_name
+    description = ""
+
+    # 提取 --- ... --- frontmatter 块
+    frontmatter = ""
+    lines = skill_md.splitlines()
+    in_frontmatter = False
+    frontmatter_lines: list[str] = []
+    for line in lines:
+        if line.strip() == "---" and not in_frontmatter:
+            in_frontmatter = True
+            continue
+        elif line.strip() == "---" and in_frontmatter:
+            break
+        elif in_frontmatter:
+            frontmatter_lines.append(line)
+
+    if frontmatter_lines:
+        frontmatter = "\n".join(frontmatter_lines)
+        # 使用 yaml 解析 frontmatter
+        try:
+            import yaml
+            meta = yaml.safe_load(frontmatter) or {}
+            if isinstance(meta.get("name"), str):
+                name = meta["name"]
+            if isinstance(meta.get("description"), str):
+                description = meta["description"].strip()
+        except Exception:
+            # yaml 解析失败，回退到手动解析
+            pass
+
+    # 回退：手动逐行解析（处理非 frontmatter 或 yaml 不可用的情况）
+    if not description:
+        for line in lines[:20]:
+            if line.startswith("name:") and name == fallback_name:
+                name = line.split("name:", 1)[1].strip().strip('"').strip("'")
+            elif line.startswith("description:"):
+                val = line.split("description:", 1)[1].strip()
+                if val in ("|", ">"):
+                    continue  # 多行指示符，跳过
+                if not val.startswith("---"):
+                    description = val.strip('"').strip("'")
+            elif line.startswith("# ") and not description:
+                description = line[2:].strip()
+
+    return {
+        "name": name,
+        "description": description or f"Skill from {fallback_source}",
+    }
 
 
 async def scan_for_skills(
@@ -134,41 +236,16 @@ async def scan_for_skills(
             skill_md_url = f"{item['path']}/SKILL.md"
             skill_md = await fetch_github_file(owner, repo, branch, skill_md_url)
             if skill_md:
-                # 解析技能名称和描述
-                name = item["name"]
-                description = ""
-                for line in skill_md.splitlines()[:10]:
-                    if line.startswith("name:"):
-                        name = line.split("name:", 1)[1].strip().strip('"').strip("'")
-                    elif line.startswith("description:"):
-                        description = line.split("description:", 1)[1].strip().strip('"').strip("'")
-                    elif line.startswith("# ") and not description:
-                        description = line[2:].strip()
-
-                skills.append({
-                    "name": name,
-                    "path": item["path"],
-                    "description": description or f"Skill from {item['name']}",
-                })
+                parsed = _parse_skill_md(skill_md, item["name"], item["name"])
+                parsed["path"] = item["path"]
+                skills.append(parsed)
         elif item["type"] == "file" and item["name"] == "SKILL.md":
             # 根目录的 SKILL.md
             skill_md = await fetch_github_file(owner, repo, branch, item["path"])
             if skill_md:
-                name = repo
-                description = ""
-                for line in skill_md.splitlines()[:10]:
-                    if line.startswith("name:"):
-                        name = line.split("name:", 1)[1].strip().strip('"').strip("'")
-                    elif line.startswith("description:"):
-                        description = line.split("description:", 1)[1].strip().strip('"').strip("'")
-                    elif line.startswith("# ") and not description:
-                        description = line[2:].strip()
-
-                skills.append({
-                    "name": name,
-                    "path": "",
-                    "description": description or f"Skill from {repo}",
-                })
+                parsed = _parse_skill_md(skill_md, repo, repo)
+                parsed["path"] = ""
+                skills.append(parsed)
 
     return skills
 
@@ -238,22 +315,8 @@ async def install_github_skills(
 
             skill_path = skill_info["path"]
 
-            # 获取技能目录中的所有文件
-            contents = await fetch_github_dir(owner, repo, request.branch, skill_path)
-            if not contents:
-                errors.append(f"Failed to fetch files for '{skill_name}'")
-                continue
-
-            # 下载所有文件
-            files = {}
-            for item in contents:
-                if item["type"] == "file" and not item["name"].startswith("."):
-                    content = await fetch_github_file(owner, repo, request.branch, item["path"])
-                    if content is not None:
-                        # 使用相对路径
-                        rel_path = item["name"] if not skill_path else item["path"].replace(skill_path + "/", "")
-                        files[rel_path] = content
-
+            # 递归获取技能目录中的所有文件（包括子目录）
+            files = await fetch_all_files_recursive(owner, repo, request.branch, skill_path)
             if not files:
                 errors.append(f"No files found for '{skill_name}'")
                 continue

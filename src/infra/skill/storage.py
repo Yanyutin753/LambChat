@@ -300,7 +300,6 @@ class SkillStorage:
                 "$set": {
                     "enabled": enabled,
                     "updated_at": now,
-                    **({"installed_from": installed_from.value} if installed_from else {}),
                 },
                 "$setOnInsert": {
                     "skill_name": skill_name,

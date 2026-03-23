@@ -3,6 +3,7 @@ import { marketplaceApi } from "../services/api/marketplace";
 import type {
   MarketplaceSkillResponse,
   MarketplaceSkillFilesResponse,
+  MarketplaceCreateRequest,
 } from "../types";
 
 export function useMarketplace() {
@@ -12,6 +13,15 @@ export function useMarketplace() {
   const [error, setError] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Debounced search value for API calls
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Preview state
   const [previewSkill, setPreviewSkill] =
@@ -35,7 +45,7 @@ export function useMarketplace() {
         selectedTags.length > 0 ? selectedTags.join(",") : undefined;
       const data = await marketplaceApi.list({
         tags: tagsParam,
-        search: searchQuery || undefined,
+        search: debouncedSearch || undefined,
       });
       setSkills(data ?? []);
     } catch (err) {
@@ -47,7 +57,7 @@ export function useMarketplace() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTags, searchQuery]);
+  }, [selectedTags, debouncedSearch]);
 
   // Fetch all tags
   const fetchTags = useCallback(async () => {
@@ -141,7 +151,66 @@ export function useMarketplace() {
   const clearFilters = useCallback(() => {
     setSelectedTags([]);
     setSearchQuery("");
+    setDebouncedSearch("");
   }, []);
+
+  // Create and publish skill directly in marketplace
+  const createAndPublish = useCallback(
+    async (data: MarketplaceCreateRequest): Promise<boolean> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await marketplaceApi.createAndPublish(data);
+        await fetchSkills();
+        await fetchTags();
+        return true;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to create skill",
+        );
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchSkills, fetchTags],
+  );
+
+  // Admin: activate/deactivate skill
+  const activateSkill = useCallback(
+    async (skillName: string, isActive: boolean): Promise<boolean> => {
+      setError(null);
+      try {
+        await marketplaceApi.activate(skillName, isActive);
+        await fetchSkills();
+        return true;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to update skill",
+        );
+        return false;
+      }
+    },
+    [fetchSkills],
+  );
+
+  // Admin: delete skill from marketplace
+  const deleteSkill = useCallback(
+    async (skillName: string): Promise<boolean> => {
+      setError(null);
+      try {
+        await marketplaceApi.deleteSkill(skillName);
+        await fetchSkills();
+        return true;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to delete skill",
+        );
+        return false;
+      }
+    },
+    [fetchSkills],
+  );
 
   // Initial load
   useEffect(() => {
@@ -166,6 +235,9 @@ export function useMarketplace() {
     fetchSkills,
     installSkill,
     updateSkill,
+    createAndPublish,
+    activateSkill,
+    deleteSkill,
     clearError: () => setError(null),
     // Preview
     previewSkill,

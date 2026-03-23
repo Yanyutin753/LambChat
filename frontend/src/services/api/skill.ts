@@ -16,7 +16,8 @@ import type {
   SkillFileResponse,
   SkillToggleResponse,
   SkillCreate,
-  MarketplaceInstallResponse,
+  MarketplaceSkillResponse,
+  PublishToMarketplaceRequest,
 } from "../../types/skill";
 
 const SKILLS_API = `${API_BASE}/api/skills`;
@@ -199,21 +200,6 @@ export const skillApi = {
   },
 
   /**
-   * Install skill from marketplace
-   */
-  async installFromMarketplace(
-    skillName: string,
-  ): Promise<MarketplaceInstallResponse> {
-    const marketplaceApi = `${API_BASE}/api/marketplace`;
-    return authFetch(
-      `${marketplaceApi}/${encodeURIComponent(skillName)}/install`,
-      {
-        method: "POST",
-      },
-    );
-  },
-
-  /**
    * Upload skill from ZIP file
    */
   async uploadZip(file: File): Promise<{ message: string; skill_name: string; file_count: number }> {
@@ -257,6 +243,19 @@ export const skillApi = {
     return authFetch(`${API_BASE}/api/github/install`, {
       method: "POST",
       body: JSON.stringify({ repo_url: repoUrl, branch, skill_names: skillNames }),
+    });
+  },
+
+  /**
+   * Publish skill to marketplace
+   */
+  async publishToMarketplace(
+    skillName: string,
+    data?: PublishToMarketplaceRequest,
+  ): Promise<MarketplaceSkillResponse> {
+    return authFetch(`${SKILLS_API}/${encodeURIComponent(skillName)}/publish`, {
+      method: "POST",
+      body: JSON.stringify(data || {}),
     });
   },
 };

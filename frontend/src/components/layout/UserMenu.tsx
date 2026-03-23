@@ -27,7 +27,7 @@ interface UserMenuProps {
 export function UserMenu({ onShowProfile }: UserMenuProps) {
   const { t } = useTranslation();
   const { logout, hasAnyPermission, user } = useAuth();
-  const { enableMcp, enableSkills } = useSettingsContext();
+  const { enableSkills } = useSettingsContext();
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const [imgError, setImgError] = useState(false);
@@ -40,14 +40,13 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
 
   const canReadSkills =
     hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
-  const canAdminMarketplace = hasAnyPermission([Permission.SKILL_ADMIN]);
   const canManageUsers = hasAnyPermission([
     Permission.USER_READ,
     Permission.USER_WRITE,
   ]);
   const canManageRoles = hasAnyPermission([Permission.ROLE_MANAGE]);
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
-  const canReadMCP = hasAnyPermission([Permission.MCP_READ]) && enableMcp;
+  const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
   const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canManageAgents = hasAnyPermission([Permission.AGENT_READ]);
@@ -126,12 +125,6 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       label: t("nav.marketplace"),
       icon: ShoppingBag,
       show: canReadSkills,
-    },
-    {
-      path: "/admin/marketplace",
-      label: t("nav.adminMarketplace"),
-      icon: ShoppingBag,
-      show: canAdminMarketplace,
     },
     { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
     {

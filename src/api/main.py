@@ -266,12 +266,6 @@ def create_app() -> FastAPI:
 
     app.include_router(marketplace_router, prefix="/api/marketplace", tags=["Marketplace"])
 
-    # Admin marketplace API
-    from src.api.routes.admin.marketplace import router as admin_marketplace_router
-
-    app.include_router(
-        admin_marketplace_router, prefix="/api/admin/marketplace", tags=["Admin:Marketplace"]
-    )
     app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
     app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])
     app.include_router(mcp.admin_router, prefix="/api/admin/mcp", tags=["MCP Admin"])

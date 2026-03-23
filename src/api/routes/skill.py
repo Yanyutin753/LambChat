@@ -1,19 +1,27 @@
 """
 用户 Skills API
 
-提供用户 Skills 的 CRUD 和 Toggle 操作。
+提供用户 Skills 的 CRUD、Toggle 和发布到商店操作。
 Simplified architecture: files + toggle, no system/user split.
 """
 
 import io
 import zipfile
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from src.api.deps import require_permissions
+from src.infra.skill.marketplace import MarketplaceStorage
 from src.infra.skill.storage import SkillStorage
-from src.infra.skill.types import UserSkill
+from src.infra.skill.types import (
+    MarketplaceSkillCreate,
+    MarketplaceSkillResponse,
+    MarketplaceSkillUpdate,
+    UserSkill,
+)
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -23,7 +31,19 @@ def get_storage() -> SkillStorage:
     return SkillStorage()
 
 
+def get_marketplace_storage() -> MarketplaceStorage:
+    return MarketplaceStorage()
+
+
 MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+class PublishToMarketplaceRequest(BaseModel):
+    """发布到商店的请求（可选覆盖 metadata）"""
+
+    description: Optional[str] = None
+    tags: Optional[list[str]] = None
+    version: Optional[str] = None
 
 
 def _parse_zip_content(zip_content: bytes) -> tuple[str, dict[str, str]]:
@@ -164,8 +184,9 @@ async def upload_skill_from_zip(
 async def list_user_skills(
     user: TokenPayload = Depends(require_permissions("skill:read")),
     storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
-    """列出用户安装的所有 Skills"""
+    """列出用户安装的所有 Skills（含发布状态）"""
     skills = await storage.list_user_skills(user.sub)
     if not skills:
         return []
@@ -173,6 +194,9 @@ async def list_user_skills(
     # 批量获取所有 skill 的文件
     skill_keys = [(s["skill_name"], user.sub) for s in skills]
     all_files = await storage.batch_get_skill_files(skill_keys)
+
+    # 批量查询发布状态
+    published_map = await marketplace.get_user_published_skills(user.sub)
 
     def extract_description(files: dict[str, str]) -> str:
         """从 SKILL.md 提取 description"""
@@ -194,6 +218,8 @@ async def list_user_skills(
             installed_from=s.get("installed_from"),
             created_at=s.get("created_at"),
             updated_at=s.get("updated_at"),
+            is_published=s["skill_name"] in published_map,
+            marketplace_is_active=published_map.get(s["skill_name"], {}).get("is_active", True),
         )
         for s in skills
     ]
@@ -204,12 +230,14 @@ async def get_user_skill(
     name: str,
     user: TokenPayload = Depends(require_permissions("skill:read")),
     storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """获取用户某个 Skill 的详细信息"""
     skills = await storage.list_user_skills(user.sub)
     for s in skills:
         if s["skill_name"] == name:
             files = await storage.get_skill_files(name, user.sub)
+            published_map = await marketplace.get_user_published_skills(user.sub)
             return UserSkill(
                 skill_name=name,
                 enabled=s["enabled"],
@@ -218,6 +246,8 @@ async def get_user_skill(
                 installed_from=s.get("installed_from"),
                 created_at=s.get("created_at"),
                 updated_at=s.get("updated_at"),
+                is_published=name in published_map,
+                marketplace_is_active=published_map.get(name, {}).get("is_active", True),
             )
     raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
 
@@ -278,8 +308,14 @@ async def delete_user_skill(
     name: str,
     user: TokenPayload = Depends(require_permissions("skill:delete")),
     storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
-    """删除（卸载）用户的 Skill"""
+    """删除（卸载）用户的 Skill，同时取消商店发布"""
+    # 如果是自己在商店发布的，同时取消发布（不删别人的）
+    existing_mp = await marketplace.get_marketplace_skill(name)
+    if existing_mp and existing_mp.created_by == user.sub:
+        await marketplace.delete_marketplace_skill(name)
+
     # 使用原子操作同时删除文件和开关
     await storage.delete_skill_and_toggle(name, user.sub)
 
@@ -308,3 +344,66 @@ async def toggle_user_skill(
         "enabled": toggle.enabled,
         "message": f"Skill '{name}' is now {status}",
     }
+
+
+# ==========================================
+# 发布到商店
+# ==========================================
+
+
+@router.post("/{name}/publish", response_model=MarketplaceSkillResponse)
+async def publish_skill_to_marketplace(
+    name: str,
+    data: Optional[PublishToMarketplaceRequest] = None,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """将用户的 Skill 发布到商店（支持多次发布更新）"""
+    # 1. 获取用户的 skill 文件
+    user_files = await storage.get_skill_files(name, user.sub)
+    if not user_files:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+
+    # 2. 从 SKILL.md 提取默认 description
+    default_description = ""
+    for line in user_files.get("SKILL.md", "").splitlines():
+        if line.startswith("description:"):
+            default_description = line.split("description:", 1)[1].strip().strip('"').strip("'")
+            break
+        if line.startswith("# "):
+            default_description = line[2:].strip()
+
+    # 3. 检查商店是否已有同名 skill
+    existing = await marketplace.get_marketplace_skill(name)
+    if existing:
+        if existing.created_by != user.sub:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Skill name '{name}' is already taken in marketplace by another user",
+            )
+        # 已存在且是自己的 → 更新 metadata + 同步文件
+        update_data = MarketplaceSkillUpdate(
+            description=data.description if data and data.description is not None else default_description,
+            tags=data.tags if data and data.tags is not None else existing.tags,
+            version=data.version if data and data.version is not None else existing.version,
+        )
+        await marketplace.update_marketplace_skill(name, update_data)
+    else:
+        # 不存在 → 创建
+        create_data = MarketplaceSkillCreate(
+            skill_name=name,
+            description=data.description if data and data.description is not None else default_description,
+            tags=data.tags if data and data.tags is not None else [],
+            version=data.version if data and data.version is not None else "1.0.0",
+        )
+        await marketplace.create_marketplace_skill(create_data, user_id=user.sub)
+
+    # 4. 同步文件到商店
+    await marketplace.sync_marketplace_files(name, user_files)
+
+    # 5. 返回更新后的响应
+    response = await marketplace.get_marketplace_skill_response(name)
+    if not response:
+        raise HTTPException(status_code=500, detail="Failed to publish skill")
+    return response

@@ -6,19 +6,24 @@ import {
   Tag,
   FileText,
   ShoppingBag,
-  Loader2,
+  Plus,
+  Trash2,
+  Loader2 as Loader2Icon,
   Eye,
   ChevronRight,
   RefreshCcw,
+  Pencil,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ConfirmDialog } from "../common/ConfirmDialog";
+import { SkillForm } from "../skill/SkillForm";
 import { useMarketplace } from "../../hooks/useMarketplace";
 import { useSkills } from "../../hooks/useSkills";
 import { Permission } from "../../types";
+import type { SkillResponse, SkillCreate } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
 
 export function MarketplacePanel() {
@@ -37,6 +42,8 @@ export function MarketplacePanel() {
     fetchSkills,
     installSkill,
     updateSkill,
+    activateSkill,
+    deleteSkill,
     clearError,
     previewSkill,
     previewFiles,
@@ -48,8 +55,9 @@ export function MarketplacePanel() {
     closePreview,
   } = useMarketplace();
 
-  const { skills: userSkills, fetchSkills: fetchUserSkills } = useSkills();
+  const { skills: userSkills, fetchSkills: fetchUserSkills, getSkill, createSkill, updateSkill: updateUserSkill } = useSkills();
   const canWrite = hasAnyPermission([Permission.SKILL_WRITE]);
+  const canAdmin = hasAnyPermission([Permission.SKILL_ADMIN]);
 
   // Build set of installed skill names
   const installedNames = new Set(userSkills.map((s) => s.name));
@@ -66,6 +74,39 @@ export function MarketplacePanel() {
     action: "install" | "update";
   } | null>(null);
   const [installingSkill, setInstallingSkill] = useState<string | null>(null);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Edit modal state
+  const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isFormFullscreen, setIsFormFullscreen] = useState(false);
+
+  const [adminDeleteConfirm, setAdminDeleteConfirm] = useState<{
+    isOpen: boolean;
+    skillName: string;
+  } | null>(null);
+
+  const handleActivate = async (skillName: string, isActive: boolean) => {
+    const success = await activateSkill(skillName, isActive);
+    if (success) {
+      toast.success(isActive ? t("marketplace.activateSuccess") : t("marketplace.deactivateSuccess"));
+    }
+  };
+
+  const handleAdminDelete = (skillName: string) => {
+    setAdminDeleteConfirm({ isOpen: true, skillName });
+  };
+
+  const confirmAdminDelete = async () => {
+    if (!adminDeleteConfirm) return;
+    const success = await deleteSkill(adminDeleteConfirm.skillName);
+    if (success) {
+      toast.success(t("marketplace.deleteSuccess"));
+      await fetchUserSkills();
+    }
+    setAdminDeleteConfirm(null);
+  };
 
   const handleInstallClick = (skillName: string) => {
     const action = installedNames.has(skillName) ? "update" : "install";
@@ -90,7 +131,6 @@ export function MarketplacePanel() {
             ? t("marketplace.installSuccess", { name: skillName })
             : t("marketplace.updateSuccess", { name: skillName }),
         );
-        // Refresh user skills list
         await fetchUserSkills();
       } else {
         toast.error(
@@ -107,6 +147,55 @@ export function MarketplacePanel() {
 
   const cancelInstall = () => {
     setInstallConfirm(null);
+  };
+
+  // Edit handlers — open SkillForm for own published skills
+  const handleEdit = async (skillName: string) => {
+    const fullSkill = await getSkill(skillName);
+    setEditingSkill(fullSkill || null);
+    setIsCreating(false);
+  };
+
+  const handleCreate = () => {
+    setEditingSkill(null);
+    setIsCreating(true);
+  };
+
+  const handleSave = async (data: SkillCreate): Promise<boolean> => {
+    try {
+      let success = false;
+      if (isCreating) {
+        success = await createSkill(data);
+      } else if (editingSkill) {
+        const oldFiles = Object.keys(editingSkill.files);
+        const newFiles = data.files ? Object.keys(data.files) : [];
+        const deletedFiles = oldFiles.filter((f) => !newFiles.includes(f));
+        success = await updateUserSkill(editingSkill.name, {
+          description: data.description,
+          content: data.content,
+          files: data.files,
+          deletedFiles,
+        });
+      }
+      if (success) {
+        setEditingSkill(null);
+        setIsCreating(false);
+        setIsFormFullscreen(false);
+        setShowCreateModal(false);
+        await fetchSkills();
+        await fetchUserSkills();
+      }
+      return success;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleFormCancel = () => {
+    setEditingSkill(null);
+    setIsCreating(false);
+    setIsFormFullscreen(false);
+    setShowCreateModal(false);
   };
 
   const hasActiveFilters = selectedTags.length > 0 || searchQuery.length > 0;
@@ -127,13 +216,17 @@ export function MarketplacePanel() {
         onSearchChange={setSearchQuery}
         searchPlaceholder={t("marketplace.searchPlaceholder")}
         actions={
-          <button
-            onClick={() => fetchSkills()}
-            className="btn-secondary"
-            title={t("common.refresh")}
-          >
-            <RefreshCw size={16} className="sm:size-[18px]" />
-          </button>
+          <div className="flex items-center gap-2">
+            {canWrite && (
+              <button onClick={handleCreate} className="btn-primary">
+                <Plus size={16} />
+                <span className="hidden sm:inline">{t("marketplace.createAndPublish")}</span>
+              </button>
+            )}
+            <button onClick={() => fetchSkills()} className="btn-secondary" title={t("common.refresh")}>
+              <RefreshCw size={16} className="sm:size-[18px]" />
+            </button>
+          </div>
         }
       />
 
@@ -211,10 +304,16 @@ export function MarketplacePanel() {
           <div className="space-y-2">
             {skills.map((skill) => {
               const isInstalled = installedNames.has(skill.skill_name);
+              const isOwner = skill.is_owner;
+              const canManage = isOwner || canAdmin;
               return (
                 <div
                   key={skill.skill_name}
-                  className="rounded-xl border border-stone-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-800/50"
+                  className={`rounded-xl border p-3 ${
+                    skill.is_active
+                      ? "border-stone-200 bg-white dark:border-stone-700 dark:bg-stone-800/50"
+                      : "border-stone-200 bg-stone-50 opacity-60 dark:border-stone-700 dark:bg-stone-800/30"
+                  }`}
                 >
                   {/* Skill Header */}
                   <div className="flex items-start justify-between gap-2">
@@ -257,24 +356,26 @@ export function MarketplacePanel() {
                         {t("marketplace.installed")}
                       </span>
                     )}
+                    {skill.created_by_username && (
+                      <span className="text-stone-400">
+                        {t("marketplace.publishedBy", { username: skill.created_by_username })}
+                      </span>
+                    )}
                   </div>
 
-                  {/* Action Buttons */}
-                  {canWrite && (
-                    <div className="mt-3 flex justify-end gap-2">
-                      <button
-                        onClick={() => openPreview(skill)}
-                        className="btn-secondary text-xs"
-                      >
-                        <Eye size={14} />
-                        <span>{t("marketplace.preview")}</span>
-                      </button>
-                      {installingSkill === skill.skill_name ? (
-                        <button
-                          disabled
-                          className="btn-primary opacity-50 text-xs"
-                        >
-                          <Loader2 size={14} className="animate-spin" />
+                  {/* Row 1: Browse actions (all users) */}
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button
+                      onClick={() => openPreview(skill)}
+                      className="btn-secondary text-xs"
+                    >
+                      <Eye size={14} />
+                      <span>{t("marketplace.preview")}</span>
+                    </button>
+                    {canWrite && !isOwner && (
+                      installingSkill === skill.skill_name ? (
+                        <button disabled className="btn-primary opacity-50 text-xs">
+                          <Loader2Icon size={14} className="animate-spin" />
                           <span>{t("marketplace.installing")}</span>
                         </button>
                       ) : (
@@ -296,7 +397,39 @@ export function MarketplacePanel() {
                             </>
                           )}
                         </button>
+                      )
+                    )}
+                  </div>
+
+                  {/* Row 2: Creator / Admin management */}
+                  {canManage && (
+                    <div className="mt-2 flex items-center gap-2 pt-2 border-t border-stone-100 dark:border-stone-700">
+                      {isOwner && (
+                        <button
+                          onClick={() => handleEdit(skill.skill_name)}
+                          className="btn-secondary text-xs"
+                        >
+                          <Pencil size={14} />
+                          <span>{t("common.edit")}</span>
+                        </button>
                       )}
+                      <div className="flex-1" />
+                      <button
+                        onClick={() => handleActivate(skill.skill_name, !skill.is_active)}
+                        className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                          skill.is_active
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                            : "bg-stone-100 text-stone-500 dark:bg-stone-700 dark:text-stone-400"
+                        }`}
+                      >
+                        {skill.is_active ? t("marketplace.active") : t("marketplace.inactive")}
+                      </button>
+                      <button
+                        onClick={() => handleAdminDelete(skill.skill_name)}
+                        className="text-xs text-stone-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -409,7 +542,7 @@ export function MarketplacePanel() {
                           />
                           <span className="flex-1 truncate">{filePath}</span>
                           {previewFileLoading === filePath ? (
-                            <Loader2
+                            <Loader2Icon
                               size={12}
                               className="animate-spin text-stone-400"
                             />
@@ -438,6 +571,55 @@ export function MarketplacePanel() {
           </div>
         </div>
       )}
+
+      {/* Create / Edit Modal */}
+      {(showCreateModal || editingSkill) && (
+        <>
+          {!isFormFullscreen && (
+            <div className="fixed inset-0" onClick={handleFormCancel} />
+          )}
+          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+              {!isFormFullscreen && (
+                <>
+                  <div className="bottom-sheet-handle sm:hidden" />
+                  <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800 shrink-0">
+                    <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
+                      {isCreating
+                        ? t("marketplace.createTitle")
+                        : t("skills.editSkill", { name: editingSkill?.name })}
+                    </h3>
+                    <button onClick={handleFormCancel} className="btn-icon">
+                      <X size={20} />
+                    </button>
+                  </div>
+                </>
+              )}
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-2 sm:px-4 py-2 sm:py-3">
+                <SkillForm
+                  skill={editingSkill}
+                  onSave={handleSave}
+                  onCancel={handleFormCancel}
+                  isLoading={isLoading}
+                  onFullscreenChange={setIsFormFullscreen}
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={adminDeleteConfirm?.isOpen ?? false}
+        title={t("marketplace.confirmDelete", { name: adminDeleteConfirm?.skillName })}
+        message={t("marketplace.confirmDeleteMessage")}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
+        onConfirm={confirmAdminDelete}
+        onCancel={() => setAdminDeleteConfirm(null)}
+        variant="danger"
+      />
     </div>
   );
 }

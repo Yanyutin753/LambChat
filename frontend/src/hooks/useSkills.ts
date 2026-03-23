@@ -15,6 +15,7 @@ import type {
   UserSkill,
   UserSkillDetail,
   SkillCreate,
+  PublishToMarketplaceRequest,
 } from "../types/skill";
 
 // Map installed_from to SkillSource
@@ -53,6 +54,8 @@ function composeSkillResponse(
     installed_from: userSkill.installed_from,
     created_at: userSkill.created_at,
     updated_at: userSkill.updated_at,
+    is_published: userSkill.is_published,
+    marketplace_is_active: userSkill.marketplace_is_active,
   };
 }
 
@@ -140,7 +143,7 @@ export function useSkills(options?: { enabled?: boolean }) {
   const updateSkill = useCallback(
     async (
       name: string,
-      updates: { description?: string; content?: string; enabled?: boolean },
+      updates: { description?: string; content?: string; enabled?: boolean; files?: Record<string, string>; deletedFiles?: string[] },
     ): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
@@ -316,6 +319,25 @@ export function useSkills(options?: { enabled?: boolean }) {
   const enabledCount = skills.filter((s) => s.enabled).length;
   const totalCount = skills.length;
 
+  // Publish skill to marketplace
+  const publishToMarketplace = useCallback(
+    async (name: string, data?: PublishToMarketplaceRequest): Promise<boolean> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await skillApi.publishToMarketplace(name, data);
+        await fetchSkills();
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to publish skill");
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchSkills],
+  );
+
   // Initial load
   useEffect(() => {
     fetchSkills();
@@ -337,6 +359,7 @@ export function useSkills(options?: { enabled?: boolean }) {
     uploadSkill,
     previewGitHubSkills,
     installGitHubSkills,
+    publishToMarketplace,
     getEnabledSkillNames,
     getCategoryStats,
     enabledCount,

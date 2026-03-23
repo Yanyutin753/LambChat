@@ -160,7 +160,7 @@ async def init_builtin_skills() -> int:
                             description=description,
                             tags=tags or [],
                         ),
-                        admin_user_id="system",
+                        user_id="system",
                     )
             except ValueError as e:
                 logger.warning(f"Failed to upsert marketplace skill {name}: {e}")

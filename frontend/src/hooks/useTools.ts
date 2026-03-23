@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { getAccessToken } from "../services/api";
+import { authApi } from "../services/api";
 import type {
   ToolInfo,
   ToolState,
@@ -8,83 +9,81 @@ import type {
 } from "../types";
 
 const API_BASE = "/api";
-const DISABLED_TOOLS_KEY = "disabled_tools";
 
-// 从 localStorage 读取禁用的工具列表
-function loadDisabledTools(): Set<string> {
-  try {
-    const stored = localStorage.getItem(DISABLED_TOOLS_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return new Set(Array.isArray(parsed) ? parsed : []);
-    }
-  } catch {
-    // 忽略解析错误
-  }
-  return new Set();
-}
-
-// 保存禁用的工具列表到 localStorage
-function saveDisabledTools(disabledTools: Set<string>): void {
-  try {
-    localStorage.setItem(
-      DISABLED_TOOLS_KEY,
-      JSON.stringify([...disabledTools]),
-    );
-  } catch {
-    // 忽略存储错误
-  }
-}
-
-export function useTools(options?: { enabled?: boolean }) {
-  const enabled = options?.enabled === true; // Must be explicitly true to fetch
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+export function useTools() {
   const [tools, setTools] = useState<ToolState[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const disabledToolsRef = useRef<Set<string>>(loadDisabledTools());
+  const disabledToolsRef = useRef<Set<string>>(new Set());
+  const savingRef = useRef(false);
 
-  // 获取工具列表
-  const fetchTools = useCallback(async () => {
-    if (!enabledRef.current) return; // Skip if feature is disabled
-    setIsLoading(true);
-    setError(null);
-    try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${API_BASE}/tools`, {
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch tools");
-      }
-
-      const data: ToolsListResponse = await response.json();
-      const disabledTools = disabledToolsRef.current;
-
-      // 初始化工具状态，根据持久化的禁用列表设置 enabled
-      const toolStates: ToolState[] = data.tools.map((tool: ToolInfo) => ({
-        ...tool,
-        enabled: !disabledTools.has(tool.name),
-      }));
-
-      setTools(toolStates);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch tools");
-    } finally {
-      setIsLoading(false);
+  // 从 user metadata 同步 disabled_tools 到 ref
+  const syncFromMetadata = useCallback((metadata?: Record<string, unknown>) => {
+    if (metadata?.disabled_tools && Array.isArray(metadata.disabled_tools)) {
+      disabledToolsRef.current = new Set(metadata.disabled_tools as string[]);
     }
   }, []);
 
-  // 更新禁用列表并保存到 localStorage
+  // 保存 disabled_tools 到 user metadata
+  const saveToMetadata = useCallback(async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      await authApi.updateMetadata({
+        disabled_tools: [...disabledToolsRef.current],
+      });
+    } catch (err) {
+      console.error("Failed to save disabled_tools to metadata:", err);
+    } finally {
+      savingRef.current = false;
+    }
+  }, []);
+
+  // 获取工具列表
+  const fetchTools = useCallback(
+    async (metadata?: Record<string, unknown>) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // 先从 metadata 同步
+        syncFromMetadata(metadata);
+
+        const token = getAccessToken();
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_BASE}/tools`, {
+          headers,
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch tools");
+        }
+
+        const data: ToolsListResponse = await response.json();
+        const disabledTools = disabledToolsRef.current;
+
+        // 初始化工具状态，根据持久化的禁用列表设置 enabled
+        const toolStates: ToolState[] = data.tools.map((tool: ToolInfo) => ({
+          ...tool,
+          enabled: !disabledTools.has(tool.name),
+        }));
+
+        setTools(toolStates);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch tools");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [syncFromMetadata],
+  );
+
+  // 更新禁用列表并保存到 metadata
   const updateDisabledTools = useCallback(
     (toolName: string, enabled: boolean) => {
       const disabledTools = disabledToolsRef.current;
@@ -93,9 +92,9 @@ export function useTools(options?: { enabled?: boolean }) {
       } else {
         disabledTools.add(toolName);
       }
-      saveDisabledTools(disabledTools);
+      saveToMetadata();
     },
-    [],
+    [saveToMetadata],
   );
 
   // 切换单个工具
@@ -153,12 +152,13 @@ export function useTools(options?: { enabled?: boolean }) {
   // 获取启用的工具数量
   const enabledCount = tools.filter((t) => t.enabled).length;
 
-  // 初始加载 - only fetch when enabled
+  // 初始加载 — 从 authApi 获取当前 user metadata
   useEffect(() => {
-    if (enabled) {
-      fetchTools();
-    }
-  }, [fetchTools, enabled]);
+    authApi
+      .getCurrentUser()
+      .then((user) => fetchTools(user.metadata))
+      .catch(() => fetchTools());
+  }, [fetchTools]);
 
   return {
     tools,

@@ -869,7 +869,10 @@
       "enable": "有効化",
       "system": "システム",
       "updated": "更新日時",
-      "user": "ユーザー"
+      "user": "ユーザー",
+      "published": "公開済み",
+      "republish": "マーケットで更新",
+      "publishToMarketplace": "マーケットに公開"
     },
     "confirmDelete": "スキルを削除",
     "confirmDeleteMessage": "スキル「{{name}}」を削除しますか？この操作は取り消せません。",
@@ -937,7 +940,37 @@
     "upload": "アップロード",
     "uploadZipTitle": "スキルZIPをアップロード",
     "uploading": "アップロード中...",
-    "userSkillVisible": "ユーザースキル（自分のみに表示）"
+    "userSkillVisible": "ユーザースキル（自分のみに表示）",
+    "publish": "マーケットに公開",
+    "publishTitle": "「{{name}}」を公開",
+    "publishMessage": "このスキルはマーケットですべてのユーザーに表示されます。",
+    "republish": "マーケットで更新",
+    "republishTitle": "「{{name}}」をマーケットで更新",
+    "republishMessage": "マーケットのバージョンが最新の変更で更新されます。",
+    "publishSuccess": "スキルがマーケットに公開されました",
+    "republishSuccess": "スキルがマーケットで更新されました",
+    "unpublishSuccess": "スキルがマーケットから削除されました",
+    "unpublish": "非公開",
+    "confirmUnpublish": "「{{name}}」を非公開にしますか？",
+    "confirmUnpublishMessage": "マーケットからスキルを削除します。あなたのスキルファイルには影響しません。"
+  },
+  "marketplace": {
+    "publishedBy": "{{username}} による公開",
+    "createAndPublish": "スキルを公開",
+    "createTitle": "スキルをマーケットに公開",
+    "createHint": "スキルをマーケットに公開するには、まず「スキル」パネルで作成してから、公開ボタンをクリックしてください。",
+    "active": "アクティブ",
+    "inactive": "非アクティブ",
+    "activateSuccess": "スキルがアクティブになりました",
+    "deactivateSuccess": "スキルが非アクティブになりました",
+    "deleteSuccess": "スキルがマーケットから削除されました",
+    "confirmDelete": "「{{name}}」を削除しますか？",
+    "confirmDeleteMessage": "このスキルはマーケットから永久に削除されます。既にインストールしているユーザーには影響しません。",
+    "republish": "再公開"
+  },
+  "adminMarketplace": {
+    "hint": "マーケットスキルの管理操作は、マーケットパネルに直接統合されました。スキルのアクティブ化/非アクティブ化、削除はそこで行えます。",
+    "inactive": "非アクティブ"
   },
   "tools": {
     "add": "追加",

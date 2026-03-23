@@ -34,11 +34,6 @@ const MarketplacePanel = lazy(() =>
     default: m.MarketplacePanel,
   })),
 );
-const AdminMarketplacePanel = lazy(() =>
-  import("../panels/AdminMarketplacePanel").then((m) => ({
-    default: m.AdminMarketplacePanel,
-  })),
-);
 const UsersPanel = lazy(() =>
   import("../panels/UsersPanel").then((m) => ({ default: m.UsersPanel })),
 );
@@ -82,7 +77,6 @@ export type TabType =
   | "chat"
   | "skills"
   | "marketplace"
-  | "admin-marketplace"
   | "users"
   | "roles"
   | "settings"
@@ -105,7 +99,7 @@ export function AppContent({ activeTab }: AppContentProps) {
     MessageAttachment[]
   >([]);
   const navigate = useNavigate();
-  const { enableMcp, enableSkills } = useSettingsContext();
+  const { enableSkills } = useSettingsContext();
   const { versionInfo } = useVersion();
 
   // Page-level file upload for drag and drop
@@ -191,7 +185,7 @@ export function AppContent({ activeTab }: AppContentProps) {
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
-  } = useTools({ enabled: enableMcp });
+  } = useTools();
 
   // Skills selector hook
   const {
@@ -919,7 +913,6 @@ export function AppContent({ activeTab }: AppContentProps) {
                 toolsLoading={toolsLoading}
                 enabledToolsCount={enabledToolsCount}
                 totalToolsCount={totalToolsCount}
-                enableMcp={enableMcp}
                 skills={skills}
                 onToggleSkill={toggleSkillWrapper}
                 onToggleSkillCategory={toggleSkillCategory}
@@ -957,18 +950,6 @@ export function AppContent({ activeTab }: AppContentProps) {
                 }
               >
                 <MarketplacePanel />
-              </Suspense>
-            </main>
-          ) : activeTab === "admin-marketplace" ? (
-            <main className="flex-1 overflow-hidden">
-              <Suspense
-                fallback={
-                  <div className="flex h-full items-center justify-center">
-                    <Loading size="lg" />
-                  </div>
-                }
-              >
-                <AdminMarketplacePanel />
               </Suspense>
             </main>
           ) : activeTab === "users" ? (

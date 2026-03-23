@@ -6,7 +6,6 @@ import {
   Upload,
   FolderOpen,
   Check,
-  ServerOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -18,13 +17,11 @@ import { MCPServerForm } from "../mcp/MCPServerForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { useMCP } from "../../hooks/useMcp";
 import { useAuth } from "../../hooks/useAuth";
-import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import type { MCPServerResponse, MCPServerCreate } from "../../types";
 
 export function MCPPanel() {
   const { t } = useTranslation();
-  const { enableMcp } = useSettingsContext();
   const {
     servers,
     isLoading,
@@ -38,7 +35,7 @@ export function MCPPanel() {
     promoteServer,
     demoteServer,
     clearError,
-  } = useMCP({ enabled: enableMcp });
+  } = useMCP();
   const { hasAnyPermission, user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -322,18 +319,6 @@ export function MCPPanel() {
     return (
       <div className="flex h-full items-center justify-center text-stone-500 dark:text-stone-400">
         {t("mcp.noPermission")}
-      </div>
-    );
-  }
-
-  if (!enableMcp) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400">
-        <ServerOff
-          size={48}
-          className="mb-3 text-stone-300 dark:text-stone-600"
-        />
-        <p className="text-center">{t("mcp.featureDisabled")}</p>
       </div>
     );
   }

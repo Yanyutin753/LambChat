@@ -172,7 +172,7 @@ async def update_user_metadata(
     部分更新当前用户 metadata（merge 方式）
 
     metadata 中的字段会与现有 metadata 合并。
-    支持的字段: language (str), theme (str: light/dark), mcp_enabled (bool)
+    支持的字段: language (str), theme (str: light/dark), disabled_tools (list[str])
     """
     from src.infra.user.storage import UserStorage
 
@@ -197,13 +197,13 @@ async def update_user_metadata(
                 detail=f"Invalid theme: {theme}. Must be 'light' or 'dark'.",
             )
 
-    # Validate mcp_enabled if provided
-    if "mcp_enabled" in request.metadata:
-        mcp_enabled = request.metadata["mcp_enabled"]
-        if not isinstance(mcp_enabled, bool):
+    # Validate disabled_tools if provided
+    if "disabled_tools" in request.metadata:
+        disabled_tools = request.metadata["disabled_tools"]
+        if not isinstance(disabled_tools, list) or not all(isinstance(t, str) for t in disabled_tools):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid mcp_enabled: {mcp_enabled}. Must be a boolean.",
+                detail="Invalid disabled_tools: must be a list of strings.",
             )
 
     updated_user = await storage.update_metadata(current_user.sub, request.metadata)

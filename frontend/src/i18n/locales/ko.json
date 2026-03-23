@@ -870,7 +870,10 @@
       "enable": "활성화",
       "system": "시스템",
       "updated": "업데이트",
-      "user": "사용자"
+      "user": "사용자",
+      "published": "게시됨",
+      "republish": "마켓플레이스에서 업데이트",
+      "publishToMarketplace": "마켓플레이스에 게시"
     },
     "confirmDelete": "스킬 삭제",
     "confirmDeleteMessage": "스킬 \"{{name}}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
@@ -938,7 +941,37 @@
     "upload": "업로드",
     "uploadZipTitle": "스킬 ZIP 업로드",
     "uploading": "업로드 중...",
-    "userSkillVisible": "사용자 스킬 (나에게만 표시)"
+    "userSkillVisible": "사용자 스킬 (나에게만 표시)",
+    "publish": "마켓플레이스에 게시",
+    "publishTitle": "\"{{name}}\" 게시",
+    "publishMessage": "이 스킬은 마켓플레이스에 모든 사용자에게 표시됩니다.",
+    "republish": "마켓플레이스에서 업데이트",
+    "republishTitle": "\"{{name}}\" 업데이트",
+    "republishMessage": "마켓플레이스 버전이 최신 변경 사항으로 업데이트됩니다.",
+    "publishSuccess": "스킬이 마켓플레이스에 게시되었습니다",
+    "republishSuccess": "스킬이 마켓플레이스에서 업데이트되었습니다",
+    "unpublishSuccess": "스킬이 마켓플레이스에서 게시 취소되었습니다",
+    "unpublish": "게시 취소",
+    "confirmUnpublish": "\"{{name}}\"을(를) 게시 취소하시겠습니까?",
+    "confirmUnpublishMessage": "마켓플레이스에서 스킬을 제거합니다. 스킬 파일에는 영향을 주지 않습니다."
+  },
+  "marketplace": {
+    "publishedBy": "{{username}} 게시",
+    "createAndPublish": "스킬 게시",
+    "createTitle": "스킬을 마켓플레이스에 게시",
+    "createHint": "스킬을 마켓플레이스에 게시하려면 먼저 스킬 패널에서 만든 다음 게시 버튼을 클릭하세요.",
+    "active": "활성",
+    "inactive": "비활성",
+    "activateSuccess": "스킬이 활성화되었습니다",
+    "deactivateSuccess": "스킬이 비활성화되었습니다",
+    "deleteSuccess": "스킬이 마켓플레이스에서 삭제되었습니다",
+    "confirmDelete": "\"{{name}}\"을(를) 삭제하시겠습니까?",
+    "confirmDeleteMessage": "마켓플레이스에서 이 스킬을 영구적으로 삭제합니다. 이미 설치한 사용자에게는 영향을 주지 않습니다.",
+    "republish": "재게시"
+  },
+  "adminMarketplace": {
+    "hint": "마켓플레이스 스킬 관리 작업이 마켓플레이스 패널에 직접 통합되었습니다. 스킬 활성화/비활성화 및 삭제를 거기서 할 수 있습니다.",
+    "inactive": "비활성"
   },
   "tools": {
     "add": "추가",

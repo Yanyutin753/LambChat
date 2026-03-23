@@ -34,6 +34,7 @@ class MarketplaceStorage:
         self._client: Optional["AsyncIOMotorClient"] = None
         self._meta_collection: Optional["AsyncIOMotorCollection"] = None
         self._files_collection: Optional["AsyncIOMotorCollection"] = None
+        self._users_collection: Optional["AsyncIOMotorCollection"] = None
 
     def _get_meta_collection(self) -> "AsyncIOMotorCollection":
         if self._meta_collection is None:
@@ -49,10 +50,18 @@ class MarketplaceStorage:
             self._files_collection = db[SKILL_MARKETPLACE_FILES_COLLECTION]
         return self._files_collection
 
+    def _get_users_collection(self) -> "AsyncIOMotorCollection":
+        if self._users_collection is None:
+            self._client = get_mongo_client()
+            db = self._client[settings.MONGODB_DB]
+            self._users_collection = db["users"]
+        return self._users_collection
+
     async def ensure_indexes(self) -> None:
         """创建索引"""
         meta = self._get_meta_collection()
         await meta.create_index("skill_name", unique=True, background=True)
+        await meta.create_index("created_by", background=True)
 
         files = self._get_files_collection()
         await files.create_index(
@@ -61,42 +70,93 @@ class MarketplaceStorage:
             background=True,
         )
 
+    async def _batch_get_usernames(self, user_ids: list[str]) -> dict[str, str]:
+        """批量查询用户名"""
+        if not user_ids:
+            return {}
+        collection = self._get_users_collection()
+        result: dict[str, str] = {}
+        cursor = collection.find(
+            {"id": {"$in": user_ids}}, {"id": 1, "username": 1}
+        )
+        async for doc in cursor:
+            result[doc["id"]] = doc.get("username", doc["id"])
+        return result
+
+    def _build_response(
+        self, doc: dict, file_count: int, username_map: dict[str, str],
+        viewer_id: Optional[str] = None,
+    ) -> MarketplaceSkillResponse:
+        created_by = doc.get("created_by")
+        return MarketplaceSkillResponse(
+            skill_name=doc["skill_name"],
+            description=doc.get("description", ""),
+            tags=doc.get("tags", []),
+            version=doc.get("version", "1.0.0"),
+            created_at=doc.get("created_at"),
+            updated_at=doc.get("updated_at"),
+            created_by=created_by,
+            created_by_username=username_map.get(created_by) if created_by else None,
+            is_active=doc.get("is_active", True),
+            is_owner=bool(viewer_id and created_by and created_by == viewer_id),
+            file_count=file_count,
+        )
+
     # ==========================================
     # 元数据操作
     # ==========================================
 
     async def list_marketplace_skills(
-        self, tags: Optional[list[str]] = None, search: Optional[str] = None
+        self,
+        tags: Optional[list[str]] = None,
+        search: Optional[str] = None,
+        include_inactive: bool = False,
+        viewer_id: Optional[str] = None,
     ) -> list[MarketplaceSkillResponse]:
-        """列出所有商城 Skills（可选按标签筛选/搜索）"""
+        """列出所有商城 Skills（可选按标签筛选/搜索，默认过滤已停用；自己的始终可见）"""
         collection = self._get_meta_collection()
 
         query: dict[str, Any] = {}
+        if not include_inactive:
+            # 激活的 skill + 自己发布的 skill（含已停用的）
+            if viewer_id:
+                query["$or"] = [
+                    {"is_active": {"$ne": False}},
+                    {"created_by": viewer_id},
+                ]
+            else:
+                query["is_active"] = {"$ne": False}
         if tags:
             query["tags"] = {"$in": tags}
         if search:
-            query["$or"] = [
+            search_or = [
                 {"skill_name": {"$regex": search, "$options": "i"}},
                 {"description": {"$regex": search, "$options": "i"}},
             ]
+            if "$or" in query:
+                # 合并 visibility $or 和 search $or
+                query["$and"] = [{"$or": query.pop("$or")}, {"$or": search_or}]
+            else:
+                query["$or"] = search_or
 
         files_collection = self._get_files_collection()
         results = []
+        docs = []
         async for doc in collection.find(query):
-            # 统计文件数量
-            file_count = await files_collection.count_documents({"skill_name": doc["skill_name"]})
-            results.append(
-                MarketplaceSkillResponse(
-                    skill_name=doc["skill_name"],
-                    description=doc.get("description", ""),
-                    tags=doc.get("tags", []),
-                    version=doc.get("version", "1.0.0"),
-                    created_at=doc.get("created_at"),
-                    updated_at=doc.get("updated_at"),
-                    created_by=doc.get("created_by"),
-                    file_count=file_count,
-                )
+            docs.append(doc)
+
+        if not docs:
+            return []
+
+        # 批量查用户名
+        user_ids = [d.get("created_by") for d in docs if d.get("created_by")]
+        username_map = await self._batch_get_usernames(user_ids)
+
+        for doc in docs:
+            file_count = await files_collection.count_documents(
+                {"skill_name": doc["skill_name"]}
             )
+            results.append(self._build_response(doc, file_count, username_map, viewer_id=viewer_id))
         return results
 
     async def get_marketplace_skill(self, skill_name: str) -> Optional[MarketplaceSkill]:
@@ -113,17 +173,23 @@ class MarketplaceStorage:
             created_at=doc.get("created_at"),
             updated_at=doc.get("updated_at"),
             created_by=doc.get("created_by"),
+            is_active=doc.get("is_active", True),
         )
 
     async def get_marketplace_skill_response(
-        self, skill_name: str
+        self, skill_name: str, viewer_id: Optional[str] = None,
     ) -> Optional[MarketplaceSkillResponse]:
-        """获取商城 Skill 响应（含文件数量）"""
+        """获取商城 Skill 响应（含文件数量、用户名、是否为创建者）"""
         skill = await self.get_marketplace_skill(skill_name)
         if not skill:
             return None
         files_collection = self._get_files_collection()
         file_count = await files_collection.count_documents({"skill_name": skill_name})
+
+        username_map: dict[str, str] = {}
+        if skill.created_by:
+            username_map = await self._batch_get_usernames([skill.created_by])
+
         return MarketplaceSkillResponse(
             skill_name=skill.skill_name,
             description=skill.description,
@@ -132,17 +198,21 @@ class MarketplaceStorage:
             created_at=skill.created_at,
             updated_at=skill.updated_at,
             created_by=skill.created_by,
+            created_by_username=username_map.get(skill.created_by)
+            if skill.created_by
+            else None,
+            is_active=skill.is_active,
+            is_owner=bool(viewer_id and skill.created_by and skill.created_by == viewer_id),
             file_count=file_count,
         )
 
     async def create_marketplace_skill(
-        self, data: MarketplaceSkillCreate, admin_user_id: str
+        self, data: MarketplaceSkillCreate, user_id: str
     ) -> MarketplaceSkill:
         """创建商城 Skill 元数据"""
         collection = self._get_meta_collection()
         now = datetime.now(timezone.utc).isoformat()
 
-        # 检查是否已存在
         existing = await collection.find_one({"skill_name": data.skill_name})
         if existing:
             raise ValueError(f"Marketplace skill '{data.skill_name}' already exists")
@@ -154,7 +224,8 @@ class MarketplaceStorage:
             "version": data.version,
             "created_at": now,
             "updated_at": now,
-            "created_by": admin_user_id,
+            "created_by": user_id,
+            "is_active": True,
         }
         await collection.insert_one(doc)
         return MarketplaceSkill(**doc)
@@ -176,24 +247,55 @@ class MarketplaceStorage:
             update_data["tags"] = data.tags
         if data.version is not None:
             update_data["version"] = data.version
+        if data.is_active is not None:
+            update_data["is_active"] = data.is_active
 
         await collection.update_one({"skill_name": skill_name}, {"$set": update_data})
 
         updated = await collection.find_one({"skill_name": skill_name})
         return MarketplaceSkill(**updated) if updated else None
 
+    async def set_marketplace_active(
+        self, skill_name: str, is_active: bool
+    ) -> Optional[MarketplaceSkill]:
+        """Admin: 激活或停用商城 Skill"""
+        collection = self._get_meta_collection()
+        now = datetime.now(timezone.utc).isoformat()
+
+        result = await collection.find_one_and_update(
+            {"skill_name": skill_name},
+            {"$set": {"is_active": is_active, "updated_at": now}},
+            return_document=True,
+        )
+        if not result:
+            return None
+        return MarketplaceSkill(**result)
+
     async def delete_marketplace_skill(self, skill_name: str) -> bool:
         """删除商城 Skill 元数据和所有文件"""
         meta = self._get_meta_collection()
         files = self._get_files_collection()
 
-        # 删除元数据
         meta_result = await meta.delete_one({"skill_name": skill_name})
-
-        # 删除所有文件
         await files.delete_many({"skill_name": skill_name})
 
         return meta_result.deleted_count > 0
+
+    # ==========================================
+    # 发布状态查询
+    # ==========================================
+
+    async def get_user_published_skills(
+        self, user_id: str
+    ) -> dict[str, dict[str, Any]]:
+        """获取用户已发布的 Skill 状态 {skill_name: {is_active, ...}}"""
+        collection = self._get_meta_collection()
+        result: dict[str, dict[str, Any]] = {}
+        async for doc in collection.find({"created_by": user_id}):
+            result[doc["skill_name"]] = {
+                "is_active": doc.get("is_active", True),
+            }
+        return result
 
     # ==========================================
     # 文件操作
@@ -207,13 +309,19 @@ class MarketplaceStorage:
             files[doc["file_path"]] = doc["content"]
         return files
 
-    async def get_marketplace_file(self, skill_name: str, file_path: str) -> Optional[str]:
+    async def get_marketplace_file(
+        self, skill_name: str, file_path: str
+    ) -> Optional[str]:
         """获取商城 Skill 单个文件"""
         collection = self._get_files_collection()
-        doc = await collection.find_one({"skill_name": skill_name, "file_path": file_path})
+        doc = await collection.find_one(
+            {"skill_name": skill_name, "file_path": file_path}
+        )
         return doc["content"] if doc else None
 
-    async def set_marketplace_file(self, skill_name: str, file_path: str, content: str) -> None:
+    async def set_marketplace_file(
+        self, skill_name: str, file_path: str, content: str
+    ) -> None:
         """设置商城 Skill 单个文件"""
         collection = self._get_files_collection()
         now = datetime.now(timezone.utc).isoformat()
@@ -231,7 +339,9 @@ class MarketplaceStorage:
             upsert=True,
         )
 
-    async def sync_marketplace_files(self, skill_name: str, files: dict[str, str]) -> None:
+    async def sync_marketplace_files(
+        self, skill_name: str, files: dict[str, str]
+    ) -> None:
         """批量同步商城 Skill 文件"""
         if not files:
             return
@@ -240,8 +350,7 @@ class MarketplaceStorage:
 
         from pymongo import DeleteOne, UpdateOne
 
-        # 获取现有文件路径
-        existing_paths = set()
+        existing_paths: set[str] = set()
         async for doc in collection.find({"skill_name": skill_name}, {"file_path": 1}):
             existing_paths.add(doc["file_path"])
 
@@ -275,91 +384,6 @@ class MarketplaceStorage:
         return paths
 
     # ==========================================
-    # ZIP 上传
-    # ==========================================
-
-    async def upload_from_zip(
-        self,
-        skill_name: str,
-        zip_content: bytes,
-        admin_user_id: str,
-    ) -> MarketplaceSkill:
-        """从 ZIP 上传商城 Skill 文件"""
-        if len(zip_content) > MAX_ZIP_SIZE:
-            raise ValueError("ZIP file too large (max 10MB)")
-
-        try:
-            zf = zipfile.ZipFile(io.BytesIO(zip_content))
-        except zipfile.BadZipFile:
-            raise ValueError("Invalid ZIP file")
-
-        try:
-            files = self._parse_zip(zf)
-
-            # 确保 Skill 存在
-            skill = await self.get_marketplace_skill(skill_name)
-            if not skill:
-                skill = await self.create_marketplace_skill(
-                    MarketplaceSkillCreate(skill_name=skill_name),
-                    admin_user_id,
-                )
-
-            # 同步文件
-            await self.sync_marketplace_files(skill_name, files)
-
-            return skill
-        finally:
-            zf.close()
-
-    def _parse_zip(self, zf: zipfile.ZipFile) -> dict[str, str]:
-        """解析 ZIP 文件"""
-        all_files: dict[str, str] = {}
-
-        names = zf.namelist()
-        top_level = set()
-        for n in names:
-            parts = n.split("/")
-            if parts[0]:
-                top_level.add(parts[0])
-
-        prefix = ""
-        if len(top_level) == 1:
-            top = list(top_level)[0]
-            is_dir = any(n.startswith(top + "/") for n in names)
-            if is_dir:
-                prefix = top + "/"
-
-        for name in names:
-            if (
-                name.endswith("/")
-                or "__MACOSX" in name
-                or name.endswith(".DS_Store")
-                or name.endswith("Thumbs.db")
-                or ".git/" in name
-            ):
-                continue
-            if name.startswith(prefix):
-                rel_path = name[len(prefix) :]
-            else:
-                rel_path = name
-            if not rel_path:
-                continue
-
-            try:
-                raw = zf.read(name)
-            except Exception:
-                continue
-
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                continue
-
-            all_files[rel_path] = text
-
-        return all_files
-
-    # ==========================================
     # 标签操作
     # ==========================================
 
@@ -367,7 +391,7 @@ class MarketplaceStorage:
         """获取所有不重复的标签"""
         collection = self._get_meta_collection()
         tags = set()
-        async for doc in collection.find({}, {"tags": 1}):
+        async for doc in collection.find({"is_active": {"$ne": False}}, {"tags": 1}):
             for tag in doc.get("tags", []):
                 tags.add(tag)
         return sorted(list(tags))
@@ -376,3 +400,4 @@ class MarketplaceStorage:
         """关闭连接（仅清理本地引用，不关闭全局 MongoDB 客户端）"""
         self._meta_collection = None
         self._files_collection = None
+        self._users_collection = None

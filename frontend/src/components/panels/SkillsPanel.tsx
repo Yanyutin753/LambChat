@@ -12,6 +12,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Plus, X, FolderOpen, PackageX, Archive, Upload, Github, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Pagination } from "../common/Pagination";
@@ -45,6 +46,7 @@ export function SkillsPanel() {
     uploadSkill,
     previewGitHubSkills,
     installGitHubSkills,
+    publishToMarketplace,
     clearError,
   } = useSkills();
   const { hasAnyPermission } = useAuth();
@@ -89,6 +91,13 @@ export function SkillsPanel() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteConfirmData, setDeleteConfirmData] = useState<{
     name: string;
+  } | null>(null);
+
+  // Publish confirmation dialog state
+  const [publishConfirm, setPublishConfirm] = useState<{
+    isOpen: boolean;
+    skillName: string;
+    isPublished: boolean;
   } | null>(null);
 
   const canRead = hasAnyPermission([Permission.SKILL_READ]);
@@ -181,6 +190,23 @@ export function SkillsPanel() {
 
   const handleToggle = async (name: string) => {
     await toggleSkill(name);
+  };
+
+  const handlePublish = (name: string) => {
+    const skill = skills.find((s) => s.name === name);
+    setPublishConfirm({ isOpen: true, skillName: name, isPublished: skill?.is_published ?? false });
+  };
+
+  const confirmPublish = async () => {
+    if (!publishConfirm) return;
+    const { skillName, isPublished } = publishConfirm;
+    const success = isPublished
+      ? await publishToMarketplace(skillName)
+      : await publishToMarketplace(skillName);
+    if (success) {
+      toast.success(isPublished ? t("skills.republishSuccess") : t("skills.publishSuccess"));
+    }
+    setPublishConfirm(null);
   };
 
   // ZIP upload handlers
@@ -360,6 +386,9 @@ export function SkillsPanel() {
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onPublish={handlePublish}
+                isPublished={skill.is_published}
+                marketplaceIsActive={skill.marketplace_is_active}
               />
             ))}
           </div>
@@ -633,6 +662,18 @@ export function SkillsPanel() {
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
         variant="danger"
+      />
+
+      {/* Publish Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={publishConfirm?.isOpen ?? false}
+        title={publishConfirm?.isPublished ? t("skills.republishTitle", { name: publishConfirm?.skillName }) : t("skills.publishTitle", { name: publishConfirm?.skillName })}
+        message={publishConfirm?.isPublished ? t("skills.republishMessage") : t("skills.publishMessage")}
+        confirmText={publishConfirm?.isPublished ? t("skills.republish") : t("skills.publish")}
+        cancelText={t("common.cancel")}
+        onConfirm={confirmPublish}
+        onCancel={() => setPublishConfirm(null)}
+        variant="info"
       />
     </div>
   );

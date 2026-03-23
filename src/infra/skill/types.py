@@ -21,6 +21,7 @@ class MarketplaceSkill(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     created_by: Optional[str] = None
+    is_active: bool = True
 
 
 class MarketplaceSkillCreate(BaseModel):
@@ -38,6 +39,7 @@ class MarketplaceSkillUpdate(BaseModel):
     description: Optional[str] = None
     tags: Optional[list[str]] = None
     version: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class SkillToggle(BaseModel):
@@ -73,6 +75,8 @@ class UserSkill(BaseModel):
     file_count: int = 0
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    is_published: bool = False
+    marketplace_is_active: bool = True
 
 
 class MarketplaceSkillResponse(BaseModel):
@@ -85,4 +89,7 @@ class MarketplaceSkillResponse(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     created_by: Optional[str] = None
+    created_by_username: Optional[str] = None  # 查询时连表填充
+    is_active: bool = True
+    is_owner: bool = False  # 当前用户是否为创建者
     file_count: int = 0  # 文件数量
