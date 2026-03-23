@@ -83,6 +83,7 @@ class BackgroundTaskManager:
         agent_options: Optional[Dict[str, Any]] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         run_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -109,7 +110,9 @@ class BackgroundTaskManager:
 
         async with self._lock:
             # 确保 session 记录存在
-            await self._executor.ensure_session(session_id, agent_id, user_id)
+            await self._executor.ensure_session(
+                session_id, agent_id, user_id, project_id=project_id
+            )
 
             # 更新 MongoDB session 状态（包含 current_run_id）
             await self._executor._update_session_status(

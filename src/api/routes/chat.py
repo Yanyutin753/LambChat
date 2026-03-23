@@ -152,7 +152,9 @@ async def chat_stream(
                 task_manager.storage, task_manager._run_info, task_manager._heartbeat
             )
         # Create session record immediately (don't wait for dequeue)
-        await task_manager._executor.ensure_session(session_id, agent_id, user.sub)
+        await task_manager._executor.ensure_session(
+            session_id, agent_id, user.sub, project_id=request.project_id
+        )
         await task_manager._executor._update_session_status(
             session_id, TaskStatus.PENDING, run_id=run_id
         )
@@ -176,6 +178,7 @@ async def chat_stream(
         agent_options=request.agent_options,
         attachments=attachments_data,
         run_id=run_id,
+        project_id=request.project_id,
     )
 
     return {
