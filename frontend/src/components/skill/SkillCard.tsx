@@ -54,113 +54,115 @@ export function SkillCard({
 
   return (
     <div
-      className={`panel-card transition-opacity ${
-        !skill.enabled ? "opacity-60" : ""
+      className={`group flex h-full flex-col rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] p-4 sm:p-5 transition-all duration-200 hover:border-[var(--theme-primary)] hover:shadow-lg ${
+        !skill.enabled ? "opacity-70" : ""
       }`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <FileText
-              size={20}
-              className="text-stone-400 dark:text-stone-500 flex-shrink-0"
-            />
-            <h4 className="font-medium text-stone-900 dark:text-stone-100 truncate">
+            <h4 className="truncate text-lg font-semibold text-[var(--theme-text)]">
               {skill.name}
             </h4>
             <span
-              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${sourceColor}`}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${sourceColor}`}
             >
               {SOURCE_ICONS[skill.source]}
               {sourceLabel}
             </span>
             {isPublished && (
-              <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
                 <Globe size={10} />
                 {t("skills.card.published")}
               </span>
             )}
             {!skill.enabled && (
-              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500 dark:bg-stone-800 dark:text-stone-500">
+              <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-500">
                 {t("skills.card.disabled")}
               </span>
             )}
           </div>
 
-          {/* Description */}
-          <p className="mt-2 text-sm text-stone-600 dark:text-stone-400 line-clamp-2">
+          <p className="mt-2 min-h-[3.75rem] text-sm leading-relaxed text-[var(--theme-text-secondary)] line-clamp-3">
             {skill.description || t("skills.noDescription")}
           </p>
-
-          {/* Timestamps */}
-          {skill.updated_at && (
-            <div className="mt-2 text-xs text-stone-400 dark:text-stone-500">
-              {t("skills.card.updated")}:{" "}
-              {new Date(skill.updated_at).toLocaleDateString()}
-            </div>
-          )}
         </div>
+      </div>
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[var(--theme-text-secondary)]">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-2.5 py-1">
+          <FileText size={13} />
+          <span>{skill.file_count} {t("marketplace.files")}</span>
+        </div>
+        {skill.updated_at && (
+          <div className="inline-flex items-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-2.5 py-1">
+            {t("skills.card.updated")}: {new Date(skill.updated_at).toLocaleDateString()}
+          </div>
+        )}
+        {skill.published_marketplace_name && skill.published_marketplace_name !== skill.name && (
+          <div className="max-w-full truncate rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-2.5 py-1">
+            Store: {skill.published_marketplace_name}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--theme-border)] pt-4">
+        <button
+          onClick={() => onToggle(skill.name)}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+          title={skill.enabled ? t("skills.card.disable") : t("skills.card.enable")}
+        >
+          {skill.enabled ? (
+            <ToggleRight size={16} className="text-green-600 dark:text-green-500" />
+          ) : (
+            <ToggleLeft size={16} />
+          )}
+          <span>{skill.enabled ? t("skills.card.disable") : t("skills.card.enable")}</span>
+        </button>
+
+        <button
+          onClick={() => onEdit(skill)}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+          title={t("skills.card.edit")}
+        >
+          <Edit3 size={14} />
+          <span>{t("skills.card.edit")}</span>
+        </button>
+
+        {skill.source === "manual" && onPublish && (
           <button
-            onClick={() => onToggle(skill.name)}
-            className="btn-icon"
+            onClick={() => onPublish(skill.name)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
             title={
-              skill.enabled ? t("skills.card.disable") : t("skills.card.enable")
+              isPublished
+                ? t("skills.card.republish")
+                : t("skills.card.publishToMarketplace")
             }
           >
-            {skill.enabled ? (
-              <ToggleRight
-                size={20}
-                className="text-green-600 dark:text-green-500"
-              />
-            ) : (
-              <ToggleLeft size={20} />
-            )}
-          </button>
-          <button
-            onClick={() => onEdit(skill)}
-            className="btn-icon"
-            title={t("skills.card.edit")}
-          >
-            <Edit3 size={20} />
-          </button>
-          {skill.source === "manual" && onPublish && (
-            <button
-              onClick={() => onPublish(skill.name)}
-              className="btn-icon"
-              title={
-                isPublished
-                  ? t("skills.card.republish")
-                  : t("skills.card.publishToMarketplace")
-              }
-            >
-              {isPublished ? (
-                marketplaceIsActive === false ? (
-                  <Globe
-                    size={20}
-                    className="text-amber-500 dark:text-amber-400"
-                  />
-                ) : (
-                  <Globe
-                    size={20}
-                    className="text-green-600 dark:text-green-500"
-                  />
-                )
+            {isPublished ? (
+              marketplaceIsActive === false ? (
+                <Globe size={14} className="text-amber-500 dark:text-amber-400" />
               ) : (
-                <Globe size={20} className="text-stone-400 dark:text-stone-500" />
-              )}
-            </button>
-          )}
-          <button
-            onClick={() => onDelete(skill.name)}
-            className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-            title={t("skills.card.delete")}
-          >
-            <Trash2 size={20} />
+                <Globe size={14} className="text-green-600 dark:text-green-500" />
+              )
+            ) : (
+              <Globe size={14} className="text-stone-400 dark:text-stone-500" />
+            )}
+            <span>
+              {isPublished ? t("skills.card.republish") : t("skills.card.publishToMarketplace")}
+            </span>
           </button>
-        </div>
+        )}
+
+        <div className="flex-1" />
+
+        <button
+          onClick={() => onDelete(skill.name)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[var(--theme-text-secondary)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+          title={t("skills.card.delete")}
+        >
+          <Trash2 size={16} />
+        </button>
       </div>
     </div>
   );

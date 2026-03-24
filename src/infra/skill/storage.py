@@ -280,6 +280,7 @@ class SkillStorage:
                     "file_count": stats["file_count"],
                     "file_paths": stats.get("file_paths", []),
                     "installed_from": toggle.get("installed_from"),
+                    "published_marketplace_name": toggle.get("published_marketplace_name"),
                     "created_at": stats.get("created_at"),
                     "updated_at": stats.get("updated_at"),
                 }
@@ -349,6 +350,7 @@ class SkillStorage:
             user_id=doc["user_id"],
             enabled=doc.get("enabled", True),
             installed_from=InstalledFrom(doc.get("installed_from", "manual")),
+            published_marketplace_name=doc.get("published_marketplace_name"),
             created_at=doc.get("created_at"),
             updated_at=doc.get("updated_at"),
         )
@@ -359,6 +361,7 @@ class SkillStorage:
         user_id: str,
         enabled: bool = True,
         installed_from: Optional[InstalledFrom] = None,
+        published_marketplace_name: Optional[str] = None,
     ) -> SkillToggle:
         """Upsert 开关记录（原子操作，避免竞态）"""
         collection = self._get_toggles_collection()
@@ -372,6 +375,11 @@ class SkillStorage:
                 "$set": {
                     "enabled": enabled,
                     "updated_at": now,
+                    **(
+                        {"published_marketplace_name": published_marketplace_name}
+                        if published_marketplace_name is not None
+                        else {}
+                    ),
                 },
                 "$setOnInsert": {
                     "skill_name": skill_name,
@@ -389,6 +397,7 @@ class SkillStorage:
             user_id=result["user_id"],
             enabled=result.get("enabled", True),
             installed_from=InstalledFrom(result.get("installed_from", "manual")),
+            published_marketplace_name=result.get("published_marketplace_name"),
             created_at=result.get("created_at"),
             updated_at=result.get("updated_at"),
         )

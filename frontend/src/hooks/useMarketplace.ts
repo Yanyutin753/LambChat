@@ -176,6 +176,27 @@ export function useMarketplace() {
     [fetchSkills, fetchTags],
   );
 
+  // Update marketplace skill directly (creator only)
+  const updateMarketplaceSkill = useCallback(
+    async (skillName: string, data: MarketplaceCreateRequest): Promise<boolean> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        await marketplaceApi.updateMarketplaceSkill(skillName, data);
+        await fetchSkills();
+        return true;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to update skill",
+        );
+        return false;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchSkills],
+  );
+
   // Admin: activate/deactivate skill
   const activateSkill = useCallback(
     async (skillName: string, isActive: boolean): Promise<boolean> => {
@@ -275,6 +296,7 @@ export function useMarketplace() {
     installSkill,
     updateSkill,
     createAndPublish,
+    updateMarketplaceSkill,
     activateSkill,
     deleteSkill,
     loadMarketplaceSkillForEdit,
@@ -288,5 +310,6 @@ export function useMarketplace() {
     openPreview,
     readPreviewFile,
     closePreview,
+    setPreviewFileContent,
   };
 }

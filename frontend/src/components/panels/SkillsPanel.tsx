@@ -96,8 +96,11 @@ export function SkillsPanel() {
   // Publish confirmation dialog state
   const [publishConfirm, setPublishConfirm] = useState<{
     isOpen: boolean;
-    skillName: string;
+    localSkillName: string;
+    marketplaceSkillName: string;
+    description: string;
     isPublished: boolean;
+    error?: string;
   } | null>(null);
 
   const canRead = hasAnyPermission([Permission.SKILL_READ]);
@@ -192,21 +195,71 @@ export function SkillsPanel() {
     await toggleSkill(name);
   };
 
-  const handlePublish = (name: string) => {
+  const handlePublish = async (name: string) => {
     const skill = skills.find((s) => s.name === name);
-    setPublishConfirm({ isOpen: true, skillName: name, isPublished: skill?.is_published ?? false });
+    if (!skill) return;
+
+    const fullSkill = await getSkill(name);
+    if (!fullSkill) {
+      toast.error(t("skills.loadFailed"));
+      return;
+    }
+
+    setPublishConfirm({
+      isOpen: true,
+      localSkillName: name,
+      marketplaceSkillName: fullSkill.published_marketplace_name || name,
+      description: fullSkill.description || "",
+      isPublished: skill.is_published ?? false,
+      error: undefined,
+    });
   };
 
   const confirmPublish = async () => {
     if (!publishConfirm) return;
-    const { skillName, isPublished } = publishConfirm;
-    const success = isPublished
-      ? await publishToMarketplace(skillName)
-      : await publishToMarketplace(skillName);
-    if (success) {
-      toast.success(isPublished ? t("skills.republishSuccess") : t("skills.publishSuccess"));
+    const { localSkillName, marketplaceSkillName, description } = publishConfirm;
+
+    if (!marketplaceSkillName.trim()) {
+      setPublishConfirm({
+        ...publishConfirm,
+        error: t("skills.form.validation.nameRequired"),
+      });
+      return;
     }
-    setPublishConfirm(null);
+    if (!/^[\w\u4e00-\u9fff\-.]+$/.test(marketplaceSkillName.trim())) {
+      setPublishConfirm({
+        ...publishConfirm,
+        error: t("skills.form.validation.nameInvalid"),
+      });
+      return;
+    }
+    if (!description.trim()) {
+      setPublishConfirm({
+        ...publishConfirm,
+        error: t("skills.form.validation.descriptionRequired"),
+      });
+      return;
+    }
+
+    const success = await publishToMarketplace(localSkillName, {
+      skill_name: marketplaceSkillName.trim(),
+      description: description.trim() || undefined,
+    });
+
+    if (success) {
+      toast.success(
+        publishConfirm.isPublished
+          ? t("skills.republishSuccess")
+          : t("skills.publishSuccess"),
+      );
+      setPublishConfirm(null);
+      return;
+    }
+
+    setPublishConfirm({
+      ...publishConfirm,
+      error: t("skills.publishFailed") || "Publish failed",
+    });
   };
 
   // ZIP upload handlers
@@ -378,7 +431,7 @@ export function SkillsPanel() {
             )}
           </div>
         ) : (
-          <div className="space-y-1.5 sm:space-y-2">
+          <div className="grid gap-4 grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
             {paginatedSkills.map((skill) => (
               <SkillCard
                 key={skill.name}
@@ -664,17 +717,90 @@ export function SkillsPanel() {
         variant="danger"
       />
 
-      {/* Publish Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={publishConfirm?.isOpen ?? false}
-        title={publishConfirm?.isPublished ? t("skills.republishTitle", { name: publishConfirm?.skillName }) : t("skills.publishTitle", { name: publishConfirm?.skillName })}
-        message={publishConfirm?.isPublished ? t("skills.republishMessage") : t("skills.publishMessage")}
-        confirmText={publishConfirm?.isPublished ? t("skills.republish") : t("skills.publish")}
-        cancelText={t("common.cancel")}
-        onConfirm={confirmPublish}
-        onCancel={() => setPublishConfirm(null)}
-        variant="info"
-      />
+      {/* Publish Form Dialog */}
+      {publishConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4">
+          <div className="w-full max-w-lg rounded-t-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-2xl sm:rounded-2xl">
+            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-primary-light)] px-5 py-4 sm:px-6">
+              <h3 className="text-lg font-semibold text-[var(--theme-text)]">
+                {publishConfirm.isPublished
+                  ? t("skills.republishTitle", { name: publishConfirm.localSkillName })
+                  : t("skills.publishTitle", { name: publishConfirm.localSkillName })}
+              </h3>
+            </div>
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--theme-text-secondary)]">
+                  Local Skill
+                </p>
+                <p className="mt-1 font-mono text-sm text-[var(--theme-text)] break-all">
+                  {publishConfirm.localSkillName}
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--theme-text)]">
+                  Marketplace Skill Name
+                </label>
+                <input
+                  type="text"
+                  value={publishConfirm.marketplaceSkillName}
+                  onChange={(e) =>
+                    setPublishConfirm({
+                      ...publishConfirm,
+                      marketplaceSkillName: e.target.value,
+                      error: undefined,
+                    })
+                  }
+                  className="w-full rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2.5 text-[var(--theme-text)] focus:border-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--theme-text)]">
+                  {t("skills.form.description")}
+                </label>
+                <textarea
+                  value={publishConfirm.description}
+                  onChange={(e) =>
+                    setPublishConfirm({
+                      ...publishConfirm,
+                      description: e.target.value,
+                      error: undefined,
+                    })
+                  }
+                  rows={4}
+                  className="w-full rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2.5 text-[var(--theme-text)] focus:border-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20"
+                  placeholder={t("skills.form.descriptionPlaceholder")}
+                />
+              </div>
+              {publishConfirm.error && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">
+                  {publishConfirm.error}
+                </div>
+              )}
+              <p className="text-sm leading-relaxed text-[var(--theme-text-secondary)]">
+                {publishConfirm.isPublished
+                  ? t("skills.republishMessage")
+                  : t("skills.publishMessage")}
+              </p>
+            </div>
+            <div className="flex flex-col-reverse gap-2 border-t border-[var(--theme-border)] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+              <button
+                onClick={() => setPublishConfirm(null)}
+                className="btn-secondary"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                onClick={confirmPublish}
+                className="btn-primary"
+              >
+                {publishConfirm.isPublished ? t("skills.republish") : t("skills.publish")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ from src.infra.skill.types import (
     MarketplaceSkillCreate,
     MarketplaceSkillResponse,
     MarketplaceSkillUpdate,
+    PublishToMarketplaceRequest,
     UserSkill,
 )
 from src.kernel.schemas.user import TokenPayload
@@ -39,12 +40,6 @@ def get_marketplace_storage() -> MarketplaceStorage:
 MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
 
 
-class PublishToMarketplaceRequest(BaseModel):
-    """发布到商店的请求（可选覆盖 metadata）"""
-
-    description: Optional[str] = None
-    tags: Optional[list[str]] = None
-    version: Optional[str] = None
 
 
 class UpdateFileRequest(BaseModel):
@@ -219,10 +214,13 @@ async def list_user_skills(
             enabled=s["enabled"],
             file_count=s["file_count"],
             installed_from=s.get("installed_from"),
+            published_marketplace_name=s.get("published_marketplace_name"),
             created_at=s.get("created_at"),
             updated_at=s.get("updated_at"),
-            is_published=s["skill_name"] in published_map,
-            marketplace_is_active=published_map.get(s["skill_name"], {}).get("is_active", True),
+            is_published=bool(s.get("published_marketplace_name")),
+            marketplace_is_active=published_map.get(
+                s.get("published_marketplace_name") or s["skill_name"], {}
+            ).get("is_active", True),
         )
         for s in skills
     ]
@@ -259,10 +257,13 @@ async def get_user_skill(
         files=list(files.keys()),
         file_count=file_stats["file_count"],
         installed_from=toggle.installed_from if toggle else None,
+        published_marketplace_name=toggle.published_marketplace_name if toggle else None,
         created_at=file_stats.get("created_at"),
         updated_at=file_stats.get("updated_at"),
-        is_published=name in published_map,
-        marketplace_is_active=published_map.get(name, {}).get("is_active", True),
+        is_published=bool(toggle.published_marketplace_name) if toggle else name in published_map,
+        marketplace_is_active=published_map.get(
+            (toggle.published_marketplace_name if toggle else None) or name, {}
+        ).get("is_active", True),
     )
 
 
@@ -337,10 +338,11 @@ async def delete_user_skill(
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """删除（卸载）用户的 Skill，同时停用商店发布（不删除，保留其他已安装用户的访问）"""
-    # 如果是自己在商店发布的，停用而非删除
-    existing_mp = await marketplace.get_marketplace_skill(name)
+    toggle = await storage.get_toggle(name, user.sub)
+    published_marketplace_name = toggle.published_marketplace_name if toggle else None
+    existing_mp = await marketplace.get_marketplace_skill(published_marketplace_name or name)
     if existing_mp and existing_mp.created_by == user.sub:
-        await marketplace.set_marketplace_active(name, is_active=False)
+        await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
 
     # 删除用户的文件和开关
     await storage.delete_skill_and_toggle(name, user.sub)
@@ -399,53 +401,54 @@ async def publish_skill_to_marketplace(
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """将用户的 Skill 发布到商店（支持多次发布更新）"""
-    # 1. 获取用户的 skill 文件
     user_files = await storage.get_skill_files(name, user.sub)
     if not user_files:
         raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
 
-    # 2. 从 SKILL.md 提取默认 description
     from src.infra.skill.parser import parse_skill_md as _parse_md
 
     _, default_description, _ = _parse_md(user_files.get("SKILL.md", ""))
+    target_name = (data.skill_name if data and data.skill_name else name).strip()
+    if not target_name:
+        raise HTTPException(status_code=400, detail="Marketplace skill name is required")
 
-    # 3. 检查商店是否已有同名 skill
-    existing = await marketplace.get_marketplace_skill(name)
+    existing = await marketplace.get_marketplace_skill(target_name)
     if existing:
         if existing.created_by != user.sub:
             raise HTTPException(
                 status_code=409,
-                detail=f"Skill name '{name}' is already taken in marketplace by another user",
+                detail=f"Marketplace skill name '{target_name}' is already taken",
             )
-        # 已存在且是自己的 → 更新 metadata + 同步文件 + 重新激活
         update_data = MarketplaceSkillUpdate(
             description=data.description if data and data.description is not None else default_description,
             tags=data.tags if data and data.tags is not None else existing.tags,
             version=data.version if data and data.version is not None else existing.version,
             is_active=True,
         )
-        await marketplace.update_marketplace_skill(name, update_data)
+        await marketplace.update_marketplace_skill(target_name, update_data)
     else:
-        # 不存在 → 创建
         create_data = MarketplaceSkillCreate(
-            skill_name=name,
+            skill_name=target_name,
             description=data.description if data and data.description is not None else default_description,
             tags=data.tags if data and data.tags is not None else [],
             version=data.version if data and data.version is not None else "1.0.0",
         )
         await marketplace.create_marketplace_skill(create_data, user_id=user.sub)
 
-    # 4. 同步文件到商店
     try:
-        await marketplace.sync_marketplace_files(name, user_files)
+        await marketplace.sync_marketplace_files(target_name, user_files)
+        await storage.upsert_toggle(
+            name,
+            user.sub,
+            enabled=True,
+            published_marketplace_name=target_name,
+        )
     except Exception:
-        # 回滚：如果之前是新创建的 marketplace 条目，删除它
         if not existing:
-            await marketplace.delete_marketplace_skill(name)
+            await marketplace.delete_marketplace_skill(target_name)
         raise HTTPException(status_code=500, detail="Failed to sync files to marketplace")
 
-    # 5. 返回更新后的响应
-    response = await marketplace.get_marketplace_skill_response(name)
+    response = await marketplace.get_marketplace_skill_response(target_name)
     if not response:
         raise HTTPException(status_code=500, detail="Failed to publish skill")
     return response

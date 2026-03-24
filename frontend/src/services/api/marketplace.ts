@@ -110,6 +110,19 @@ export const marketplaceApi = {
   },
 
   /**
+   * Update marketplace skill directly (creator only)
+   */
+  async updateMarketplaceSkill(skillName: string, data: MarketplaceCreateRequest) {
+    return authFetch<MarketplaceSkillResponse>(
+      `${MARKETPLACE_API}/${encodeURIComponent(skillName)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    );
+  },
+
+  /**
    * Admin: activate or deactivate a marketplace skill
    */
   async activate(skillName: string, isActive: boolean) {

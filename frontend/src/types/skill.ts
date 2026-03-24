@@ -17,6 +17,7 @@ export interface UserSkill {
   enabled: boolean;
   file_count: number;
   installed_from: "manual" | "marketplace" | "builtin";
+  published_marketplace_name?: string;
   created_at?: string;
   updated_at?: string;
   is_published: boolean;
@@ -47,6 +48,7 @@ export interface SkillToggleResponse {
 
 // Publish to marketplace request
 export interface PublishToMarketplaceRequest {
+  skill_name?: string;
   description?: string;
   tags?: string[];
   version?: string;
@@ -66,6 +68,7 @@ export interface SkillResponse {
   files: Record<string, string>;
   file_count: number;
   installed_from: "manual" | "marketplace" | "builtin";
+  published_marketplace_name?: string;
   created_at?: string;
   updated_at?: string;
   is_published: boolean;

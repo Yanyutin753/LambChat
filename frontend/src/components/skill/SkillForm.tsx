@@ -541,96 +541,100 @@ export function SkillForm({
         /* ===== Normal layout ===== */
         <>
           {/* Metadata: Name + Description */}
-          <div className="shrink-0 space-y-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--theme-text)]">
-                {t("skills.form.name")}
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isEditing}
-                placeholder={t("skills.form.namePlaceholder")}
-                className={`w-full rounded-xl border px-3.5 py-2.5 font-mono text-sm text-[var(--theme-text)] placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  errors.name
-                    ? "border-red-300 focus:border-red-400 dark:border-red-700"
-                    : "border-[var(--theme-border)] focus:border-[var(--theme-primary)]"
-                } bg-[var(--theme-bg-card)]`}
-              />
-              {errors.name && (
-                <p className="mt-1 text-xs text-red-500">{errors.name}</p>
-              )}
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--theme-text)]">
-                {t("skills.form.description")}
-              </label>
-              <input
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t("skills.form.descriptionPlaceholder")}
-                className={`w-full rounded-xl border px-3.5 py-2.5 text-sm text-[var(--theme-text)] placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-150 ${
-                  errors.description
-                    ? "border-red-300 focus:border-red-400 dark:border-red-700"
-                    : "border-[var(--theme-border)] focus:border-[var(--theme-primary)]"
-                } bg-[var(--theme-bg-card)]`}
-              />
-              {errors.description && (
-                <p className="mt-1 text-xs text-red-500">
-                  {errors.description}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Settings row */}
-          <div className="shrink-0 flex flex-wrap items-center gap-x-5 gap-y-2">
-            <Toggle
-              checked={enabled}
-              onChange={setEnabled}
-              label={t("skills.form.enabled")}
-            />
-            {isEditing && (
-              <span className="text-xs text-stone-400 dark:text-stone-500">
-                {t("skills.form.nameCannotChange")}
-              </span>
-            )}
-          </div>
-
-          {/* Editor area */}
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {/* File tabs + add + fullscreen */}
-            <div className="shrink-0 flex items-center justify-between gap-2 pb-2">
-              <FileTabs
-                files={files}
-                activeFileIndex={activeFileIndex}
-                onSelect={setActiveFileIndex}
-                onRemove={removeFile}
-              />
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={addFile}
-                  className="flex items-center justify-center h-7 w-7 rounded-lg text-stone-400 hover:text-[var(--theme-text)] hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors duration-150"
-                  title={t("skills.form.addFile", "Add file")}
-                >
-                  <Plus size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleFullscreen(true)}
-                  className="flex items-center justify-center h-7 w-7 rounded-lg text-stone-400 hover:text-[var(--theme-text)] hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors duration-150"
-                  title="Fullscreen editor"
-                >
-                  <Maximize2 size={14} />
-                </button>
+          <div className="shrink-0 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[var(--theme-text)]">
+                  {t("skills.form.name")}
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={isEditing}
+                  placeholder={t("skills.form.namePlaceholder")}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 font-mono text-sm text-[var(--theme-text)] placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    errors.name
+                      ? "border-red-300 focus:border-red-400 dark:border-red-700"
+                      : "border-[var(--theme-border)] focus:border-[var(--theme-primary)]"
+                  } bg-[var(--theme-bg-card)]`}
+                />
+                {errors.name && (
+                  <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+                )}
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[var(--theme-text)]">
+                  {t("skills.form.description")}
+                </label>
+                <input
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t("skills.form.descriptionPlaceholder")}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-sm text-[var(--theme-text)] placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-150 ${
+                    errors.description
+                      ? "border-red-300 focus:border-red-400 dark:border-red-700"
+                      : "border-[var(--theme-border)] focus:border-[var(--theme-primary)]"
+                  } bg-[var(--theme-bg-card)]`}
+                />
+                {errors.description && (
+                  <p className="mt-1 text-xs text-red-500">
+                    {errors.description}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* File path input */}
-            <div className="shrink-0 pb-2">
+            <div className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] p-3 sm:p-4 lg:min-w-[220px]">
+              <div className="flex flex-wrap items-center justify-between gap-3 lg:flex-col lg:items-start">
+                <Toggle
+                  checked={enabled}
+                  onChange={setEnabled}
+                  label={t("skills.form.enabled")}
+                />
+                {isEditing && (
+                  <span className="text-xs leading-relaxed text-stone-400 dark:text-stone-500">
+                    {t("skills.form.nameCannotChange")}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Editor area */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]">
+            {/* File tabs + add + fullscreen */}
+            <div className="shrink-0 flex flex-col gap-2 border-b border-[var(--theme-border)] px-3 py-3 sm:px-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1 overflow-hidden">
+                  <FileTabs
+                    files={files}
+                    activeFileIndex={activeFileIndex}
+                    onSelect={setActiveFileIndex}
+                    onRemove={removeFile}
+                  />
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={addFile}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-400 transition-colors duration-150 hover:bg-stone-100 hover:text-[var(--theme-text)] dark:hover:bg-stone-800"
+                    title={t("skills.form.addFile", "Add file")}
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleFullscreen(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-stone-400 transition-colors duration-150 hover:bg-stone-100 hover:text-[var(--theme-text)] dark:hover:bg-stone-800"
+                    title="Fullscreen editor"
+                  >
+                    <Maximize2 size={14} />
+                  </button>
+                </div>
+              </div>
+
               <input
                 type="text"
                 value={files[activeFileIndex]?.path || ""}
@@ -638,30 +642,32 @@ export function SkillForm({
                   updateFilePath(activeFileIndex, e.target.value)
                 }
                 placeholder="File path (e.g., SKILL.md)"
-                className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-3 py-1.5 font-mono text-xs text-[var(--theme-text)] placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:border-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-150"
+                className="w-full rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 font-mono text-xs text-[var(--theme-text)] placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:border-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all duration-150"
               />
             </div>
 
             {/* Editor */}
-            <div
-              className={`flex-1 min-h-[8rem] sm:min-h-[12rem] rounded-xl border overflow-y-hidden overflow-x-auto flex flex-col transition-colors duration-150 ${
-                errors.content
-                  ? "border-red-300 dark:border-red-700"
-                  : "border-[var(--theme-border)]"
-              }`}
-            >
-              <SkillEditor
-                value={files[activeFileIndex]?.content || ""}
-                onChange={(val) => updateFileContent(activeFileIndex, val)}
-                className="flex-1 min-h-0"
-                filePath={files[activeFileIndex]?.path}
-              />
+            <div className="flex-1 min-h-0 p-3 sm:p-4">
+              <div
+                className={`flex h-full min-h-[16rem] sm:min-h-[22rem] rounded-xl border overflow-y-hidden overflow-x-auto flex-col transition-colors duration-150 ${
+                  errors.content
+                    ? "border-red-300 dark:border-red-700"
+                    : "border-[var(--theme-border)]"
+                }`}
+              >
+                <SkillEditor
+                  value={files[activeFileIndex]?.content || ""}
+                  onChange={(val) => updateFileContent(activeFileIndex, val)}
+                  className="flex-1 min-h-0"
+                  filePath={files[activeFileIndex]?.path}
+                />
+              </div>
+              {(errors.content || errors.files) && (
+                <p className="mt-2 text-xs text-red-500">
+                  {errors.content || errors.files}
+                </p>
+              )}
             </div>
-            {(errors.content || errors.files) && (
-              <p className="mt-1.5 text-xs text-red-500">
-                {errors.content || errors.files}
-              </p>
-            )}
           </div>
 
           {/* Bottom action bar */}

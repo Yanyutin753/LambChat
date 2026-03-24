@@ -50,6 +50,7 @@ class SkillToggle(BaseModel):
     user_id: str
     enabled: bool = True
     installed_from: InstalledFrom = InstalledFrom.MANUAL
+    published_marketplace_name: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -73,6 +74,7 @@ class UserSkill(BaseModel):
     files: list[str] = Field(default_factory=list, description="文件路径列表")
     enabled: bool = True
     installed_from: Optional[str] = None
+    published_marketplace_name: Optional[str] = None
     file_count: int = 0
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -80,17 +82,10 @@ class UserSkill(BaseModel):
     marketplace_is_active: bool = True
 
 
-class MarketplaceSkillResponse(BaseModel):
-    """商城 Skill 响应"""
+class PublishToMarketplaceRequest(BaseModel):
+    """发布到商店的请求（可选覆盖 metadata）"""
 
-    skill_name: str
-    description: str
-    tags: list[str]
-    version: str
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-    created_by: Optional[str] = None
-    created_by_username: Optional[str] = None  # 查询时连表填充
-    is_active: bool = True
-    is_owner: bool = False  # 当前用户是否为创建者
-    file_count: int = 0  # 文件数量
+    skill_name: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[list[str]] = None
+    version: Optional[str] = None

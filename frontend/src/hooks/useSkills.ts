@@ -52,6 +52,7 @@ function composeSkillResponse(
     files,
     file_count: userSkill.file_count,
     installed_from: userSkill.installed_from,
+    published_marketplace_name: userSkill.published_marketplace_name,
     created_at: userSkill.created_at,
     updated_at: userSkill.updated_at,
     is_published: userSkill.is_published,

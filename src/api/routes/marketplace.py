@@ -124,6 +124,40 @@ async def get_marketplace_skill(
     return skill
 
 
+@router.put("/{name}", response_model=MarketplaceSkillResponse)
+async def update_marketplace_skill(
+    name: str,
+    data: MarketplaceCreateRequest,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """直接更新商店 Skill（仅创建者可操作）"""
+    skill = await marketplace.get_marketplace_skill(name)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+    if skill.created_by != user.sub:
+        raise HTTPException(status_code=403, detail="Only creator can update")
+
+    if not data.files:
+        raise HTTPException(status_code=400, detail="Skill must have at least one file")
+
+    # 更新元数据
+    from src.infra.skill.types import MarketplaceSkillUpdate
+    update_data = MarketplaceSkillUpdate(
+        description=data.description,
+        tags=data.tags,
+        version=data.version,
+        is_active=True,
+    )
+    await marketplace.update_marketplace_skill(name, update_data)
+
+    # 同步文件
+    await marketplace.sync_marketplace_files(name, data.files)
+
+    response = await marketplace.get_marketplace_skill_response(name, viewer_id=user.sub)
+    return response
+
+
 @router.get("/{name}/files")
 async def list_marketplace_skill_files(
     name: str,

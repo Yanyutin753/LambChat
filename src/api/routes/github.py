@@ -182,10 +182,10 @@ async def fetch_github_file(
 
 
 def _parse_skill_md(skill_md: str, fallback_name: str, fallback_source: str) -> dict[str, Any]:
-    """从 SKILL.md 内容解析技能名称和描述"""
-    name, description, tags = parse_skill_md(skill_md)
+    """从 SKILL.md 内容解析技能描述，名称使用目录名/仓库名"""
+    _, description, tags = parse_skill_md(skill_md)
     return {
-        "name": name or fallback_name,
+        "name": fallback_name,
         "description": description or f"Skill from {fallback_source}",
         "tags": tags,
     }
