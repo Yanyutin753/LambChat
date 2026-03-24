@@ -271,16 +271,18 @@ class SkillStorage:
         result = []
         for skill_name in sorted(skill_stats.keys()):
             stats = skill_stats[skill_name]
-            toggle = toggles.get(skill_name, {})
+            toggle = toggles.get(skill_name)
 
+            # 无 toggle 记录时默认 enabled=False（与 get_effective_skills 保持一致，
+            # 因为 get_effective_skills 只从 toggle 集合查找启用的 skill）
             result.append(
                 {
                     "skill_name": skill_name,
-                    "enabled": toggle.get("enabled", True),
+                    "enabled": toggle.get("enabled", False),
                     "file_count": stats["file_count"],
                     "file_paths": stats.get("file_paths", []),
                     "installed_from": toggle.get("installed_from"),
-                    "published_marketplace_name": toggle.get("published_marketplace_name"),
+                    "published_marketplace_name": toggle.get("published_marketplace_name") if toggle else None,
                     "created_at": stats.get("created_at"),
                     "updated_at": stats.get("updated_at"),
                 }

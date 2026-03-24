@@ -7,7 +7,7 @@
  * - Composes SkillResponse for frontend components
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { skillApi } from "../services/api/skill";
 import type {
   SkillResponse,
@@ -66,6 +66,9 @@ export function useSkills(options?: { enabled?: boolean }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 跟踪正在 toggle 中的 skill，防止 fetchSkills 覆盖乐观更新
+  const pendingTogglesRef = useRef<Map<string, boolean>>(new Map());
+
   // Fetch all skills (basic info only)
   const fetchSkills = useCallback(async () => {
     if (!enabled) return;
@@ -76,7 +79,21 @@ export function useSkills(options?: { enabled?: boolean }) {
       // For list view, we don't fetch full details immediately
       // Components that need details will fetch them on demand
       const composed = userSkills.map((u) => composeSkillResponse(u));
-      setSkills(composed);
+      // 保留正在 toggle 中的 skill 的乐观状态，避免竞态覆盖
+      const pendingToggles = pendingTogglesRef.current;
+      if (pendingToggles.size === 0) {
+        setSkills(composed);
+      } else {
+        setSkills(
+          composed.map((s) => {
+            const pendingEnabled = pendingToggles.get(s.name);
+            if (pendingEnabled !== undefined) {
+              return { ...s, enabled: pendingEnabled };
+            }
+            return s;
+          }),
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch skills");
     } finally {
@@ -183,9 +200,14 @@ export function useSkills(options?: { enabled?: boolean }) {
 
   // Toggle skill
   const toggleSkill = useCallback(async (name: string): Promise<boolean> => {
+    // 记录期望的 toggle 状态
+    const currentSkill = skills.find((s) => s.name === name);
+    const newEnabled = currentSkill ? !currentSkill.enabled : true;
+    pendingTogglesRef.current.set(name, newEnabled);
+
     // Optimistic update
     setSkills((prev) =>
-      prev.map((s) => (s.name === name ? { ...s, enabled: !s.enabled } : s)),
+      prev.map((s) => (s.name === name ? { ...s, enabled: newEnabled } : s)),
     );
 
     try {
@@ -193,13 +215,17 @@ export function useSkills(options?: { enabled?: boolean }) {
       return true;
     } catch (err) {
       // Rollback on error
+      pendingTogglesRef.current.delete(name);
       setSkills((prev) =>
-        prev.map((s) => (s.name === name ? { ...s, enabled: !s.enabled } : s)),
+        prev.map((s) => (s.name === name ? { ...s, enabled: !newEnabled } : s)),
       );
       setError(err instanceof Error ? err.message : "Failed to toggle skill");
       return false;
+    } finally {
+      // toggle 完成后清除 pending 状态
+      pendingTogglesRef.current.delete(name);
     }
-  }, []);
+  }, [skills]);
 
   // Toggle skill wrapper (for compatibility)
   const toggleSkillWrapper = useCallback(async (name: string): Promise<void> => {

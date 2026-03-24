@@ -233,7 +233,8 @@
     "sandboxInitFailed": "샌드박스 초기화에 실패했습니다",
     "send": "메시지 보내기",
     "shiftEnterNewLine": "로 줄바꿈",
-    "skillUpdated": "스킬 {{action}}",
+    "skillUpdated": "스킬이 업데이트되었습니다",
+    "skillCreated": "스킬이 생성되었습니다",
     "status": {
       "cancelled": "취소됨"
     },

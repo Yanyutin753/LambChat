@@ -41,6 +41,9 @@ SKILLS_PATH_PATTERN = re.compile(r"^/skills/([^/]+)/(.+)$")
 SKILLS_ROOT_PATTERN = re.compile(r"^/skills/?$")
 SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
 
+# Skill name 校验（与前端 SkillForm 保持一致）
+SKILL_NAME_PATTERN = re.compile(r"^[\w\u4e00-\u9fff\-.]+$")
+
 # 全局 MongoDB 连接池（按 user_id 共享 SkillStorage）
 # 注意：SkillStorage 本身是无状态的，数据都在 MongoDB
 # 这个缓存只是为了复用 MongoDB 连接，减少连接数
@@ -294,19 +297,31 @@ class SkillsStoreBackend(BackendProtocol):
             )
 
         skill_name, file_name = parsed
+
+        # 校验 skill name 格式
+        if not SKILL_NAME_PATTERN.match(skill_name):
+            return WriteResult(
+                error=f"Invalid skill name '{skill_name}'. Only letters, numbers, underscores, hyphens, dots and CJK characters are allowed."
+            )
+
         storage = await self._get_storage()
 
         try:
+            # 检查 skill 是否已存在（有 toggle 或有文件）
+            existing_toggle = await storage.get_toggle(skill_name, self._user_id)
+            is_new_skill = existing_toggle is None
+
             # 直接 upsert 文件（user_id = 当前用户）
             await storage.set_skill_file(skill_name, file_name, content, self._user_id)
 
-            # 确保开关记录存在（enabled=True）
-            await storage.upsert_toggle(skill_name, self._user_id, enabled=True)
+            # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
+            enabled = True if is_new_skill else existing_toggle.enabled
+            await storage.upsert_toggle(skill_name, self._user_id, enabled=enabled)
 
             # 失效缓存
             await storage.invalidate_user_cache(self._user_id)
 
-            # 发送 skills 变更事件
+            # 发送 skills 变更事件（区分 created / updated）
             if self._runtime:
                 presenter = (
                     self._runtime.config.get("configurable", {}).get("presenter")
@@ -315,7 +330,7 @@ class SkillsStoreBackend(BackendProtocol):
                 )
                 if presenter:
                     await presenter.emit_skills_changed(
-                        action="updated",
+                        action="created" if is_new_skill else "updated",
                         skill_name=skill_name,
                         files_count=1,
                     )

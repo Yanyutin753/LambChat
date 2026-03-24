@@ -233,7 +233,8 @@
     "sandboxInitFailed": "サンドボックスの初期化に失敗しました",
     "send": "メッセージを送信",
     "shiftEnterNewLine": "で改行",
-    "skillUpdated": "スキル {{action}}",
+    "skillUpdated": "スキルが更新されました",
+    "skillCreated": "スキルが作成されました",
     "status": {
       "cancelled": "キャンセル済み"
     },

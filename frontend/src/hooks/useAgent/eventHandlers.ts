@@ -137,9 +137,14 @@ export function handleStreamEvent(
 
     case "skills:changed": {
       if (ctx.options?.onSkillAdded) {
+        const action = data.action as string || "updated";
+        const description =
+          action === "created"
+            ? i18n.t("chat.skillCreated")
+            : i18n.t("chat.skillUpdated");
         ctx.options.onSkillAdded(
           (data.skill_name as string) || "",
-          i18n.t("chat.skillUpdated", { action: data.action || "updated" }),
+          description,
           (data.files_count as number) || 0,
         );
       }

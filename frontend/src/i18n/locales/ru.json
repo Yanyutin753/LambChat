@@ -261,7 +261,8 @@
     "sandboxInitFailed": "Не удалось инициализировать песочницу",
     "send": "Отправить сообщение",
     "shiftEnterNewLine": "для новой строки",
-    "skillUpdated": "Навык {{action}}",
+    "skillUpdated": "Навык обновлён",
+    "skillCreated": "Навык создан",
     "status": {
       "cancelled": "Отменено"
     },

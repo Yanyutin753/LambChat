@@ -260,7 +260,8 @@
     "sandboxInitFailed": "沙箱初始化失败",
     "send": "发送消息",
     "shiftEnterNewLine": "换行",
-    "skillUpdated": "技能 {{action}}",
+    "skillUpdated": "技能已更新",
+    "skillCreated": "技能已创建",
     "status": {
       "cancelled": "已取消"
     },

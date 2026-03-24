@@ -244,7 +244,9 @@ export function AppContent({ activeTab }: AppContentProps) {
       console.log(
         `[AppContent] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
       );
-      fetchSkills();
+      // 使用 setTimeout 防抖：LLM 快速写多个文件时避免重复 fetch
+      // 同时避免与 toggleSkill 的乐观更新产生竞态
+      setTimeout(() => fetchSkills(), 500);
     },
   });
 
@@ -348,13 +350,11 @@ export function AppContent({ activeTab }: AppContentProps) {
       toast.custom(
         (visible) => (
           <div
-            className={`cursor-pointer px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transition-all ${
-              visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-            } ${
-              isSuccess
+            className={`cursor-pointer px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transition-all ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+              } ${isSuccess
                 ? "bg-green-50 dark:bg-green-900/80 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700"
                 : "bg-red-50 dark:bg-red-900/80 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700"
-            }`}
+              }`}
             onClick={(e) => {
               e.stopPropagation();
               navigateToSession();
@@ -831,7 +831,7 @@ export function AppContent({ activeTab }: AppContentProps) {
                 ) : (
                   <Virtuoso
                     ref={virtuosoRef}
-                    className="dark:divide-stone-800"
+                    className="dark:divide-stone-800 overflow-x-hidden"
                     data={messages}
                     atBottomStateChange={handleVirtuosoAtBottomChange}
                     atBottomThreshold={50}

@@ -260,7 +260,8 @@
     "sandboxInitFailed": "Sandbox initialization failed",
     "send": "Send message",
     "shiftEnterNewLine": "for new line",
-    "skillUpdated": "Skill {{action}}",
+    "skillUpdated": "Skill updated",
+    "skillCreated": "Skill created",
     "status": {
       "cancelled": "chat.status.cancelled"
     },

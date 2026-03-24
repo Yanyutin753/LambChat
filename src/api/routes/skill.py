@@ -291,10 +291,16 @@ async def update_skill_file(
 ):
     """更新 Skill 的单个文件"""
     content = body.content
+
+    # 检查 toggle 是否已存在，以决定 enabled 状态
+    existing_toggle = await storage.get_toggle(name, user.sub)
+    is_new = existing_toggle is None
+
     await storage.set_skill_file(name, path, content, user.sub)
 
-    # 确保开关记录存在（enabled=True）
-    await storage.upsert_toggle(name, user.sub, enabled=True)
+    # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
+    enabled = True if is_new else existing_toggle.enabled
+    await storage.upsert_toggle(name, user.sub, enabled=enabled)
 
     # 失效缓存
     await storage.invalidate_user_cache(user.sub)
