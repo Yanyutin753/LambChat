@@ -101,7 +101,7 @@ export function SkillCard({
         )}
         {skill.published_marketplace_name && skill.published_marketplace_name !== skill.name && (
           <div className="max-w-full truncate rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-2.5 py-1">
-            Store: {skill.published_marketplace_name}
+            {t("skills.card.storeName", { name: skill.published_marketplace_name })}
           </div>
         )}
       </div>

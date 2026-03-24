@@ -82,6 +82,22 @@ class UserSkill(BaseModel):
     marketplace_is_active: bool = True
 
 
+class MarketplaceSkillResponse(BaseModel):
+    """商城 Skill 响应"""
+
+    skill_name: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    version: str = "1.0.0"
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    created_by: Optional[str] = None
+    created_by_username: Optional[str] = None
+    is_active: bool = True
+    is_owner: bool = False
+    file_count: int = 0
+
+
 class PublishToMarketplaceRequest(BaseModel):
     """发布到商店的请求（可选覆盖 metadata）"""
 

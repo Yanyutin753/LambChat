@@ -327,7 +327,7 @@ export function MarketplacePanel() {
             )}
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {skills.map((skill) => {
               const isInstalled = installedNames.has(skill.skill_name);
               const isOwner = skill.is_owner;
@@ -516,7 +516,7 @@ export function MarketplacePanel() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl bg-[var(--theme-bg-card)] shadow-2xl border border-[var(--theme-border)]">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[var(--theme-border)] px-6 py-4 bg-[var(--theme-primary-light)]">
+            <div className="flex items-center justify-between border-b border-[var(--theme-border)] px-6 py-4 bg-[var(--theme-primary-light)] rounded-t-2xl">
               <div className="flex items-center gap-3 min-w-0">
                 <ShoppingBag
                   size={20}

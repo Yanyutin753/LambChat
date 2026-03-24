@@ -431,7 +431,7 @@ export function SkillsPanel() {
             )}
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {paginatedSkills.map((skill) => (
               <SkillCard
                 key={skill.name}
@@ -731,7 +731,7 @@ export function SkillsPanel() {
             <div className="space-y-4 p-5 sm:p-6">
               <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-[var(--theme-text-secondary)]">
-                  Local Skill
+                  {t("skills.publishLocalSkill")}
                 </p>
                 <p className="mt-1 font-mono text-sm text-[var(--theme-text)] break-all">
                   {publishConfirm.localSkillName}
@@ -740,7 +740,7 @@ export function SkillsPanel() {
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-[var(--theme-text)]">
-                  Marketplace Skill Name
+                  {t("skills.publishMarketplaceName")}
                 </label>
                 <input
                   type="text"
