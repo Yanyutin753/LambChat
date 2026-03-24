@@ -943,6 +943,12 @@
     "exportToJSON": "导出为 JSON",
     "exportZip": "导出 ZIP",
     "featureDisabled": "技能功能已禁用，请联系管理员启用。",
+    "batchSelected": "已选择",
+    "batchDeleteSuccess": "已删除 {{count}} 个技能",
+    "batchDeleteFailed": "部分技能删除失败",
+    "batchEnableSuccess": "已启用 {{count}} 个技能",
+    "batchDisableSuccess": "已禁用 {{count}} 个技能",
+    "batchToggleFailed": "部分技能切换失败",
     "form": {
       "content": "内容（支持 Markdown 和可选的 YAML frontmatter）",
       "contentPlaceholder": "# 技能指令...",

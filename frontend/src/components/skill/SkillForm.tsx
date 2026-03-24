@@ -17,6 +17,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { getLangSupport } from "../common/getLangSupport";
+import { sanitizeSkillName } from "../../utils/skillFilters";
 import type { SkillResponse, SkillCreate } from "../../types";
 
 interface FileEntry {
@@ -44,7 +45,12 @@ function getFileIcon(path: string) {
     case "yml":
       return <FileCode size={14} className="text-pink-400 shrink-0" />;
     default:
-      return <File size={14} className="text-stone-400 dark:text-stone-500 shrink-0" />;
+      return (
+        <File
+          size={14}
+          className="text-stone-400 dark:text-stone-500 shrink-0"
+        />
+      );
   }
 }
 
@@ -246,7 +252,9 @@ function syncSkillMarkdownMetadata(
   tags: string[],
 ): string {
   const normalizedContent = content.replace(/\r\n/g, "\n");
-  const body = normalizedContent.replace(/^---\n[\s\S]*?\n---\n?/, "").trimStart();
+  const body = normalizedContent
+    .replace(/^---\n[\s\S]*?\n---\n?/, "")
+    .trimStart();
   const frontmatter = buildSkillFrontmatter(name, description, tags);
 
   return body ? `${frontmatter}\n\n${body}` : `${frontmatter}\n`;
@@ -261,9 +269,15 @@ function buildFileTree(files: FileEntry[]): TreeNode[] {
     for (let j = 0; j < parts.length; j++) {
       const part = parts[j];
       const isFile = j === parts.length - 1;
-      let existing = current.find((n) => n.name === part && n.type === (isFile ? "file" : "folder"));
+      let existing = current.find(
+        (n) => n.name === part && n.type === (isFile ? "file" : "folder"),
+      );
       if (!existing) {
-        existing = { name: part, type: isFile ? "file" : "folder", children: [] };
+        existing = {
+          name: part,
+          type: isFile ? "file" : "folder",
+          children: [],
+        };
         if (isFile) existing.fileIndex = i;
         current.push(existing);
       } else if (isFile && !existing.fileIndex && existing.fileIndex !== 0) {
@@ -280,7 +294,9 @@ function buildFileTree(files: FileEntry[]): TreeNode[] {
       if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
-    nodes.forEach((n) => { if (n.type === "folder") sortNodes(n.children); });
+    nodes.forEach((n) => {
+      if (n.type === "folder") sortNodes(n.children);
+    });
   };
   sortNodes(root);
   return root;
@@ -315,22 +331,28 @@ function FileTreeItem({
         >
           <ChevronDown
             size={12}
-            className={`shrink-0 transition-transform duration-150 ${expanded ? "" : "-rotate-90"}`}
+            className={`shrink-0 transition-transform duration-150 ${
+              expanded ? "" : "-rotate-90"
+            }`}
           />
-          <FolderOpen size={14} className="shrink-0 text-stone-400 dark:text-stone-500" />
+          <FolderOpen
+            size={14}
+            className="shrink-0 text-stone-400 dark:text-stone-500"
+          />
           <span className="truncate">{node.name}</span>
         </button>
-        {expanded && node.children.map((child, i) => (
-          <FileTreeItem
-            key={i}
-            node={child}
-            depth={depth + 1}
-            activeFileIndex={activeFileIndex}
-            onSelect={onSelect}
-            onRemove={onRemove}
-            canRemove={canRemove}
-          />
-        ))}
+        {expanded &&
+          node.children.map((child, i) => (
+            <FileTreeItem
+              key={i}
+              node={child}
+              depth={depth + 1}
+              activeFileIndex={activeFileIndex}
+              onSelect={onSelect}
+              onRemove={onRemove}
+              canRemove={canRemove}
+            />
+          ))}
       </div>
     );
   }
@@ -345,15 +367,19 @@ function FileTreeItem({
           ? "bg-[var(--theme-primary)]/10 text-[var(--theme-text)] font-medium"
           : "text-stone-600 dark:text-stone-400 hover:bg-stone-100/80 dark:hover:bg-white/5"
       }`}
-      style={isActive ? {
-        borderLeft: "2px solid var(--theme-primary)",
-        paddingLeft: `${indent}px`,
-        paddingRight: "8px",
-      } : {
-        borderLeft: "2px solid transparent",
-        paddingLeft: `${indent}px`,
-        paddingRight: "8px",
-      }}
+      style={
+        isActive
+          ? {
+              borderLeft: "2px solid var(--theme-primary)",
+              paddingLeft: `${indent}px`,
+              paddingRight: "8px",
+            }
+          : {
+              borderLeft: "2px solid transparent",
+              paddingLeft: `${indent}px`,
+              paddingRight: "8px",
+            }
+      }
     >
       {getFileIcon(node.name)}
       <span className="truncate flex-1" title={node.name}>
@@ -407,7 +433,9 @@ function FileTabs({
         >
           {getFileIcon(file.path || "untitled")}
           <span className="max-w-[120px] sm:max-w-[200px] truncate">
-            {file.path ? file.path.split("/").pop() || file.path : untitledLabel}
+            {file.path
+              ? file.path.split("/").pop() || file.path
+              : untitledLabel}
           </span>
           {files.length > 1 && (
             <span
@@ -517,12 +545,6 @@ export function SkillForm({
 
     if (!name.trim()) {
       newErrors.name = t("skills.form.validation.nameRequired");
-    } else if (
-      !/^[\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\-.]+$/.test(
-        name.trim(),
-      )
-    ) {
-      newErrors.name = t("skills.form.validation.nameInvalid");
     } else if (name.trim().length > 100) {
       newErrors.name = t("skills.form.validation.nameTooLong");
     }
@@ -558,7 +580,8 @@ export function SkillForm({
     const synchronizedSkillMd = syncSkillMarkdownMetadata(
       files[activeFileIndex]?.path === "SKILL.md"
         ? files[activeFileIndex]?.content || ""
-        : files.find((file) => file.path === "SKILL.md")?.content || DEFAULT_CONTENT,
+        : files.find((file) => file.path === "SKILL.md")?.content ||
+            DEFAULT_CONTENT,
       name.trim(),
       description.trim(),
       normalizedTags,
@@ -578,7 +601,7 @@ export function SkillForm({
     }
 
     const data: SkillCreate = {
-      name: name.trim(),
+      name: sanitizeSkillName(name.trim()),
       description: description.trim(),
       tags: normalizedTags,
       content: filesDict["SKILL.md"] || "",
@@ -636,17 +659,20 @@ export function SkillForm({
       onSubmit={handleSubmit}
       className={
         isFullscreen
-          ? "fixed inset-0 z-[100] flex flex-col bg-[var(--theme-bg)]"
-          : "flex-1 flex flex-col min-h-0 gap-4"
+          ? "skill-form skill-form--fullscreen fixed inset-0 z-[100] flex flex-col bg-[var(--theme-bg)]"
+          : "skill-form flex min-h-0 flex-1 flex-col gap-4"
       }
     >
       {isFullscreen ? (
         /* ===== Fullscreen layout ===== */
         <>
           {/* Compact top bar */}
-          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--theme-border)] shrink-0 bg-[var(--theme-bg-card)]">
+          <div className="skill-form-topbar flex shrink-0 items-center gap-3 border-b border-[var(--theme-border)]/60 px-4 py-2.5">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <FolderOpen size={16} className="shrink-0 text-[var(--theme-primary)]" />
+              <FolderOpen
+                size={16}
+                className="shrink-0 text-[var(--theme-primary)]"
+              />
               <span className="font-mono text-sm font-semibold text-[var(--theme-text)] truncate">
                 {name || t("skills.form.untitled")}
               </span>
@@ -671,7 +697,7 @@ export function SkillForm({
           {/* File tabs + path input + editor */}
           <div className="flex flex-1 min-h-0 overflow-y-hidden overflow-x-auto">
             {/* Desktop: VS Code-style file explorer sidebar */}
-            <div className="hidden sm:flex flex-col w-52 lg:w-60 shrink-0 border-r border-[var(--theme-border)] bg-[var(--theme-bg-sidebar)]">
+            <div className="skill-file-sidebar hidden w-52 shrink-0 flex-col border-r border-[var(--theme-border)]/40 bg-[var(--theme-bg-sidebar)] sm:flex lg:w-60">
               {/* Section header */}
               <div className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400 select-none">
                 <ChevronDown size={12} />
@@ -690,7 +716,7 @@ export function SkillForm({
                   />
                 ))}
               </div>
-              <div className="shrink-0 px-2 py-1.5 border-t border-[var(--theme-border)]">
+              <div className="shrink-0 px-2 py-1.5 border-t border-[var(--theme-border)]/40">
                 <button
                   type="button"
                   onClick={addFile}
@@ -723,9 +749,11 @@ export function SkillForm({
               </div>
 
               {/* Breadcrumb-style file path */}
-              <div className="px-3 sm:px-4 py-2 shrink-0 border-b border-[var(--theme-border)] bg-[var(--theme-bg-card)]">
+              <div className="skill-file-path px-3 py-2 shrink-0 border-b border-[var(--theme-border)]/40 sm:px-4">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-stone-400 dark:text-stone-500 text-xs">{t("skills.form.files")} /</span>
+                  <span className="text-stone-400 dark:text-stone-500 text-xs">
+                    {t("skills.form.files")} /
+                  </span>
                   <input
                     type="text"
                     value={files[activeFileIndex]?.path || ""}
@@ -744,7 +772,7 @@ export function SkillForm({
                   errors.content
                     ? "border-red-300 dark:border-red-700"
                     : "border-[var(--theme-border)]"
-                }`}
+                } skill-editor-shell`}
               >
                 <SkillEditor
                   value={files[activeFileIndex]?.content || ""}
@@ -757,7 +785,7 @@ export function SkillForm({
           </div>
 
           {/* Fullscreen footer */}
-          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[var(--theme-border)] shrink-0 bg-[var(--theme-bg-card)]">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[var(--theme-border)]/50 shrink-0 bg-[var(--theme-bg-card)]">
             {(errors.content || errors.files) && (
               <span className="text-xs text-red-600 dark:text-red-400">
                 {errors.content || errors.files}
@@ -769,7 +797,7 @@ export function SkillForm({
                 type="button"
                 onClick={onCancel}
                 disabled={isLoading}
-                className="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-2 text-sm text-[var(--theme-text)] hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors duration-150"
+                className="rounded-lg border  px-4 py-2 text-sm text-[var(--theme-text)] hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors duration-150"
               >
                 {t("common.cancel")}
               </button>
@@ -791,8 +819,8 @@ export function SkillForm({
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)] lg:gap-5">
             {/* Metadata card */}
             <div className="flex min-h-0 flex-col gap-4 lg:sticky lg:top-0">
-              <div className="overflow-hidden rounded-3xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm">
-                <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/70 px-4 py-3 sm:px-5">
+              <div className="skill-form-card overflow-hidden rounded-3xl border border-[var(--theme-border)]/50 shadow-sm">
+                <div className="border-b border-[var(--theme-border)]/50 bg-[var(--theme-bg)]/70 px-4 py-3 sm:px-5">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--theme-text-secondary)]/80">
                     {t("skills.form.name")}
                   </p>
@@ -823,9 +851,26 @@ export function SkillForm({
                       />
                       {isEditing && (
                         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-md bg-[var(--theme-bg-card)]/80 p-1">
-                          <svg className="h-4 w-4 text-stone-400 dark:text-stone-500" viewBox="0 0 16 16" fill="none">
-                            <rect x="2" y="2" width="12" height="12" rx="3" stroke="currentColor" stroke-width="1.2"/>
-                            <path d="M6 8h4M8 6v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                          <svg
+                            className="h-4 w-4 text-stone-400 dark:text-stone-500"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                          >
+                            <rect
+                              x="2"
+                              y="2"
+                              width="12"
+                              height="12"
+                              rx="3"
+                              stroke="currentColor"
+                              strokeWidth="1.2"
+                            />
+                            <path
+                              d="M6 8h4M8 6v4"
+                              stroke="currentColor"
+                              strokeWidth="1.2"
+                              strokeLinecap="round"
+                            />
                           </svg>
                         </span>
                       )}
@@ -853,9 +898,12 @@ export function SkillForm({
                     <label className="block text-xs font-medium text-[var(--theme-text-secondary)]">
                       {t("adminMarketplace.tags")}
                     </label>
-                    <div className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] p-3 shadow-sm">
+                    <div className="skill-tag-editor rounded-2xl border border-[var(--theme-border)]/40 bg-[var(--theme-bg)] p-3 shadow-sm">
                       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
-                        <Tag size={12} className="text-[var(--theme-primary)]" />
+                        <Tag
+                          size={12}
+                          className="text-[var(--theme-primary)]"
+                        />
                         {t("adminMarketplace.tags")}
                       </div>
                       <p className="mt-2 text-xs leading-5 text-[var(--theme-text-secondary)]/80">
@@ -898,13 +946,15 @@ export function SkillForm({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-3">
+                  <div className="skill-toggle-panel flex items-center justify-between rounded-2xl border border-[var(--theme-border)]/40 bg-[var(--theme-bg)] px-3 py-3">
                     <div className="min-w-0 pr-3">
                       <p className="text-sm font-medium text-[var(--theme-text)]">
                         {t("skills.form.enabled")}
                       </p>
                       <p className="mt-1 text-xs text-[var(--theme-text-secondary)]">
-                        {enabled ? "Skill is available to use" : "Skill is disabled for now"}
+                        {enabled
+                          ? "Skill is available to use"
+                          : "Skill is disabled for now"}
                       </p>
                     </div>
                     <div className="shrink-0">
@@ -917,31 +967,39 @@ export function SkillForm({
                   </div>
                 </div>
 
-                {(errors.name || errors.description || errors.tags || isEditing) && (
-                  <div className="border-t border-[var(--theme-border)] bg-[var(--theme-bg)]/70 px-4 py-3 sm:px-5">
+                {(errors.name ||
+                  errors.description ||
+                  errors.tags ||
+                  isEditing) && (
+                  <div className="border-t border-[var(--theme-border)]/50 bg-[var(--theme-bg)]/70 px-4 py-3 sm:px-5">
                     {errors.name && (
                       <p className="text-xs text-red-500">{errors.name}</p>
                     )}
                     {errors.description && (
-                      <p className="mt-1 text-xs text-red-500">{errors.description}</p>
+                      <p className="mt-1 text-xs text-red-500">
+                        {errors.description}
+                      </p>
                     )}
                     {errors.tags && (
                       <p className="mt-1 text-xs text-red-500">{errors.tags}</p>
                     )}
-                    {!errors.name && !errors.description && !errors.tags && isEditing && (
-                      <p className="text-[11px] text-stone-400 dark:text-stone-500">
-                        {t("skills.form.nameCannotChange")}
-                      </p>
-                    )}
+                    {!errors.name &&
+                      !errors.description &&
+                      !errors.tags &&
+                      isEditing && (
+                        <p className="text-[11px] text-stone-400 dark:text-stone-500">
+                          {t("skills.form.nameCannotChange")}
+                        </p>
+                      )}
                   </div>
                 )}
               </div>
             </div>
 
             {/* Editor area */}
-            <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm">
+            <div className="skill-form-editor flex min-h-0 flex-col overflow-hidden rounded-3xl border border-[var(--theme-border)]/50 shadow-sm">
               {/* File tabs + add + fullscreen */}
-              <div className="shrink-0 border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/70 px-3 py-3 sm:px-4">
+              <div className="shrink-0 border-b border-[var(--theme-border)]/50 bg-[var(--theme-bg)]/70 px-3 py-3 sm:px-4">
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -972,7 +1030,7 @@ export function SkillForm({
                     </div>
                   </div>
 
-                  <div className="min-w-0 overflow-hidden rounded-2xl bg-[var(--theme-bg-card)]/50 px-1 py-1">
+                  <div className="skill-file-tabs min-w-0 overflow-hidden rounded-2xl bg-[var(--theme-bg-card)]/50 px-1 py-1">
                     <FileTabs
                       files={files}
                       activeFileIndex={activeFileIndex}
@@ -982,7 +1040,7 @@ export function SkillForm({
                     />
                   </div>
 
-                  <div className="rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-3 py-2.5">
+                  <div className="skill-file-path rounded-2xl border border-[var(--theme-border)]/40 px-3 py-2.5">
                     <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
                       File path
                     </label>
@@ -1006,7 +1064,7 @@ export function SkillForm({
                     errors.content
                       ? "border-red-300 dark:border-red-700"
                       : "border-[var(--theme-border)]"
-                  }`}
+                  } skill-editor-shell`}
                 >
                   <SkillEditor
                     value={files[activeFileIndex]?.content || ""}
@@ -1025,12 +1083,12 @@ export function SkillForm({
           </div>
 
           {/* Bottom action bar */}
-          <div className="sticky bottom-0 shrink-0 flex items-center justify-end gap-2 border-t border-[var(--theme-border)] bg-[var(--theme-bg)]/95 px-1 pt-3 backdrop-blur">
+          <div className="skill-action-bar sticky bottom-0 shrink-0 flex items-center justify-end gap-2 border-t border-[var(--theme-border)]/50 bg-[var(--theme-bg)]/95 px-1 pt-3 backdrop-blur">
             <button
               type="button"
               onClick={onCancel}
               disabled={isLoading}
-              className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-2 text-sm text-[var(--theme-text)] hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors duration-150"
+              className="rounded-xl border  px-4 py-2 text-sm text-[var(--theme-text)] hover:bg-stone-50 dark:hover:bg-stone-800 disabled:opacity-50 transition-colors duration-150"
             >
               {t("common.cancel")}
             </button>

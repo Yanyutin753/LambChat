@@ -176,6 +176,7 @@ class Settings(BaseSettings):
     FILE_UPLOAD_MAX_FILES: int = 10
 
     # Frontend Settings
+    FRONTEND_DEV_URL: str = ""
     DEFAULT_AGENT: str = "default"
     WELCOME_SUGGESTIONS: list = Field(
         default_factory=lambda: [

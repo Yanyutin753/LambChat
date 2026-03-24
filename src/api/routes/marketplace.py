@@ -64,8 +64,12 @@ async def list_marketplace_skills(
     """列出商城 Skills（所有用户：激活的 skill + 自己发布的含停用的）"""
     tag_list = tags.split(",") if tags else None
     skills = await marketplace.list_marketplace_skills(
-        tags=tag_list, search=search, include_inactive=False, viewer_id=user.sub,
-        skip=skip, limit=limit,
+        tags=tag_list,
+        search=search,
+        include_inactive=False,
+        viewer_id=user.sub,
+        skip=skip,
+        limit=limit,
     )
     return skills
 
@@ -90,9 +94,13 @@ async def create_marketplace_skill(
     if not data.files:
         raise HTTPException(status_code=400, detail="Skill must have at least one file")
 
+    from src.infra.skill.parser import sanitize_skill_name
+
+    safe_name = sanitize_skill_name(data.skill_name)
+
     try:
         create_data = MarketplaceSkillCreate(
-            skill_name=data.skill_name,
+            skill_name=safe_name,
             description=data.description,
             tags=data.tags,
             version=data.version,
@@ -102,12 +110,14 @@ async def create_marketplace_skill(
         raise HTTPException(status_code=409, detail=str(e))
 
     try:
-        await marketplace.sync_marketplace_files(data.skill_name, data.files)
+        await marketplace.sync_marketplace_files(safe_name, data.files)
     except Exception:
-        await marketplace.delete_marketplace_skill(data.skill_name)
-        raise HTTPException(status_code=500, detail="Failed to sync files, marketplace entry rolled back")
+        await marketplace.delete_marketplace_skill(safe_name)
+        raise HTTPException(
+            status_code=500, detail="Failed to sync files, marketplace entry rolled back"
+        )
 
-    response = await marketplace.get_marketplace_skill_response(data.skill_name, viewer_id=user.sub)
+    response = await marketplace.get_marketplace_skill_response(safe_name, viewer_id=user.sub)
     return response
 
 
@@ -143,6 +153,7 @@ async def update_marketplace_skill(
 
     # 更新元数据
     from src.infra.skill.types import MarketplaceSkillUpdate
+
     update_data = MarketplaceSkillUpdate(
         description=data.description,
         tags=data.tags,
@@ -213,9 +224,16 @@ async def install_marketplace_skill(
         raise HTTPException(status_code=400, detail="Marketplace skill has no files")
 
     # 4. 创建用户本地副本（内置技能标记为 BUILTIN，其他为 MARKETPLACE）
-    installed_from = InstalledFrom.BUILTIN if marketplace_skill.created_by == "system" else InstalledFrom.MARKETPLACE
+    installed_from = (
+        InstalledFrom.BUILTIN
+        if marketplace_skill.created_by == "system"
+        else InstalledFrom.MARKETPLACE
+    )
     await storage.create_user_skill(
-        name, marketplace_files, user.sub, installed_from=installed_from,
+        name,
+        marketplace_files,
+        user.sub,
+        installed_from=installed_from,
     )
 
     return {

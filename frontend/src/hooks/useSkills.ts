@@ -162,7 +162,13 @@ export function useSkills(options?: { enabled?: boolean }) {
   const updateSkill = useCallback(
     async (
       name: string,
-      updates: { description?: string; content?: string; enabled?: boolean; files?: Record<string, string>; deletedFiles?: string[] },
+      updates: {
+        description?: string;
+        content?: string;
+        enabled?: boolean;
+        files?: Record<string, string>;
+        deletedFiles?: string[];
+      },
     ): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
@@ -200,38 +206,107 @@ export function useSkills(options?: { enabled?: boolean }) {
   );
 
   // Toggle skill
-  const toggleSkill = useCallback(async (name: string): Promise<boolean> => {
-    // 记录期望的 toggle 状态
-    const currentSkill = skills.find((s) => s.name === name);
-    const newEnabled = currentSkill ? !currentSkill.enabled : true;
-    pendingTogglesRef.current.set(name, newEnabled);
+  const toggleSkill = useCallback(
+    async (name: string): Promise<boolean> => {
+      // 记录期望的 toggle 状态
+      const currentSkill = skills.find((s) => s.name === name);
+      const newEnabled = currentSkill ? !currentSkill.enabled : true;
+      pendingTogglesRef.current.set(name, newEnabled);
 
-    // Optimistic update
-    setSkills((prev) =>
-      prev.map((s) => (s.name === name ? { ...s, enabled: newEnabled } : s)),
-    );
-
-    try {
-      await skillApi.toggle(name);
-      return true;
-    } catch (err) {
-      // Rollback on error
-      pendingTogglesRef.current.delete(name);
+      // Optimistic update
       setSkills((prev) =>
-        prev.map((s) => (s.name === name ? { ...s, enabled: !newEnabled } : s)),
+        prev.map((s) => (s.name === name ? { ...s, enabled: newEnabled } : s)),
       );
-      setError(err instanceof Error ? err.message : "Failed to toggle skill");
-      return false;
-    } finally {
-      // toggle 完成后清除 pending 状态
-      pendingTogglesRef.current.delete(name);
-    }
-  }, [skills]);
+
+      try {
+        await skillApi.toggle(name);
+        return true;
+      } catch (err) {
+        // Rollback on error
+        pendingTogglesRef.current.delete(name);
+        setSkills((prev) =>
+          prev.map((s) =>
+            s.name === name ? { ...s, enabled: !newEnabled } : s,
+          ),
+        );
+        setError(err instanceof Error ? err.message : "Failed to toggle skill");
+        return false;
+      } finally {
+        // toggle 完成后清除 pending 状态
+        pendingTogglesRef.current.delete(name);
+      }
+    },
+    [skills],
+  );
+
+  // Batch delete skills
+  const batchDeleteSkills = useCallback(
+    async (names: string[]): Promise<boolean> => {
+      setError(null);
+      try {
+        const result = await skillApi.batchDelete(names);
+        // Optimistic remove already-deleted skills from state
+        if (result.deleted.length > 0) {
+          setSkills((prev) =>
+            prev.filter((s) => !result.deleted.includes(s.name)),
+          );
+        }
+        // Full refresh for consistency
+        await fetchSkills();
+        return result.errors.length === 0;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to delete skills",
+        );
+        await fetchSkills(); // rollback
+        return false;
+      }
+    },
+    [fetchSkills],
+  );
+
+  // Batch toggle skills
+  const batchToggleSkills = useCallback(
+    async (names: string[], enabled: boolean): Promise<boolean> => {
+      // Optimistic update
+      names.forEach((name) => pendingTogglesRef.current.set(name, enabled));
+      setSkills((prev) =>
+        prev.map((s) => (names.includes(s.name) ? { ...s, enabled } : s)),
+      );
+
+      try {
+        const result = await skillApi.batchToggle(names, enabled);
+        // Clear pending for successful ones
+        result.updated.forEach((name) =>
+          pendingTogglesRef.current.delete(name),
+        );
+        // Refresh for consistency
+        await fetchSkills();
+        return result.errors.length === 0;
+      } catch (err) {
+        // Rollback on error
+        names.forEach((name) => pendingTogglesRef.current.delete(name));
+        setSkills((prev) =>
+          prev.map((s) =>
+            names.includes(s.name) ? { ...s, enabled: !enabled } : s,
+          ),
+        );
+        setError(
+          err instanceof Error ? err.message : "Failed to toggle skills",
+        );
+        return false;
+      }
+    },
+    [fetchSkills],
+  );
 
   // Toggle skill wrapper (for compatibility)
-  const toggleSkillWrapper = useCallback(async (name: string): Promise<void> => {
-    await toggleSkill(name);
-  }, [toggleSkill]);
+  const toggleSkillWrapper = useCallback(
+    async (name: string): Promise<void> => {
+      await toggleSkill(name);
+    },
+    [toggleSkill],
+  );
 
   // Toggle category (not applicable in new architecture - just toggle all)
   const toggleCategory = useCallback(
@@ -281,18 +356,24 @@ export function useSkills(options?: { enabled?: boolean }) {
     return stats;
   }, [skills]);
 
-  // Upload skill from ZIP file
+  // Upload skill(s) from ZIP file
   const uploadSkill = useCallback(
-    async (file: File): Promise<boolean> => {
+    async (
+      file: File,
+      skillNames?: string[],
+    ): Promise<{
+      created: Array<{ name: string; file_count: number }>;
+      errors: Array<{ name: string; reason: string }>;
+    } | null> => {
       setIsLoading(true);
       setError(null);
       try {
-        await skillApi.uploadZip(file);
+        const result = await skillApi.uploadZip(file, skillNames);
         await fetchSkills();
-        return true;
+        return result;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to upload skill");
-        return false;
+        return null;
       } finally {
         setIsLoading(false);
       }
@@ -300,18 +381,54 @@ export function useSkills(options?: { enabled?: boolean }) {
     [fetchSkills],
   );
 
+  // Preview skills from ZIP file
+  const previewZipSkills = useCallback(
+    async (
+      file: File,
+    ): Promise<{
+      skill_count: number;
+      skills: Array<{
+        name: string;
+        description: string;
+        file_count: number;
+        files: string[];
+        already_exists: boolean;
+      }>;
+    } | null> => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        return await skillApi.previewZip(file);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to preview ZIP");
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
   // Preview skills from GitHub repository
   const previewGitHubSkills = useCallback(
     async (
       repoUrl: string,
       branch: string = "main",
-    ): Promise<{ repo_url: string; branch: string; skills: Array<{ name: string; path: string; description: string }> } | null> => {
+    ): Promise<{
+      repo_url: string;
+      branch: string;
+      skills: Array<{ name: string; path: string; description: string }>;
+    } | null> => {
       setIsLoading(true);
       setError(null);
       try {
         return await skillApi.previewGitHub(repoUrl, branch);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to preview GitHub skills");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to preview GitHub skills",
+        );
         return null;
       } finally {
         setIsLoading(false);
@@ -326,15 +443,27 @@ export function useSkills(options?: { enabled?: boolean }) {
       repoUrl: string,
       skillNames: string[],
       branch: string = "main",
-    ): Promise<{ message: string; installed: string[]; errors: string[] } | null> => {
+    ): Promise<{
+      message: string;
+      installed: string[];
+      errors: string[];
+    } | null> => {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await skillApi.installGitHub(repoUrl, skillNames, branch);
+        const result = await skillApi.installGitHub(
+          repoUrl,
+          skillNames,
+          branch,
+        );
         await fetchSkills();
         return result;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to install GitHub skills");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to install GitHub skills",
+        );
         return null;
       } finally {
         setIsLoading(false);
@@ -349,7 +478,10 @@ export function useSkills(options?: { enabled?: boolean }) {
 
   // Publish skill to marketplace
   const publishToMarketplace = useCallback(
-    async (name: string, data?: PublishToMarketplaceRequest): Promise<boolean> => {
+    async (
+      name: string,
+      data?: PublishToMarketplaceRequest,
+    ): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
       try {
@@ -357,7 +489,9 @@ export function useSkills(options?: { enabled?: boolean }) {
         await fetchSkills();
         return true;
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to publish skill");
+        setError(
+          err instanceof Error ? err.message : "Failed to publish skill",
+        );
         return false;
       } finally {
         setIsLoading(false);
@@ -380,11 +514,14 @@ export function useSkills(options?: { enabled?: boolean }) {
     createSkill,
     updateSkill,
     deleteSkill,
+    batchDeleteSkills,
+    batchToggleSkills,
     toggleSkill,
     toggleSkillWrapper,
     toggleCategory,
     toggleAll,
     uploadSkill,
+    previewZipSkills,
     previewGitHubSkills,
     installGitHubSkills,
     publishToMarketplace,

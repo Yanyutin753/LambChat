@@ -108,7 +108,9 @@ export const skillApi = {
       await Promise.allSettled(
         writtenPaths.map((filePath) =>
           authFetch(
-            `${SKILLS_API}/${encodeURIComponent(data.name)}/files/${encodeURIComponent(filePath)}`,
+            `${SKILLS_API}/${encodeURIComponent(
+              data.name,
+            )}/files/${encodeURIComponent(filePath)}`,
             { method: "DELETE" },
           ),
         ),
@@ -125,7 +127,13 @@ export const skillApi = {
    */
   async update(
     skillName: string,
-    data: { description?: string; content?: string; enabled?: boolean; files?: Record<string, string>; deletedFiles?: string[] },
+    data: {
+      description?: string;
+      content?: string;
+      enabled?: boolean;
+      files?: Record<string, string>;
+      deletedFiles?: string[];
+    },
   ): Promise<{ message: string }> {
     // Update SKILL.md if content changed (legacy single-file mode)
     if (data.content !== undefined && !data.files) {
@@ -142,7 +150,9 @@ export const skillApi = {
     if (data.files) {
       for (const [filePath, content] of Object.entries(data.files)) {
         await authFetch(
-          `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
+          `${SKILLS_API}/${encodeURIComponent(
+            skillName,
+          )}/files/${encodeURIComponent(filePath)}`,
           {
             method: "PUT",
             body: JSON.stringify({ content }),
@@ -155,7 +165,9 @@ export const skillApi = {
     if (data.deletedFiles && data.deletedFiles.length > 0) {
       for (const filePath of data.deletedFiles) {
         await authFetch(
-          `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
+          `${SKILLS_API}/${encodeURIComponent(
+            skillName,
+          )}/files/${encodeURIComponent(filePath)}`,
           { method: "DELETE" },
         );
       }
@@ -193,11 +205,43 @@ export const skillApi = {
   },
 
   /**
-   * Upload skill from ZIP file
+   * Preview skills in a ZIP file (without creating them)
    */
-  async uploadZip(file: File): Promise<{ message: string; skill_name: string; file_count: number }> {
+  async previewZip(file: File): Promise<{
+    skill_count: number;
+    skills: Array<{
+      name: string;
+      description: string;
+      file_count: number;
+      files: string[];
+      already_exists: boolean;
+    }>;
+  }> {
     const formData = new FormData();
     formData.append("file", file);
+    return authFetch(`${SKILLS_API}/upload/preview`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  /**
+   * Upload skill(s) from ZIP file (optionally filter by skill names)
+   */
+  async uploadZip(
+    file: File,
+    skillNames?: string[],
+  ): Promise<{
+    message: string;
+    created: Array<{ name: string; file_count: number }>;
+    errors: Array<{ name: string; reason: string }>;
+    skill_count: number;
+  }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (skillNames && skillNames.length > 0) {
+      formData.append("skill_names", skillNames.join(","));
+    }
     return authFetch(`${SKILLS_API}/upload`, {
       method: "POST",
       body: formData,
@@ -235,7 +279,40 @@ export const skillApi = {
   }> {
     return authFetch(`${API_BASE}/api/github/install`, {
       method: "POST",
-      body: JSON.stringify({ repo_url: repoUrl, branch, skill_names: skillNames }),
+      body: JSON.stringify({
+        repo_url: repoUrl,
+        branch,
+        skill_names: skillNames,
+      }),
+    });
+  },
+
+  /**
+   * Batch delete skills
+   */
+  async batchDelete(names: string[]): Promise<{
+    deleted: string[];
+    errors: Array<{ name: string; reason: string }>;
+  }> {
+    return authFetch(`${SKILLS_API}/batch/delete`, {
+      method: "POST",
+      body: JSON.stringify({ names }),
+    });
+  },
+
+  /**
+   * Batch toggle skills enabled state
+   */
+  async batchToggle(
+    names: string[],
+    enabled: boolean,
+  ): Promise<{
+    updated: string[];
+    errors: Array<{ name: string; reason: string }>;
+  }> {
+    return authFetch(`${SKILLS_API}/batch/toggle`, {
+      method: "POST",
+      body: JSON.stringify({ names, enabled }),
     });
   },
 

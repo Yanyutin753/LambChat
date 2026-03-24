@@ -7,10 +7,9 @@ Simplified architecture: files + toggle, no system/user split.
 
 import io
 import zipfile
-from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
@@ -40,20 +39,18 @@ def get_marketplace_storage() -> MarketplaceStorage:
 MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
 
 
-
-
 class UpdateFileRequest(BaseModel):
     """更新文件内容的请求"""
 
     content: str
 
 
-def _parse_zip_content(zip_content: bytes) -> tuple[str, dict[str, str]]:
+def _parse_zip_skills(zip_content: bytes) -> list[tuple[str, dict[str, str]]]:
     """
-    解析 ZIP 内容，提取 skill 名称和文件。
+    解析 ZIP 内容，找到所有 SKILL.md 文件，每个 SKILL.md 的上级文件夹作为一个独立 skill。
 
     Returns:
-        tuple: (skill_name, files_dict)
+        list of (skill_name, files_dict) tuples
     """
     if len(zip_content) > MAX_ZIP_SIZE:
         raise ValueError("ZIP file too large (max 10MB)")
@@ -64,15 +61,14 @@ def _parse_zip_content(zip_content: bytes) -> tuple[str, dict[str, str]]:
         raise ValueError("Invalid ZIP file")
 
     try:
-        all_files: dict[str, str] = {}
-
         names = zf.namelist()
+
+        # 检测并去掉单顶层目录前缀（如 awesome-claude-skills/xxx → xxx）
         top_level = set()
         for n in names:
             parts = n.split("/")
             if parts[0]:
                 top_level.add(parts[0])
-
         prefix = ""
         if len(top_level) == 1:
             top = list(top_level)[0]
@@ -80,6 +76,8 @@ def _parse_zip_content(zip_content: bytes) -> tuple[str, dict[str, str]]:
             if is_dir:
                 prefix = top + "/"
 
+        # 读取所有有效文件
+        all_files: dict[str, str] = {}
         for name in names:
             if (
                 name.endswith("/")
@@ -89,50 +87,69 @@ def _parse_zip_content(zip_content: bytes) -> tuple[str, dict[str, str]]:
                 or ".git/" in name
             ):
                 continue
-            if name.startswith(prefix):
-                rel_path = name[len(prefix) :]
-            else:
-                rel_path = name
-            if not rel_path:
-                continue
-
             try:
                 raw = zf.read(name)
             except Exception:
                 continue
-
             try:
                 text = raw.decode("utf-8")
             except UnicodeDecodeError:
                 continue
+            all_files[name] = text
 
-            all_files[rel_path] = text
+        # 去掉顶层目录前缀
+        if prefix:
+            all_files = {
+                k[len(prefix) :]: v
+                for k, v in all_files.items()
+                if k.startswith(prefix) and k[len(prefix) :]
+            }
 
-        # 从 SKILL.md 提取 skill 名称
-        skill_name = None
-        skill_md = all_files.get("SKILL.md", "")
-        if skill_md:
-            try:
-                from src.infra.skill.parser import parse_skill_md
+        # 找到所有 SKILL.md 的路径
+        skill_md_paths = [p for p in all_files.keys() if p.split("/")[-1].lower() == "skill.md"]
 
-                parsed_name, _, _ = parse_skill_md(skill_md)
-                if parsed_name:
-                    skill_name = parsed_name
-            except Exception:
-                pass
+        if not skill_md_paths:
+            raise ValueError("No SKILL.md found in ZIP")
 
-        # 如果没有 name 字段，使用顶级目录名或第一个文件名
-        if not skill_name:
-            if prefix:
-                skill_name = prefix.rstrip("/")
-            elif all_files:
-                first_file = list(all_files.keys())[0]
-                skill_name = first_file.split("/")[0] if "/" in first_file else first_file
+        skills: list[tuple[str, dict[str, str]]] = []
 
-        if not skill_name:
-            raise ValueError("Cannot determine skill name from ZIP")
+        for skill_md_path in skill_md_paths:
+            # SKILL.md 所在的文件夹就是 skill 的根目录
+            skill_root = skill_md_path.rsplit("/", 1)[0] if "/" in skill_md_path else ""
+            skill_prefix = skill_root + "/" if skill_root else ""
 
-        return skill_name, all_files
+            # 收集该 skill 根目录下的所有文件（相对路径）
+            files: dict[str, str] = {}
+            for fpath, content in all_files.items():
+                if fpath.startswith(skill_prefix):
+                    rel = fpath[len(skill_prefix) :]
+                    if rel:
+                        files[rel] = content
+
+            # 优先使用文件夹名（路径安全），回退到 SKILL.md 的 name 字段
+            skill_md_content = files.get("SKILL.md", all_files.get(skill_md_path, ""))
+            skill_name = None
+            if skill_root:
+                skill_name = skill_root
+            if not skill_name and skill_md_content:
+                try:
+                    from src.infra.skill.parser import parse_skill_md, sanitize_skill_name
+
+                    parsed_name, _, _ = parse_skill_md(skill_md_content)
+                    if parsed_name:
+                        skill_name = sanitize_skill_name(parsed_name)
+                except Exception:
+                    pass
+            if not skill_name:
+                skill_name = "unnamed-skill"
+
+            if files:
+                skills.append((skill_name, files))
+
+        if not skills:
+            raise ValueError("No valid skills found in ZIP")
+
+        return skills
     finally:
         zf.close()
 
@@ -142,13 +159,13 @@ def _parse_zip_content(zip_content: bytes) -> tuple[str, dict[str, str]]:
 # ==========================================
 
 
-@router.post("/upload", status_code=201)
-async def upload_skill_from_zip(
+@router.post("/upload/preview")
+async def preview_zip_skills(
     file: UploadFile,
     user: TokenPayload = Depends(require_permissions("skill:write")),
     storage: SkillStorage = Depends(get_storage),
 ):
-    """从 ZIP 文件上传创建技能"""
+    """预览 ZIP 文件中的 skills（不创建，返回 skill 列表供用户选择）"""
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
 
@@ -158,25 +175,99 @@ async def upload_skill_from_zip(
         raise HTTPException(status_code=400, detail="Failed to read file content")
 
     try:
-        skill_name, files = _parse_zip_content(content)
+        skills = _parse_zip_skills(content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # 检查是否已存在
-    existing = await storage.get_skill_files(skill_name, user.sub)
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Skill '{skill_name}' already exists"
+    # 批量检查哪些已存在
+    user_skills = await storage.list_user_skills(user.sub)
+    existing_names = {s["skill_name"] for s in user_skills}
+
+    skill_list = []
+    for skill_name, files in skills:
+        # 提取 description
+        description = ""
+        skill_md_content = files.get("SKILL.md", "")
+        if skill_md_content:
+            try:
+                from src.infra.skill.parser import parse_skill_md
+
+                _, desc, tags = parse_skill_md(skill_md_content)
+                if desc:
+                    description = desc
+            except Exception:
+                pass
+
+        skill_list.append(
+            {
+                "name": skill_name,
+                "description": description,
+                "file_count": len(files),
+                "files": sorted(files.keys()),
+                "already_exists": skill_name in existing_names,
+            }
         )
 
-    # 创建技能文件 + toggle + 失效缓存
-    await storage.create_user_skill(skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL)
+    return {
+        "skill_count": len(skill_list),
+        "skills": skill_list,
+    }
+
+
+@router.post("/upload", status_code=201)
+async def upload_skill_from_zip(
+    file: UploadFile,
+    skill_names: Optional[str] = Form(default=None),
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """从 ZIP 文件上传创建技能（支持多个 SKILL.md，可选择性安装）"""
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+
+    try:
+        content = await file.read()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to read file content")
+
+    try:
+        skills = _parse_zip_skills(content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 如果指定了 skill_names，只安装选中的
+    if skill_names:
+        name_set = set(n.strip() for n in skill_names.split(",") if n.strip())
+        skills = [(n, f) for n, f in skills if n in name_set]
+
+    created: list[dict] = []
+    errors: list[dict] = []
+
+    # 批量获取已存在 skill
+    user_skills = await storage.list_user_skills(user.sub)
+    existing_names = {s["skill_name"] for s in user_skills}
+
+    for skill_name, files in skills:
+        if skill_name in existing_names:
+            errors.append({"name": skill_name, "reason": "already exists"})
+            continue
+
+        try:
+            await storage.create_user_skill(
+                skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL
+            )
+            created.append({"name": skill_name, "file_count": len(files)})
+        except Exception as e:
+            errors.append({"name": skill_name, "reason": str(e)})
+
+    if not created and errors:
+        raise HTTPException(status_code=400, detail=f"All skills failed: {errors[0]['reason']}")
 
     return {
-        "message": f"Skill '{skill_name}' created",
-        "skill_name": skill_name,
-        "file_count": len(files),
+        "message": f"Created {len(created)} skill(s)",
+        "created": created,
+        "errors": errors,
+        "skill_count": len(created),
     }
 
 
@@ -366,9 +457,83 @@ async def delete_user_skill(
     return {"message": f"Skill '{name}' deleted"}
 
 
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+
+    names: list[str]
+
+
+class BatchToggleRequest(BaseModel):
+    """批量切换请求"""
+
+    names: list[str]
+    enabled: bool
+
+
 class ToggleRequest(BaseModel):
     """Toggle 请求（可选指定目标状态）"""
+
     enabled: Optional[bool] = None
+
+
+# ==========================================
+# 批量操作
+# ==========================================
+
+
+@router.post("/batch/delete")
+async def batch_delete_skills(
+    body: BatchDeleteRequest,
+    user: TokenPayload = Depends(require_permissions("skill:delete")),
+    storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """批量删除 Skills"""
+    deleted: list[str] = []
+    errors: list[dict[str, str]] = []
+
+    for name in body.names:
+        try:
+            toggle = await storage.get_toggle(name, user.sub)
+            published_marketplace_name = toggle.published_marketplace_name if toggle else None
+            existing_mp = await marketplace.get_marketplace_skill(
+                published_marketplace_name or name
+            )
+            if existing_mp and existing_mp.created_by == user.sub:
+                await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
+
+            await storage.delete_skill_and_toggle(name, user.sub)
+            deleted.append(name)
+        except Exception as e:
+            errors.append({"name": name, "reason": str(e)})
+
+    if deleted:
+        await storage.invalidate_user_cache(user.sub)
+
+    return {"deleted": deleted, "errors": errors}
+
+
+@router.post("/batch/toggle")
+async def batch_toggle_skills(
+    body: BatchToggleRequest,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """批量切换 Skills 的启用状态"""
+    updated: list[str] = []
+    errors: list[dict[str, str]] = []
+
+    for name in body.names:
+        try:
+            await storage.upsert_toggle(name, user.sub, enabled=body.enabled)
+            updated.append(name)
+        except Exception as e:
+            errors.append({"name": name, "reason": str(e)})
+
+    if updated:
+        await storage.invalidate_user_cache(user.sub)
+
+    return {"updated": updated, "errors": errors}
 
 
 @router.patch("/{name}/toggle")
@@ -419,9 +584,12 @@ async def publish_skill_to_marketplace(
         raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
 
     from src.infra.skill.parser import parse_skill_md as _parse_md
+    from src.infra.skill.parser import sanitize_skill_name
 
     _, default_description, default_tags = _parse_md(user_files.get("SKILL.md", ""))
-    target_name = (data.skill_name if data and data.skill_name else name).strip()
+    target_name = sanitize_skill_name(
+        (data.skill_name if data and data.skill_name else name).strip()
+    )
     if not target_name:
         raise HTTPException(status_code=400, detail="Marketplace skill name is required")
 
@@ -433,7 +601,9 @@ async def publish_skill_to_marketplace(
                 detail=f"Marketplace skill name '{target_name}' is already taken",
             )
         update_data = MarketplaceSkillUpdate(
-            description=data.description if data and data.description is not None else default_description,
+            description=data.description
+            if data and data.description is not None
+            else default_description,
             tags=data.tags if data and data.tags is not None else existing.tags,
             version=data.version if data and data.version is not None else existing.version,
             is_active=True,
@@ -442,7 +612,9 @@ async def publish_skill_to_marketplace(
     else:
         create_data = MarketplaceSkillCreate(
             skill_name=target_name,
-            description=data.description if data and data.description is not None else default_description,
+            description=data.description
+            if data and data.description is not None
+            else default_description,
             tags=data.tags if data and data.tags is not None else default_tags,
             version=data.version if data and data.version is not None else "1.0.0",
         )

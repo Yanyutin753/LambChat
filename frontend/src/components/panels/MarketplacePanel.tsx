@@ -11,6 +11,7 @@ import {
   Loader2 as Loader2Icon,
   Eye,
   ChevronRight,
+  ChevronDown,
   RefreshCcw,
   Pencil,
 } from "lucide-react";
@@ -59,7 +60,12 @@ export function MarketplacePanel() {
     setPreviewFileContent,
   } = useMarketplace();
 
-  const { skills: userSkills, fetchSkills: fetchUserSkills, isLoading: userSkillsLoading, getSkill } = useSkills();
+  const {
+    skills: userSkills,
+    fetchSkills: fetchUserSkills,
+    isLoading: userSkillsLoading,
+    getSkill,
+  } = useSkills();
   const canWrite = hasAnyPermission([Permission.SKILL_WRITE]);
   const canAdmin = hasAnyPermission([Permission.SKILL_ADMIN]);
 
@@ -80,11 +86,13 @@ export function MarketplacePanel() {
   const [installingSkill, setInstallingSkill] = useState<string | null>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Edit modal state
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isFormFullscreen, setIsFormFullscreen] = useState(false);
+  const [isDescExpanded, setIsDescExpanded] = useState(false);
 
   const [adminDeleteConfirm, setAdminDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -94,7 +102,11 @@ export function MarketplacePanel() {
   const handleActivate = async (skillName: string, isActive: boolean) => {
     const success = await activateSkill(skillName, isActive);
     if (success) {
-      toast.success(isActive ? t("marketplace.activateSuccess") : t("marketplace.deactivateSuccess"));
+      toast.success(
+        isActive
+          ? t("marketplace.activateSuccess")
+          : t("marketplace.deactivateSuccess"),
+      );
     }
   };
 
@@ -228,9 +240,10 @@ export function MarketplacePanel() {
   const hasActiveFilters = selectedTags.length > 0 || searchQuery.length > 0;
 
   return (
-    <div className="flex h-full flex-col min-h-0">
+    <div className="skill-theme-shell flex h-full min-h-0 flex-col">
       {/* Header */}
       <PanelHeader
+        className="skill-panel-header"
         title={t("marketplace.title")}
         subtitle={t("marketplace.subtitle")}
         icon={
@@ -242,15 +255,86 @@ export function MarketplacePanel() {
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={t("marketplace.searchPlaceholder")}
+        searchAccessory={
+          tags.length > 0 ? (
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen((prev) => !prev)}
+                className={`btn-secondary min-h-10 px-3 ${
+                  selectedTags.length > 0
+                    ? "border-[var(--theme-primary)] text-[var(--theme-text)]"
+                    : ""
+                }`}
+              >
+                <Tag size={14} />
+                <span className="hidden sm:inline">
+                  {t("adminMarketplace.tags")}
+                </span>
+                {selectedTags.length > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[11px]">
+                    {selectedTags.length}
+                  </span>
+                )}
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${
+                    isFilterOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {isFilterOpen && (
+                <div className="skill-filter-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border  p-3 shadow-lg">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]">
+                      {t("adminMarketplace.tags")}
+                    </p>
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="text-xs text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
+                      >
+                        {t("marketplace.clearFilters")}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                    {tags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className={`skill-tag-chip ${
+                          selectedTags.includes(tag)
+                            ? "skill-tag-chip--active"
+                            : ""
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null
+        }
         actions={
           <div className="flex items-center gap-2">
             {canWrite && (
               <button onClick={handleCreate} className="btn-primary">
                 <Plus size={16} />
-                <span className="hidden sm:inline">{t("marketplace.createAndPublish")}</span>
+                <span className="hidden sm:inline">
+                  {t("marketplace.createAndPublish")}
+                </span>
               </button>
             )}
-            <button onClick={() => fetchSkills()} className="btn-secondary" title={t("common.refresh")}>
+            <button
+              onClick={() => fetchSkills()}
+              className="btn-secondary"
+              title={t("common.refresh")}
+            >
               <RefreshCw size={16} className="sm:size-[18px]" />
             </button>
           </div>
@@ -270,38 +354,8 @@ export function MarketplacePanel() {
         </div>
       )}
 
-      {/* Tags Filter */}
-      {tags.length > 0 && (
-        <div className="border-b px-4 py-3 bg-[var(--theme-bg)] border-[var(--theme-border)]">
-          <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/85 px-3 py-3 shadow-sm backdrop-blur">
-            <Tag size={14} className="text-[var(--theme-text-secondary)] flex-shrink-0" />
-            {tags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => toggleTag(tag)}
-                className={`skill-tag-chip ${
-                  selectedTags.includes(tag)
-                    ? "skill-tag-chip--active"
-                    : ""
-                }`}
-              >
-                {tag}
-              </button>
-            ))}
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="text-xs text-[var(--theme-text-secondary)] hover:text-[var(--theme-primary)] transition-colors ml-1"
-              >
-                {t("common.clear")}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Skills List */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[var(--theme-bg)]">
+      <div className="skill-content-area flex-1 overflow-y-auto bg-[var(--theme-bg)] p-4 sm:p-6">
         {isLoading && skills.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[var(--theme-text-secondary)]">
             <LoadingSpinner size="sm" />
@@ -323,16 +377,13 @@ export function MarketplacePanel() {
                 : t("marketplace.createHint")}
             </p>
             {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="btn-secondary mt-4"
-              >
+              <button onClick={clearFilters} className="btn-secondary mt-4">
                 {t("marketplace.clearFilters")}
               </button>
             )}
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {skills.map((skill) => {
               const isInstalled = installedNames.has(skill.skill_name);
               const isOwner = skill.is_owner;
@@ -341,7 +392,9 @@ export function MarketplacePanel() {
                 <div
                   key={skill.skill_name}
                   className={`skill-surface-card group flex h-full flex-col rounded-[1.6rem] p-4 sm:p-5 ${
-                    skill.is_active ? "" : "skill-surface-card--muted opacity-80"
+                    skill.is_active
+                      ? ""
+                      : "skill-surface-card--muted opacity-80"
                   }`}
                 >
                   <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--theme-primary)]/20 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
@@ -353,10 +406,14 @@ export function MarketplacePanel() {
                         </h3>
                         <span
                           className={`skill-status-pill ${
-                            skill.is_active ? "skill-status-pill--active" : "skill-status-pill--disabled"
+                            skill.is_active
+                              ? "skill-status-pill--active"
+                              : "skill-status-pill--disabled"
                           }`}
                         >
-                          {skill.is_active ? t("marketplace.active") : t("marketplace.inactive")}
+                          {skill.is_active
+                            ? t("marketplace.active")
+                            : t("marketplace.inactive")}
                         </span>
                         {isInstalled && (
                           <span className="skill-status-pill skill-status-pill--installed">
@@ -377,12 +434,12 @@ export function MarketplacePanel() {
                         {skill.file_count} {t("marketplace.files")}
                       </span>
                     </div>
-                    <div className="skill-meta-pill">
-                      v{skill.version}
-                    </div>
+                    <div className="skill-meta-pill">v{skill.version}</div>
                     {skill.created_by_username && (
                       <div className="skill-meta-pill truncate">
-                        {t("marketplace.publishedBy", { username: skill.created_by_username })}
+                        {t("marketplace.publishedBy", {
+                          username: skill.created_by_username,
+                        })}
                       </div>
                     )}
                   </div>
@@ -395,7 +452,9 @@ export function MarketplacePanel() {
                           type="button"
                           onClick={() => toggleTag(tag)}
                           className={`skill-tag-chip ${
-                            selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
+                            selectedTags.includes(tag)
+                              ? "skill-tag-chip--active"
+                              : ""
                           }`}
                         >
                           {tag}
@@ -418,21 +477,29 @@ export function MarketplacePanel() {
                         <Eye size={14} />
                         <span>{t("marketplace.preview")}</span>
                       </button>
-                      {canWrite && (
-                        installingSkill === skill.skill_name ? (
-                          <button disabled className="btn-primary opacity-50 text-xs min-h-9 px-3 py-2">
+                      {canWrite &&
+                        (installingSkill === skill.skill_name ? (
+                          <button
+                            disabled
+                            className="btn-primary opacity-50 text-xs min-h-9 px-3 py-2"
+                          >
                             <Loader2Icon size={14} className="animate-spin" />
                             <span>{t("marketplace.installing")}</span>
                           </button>
                         ) : userSkillsLoading ? (
                           <span className="inline-flex min-h-9 items-center text-xs text-[var(--theme-text-secondary)] px-2">
-                            <Loader2Icon size={14} className="animate-spin inline mr-1" />
+                            <Loader2Icon
+                              size={14}
+                              className="animate-spin inline mr-1"
+                            />
                           </span>
                         ) : (
                           <button
                             onClick={() => handleInstallClick(skill.skill_name)}
                             className={`text-xs flex min-h-9 items-center gap-1.5 px-3 py-2 ${
-                              isInstalled ? "btn-secondary" : "btn-primary shadow-sm"
+                              isInstalled
+                                ? "btn-secondary"
+                                : "btn-primary shadow-sm"
                             }`}
                           >
                             {isInstalled ? (
@@ -447,8 +514,7 @@ export function MarketplacePanel() {
                               </>
                             )}
                           </button>
-                        )
-                      )}
+                        ))}
                     </div>
 
                     {canManage && (
@@ -464,12 +530,18 @@ export function MarketplacePanel() {
                         )}
                         <div className="flex-1" />
                         <button
-                          onClick={() => handleActivate(skill.skill_name, !skill.is_active)}
+                          onClick={() =>
+                            handleActivate(skill.skill_name, !skill.is_active)
+                          }
                           className={`skill-status-pill min-h-9 px-3 py-1.5 text-xs transition-all ${
-                            skill.is_active ? "skill-status-pill--active" : "skill-status-pill--disabled"
+                            skill.is_active
+                              ? "skill-status-pill--active"
+                              : "skill-status-pill--disabled"
                           }`}
                         >
-                          {skill.is_active ? t("marketplace.active") : t("marketplace.inactive")}
+                          {skill.is_active
+                            ? t("marketplace.active")
+                            : t("marketplace.inactive")}
                         </button>
                         <button
                           onClick={() => handleAdminDelete(skill.skill_name)}
@@ -517,46 +589,79 @@ export function MarketplacePanel() {
 
       {/* Skill Preview Modal */}
       {previewSkill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-md p-4">
-          <div className="w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden rounded-[1.75rem] border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-[0_32px_80px_-32px_rgba(15,23,42,0.55)]">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="skill-preview-shell flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[1.5rem] border sm:max-h-[88vh] sm:max-w-4xl sm:rounded-[1.75rem] shadow-[0_-16px_48px_-16px_rgba(15,23,42,0.3)] sm:shadow-[0_32px_80px_-32px_rgba(15,23,42,0.55)]">
             {/* Modal Header */}
-            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/88 px-6 py-5 backdrop-blur">
-              <div className="flex items-start justify-between gap-4">
+            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/88 px-4 py-4 backdrop-blur sm:px-6 sm:py-5">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)] shadow-sm">
-                      <ShoppingBag size={20} />
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)] shadow-sm sm:h-11 sm:w-11 sm:rounded-2xl">
+                      <ShoppingBag size={16} className="sm:size-[20px]" />
                     </div>
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate text-lg font-semibold text-[var(--theme-text)]">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <h2 className="truncate text-base font-semibold text-[var(--theme-text)] sm:text-lg">
                           {previewSkill.skill_name}
                         </h2>
-                        <span className="skill-meta-pill">v{previewSkill.version}</span>
+                        <span className="skill-meta-pill text-[10px] sm:text-xs">
+                          v{previewSkill.version}
+                        </span>
                       </div>
-                      <p className="mt-1 text-sm leading-relaxed text-[var(--theme-text-secondary)]">
-                        {previewSkill.description || t("marketplace.noDescription")}
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsDescExpanded((v) => !v)}
+                        className="mt-1 text-left text-sm leading-relaxed text-[var(--theme-text-secondary)]"
+                      >
+                        <span className={!isDescExpanded ? "line-clamp-2" : ""}>
+                          {previewSkill.description ||
+                            t("marketplace.noDescription")}
+                        </span>
+                        {(previewSkill.description?.length || 0) > 80 && (
+                          <span className="ml-1 inline-flex items-center gap-0.5 text-xs text-[var(--theme-primary)]">
+                            {isDescExpanded
+                              ? t("marketplace.previewCollapse")
+                              : t("marketplace.previewExpand")}
+                            <ChevronDown
+                              size={12}
+                              className={`transition-transform ${
+                                isDescExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </span>
+                        )}
+                      </button>
                     </div>
                   </div>
                   {previewSkill.tags.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {previewSkill.tags.map((tag) => (
-                        <span key={tag} className="skill-tag-chip skill-tag-chip--active">
+                    <div className="mt-3 flex flex-wrap gap-1.5 sm:mt-4 sm:gap-2">
+                      {previewSkill.tags.slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="skill-tag-chip skill-tag-chip--active text-[10px] sm:text-xs"
+                        >
                           {tag}
                         </span>
                       ))}
+                      {previewSkill.tags.length > 3 && (
+                        <span className="skill-tag-chip text-[10px] sm:text-xs">
+                          +{previewSkill.tags.length - 3}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
-                <button onClick={closePreview} className="btn-icon hover:bg-[var(--theme-bg-card)]">
+                <button
+                  onClick={closePreview}
+                  className="btn-icon -mr-1 -mt-1 hover:bg-[var(--theme-bg-card)]"
+                >
                   <X size={20} />
                 </button>
               </div>
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="skill-modal-body flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
               {/* Files */}
               {previewLoading ? (
                 <div className="flex items-center gap-2 text-sm text-[var(--theme-text-secondary)]">
@@ -566,7 +671,10 @@ export function MarketplacePanel() {
               ) : previewFiles ? (
                 <div>
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--theme-text)]">
-                    <FileText size={16} className="text-[var(--theme-primary)]" />
+                    <FileText
+                      size={16}
+                      className="text-[var(--theme-primary)]"
+                    />
                     {t("marketplace.skillFiles")} ({previewFiles.files.length})
                   </h3>
                   <div className="space-y-3">
@@ -589,7 +697,10 @@ export function MarketplacePanel() {
                                 });
                                 return;
                               }
-                              readPreviewFile(previewSkill.skill_name, filePath);
+                              readPreviewFile(
+                                previewSkill.skill_name,
+                                filePath,
+                              );
                             }}
                             className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--theme-primary-light)]/80"
                           >
@@ -621,7 +732,7 @@ export function MarketplacePanel() {
                             )}
                           </button>
                           {isOpen && (
-                            <div className="border-t border-[var(--theme-border)] bg-[var(--theme-bg-card)]/92 p-4">
+                            <div className="border-t /92 p-4">
                               <pre className="max-h-72 overflow-auto rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] p-4 text-xs leading-6 text-[var(--theme-text)] whitespace-pre-wrap break-all font-mono">
                                 {previewFileContent[filePath]}
                               </pre>
@@ -670,7 +781,7 @@ export function MarketplacePanel() {
                   </div>
                 </>
               )}
-              <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--theme-bg)]/45 px-2 py-2 sm:px-4 sm:py-3">
+              <div className="skill-modal-body flex min-h-0 flex-1 overflow-hidden flex-col bg-[var(--theme-bg)]/45 px-2 py-2 sm:px-4 sm:py-3">
                 <SkillForm
                   skill={editingSkill}
                   onSave={handleSave}
@@ -687,7 +798,9 @@ export function MarketplacePanel() {
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         isOpen={adminDeleteConfirm?.isOpen ?? false}
-        title={t("marketplace.confirmDelete", { name: adminDeleteConfirm?.skillName })}
+        title={t("marketplace.confirmDelete", {
+          name: adminDeleteConfirm?.skillName,
+        })}
         message={t("marketplace.confirmDeleteMessage")}
         confirmText={t("common.delete")}
         cancelText={t("common.cancel")}

@@ -28,12 +28,14 @@ GITHUB_RAW = "https://raw.githubusercontent.com"
 
 class GitHubPreviewRequest(BaseModel):
     """GitHub 预览请求"""
+
     repo_url: str
     branch: str = "main"
 
 
 class GitHubSkillPreview(BaseModel):
     """GitHub 技能预览"""
+
     name: str
     path: str
     description: str
@@ -41,6 +43,7 @@ class GitHubSkillPreview(BaseModel):
 
 class GitHubPreviewResponse(BaseModel):
     """GitHub 预览响应"""
+
     repo_url: str
     branch: str
     skills: list[GitHubSkillPreview]
@@ -48,6 +51,7 @@ class GitHubPreviewResponse(BaseModel):
 
 class GitHubInstallRequest(BaseModel):
     """GitHub 安装请求"""
+
     repo_url: str
     branch: str = "main"
     skill_names: list[str]
@@ -55,6 +59,7 @@ class GitHubInstallRequest(BaseModel):
 
 class GitHubInstallResponse(BaseModel):
     """GitHub 安装响应"""
+
     message: str
     installed: list[str]
     errors: list[str]
@@ -72,12 +77,12 @@ def parse_github_url(url: str) -> tuple[str, str]:
     url = url.strip()
 
     # owner/repo 格式
-    if re.match(r'^[\w-]+/[\w.-]+$', url):
-        parts = url.split('/')
+    if re.match(r"^[\w-]+/[\w.-]+$", url):
+        parts = url.split("/")
         return parts[0], parts[1]
 
     # https://github.com/owner/repo 格式
-    match = re.match(r'https?://github\.com/([\w-]+)/([\w.-]+)', url)
+    match = re.match(r"https?://github\.com/([\w-]+)/([\w.-]+)", url)
     if match:
         return match.group(1), match.group(2)
 
@@ -143,6 +148,7 @@ async def fetch_all_files_recursive(
 
     # 并发获取所有文件内容
     if file_tasks:
+
         async def _fetch_file(item):
             content = await fetch_github_file(owner, repo, branch, item["path"])
             rel_path = f"{prefix}{item['name']}" if prefix else item["name"]
@@ -158,7 +164,9 @@ async def fetch_all_files_recursive(
         dir_tasks = []
         for item in dir_items:
             sub_prefix = f"{prefix}{item['name']}/" if prefix else f"{item['name']}/"
-            dir_tasks.append(fetch_all_files_recursive(owner, repo, branch, item["path"], sub_prefix))
+            dir_tasks.append(
+                fetch_all_files_recursive(owner, repo, branch, item["path"], sub_prefix)
+            )
         dir_results = await asyncio.gather(*dir_tasks)
         for sub_files in dir_results:
             files.update(sub_files)
@@ -183,9 +191,11 @@ async def fetch_github_file(
 
 def _parse_skill_md(skill_md: str, fallback_name: str, fallback_source: str) -> dict[str, Any]:
     """从 SKILL.md 内容解析技能描述，名称使用目录名/仓库名"""
+    from src.infra.skill.parser import sanitize_skill_name
+
     _, description, tags = parse_skill_md(skill_md)
     return {
-        "name": fallback_name,
+        "name": sanitize_skill_name(fallback_name),
         "description": description or f"Skill from {fallback_source}",
         "tags": tags,
     }
@@ -309,7 +319,9 @@ async def install_github_skills(
 
             # 保存文件 + 创建 toggle
             try:
-                await storage.create_user_skill(skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL)
+                await storage.create_user_skill(
+                    skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL
+                )
             except Exception as e:
                 # 回滚：清理已写入的文件
                 await storage.delete_skill_files(skill_name, user.sub)

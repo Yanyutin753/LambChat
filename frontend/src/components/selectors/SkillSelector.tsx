@@ -14,10 +14,7 @@ import {
   Tag,
 } from "lucide-react";
 import type { SkillResponse, SkillSource } from "../../types";
-import {
-  collectSkillTags,
-  skillMatchesQuery,
-} from "../../utils/skillFilters";
+import { collectSkillTags, skillMatchesQuery } from "../../utils/skillFilters";
 
 interface SkillSelectorProps {
   skills: SkillResponse[];
@@ -99,7 +96,8 @@ export function SkillSelector({
   );
 
   const availableTags = useMemo(() => collectSkillTags(skills), [skills]);
-  const hasActiveFilters = searchQuery.trim().length > 0 || selectedTags.length > 0;
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || selectedTags.length > 0;
 
   const toggleCategoryExpand = (source: SkillSource) => {
     setExpandedCategories((prev) => {
@@ -311,27 +309,6 @@ export function SkillSelector({
                                 {skill.description ||
                                   t("skillSelector.noDescription")}
                               </p>
-                              {skill.tags.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {skill.tags.slice(0, 3).map((tag) => (
-                                    <button
-                                      key={tag}
-                                      type="button"
-                                      onClick={async (e) => {
-                                        e.stopPropagation();
-                                        toggleTag(tag);
-                                      }}
-                                      className={`skill-tag-chip ${
-                                        selectedTags.includes(tag)
-                                          ? "skill-tag-chip--active"
-                                          : ""
-                                      }`}
-                                    >
-                                      {tag}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                             <div
                               className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${

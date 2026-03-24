@@ -6,14 +6,20 @@ type TaggedMarketplaceSkill = Pick<
   "skill_name" | "description" | "tags"
 >;
 
-export function normalizeSkillTags(tags: string[]): string[] {
-  return Array.from(
-    new Set(
-      tags
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    ),
+export function sanitizeSkillName(name: string): string {
+  return (
+    name
+      .replace(
+        /[^\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\-.]/g,
+        "-",
+      )
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "") || "unnamed-skill"
   );
+}
+
+export function normalizeSkillTags(tags: string[]): string[] {
+  return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
 }
 
 export function collectSkillTags(

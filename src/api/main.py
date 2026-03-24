@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.middleware.auth import AuthMiddleware
@@ -38,6 +38,7 @@ from src.api.routes import (
 )
 from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
+from src.frontend_resolution import resolve_frontend_target
 from src.infra.logging import get_logger, setup_logging
 from src.kernel.config import initialize_settings, settings
 
@@ -139,85 +140,89 @@ async def lifespan(app: FastAPI):
     _feishu_task = asyncio.create_task(_start_feishu())
     app.state.feishu_task = _feishu_task
 
-    yield
-
-    # 关闭时清理
-    from src.agents import AgentFactory
-    from src.infra.sandbox import SandboxFactory
-
-    # 停止事件合并器
-    from src.infra.session.event_merger import get_event_merger
-    from src.infra.task.manager import get_task_manager
-
-    merger = get_event_merger(None)
-    await merger.stop()
-    logger.info("EventMerger stopped")
-
-    # 标记所有运行中的任务为失败
-    task_manager = get_task_manager()
-
-    # 先停止 pub/sub 监听器，再关闭任务
-    await task_manager.stop_pubsub_listener()
-    logger.info("Task pub/sub listener stopped")
-
-    await task_manager.shutdown()
-    logger.info("Background tasks marked as failed")
-
-    # 清理 executor 注册表
-    from src.infra.task.concurrency import unregister_executor
-
-    unregister_executor("agent_stream")
-    logger.info("Executor registry cleaned up")
-
-    # 关闭所有 sandbox
-    await SandboxFactory.close_all()
-
-    # 关闭用户级沙箱（SessionSandboxManager 管理的）
-    from src.infra.sandbox.session_manager import get_session_sandbox_manager
-
-    sandbox_manager = get_session_sandbox_manager()
-    await sandbox_manager.close_all()
-    logger.info("User sandboxes stopped")
-
-    await AgentFactory.close_all()
-
-    # 关闭 PostgreSQL 连接池
-    from src.infra.storage.postgres import close_connection_pool
-
-    close_connection_pool()
-
-    # 关闭 EmailService HTTP 客户端
-    from src.infra.email import get_email_service
-
-    email_service = await get_email_service()
-    await email_service.close()
-
-    # 关闭 RateLimiter Redis 连接
-    from src.api.routes.auth import get_rate_limiter
-
-    rate_limiter = get_rate_limiter()
-    await rate_limiter.close()
-
-    # 关闭主 Redis 连接池
-    from src.infra.storage.redis import close_redis_client
-
-    await close_redis_client()
-
-    # 关闭 MongoDB 连接池
-    from src.infra.storage.mongodb import close_mongo_client
-
-    await close_mongo_client()
-
-    # 关闭 Feishu 渠道
     try:
-        from src.infra.channel.feishu import stop_feishu_channels
+        yield
+    except asyncio.CancelledError:
+        # Ctrl+C / server cancellation during lifespan shutdown is a normal exit path.
+        logger.info("Application lifespan cancelled, continuing graceful shutdown")
+    finally:
+        # 关闭时清理
+        from src.agents import AgentFactory
+        from src.infra.sandbox import SandboxFactory
 
-        await stop_feishu_channels()
-        logger.info("Feishu channels stopped")
-    except Exception as e:
-        logger.warning(f"Failed to stop Feishu channels: {e}")
+        # 停止事件合并器
+        from src.infra.session.event_merger import get_event_merger
+        from src.infra.task.manager import get_task_manager
 
-    logger.info("Shutting down...")
+        merger = get_event_merger(None)
+        await merger.stop()
+        logger.info("EventMerger stopped")
+
+        # 标记所有运行中的任务为失败
+        task_manager = get_task_manager()
+
+        # 先停止 pub/sub 监听器，再关闭任务
+        await task_manager.stop_pubsub_listener()
+        logger.info("Task pub/sub listener stopped")
+
+        await task_manager.shutdown()
+        logger.info("Background tasks marked as failed")
+
+        # 清理 executor 注册表
+        from src.infra.task.concurrency import unregister_executor
+
+        unregister_executor("agent_stream")
+        logger.info("Executor registry cleaned up")
+
+        # 关闭所有 sandbox
+        await SandboxFactory.close_all()
+
+        # 关闭用户级沙箱（SessionSandboxManager 管理的）
+        from src.infra.sandbox.session_manager import get_session_sandbox_manager
+
+        sandbox_manager = get_session_sandbox_manager()
+        await sandbox_manager.close_all()
+        logger.info("User sandboxes stopped")
+
+        await AgentFactory.close_all()
+
+        # 关闭 PostgreSQL 连接池
+        from src.infra.storage.postgres import close_connection_pool
+
+        close_connection_pool()
+
+        # 关闭 EmailService HTTP 客户端
+        from src.infra.email import get_email_service
+
+        email_service = await get_email_service()
+        await email_service.close()
+
+        # 关闭 RateLimiter Redis 连接
+        from src.api.routes.auth import get_rate_limiter
+
+        rate_limiter = get_rate_limiter()
+        await rate_limiter.close()
+
+        # 关闭主 Redis 连接池
+        from src.infra.storage.redis import close_redis_client
+
+        await close_redis_client()
+
+        # 关闭 MongoDB 连接池
+        from src.infra.storage.mongodb import close_mongo_client
+
+        await close_mongo_client()
+
+        # 关闭 Feishu 渠道
+        try:
+            from src.infra.channel.feishu import stop_feishu_channels
+
+            await stop_feishu_channels()
+            logger.info("Feishu channels stopped")
+        except Exception as e:
+            logger.warning(f"Failed to stop Feishu channels: {e}")
+
+        logger.info("Shutting down...")
 
 
 def create_app() -> FastAPI:
@@ -278,8 +283,14 @@ def create_app() -> FastAPI:
     app.include_router(websocket.router, tags=["WebSocket"])
 
     # Serve frontend static files
-    static_dir = Path(__file__).parent.parent.parent / "static"
-    if static_dir.exists():
+    project_root = Path(__file__).parent.parent.parent
+    frontend_target = resolve_frontend_target(
+        project_root,
+        settings.FRONTEND_DEV_URL if hasattr(settings, "FRONTEND_DEV_URL") else "",
+    )
+    if frontend_target and frontend_target[0] == "static":
+        static_dir = frontend_target[1]
+        assert isinstance(static_dir, Path)
         # Mount entire static directory for all static files
         app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
         app.mount("/icons", StaticFiles(directory=str(static_dir / "icons")), name="icons")
@@ -305,6 +316,15 @@ def create_app() -> FastAPI:
             if index_file.exists():
                 return FileResponse(str(index_file))
             return {"error": "Frontend not built. Run 'npm run build' in frontend directory."}
+    elif frontend_target and frontend_target[0] == "redirect":
+        frontend_dev_url = frontend_target[1]
+        assert isinstance(frontend_dev_url, str)
+
+        @app.get("/{full_path:path}")
+        async def serve_frontend_dev(full_path: str):
+            """Redirect SPA requests to the Vite dev server during local development."""
+            path = f"/{full_path}" if full_path else ""
+            return RedirectResponse(url=f"{frontend_dev_url}{path}")
 
     return app
 

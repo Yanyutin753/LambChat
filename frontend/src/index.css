@@ -251,7 +251,7 @@ select:-webkit-autofill:active {
   }
 
   .modal-bottom-sheet-content {
-    padding: 0.5rem 1rem 1rem;
+    padding: 0.5rem 0rem 0rem;
   }
 
   .modal-backdrop-mobile {
@@ -477,47 +477,171 @@ select:-webkit-autofill:active {
   flex-shrink: 0;
 }
 
+.skill-theme-shell {
+  --skill-accent: var(--theme-primary);
+  --skill-accent-hover: var(--theme-primary-hover);
+  --skill-accent-soft: color-mix(
+    in srgb,
+    var(--theme-primary-light) 52%,
+    var(--theme-bg-card)
+  );
+  --skill-accent-contrast: #ffffff;
+  --skill-surface: var(--theme-bg-card);
+  --skill-surface-alt: color-mix(
+    in srgb,
+    var(--theme-bg) 92%,
+    var(--theme-bg-card) 8%
+  );
+  --skill-surface-strong: color-mix(
+    in srgb,
+    var(--theme-bg-card) 84%,
+    var(--theme-bg) 16%
+  );
+  --skill-border: var(--theme-border);
+  --skill-border-strong: color-mix(
+    in srgb,
+    var(--theme-primary) 14%,
+    var(--theme-border)
+  );
+  --skill-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08);
+  --skill-shadow-strong: 0 8px 20px -14px rgb(15 23 42 / 0.14);
+  --skill-glow: 0 0 0 2px
+    color-mix(in srgb, var(--theme-primary) 14%, transparent);
+  --skill-grid-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-bg) 96%, white 4%) 0%,
+    var(--theme-bg) 100%
+  );
+}
+
+.skill-content-area {
+  background: var(--skill-grid-bg);
+}
+
+.skill-panel-header {
+  background-color: rgb(255 255 255 / 0.95);
+  border-bottom: 1px solid var(--theme-border);
+  box-shadow: none;
+}
+
+.skill-panel-header .panel-search {
+  border-color: var(--theme-border);
+  background: var(--theme-bg-card);
+  box-shadow: none;
+}
+
+.skill-panel-header .panel-search:focus {
+  border-color: var(--skill-border-strong);
+  box-shadow: var(--skill-glow);
+}
+
+.skill-filter-wrap {
+  background: var(--theme-bg);
+}
+
+.skill-filter-bar {
+  border-color: var(--skill-border);
+  background: var(--theme-bg-card);
+  box-shadow: none;
+}
+
+.skill-filter-dropdown {
+  border-color: var(--theme-border);
+  background: var(--theme-bg-card);
+  box-shadow: 0 12px 28px -18px rgb(15 23 42 / 0.18);
+}
+
+.dark .skill-filter-dropdown {
+  box-shadow: 0 14px 30px -20px rgb(0 0 0 / 0.36);
+}
+
+.skill-grid {
+  align-items: stretch;
+}
+
 .skill-surface-card {
   position: relative;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--theme-bg-card) 96%, white 4%) 0%, var(--theme-bg-card) 100%);
-  box-shadow:
-    0 1px 2px rgb(15 23 42 / 0.03),
-    0 14px 34px -24px rgb(15 23 42 / 0.28);
+  border: 1px solid var(--skill-border);
+  background: var(--skill-surface);
+  box-shadow: var(--skill-shadow);
   transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease,
-    background 0.2s ease;
+    border-color 0.24s ease,
+    box-shadow 0.24s ease,
+    transform 0.24s ease;
 }
 
-.skill-surface-card::before {
+.skill-surface-card::after {
   content: "";
   position: absolute;
-  inset: 0 0 auto 0;
+  inset: 0 auto auto 1rem;
+  width: 3rem;
   height: 1px;
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--theme-primary) 28%, transparent), transparent);
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--theme-primary) 24%, transparent),
+    transparent
+  );
+  opacity: 0.85;
+  transition:
+    width 0.22s ease,
+    opacity 0.22s ease;
 }
 
 .skill-surface-card:hover {
-  border-color: color-mix(in srgb, var(--theme-primary) 30%, var(--theme-border));
-  box-shadow:
-    0 1px 3px rgb(15 23 42 / 0.04),
-    0 24px 48px -28px rgb(15 23 42 / 0.36);
+  border-color: var(--skill-border-strong);
+  box-shadow: var(--skill-shadow-strong);
   transform: translateY(-2px);
 }
 
-.skill-surface-card:hover::before {
+.skill-surface-card:hover::after {
+  width: 4rem;
   opacity: 1;
 }
 
+.skill-surface-card:focus-within {
+  border-color: var(--skill-border-strong);
+  box-shadow:
+    0 2px 8px rgb(15 23 42 / 0.04),
+    var(--skill-shadow),
+    var(--skill-glow);
+}
+
 .skill-surface-card--muted {
-  background: color-mix(in srgb, var(--theme-bg) 78%, var(--theme-bg-card) 22%);
+  background: var(--skill-surface-alt);
   box-shadow: none;
+}
+
+.skill-card {
+  min-height: 19rem;
+}
+
+.skill-card-actions {
+  border-color: color-mix(in srgb, var(--theme-border) 86%, transparent);
+}
+
+.skill-card-action {
+  border-color: var(--theme-border);
+  background: var(--theme-bg-card);
+  box-shadow: none;
+}
+
+.skill-card-action:hover {
+  border-color: var(--skill-border-strong);
+  background: var(--theme-bg);
+}
+
+.skill-card-danger {
+  border: 1px solid transparent;
+}
+
+.skill-card-danger:hover {
+  border-color: color-mix(in srgb, #ef4444 24%, var(--theme-border));
+}
+
+.skill-select-card {
+  min-height: auto;
 }
 
 .skill-status-pill {
@@ -525,25 +649,38 @@ select:-webkit-autofill:active {
   align-items: center;
   gap: 0.35rem;
   border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
-  background: color-mix(in srgb, var(--theme-bg) 78%, white 22%);
-  padding: 0.3rem 0.7rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
+  border: 1px solid var(--skill-border);
+  background: var(--theme-bg);
+  padding: 0.38rem 0.82rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   line-height: 1;
   color: var(--theme-text-secondary);
+  box-shadow: none;
 }
 
 .skill-status-pill--active,
 .skill-status-pill--published,
 .skill-status-pill--installed {
-  border-color: color-mix(in srgb, var(--theme-primary) 22%, var(--theme-border));
-  background: color-mix(in srgb, var(--theme-primary-light) 82%, white 18%);
+  border-color: color-mix(
+    in srgb,
+    var(--skill-accent) 22%,
+    var(--theme-border)
+  );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--skill-accent-soft) 88%, white 12%) 0%,
+    color-mix(in srgb, var(--skill-accent-soft) 72%, var(--theme-bg-card) 28%)
+      100%
+  );
   color: var(--theme-text);
 }
 
 .skill-status-pill--disabled {
   opacity: 0.85;
+  background: color-mix(in srgb, var(--theme-bg) 84%, var(--theme-bg-card) 16%);
 }
 
 .skill-meta-pill {
@@ -552,12 +689,13 @@ select:-webkit-autofill:active {
   gap: 0.35rem;
   max-width: 100%;
   border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
-  background: color-mix(in srgb, var(--theme-bg) 82%, white 18%);
-  padding: 0.4rem 0.75rem;
-  font-size: 0.75rem;
+  border: 1px solid var(--skill-border);
+  background: var(--theme-bg);
+  padding: 0.45rem 0.78rem;
+  font-size: 0.72rem;
   line-height: 1.1;
   color: var(--theme-text-secondary);
+  box-shadow: none;
 }
 
 .skill-tag-chip-remove {
@@ -579,16 +717,51 @@ select:-webkit-autofill:active {
   opacity: 1;
 }
 
-.dark .skill-surface-card {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.22),
-    0 18px 42px -26px rgb(0 0 0 / 0.6);
+.dark .skill-theme-shell {
+  --skill-accent-soft: color-mix(
+    in srgb,
+    var(--theme-primary-light) 44%,
+    var(--theme-bg-card)
+  );
+  --skill-accent-contrast: #0c0a09;
+  --skill-surface: var(--theme-bg-card);
+  --skill-surface-alt: color-mix(
+    in srgb,
+    var(--theme-bg-card) 72%,
+    var(--theme-bg) 28%
+  );
+  --skill-surface-strong: color-mix(
+    in srgb,
+    var(--theme-bg-card) 82%,
+    var(--theme-bg) 18%
+  );
+  --skill-border: var(--theme-border);
+  --skill-border-strong: color-mix(
+    in srgb,
+    var(--theme-primary) 18%,
+    var(--theme-border)
+  );
+  --skill-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.24);
+  --skill-shadow-strong: 0 10px 24px -18px rgb(0 0 0 / 0.36);
+  --skill-glow: 0 0 0 2px
+    color-mix(in srgb, var(--theme-primary) 16%, transparent);
+  --skill-grid-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-bg) 94%, black 6%) 0%,
+    var(--theme-bg) 100%
+  );
 }
 
-.dark .skill-surface-card:hover {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.26),
-    0 24px 56px -28px rgb(0 0 0 / 0.72);
+.dark .skill-panel-header {
+  background-color: rgb(28 25 23 / 0.9);
+  border-bottom-color: var(--theme-border);
+  box-shadow: none;
+}
+
+.dark .skill-panel-header .panel-search {
+  border-color: var(--theme-border);
+  background: #292524;
+  box-shadow: none;
 }
 
 .skill-empty-state {
@@ -597,35 +770,37 @@ select:-webkit-autofill:active {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
   text-align: center;
   color: var(--theme-text-secondary);
 }
 
 .skill-empty-state__icon {
   display: flex;
-  height: 4rem;
-  width: 4rem;
+  height: 4.5rem;
+  width: 4.5rem;
   align-items: center;
   justify-content: center;
-  border-radius: 1.5rem;
-  background: color-mix(in srgb, var(--theme-primary-light) 82%, white 18%);
-  color: var(--theme-primary);
-  box-shadow: 0 10px 30px -24px rgb(15 23 42 / 0.35);
+  border-radius: 1.65rem;
+  border: 1px solid var(--skill-border);
+  background: var(--theme-bg-card);
+  color: var(--skill-accent);
+  box-shadow: var(--skill-shadow);
 }
 
 .skill-empty-state__title {
-  margin-top: 1rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+  margin-top: 1.1rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
   color: var(--theme-text);
 }
 
 .skill-empty-state__description {
-  margin-top: 0.35rem;
-  max-width: 30rem;
-  font-size: 0.82rem;
-  line-height: 1.6;
+  margin-top: 0.5rem;
+  max-width: 32rem;
+  font-size: 0.86rem;
+  line-height: 1.7;
   color: var(--theme-text-secondary);
 }
 
@@ -634,10 +809,11 @@ select:-webkit-autofill:active {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid var(--theme-border);
-  background: color-mix(in srgb, var(--theme-bg) 84%, var(--theme-bg-card) 16%);
+  border-bottom: 1px solid var(--skill-border);
+  border-radius: 1.75rem 1.75rem 0 0;
+  background: var(--theme-bg-card);
   padding: 1.25rem 1.5rem;
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
 }
 
 .skill-modal-header__title {
@@ -654,10 +830,231 @@ select:-webkit-autofill:active {
 }
 
 .skill-modal-section {
-  border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
-  background: color-mix(in srgb, var(--theme-bg) 70%, var(--theme-bg-card) 30%);
+  border: 1px solid var(--skill-border);
+  background: var(--theme-bg-card);
   border-radius: 1rem;
   padding: 1rem;
+  box-shadow: none;
+}
+
+.skill-modal-body {
+  background: var(--theme-bg);
+}
+
+.skill-callout {
+  border-color: var(--skill-border);
+  background: var(--theme-bg);
+  box-shadow: none;
+}
+
+.skill-preview-shell {
+  border-color: var(--skill-border);
+  background: var(--theme-bg-card);
+}
+
+.skill-theme-shell .input-field,
+.skill-theme-shell input[type="text"],
+.skill-theme-shell textarea {
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.skill-theme-shell .input-field:focus,
+.skill-theme-shell input[type="text"]:focus,
+.skill-theme-shell textarea:focus {
+  box-shadow: var(--skill-glow);
+}
+
+.skill-github-import {
+  align-items: stretch;
+}
+
+.skill-github-import__field {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 84%, white 16%);
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.96),
+    rgb(250 250 249 / 0.92)
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.72),
+    0 12px 24px -22px rgb(28 25 23 / 0.3);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    background-color 0.18s ease;
+}
+
+.skill-github-import__field:focus-within {
+  border-color: color-mix(in srgb, var(--theme-primary) 44%, white 56%);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--theme-primary) 14%, transparent),
+    0 20px 30px -24px color-mix(in srgb, var(--theme-primary) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+.skill-github-import__field--repo {
+  flex: 1 1 auto;
+  border-radius: 1rem;
+}
+
+.skill-github-import__field--branch {
+  flex: 0 0 auto;
+  width: 100%;
+  border-radius: 1rem;
+}
+
+.skill-github-import__input {
+  width: 100%;
+  min-height: 2.875rem;
+  border: 0;
+  background: transparent;
+  padding: 0.8rem 0.95rem;
+  color: var(--theme-text);
+  outline: none;
+  box-shadow: none !important;
+}
+
+.skill-github-import__input::placeholder {
+  color: color-mix(in srgb, var(--theme-text-secondary) 78%, white 22%);
+}
+
+.skill-github-import__button {
+  justify-content: center;
+  min-height: 2.875rem;
+  border-radius: 1rem;
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 22%,
+    var(--theme-border)
+  );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-bg-card) 82%, white 18%),
+    color-mix(in srgb, var(--theme-primary-light) 68%, white 32%)
+  );
+  padding-inline: 1.15rem;
+  color: color-mix(in srgb, var(--theme-text) 78%, var(--theme-primary) 22%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.72),
+    0 12px 24px -24px color-mix(in srgb, var(--theme-primary) 34%, transparent);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+
+.skill-github-import__button:hover:not(:disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 34%,
+    var(--theme-border)
+  );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-bg-card) 70%, white 30%),
+    color-mix(in srgb, var(--theme-primary-light) 82%, white 18%)
+  );
+  color: var(--theme-text);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--theme-primary) 9%, transparent),
+    0 18px 28px -24px color-mix(in srgb, var(--theme-primary) 38%, transparent);
+  transform: translateY(-1px);
+}
+
+.skill-github-import__button:focus-visible {
+  outline: none;
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 42%,
+    var(--theme-border)
+  );
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--theme-primary) 16%, transparent),
+    0 18px 28px -24px color-mix(in srgb, var(--theme-primary) 38%, transparent);
+}
+
+.skill-github-import__button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.08),
+    0 10px 20px -22px color-mix(in srgb, var(--theme-primary) 30%, transparent);
+}
+
+.skill-github-import__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
+  box-shadow: none;
+}
+
+.dark .skill-github-import__field {
+  border-color: color-mix(in srgb, var(--theme-border) 82%, black 18%);
+  background: linear-gradient(
+    180deg,
+    rgb(41 37 36 / 0.94),
+    rgb(28 25 23 / 0.92)
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.03),
+    0 16px 28px -24px rgb(0 0 0 / 0.6);
+}
+
+.dark .skill-github-import__field:focus-within {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 58%,
+    var(--theme-border)
+  );
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--theme-primary) 14%, transparent),
+    0 20px 34px -24px rgb(0 0 0 / 0.65);
+}
+
+.dark .skill-github-import__input::placeholder {
+  color: color-mix(in srgb, var(--theme-text-secondary) 86%, black 14%);
+}
+
+.dark .skill-github-import__button {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 26%,
+    var(--theme-border)
+  );
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-bg-card) 82%, white 18%),
+    color-mix(in srgb, var(--theme-primary-light) 88%, black 12%)
+  );
+  color: color-mix(in srgb, var(--theme-text) 84%, var(--theme-primary) 16%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.04),
+    0 16px 28px -24px rgb(0 0 0 / 0.6);
+}
+
+.dark .skill-github-import__button:hover:not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-bg-card) 88%, white 12%),
+    color-mix(in srgb, var(--theme-primary-light) 94%, black 6%)
+  );
+  color: var(--theme-text);
+}
+
+@media (min-width: 640px) {
+  .skill-github-import__field--branch {
+    width: 7rem;
+  }
+
+  .skill-github-import__button {
+    min-width: 8.5rem;
+  }
 }
 
 .dark .skill-empty-state__icon {
@@ -680,14 +1077,14 @@ select:-webkit-autofill:active {
   align-items: center;
   gap: 0.35rem;
   border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
-  background: color-mix(in srgb, var(--theme-bg-card) 70%, var(--theme-bg) 30%);
-  padding: 0.35rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 500;
+  border: 1px solid var(--skill-border);
+  background: var(--theme-bg-card);
+  padding: 0.42rem 0.82rem;
+  font-size: 0.72rem;
+  font-weight: 600;
   line-height: 1;
   color: var(--theme-text-secondary);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  box-shadow: none;
   transition:
     border-color 0.18s ease,
     background-color 0.18s ease,
@@ -697,15 +1094,25 @@ select:-webkit-autofill:active {
 }
 
 .skill-tag-chip:hover {
-  border-color: color-mix(in srgb, var(--theme-primary) 20%, var(--theme-border));
+  border-color: var(--skill-border-strong);
   color: var(--theme-text);
+  box-shadow: none;
   transform: translateY(-1px);
 }
 
 .skill-tag-chip--active {
-  border-color: color-mix(in srgb, var(--theme-primary) 24%, var(--theme-border));
-  background: color-mix(in srgb, var(--theme-primary-light) 82%, white 18%);
+  border-color: color-mix(
+    in srgb,
+    var(--skill-accent) 18%,
+    var(--theme-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 68%,
+    var(--theme-bg-card)
+  );
   color: var(--theme-text);
+  box-shadow: none;
 }
 
 .skill-tag-chip-remove {
@@ -717,16 +1124,167 @@ select:-webkit-autofill:active {
   border-radius: 9999px;
   color: inherit;
   opacity: 0.72;
-  transition: background-color 0.18s ease, opacity 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    opacity 0.18s ease;
 }
 
 .skill-tag-chip-remove:hover {
   opacity: 1;
+  background: var(--theme-primary-light);
   background: color-mix(in srgb, var(--theme-primary) 12%, transparent);
 }
 
+.skill-form {
+  color: var(--theme-text);
+}
+
+.skill-form-card,
+.skill-form-editor,
+.skill-editor-shell,
+.skill-file-path,
+.skill-tag-editor,
+.skill-toggle-panel,
+.skill-form-topbar,
+.skill-file-sidebar {
+  border-color: var(--skill-border);
+}
+
+.skill-form-card,
+.skill-form-editor {
+  background: var(--theme-bg-card);
+  box-shadow: var(--skill-shadow);
+}
+
+.skill-form-topbar,
+.skill-file-sidebar,
+.skill-file-path,
+.skill-tag-editor,
+.skill-toggle-panel,
+.skill-action-bar {
+  background: var(--theme-bg-card);
+}
+
+.skill-file-tabs {
+  background: var(--theme-bg);
+  box-shadow: none;
+}
+
+.skill-editor-shell {
+  background: var(--theme-bg);
+  box-shadow: none;
+}
+
+.skill-action-bar {
+  border-color: var(--skill-border);
+}
+
+.skill-file-sidebar button,
+.skill-form .cm-editor,
+.skill-form .cm-scroller {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.skill-file-sidebar button:hover {
+  background: color-mix(
+    in srgb,
+    var(--skill-accent-soft) 36%,
+    var(--theme-bg-card)
+  );
+}
+
+.skill-file-sidebar button[class*="bg-[var(--theme-primary)]"] {
+  background: color-mix(
+    in srgb,
+    var(--skill-accent-soft) 64%,
+    var(--theme-bg-card)
+  ) !important;
+}
+
+.skill-form .cm-editor {
+  background: transparent;
+}
+
+.skill-form .cm-gutters {
+  background: color-mix(in srgb, var(--theme-bg-card) 36%, transparent);
+  border-right: 1px solid
+    color-mix(in srgb, var(--theme-border) 70%, transparent);
+}
+
+.skill-form .cm-activeLine,
+.skill-form .cm-activeLineGutter {
+  background: color-mix(in srgb, var(--skill-accent-soft) 32%, transparent);
+}
+
+.skill-form .cm-selectionBackground,
+.skill-form .cm-editor ::selection {
+  background: color-mix(
+    in srgb,
+    var(--skill-accent) 18%,
+    transparent
+  ) !important;
+}
+
 .dark .skill-tag-chip {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.22);
+  border-color: var(--skill-border);
+  background: var(--theme-bg-card);
+}
+
+.dark .skill-tag-chip--active {
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 44%,
+    var(--theme-bg-card)
+  );
+}
+
+.dark .skill-status-pill {
+  border-color: var(--skill-border);
+  background: color-mix(in srgb, var(--theme-bg-card) 82%, var(--theme-bg) 18%);
+}
+
+.dark .skill-status-pill--active,
+.dark .skill-status-pill--published,
+.dark .skill-status-pill--installed {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--skill-accent-soft) 44%, var(--theme-bg-card)) 0%,
+    color-mix(in srgb, var(--skill-accent-soft) 24%, var(--theme-bg-card)) 100%
+  );
+}
+
+.dark .skill-meta-pill {
+  border-color: var(--skill-border);
+  background: color-mix(in srgb, var(--theme-bg-card) 72%, var(--theme-bg) 28%);
+}
+
+.dark .skill-modal-header {
+  background: var(--theme-bg-card);
+}
+
+.dark .skill-modal-section {
+  background: var(--theme-bg-card);
+}
+
+.dark .skill-callout,
+.dark .skill-preview-shell,
+.dark .skill-form-card,
+.dark .skill-form-editor,
+.dark .skill-form-topbar,
+.dark .skill-file-sidebar,
+.dark .skill-file-path,
+.dark .skill-tag-editor,
+.dark .skill-toggle-panel,
+.dark .skill-action-bar {
+  box-shadow: var(--skill-shadow);
+}
+
+.dark .skill-empty-state__icon {
+  border-color: var(--skill-border);
+  background: var(--theme-bg-card);
 }
 
 .tag-default {

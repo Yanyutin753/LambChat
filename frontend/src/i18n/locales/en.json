@@ -944,6 +944,12 @@
     "exportToJSON": "Export to JSON",
     "exportZip": "Export ZIP",
     "featureDisabled": "Skills feature is disabled. Please contact administrator to enable it.",
+    "batchSelected": "selected",
+    "batchDeleteSuccess": "{{count}} skill(s) deleted",
+    "batchDeleteFailed": "Failed to delete some skills",
+    "batchEnableSuccess": "{{count}} skill(s) enabled",
+    "batchDisableSuccess": "{{count}} skill(s) disabled",
+    "batchToggleFailed": "Failed to toggle some skills",
     "form": {
       "content": "Content (Markdown with optional YAML frontmatter)",
       "contentPlaceholder": "# Skill instructions...",

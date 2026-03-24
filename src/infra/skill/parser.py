@@ -5,7 +5,26 @@ Single source of truth for extracting metadata from SKILL.md files.
 Supports YAML frontmatter with fallback to markdown-style extraction.
 """
 
+import re
 from typing import Optional
+
+# 允许的 skill name 字符：字母、数字、下划线、中文、连字符、点
+_SKILL_NAME_ALLOWED = re.compile(r"^[\w\u4e00-\u9fff\-.]+$")
+
+
+def sanitize_skill_name(name: str) -> str:
+    """将 name 转为路径安全的 skill_name。
+
+    - 去掉首尾空白
+    - 空格和非法字符替换为连字符
+    - 合并连续连字符
+    - 去掉首尾连字符
+    """
+    name = name.strip()
+    name = re.sub(r"[^\w\u4e00-\u9fff\-.]", "-", name)
+    name = re.sub(r"-{2,}", "-", name)
+    name = name.strip("-")
+    return name or "unnamed-skill"
 
 
 def parse_skill_md(content: str) -> tuple[Optional[str], str, list[str]]:
