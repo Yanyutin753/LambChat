@@ -65,8 +65,9 @@ async def list_marketplace_skills(
     tag_list = tags.split(",") if tags else None
     skills = await marketplace.list_marketplace_skills(
         tags=tag_list, search=search, include_inactive=False, viewer_id=user.sub,
+        skip=skip, limit=limit,
     )
-    return skills[skip : skip + limit]
+    return skills
 
 
 @router.get("/tags")
@@ -85,7 +86,7 @@ async def create_marketplace_skill(
     user: TokenPayload = Depends(require_permissions("skill:write")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
-    """直接在商店创建 Skill（不写入用户 skill_files）"""
+    """在商店创建 Skill（仅发布，不写入用户本地）"""
     if not data.files:
         raise HTTPException(status_code=400, detail="Skill must have at least one file")
 
@@ -97,9 +98,14 @@ async def create_marketplace_skill(
             version=data.version,
         )
         await marketplace.create_marketplace_skill(create_data, user_id=user.sub)
-        await marketplace.sync_marketplace_files(data.skill_name, data.files)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+    try:
+        await marketplace.sync_marketplace_files(data.skill_name, data.files)
+    except Exception:
+        await marketplace.delete_marketplace_skill(data.skill_name)
+        raise HTTPException(status_code=500, detail="Failed to sync files, marketplace entry rolled back")
 
     response = await marketplace.get_marketplace_skill_response(data.skill_name, viewer_id=user.sub)
     return response
@@ -169,19 +175,14 @@ async def install_marketplace_skill(
 
     # 3. 获取商城文件并复制到用户目录
     marketplace_files = await marketplace.get_marketplace_files(name)
-    if marketplace_files:
-        await storage.sync_skill_files(name, marketplace_files, user.sub)
+    if not marketplace_files:
+        raise HTTPException(status_code=400, detail="Marketplace skill has no files")
 
-    # 4. 创建开关记录
-    await storage.upsert_toggle(
-        name,
-        user.sub,
-        enabled=True,
-        installed_from=InstalledFrom.MARKETPLACE,
+    # 4. 创建用户本地副本（内置技能标记为 BUILTIN，其他为 MARKETPLACE）
+    installed_from = InstalledFrom.BUILTIN if marketplace_skill.created_by == "system" else InstalledFrom.MARKETPLACE
+    await storage.create_user_skill(
+        name, marketplace_files, user.sub, installed_from=installed_from,
     )
-
-    # 5. 失效缓存
-    await storage.invalidate_user_cache(user.sub)
 
     return {
         "message": f"Skill '{name}' installed successfully",
@@ -201,6 +202,8 @@ async def update_from_marketplace(
     marketplace_skill = await marketplace.get_marketplace_skill(name)
     if not marketplace_skill:
         raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
+    if not marketplace_skill.is_active:
+        raise HTTPException(status_code=403, detail="This skill has been deactivated")
 
     toggle = await storage.get_toggle(name, user.sub)
     if not toggle:
@@ -211,12 +214,8 @@ async def update_from_marketplace(
     marketplace_files = await marketplace.get_marketplace_files(name)
     await storage.sync_skill_files(name, marketplace_files, user.sub)
 
-    await storage.upsert_toggle(
-        name,
-        user.sub,
-        enabled=True,
-        installed_from=InstalledFrom.MARKETPLACE,
-    )
+    # 确保 toggle 启用（保留原始 installed_from）
+    await storage.upsert_toggle(name, user.sub, enabled=True)
 
     await storage.invalidate_user_cache(user.sub)
 

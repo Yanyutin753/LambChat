@@ -42,8 +42,10 @@ export function MarketplacePanel() {
     fetchSkills,
     installSkill,
     updateSkill,
+    createAndPublish,
     activateSkill,
     deleteSkill,
+    loadMarketplaceSkillForEdit,
     clearError,
     previewSkill,
     previewFiles,
@@ -55,7 +57,7 @@ export function MarketplacePanel() {
     closePreview,
   } = useMarketplace();
 
-  const { skills: userSkills, fetchSkills: fetchUserSkills, getSkill, createSkill, updateSkill: updateUserSkill } = useSkills();
+  const { skills: userSkills, fetchSkills: fetchUserSkills, isLoading: userSkillsLoading, getSkill, updateSkill: updateUserSkill, publishToMarketplace, createSkill } = useSkills();
   const canWrite = hasAnyPermission([Permission.SKILL_WRITE]);
   const canAdmin = hasAnyPermission([Permission.SKILL_ADMIN]);
 
@@ -149,10 +151,21 @@ export function MarketplacePanel() {
     setInstallConfirm(null);
   };
 
-  // Edit handlers — open SkillForm for own published skills
+  // Edit handlers — load from local or marketplace
   const handleEdit = async (skillName: string) => {
-    const fullSkill = await getSkill(skillName);
-    setEditingSkill(fullSkill || null);
+    // Try local first
+    let fullSkill = await getSkill(skillName);
+
+    // If no local copy, load from marketplace
+    if (!fullSkill) {
+      fullSkill = await loadMarketplaceSkillForEdit(skillName);
+      if (!fullSkill) {
+        toast.error(t("marketplace.loadFailed"));
+        return;
+      }
+    }
+
+    setEditingSkill(fullSkill);
     setIsCreating(false);
   };
 
@@ -165,17 +178,38 @@ export function MarketplacePanel() {
     try {
       let success = false;
       if (isCreating) {
-        success = await createSkill(data);
-      } else if (editingSkill) {
-        const oldFiles = Object.keys(editingSkill.files);
-        const newFiles = data.files ? Object.keys(data.files) : [];
-        const deletedFiles = oldFiles.filter((f) => !newFiles.includes(f));
-        success = await updateUserSkill(editingSkill.name, {
+        success = await createAndPublish({
+          skill_name: data.name,
           description: data.description,
-          content: data.content,
-          files: data.files,
-          deletedFiles,
+          tags: [],
+          version: "1.0.0",
+          files: data.files || { "SKILL.md": data.content },
         });
+      } else if (editingSkill) {
+        // 检查本地是否存在
+        const hasLocal = installedNames.has(editingSkill.name);
+
+        if (hasLocal) {
+          // 有本地副本：更新本地 + 重新发布
+          const oldFiles = Object.keys(editingSkill.files);
+          const newFiles = data.files ? Object.keys(data.files) : [];
+          const deletedFiles = oldFiles.filter((f) => !newFiles.includes(f));
+          success = await updateUserSkill(editingSkill.name, {
+            description: data.description,
+            content: data.content,
+            files: data.files,
+            deletedFiles,
+          });
+          if (success) {
+            await publishToMarketplace(editingSkill.name);
+          }
+        } else {
+          // 无本地副本：先创建本地 + 再发布
+          success = await createSkill(data);
+          if (success) {
+            await publishToMarketplace(data.name);
+          }
+        }
       }
       if (success) {
         setEditingSkill(null);
@@ -184,6 +218,11 @@ export function MarketplacePanel() {
         setShowCreateModal(false);
         await fetchSkills();
         await fetchUserSkills();
+        toast.success(
+          isCreating
+            ? t("marketplace.publishSuccess", { name: data.name })
+            : t("marketplace.republishSuccess", { name: editingSkill?.name }),
+        );
       }
       return success;
     } catch {
@@ -378,6 +417,10 @@ export function MarketplacePanel() {
                           <Loader2Icon size={14} className="animate-spin" />
                           <span>{t("marketplace.installing")}</span>
                         </button>
+                      ) : userSkillsLoading ? (
+                        <span className="text-xs text-stone-400">
+                          <Loader2Icon size={14} className="animate-spin inline mr-1" />
+                        </span>
                       ) : (
                         <button
                           onClick={() => handleInstallClick(skill.skill_name)}

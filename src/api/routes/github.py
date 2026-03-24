@@ -13,7 +13,9 @@ from pydantic import BaseModel
 
 from src.api.deps import require_permissions
 from src.infra.logging import get_logger
+from src.infra.skill.parser import parse_skill_md
 from src.infra.skill.storage import SkillStorage
+from src.infra.skill.types import InstalledFrom
 from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
@@ -118,6 +120,8 @@ async def fetch_all_files_recursive(
     Returns:
         {相对文件路径: 文件内容}
     """
+    import asyncio
+
     files: dict[str, str] = {}
 
     try:
@@ -126,22 +130,37 @@ async def fetch_all_files_recursive(
         logger.warning(f"Failed to fetch GitHub dir {owner}/{repo}/{dir_path}: {e}")
         return files
 
+    # 分离文件和目录，并发获取文件内容
+    file_tasks = []
+    dir_items = []
     for item in contents:
-        # 跳过隐藏文件和 __pycache__
         if item["name"].startswith(".") or item["name"] == "__pycache__":
             continue
-
         if item["type"] == "file":
-            content = await fetch_github_file(owner, repo, branch, item["path"])
-            if content is not None:
-                rel_path = f"{prefix}{item['name']}" if prefix else item["name"]
-                files[rel_path] = content
+            file_tasks.append(item)
         elif item["type"] == "dir":
-            # 递归进入子目录
+            dir_items.append(item)
+
+    # 并发获取所有文件内容
+    if file_tasks:
+        async def _fetch_file(item):
+            content = await fetch_github_file(owner, repo, branch, item["path"])
+            rel_path = f"{prefix}{item['name']}" if prefix else item["name"]
+            return rel_path, content
+
+        results = await asyncio.gather(*[_fetch_file(item) for item in file_tasks])
+        for rel_path, content in results:
+            if content is not None:
+                files[rel_path] = content
+
+    # 递归获取子目录
+    if dir_items:
+        dir_tasks = []
+        for item in dir_items:
             sub_prefix = f"{prefix}{item['name']}/" if prefix else f"{item['name']}/"
-            sub_files = await fetch_all_files_recursive(
-                owner, repo, branch, item["path"], sub_prefix
-            )
+            dir_tasks.append(fetch_all_files_recursive(owner, repo, branch, item["path"], sub_prefix))
+        dir_results = await asyncio.gather(*dir_tasks)
+        for sub_files in dir_results:
             files.update(sub_files)
 
     return files
@@ -163,55 +182,12 @@ async def fetch_github_file(
 
 
 def _parse_skill_md(skill_md: str, fallback_name: str, fallback_source: str) -> dict[str, Any]:
-    """从 SKILL.md 内容解析技能名称和描述，支持 YAML 多行值（|, >）"""
-    name = fallback_name
-    description = ""
-
-    # 提取 --- ... --- frontmatter 块
-    frontmatter = ""
-    lines = skill_md.splitlines()
-    in_frontmatter = False
-    frontmatter_lines: list[str] = []
-    for line in lines:
-        if line.strip() == "---" and not in_frontmatter:
-            in_frontmatter = True
-            continue
-        elif line.strip() == "---" and in_frontmatter:
-            break
-        elif in_frontmatter:
-            frontmatter_lines.append(line)
-
-    if frontmatter_lines:
-        frontmatter = "\n".join(frontmatter_lines)
-        # 使用 yaml 解析 frontmatter
-        try:
-            import yaml
-            meta = yaml.safe_load(frontmatter) or {}
-            if isinstance(meta.get("name"), str):
-                name = meta["name"]
-            if isinstance(meta.get("description"), str):
-                description = meta["description"].strip()
-        except Exception:
-            # yaml 解析失败，回退到手动解析
-            pass
-
-    # 回退：手动逐行解析（处理非 frontmatter 或 yaml 不可用的情况）
-    if not description:
-        for line in lines[:20]:
-            if line.startswith("name:") and name == fallback_name:
-                name = line.split("name:", 1)[1].strip().strip('"').strip("'")
-            elif line.startswith("description:"):
-                val = line.split("description:", 1)[1].strip()
-                if val in ("|", ">"):
-                    continue  # 多行指示符，跳过
-                if not val.startswith("---"):
-                    description = val.strip('"').strip("'")
-            elif line.startswith("# ") and not description:
-                description = line[2:].strip()
-
+    """从 SKILL.md 内容解析技能名称和描述"""
+    name, description, tags = parse_skill_md(skill_md)
     return {
-        "name": name,
+        "name": name or fallback_name,
         "description": description or f"Skill from {fallback_source}",
+        "tags": tags,
     }
 
 
@@ -304,11 +280,15 @@ async def install_github_skills(
     installed = []
     errors = []
 
+    # 只扫描一次仓库，避免重复请求 GitHub API
+    try:
+        all_skills = await scan_for_skills(owner, repo, request.branch)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to scan repository: {str(e)}")
+
     for skill_name in request.skill_names:
         try:
-            # 查找技能路径
-            skills = await scan_for_skills(owner, repo, request.branch)
-            skill_info = next((s for s in skills if s["name"] == skill_name), None)
+            skill_info = next((s for s in all_skills if s["name"] == skill_name), None)
             if not skill_info:
                 errors.append(f"Skill '{skill_name}' not found")
                 continue
@@ -327,12 +307,13 @@ async def install_github_skills(
                 errors.append(f"Skill '{skill_name}' already exists")
                 continue
 
-            # 保存文件
-            for file_path, content in files.items():
-                await storage.set_skill_file(skill_name, file_path, content, user.sub)
-
-            # 创建开关记录
-            await storage.upsert_toggle(skill_name, user.sub, enabled=True)
+            # 保存文件 + 创建 toggle
+            try:
+                await storage.create_user_skill(skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL)
+            except Exception as e:
+                # 回滚：清理已写入的文件
+                await storage.delete_skill_files(skill_name, user.sub)
+                raise e
 
             installed.append(skill_name)
 

@@ -72,7 +72,7 @@ export const skillApi = {
 
   /**
    * Create skill - writes all files to /api/skills/{name}/files/{path}
-   * For new architecture, we write files individually
+   * Files are written sequentially; on failure, already-written files are rolled back.
    */
   async create(data: SkillCreate): Promise<{ message: string }> {
     // Build files dict from content (SKILL.md) or explicit files
@@ -88,10 +88,11 @@ export const skillApi = {
       filesToWrite["SKILL.md"] = data.content;
     }
 
-    // Write all files
-    await Promise.all(
-      Object.entries(filesToWrite).map(([filePath, content]) =>
-        authFetch(
+    // Write files sequentially for atomicity
+    const writtenPaths: string[] = [];
+    try {
+      for (const [filePath, content] of Object.entries(filesToWrite)) {
+        await authFetch(
           `${SKILLS_API}/${encodeURIComponent(
             data.name,
           )}/files/${encodeURIComponent(filePath)}`,
@@ -99,15 +100,28 @@ export const skillApi = {
             method: "PUT",
             body: JSON.stringify({ content }),
           },
+        );
+        writtenPaths.push(filePath);
+      }
+    } catch (error) {
+      // Rollback: delete already-written files
+      await Promise.allSettled(
+        writtenPaths.map((filePath) =>
+          authFetch(
+            `${SKILLS_API}/${encodeURIComponent(data.name)}/files/${encodeURIComponent(filePath)}`,
+            { method: "DELETE" },
+          ),
         ),
-      ),
-    );
+      );
+      throw error;
+    }
 
     return { message: "Skill created" };
   },
 
   /**
    * Update skill metadata and content
+   * Files are written/deleted sequentially to avoid partial failure leaving inconsistent state.
    */
   async update(
     skillName: string,
@@ -124,31 +138,27 @@ export const skillApi = {
       );
     }
 
-    // Sync all files (multi-file mode)
+    // Write new/updated files sequentially
     if (data.files) {
-      await Promise.all(
-        Object.entries(data.files).map(([filePath, content]) =>
-          authFetch(
-            `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
-            {
-              method: "PUT",
-              body: JSON.stringify({ content }),
-            },
-          ),
-        ),
-      );
+      for (const [filePath, content] of Object.entries(data.files)) {
+        await authFetch(
+          `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({ content }),
+          },
+        );
+      }
     }
 
-    // Delete removed files
+    // Delete removed files sequentially
     if (data.deletedFiles && data.deletedFiles.length > 0) {
-      await Promise.all(
-        data.deletedFiles.map((filePath) =>
-          authFetch(
-            `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
-            { method: "DELETE" },
-          ),
-        ),
-      );
+      for (const filePath of data.deletedFiles) {
+        await authFetch(
+          `${SKILLS_API}/${encodeURIComponent(skillName)}/files/${encodeURIComponent(filePath)}`,
+          { method: "DELETE" },
+        );
+      }
     }
 
     // Toggle if enabled changed
@@ -175,27 +185,10 @@ export const skillApi = {
     skillName: string,
     enabled?: boolean,
   ): Promise<SkillToggleResponse> {
-    if (enabled !== undefined) {
-      // If we know the desired state, we need to check current state
-      // The toggle endpoint just flips, so we need to be careful
-      const current = await this.get(skillName);
-      if (current.enabled !== enabled) {
-        return authFetch(
-          `${SKILLS_API}/${encodeURIComponent(skillName)}/toggle`,
-          { method: "PATCH" },
-        );
-      }
-      return {
-        skill_name: skillName,
-        enabled: current.enabled,
-        message: `Skill '${skillName}' is already ${
-          enabled ? "enabled" : "disabled"
-        }`,
-      };
-    }
-    // Toggle (flip current state)
+    const body = enabled !== undefined ? { enabled } : undefined;
     return authFetch(`${SKILLS_API}/${encodeURIComponent(skillName)}/toggle`, {
       method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
     });
   },
 

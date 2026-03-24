@@ -106,6 +106,36 @@ class SkillStorage:
             upsert=True,
         )
 
+    async def update_skill_file_cas(
+        self,
+        skill_name: str,
+        file_path: str,
+        expected_content: str,
+        new_content: str,
+        user_id: str,
+    ) -> bool:
+        """
+        Compare-and-swap: 仅当当前内容匹配 expected_content 时才更新。
+        用于防止并发编辑丢失更新。
+
+        Returns:
+            True 如果更新成功，False 如果内容已被其他人修改
+        """
+        collection = self._get_files_collection()
+        now = datetime.now(timezone.utc).isoformat()
+        result = await collection.update_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+                "file_path": file_path,
+                "content": expected_content,
+            },
+            {
+                "$set": {"content": new_content, "updated_at": now},
+            },
+        )
+        return result.modified_count > 0
+
     async def delete_skill_file(self, skill_name: str, file_path: str, user_id: str) -> None:
         """删除单个文件"""
         collection = self._get_files_collection()
@@ -182,14 +212,54 @@ class SkillStorage:
             paths.append(doc["file_path"])
         return paths
 
+    async def get_skill_file_stats(self, skill_name: str, user_id: str) -> dict[str, Any]:
+        """获取单个 Skill 的文件统计信息（created_at/updated_at 来自文件聚合）"""
+        collection = self._get_files_collection()
+        pipeline = [
+            {"$match": {"skill_name": skill_name, "user_id": user_id}},
+            {
+                "$group": {
+                    "_id": "$skill_name",
+                    "file_count": {"$sum": 1},
+                    "created_at": {"$min": "$created_at"},
+                    "updated_at": {"$max": "$updated_at"},
+                }
+            },
+        ]
+        async for doc in collection.aggregate(pipeline):
+            return {
+                "file_count": doc["file_count"],
+                "created_at": doc.get("created_at"),
+                "updated_at": doc.get("updated_at"),
+            }
+        return {"file_count": 0, "created_at": None, "updated_at": None}
+
     async def list_user_skills(self, user_id: str) -> list[dict[str, Any]]:
         """列出用户所有 Skill（带文件信息）"""
         collection = self._get_files_collection()
 
-        # 获取用户所有 skill_name（去重）
-        skill_names: set[str] = set()
-        async for doc in collection.find({"user_id": user_id}, {"skill_name": 1}):
-            skill_names.add(doc["skill_name"])
+        # 使用 aggregation 一次获取所有 skill 的统计信息 + 文件路径
+        pipeline = [
+            {"$match": {"user_id": user_id}},
+            {
+                "$group": {
+                    "_id": "$skill_name",
+                    "file_count": {"$sum": 1},
+                    "file_paths": {"$push": "$file_path"},
+                    "created_at": {"$min": "$created_at"},
+                    "updated_at": {"$max": "$updated_at"},
+                }
+            },
+            {"$sort": {"_id": 1}},
+        ]
+        skill_stats: dict[str, dict] = {}
+        async for doc in collection.aggregate(pipeline):
+            skill_stats[doc["_id"]] = {
+                "file_count": doc["file_count"],
+                "file_paths": doc.get("file_paths", []),
+                "created_at": doc.get("created_at"),
+                "updated_at": doc.get("updated_at"),
+            }
 
         # 获取开关状态
         toggles_collection = self._get_toggles_collection()
@@ -199,37 +269,38 @@ class SkillStorage:
 
         # 组装结果
         result = []
-        for skill_name in sorted(skill_names):
-            file_count = await collection.count_documents(
-                {
-                    "skill_name": skill_name,
-                    "user_id": user_id,
-                }
-            )
-
-            # 获取最早创建时间和最新更新时间
-            created_at = None
-            updated_at = None
-            async for doc in collection.find({"skill_name": skill_name, "user_id": user_id}):
-                if not created_at or doc.get("created_at", "") < created_at:
-                    created_at = doc.get("created_at")
-                if not updated_at or doc.get("updated_at", "") > updated_at:
-                    updated_at = doc.get("updated_at")
-
+        for skill_name in sorted(skill_stats.keys()):
+            stats = skill_stats[skill_name]
             toggle = toggles.get(skill_name, {})
 
             result.append(
                 {
                     "skill_name": skill_name,
                     "enabled": toggle.get("enabled", True),
-                    "file_count": file_count,
+                    "file_count": stats["file_count"],
+                    "file_paths": stats.get("file_paths", []),
                     "installed_from": toggle.get("installed_from"),
-                    "created_at": created_at,
-                    "updated_at": updated_at,
+                    "created_at": stats.get("created_at"),
+                    "updated_at": stats.get("updated_at"),
                 }
             )
 
         return result
+
+    async def batch_get_skill_md_contents(
+        self, skill_names: list[str], user_id: str
+    ) -> dict[str, str]:
+        """批量获取多个 skill 的 SKILL.md 内容"""
+        if not skill_names:
+            return {}
+        collection = self._get_files_collection()
+        docs = {}
+        async for doc in collection.find(
+            {"skill_name": {"$in": skill_names}, "user_id": user_id, "file_path": "SKILL.md"},
+            {"skill_name": 1, "content": 1},
+        ):
+            docs[doc["skill_name"]] = doc.get("content", "")
+        return docs
 
     async def batch_get_skill_files(
         self, skill_keys: list[tuple[str, str]]
@@ -294,6 +365,7 @@ class SkillStorage:
         now = datetime.now(timezone.utc).isoformat()
 
         # 使用 find_one_and_update 进行原子 upsert
+        # 注意：installed_from 只在首次创建时设置，更新时不覆盖
         result = await collection.find_one_and_update(
             {"skill_name": skill_name, "user_id": user_id},
             {
@@ -340,23 +412,31 @@ class SkillStorage:
         return result.deleted_count > 0
 
     async def delete_skill_and_toggle(self, skill_name: str, user_id: str) -> None:
-        """原子删除 Skill 文件和开关"""
-        from pymongo import DeleteOne
-
-        files_coll = self._get_files_collection()
-        toggles_coll = self._get_toggles_collection()
-
-        operations = [
-            DeleteOne({"skill_name": skill_name, "user_id": user_id}),
-            DeleteOne({"skill_name": skill_name, "user_id": user_id}),
-        ]
+        """删除 Skill 文件和开关（使用事务保证原子性）"""
+        client = get_mongo_client()
+        session = None
         try:
-            await toggles_coll.bulk_write([operations[1]])
-            await files_coll.bulk_write([operations[0]])
-        except Exception:
-            # 回退：分开删除
-            await files_coll.delete_many({"skill_name": skill_name, "user_id": user_id})
-            await toggles_coll.delete_one({"skill_name": skill_name, "user_id": user_id})
+            session = await client.start_session()
+            async with session.start_transaction():
+                files_col = self._get_files_collection()
+                await files_col.delete_many(
+                    {"skill_name": skill_name, "user_id": user_id}, session=session,
+                )
+                toggles_col = self._get_toggles_collection()
+                await toggles_col.delete_one(
+                    {"skill_name": skill_name, "user_id": user_id}, session=session,
+                )
+        except Exception as e:
+            logger.warning(f"Failed to delete skill '{skill_name}' atomically: {e}")
+            # Fallback: try non-transactional delete
+            try:
+                await self.delete_skill_files(skill_name, user_id)
+            except Exception as e2:
+                logger.warning(f"Failed to delete skill files for '{skill_name}': {e2}")
+            try:
+                await self.delete_toggle(skill_name, user_id)
+            except Exception as e2:
+                logger.warning(f"Failed to delete toggle for '{skill_name}': {e2}")
 
     # ==========================================
     # 生效 Skills（供 DeepAgent 使用）
@@ -410,9 +490,9 @@ class SkillStorage:
                 description = ""
                 if "SKILL.md" in files:
                     try:
-                        from src.infra.skill.builtin import _parse_skill_md
+                        from src.infra.skill.parser import parse_skill_md
 
-                        _, parsed_desc, _ = _parse_skill_md(files["SKILL.md"])
+                        _, parsed_desc, _ = parse_skill_md(files["SKILL.md"])
                         if parsed_desc:
                             description = parsed_desc
                     except Exception:
@@ -458,6 +538,30 @@ class SkillStorage:
             await redis_client.delete(cache_key)
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis delete failed: {e}")
+
+    async def create_user_skill(
+        self,
+        skill_name: str,
+        files: dict[str, str],
+        user_id: str,
+        installed_from: InstalledFrom = InstalledFrom.MANUAL,
+        enabled: bool = True,
+    ) -> None:
+        """
+        Create a complete user skill: sync files + create toggle + invalidate cache.
+
+        This is the single entry point for all skill creation paths:
+        - MarketplacePanel direct create (installed_from=MARKETPLACE)
+        - SkillsPanel manual create (installed_from=MANUAL)
+        - GitHub import (installed_from=MANUAL)
+        - ZIP upload (installed_from=MANUAL)
+        """
+        if not files:
+            raise ValueError("Skill must have at least one file")
+
+        await self.sync_skill_files(skill_name, files, user_id)
+        await self.upsert_toggle(skill_name, user_id, enabled=enabled, installed_from=installed_from)
+        await self.invalidate_user_cache(user_id)
 
     async def close(self):
         """关闭连接（仅清理本地引用，不关闭全局 MongoDB 客户端）"""

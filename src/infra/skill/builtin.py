@@ -5,13 +5,13 @@ Load skills from src/skills/ directory into the marketplace on startup.
 Simplified architecture: builtin skills are pre-loaded into the marketplace.
 """
 
+import hashlib
 from pathlib import Path
 from typing import Optional
 
-import yaml
-
 from src.infra.logging import get_logger
 from src.infra.skill.marketplace import MarketplaceStorage
+from src.infra.skill.parser import parse_skill_md
 from src.infra.skill.types import MarketplaceSkillCreate, MarketplaceSkillUpdate
 
 logger = get_logger(__name__)
@@ -20,37 +20,14 @@ logger = get_logger(__name__)
 BUILTIN_SKILLS_DIR = Path(__file__).parent.parent.parent / "skills"
 
 
-def _parse_skill_md(content: str) -> tuple[Optional[str], Optional[str], Optional[list[str]]]:
-    """
-    Parse SKILL.md frontmatter to extract name, description, and tags.
-
-    Args:
-        content: SKILL.md file content
-
-    Returns:
-        (name, description, tags) tuple
-    """
-    if not content.startswith("---"):
-        return None, None, None
-
-    # Extract frontmatter
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return None, None, None
-
-    frontmatter_text = parts[1].strip()
-
-    try:
-        frontmatter = yaml.safe_load(frontmatter_text)
-        if not isinstance(frontmatter, dict):
-            return None, None, None
-
-        name = frontmatter.get("name")
-        description = frontmatter.get("description", "")
-        tags = frontmatter.get("tags", [])
-        return name, description, tags
-    except yaml.YAMLError:
-        return None, None, None
+def _compute_version(files: dict[str, str]) -> str:
+    """根据文件内容 hash 生成版本号"""
+    hasher = hashlib.md5()
+    for path in sorted(files.keys()):
+        hasher.update(path.encode("utf-8"))
+        hasher.update(files[path].encode("utf-8"))
+    digest = hasher.hexdigest()[:8]
+    return f"1.0.{int(digest, 16) % 10000}"
 
 
 def _read_skill_directory(skill_path: Path) -> Optional[dict[str, str]]:
@@ -129,7 +106,7 @@ async def init_builtin_skills() -> int:
 
             # Parse SKILL.md for metadata
             skill_md_content = files.get("SKILL.md", "")
-            name, description, tags = _parse_skill_md(skill_md_content)
+            name, description, tags = parse_skill_md(skill_md_content)
 
             if not name:
                 name = skill_dir.name
@@ -137,6 +114,9 @@ async def init_builtin_skills() -> int:
 
             if not description:
                 description = f"Builtin skill: {name}"
+
+            # 根据文件内容生成版本号
+            version = _compute_version(files)
 
             # Upsert marketplace skill metadata
             try:
@@ -149,6 +129,7 @@ async def init_builtin_skills() -> int:
                         MarketplaceSkillUpdate(
                             description=description,
                             tags=tags or [],
+                            version=version,
                         ),
                     )
                 else:
@@ -159,6 +140,7 @@ async def init_builtin_skills() -> int:
                             skill_name=name,
                             description=description,
                             tags=tags or [],
+                            version=version,
                         ),
                         user_id="system",
                     )

@@ -112,6 +112,8 @@ class MarketplaceStorage:
         search: Optional[str] = None,
         include_inactive: bool = False,
         viewer_id: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 50,
     ) -> list[MarketplaceSkillResponse]:
         """列出所有商城 Skills（可选按标签筛选/搜索，默认过滤已停用；自己的始终可见）"""
         collection = self._get_meta_collection()
@@ -127,7 +129,7 @@ class MarketplaceStorage:
             else:
                 query["is_active"] = {"$ne": False}
         if tags:
-            query["tags"] = {"$in": tags}
+            query["tags"] = {"$all": tags}
         if search:
             search_or = [
                 {"skill_name": {"$regex": search, "$options": "i"}},
@@ -139,10 +141,26 @@ class MarketplaceStorage:
             else:
                 query["$or"] = search_or
 
-        files_collection = self._get_files_collection()
-        results = []
+        # 使用 $lookup 一次获取文件数量，避免 N+1 查询
+        pipeline = [
+            {"$match": query},
+            {
+                "$lookup": {
+                    "from": SKILL_MARKETPLACE_FILES_COLLECTION,
+                    "localField": "skill_name",
+                    "foreignField": "skill_name",
+                    "as": "_files",
+                }
+            },
+            {"$addFields": {"_file_count": {"$size": "$_files"}}},
+            {"$unset": "_files"},
+            {"$sort": {"updated_at": -1}},
+            {"$skip": skip},
+            {"$limit": limit},
+        ]
+
         docs = []
-        async for doc in collection.find(query):
+        async for doc in collection.aggregate(pipeline):
             docs.append(doc)
 
         if not docs:
@@ -152,10 +170,9 @@ class MarketplaceStorage:
         user_ids = [d.get("created_by") for d in docs if d.get("created_by")]
         username_map = await self._batch_get_usernames(user_ids)
 
+        results = []
         for doc in docs:
-            file_count = await files_collection.count_documents(
-                {"skill_name": doc["skill_name"]}
-            )
+            file_count = doc.get("_file_count", 0)
             results.append(self._build_response(doc, file_count, username_map, viewer_id=viewer_id))
         return results
 

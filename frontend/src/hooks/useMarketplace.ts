@@ -212,6 +212,45 @@ export function useMarketplace() {
     [fetchSkills],
   );
 
+  // Load marketplace skill for editing (without local copy)
+  const loadMarketplaceSkillForEdit = useCallback(
+    async (skillName: string) => {
+      try {
+        const [filesResp, skillDetail] = await Promise.all([
+          marketplaceApi.listFiles(skillName),
+          marketplaceApi.get(skillName),
+        ]);
+
+        const fileContents: Record<string, string> = {};
+        await Promise.all(
+          filesResp.files.map(async (path) => {
+            const resp = await marketplaceApi.getFile(skillName, path);
+            fileContents[path] = resp.content;
+          }),
+        );
+
+        return {
+          name: skillName,
+          description: skillDetail.description,
+          content: fileContents["SKILL.md"] || "",
+          files: fileContents,
+          enabled: true,
+          source: "marketplace" as const,
+          file_count: filesResp.files.length,
+          installed_from: "marketplace" as const,
+          is_published: true,
+          marketplace_is_active: skillDetail.is_active,
+        };
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load marketplace skill",
+        );
+        return null;
+      }
+    },
+    [],
+  );
+
   // Initial load
   useEffect(() => {
     fetchSkills();
@@ -238,6 +277,7 @@ export function useMarketplace() {
     createAndPublish,
     activateSkill,
     deleteSkill,
+    loadMarketplaceSkillForEdit,
     clearError: () => setError(null),
     // Preview
     previewSkill,

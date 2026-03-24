@@ -46,12 +46,16 @@ SKILLS_DIR_PATTERN = re.compile(r"^/skills/([^/]+)/?$")
 # 这个缓存只是为了复用 MongoDB 连接，减少连接数
 _storage_cache: dict[str, SkillStorage] = {}
 _storage_lock = asyncio.Lock()
+MAX_STORAGE_CACHE_SIZE = 1000
 
 
 async def _get_cached_storage(user_id: str) -> SkillStorage:
-    """获取缓存的 SkillStorage 实例（async-safe）"""
+    """获取缓存的 SkillStorage 实例（async-safe，带容量上限）"""
     async with _storage_lock:
         if user_id not in _storage_cache:
+            # 缓存满时淘汰最早插入的条目
+            if len(_storage_cache) >= MAX_STORAGE_CACHE_SIZE:
+                _storage_cache.pop(next(iter(_storage_cache)))
             _storage_cache[user_id] = SkillStorage()
         return _storage_cache[user_id]
 
@@ -395,8 +399,14 @@ class SkillsStoreBackend(BackendProtocol):
                 new_content = content.replace(old_string, new_string, 1)
                 occurrences = 1
 
-            # 原子更新单个文件，避免并发写入时 read-modify-write 竞态
-            await storage.set_skill_file(skill_name, file_name, new_content, user_id=self._user_id)
+            # 使用 CAS 写入，防止并发修改丢失更新
+            success = await storage.update_skill_file_cas(
+                skill_name, file_name, content, new_content, user_id=self._user_id
+            )
+            if not success:
+                return EditResult(
+                    error="File was modified concurrently. Please re-read and try again."
+                )
 
             # 清除缓存
             await storage.invalidate_user_cache(self._user_id)
@@ -805,6 +815,14 @@ class SkillsStoreBackend(BackendProtocol):
     def close(self) -> None:
         """关闭连接（SkillStorage 由全局缓存管理，不在此关闭）"""
         pass
+
+    @classmethod
+    async def cleanup_storage_cache(cls) -> int:
+        """清理全局 SkillStorage 缓存（用于 user session 结束时调用）"""
+        async with _storage_lock:
+            count = len(_storage_cache)
+            _storage_cache.clear()
+            return count
 
 
 def create_skills_backend(user_id: str, runtime: Any = None) -> SkillsStoreBackend:
