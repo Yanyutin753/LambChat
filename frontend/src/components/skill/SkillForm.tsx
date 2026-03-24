@@ -383,11 +383,13 @@ function FileTabs({
   activeFileIndex,
   onSelect,
   onRemove,
+  untitledLabel,
 }: {
   files: FileEntry[];
   activeFileIndex: number;
   onSelect: (i: number) => void;
   onRemove: (i: number) => void;
+  untitledLabel: string;
 }) {
   return (
     <div className="flex items-center gap-1 overflow-x-auto scrollbar-none px-1">
@@ -401,11 +403,11 @@ function FileTabs({
               ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)] shadow-sm"
               : "text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
           }`}
-          title={file.path || "Untitled"}
+          title={file.path || untitledLabel}
         >
           {getFileIcon(file.path || "untitled")}
           <span className="max-w-[120px] sm:max-w-[200px] truncate">
-            {file.path ? file.path.split("/").pop() || file.path : "Untitled"}
+            {file.path ? file.path.split("/").pop() || file.path : untitledLabel}
           </span>
           {files.length > 1 && (
             <span
@@ -709,6 +711,7 @@ export function SkillForm({
                   activeFileIndex={activeFileIndex}
                   onSelect={setActiveFileIndex}
                   onRemove={removeFile}
+                  untitledLabel={t("skills.form.untitled")}
                 />
                 <button
                   type="button"
@@ -729,7 +732,7 @@ export function SkillForm({
                     onChange={(e) =>
                       updateFilePath(activeFileIndex, e.target.value)
                     }
-                    placeholder="filename"
+                    placeholder={t("skills.form.fileNamePlaceholder")}
                     className="flex-1 bg-transparent font-mono text-xs text-[var(--theme-text)] placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none py-0.5"
                   />
                 </div>
@@ -975,6 +978,7 @@ export function SkillForm({
                       activeFileIndex={activeFileIndex}
                       onSelect={setActiveFileIndex}
                       onRemove={removeFile}
+                      untitledLabel={t("skills.form.untitled")}
                     />
                   </div>
 

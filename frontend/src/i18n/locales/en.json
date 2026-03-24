@@ -952,6 +952,7 @@
       "enabled": "Enabled",
       "exitFullscreen": "Exit fullscreen",
       "files": "Files",
+      "fileNamePlaceholder": "filename",
       "name": "Skill Name",
       "nameCannotChange": "Skill name cannot be changed",
       "namePlaceholder": "my-skill-name",
@@ -963,7 +964,8 @@
         "nameInvalid": "Name can only contain letters, numbers, underscores, hyphens, dots, and CJK characters",
         "nameRequired": "Name is required",
         "nameTooLong": "Name cannot exceed 100 characters",
-        "tagTooLong": "Each tag must be 30 characters or fewer"
+        "tagTooLong": "Each tag must be 30 characters or fewer",
+        "duplicateFilePaths": "Duplicate file paths are not allowed"
       }
     },
     "foundSkills": "Found {{count}} skill(s) - select to install",

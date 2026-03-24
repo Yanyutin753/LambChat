@@ -951,6 +951,7 @@
       "enabled": "启用",
       "exitFullscreen": "退出全屏",
       "files": "文件",
+      "fileNamePlaceholder": "文件名",
       "name": "技能名称",
       "nameCannotChange": "技能名称无法更改",
       "namePlaceholder": "my-skill-name",
@@ -962,7 +963,8 @@
         "nameInvalid": "名称只能包含字母、数字、下划线、连字符、点和中文",
         "nameRequired": "请输入技能名称",
         "nameTooLong": "名称不能超过100个字符",
-        "tagTooLong": "单个标签长度不能超过30个字符"
+        "tagTooLong": "单个标签长度不能超过30个字符",
+        "duplicateFilePaths": "文件路径不能重复"
       }
     },
     "foundSkills": "找到 {{count}} 个技能 - 选择要安装的",
