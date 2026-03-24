@@ -332,7 +332,7 @@ async def install_github_skills(
                 errors.append(f"Skill '{skill_name}' already exists")
                 continue
 
-            # 保存文件 + 创建 toggle
+            # 保存文件
             try:
                 await storage.create_user_skill(
                     skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL

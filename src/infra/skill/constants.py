@@ -6,7 +6,6 @@ Skill storage constants
 SKILL_FILES_COLLECTION = "skill_files"  # 用户文件
 SKILL_MARKETPLACE_COLLECTION = "skill_marketplace"  # 商城 Skill 元数据
 SKILL_MARKETPLACE_FILES_COLLECTION = "skill_marketplace_files"  # 商城 Skill 文件
-SKILL_TOGGLES_COLLECTION = "skill_toggles"  # 用户 Skill 开关
 
 # Redis cache TTL (seconds), default 30 minutes
 SKILLS_CACHE_TTL = 1800

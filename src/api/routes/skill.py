@@ -2,7 +2,7 @@
 用户 Skills API
 
 提供用户 Skills 的 CRUD、Toggle 和发布到商店操作。
-Simplified architecture: files + toggle, no system/user split.
+Simplified architecture: files + metadata (stored in __meta__ doc), enabled/disabled in user metadata.
 """
 
 import io
@@ -21,9 +21,9 @@ from src.infra.skill.types import (
     MarketplaceSkillResponse,
     MarketplaceSkillUpdate,
     PublishToMarketplaceRequest,
-    SkillToggle,
     UserSkill,
 )
+from src.infra.user.storage import UserStorage
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -287,7 +287,16 @@ async def list_user_skills(
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """列出用户安装的所有 Skills（含发布状态）"""
-    skills = await storage.list_user_skills(user.sub, skip=skip, limit=limit)
+    # Get disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    disabled_skills = []
+    if user_doc and user_doc.metadata:
+        disabled_skills = user_doc.metadata.get("disabled_skills", [])
+
+    skills = await storage.list_user_skills(
+        user.sub, skip=skip, limit=limit, disabled_skills=disabled_skills
+    )
     if not skills:
         return []
 
@@ -342,7 +351,16 @@ async def get_user_skill(
     if not files:
         raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
 
-    toggle = await storage.get_toggle(name, user.sub)
+    # Get disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    disabled_skills = set()
+    if user_doc and user_doc.metadata:
+        disabled_skills = set(user_doc.metadata.get("disabled_skills", []))
+    enabled = name not in disabled_skills
+
+    # Get metadata from __meta__ doc
+    meta = await storage.get_skill_meta(name, user.sub)
     published_map = await marketplace.get_user_published_skills(user.sub)
 
     # 使用文件聚合统计获取时间戳，与 list_user_skills 保持一致
@@ -360,16 +378,16 @@ async def get_user_skill(
         skill_name=name,
         description=description,
         tags=tags,
-        enabled=toggle.enabled if toggle else True,
+        enabled=enabled,
         files=list(files.keys()),
         file_count=file_stats["file_count"],
-        installed_from=toggle.installed_from if toggle else None,
-        published_marketplace_name=toggle.published_marketplace_name if toggle else None,
+        installed_from=meta.installed_from.value if meta else None,
+        published_marketplace_name=meta.published_marketplace_name if meta else None,
         created_at=file_stats.get("created_at"),
         updated_at=file_stats.get("updated_at"),
-        is_published=bool(toggle.published_marketplace_name) if toggle else name in published_map,
+        is_published=bool(meta.published_marketplace_name) if meta else name in published_map,
         marketplace_is_active=published_map.get(
-            (toggle.published_marketplace_name if toggle else None) or name, {}
+            (meta.published_marketplace_name if meta else None) or name, {}
         ).get("is_active", True),
     )
 
@@ -405,15 +423,15 @@ async def update_skill_file(
         raise HTTPException(status_code=400, detail="Invalid file path")
     content = body.content
 
-    # 检查 toggle 是否已存在，以决定 enabled 状态
-    existing_toggle = await storage.get_toggle(name, user.sub)
-    is_new = existing_toggle is None
+    # 检查 __meta__ 是否已存在，以决定是否是新 skill
+    existing_meta = await storage.get_skill_meta(name, user.sub)
+    is_new = existing_meta is None
 
     await storage.set_skill_file(name, safe_path, content, user.sub)
 
-    # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
-    enabled = True if is_new else (existing_toggle.enabled if existing_toggle else True)
-    await storage.upsert_toggle(name, user.sub, enabled=enabled)
+    # 新 skill 自动创建 __meta__
+    if is_new:
+        await storage.set_skill_meta(name, user.sub)
 
     # 失效缓存
     await storage.invalidate_user_cache(user.sub)
@@ -441,10 +459,10 @@ async def delete_skill_file(
 
     await storage.delete_skill_file(name, safe_path, user.sub)
 
-    # 检查 skill 是否还有剩余文件，若无则清理 toggle 避免幽灵 skill
+    # 检查 skill 是否还有剩余文件（排除 __meta__），若无则清理 __meta__ 避免幽灵 skill
     remaining = await storage.list_skill_file_paths(name, user.sub)
     if not remaining:
-        await storage.delete_toggle(name, user.sub)
+        await storage.delete_skill_meta(name, user.sub)
 
     # 失效缓存
     await storage.invalidate_user_cache(user.sub)
@@ -460,14 +478,23 @@ async def delete_user_skill(
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """删除（卸载）用户的 Skill，同时停用商店发布（不删除，保留其他已安装用户的访问）"""
-    toggle = await storage.get_toggle(name, user.sub)
-    published_marketplace_name = toggle.published_marketplace_name if toggle else None
+    meta = await storage.get_skill_meta(name, user.sub)
+    published_marketplace_name = meta.published_marketplace_name if meta else None
     existing_mp = await marketplace.get_marketplace_skill(published_marketplace_name or name)
     if existing_mp and existing_mp.created_by == user.sub:
         await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
 
-    # 删除用户的文件和开关
-    await storage.delete_skill_and_toggle(name, user.sub)
+    # 删除用户的文件和元数据
+    await storage.delete_skill_and_meta(name, user.sub)
+
+    # 清理 disabled_skills 中的条目（如果有）
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    if user_doc and user_doc.metadata:
+        disabled = set(user_doc.metadata.get("disabled_skills", []))
+        if name in disabled:
+            disabled.discard(name)
+            await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
 
     # 失效缓存
     await storage.invalidate_user_cache(user.sub)
@@ -512,21 +539,30 @@ async def batch_delete_skills(
 
     for name in body.names:
         try:
-            toggle = await storage.get_toggle(name, user.sub)
-            published_marketplace_name = toggle.published_marketplace_name if toggle else None
+            meta = await storage.get_skill_meta(name, user.sub)
+            published_marketplace_name = meta.published_marketplace_name if meta else None
             existing_mp = await marketplace.get_marketplace_skill(
                 published_marketplace_name or name
             )
             if existing_mp and existing_mp.created_by == user.sub:
                 await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
 
-            await storage.delete_skill_and_toggle(name, user.sub)
+            await storage.delete_skill_and_meta(name, user.sub)
             deleted.append(name)
         except Exception as e:
             errors.append({"name": name, "reason": str(e)})
 
     if deleted:
         await storage.invalidate_user_cache(user.sub)
+
+        # 清理 disabled_skills 中已删除的 skill
+        user_storage = UserStorage()
+        user_doc = await user_storage.get_by_id(user.sub)
+        if user_doc and user_doc.metadata:
+            disabled = set(user_doc.metadata.get("disabled_skills", []))
+            if disabled & set(deleted):
+                disabled -= set(deleted)
+                await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
 
     return {"deleted": deleted, "errors": errors}
 
@@ -538,20 +574,25 @@ async def batch_toggle_skills(
     storage: SkillStorage = Depends(get_storage),
 ):
     """批量切换 Skills 的启用状态"""
-    updated: list[str] = []
-    errors: list[dict[str, str]] = []
+    # Get current disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    disabled = set((user_doc.metadata or {}).get("disabled_skills", []))
 
-    for name in body.names:
-        try:
-            await storage.upsert_toggle(name, user.sub, enabled=body.enabled)
-            updated.append(name)
-        except Exception as e:
-            errors.append({"name": name, "reason": str(e)})
+    if body.enabled:
+        # Enable: remove from disabled set
+        disabled -= set(body.names)
+    else:
+        # Disable: add to disabled set
+        disabled |= set(body.names)
 
-    if updated:
-        await storage.invalidate_user_cache(user.sub)
+    # Update user metadata
+    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
 
-    return {"updated": updated, "errors": errors}
+    # Invalidate cache
+    await storage.invalidate_user_cache(user.sub)
+
+    return {"updated": body.names, "errors": []}
 
 
 @router.patch("/{name}/toggle")
@@ -562,24 +603,37 @@ async def toggle_user_skill(
     storage: SkillStorage = Depends(get_storage),
 ):
     """切换或设置 Skill 的启用状态"""
+    # Get current disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    disabled = set((user_doc.metadata or {}).get("disabled_skills", []))
+
     target_enabled = body.enabled if body else None
 
     if target_enabled is not None:
         # 直接设置目标状态
-        toggle: SkillToggle = await storage.upsert_toggle(name, user.sub, enabled=target_enabled)
+        if target_enabled:
+            disabled.discard(name)
+        else:
+            disabled.add(name)
     else:
         # Flip 当前状态
-        toggled = await storage.toggle_skill(name, user.sub)
-        if not toggled:
-            raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
-        toggle = toggled
+        if name in disabled:
+            disabled.discard(name)
+        else:
+            disabled.add(name)
 
+    # Update user metadata
+    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
+
+    # Invalidate cache
     await storage.invalidate_user_cache(user.sub)
 
-    status = "enabled" if toggle and toggle.enabled else "disabled"
+    is_enabled = name not in disabled
+    status = "enabled" if is_enabled else "disabled"
     return {
         "skill_name": name,
-        "enabled": toggle.enabled,
+        "enabled": is_enabled,
         "message": f"Skill '{name}' is now {status}",
     }
 
@@ -641,10 +695,12 @@ async def publish_skill_to_marketplace(
 
     try:
         await marketplace.sync_marketplace_files(target_name, user_files)
-        await storage.upsert_toggle(
+        # Update __meta__ doc with published_marketplace_name
+        meta = await storage.get_skill_meta(name, user.sub)
+        await storage.set_skill_meta(
             name,
             user.sub,
-            enabled=True,
+            installed_from=meta.installed_from if meta else InstalledFrom.MANUAL,
             published_marketplace_name=target_name,
         )
     except Exception:

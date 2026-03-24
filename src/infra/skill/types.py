@@ -42,12 +42,9 @@ class MarketplaceSkillUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-class SkillToggle(BaseModel):
-    """用户 Skill 开关"""
+class SkillMeta(BaseModel):
+    """Skill metadata stored as __meta__ doc in skill_files"""
 
-    skill_name: str
-    user_id: str
-    enabled: bool = True
     installed_from: InstalledFrom = InstalledFrom.MANUAL
     published_marketplace_name: Optional[str] = None
     created_at: Optional[str] = None

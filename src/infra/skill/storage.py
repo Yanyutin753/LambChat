@@ -1,21 +1,18 @@
 """
 Skill 存储层 - 简化架构
 
-3 张核心表：
-- skill_files: 用户文件存储
-- skill_toggles: 用户开关
+2 张核心表：
+- skill_files: 用户文件存储（包括 __meta__ 元数据文档）
 - skill_marketplace / skill_marketplace_files: 商城（见 marketplace.py）
 """
 
+import json
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
 from src.infra.logging import get_logger
-from src.infra.skill.constants import (
-    SKILL_FILES_COLLECTION,
-    SKILL_TOGGLES_COLLECTION,
-)
-from src.infra.skill.types import InstalledFrom, SkillToggle
+from src.infra.skill.constants import SKILL_FILES_COLLECTION
+from src.infra.skill.types import InstalledFrom, SkillMeta
 from src.infra.storage.mongodb import get_mongo_client
 from src.kernel.config import settings
 
@@ -29,13 +26,14 @@ class SkillStorage:
     """
     用户 Skill 文件存储
 
-    提供文件级别的 CRUD 操作和开关管理。
+    提供文件级别的 CRUD 操作。
+    元数据（installed_from, published_marketplace_name）存储在 skill_files 的 __meta__ 文档中。
+    enabled/disabled 状态存储在用户 metadata.disabled_skills 中。
     """
 
     def __init__(self):
         self._client: Optional["AsyncIOMotorClient"] = None
         self._files_collection: Optional["AsyncIOMotorCollection"] = None
-        self._toggles_collection: Optional["AsyncIOMotorCollection"] = None
 
     def _get_files_collection(self) -> "AsyncIOMotorCollection":
         if self._files_collection is None:
@@ -43,13 +41,6 @@ class SkillStorage:
             db = self._client[settings.MONGODB_DB]
             self._files_collection = db[SKILL_FILES_COLLECTION]
         return self._files_collection
-
-    def _get_toggles_collection(self) -> "AsyncIOMotorCollection":
-        if self._toggles_collection is None:
-            self._client = get_mongo_client()
-            db = self._client[settings.MONGODB_DB]
-            self._toggles_collection = db[SKILL_TOGGLES_COLLECTION]
-        return self._toggles_collection
 
     async def ensure_indexes(self) -> None:
         """创建索引"""
@@ -60,28 +51,17 @@ class SkillStorage:
             background=True,
         )
 
-        toggles = self._get_toggles_collection()
-        await toggles.create_index(
-            [("skill_name", 1), ("user_id", 1)],
-            unique=True,
-            background=True,
-        )
-        # 查询启用 skill 时的复合索引
-        await toggles.create_index(
-            [("user_id", 1), ("enabled", 1)],
-            background=True,
-        )
-
     # ==========================================
     # 文件操作
     # ==========================================
 
     async def get_skill_files(self, skill_name: str, user_id: str) -> dict[str, str]:
-        """获取用户某个 Skill 的所有文件"""
+        """获取用户某个 Skill 的所有文件（排除 __meta__）"""
         collection = self._get_files_collection()
         files: dict[str, str] = {}
         async for doc in collection.find({"skill_name": skill_name, "user_id": user_id}):
-            files[doc["file_path"]] = doc["content"]
+            if doc["file_path"] != "__meta__":
+                files[doc["file_path"]] = doc["content"]
         return files
 
     async def get_skill_file(self, skill_name: str, file_path: str, user_id: str) -> Optional[str]:
@@ -153,16 +133,17 @@ class SkillStorage:
         )
 
     async def sync_skill_files(self, skill_name: str, files: dict[str, str], user_id: str) -> None:
-        """批量同步文件（替换所有）"""
+        """批量同步文件（替换所有，但保留 __meta__）"""
         if not files:
             return
         collection = self._get_files_collection()
         now = datetime.now(timezone.utc).isoformat()
 
-        # 获取现有文件路径
+        # 获取现有文件路径（排除 __meta__）
         existing_paths = set()
         async for doc in collection.find(
-            {"skill_name": skill_name, "user_id": user_id}, {"file_path": 1}
+            {"skill_name": skill_name, "user_id": user_id, "file_path": {"$ne": "__meta__"}},
+            {"file_path": 1},
         ):
             existing_paths.add(doc["file_path"])
 
@@ -208,20 +189,27 @@ class SkillStorage:
         )
 
     async def list_skill_file_paths(self, skill_name: str, user_id: str) -> list[str]:
-        """列出用户某个 Skill 的所有文件路径"""
+        """列出用户某个 Skill 的所有文件路径（排除 __meta__）"""
         collection = self._get_files_collection()
         paths = []
         async for doc in collection.find(
-            {"skill_name": skill_name, "user_id": user_id}, {"file_path": 1}
+            {"skill_name": skill_name, "user_id": user_id, "file_path": {"$ne": "__meta__"}},
+            {"file_path": 1},
         ):
             paths.append(doc["file_path"])
         return paths
 
     async def get_skill_file_stats(self, skill_name: str, user_id: str) -> dict[str, Any]:
-        """获取单个 Skill 的文件统计信息（created_at/updated_at 来自文件聚合）"""
+        """获取单个 Skill 的文件统计信息（created_at/updated_at 来自文件聚合，排除 __meta__）"""
         collection = self._get_files_collection()
         pipeline: list[dict[str, Any]] = [
-            {"$match": {"skill_name": skill_name, "user_id": user_id}},
+            {
+                "$match": {
+                    "skill_name": skill_name,
+                    "user_id": user_id,
+                    "file_path": {"$ne": "__meta__"},
+                }
+            },
             {
                 "$group": {
                     "_id": "$skill_name",
@@ -240,14 +228,29 @@ class SkillStorage:
         return {"file_count": 0, "created_at": None, "updated_at": None}
 
     async def list_user_skills(
-        self, user_id: str, skip: int = 0, limit: int = 100
+        self,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 100,
+        disabled_skills: Optional[list[str]] = None,
     ) -> list[dict[str, Any]]:
-        """列出用户所有 Skill（带文件信息）"""
+        """列出用户所有 Skill（带文件信息）
+
+        Args:
+            user_id: 用户 ID
+            skip: 分页跳过数量
+            limit: 分页限制
+            disabled_skills: 从用户 metadata 中获取的 disabled_skills 列表
+        """
+        if disabled_skills is None:
+            disabled_skills = []
+        disabled_set = set(disabled_skills)
+
         collection = self._get_files_collection()
 
-        # 使用 aggregation 一次获取所有 skill 的统计信息 + 文件路径
+        # 使用 aggregation 一次获取所有 skill 的统计信息 + 文件路径（排除 __meta__）
         pipeline: list[dict[str, Any]] = [
-            {"$match": {"user_id": user_id}},
+            {"$match": {"user_id": user_id, "file_path": {"$ne": "__meta__"}}},
             {
                 "$group": {
                     "_id": "$skill_name",
@@ -270,30 +273,35 @@ class SkillStorage:
                 "updated_at": doc.get("updated_at"),
             }
 
-        # 获取开关状态
-        toggles_collection = self._get_toggles_collection()
-        toggles: dict[str, dict] = {}
-        async for doc in toggles_collection.find({"user_id": user_id}):
-            toggles[doc["skill_name"]] = doc
+        # 批量获取所有 __meta__ 文档
+        skill_names = list(skill_stats.keys())
+        meta_map: dict[str, SkillMeta] = {}
+        if skill_names:
+            async for doc in collection.find(
+                {"skill_name": {"$in": skill_names}, "user_id": user_id, "file_path": "__meta__"},
+                {"skill_name": 1, "content": 1},
+            ):
+                try:
+                    data = json.loads(doc["content"])
+                    meta_map[doc["skill_name"]] = SkillMeta(**data)
+                except Exception:
+                    pass
 
         # 组装结果
         result = []
         for skill_name in sorted(skill_stats.keys()):
             stats = skill_stats[skill_name]
-            toggle = toggles.get(skill_name)
+            meta = meta_map.get(skill_name)
+            enabled = skill_name not in disabled_set
 
-            # 无 toggle 记录时默认 enabled=False（与 get_effective_skills 保持一致，
-            # 因为 get_effective_skills 只从 toggle 集合查找启用的 skill）
             result.append(
                 {
                     "skill_name": skill_name,
-                    "enabled": toggle.get("enabled", False) if toggle else False,
+                    "enabled": enabled,
                     "file_count": stats["file_count"],
                     "file_paths": stats.get("file_paths", []),
-                    "installed_from": toggle.get("installed_from") if toggle else None,
-                    "published_marketplace_name": toggle.get("published_marketplace_name")
-                    if toggle
-                    else None,
+                    "installed_from": meta.installed_from.value if meta else None,
+                    "published_marketplace_name": meta.published_marketplace_name if meta else None,
                     "created_at": stats.get("created_at"),
                     "updated_at": stats.get("updated_at"),
                 }
@@ -339,136 +347,79 @@ class SkillStorage:
             key = (doc["skill_name"], doc["user_id"])
             if key not in result:
                 result[key] = {}
-            result[key][doc["file_path"]] = doc["content"]
+            if doc["file_path"] != "__meta__":
+                result[key][doc["file_path"]] = doc["content"]
 
         return result
 
     # ==========================================
-    # 开关操作
+    # Skill 元数据操作（存储在 __meta__ 文档中）
     # ==========================================
 
-    async def get_toggle(self, skill_name: str, user_id: str) -> Optional[SkillToggle]:
-        """获取用户某个 Skill 的开关状态"""
-        collection = self._get_toggles_collection()
+    async def get_skill_meta(self, skill_name: str, user_id: str) -> Optional[SkillMeta]:
+        """获取 skill 元数据（从 __meta__ 文档）"""
+        collection = self._get_files_collection()
         doc = await collection.find_one(
-            {
-                "skill_name": skill_name,
-                "user_id": user_id,
-            }
+            {"skill_name": skill_name, "user_id": user_id, "file_path": "__meta__"}
         )
         if not doc:
             return None
-        return SkillToggle(
-            skill_name=doc["skill_name"],
-            user_id=doc["user_id"],
-            enabled=doc.get("enabled", True),
-            installed_from=InstalledFrom(doc.get("installed_from", "manual")),
-            published_marketplace_name=doc.get("published_marketplace_name"),
-            created_at=doc.get("created_at"),
-            updated_at=doc.get("updated_at"),
-        )
+        try:
+            data = json.loads(doc["content"])
+            return SkillMeta(**data)
+        except Exception:
+            return None
 
-    async def upsert_toggle(
+    async def set_skill_meta(
         self,
         skill_name: str,
         user_id: str,
-        enabled: bool = True,
-        installed_from: Optional[InstalledFrom] = None,
+        installed_from: InstalledFrom = InstalledFrom.MANUAL,
         published_marketplace_name: Optional[str] = None,
-    ) -> SkillToggle:
-        """Upsert 开关记录（原子操作，避免竞态）"""
-        collection = self._get_toggles_collection()
+    ) -> None:
+        """设置 skill 元数据（存储为 __meta__ 文档）"""
+        collection = self._get_files_collection()
         now = datetime.now(timezone.utc).isoformat()
-
-        # 使用 find_one_and_update 进行原子 upsert
-        # 注意：installed_from 只在首次创建时设置，更新时不覆盖
-        result = await collection.find_one_and_update(
-            {"skill_name": skill_name, "user_id": user_id},
+        meta = SkillMeta(
+            installed_from=installed_from,
+            published_marketplace_name=published_marketplace_name,
+            created_at=now,
+            updated_at=now,
+        )
+        await collection.update_one(
+            {"skill_name": skill_name, "user_id": user_id, "file_path": "__meta__"},
             {
-                "$set": {
-                    "enabled": enabled,
-                    "updated_at": now,
-                    **(
-                        {"published_marketplace_name": published_marketplace_name}
-                        if published_marketplace_name is not None
-                        else {}
-                    ),
-                },
-                "$setOnInsert": {
-                    "skill_name": skill_name,
-                    "user_id": user_id,
-                    "installed_from": (installed_from or InstalledFrom.MANUAL).value,
-                    "created_at": now,
-                },
+                "$set": {"content": json.dumps(meta.model_dump()), "updated_at": now},
+                "$setOnInsert": {"created_at": now},
             },
             upsert=True,
-            return_document=True,
         )
 
-        return SkillToggle(
-            skill_name=result["skill_name"],
-            user_id=result["user_id"],
-            enabled=result.get("enabled", True),
-            installed_from=InstalledFrom(result.get("installed_from", "manual")),
-            published_marketplace_name=result.get("published_marketplace_name"),
-            created_at=result.get("created_at"),
-            updated_at=result.get("updated_at"),
+    async def delete_skill_meta(self, skill_name: str, user_id: str) -> None:
+        """删除 skill __meta__ 文档"""
+        collection = self._get_files_collection()
+        await collection.delete_one(
+            {"skill_name": skill_name, "user_id": user_id, "file_path": "__meta__"}
         )
 
-    async def toggle_skill(self, skill_name: str, user_id: str) -> Optional[SkillToggle]:
-        """切换开关状态"""
-        toggle = await self.get_toggle(skill_name, user_id)
-        if not toggle:
-            return None
-        return await self.upsert_toggle(skill_name, user_id, enabled=not toggle.enabled)
-
-    async def delete_toggle(self, skill_name: str, user_id: str) -> bool:
-        """删除开关记录"""
-        collection = self._get_toggles_collection()
-        result = await collection.delete_one(
-            {
-                "skill_name": skill_name,
-                "user_id": user_id,
-            }
-        )
-        return result.deleted_count > 0
-
-    async def delete_skill_and_toggle(self, skill_name: str, user_id: str) -> None:
-        """删除 Skill 文件和开关（使用事务保证原子性）"""
-        client = get_mongo_client()
-        session = None
-        try:
-            session = await client.start_session()
-            async with session.start_transaction():
-                files_col = self._get_files_collection()
-                await files_col.delete_many(
-                    {"skill_name": skill_name, "user_id": user_id},
-                    session=session,
-                )
-                toggles_col = self._get_toggles_collection()
-                await toggles_col.delete_one(
-                    {"skill_name": skill_name, "user_id": user_id},
-                    session=session,
-                )
-        except Exception as e:
-            logger.warning(f"Failed to delete skill '{skill_name}' atomically: {e}")
-            # Fallback: try non-transactional delete
-            try:
-                await self.delete_skill_files(skill_name, user_id)
-            except Exception as e2:
-                logger.warning(f"Failed to delete skill files for '{skill_name}': {e2}")
-            try:
-                await self.delete_toggle(skill_name, user_id)
-            except Exception as e2:
-                logger.warning(f"Failed to delete toggle for '{skill_name}': {e2}")
+    async def delete_skill_and_meta(self, skill_name: str, user_id: str) -> None:
+        """删除 Skill 所有文件（包括 __meta__）"""
+        collection = self._get_files_collection()
+        await collection.delete_many({"skill_name": skill_name, "user_id": user_id})
 
     # ==========================================
     # 生效 Skills（供 DeepAgent 使用）
     # ==========================================
 
-    async def get_effective_skills(self, user_id: str) -> dict[str, dict[str, Any]]:
+    async def get_effective_skills(
+        self, user_id: str, disabled_skills: Optional[list[str]] = None
+    ) -> dict[str, dict[str, Any]]:
         """
         获取用户生效的 Skills（已启用 + 有文件）
+
+        Args:
+            user_id: 用户 ID
+            disabled_skills: 从用户 metadata 中获取的 disabled_skills 列表
 
         Returns:
             {
@@ -497,8 +448,15 @@ class SkillStorage:
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis get failed: {e}")
 
-        # 从 MongoDB 加载
-        enabled_names = await self._get_enabled_skill_names(user_id)
+        if disabled_skills is None:
+            disabled_skills = []
+        disabled_set = set(disabled_skills)
+
+        # 获取所有用户 skill 名称（排除 __meta__）
+        all_skill_names = await self.get_all_user_skill_names(user_id)
+        # 过滤掉 disabled 的
+        enabled_names = [name for name in all_skill_names if name not in disabled_set]
+
         if not enabled_names:
             return {"skills": {}}
 
@@ -542,13 +500,14 @@ class SkillStorage:
 
         return result
 
-    async def _get_enabled_skill_names(self, user_id: str) -> list[str]:
-        """获取用户已启用的 skill_names"""
-        collection = self._get_toggles_collection()
-        names = []
-        async for doc in collection.find({"user_id": user_id, "enabled": True}):
-            names.append(doc["skill_name"])
-        return names
+    async def get_all_user_skill_names(self, user_id: str) -> list[str]:
+        """获取用户所有 skill 名称（无论 enabled/disabled，排除 __meta__）"""
+        collection = self._get_files_collection()
+        pipeline = [
+            {"$match": {"user_id": user_id, "file_path": {"$ne": "__meta__"}}},
+            {"$group": {"_id": "$skill_name"}},
+        ]
+        return [doc["_id"] async for doc in collection.aggregate(pipeline)]
 
     async def invalidate_user_cache(self, user_id: str) -> None:
         """失效用户缓存"""
@@ -572,24 +531,24 @@ class SkillStorage:
         enabled: bool = True,
     ) -> None:
         """
-        Create a complete user skill: sync files + create toggle + invalidate cache.
+        Create a complete user skill: sync files + create __meta__ + invalidate cache.
 
         This is the single entry point for all skill creation paths:
         - MarketplacePanel direct create (installed_from=MARKETPLACE)
         - SkillsPanel manual create (installed_from=MANUAL)
         - GitHub import (installed_from=MANUAL)
         - ZIP upload (installed_from=MANUAL)
+
+        Note: The `enabled` parameter is kept for API compatibility but the actual
+        enabled/disabled state is managed in user.metadata.disabled_skills.
         """
         if not files:
             raise ValueError("Skill must have at least one file")
 
         await self.sync_skill_files(skill_name, files, user_id)
-        await self.upsert_toggle(
-            skill_name, user_id, enabled=enabled, installed_from=installed_from
-        )
+        await self.set_skill_meta(skill_name, user_id, installed_from=installed_from)
         await self.invalidate_user_cache(user_id)
 
     async def close(self):
         """关闭连接（仅清理本地引用，不关闭全局 MongoDB 客户端）"""
         self._files_collection = None
-        self._toggles_collection = None

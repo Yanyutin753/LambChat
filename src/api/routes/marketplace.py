@@ -223,9 +223,9 @@ async def install_marketplace_skill(
     if not marketplace_skill.is_active:
         raise HTTPException(status_code=403, detail="This skill has been deactivated")
 
-    # 2. 检查用户是否已安装（快速路径，实际唯一性由 MongoDB 索引保证）
-    existing_toggle = await storage.get_toggle(name, user.sub)
-    if existing_toggle:
+    # 2. 检查用户是否已安装（检查 __meta__ 或文件是否存在）
+    existing_meta = await storage.get_skill_meta(name, user.sub)
+    if existing_meta:
         raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
 
     # 3. 获取商城文件并复制到用户目录
@@ -268,8 +268,9 @@ async def update_from_marketplace(
     if not marketplace_skill.is_active:
         raise HTTPException(status_code=403, detail="This skill has been deactivated")
 
-    toggle = await storage.get_toggle(name, user.sub)
-    if not toggle:
+    # Check if skill is installed by checking __meta__
+    meta = await storage.get_skill_meta(name, user.sub)
+    if not meta:
         raise HTTPException(
             status_code=400, detail=f"Skill '{name}' not installed. Install it first."
         )
@@ -277,8 +278,13 @@ async def update_from_marketplace(
     marketplace_files = await marketplace.get_marketplace_files(name)
     await storage.sync_skill_files(name, marketplace_files, user.sub)
 
-    # 确保 toggle 启用（保留原始 installed_from）
-    await storage.upsert_toggle(name, user.sub, enabled=True)
+    # Update __meta__ doc (preserve installed_from and published_marketplace_name)
+    await storage.set_skill_meta(
+        name,
+        user.sub,
+        installed_from=meta.installed_from,
+        published_marketplace_name=meta.published_marketplace_name,
+    )
 
     await storage.invalidate_user_cache(user.sub)
 

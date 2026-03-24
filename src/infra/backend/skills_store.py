@@ -307,18 +307,16 @@ class SkillsStoreBackend(BackendProtocol):
         storage = await self._get_storage()
 
         try:
-            # 检查 skill 是否已存在（有 toggle 或有文件）
-            existing_toggle = await storage.get_toggle(skill_name, self._user_id)
-            is_new_skill = existing_toggle is None
+            # 检查 skill 是否已存在（有 __meta__ 或有文件）
+            existing_meta = await storage.get_skill_meta(skill_name, self._user_id)
+            is_new_skill = existing_meta is None
 
             # 直接 upsert 文件（user_id = 当前用户）
             await storage.set_skill_file(skill_name, file_name, content, self._user_id)
 
-            # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
-            enabled = (
-                True if is_new_skill else (existing_toggle.enabled if existing_toggle else True)
-            )
-            await storage.upsert_toggle(skill_name, self._user_id, enabled=enabled)
+            # 新 skill 自动创建 __meta__
+            if is_new_skill:
+                await storage.set_skill_meta(skill_name, self._user_id)
 
             # 失效缓存
             await storage.invalidate_user_cache(self._user_id)
@@ -387,7 +385,7 @@ class SkillsStoreBackend(BackendProtocol):
         storage = await self._get_storage()
 
         try:
-            # 检查文件是否存在（只需确认 skill 存在 - 即有 toggle 或有文件）
+            # 检查文件是否存在（只需确认 skill 存在 - 即有文件）
             content = await storage.get_skill_file(skill_name, file_name, user_id=self._user_id)
             if content is None:
                 # 检查 skill 是否有任何文件
