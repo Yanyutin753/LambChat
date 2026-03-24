@@ -644,6 +644,34 @@ select:-webkit-autofill:active {
   min-height: auto;
 }
 
+/* Check pop animation for skill selection */
+@keyframes check-pop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Selected card glow pulse */
+@keyframes select-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--theme-primary) 20%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--theme-primary) 12%, transparent),
+      0 0 16px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+  }
+}
+
 .skill-status-pill {
   display: inline-flex;
   align-items: center;
@@ -1139,14 +1167,40 @@ select:-webkit-autofill:active {
   color: var(--theme-text);
 }
 
+/* Form card entrance animation */
+.skill-form-card {
+  animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Fullscreen entrance animation */
+.skill-form--fullscreen {
+  animation: fullscreen-enter 0.25s ease-out;
+}
+
+@keyframes fullscreen-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Input focus styles inside skill form */
+.skill-form input[type="text"]:focus,
+.skill-form textarea:focus {
+  border-color: var(--skill-border-strong);
+  box-shadow: var(--skill-glow);
+}
+
 .skill-form-card,
 .skill-form-editor,
 .skill-editor-shell,
 .skill-file-path,
 .skill-tag-editor,
-.skill-toggle-panel,
-.skill-form-topbar,
-.skill-file-sidebar {
+.skill-toggle-panel {
   border-color: var(--skill-border);
 }
 
@@ -1154,6 +1208,15 @@ select:-webkit-autofill:active {
 .skill-form-editor {
   background: var(--theme-bg-card);
   box-shadow: var(--skill-shadow);
+}
+
+/* Fullscreen: remove all borders */
+.skill-form--fullscreen .skill-form-topbar,
+.skill-form--fullscreen .skill-file-sidebar,
+.skill-form--fullscreen .skill-file-path,
+.skill-form--fullscreen .skill-tag-editor,
+.skill-form--fullscreen .skill-toggle-panel {
+  border-color: transparent;
 }
 
 .skill-form-topbar,

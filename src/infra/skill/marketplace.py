@@ -143,7 +143,7 @@ class MarketplaceStorage:
                 query["$or"] = search_or
 
         # 使用 $lookup 一次获取文件数量，避免 N+1 查询
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {"$match": query},
             {
                 "$lookup": {
@@ -161,7 +161,7 @@ class MarketplaceStorage:
         ]
 
         docs = []
-        async for doc in collection.aggregate(pipeline):
+        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
             docs.append(doc)
 
         if not docs:
@@ -375,7 +375,7 @@ class MarketplaceStorage:
         new_paths = set(files.keys())
         removed_paths = existing_paths - new_paths
 
-        operations = []
+        operations: list = []
         for path in removed_paths:
             operations.append(DeleteOne({"skill_name": skill_name, "file_path": path}))
         for file_path, content in files.items():

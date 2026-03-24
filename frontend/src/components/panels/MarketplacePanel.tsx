@@ -66,8 +66,8 @@ export function MarketplacePanel() {
     isLoading: userSkillsLoading,
     getSkill,
   } = useSkills();
-  const canWrite = hasAnyPermission([Permission.SKILL_WRITE]);
-  const canAdmin = hasAnyPermission([Permission.SKILL_ADMIN]);
+  const canWrite = hasAnyPermission([Permission.MARKETPLACE_PUBLISH]);
+  const canAdmin = hasAnyPermission([Permission.MARKETPLACE_ADMIN]);
 
   // Build set of installed skill names
   const installedNames = new Set(userSkills.map((s) => s.name));

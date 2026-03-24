@@ -3,7 +3,7 @@
 // ============================================
 
 // Skill Source Type (based on installed_from)
-export type SkillSource = "builtin" | "marketplace" | "manual";
+export type SkillSource = "marketplace" | "manual";
 
 // ============================================
 // User Skills Types (from /api/skills/)
@@ -17,7 +17,7 @@ export interface UserSkill {
   files: string[];
   enabled: boolean;
   file_count: number;
-  installed_from: "manual" | "marketplace" | "builtin";
+  installed_from: "manual" | "marketplace";
   published_marketplace_name?: string;
   created_at?: string;
   updated_at?: string;
@@ -70,7 +70,7 @@ export interface SkillResponse {
   content?: string; // Main SKILL.md content
   files: Record<string, string>;
   file_count: number;
-  installed_from: "manual" | "marketplace" | "builtin";
+  installed_from: "manual" | "marketplace";
   published_marketplace_name?: string;
   created_at?: string;
   updated_at?: string;

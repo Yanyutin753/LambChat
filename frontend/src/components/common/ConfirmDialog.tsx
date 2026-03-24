@@ -69,9 +69,8 @@ export function ConfirmDialog({
         "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-white",
     },
     info: {
-      icon: "text-blue-500 dark:text-blue-400",
-      confirmButton:
-        "bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white",
+      icon: "text-[var(--theme-primary)]",
+      confirmButton: "btn-primary shadow-sm",
     },
   };
 

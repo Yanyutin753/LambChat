@@ -3,7 +3,6 @@ Core authentication routes (register, login, refresh, me, permissions)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.api.deps import get_current_user_required
 from src.infra.auth.jwt import create_access_token, decode_token
@@ -26,7 +25,6 @@ from src.kernel.schemas.user import (
 from .utils import _get_client_ip, _get_frontend_url, _get_language
 
 router = APIRouter()
-security = HTTPBearer()
 logger = get_logger(__name__)
 
 
@@ -144,12 +142,17 @@ async def login(credentials: LoginRequest, request: Request):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
+async def refresh_token(request: Request):
     """刷新令牌"""
     try:
-        token = credentials.credentials
+        body = await request.json()
+        token = body.get("refresh_token")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="缺少刷新令牌",
+            )
+
         payload = decode_token(token)
 
         # 验证是否是 refresh token

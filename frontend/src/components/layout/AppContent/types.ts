@@ -1,0 +1,11 @@
+export type TabType =
+  | "chat"
+  | "skills"
+  | "marketplace"
+  | "users"
+  | "roles"
+  | "settings"
+  | "mcp"
+  | "feedback"
+  | "channels"
+  | "agents";

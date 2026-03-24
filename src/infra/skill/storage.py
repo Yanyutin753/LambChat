@@ -166,7 +166,7 @@ class SkillStorage:
 
         from pymongo import DeleteOne, UpdateOne
 
-        operations = []
+        operations: list = []
         for path in removed_paths:
             operations.append(
                 DeleteOne(
@@ -215,7 +215,7 @@ class SkillStorage:
     async def get_skill_file_stats(self, skill_name: str, user_id: str) -> dict[str, Any]:
         """获取单个 Skill 的文件统计信息（created_at/updated_at 来自文件聚合）"""
         collection = self._get_files_collection()
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {"$match": {"skill_name": skill_name, "user_id": user_id}},
             {
                 "$group": {
@@ -226,7 +226,7 @@ class SkillStorage:
                 }
             },
         ]
-        async for doc in collection.aggregate(pipeline):
+        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
             return {
                 "file_count": doc["file_count"],
                 "created_at": doc.get("created_at"),
@@ -239,7 +239,7 @@ class SkillStorage:
         collection = self._get_files_collection()
 
         # 使用 aggregation 一次获取所有 skill 的统计信息 + 文件路径
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {"$match": {"user_id": user_id}},
             {
                 "$group": {
@@ -253,7 +253,7 @@ class SkillStorage:
             {"$sort": {"_id": 1}},
         ]
         skill_stats: dict[str, dict] = {}
-        async for doc in collection.aggregate(pipeline):
+        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
             skill_stats[doc["_id"]] = {
                 "file_count": doc["file_count"],
                 "file_paths": doc.get("file_paths", []),
@@ -278,10 +278,10 @@ class SkillStorage:
             result.append(
                 {
                     "skill_name": skill_name,
-                    "enabled": toggle.get("enabled", False),
+                    "enabled": toggle.get("enabled", False) if toggle else False,
                     "file_count": stats["file_count"],
                     "file_paths": stats.get("file_paths", []),
-                    "installed_from": toggle.get("installed_from"),
+                    "installed_from": toggle.get("installed_from") if toggle else None,
                     "published_marketplace_name": toggle.get("published_marketplace_name") if toggle else None,
                     "created_at": stats.get("created_at"),
                     "updated_at": stats.get("updated_at"),
@@ -493,7 +493,7 @@ class SkillStorage:
         skill_keys = [(name, user_id) for name in enabled_names]
         files_map = await self.batch_get_skill_files(skill_keys)
 
-        result = {"skills": {}}
+        result: dict[str, Any] = {"skills": {}}
         for name in enabled_names:
             files = files_map.get((name, user_id), {})
             if files:  # 只包含有文件的 skill

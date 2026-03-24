@@ -590,7 +590,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         isSendingRef.current = false;
       }
     },
-    [sessionId, currentAgent, options, createSSEContext],
+    [sessionId, currentAgent, createSSEContext],
   );
 
   const stopGeneration = useCallback(async () => {

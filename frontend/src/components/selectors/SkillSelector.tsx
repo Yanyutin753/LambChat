@@ -8,7 +8,6 @@ import {
   X,
   Plus,
   FileCode,
-  Settings,
   Store,
   Search,
   Tag,
@@ -26,13 +25,11 @@ interface SkillSelectorProps {
 }
 
 const sourceIcons: Record<SkillSource, typeof FileCode> = {
-  builtin: Settings,
   marketplace: Store,
   manual: FileCode,
 };
 
 const sourceColors: Record<SkillSource, string> = {
-  builtin: "text-[var(--theme-text-secondary)]",
   marketplace: "text-[var(--theme-primary)]",
   manual: "text-[var(--theme-text)]",
 };
@@ -50,7 +47,7 @@ export function SkillSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<
     Set<SkillSource>
-  >(new Set(["builtin", "marketplace", "manual"]));
+  >(new Set(["marketplace", "manual"]));
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -271,16 +268,16 @@ export function SkillSelector({
                       e.stopPropagation();
                       await onToggleCategory(cat, !allEnabled);
                     }}
-                    className={`w-5 h-5 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                    className={`w-5 h-5 sm:w-5 sm:h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
                       allEnabled
-                        ? "bg-stone-500 dark:bg-amber-400 border-stone-500 dark:border-amber-400"
-                        : "border-stone-300 dark:border-stone-600 hover:border-stone-400 dark:hover:border-stone-500"
+                        ? "bg-[var(--theme-primary)] border-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
+                        : "border-stone-300 dark:border-stone-600 hover:border-[var(--theme-primary)]/40 dark:hover:border-[var(--theme-primary)]/40"
                     }`}
                   >
                     {allEnabled && (
                       <Check
                         size={12}
-                        className="text-white dark:text-stone-900"
+                        className="text-white animate-[check-pop_200ms_ease-out]"
                       />
                     )}
                   </button>
@@ -294,14 +291,24 @@ export function SkillSelector({
                         <div key={skill.name} className="group">
                           {/* Skill Row */}
                           <div
-                            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-2 sm:py-2 rounded-lg hover:bg-white dark:hover:bg-stone-700/50 active:bg-stone-100 dark:active:bg-stone-600/50 cursor-pointer transition-all duration-150"
+                            className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-2 sm:py-2 rounded-lg cursor-pointer transition-all duration-200 ${
+                              skill.enabled
+                                ? "bg-[var(--theme-primary)]/[0.06] dark:bg-[var(--theme-primary)]/[0.08]"
+                                : "hover:bg-white dark:hover:bg-stone-700/50 active:bg-stone-100 dark:active:bg-stone-600/50"
+                            }`}
                             onClick={async () =>
                               await onToggleSkill(skill.name)
                             }
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                <span className="text-[12px] sm:text-[13px] font-medium text-stone-700 dark:text-stone-200 truncate">
+                                <span
+                                  className={`text-[12px] sm:text-[13px] font-medium truncate ${
+                                    skill.enabled
+                                      ? "text-[var(--theme-primary)] dark:text-[var(--theme-primary)]"
+                                      : "text-stone-700 dark:text-stone-200"
+                                  }`}
+                                >
                                   {skill.name}
                                 </span>
                               </div>
@@ -311,16 +318,16 @@ export function SkillSelector({
                               </p>
                             </div>
                             <div
-                              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
                                 skill.enabled
-                                  ? "bg-stone-500 dark:bg-amber-400 border-stone-500 dark:border-amber-400"
+                                  ? "bg-[var(--theme-primary)] border-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
                                   : "border-stone-300 dark:border-stone-600 group-hover:border-stone-400 dark:group-hover:border-stone-500"
                               }`}
                             >
                               {skill.enabled && (
                                 <Check
                                   size={12}
-                                  className="text-white dark:text-stone-900"
+                                  className="text-white animate-[check-pop_200ms_ease-out]"
                                 />
                               )}
                             </div>

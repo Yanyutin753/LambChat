@@ -21,6 +21,7 @@ from src.infra.skill.types import (
     MarketplaceSkillResponse,
     MarketplaceSkillUpdate,
     PublishToMarketplaceRequest,
+    SkillToggle,
     UserSkill,
 )
 from src.kernel.schemas.user import TokenPayload
@@ -397,7 +398,7 @@ async def update_skill_file(
     await storage.set_skill_file(name, path, content, user.sub)
 
     # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
-    enabled = True if is_new else existing_toggle.enabled
+    enabled = True if is_new else (existing_toggle.enabled if existing_toggle else True)
     await storage.upsert_toggle(name, user.sub, enabled=enabled)
 
     # 失效缓存
@@ -548,16 +549,17 @@ async def toggle_user_skill(
 
     if target_enabled is not None:
         # 直接设置目标状态
-        toggle = await storage.upsert_toggle(name, user.sub, enabled=target_enabled)
+        toggle: SkillToggle = await storage.upsert_toggle(name, user.sub, enabled=target_enabled)
     else:
         # Flip 当前状态
-        toggle = await storage.toggle_skill(name, user.sub)
-        if not toggle:
+        toggled = await storage.toggle_skill(name, user.sub)
+        if not toggled:
             raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+        toggle = toggled
 
     await storage.invalidate_user_cache(user.sub)
 
-    status = "enabled" if toggle.enabled else "disabled"
+    status = "enabled" if toggle and toggle.enabled else "disabled"
     return {
         "skill_name": name,
         "enabled": toggle.enabled,
@@ -574,7 +576,7 @@ async def toggle_user_skill(
 async def publish_skill_to_marketplace(
     name: str,
     data: Optional[PublishToMarketplaceRequest] = None,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
+    user: TokenPayload = Depends(require_permissions("marketplace:publish")),
     storage: SkillStorage = Depends(get_storage),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):

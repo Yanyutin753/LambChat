@@ -58,7 +58,7 @@ async def list_marketplace_skills(
     search: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """列出商城 Skills（所有用户：激活的 skill + 自己发布的含停用的）"""
@@ -76,7 +76,7 @@ async def list_marketplace_skills(
 
 @router.get("/tags")
 async def list_tags(
-    user: TokenPayload = Depends(require_permissions("skill:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """获取所有标签"""
@@ -87,7 +87,7 @@ async def list_tags(
 @router.post("/", response_model=MarketplaceSkillResponse, status_code=201)
 async def create_marketplace_skill(
     data: MarketplaceCreateRequest,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
+    user: TokenPayload = Depends(require_permissions("marketplace:publish")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """在商店创建 Skill（仅发布，不写入用户本地）"""
@@ -124,7 +124,7 @@ async def create_marketplace_skill(
 @router.get("/{name}", response_model=MarketplaceSkillResponse)
 async def get_marketplace_skill(
     name: str,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """预览商城 Skill"""
@@ -138,7 +138,7 @@ async def get_marketplace_skill(
 async def update_marketplace_skill(
     name: str,
     data: MarketplaceCreateRequest,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
+    user: TokenPayload = Depends(require_permissions("marketplace:publish")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """直接更新商店 Skill（仅创建者可操作）"""
@@ -172,7 +172,7 @@ async def update_marketplace_skill(
 @router.get("/{name}/files")
 async def list_marketplace_skill_files(
     name: str,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """列出商城 Skill 的所有文件路径"""
@@ -188,7 +188,7 @@ async def list_marketplace_skill_files(
 async def get_marketplace_file(
     name: str,
     path: str,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """读取商城 Skill 的单个文件"""
@@ -201,7 +201,7 @@ async def get_marketplace_file(
 @router.post("/{name}/install")
 async def install_marketplace_skill(
     name: str,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
     storage: SkillStorage = Depends(get_storage),
 ):
@@ -223,17 +223,12 @@ async def install_marketplace_skill(
     if not marketplace_files:
         raise HTTPException(status_code=400, detail="Marketplace skill has no files")
 
-    # 4. 创建用户本地副本（内置技能标记为 BUILTIN，其他为 MARKETPLACE）
-    installed_from = (
-        InstalledFrom.BUILTIN
-        if marketplace_skill.created_by == "system"
-        else InstalledFrom.MARKETPLACE
-    )
+    # 4. 创建用户本地副本
     await storage.create_user_skill(
         name,
         marketplace_files,
         user.sub,
-        installed_from=installed_from,
+        installed_from=InstalledFrom.MARKETPLACE,
     )
 
     return {
@@ -246,7 +241,7 @@ async def install_marketplace_skill(
 @router.post("/{name}/update")
 async def update_from_marketplace(
     name: str,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
+    user: TokenPayload = Depends(require_permissions("marketplace:read")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
     storage: SkillStorage = Depends(get_storage),
 ):
@@ -287,14 +282,14 @@ async def update_from_marketplace(
 async def set_marketplace_active(
     name: str,
     data: SetActiveRequest,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:admin")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """激活或停用商城 Skill（admin 或创建者可操作）"""
     skill = await marketplace.get_marketplace_skill(name)
     if not skill:
         raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
-    if "skill:admin" not in (user.permissions or []) and skill.created_by != user.sub:
+    if "marketplace:admin" not in (user.permissions or []) and skill.created_by != user.sub:
         raise HTTPException(status_code=403, detail="Only admin or creator can activate/deactivate")
 
     await marketplace.set_marketplace_active(name, data.is_active)
@@ -305,14 +300,14 @@ async def set_marketplace_active(
 @router.delete("/{name}")
 async def delete_marketplace_skill(
     name: str,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
+    user: TokenPayload = Depends(require_permissions("marketplace:admin")),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """删除商城 Skill（admin 或创建者可操作，不影响已安装用户的本地副本）"""
     skill = await marketplace.get_marketplace_skill(name)
     if not skill:
         raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
-    if "skill:admin" not in (user.permissions or []) and skill.created_by != user.sub:
+    if "marketplace:admin" not in (user.permissions or []) and skill.created_by != user.sub:
         raise HTTPException(status_code=403, detail="Only admin or creator can delete")
 
     deleted = await marketplace.delete_marketplace_skill(name)

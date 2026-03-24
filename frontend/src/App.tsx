@@ -48,7 +48,7 @@ const AuthPage = lazy(() =>
   import("./components/auth/AuthPage").then((m) => ({ default: m.AuthPage })),
 );
 const AppContent = lazy(() =>
-  import("./components/layout/AppContent").then((m) => ({
+  import("./components/layout/AppContent/index").then((m) => ({
     default: m.AppContent,
   })),
 );
@@ -221,7 +221,7 @@ function App() {
             path="/marketplace"
             element={
               <ProtectedRoute
-                permissions={[Permission.SKILL_READ]}
+                permissions={[Permission.MARKETPLACE_READ]}
                 redirectTo="/chat"
                 showToast
                 toastMessage={t("errors.noPermission")}

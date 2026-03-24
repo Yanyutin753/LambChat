@@ -315,7 +315,7 @@ class SkillsStoreBackend(BackendProtocol):
             await storage.set_skill_file(skill_name, file_name, content, self._user_id)
 
             # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
-            enabled = True if is_new_skill else existing_toggle.enabled
+            enabled = True if is_new_skill else (existing_toggle.enabled if existing_toggle else True)
             await storage.upsert_toggle(skill_name, self._user_id, enabled=enabled)
 
             # 失效缓存
@@ -494,10 +494,10 @@ class SkillsStoreBackend(BackendProtocol):
             if not parsed:
                 # 可能是 skill 根目录（无子路径）
                 if self._is_skill_dir(path):
-                    skill_name = self._get_skill_name_from_dir(path)
-                    if skill_name:
-                        paths = await self._get_skill_file_paths(storage, skill_name)
-                        return self._build_file_list_from_paths(skill_name, "", paths)
+                    dir_skill_name: str | None = self._get_skill_name_from_dir(path)
+                    if dir_skill_name:
+                        paths = await self._get_skill_file_paths(storage, dir_skill_name)
+                        return self._build_file_list_from_paths(dir_skill_name, "", paths)
                 return []
 
             skill_name, sub_path = parsed
@@ -757,10 +757,10 @@ class SkillsStoreBackend(BackendProtocol):
             # skill 目录或子目录：在 skill 文件中 glob
             parsed = self._parse_skill_path(normalized_path.rstrip("/"))
             if not parsed:
-                skill_name = self._get_skill_name_from_dir(normalized_path)
-                if skill_name:
-                    paths = await self._get_skill_file_paths(storage, skill_name)
-                    return self._glob_files_from_paths(skill_name, "", pattern, paths)
+                glob_skill_name: str | None = self._get_skill_name_from_dir(normalized_path)
+                if glob_skill_name:
+                    paths = await self._get_skill_file_paths(storage, glob_skill_name)
+                    return self._glob_files_from_paths(glob_skill_name, "", pattern, paths)
                 return []
 
             skill_name, sub_path = parsed

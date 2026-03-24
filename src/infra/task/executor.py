@@ -110,7 +110,7 @@ class TaskExecutor:
                 await presenter.emit_user_message(message, attachments=attachments)
 
             # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
-            run_info_entry = {
+            run_info_entry: dict[str, Any] = {
                 "session_id": session_id,
                 "trace_id": presenter.trace_id,
                 "agent_id": agent_id,

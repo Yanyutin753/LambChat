@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 class InstalledFrom(str, Enum):
     """Skill 安装来源"""
 
-    BUILTIN = "builtin"
     MARKETPLACE = "marketplace"
     MANUAL = "manual"
 

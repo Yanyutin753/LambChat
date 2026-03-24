@@ -52,6 +52,10 @@ export enum Permission {
   // Agent
   AGENT_READ = "agent:read",
   AGENT_ADMIN = "agent:admin",
+  // Marketplace
+  MARKETPLACE_READ = "marketplace:read",
+  MARKETPLACE_PUBLISH = "marketplace:publish",
+  MARKETPLACE_ADMIN = "marketplace:admin",
 }
 
 // 用户信息

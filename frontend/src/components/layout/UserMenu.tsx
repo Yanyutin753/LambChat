@@ -40,6 +40,8 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
 
   const canReadSkills =
     hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
+  const canReadMarketplace =
+    hasAnyPermission([Permission.MARKETPLACE_READ]) && enableSkills;
   const canManageUsers = hasAnyPermission([
     Permission.USER_READ,
     Permission.USER_WRITE,
@@ -124,7 +126,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       path: "/marketplace",
       label: t("nav.marketplace"),
       icon: ShoppingBag,
-      show: canReadSkills,
+      show: canReadMarketplace,
     },
     { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
     {

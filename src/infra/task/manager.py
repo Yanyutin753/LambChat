@@ -55,8 +55,8 @@ class BackgroundTaskManager:
         # 使用 run_id 作为 key 管理状态
         self._tasks: Dict[str, asyncio.Task] = {}  # run_id -> Task
         self._run_info: Dict[
-            str, Dict[str, str]
-        ] = {}  # run_id -> {session_id, trace_id, agent_id, user_id}
+            str, Dict[str, Any]
+        ] = {}  # run_id -> {session_id, trace_id, agent_id, user_id, ...}
         self._pending_tasks: Dict[str, Dict[str, Any]] = {}  # run_id -> task context (queued tasks)
         self._lock = asyncio.Lock()
         self._storage = None

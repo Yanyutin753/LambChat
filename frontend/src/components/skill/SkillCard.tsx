@@ -4,7 +4,6 @@ import {
   ToggleRight,
   Edit3,
   Trash2,
-  Package,
   ShoppingBag,
   User,
   Globe,
@@ -29,7 +28,6 @@ interface SkillCardProps {
 }
 
 const SOURCE_COLORS: Record<string, string> = {
-  builtin: "skill-status-pill",
   marketplace: "skill-status-pill skill-status-pill--active",
   manual: "skill-status-pill",
 };
@@ -37,7 +35,6 @@ const SOURCE_COLORS: Record<string, string> = {
 const DEFAULT_SOURCE_COLOR = "skill-status-pill";
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
-  builtin: <Package size={10} />,
   marketplace: <ShoppingBag size={10} />,
   manual: <User size={10} />,
 };
@@ -60,27 +57,42 @@ export function SkillCard({
 
   return (
     <div
-      className={`skill-surface-card skill-card group relative flex h-full flex-col rounded-[1.6rem] p-4 sm:p-5 ${
+      className={`skill-surface-card skill-card group relative flex h-full flex-col rounded-[1.6rem] p-4 sm:p-5 transition-all duration-200 ${
         !skill.enabled ? "skill-surface-card--muted opacity-80" : ""
-      } ${selected ? "ring-2 ring-[var(--theme-primary)]" : ""}`}
+      } ${
+        selected
+          ? "ring-2 ring-[var(--theme-primary)] animate-[select-glow_2s_ease-in-out]"
+          : ""
+      } ${selectionMode ? "cursor-pointer" : ""}`}
       onClick={
         selectionMode && onSelect ? () => onSelect(skill.name) : undefined
       }
     >
-      {/* Selection checkbox */}
+      {/* Selection checkbox - top right */}
       {selectionMode && onSelect && (
         <div
-          className={`absolute top-3 left-3 z-10 flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors cursor-pointer ${
-            selected
-              ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white"
-              : "border-[var(--theme-border)] bg-white/80 dark:bg-stone-800/80 opacity-0 group-hover:opacity-100"
+          className={`absolute top-3 right-3 z-10 cursor-pointer transition-all duration-200 ${
+            selected ? "scale-110" : "scale-90 group-hover:scale-100"
           }`}
           onClick={(e) => {
             e.stopPropagation();
             onSelect(skill.name);
           }}
         >
-          {selected && <Check size={12} />}
+          <div
+            className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 shadow-sm backdrop-blur-sm transition-all duration-200 ${
+              selected
+                ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-[0_0_12px_color-mix(in_srgb,var(--theme-primary)_40%,transparent)]"
+                : "border-[var(--theme-border)] bg-white/70 dark:bg-stone-800/70 opacity-0 group-hover:opacity-100 hover:border-[var(--theme-primary)]/40"
+            }`}
+          >
+            {selected && (
+              <Check
+                size={13}
+                className="animate-[check-pop_200ms_ease-out]"
+              />
+            )}
+          </div>
         </div>
       )}
       <div className="flex items-start justify-between gap-3">
@@ -151,42 +163,38 @@ export function SkillCard({
         </div>
       )}
 
-      <div className="skill-card-actions mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--theme-border)] pt-4">
+      <div className="skill-card-actions mt-auto flex items-center gap-1 border-t border-[var(--theme-border)] pt-4">
         <button
-          onClick={() => onToggle(skill.name)}
-          className="skill-card-action inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+          onClick={(e) => { e.stopPropagation(); onToggle(skill.name); }}
+          className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
           title={
             skill.enabled ? t("skills.card.disable") : t("skills.card.enable")
           }
         >
           {skill.enabled ? (
             <ToggleRight
-              size={16}
+              size={15}
               className="text-green-600 dark:text-green-500"
             />
           ) : (
-            <ToggleLeft size={16} />
+            <ToggleLeft size={15} />
           )}
-          <span className="hidden sm:inline">
-            {skill.enabled ? t("skills.card.disable") : t("skills.card.enable")}
-          </span>
         </button>
 
         <button
-          onClick={() => onEdit(skill)}
-          className="skill-card-action inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+          onClick={(e) => { e.stopPropagation(); onEdit(skill); }}
+          className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
           title={t("skills.card.edit")}
         >
-          <Edit3 size={14} />
-          <span className="hidden sm:inline">{t("skills.card.edit")}</span>
+          <Edit3 size={13} />
         </button>
 
         {skill.source === "manual" &&
           isPublished !== undefined &&
           onPublish && (
             <button
-              onClick={() => onPublish(skill)}
-              className="skill-card-action inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+              onClick={(e) => { e.stopPropagation(); onPublish(skill); }}
+              className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
               title={
                 isPublished
                   ? t("skills.card.republish")
@@ -194,40 +202,34 @@ export function SkillCard({
               }
             >
               <Globe
-                size={14}
+                size={13}
                 className={
                   isPublished
                     ? "text-green-600 dark:text-green-500"
-                    : "text-stone-400 dark:text-stone-500"
+                    : undefined
                 }
               />
-              <span className="hidden sm:inline">
-                {isPublished
-                  ? t("skills.card.republish")
-                  : t("skills.card.publishToMarketplace")}
-              </span>
             </button>
           )}
 
         {onExportZip && (
           <button
-            onClick={() => onExportZip(skill.name)}
-            className="skill-card-action inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+            onClick={(e) => { e.stopPropagation(); onExportZip(skill.name); }}
+            className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
             title={t("skills.exportZip")}
           >
-            <Archive size={14} />
-            <span className="hidden sm:inline">{t("skills.exportZip")}</span>
+            <Archive size={13} />
           </button>
         )}
 
         <div className="ml-auto" />
 
         <button
-          onClick={() => onDelete(skill.name)}
-          className="skill-card-danger inline-flex h-9 w-9 items-center justify-center rounded-xl text-[var(--theme-text-secondary)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+          onClick={(e) => { e.stopPropagation(); onDelete(skill.name); }}
+          className="skill-card-danger inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
           title={t("skills.card.delete")}
         >
-          <Trash2 size={16} />
+          <Trash2 size={14} />
         </button>
       </div>
     </div>

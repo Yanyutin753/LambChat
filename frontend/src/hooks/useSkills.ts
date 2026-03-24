@@ -21,8 +21,6 @@ import type {
 // Map installed_from to SkillSource
 function mapInstalledToSource(installed_from: string): SkillSource {
   switch (installed_from) {
-    case "builtin":
-      return "builtin";
     case "marketplace":
       return "marketplace";
     case "manual":
@@ -34,19 +32,22 @@ function mapInstalledToSource(installed_from: string): SkillSource {
 // Compose full SkillResponse from UserSkill + files content
 function composeSkillResponse(
   userSkill: UserSkill,
-  _detail?: UserSkillDetail,
+  detail?: UserSkillDetail,
   filesContent?: Record<string, string>,
 ): SkillResponse {
   // Use description from API directly (extracted from SKILL.md by backend)
-  const description = userSkill.description || userSkill.skill_name;
+  const description = detail?.description || userSkill.description || userSkill.skill_name;
 
   // If filesContent provided, use it; otherwise files will be fetched on demand
   const files = filesContent || {};
 
+  // Prefer detail tags (from GET /{name}) over list tags (from GET /)
+  const tags = detail?.tags ?? userSkill.tags ?? [];
+
   return {
     name: userSkill.skill_name,
     description,
-    tags: userSkill.tags || [],
+    tags,
     enabled: userSkill.enabled,
     source: mapInstalledToSource(userSkill.installed_from),
     content: files["SKILL.md"] || "",
@@ -338,7 +339,6 @@ export function useSkills(options?: { enabled?: boolean }) {
   // Get category stats
   const getCategoryStats = useCallback(() => {
     const stats: Record<SkillSource, { enabled: number; total: number }> = {
-      builtin: { enabled: 0, total: 0 },
       marketplace: { enabled: 0, total: 0 },
       manual: { enabled: 0, total: 0 },
     };
