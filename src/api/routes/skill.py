@@ -200,16 +200,20 @@ async def list_user_skills(
     skill_names = [s["skill_name"] for s in skills]
     skill_md_map = await storage.batch_get_skill_md_contents(skill_names, user.sub)
     description_map: dict[str, str] = {}
+    tags_map: dict[str, list[str]] = {}
     for name, content in skill_md_map.items():
         if content:
-            _, parsed_desc, _ = parse_skill_md(content)
+            _, parsed_desc, parsed_tags = parse_skill_md(content)
             if parsed_desc:
                 description_map[name] = parsed_desc
+            if parsed_tags:
+                tags_map[name] = parsed_tags
 
     return [
         UserSkill(
             skill_name=s["skill_name"],
             description=description_map.get(s["skill_name"], ""),
+            tags=tags_map.get(s["skill_name"], []),
             files=s.get("file_paths", []),
             enabled=s["enabled"],
             file_count=s["file_count"],
@@ -244,15 +248,18 @@ async def get_user_skill(
     # 使用文件聚合统计获取时间戳，与 list_user_skills 保持一致
     file_stats = await storage.get_skill_file_stats(name, user.sub)
 
-    def extract_description(files: dict[str, str]) -> str:
+    def extract_metadata(files: dict[str, str]) -> tuple[str, list[str]]:
         from src.infra.skill.parser import parse_skill_md
 
-        _, desc, _ = parse_skill_md(files.get("SKILL.md", ""))
-        return desc
+        _, desc, tags = parse_skill_md(files.get("SKILL.md", ""))
+        return desc, tags
+
+    description, tags = extract_metadata(files)
 
     return UserSkill(
         skill_name=name,
-        description=extract_description(files),
+        description=description,
+        tags=tags,
         enabled=toggle.enabled if toggle else True,
         files=list(files.keys()),
         file_count=file_stats["file_count"],
@@ -413,7 +420,7 @@ async def publish_skill_to_marketplace(
 
     from src.infra.skill.parser import parse_skill_md as _parse_md
 
-    _, default_description, _ = _parse_md(user_files.get("SKILL.md", ""))
+    _, default_description, default_tags = _parse_md(user_files.get("SKILL.md", ""))
     target_name = (data.skill_name if data and data.skill_name else name).strip()
     if not target_name:
         raise HTTPException(status_code=400, detail="Marketplace skill name is required")
@@ -436,7 +443,7 @@ async def publish_skill_to_marketplace(
         create_data = MarketplaceSkillCreate(
             skill_name=target_name,
             description=data.description if data and data.description is not None else default_description,
-            tags=data.tags if data and data.tags is not None else [],
+            tags=data.tags if data and data.tags is not None else default_tags,
             version=data.version if data and data.version is not None else "1.0.0",
         )
         await marketplace.create_marketplace_skill(create_data, user_id=user.sub)

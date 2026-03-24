@@ -46,6 +46,7 @@ function composeSkillResponse(
   return {
     name: userSkill.skill_name,
     description,
+    tags: userSkill.tags || [],
     enabled: userSkill.enabled,
     source: mapInstalledToSource(userSkill.installed_from),
     content: files["SKILL.md"] || "",

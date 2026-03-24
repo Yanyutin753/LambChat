@@ -50,6 +50,7 @@ select:-webkit-autofill:active {
   --theme-ring: #78716c; /* stone-500 */
   --theme-bg: #fafaf9; /* stone-50 */
   --theme-bg-card: #ffffff;
+  --theme-bg-sidebar: #f5f5f4; /* stone-100 */
   --theme-border: #e7e5e4; /* stone-200 */
   --theme-text: #1c1917; /* stone-900 */
   --theme-text-secondary: #78716c; /* stone-500 */
@@ -62,6 +63,7 @@ select:-webkit-autofill:active {
   --theme-ring: #a8a29e; /* stone-400 */
   --theme-bg: #0c0a09; /* stone-950 */
   --theme-bg-card: #1c1917; /* stone-900 */
+  --theme-bg-sidebar: #171412; /* stone-950 variant */
   --theme-border: #44403c; /* stone-700 */
   --theme-text: #fafaf9; /* stone-50 */
   --theme-text-secondary: #a8a29e; /* stone-400 */
@@ -277,7 +279,7 @@ select:-webkit-autofill:active {
 
   .modal-bottom-sheet-content {
     width: 100%;
-    max-width: 42rem;
+    max-width: 56rem;
     max-height: 90vh;
     border-radius: 1.5rem;
     background-color: white;
@@ -475,6 +477,120 @@ select:-webkit-autofill:active {
   flex-shrink: 0;
 }
 
+.skill-surface-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--theme-bg-card) 96%, white 4%) 0%, var(--theme-bg-card) 100%);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.03),
+    0 14px 34px -24px rgb(15 23 42 / 0.28);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.skill-surface-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--theme-primary) 28%, transparent), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.skill-surface-card:hover {
+  border-color: color-mix(in srgb, var(--theme-primary) 30%, var(--theme-border));
+  box-shadow:
+    0 1px 3px rgb(15 23 42 / 0.04),
+    0 24px 48px -28px rgb(15 23 42 / 0.36);
+  transform: translateY(-2px);
+}
+
+.skill-surface-card:hover::before {
+  opacity: 1;
+}
+
+.skill-surface-card--muted {
+  background: color-mix(in srgb, var(--theme-bg) 78%, var(--theme-bg-card) 22%);
+  box-shadow: none;
+}
+
+.skill-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 84%, transparent);
+  background: color-mix(in srgb, var(--theme-bg) 78%, white 22%);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--theme-text-secondary);
+}
+
+.skill-status-pill--active,
+.skill-status-pill--published,
+.skill-status-pill--installed {
+  border-color: color-mix(in srgb, var(--theme-primary) 22%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-primary-light) 82%, white 18%);
+  color: var(--theme-text);
+}
+
+.skill-status-pill--disabled {
+  opacity: 0.85;
+}
+
+.skill-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
+  background: color-mix(in srgb, var(--theme-bg) 82%, white 18%);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.1;
+  color: var(--theme-text-secondary);
+}
+
+.skill-tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  color: inherit;
+  opacity: 0.7;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.skill-tag-chip-remove:hover {
+  background: color-mix(in srgb, var(--theme-primary) 18%, transparent);
+  opacity: 1;
+}
+
+.dark .skill-surface-card {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.22),
+    0 18px 42px -26px rgb(0 0 0 / 0.6);
+}
+
+.dark .skill-surface-card:hover {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.26),
+    0 24px 56px -28px rgb(0 0 0 / 0.72);
+}
+
 /* Status tag styles */
 .tag {
   display: inline-flex;
@@ -484,6 +600,60 @@ select:-webkit-autofill:active {
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.skill-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
+  background: color-mix(in srgb, var(--theme-bg-card) 70%, var(--theme-bg) 30%);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--theme-text-secondary);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.skill-tag-chip:hover {
+  border-color: color-mix(in srgb, var(--theme-primary) 20%, var(--theme-border));
+  color: var(--theme-text);
+  transform: translateY(-1px);
+}
+
+.skill-tag-chip--active {
+  border-color: color-mix(in srgb, var(--theme-primary) 24%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-primary-light) 82%, white 18%);
+  color: var(--theme-text);
+}
+
+.skill-tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  color: inherit;
+  opacity: 0.72;
+  transition: background-color 0.18s ease, opacity 0.18s ease;
+}
+
+.skill-tag-chip-remove:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--theme-primary) 12%, transparent);
+}
+
+.dark .skill-tag-chip {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.22);
 }
 
 .tag-default {

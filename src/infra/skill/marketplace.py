@@ -134,6 +134,7 @@ class MarketplaceStorage:
             search_or = [
                 {"skill_name": {"$regex": search, "$options": "i"}},
                 {"description": {"$regex": search, "$options": "i"}},
+                {"tags": {"$elemMatch": {"$regex": search, "$options": "i"}}},
             ]
             if "$or" in query:
                 # 合并 visibility $or 和 search $or

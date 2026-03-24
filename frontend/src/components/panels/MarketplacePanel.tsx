@@ -174,6 +174,7 @@ export function MarketplacePanel() {
   const handleCreate = () => {
     setEditingSkill(null);
     setIsCreating(true);
+    setShowCreateModal(true);
   };
 
   const handleSave = async (data: SkillCreate): Promise<boolean> => {
@@ -184,7 +185,7 @@ export function MarketplacePanel() {
         success = await createAndPublish({
           skill_name: data.name,
           description: data.description,
-          tags: [],
+          tags: data.tags,
           version: "1.0.0",
           files: data.files || { "SKILL.md": data.content },
         });
@@ -193,7 +194,7 @@ export function MarketplacePanel() {
         success = await updateMarketplaceSkill(editingSkill.name, {
           skill_name: editingSkill.name,
           description: data.description,
-          tags: [],
+          tags: data.tags,
           version: "1.0.0",
           files: data.files || { "SKILL.md": data.content },
         });
@@ -272,16 +273,16 @@ export function MarketplacePanel() {
       {/* Tags Filter */}
       {tags.length > 0 && (
         <div className="border-b px-4 py-3 bg-[var(--theme-bg)] border-[var(--theme-border)]">
-          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/85 px-3 py-3 shadow-sm backdrop-blur">
             <Tag size={14} className="text-[var(--theme-text-secondary)] flex-shrink-0" />
             {tags.map((tag) => (
               <button
                 key={tag}
                 onClick={() => toggleTag(tag)}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                className={`skill-tag-chip ${
                   selectedTags.includes(tag)
-                    ? "bg-[var(--theme-primary)] text-white shadow-sm"
-                    : "bg-[var(--theme-primary-light)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-primary)] hover:text-white"
+                    ? "skill-tag-chip--active"
+                    : ""
                 }`}
               >
                 {tag}
@@ -335,29 +336,26 @@ export function MarketplacePanel() {
               return (
                 <div
                   key={skill.skill_name}
-                  className={`group flex h-full flex-col rounded-2xl border p-4 sm:p-5 transition-all duration-200 ${
-                    skill.is_active
-                      ? "border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:shadow-lg hover:border-[var(--theme-primary)]"
-                      : "border-[var(--theme-border)] bg-[var(--theme-bg-secondary)] opacity-70"
+                  className={`skill-surface-card group flex h-full flex-col rounded-[1.6rem] p-4 sm:p-5 ${
+                    skill.is_active ? "" : "skill-surface-card--muted opacity-80"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--theme-primary)]/20 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                  <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate text-lg font-semibold text-[var(--theme-text)]">
                           {skill.skill_name}
                         </h3>
                         <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                            skill.is_active
-                              ? "bg-[var(--theme-primary-light)] text-[var(--theme-primary)]"
-                              : "bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300"
+                          className={`skill-status-pill ${
+                            skill.is_active ? "skill-status-pill--active" : "skill-status-pill--disabled"
                           }`}
                         >
                           {skill.is_active ? t("marketplace.active") : t("marketplace.inactive")}
                         </span>
                         {isInstalled && (
-                          <span className="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                          <span className="skill-status-pill skill-status-pill--installed">
                             {t("marketplace.installed")}
                           </span>
                         )}
@@ -369,17 +367,17 @@ export function MarketplacePanel() {
                   </div>
 
                   <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[var(--theme-text-secondary)]">
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-[var(--theme-bg)] px-2.5 py-1 border border-[var(--theme-border)]">
+                    <div className="skill-meta-pill">
                       <FileText size={13} />
                       <span>
                         {skill.file_count} {t("marketplace.files")}
                       </span>
                     </div>
-                    <div className="inline-flex items-center rounded-full bg-[var(--theme-bg)] px-2.5 py-1 border border-[var(--theme-border)]">
+                    <div className="skill-meta-pill">
                       v{skill.version}
                     </div>
                     {skill.created_by_username && (
-                      <div className="truncate rounded-full bg-[var(--theme-bg)] px-2.5 py-1 border border-[var(--theme-border)] max-w-full">
+                      <div className="skill-meta-pill truncate">
                         {t("marketplace.publishedBy", { username: skill.created_by_username })}
                       </div>
                     )}
@@ -388,15 +386,19 @@ export function MarketplacePanel() {
                   {skill.tags.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
                       {skill.tags.slice(0, 4).map((tag) => (
-                        <span
+                        <button
                           key={tag}
-                          className="rounded-full bg-[var(--theme-primary-light)] px-2.5 py-1 text-xs font-medium text-[var(--theme-text-secondary)]"
+                          type="button"
+                          onClick={() => toggleTag(tag)}
+                          className={`skill-tag-chip ${
+                            selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
+                          }`}
                         >
                           {tag}
-                        </span>
+                        </button>
                       ))}
                       {skill.tags.length > 4 && (
-                        <span className="rounded-full bg-[var(--theme-bg)] px-2.5 py-1 text-xs text-[var(--theme-text-secondary)] border border-[var(--theme-border)]">
+                        <span className="skill-tag-chip">
                           +{skill.tags.length - 4}
                         </span>
                       )}
@@ -459,10 +461,8 @@ export function MarketplacePanel() {
                         <div className="flex-1" />
                         <button
                           onClick={() => handleActivate(skill.skill_name, !skill.is_active)}
-                          className={`text-xs min-h-9 rounded-full px-3 py-1.5 font-medium transition-all ${
-                            skill.is_active
-                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 shadow-sm"
-                              : "bg-[var(--theme-primary-light)] text-[var(--theme-text-secondary)] hover:bg-[var(--theme-primary)] hover:text-white"
+                          className={`skill-status-pill min-h-9 px-3 py-1.5 text-xs transition-all ${
+                            skill.is_active ? "skill-status-pill--active" : "skill-status-pill--disabled"
                           }`}
                         >
                           {skill.is_active ? t("marketplace.active") : t("marketplace.inactive")}
@@ -513,48 +513,46 @@ export function MarketplacePanel() {
 
       {/* Skill Preview Modal */}
       {previewSkill && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-2xl bg-[var(--theme-bg-card)] shadow-2xl border border-[var(--theme-border)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-md p-4">
+          <div className="w-full max-w-4xl max-h-[88vh] flex flex-col overflow-hidden rounded-[1.75rem] border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-[0_32px_80px_-32px_rgba(15,23,42,0.55)]">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[var(--theme-border)] px-6 py-4 bg-[var(--theme-primary-light)] rounded-t-2xl">
-              <div className="flex items-center gap-3 min-w-0">
-                <ShoppingBag
-                  size={20}
-                  className="text-[var(--theme-primary)] flex-shrink-0"
-                />
-                <h2 className="text-lg font-semibold text-[var(--theme-text)] truncate">
-                  {previewSkill.skill_name}
-                </h2>
-                <span className="text-xs text-[var(--theme-text-secondary)] bg-[var(--theme-bg-card)] px-2 py-1 rounded-full">
-                  v{previewSkill.version}
-                </span>
+            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/88 px-6 py-5 backdrop-blur">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)] shadow-sm">
+                      <ShoppingBag size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="truncate text-lg font-semibold text-[var(--theme-text)]">
+                          {previewSkill.skill_name}
+                        </h2>
+                        <span className="skill-meta-pill">v{previewSkill.version}</span>
+                      </div>
+                      <p className="mt-1 text-sm leading-relaxed text-[var(--theme-text-secondary)]">
+                        {previewSkill.description || t("marketplace.noDescription")}
+                      </p>
+                    </div>
+                  </div>
+                  {previewSkill.tags.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {previewSkill.tags.map((tag) => (
+                        <span key={tag} className="skill-tag-chip skill-tag-chip--active">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button onClick={closePreview} className="btn-icon hover:bg-[var(--theme-bg-card)]">
+                  <X size={20} />
+                </button>
               </div>
-              <button onClick={closePreview} className="btn-icon hover:bg-[var(--theme-bg-card)]">
-                <X size={20} />
-              </button>
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {/* Description */}
-              <p className="text-sm text-[var(--theme-text-secondary)] mb-4 leading-relaxed">
-                {previewSkill.description || t("marketplace.noDescription")}
-              </p>
-
-              {/* Tags */}
-              {previewSkill.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-5">
-                  {previewSkill.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-[var(--theme-primary-light)] px-3 py-1 text-xs text-[var(--theme-text-secondary)] font-medium"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
+            <div className="flex-1 overflow-y-auto px-6 py-5">
               {/* Files */}
               {previewLoading ? (
                 <div className="flex items-center gap-2 text-sm text-[var(--theme-text-secondary)]">
@@ -563,7 +561,7 @@ export function MarketplacePanel() {
                 </div>
               ) : previewFiles ? (
                 <div>
-                  <h3 className="text-sm font-semibold text-[var(--theme-text)] mb-3 flex items-center gap-2">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--theme-text)]">
                     <FileText size={16} className="text-[var(--theme-primary)]" />
                     {t("marketplace.skillFiles")} ({previewFiles.files.length})
                   </h3>
@@ -575,7 +573,7 @@ export function MarketplacePanel() {
                       return (
                         <div
                           key={filePath}
-                          className="overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)]"
+                          className="overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/78 shadow-sm"
                         >
                           <button
                             onClick={() => {
@@ -589,9 +587,9 @@ export function MarketplacePanel() {
                               }
                               readPreviewFile(previewSkill.skill_name, filePath);
                             }}
-                            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--theme-primary-light)]"
+                            className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--theme-primary-light)]/80"
                           >
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
                               <FileText size={14} />
                             </div>
                             <div className="min-w-0 flex-1">
@@ -599,7 +597,9 @@ export function MarketplacePanel() {
                                 {filePath}
                               </div>
                               <div className="text-xs text-[var(--theme-text-secondary)]">
-                                {isOpen ? "Click to collapse" : "Click to preview"}
+                                {isOpen
+                                  ? t("marketplace.previewCollapse")
+                                  : t("marketplace.previewExpand")}
                               </div>
                             </div>
                             {isLoadingFile ? (
@@ -617,8 +617,8 @@ export function MarketplacePanel() {
                             )}
                           </button>
                           {isOpen && (
-                            <div className="border-t border-[var(--theme-border)] bg-[var(--theme-bg-card)] p-4">
-                              <pre className="max-h-72 overflow-auto rounded-lg bg-[var(--theme-bg)] p-4 text-xs text-[var(--theme-text)] whitespace-pre-wrap break-all font-mono leading-6">
+                            <div className="border-t border-[var(--theme-border)] bg-[var(--theme-bg-card)]/92 p-4">
+                              <pre className="max-h-72 overflow-auto rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] p-4 text-xs leading-6 text-[var(--theme-text)] whitespace-pre-wrap break-all font-mono">
                                 {previewFileContent[filePath]}
                               </pre>
                             </div>
@@ -645,11 +645,11 @@ export function MarketplacePanel() {
             <div className="fixed inset-0" onClick={handleFormCancel} />
           )}
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               {!isFormFullscreen && (
                 <>
                   <div className="bottom-sheet-handle sm:hidden" />
-                  <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800 shrink-0">
+                  <div className="flex items-center justify-between border-b border-stone-200 bg-[var(--theme-bg)]/85 px-6 py-4 backdrop-blur dark:border-stone-800 shrink-0">
                     <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                       {isCreating
                         ? t("marketplace.createTitle")
@@ -661,7 +661,7 @@ export function MarketplacePanel() {
                   </div>
                 </>
               )}
-              <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-2 sm:px-4 py-2 sm:py-3">
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--theme-bg)]/45 px-2 py-2 sm:px-4 sm:py-3">
                 <SkillForm
                   skill={editingSkill}
                   onSave={handleSave}

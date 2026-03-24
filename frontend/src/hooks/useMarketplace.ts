@@ -253,6 +253,7 @@ export function useMarketplace() {
         return {
           name: skillName,
           description: skillDetail.description,
+          tags: skillDetail.tags,
           content: fileContents["SKILL.md"] || "",
           files: fileContents,
           enabled: true,

@@ -13,6 +13,7 @@ export type SkillSource = "builtin" | "marketplace" | "manual";
 export interface UserSkill {
   skill_name: string;
   description: string;
+  tags: string[];
   files: string[];
   enabled: boolean;
   file_count: number;
@@ -30,6 +31,7 @@ export interface UserSkillDetail {
   enabled?: boolean;
   skill_name?: string;
   description?: string;
+  tags?: string[];
   is_published?: boolean;
   marketplace_is_active?: boolean;
 }
@@ -62,6 +64,7 @@ export interface PublishToMarketplaceRequest {
 export interface SkillResponse {
   name: string;
   description: string;
+  tags: string[];
   enabled: boolean;
   source: SkillSource;
   content?: string; // Main SKILL.md content
@@ -85,6 +88,7 @@ export interface SkillsResponse {
 export interface SkillCreate {
   name: string;
   description: string;
+  tags: string[];
   content: string;
   enabled?: boolean;
   files?: Record<string, string>; // For multi-file support
@@ -144,7 +148,7 @@ export interface MarketplaceInstallResponse {
 }
 
 // Marketplace update response (same as install)
-export interface MarketplaceUpdateResponse extends MarketplaceInstallResponse {}
+export type MarketplaceUpdateResponse = MarketplaceInstallResponse;
 
 // Tags response
 export interface TagsResponse {

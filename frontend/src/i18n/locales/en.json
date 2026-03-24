@@ -907,6 +907,7 @@
       "${cat}": "{{cat}}",
       "builtin": "Built-in",
       "github": "GitHub",
+      "marketplace": "Marketplace",
       "manual": "Manual"
     },
     "system": "System",
@@ -949,16 +950,20 @@
       "description": "Description",
       "descriptionPlaceholder": "Brief description of what this skill does",
       "enabled": "Enabled",
+      "exitFullscreen": "Exit fullscreen",
+      "files": "Files",
       "name": "Skill Name",
       "nameCannotChange": "Skill name cannot be changed",
       "namePlaceholder": "my-skill-name",
       "saveChanges": "Save Changes",
+      "untitled": "Untitled Skill",
       "validation": {
         "contentRequired": "Content is required",
         "descriptionRequired": "Description is required",
         "nameInvalid": "Name can only contain letters, numbers, underscores, hyphens, dots, and CJK characters",
         "nameRequired": "Name is required",
-        "nameTooLong": "Name cannot exceed 100 characters"
+        "nameTooLong": "Name cannot exceed 100 characters",
+        "tagTooLong": "Each tag must be 30 characters or fewer"
       }
     },
     "foundSkills": "Found {{count}} skill(s) - select to install",
@@ -1052,7 +1057,9 @@
     "deleteSuccess": "Skill deleted from marketplace",
     "confirmDelete": "Delete \"{{name}}\"?",
     "confirmDeleteMessage": "This will permanently remove the skill from the marketplace. Users who have already installed it will keep their copy.",
-    "republish": "Republish"
+    "republish": "Republish",
+    "previewExpand": "Click to preview",
+    "previewCollapse": "Click to collapse"
   },
   "adminMarketplace": {
     "confirmDelete": "Delete Skill \"{{name}}\"?",

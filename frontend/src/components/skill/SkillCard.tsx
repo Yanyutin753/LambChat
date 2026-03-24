@@ -8,6 +8,7 @@ import {
   ShoppingBag,
   User,
   Globe,
+  Tag,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SkillResponse } from "../../types";
@@ -23,15 +24,12 @@ interface SkillCardProps {
 }
 
 const SOURCE_COLORS: Record<string, string> = {
-  builtin:
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-  marketplace:
-    "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300",
-  manual: "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
+  builtin: "skill-status-pill",
+  marketplace: "skill-status-pill skill-status-pill--active",
+  manual: "skill-status-pill",
 };
 
-const DEFAULT_SOURCE_COLOR =
-  "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300";
+const DEFAULT_SOURCE_COLOR = "skill-status-pill";
 
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
   builtin: <Package size={10} />,
@@ -54,8 +52,8 @@ export function SkillCard({
 
   return (
     <div
-      className={`group flex h-full flex-col rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] p-4 sm:p-5 transition-all duration-200 hover:border-[var(--theme-primary)] hover:shadow-lg ${
-        !skill.enabled ? "opacity-70" : ""
+      className={`skill-surface-card group flex h-full flex-col rounded-[1.6rem] p-4 sm:p-5 ${
+        !skill.enabled ? "skill-surface-card--muted opacity-80" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -71,13 +69,13 @@ export function SkillCard({
               {sourceLabel}
             </span>
             {isPublished && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
+              <span className="skill-status-pill skill-status-pill--published">
                 <Globe size={10} />
                 {t("skills.card.published")}
               </span>
             )}
             {!skill.enabled && (
-              <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] text-stone-500 dark:bg-stone-800 dark:text-stone-500">
+              <span className="skill-status-pill skill-status-pill--disabled">
                 {t("skills.card.disabled")}
               </span>
             )}
@@ -90,21 +88,37 @@ export function SkillCard({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[var(--theme-text-secondary)]">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-2.5 py-1">
+        <div className="skill-meta-pill">
           <FileText size={13} />
           <span>{skill.file_count} {t("marketplace.files")}</span>
         </div>
         {skill.updated_at && (
-          <div className="inline-flex items-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-2.5 py-1">
+          <div className="skill-meta-pill">
             {t("skills.card.updated")}: {new Date(skill.updated_at).toLocaleDateString()}
           </div>
         )}
         {skill.published_marketplace_name && skill.published_marketplace_name !== skill.name && (
-          <div className="max-w-full truncate rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-2.5 py-1">
+          <div className="skill-meta-pill truncate">
             {t("skills.card.storeName", { name: skill.published_marketplace_name })}
           </div>
         )}
       </div>
+
+      {skill.tags.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {skill.tags.slice(0, 4).map((tag) => (
+            <span key={tag} className="skill-tag-chip skill-tag-chip--active">
+              <Tag size={11} />
+              {tag}
+            </span>
+          ))}
+          {skill.tags.length > 4 && (
+            <span className="skill-tag-chip">
+              +{skill.tags.length - 4}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-[var(--theme-border)] pt-4">
         <button

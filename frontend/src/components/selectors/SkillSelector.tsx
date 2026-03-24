@@ -10,8 +10,14 @@ import {
   FileCode,
   Settings,
   Store,
+  Search,
+  Tag,
 } from "lucide-react";
 import type { SkillResponse, SkillSource } from "../../types";
+import {
+  collectSkillTags,
+  skillMatchesQuery,
+} from "../../utils/skillFilters";
 
 interface SkillSelectorProps {
   skills: SkillResponse[];
@@ -29,9 +35,9 @@ const sourceIcons: Record<SkillSource, typeof FileCode> = {
 };
 
 const sourceColors: Record<SkillSource, string> = {
-  builtin: "text-stone-500 dark:text-amber-400",
-  marketplace: "text-purple-600 dark:text-purple-400",
-  manual: "text-blue-600 dark:text-blue-400",
+  builtin: "text-[var(--theme-text-secondary)]",
+  marketplace: "text-[var(--theme-primary)]",
+  manual: "text-[var(--theme-text)]",
 };
 
 export function SkillSelector({
@@ -48,6 +54,8 @@ export function SkillSelector({
   const [expandedCategories, setExpandedCategories] = useState<
     Set<SkillSource>
   >(new Set(["builtin", "marketplace", "manual"]));
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   // 锁定滚动
   useEffect(() => {
@@ -62,9 +70,22 @@ export function SkillSelector({
   }, [isOpen]);
 
   // 按来源分组 - 使用 useMemo 缓存计算结果
+  const filteredSkills = useMemo(
+    () =>
+      skills.filter((skill) => {
+        const matchesQuery = skillMatchesQuery(skill, searchQuery);
+        const matchesTags =
+          selectedTags.length === 0 ||
+          selectedTags.every((tag) => skill.tags.includes(tag));
+
+        return matchesQuery && matchesTags;
+      }),
+    [searchQuery, selectedTags, skills],
+  );
+
   const groupedSkills = useMemo(
     () =>
-      skills.reduce(
+      filteredSkills.reduce(
         (acc, skill) => {
           if (!acc[skill.source]) {
             acc[skill.source] = [];
@@ -74,8 +95,11 @@ export function SkillSelector({
         },
         {} as Record<SkillSource, SkillResponse[]>,
       ),
-    [skills],
+    [filteredSkills],
   );
+
+  const availableTags = useMemo(() => collectSkillTags(skills), [skills]);
+  const hasActiveFilters = searchQuery.trim().length > 0 || selectedTags.length > 0;
 
   const toggleCategoryExpand = (source: SkillSource) => {
     setExpandedCategories((prev) => {
@@ -87,6 +111,12 @@ export function SkillSelector({
       }
       return newSet;
     });
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag],
+    );
   };
 
   const ModalContent = () => (
@@ -149,6 +179,51 @@ export function SkillSelector({
           <Plus size={14} />
           <span>{t("skillSelector.manage")}</span>
         </button>
+      </div>
+
+      <div className="border-b border-stone-200/80 bg-white/80 px-4 py-3 dark:border-stone-700/80 dark:bg-stone-800/60 sm:px-5">
+        <div className="relative">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("skills.searchPlaceholder")}
+            className="w-full rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-700 outline-none transition-colors focus:border-[var(--theme-primary)] focus:bg-white dark:border-stone-700 dark:bg-stone-900/60 dark:text-stone-100 dark:focus:bg-stone-900"
+          />
+        </div>
+        {availableTags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {availableTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className={`skill-tag-chip ${
+                  selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
+                }`}
+              >
+                <Tag size={11} />
+                {tag}
+              </button>
+            ))}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedTags([]);
+                }}
+                className="text-xs text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
+              >
+                {t("marketplace.clearFilters")}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Categories */}
@@ -236,6 +311,27 @@ export function SkillSelector({
                                 {skill.description ||
                                   t("skillSelector.noDescription")}
                               </p>
+                              {skill.tags.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {skill.tags.slice(0, 3).map((tag) => (
+                                    <button
+                                      key={tag}
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        toggleTag(tag);
+                                      }}
+                                      className={`skill-tag-chip ${
+                                        selectedTags.includes(tag)
+                                          ? "skill-tag-chip--active"
+                                          : ""
+                                      }`}
+                                    >
+                                      {tag}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div
                               className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
@@ -260,6 +356,11 @@ export function SkillSelector({
               </div>
             );
           },
+        )}
+        {filteredSkills.length === 0 && (
+          <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/70 px-4 py-6 text-center text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-800/40 dark:text-stone-400">
+            {t("skills.noMatchingSkills")}
+          </div>
         )}
       </div>
 

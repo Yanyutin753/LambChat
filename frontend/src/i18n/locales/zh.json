@@ -906,6 +906,7 @@
       "${cat}": "{{cat}}",
       "builtin": "内置",
       "github": "GitHub",
+      "marketplace": "商店安装",
       "manual": "手动创建"
     },
     "system": "系统",
@@ -948,16 +949,20 @@
       "description": "描述",
       "descriptionPlaceholder": "简要描述此技能的用途",
       "enabled": "启用",
+      "exitFullscreen": "退出全屏",
+      "files": "文件",
       "name": "技能名称",
       "nameCannotChange": "技能名称无法更改",
       "namePlaceholder": "my-skill-name",
       "saveChanges": "保存更改",
+      "untitled": "未命名技能",
       "validation": {
         "contentRequired": "请输入内容",
         "descriptionRequired": "请输入描述",
         "nameInvalid": "名称只能包含字母、数字、下划线、连字符、点和中文",
         "nameRequired": "请输入技能名称",
-        "nameTooLong": "名称不能超过100个字符"
+        "nameTooLong": "名称不能超过100个字符",
+        "tagTooLong": "单个标签长度不能超过30个字符"
       }
     },
     "foundSkills": "找到 {{count}} 个技能 - 选择要安装的",
@@ -1054,7 +1059,9 @@
     "update": "更新",
     "updateFailed": "更新技能失败",
     "updateSuccess": "技能更新成功",
-    "republish": "重新发布"
+    "republish": "重新发布",
+    "previewExpand": "点击预览",
+    "previewCollapse": "点击收起"
   },
   "adminMarketplace": {
     "hint": "商店技能的管理操作已集成到商店面板中，您可以直接在那里激活/停用或删除技能。",

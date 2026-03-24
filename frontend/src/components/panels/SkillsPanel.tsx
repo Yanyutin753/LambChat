@@ -24,6 +24,10 @@ import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import type { SkillResponse, SkillCreate } from "../../types";
+import {
+  collectSkillTags,
+  skillMatchesQuery,
+} from "../../utils/skillFilters";
 
 interface GitHubSkill {
   name: string;
@@ -52,6 +56,7 @@ export function SkillsPanel() {
   const { hasAnyPermission } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -85,7 +90,7 @@ export function SkillsPanel() {
   // Reset to page 1 when search changes
   useEffect(() => {
     setPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, selectedTags]);
 
   // Delete confirmation dialog state
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -99,6 +104,7 @@ export function SkillsPanel() {
     localSkillName: string;
     marketplaceSkillName: string;
     description: string;
+    tagsInput: string;
     isPublished: boolean;
     error?: string;
   } | null>(null);
@@ -106,11 +112,27 @@ export function SkillsPanel() {
   const canRead = hasAnyPermission([Permission.SKILL_READ]);
   const canWrite = hasAnyPermission([Permission.SKILL_WRITE]);
 
-  const filteredSkills = skills.filter(
-    (skill) =>
-      skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      skill.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const availableTags = collectSkillTags(skills);
+
+  const filteredSkills = skills.filter((skill) => {
+    const matchesQuery = skillMatchesQuery(skill, searchQuery);
+    const matchesTags =
+      selectedTags.length === 0 ||
+      selectedTags.every((tag) => skill.tags.includes(tag));
+
+    return matchesQuery && matchesTags;
+  });
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag],
+    );
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedTags([]);
+  };
 
   // Get paginated skills
   const paginatedSkills = filteredSkills.slice(
@@ -157,7 +179,7 @@ export function SkillsPanel() {
         setEditingSkill(null);
         setIsCreating(false);
       }
-    } catch (err) {
+    } catch {
       success = false;
     }
 
@@ -210,6 +232,7 @@ export function SkillsPanel() {
       localSkillName: name,
       marketplaceSkillName: fullSkill.published_marketplace_name || name,
       description: fullSkill.description || "",
+      tagsInput: (fullSkill.tags || []).join(", "),
       isPublished: skill.is_published ?? false,
       error: undefined,
     });
@@ -241,9 +264,19 @@ export function SkillsPanel() {
       return;
     }
 
+    const normalizedTags = Array.from(
+      new Set(
+        publishConfirm.tagsInput
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ),
+    );
+
     const success = await publishToMarketplace(localSkillName, {
       skill_name: marketplaceSkillName.trim(),
       description: description.trim() || undefined,
+      tags: normalizedTags,
     });
 
     if (success) {
@@ -355,6 +388,8 @@ export function SkillsPanel() {
     );
   }
 
+  const hasActiveFilters = searchQuery.trim().length > 0 || selectedTags.length > 0;
+
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
@@ -403,6 +438,34 @@ export function SkillsPanel() {
         </div>
       )}
 
+      {availableTags.length > 0 && (
+        <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)] px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/85 px-3 py-3 shadow-sm backdrop-blur">
+            {availableTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className={`skill-tag-chip ${
+                  selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="ml-1 text-xs text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
+              >
+                {t("marketplace.clearFilters")}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Skills List */}
       <div className="flex-1 overflow-y-auto p-2 sm:p-4">
         {isLoading && skills.length === 0 ? (
@@ -417,16 +480,25 @@ export function SkillsPanel() {
               className="mb-3 sm:mb-2 text-stone-300 dark:text-stone-600"
             />
             <p className="text-sm sm:text-base">
-              {searchQuery
+              {hasActiveFilters
                 ? t("skills.noMatchingSkills")
                 : t("skills.noSkills")}
             </p>
-            {!searchQuery && canWrite && (
+            {!hasActiveFilters && canWrite && (
               <button
                 onClick={handleCreate}
                 className="mt-3 sm:mt-2 text-sm text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"
               >
                 {t("skills.createFirst")}
+              </button>
+            )}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-3 text-sm text-[var(--theme-primary)] transition-colors hover:text-[var(--theme-primary-hover)]"
+              >
+                {t("marketplace.clearFilters")}
               </button>
             )}
           </div>
@@ -467,12 +539,12 @@ export function SkillsPanel() {
             <div className="fixed inset-0" onClick={handleCancel} />
           )}
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               {!isFormFullscreen && (
                 <>
                   <div className="bottom-sheet-handle sm:hidden" />
                   {/* Header */}
-                  <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800 shrink-0">
+                  <div className="flex items-center justify-between border-b border-stone-200 px-5 py-4 dark:border-stone-800 shrink-0 sm:px-6">
                     <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                       {isCreating
                         ? t("skills.createNew")
@@ -485,7 +557,7 @@ export function SkillsPanel() {
                 </>
               )}
               {/* Content */}
-              <div className="flex-1 min-h-0 overflow-hidden flex flex-col px-2 sm:px-4 py-2 sm:py-3">
+              <div className="flex flex-1 min-h-0 overflow-hidden flex-col bg-[var(--theme-bg)]/30 px-3 py-3 sm:px-5 sm:py-4">
                 <SkillForm
                   skill={editingSkill}
                   onSave={handleSave}
@@ -504,7 +576,7 @@ export function SkillsPanel() {
         <>
           <div className="fixed inset-0" onClick={() => setShowZipModal(false)} />
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               <div className="bottom-sheet-handle sm:hidden" />
               {/* Header */}
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
@@ -583,7 +655,7 @@ export function SkillsPanel() {
         <>
           <div className="fixed inset-0" onClick={() => setShowGithubModal(false)} />
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               <div className="bottom-sheet-handle sm:hidden" />
               {/* Header */}
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
@@ -720,8 +792,8 @@ export function SkillsPanel() {
       {/* Publish Form Dialog */}
       {publishConfirm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4">
-          <div className="w-full max-w-lg rounded-t-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-2xl sm:rounded-2xl">
-            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-primary-light)] px-5 py-4 sm:px-6">
+          <div className="w-full max-w-lg rounded-t-[1.75rem] border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-[0_28px_80px_-36px_rgba(15,23,42,0.55)] sm:rounded-[1.75rem]">
+            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/85 px-5 py-5 backdrop-blur sm:px-6">
               <h3 className="text-lg font-semibold text-[var(--theme-text)]">
                 {publishConfirm.isPublished
                   ? t("skills.republishTitle", { name: publishConfirm.localSkillName })
@@ -772,6 +844,46 @@ export function SkillsPanel() {
                   className="w-full rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2.5 text-[var(--theme-text)] focus:border-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20"
                   placeholder={t("skills.form.descriptionPlaceholder")}
                 />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[var(--theme-text)]">
+                  {t("adminMarketplace.tags")}
+                </label>
+                <p className="mb-2 text-xs leading-5 text-[var(--theme-text-secondary)]/80">
+                  {t("adminMarketplace.tagsHint")}
+                </p>
+                <input
+                  type="text"
+                  value={publishConfirm.tagsInput}
+                  onChange={(e) =>
+                    setPublishConfirm({
+                      ...publishConfirm,
+                      tagsInput: e.target.value,
+                      error: undefined,
+                    })
+                  }
+                  className="w-full rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2.5 text-[var(--theme-text)] focus:border-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/20"
+                  placeholder={t("adminMarketplace.tagsPlaceholder")}
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {Array.from(
+                    new Set(
+                      publishConfirm.tagsInput
+                        .split(",")
+                        .map((tag) => tag.trim())
+                        .filter(Boolean),
+                    ),
+                  ).map((tag) => (
+                    <span key={tag} className="skill-tag-chip skill-tag-chip--active">
+                      {tag}
+                    </span>
+                  ))}
+                  {publishConfirm.tagsInput.trim().length === 0 && (
+                    <span className="text-xs text-[var(--theme-text-secondary)]/80">
+                      {t("adminMarketplace.tagsPlaceholder")}
+                    </span>
+                  )}
+                </div>
               </div>
               {publishConfirm.error && (
                 <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-400">

@@ -71,6 +71,7 @@ class UserSkill(BaseModel):
 
     skill_name: str
     description: str = ""
+    tags: list[str] = Field(default_factory=list, description="标签列表")
     files: list[str] = Field(default_factory=list, description="文件路径列表")
     enabled: bool = True
     installed_from: Optional[str] = None
