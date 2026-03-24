@@ -273,7 +273,7 @@ export function MarketplacePanel() {
       {/* Tags Filter */}
       {tags.length > 0 && (
         <div className="border-b px-4 py-3 bg-[var(--theme-bg)] border-[var(--theme-border)]">
-            <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/85 px-3 py-3 shadow-sm backdrop-blur">
+          <div className="flex items-center gap-2 flex-wrap rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/85 px-3 py-3 shadow-sm backdrop-blur">
             <Tag size={14} className="text-[var(--theme-text-secondary)] flex-shrink-0" />
             {tags.map((tag) => (
               <button
@@ -308,20 +308,24 @@ export function MarketplacePanel() {
             <span className="ml-2">{t("marketplace.loading")}</span>
           </div>
         ) : skills.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-[var(--theme-text-secondary)] px-4">
-            <ShoppingBag
-              size={48}
-              className="mb-4 text-[var(--theme-primary)] opacity-40"
-            />
-            <p className="text-sm sm:text-base">
+          <div className="skill-empty-state">
+            <div className="skill-empty-state__icon">
+              <ShoppingBag size={28} />
+            </div>
+            <p className="skill-empty-state__title">
               {searchQuery || selectedTags.length > 0
                 ? t("marketplace.noMatchingSkills")
                 : t("marketplace.noSkills")}
             </p>
+            <p className="skill-empty-state__description">
+              {searchQuery || selectedTags.length > 0
+                ? t("marketplace.subtitle")
+                : t("marketplace.createHint")}
+            </p>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="mt-3 text-sm text-[var(--theme-primary)] hover:text-[var(--theme-primary-hover)] transition-colors"
+                className="btn-secondary mt-4"
               >
                 {t("marketplace.clearFilters")}
               </button>
@@ -649,12 +653,17 @@ export function MarketplacePanel() {
               {!isFormFullscreen && (
                 <>
                   <div className="bottom-sheet-handle sm:hidden" />
-                  <div className="flex items-center justify-between border-b border-stone-200 bg-[var(--theme-bg)]/85 px-6 py-4 backdrop-blur dark:border-stone-800 shrink-0">
-                    <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                      {isCreating
-                        ? t("marketplace.createTitle")
-                        : t("skills.editSkill", { name: editingSkill?.name })}
-                    </h3>
+                  <div className="skill-modal-header">
+                    <div>
+                      <h3 className="skill-modal-header__title">
+                        {isCreating
+                          ? t("marketplace.createTitle")
+                          : t("skills.editSkill", { name: editingSkill?.name })}
+                      </h3>
+                      <p className="skill-modal-header__subtitle">
+                        {t("marketplace.createHint")}
+                      </p>
+                    </div>
                     <button onClick={handleFormCancel} className="btn-icon">
                       <X size={20} />
                     </button>

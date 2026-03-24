@@ -942,6 +942,7 @@
     "exportFailed": "Failed to export skills",
     "exportSuccess": "Skills exported successfully",
     "exportToJSON": "Export to JSON",
+    "exportZip": "Export ZIP",
     "featureDisabled": "Skills feature is disabled. Please contact administrator to enable it.",
     "form": {
       "content": "Content (Markdown with optional YAML frontmatter)",

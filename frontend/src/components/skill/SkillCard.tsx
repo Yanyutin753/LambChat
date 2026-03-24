@@ -9,6 +9,7 @@ import {
   User,
   Globe,
   Tag,
+  Archive,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SkillResponse } from "../../types";
@@ -18,9 +19,8 @@ interface SkillCardProps {
   onToggle: (name: string) => void;
   onEdit: (skill: SkillResponse) => void;
   onDelete: (name: string) => void;
-  onPublish?: (name: string) => void;
+  onExportZip?: (name: string) => void;
   isPublished?: boolean;
-  marketplaceIsActive?: boolean;
 }
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -42,9 +42,8 @@ export function SkillCard({
   onToggle,
   onEdit,
   onDelete,
-  onPublish,
+  onExportZip,
   isPublished,
-  marketplaceIsActive,
 }: SkillCardProps) {
   const { t } = useTranslation();
   const sourceLabel = t(`skillSelector.sources.${skill.source}`, skill.source);
@@ -143,9 +142,9 @@ export function SkillCard({
           <span>{t("skills.card.edit")}</span>
         </button>
 
-        {skill.source === "manual" && onPublish && (
+        {skill.source === "manual" && isPublished !== undefined && (
           <button
-            onClick={() => onPublish(skill.name)}
+            onClick={() => onEdit(skill)}
             className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
             title={
               isPublished
@@ -153,22 +152,24 @@ export function SkillCard({
                 : t("skills.card.publishToMarketplace")
             }
           >
-            {isPublished ? (
-              marketplaceIsActive === false ? (
-                <Globe size={14} className="text-amber-500 dark:text-amber-400" />
-              ) : (
-                <Globe size={14} className="text-green-600 dark:text-green-500" />
-              )
-            ) : (
-              <Globe size={14} className="text-stone-400 dark:text-stone-500" />
-            )}
+            <Globe size={14} className={isPublished ? "text-green-600 dark:text-green-500" : "text-stone-400 dark:text-stone-500"} />
             <span>
               {isPublished ? t("skills.card.republish") : t("skills.card.publishToMarketplace")}
             </span>
           </button>
         )}
 
-        <div className="flex-1" />
+        {onExportZip && (
+          <button
+            onClick={() => onExportZip(skill.name)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+            title={t("skills.exportZip")}
+          >
+            <Archive size={14} />
+            <span>{t("skills.exportZip")}</span>
+          </button>
+        )}
+
 
         <button
           onClick={() => onDelete(skill.name)}

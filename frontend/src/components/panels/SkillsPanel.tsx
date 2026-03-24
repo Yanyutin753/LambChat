@@ -10,9 +10,10 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, X, FolderOpen, PackageX, Archive, Upload, Github, Check } from "lucide-react";
+import { Plus, X, FolderOpen, PackageX, Archive, Upload, Github, Check, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { exportProjectZip } from "../../utils/exportProjectZip";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { Pagination } from "../common/Pagination";
@@ -81,6 +82,7 @@ export function SkillsPanel() {
   const [selectedGithubSkills, setSelectedGithubSkills] = useState<string[]>([]);
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubInstalling, setGithubInstalling] = useState(false);
+  const [githubExporting, setGithubExporting] = useState(false);
 
   // Update total when skills change
   useEffect(() => {
@@ -193,7 +195,22 @@ export function SkillsPanel() {
     setIsFormFullscreen(false);
   };
 
-  const handleDelete = async (name: string) => {
+  const handleExportZip = async (name: string) => {
+    const fullSkill = await getSkill(name);
+    if (!fullSkill) {
+      toast.error(t("skills.exportFailed"));
+      return;
+    }
+
+    try {
+      await exportProjectZip(fullSkill.files, name);
+      toast.success(t("skills.exportSuccess"));
+    } catch {
+      toast.error(t("skills.exportFailed"));
+    }
+  };
+
+  const handleDelete = (name: string) => {
     setDeleteConfirmData({ name });
     setIsDeleteConfirmOpen(true);
   };
@@ -215,27 +232,6 @@ export function SkillsPanel() {
 
   const handleToggle = async (name: string) => {
     await toggleSkill(name);
-  };
-
-  const handlePublish = async (name: string) => {
-    const skill = skills.find((s) => s.name === name);
-    if (!skill) return;
-
-    const fullSkill = await getSkill(name);
-    if (!fullSkill) {
-      toast.error(t("skills.loadFailed"));
-      return;
-    }
-
-    setPublishConfirm({
-      isOpen: true,
-      localSkillName: name,
-      marketplaceSkillName: fullSkill.published_marketplace_name || name,
-      description: fullSkill.description || "",
-      tagsInput: (fullSkill.tags || []).join(", "),
-      isPublished: skill.is_published ?? false,
-      error: undefined,
-    });
   };
 
   const confirmPublish = async () => {
@@ -357,7 +353,11 @@ export function SkillsPanel() {
 
     setGithubInstalling(true);
     try {
-      const result = await installGitHubSkills(githubUrl, selectedGithubSkills, githubBranch);
+      const result = await installGitHubSkills(
+        githubUrl,
+        selectedGithubSkills,
+        githubBranch,
+      );
       if (result) {
         setShowGithubModal(false);
         setGithubSkills([]);
@@ -365,6 +365,32 @@ export function SkillsPanel() {
       }
     } finally {
       setGithubInstalling(false);
+    }
+  };
+
+  const handleGithubExport = async () => {
+    if (selectedGithubSkills.length === 0) return;
+
+    setGithubExporting(true);
+    try {
+      const result = await installGitHubSkills(githubUrl, selectedGithubSkills, githubBranch);
+      if (!result?.installed?.length) {
+        toast.error(t("skills.exportFailed"));
+        return;
+      }
+
+      const installedSkill = await getSkill(result.installed[0]);
+      if (!installedSkill) {
+        toast.error(t("skills.exportFailed"));
+        return;
+      }
+
+      await exportProjectZip(installedSkill.files, installedSkill.name);
+      toast.success(t("skills.exportSuccess"));
+    } catch {
+      toast.error(t("skills.exportFailed"));
+    } finally {
+      setGithubExporting(false);
     }
   };
 
@@ -406,22 +432,20 @@ export function SkillsPanel() {
         onSearchChange={setSearchQuery}
         searchPlaceholder={t("skills.searchPlaceholder")}
         actions={
-          canWrite && (
-            <>
-              <button onClick={handleGithubClick} className="btn-secondary">
-                <Github size={16} />
-                <span className="hidden sm:inline">GitHub</span>
-              </button>
-              <button onClick={handleZipClick} className="btn-secondary">
-                <Archive size={16} />
-                <span className="hidden sm:inline">ZIP</span>
-              </button>
-              <button onClick={handleCreate} className="btn-primary">
-                <Plus size={16} />
-                <span className="hidden sm:inline">{t("skills.newSkill")}</span>
-              </button>
-            </>
-          )
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
+            <button onClick={handleGithubClick} className="btn-secondary justify-center">
+              <Github size={16} />
+              <span className="hidden sm:inline">GitHub</span>
+            </button>
+            <button onClick={handleZipClick} className="btn-secondary justify-center">
+              <Archive size={16} />
+              <span className="hidden sm:inline">ZIP</span>
+            </button>
+            <button onClick={handleCreate} className="btn-primary justify-center">
+              <Plus size={16} />
+              <span className="hidden sm:inline">{t("skills.newSkill")}</span>
+            </button>
+          </div>
         }
       />
 
@@ -474,29 +498,34 @@ export function SkillsPanel() {
             <span className="ml-2">{t("skills.loading")}</span>
           </div>
         ) : filteredSkills.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400 px-4">
-            <FolderOpen
-              size={40}
-              className="mb-3 sm:mb-2 text-stone-300 dark:text-stone-600"
-            />
-            <p className="text-sm sm:text-base">
+          <div className="skill-empty-state">
+            <div className="skill-empty-state__icon">
+              <FolderOpen size={28} />
+            </div>
+            <p className="skill-empty-state__title">
               {hasActiveFilters
                 ? t("skills.noMatchingSkills")
                 : t("skills.noSkills")}
             </p>
+            <p className="skill-empty-state__description">
+              {hasActiveFilters
+                ? t("skills.subtitle")
+                : t("skills.createFirst")}
+            </p>
             {!hasActiveFilters && canWrite && (
               <button
                 onClick={handleCreate}
-                className="mt-3 sm:mt-2 text-sm text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"
+                className="btn-primary mt-4"
               >
-                {t("skills.createFirst")}
+                <Plus size={16} />
+                <span>{t("skills.newSkill")}</span>
               </button>
             )}
             {hasActiveFilters && (
               <button
                 type="button"
                 onClick={clearFilters}
-                className="mt-3 text-sm text-[var(--theme-primary)] transition-colors hover:text-[var(--theme-primary-hover)]"
+                className="btn-secondary mt-4"
               >
                 {t("marketplace.clearFilters")}
               </button>
@@ -511,9 +540,8 @@ export function SkillsPanel() {
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                onPublish={handlePublish}
+                onExportZip={handleExportZip}
                 isPublished={skill.is_published}
-                marketplaceIsActive={skill.marketplace_is_active}
               />
             ))}
           </div>
@@ -544,12 +572,17 @@ export function SkillsPanel() {
                 <>
                   <div className="bottom-sheet-handle sm:hidden" />
                   {/* Header */}
-                  <div className="flex items-center justify-between border-b border-stone-200 px-5 py-4 dark:border-stone-800 shrink-0 sm:px-6">
-                    <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                      {isCreating
-                        ? t("skills.createNew")
-                        : t("skills.editSkill", { name: editingSkill?.name })}
-                    </h3>
+                  <div className="skill-modal-header">
+                    <div>
+                      <h3 className="skill-modal-header__title">
+                        {isCreating
+                          ? t("skills.createNew")
+                          : t("skills.editSkill", { name: editingSkill?.name })}
+                      </h3>
+                      <p className="skill-modal-header__subtitle">
+                        {t("skills.subtitle")}
+                      </p>
+                    </div>
                     <button onClick={handleCancel} className="btn-icon">
                       <X size={20} />
                     </button>
@@ -579,10 +612,15 @@ export function SkillsPanel() {
             <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               <div className="bottom-sheet-handle sm:hidden" />
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                  {t("skills.uploadZipTitle")}
-                </h3>
+              <div className="skill-modal-header">
+                <div>
+                  <h3 className="skill-modal-header__title">
+                    {t("skills.uploadZipTitle")}
+                  </h3>
+                  <p className="skill-modal-header__subtitle">
+                    {t("skills.subtitle")}
+                  </p>
+                </div>
                 <button
                   onClick={() => setShowZipModal(false)}
                   className="btn-icon"
@@ -591,8 +629,21 @@ export function SkillsPanel() {
                 </button>
               </div>
               {/* Content */}
-              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
-                <div className="space-y-4">
+              <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
+                <div className="skill-modal-section space-y-4">
+                  <div className="flex items-start gap-3 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/85 px-4 py-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
+                      <Archive size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[var(--theme-text)]">
+                        {t("skills.selectZipFile")}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--theme-text-secondary)]">
+                        {t("skills.subtitle")}
+                      </p>
+                    </div>
+                  </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
                       {t("skills.selectZipFile")}
@@ -618,7 +669,7 @@ export function SkillsPanel() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-2 border-t border-[var(--theme-border)] pt-4">
                     <button
                       onClick={() => setShowZipModal(false)}
                       className="btn-secondary"
@@ -658,10 +709,15 @@ export function SkillsPanel() {
             <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               <div className="bottom-sheet-handle sm:hidden" />
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
-                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                  {t("skills.importFromGitHub")}
-                </h3>
+              <div className="skill-modal-header">
+                <div>
+                  <h3 className="skill-modal-header__title">
+                    {t("skills.importFromGitHub")}
+                  </h3>
+                  <p className="skill-modal-header__subtitle">
+                    {t("skills.subtitle")}
+                  </p>
+                </div>
                 <button
                   onClick={() => setShowGithubModal(false)}
                   className="btn-icon"
@@ -670,13 +726,27 @@ export function SkillsPanel() {
                 </button>
               </div>
               {/* Content */}
-              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-4">
-                {/* URL Input */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
-                    {t("skills.githubRepoUrl")}
-                  </label>
-                  <div className="flex gap-2">
+              <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
+                <div className="skill-modal-section space-y-4">
+                  <div className="flex items-start gap-3 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/85 px-4 py-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--theme-primary-light)] text-[var(--theme-primary)]">
+                      <Sparkles size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[var(--theme-text)]">
+                        {t("skills.importFromGitHub")}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--theme-text-secondary)]">
+                        {t("skills.importFromGitHubTitle")}
+                      </p>
+                    </div>
+                  </div>
+                  {/* URL Input */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
+                      {t("skills.githubRepoUrl")}
+                    </label>
+                    <div className="flex gap-2 flex-col sm:flex-row">
                     <input
                       type="text"
                       value={githubUrl}
@@ -689,7 +759,7 @@ export function SkillsPanel() {
                       value={githubBranch}
                       onChange={(e) => setGithubBranch(e.target.value)}
                       placeholder="main"
-                      className="input-field w-24"
+                      className="input-field sm:w-24"
                     />
                     <button
                       onClick={handleGithubPreview}
@@ -712,16 +782,16 @@ export function SkillsPanel() {
                         <div
                           key={skill.name}
                           onClick={() => handleGithubSkillToggle(skill.name)}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                          className={`skill-surface-card flex items-center gap-3 rounded-2xl p-3 cursor-pointer ${
                             selectedGithubSkills.includes(skill.name)
-                              ? "bg-blue-50 dark:bg-blue-900/30"
-                              : "bg-stone-50 dark:bg-stone-800/50 hover:bg-stone-100 dark:hover:bg-stone-800"
+                              ? "border-[color:color-mix(in_srgb,var(--theme-primary)_28%,var(--theme-border))] bg-[color:color-mix(in_srgb,var(--theme-primary-light)_82%,white_18%)]"
+                              : ""
                           }`}
                         >
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                          <div className={`flex h-5 w-5 items-center justify-center rounded-md border ${
                             selectedGithubSkills.includes(skill.name)
-                              ? "bg-blue-500 border-blue-500"
-                              : "border-stone-300 dark:border-stone-600"
+                              ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white dark:text-stone-950"
+                              : "border-[var(--theme-border)] text-transparent"
                           }`}>
                             {selectedGithubSkills.includes(skill.name) && (
                               <Check size={14} className="text-white" />
@@ -742,12 +812,29 @@ export function SkillsPanel() {
                 )}
 
                 {/* Actions */}
-                <div className="flex justify-end gap-2 pt-2">
+                <div className="flex justify-end gap-2 border-t border-[var(--theme-border)] pt-4">
                   <button
                     onClick={() => setShowGithubModal(false)}
                     className="btn-secondary"
                   >
                     {t("common.cancel")}
+                  </button>
+                  <button
+                    onClick={handleGithubExport}
+                    disabled={githubExporting || selectedGithubSkills.length === 0}
+                    className="btn-secondary disabled:opacity-50"
+                  >
+                    {githubExporting ? (
+                      <>
+                        <LoadingSpinner size="sm" />
+                        {t("skills.exportZip")}
+                      </>
+                    ) : (
+                      <>
+                        <Archive size={18} />
+                        {t("skills.exportZip")}
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={handleGithubInstall}
@@ -770,8 +857,9 @@ export function SkillsPanel() {
               </div>
             </div>
           </div>
-        </>
-      )}
+        </div>
+      </>
+    )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
@@ -793,15 +881,22 @@ export function SkillsPanel() {
       {publishConfirm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4">
           <div className="w-full max-w-lg rounded-t-[1.75rem] border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-[0_28px_80px_-36px_rgba(15,23,42,0.55)] sm:rounded-[1.75rem]">
-            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/85 px-5 py-5 backdrop-blur sm:px-6">
-              <h3 className="text-lg font-semibold text-[var(--theme-text)]">
-                {publishConfirm.isPublished
-                  ? t("skills.republishTitle", { name: publishConfirm.localSkillName })
-                  : t("skills.publishTitle", { name: publishConfirm.localSkillName })}
-              </h3>
-            </div>
+              <div className="skill-modal-header">
+                <div>
+                  <h3 className="skill-modal-header__title">
+                    {publishConfirm.isPublished
+                      ? t("skills.republishTitle", { name: publishConfirm.localSkillName })
+                      : t("skills.publishTitle", { name: publishConfirm.localSkillName })}
+                  </h3>
+                  <p className="skill-modal-header__subtitle">
+                    {publishConfirm.isPublished
+                      ? t("skills.republishMessage")
+                      : t("skills.publishMessage")}
+                  </p>
+                </div>
+              </div>
             <div className="space-y-4 p-5 sm:p-6">
-              <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] p-4">
+              <div className="skill-modal-section">
                 <p className="text-xs font-medium uppercase tracking-wide text-[var(--theme-text-secondary)]">
                   {t("skills.publishLocalSkill")}
                 </p>
@@ -890,11 +985,6 @@ export function SkillsPanel() {
                   {publishConfirm.error}
                 </div>
               )}
-              <p className="text-sm leading-relaxed text-[var(--theme-text-secondary)]">
-                {publishConfirm.isPublished
-                  ? t("skills.republishMessage")
-                  : t("skills.publishMessage")}
-              </p>
             </div>
             <div className="flex flex-col-reverse gap-2 border-t border-[var(--theme-border)] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
               <button

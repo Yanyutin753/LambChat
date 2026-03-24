@@ -941,6 +941,7 @@
     "exportFailed": "导出技能失败",
     "exportSuccess": "技能导出成功",
     "exportToJSON": "导出为 JSON",
+    "exportZip": "导出 ZIP",
     "featureDisabled": "技能功能已禁用，请联系管理员启用。",
     "form": {
       "content": "内容（支持 Markdown 和可选的 YAML frontmatter）",
