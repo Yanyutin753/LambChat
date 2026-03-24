@@ -1,6 +1,4 @@
 # src/infra/skill/marketplace.py
-import io
-import zipfile
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -76,15 +74,16 @@ class MarketplaceStorage:
             return {}
         collection = self._get_users_collection()
         result: dict[str, str] = {}
-        cursor = collection.find(
-            {"id": {"$in": user_ids}}, {"id": 1, "username": 1}
-        )
+        cursor = collection.find({"id": {"$in": user_ids}}, {"id": 1, "username": 1})
         async for doc in cursor:
             result[doc["id"]] = doc.get("username", doc["id"])
         return result
 
     def _build_response(
-        self, doc: dict, file_count: int, username_map: dict[str, str],
+        self,
+        doc: dict,
+        file_count: int,
+        username_map: dict[str, str],
         viewer_id: Optional[str] = None,
     ) -> MarketplaceSkillResponse:
         created_by = doc.get("created_by")
@@ -195,7 +194,9 @@ class MarketplaceStorage:
         )
 
     async def get_marketplace_skill_response(
-        self, skill_name: str, viewer_id: Optional[str] = None,
+        self,
+        skill_name: str,
+        viewer_id: Optional[str] = None,
     ) -> Optional[MarketplaceSkillResponse]:
         """获取商城 Skill 响应（含文件数量、用户名、是否为创建者）"""
         skill = await self.get_marketplace_skill(skill_name)
@@ -216,9 +217,7 @@ class MarketplaceStorage:
             created_at=skill.created_at,
             updated_at=skill.updated_at,
             created_by=skill.created_by,
-            created_by_username=username_map.get(skill.created_by)
-            if skill.created_by
-            else None,
+            created_by_username=username_map.get(skill.created_by) if skill.created_by else None,
             is_active=skill.is_active,
             is_owner=bool(viewer_id and skill.created_by and skill.created_by == viewer_id),
             file_count=file_count,
@@ -303,9 +302,7 @@ class MarketplaceStorage:
     # 发布状态查询
     # ==========================================
 
-    async def get_user_published_skills(
-        self, user_id: str
-    ) -> dict[str, dict[str, Any]]:
+    async def get_user_published_skills(self, user_id: str) -> dict[str, dict[str, Any]]:
         """获取用户已发布的 Skill 状态 {skill_name: {is_active, ...}}"""
         collection = self._get_meta_collection()
         result: dict[str, dict[str, Any]] = {}
@@ -327,19 +324,13 @@ class MarketplaceStorage:
             files[doc["file_path"]] = doc["content"]
         return files
 
-    async def get_marketplace_file(
-        self, skill_name: str, file_path: str
-    ) -> Optional[str]:
+    async def get_marketplace_file(self, skill_name: str, file_path: str) -> Optional[str]:
         """获取商城 Skill 单个文件"""
         collection = self._get_files_collection()
-        doc = await collection.find_one(
-            {"skill_name": skill_name, "file_path": file_path}
-        )
+        doc = await collection.find_one({"skill_name": skill_name, "file_path": file_path})
         return doc["content"] if doc else None
 
-    async def set_marketplace_file(
-        self, skill_name: str, file_path: str, content: str
-    ) -> None:
+    async def set_marketplace_file(self, skill_name: str, file_path: str, content: str) -> None:
         """设置商城 Skill 单个文件"""
         collection = self._get_files_collection()
         now = datetime.now(timezone.utc).isoformat()
@@ -357,9 +348,7 @@ class MarketplaceStorage:
             upsert=True,
         )
 
-    async def sync_marketplace_files(
-        self, skill_name: str, files: dict[str, str]
-    ) -> None:
+    async def sync_marketplace_files(self, skill_name: str, files: dict[str, str]) -> None:
         """批量同步商城 Skill 文件"""
         if not files:
             return

@@ -8,7 +8,6 @@
 import asyncio
 import json
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -190,7 +189,9 @@ async def chat_stream(
         await presenter._ensure_trace()
         await presenter.emit_user_message(
             request.message,
-            attachments=[a.model_dump() for a in request.attachments] if request.attachments else None,
+            attachments=[a.model_dump() for a in request.attachments]
+            if request.attachments
+            else None,
         )
 
         # Mark user message as already written so executor skips re-emitting

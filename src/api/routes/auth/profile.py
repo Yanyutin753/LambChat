@@ -200,7 +200,9 @@ async def update_user_metadata(
     # Validate disabled_tools if provided
     if "disabled_tools" in request.metadata:
         disabled_tools = request.metadata["disabled_tools"]
-        if not isinstance(disabled_tools, list) or not all(isinstance(t, str) for t in disabled_tools):
+        if not isinstance(disabled_tools, list) or not all(
+            isinstance(t, str) for t in disabled_tools
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid disabled_tools: must be a list of strings.",

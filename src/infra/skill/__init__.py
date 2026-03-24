@@ -20,8 +20,6 @@ __all__ = [
 async def init_skill_indexes() -> None:
     """初始化索引 + 旧版数据迁移（应用启动时调用一次，幂等）"""
     from src.infra.logging import get_logger
-    from src.infra.storage.mongodb import get_mongo_client
-    from src.kernel.config import settings
 
     logger = get_logger(__name__)
 
@@ -85,9 +83,7 @@ async def _migrate_legacy_skills(logger) -> None:
         existing = await new_marketplace.find_one({"skill_name": skill_name})
         if existing:
             # 已存在则仅确保文件同步
-            async for file_doc in old_files.find(
-                {"skill_name": skill_name, "user_id": "system"}
-            ):
+            async for file_doc in old_files.find({"skill_name": skill_name, "user_id": "system"}):
                 await new_marketplace_files.update_one(
                     {"skill_name": skill_name, "file_path": file_doc["file_path"]},
                     {
@@ -102,20 +98,20 @@ async def _migrate_legacy_skills(logger) -> None:
             continue
 
         now = doc.get("updated_at") or doc.get("created_at")
-        await new_marketplace.insert_one({
-            "skill_name": skill_name,
-            "description": doc.get("description", ""),
-            "tags": doc.get("tags", []),
-            "version": doc.get("version", "1.0.0"),
-            "created_at": doc.get("created_at"),
-            "updated_at": now,
-            "created_by": "system",
-            "is_active": True,
-        })
+        await new_marketplace.insert_one(
+            {
+                "skill_name": skill_name,
+                "description": doc.get("description", ""),
+                "tags": doc.get("tags", []),
+                "version": doc.get("version", "1.0.0"),
+                "created_at": doc.get("created_at"),
+                "updated_at": now,
+                "created_by": "system",
+                "is_active": True,
+            }
+        )
 
-        async for file_doc in old_files.find(
-            {"skill_name": skill_name, "user_id": "system"}
-        ):
+        async for file_doc in old_files.find({"skill_name": skill_name, "user_id": "system"}):
             await new_marketplace_files.update_one(
                 {"skill_name": skill_name, "file_path": file_doc["file_path"]},
                 {
@@ -138,21 +134,21 @@ async def _migrate_legacy_skills(logger) -> None:
         skill_name = doc["skill_name"]
         enabled = doc.get("enabled", True)
 
-        existing_toggle = await new_toggles.find_one(
-            {"skill_name": skill_name, "user_id": user_id}
-        )
+        existing_toggle = await new_toggles.find_one({"skill_name": skill_name, "user_id": user_id})
         if existing_toggle:
             continue
 
         installed_from = "marketplace" if skill_name in system_skill_names else "manual"
-        await new_toggles.insert_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-            "enabled": enabled,
-            "installed_from": installed_from,
-            "created_at": doc.get("created_at"),
-            "updated_at": doc.get("updated_at"),
-        })
+        await new_toggles.insert_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+                "enabled": enabled,
+                "installed_from": installed_from,
+                "created_at": doc.get("created_at"),
+                "updated_at": doc.get("updated_at"),
+            }
+        )
         migrated_prefs += 1
 
     # 3. user_skills -> skill_toggles
@@ -161,20 +157,20 @@ async def _migrate_legacy_skills(logger) -> None:
         skill_name = doc["name"]
         enabled = doc.get("enabled", True)
 
-        existing_toggle = await new_toggles.find_one(
-            {"skill_name": skill_name, "user_id": user_id}
-        )
+        existing_toggle = await new_toggles.find_one({"skill_name": skill_name, "user_id": user_id})
         if existing_toggle:
             continue
 
-        await new_toggles.insert_one({
-            "skill_name": skill_name,
-            "user_id": user_id,
-            "enabled": enabled,
-            "installed_from": "manual",
-            "created_at": doc.get("created_at"),
-            "updated_at": doc.get("updated_at"),
-        })
+        await new_toggles.insert_one(
+            {
+                "skill_name": skill_name,
+                "user_id": user_id,
+                "enabled": enabled,
+                "installed_from": "manual",
+                "created_at": doc.get("created_at"),
+                "updated_at": doc.get("updated_at"),
+            }
+        )
 
     # 4. 为旧版用户复制 marketplace 文件到 skill_files
     installed_count = 0

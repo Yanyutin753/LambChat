@@ -315,7 +315,9 @@ class SkillsStoreBackend(BackendProtocol):
             await storage.set_skill_file(skill_name, file_name, content, self._user_id)
 
             # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
-            enabled = True if is_new_skill else (existing_toggle.enabled if existing_toggle else True)
+            enabled = (
+                True if is_new_skill else (existing_toggle.enabled if existing_toggle else True)
+            )
             await storage.upsert_toggle(skill_name, self._user_id, enabled=enabled)
 
             # 失效缓存

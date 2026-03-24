@@ -282,7 +282,9 @@ class SkillStorage:
                     "file_count": stats["file_count"],
                     "file_paths": stats.get("file_paths", []),
                     "installed_from": toggle.get("installed_from") if toggle else None,
-                    "published_marketplace_name": toggle.get("published_marketplace_name") if toggle else None,
+                    "published_marketplace_name": toggle.get("published_marketplace_name")
+                    if toggle
+                    else None,
                     "created_at": stats.get("created_at"),
                     "updated_at": stats.get("updated_at"),
                 }
@@ -431,11 +433,13 @@ class SkillStorage:
             async with session.start_transaction():
                 files_col = self._get_files_collection()
                 await files_col.delete_many(
-                    {"skill_name": skill_name, "user_id": user_id}, session=session,
+                    {"skill_name": skill_name, "user_id": user_id},
+                    session=session,
                 )
                 toggles_col = self._get_toggles_collection()
                 await toggles_col.delete_one(
-                    {"skill_name": skill_name, "user_id": user_id}, session=session,
+                    {"skill_name": skill_name, "user_id": user_id},
+                    session=session,
                 )
         except Exception as e:
             logger.warning(f"Failed to delete skill '{skill_name}' atomically: {e}")
@@ -571,7 +575,9 @@ class SkillStorage:
             raise ValueError("Skill must have at least one file")
 
         await self.sync_skill_files(skill_name, files, user_id)
-        await self.upsert_toggle(skill_name, user_id, enabled=enabled, installed_from=installed_from)
+        await self.upsert_toggle(
+            skill_name, user_id, enabled=enabled, installed_from=installed_from
+        )
         await self.invalidate_user_cache(user_id)
 
     async def close(self):
