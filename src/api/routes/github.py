@@ -101,6 +101,21 @@ async def fetch_github_dir(
         resp = await client.get(url, timeout=30.0)
         if resp.status_code == 404:
             return []
+        if resp.status_code == 403:
+            # GitHub API rate limit
+            remaining = resp.headers.get("X-RateLimit-Remaining", "unknown")
+            reset_ts = resp.headers.get("X-RateLimit-Reset", "")
+            detail = f"GitHub API rate limit exceeded (remaining: {remaining})"
+            if reset_ts:
+                from datetime import datetime, timezone
+
+                try:
+                    reset_dt = datetime.fromtimestamp(int(reset_ts), tz=timezone.utc)
+                    detail += f", resets at {reset_dt.isoformat()}"
+                except (ValueError, OSError):
+                    pass
+            logger.warning(f"GitHub API rate limit: {detail}")
+            raise HTTPException(status_code=429, detail=detail)
         resp.raise_for_status()
         return resp.json()
 

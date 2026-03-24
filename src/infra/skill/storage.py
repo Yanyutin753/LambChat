@@ -66,6 +66,11 @@ class SkillStorage:
             unique=True,
             background=True,
         )
+        # 查询启用 skill 时的复合索引
+        await toggles.create_index(
+            [("user_id", 1), ("enabled", 1)],
+            background=True,
+        )
 
     # ==========================================
     # 文件操作
@@ -234,7 +239,9 @@ class SkillStorage:
             }
         return {"file_count": 0, "created_at": None, "updated_at": None}
 
-    async def list_user_skills(self, user_id: str) -> list[dict[str, Any]]:
+    async def list_user_skills(
+        self, user_id: str, skip: int = 0, limit: int = 100
+    ) -> list[dict[str, Any]]:
         """列出用户所有 Skill（带文件信息）"""
         collection = self._get_files_collection()
 
@@ -251,6 +258,8 @@ class SkillStorage:
                 }
             },
             {"$sort": {"_id": 1}},
+            {"$skip": skip},
+            {"$limit": limit},
         ]
         skill_stats: dict[str, dict] = {}
         async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]

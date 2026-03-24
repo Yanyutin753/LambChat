@@ -40,6 +40,12 @@ def get_marketplace_storage() -> MarketplaceStorage:
 MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
 
 
+def sanitize_file_path(path: str) -> str:
+    """Sanitize file path to prevent path traversal."""
+    parts = [p for p in path.replace("\\", "/").split("/") if p and p != ".."]
+    return "/".join(parts)
+
+
 class UpdateFileRequest(BaseModel):
     """更新文件内容的请求"""
 
@@ -274,12 +280,14 @@ async def upload_skill_from_zip(
 
 @router.get("/", response_model=list[UserSkill])
 async def list_user_skills(
+    skip: int = 0,
+    limit: int = 100,
     user: TokenPayload = Depends(require_permissions("skill:read")),
     storage: SkillStorage = Depends(get_storage),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """列出用户安装的所有 Skills（含发布状态）"""
-    skills = await storage.list_user_skills(user.sub)
+    skills = await storage.list_user_skills(user.sub, skip=skip, limit=limit)
     if not skills:
         return []
 
@@ -374,7 +382,10 @@ async def get_skill_file(
     storage: SkillStorage = Depends(get_storage),
 ):
     """读取 Skill 的单个文件"""
-    content = await storage.get_skill_file(name, path, user.sub)
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    content = await storage.get_skill_file(name, safe_path, user.sub)
     if content is None:
         raise HTTPException(status_code=404, detail="File not found")
     return {"content": content}
@@ -389,13 +400,16 @@ async def update_skill_file(
     storage: SkillStorage = Depends(get_storage),
 ):
     """更新 Skill 的单个文件"""
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
     content = body.content
 
     # 检查 toggle 是否已存在，以决定 enabled 状态
     existing_toggle = await storage.get_toggle(name, user.sub)
     is_new = existing_toggle is None
 
-    await storage.set_skill_file(name, path, content, user.sub)
+    await storage.set_skill_file(name, safe_path, content, user.sub)
 
     # 新 skill 自动启用；已有 skill 保留用户设定的 enabled 状态
     enabled = True if is_new else (existing_toggle.enabled if existing_toggle else True)
@@ -415,14 +429,17 @@ async def delete_skill_file(
     storage: SkillStorage = Depends(get_storage),
 ):
     """删除 Skill 的单个文件"""
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
     # 检查 skill 和文件是否存在
     existing_paths = await storage.list_skill_file_paths(name, user.sub)
     if not existing_paths:
         raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
-    if path not in existing_paths:
+    if safe_path not in existing_paths:
         raise HTTPException(status_code=404, detail=f"File '{path}' not found in skill '{name}'")
 
-    await storage.delete_skill_file(name, path, user.sub)
+    await storage.delete_skill_file(name, safe_path, user.sub)
 
     # 检查 skill 是否还有剩余文件，若无则清理 toggle 避免幽灵 skill
     remaining = await storage.list_skill_file_paths(name, user.sub)

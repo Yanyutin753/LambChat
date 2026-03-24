@@ -20,6 +20,13 @@ from src.infra.skill.types import (
 )
 from src.kernel.schemas.user import TokenPayload
 
+
+def sanitize_file_path(path: str) -> str:
+    """Sanitize file path to prevent path traversal."""
+    parts = [p for p in path.replace("\\", "/").split("/") if p and p != ".."]
+    return "/".join(parts)
+
+
 router = APIRouter()
 
 
@@ -192,7 +199,10 @@ async def get_marketplace_file(
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """读取商城 Skill 的单个文件"""
-    content = await marketplace.get_marketplace_file(name, path)
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    content = await marketplace.get_marketplace_file(name, safe_path)
     if content is None:
         raise HTTPException(status_code=404, detail="File not found")
     return {"content": content}
@@ -213,23 +223,29 @@ async def install_marketplace_skill(
     if not marketplace_skill.is_active:
         raise HTTPException(status_code=403, detail="This skill has been deactivated")
 
-    # 2. 检查用户是否已安装
+    # 2. 检查用户是否已安装（快速路径，实际唯一性由 MongoDB 索引保证）
     existing_toggle = await storage.get_toggle(name, user.sub)
     if existing_toggle:
-        raise HTTPException(status_code=400, detail=f"Skill '{name}' already installed")
+        raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
 
     # 3. 获取商城文件并复制到用户目录
     marketplace_files = await marketplace.get_marketplace_files(name)
     if not marketplace_files:
         raise HTTPException(status_code=400, detail="Marketplace skill has no files")
 
-    # 4. 创建用户本地副本
-    await storage.create_user_skill(
-        name,
-        marketplace_files,
-        user.sub,
-        installed_from=InstalledFrom.MARKETPLACE,
-    )
+    # 4. 创建用户本地副本（利用 MongoDB unique index 防止竞态）
+    try:
+        await storage.create_user_skill(
+            name,
+            marketplace_files,
+            user.sub,
+            installed_from=InstalledFrom.MARKETPLACE,
+        )
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "duplicate" in err_msg or "already" in err_msg:
+            raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
+        raise
 
     return {
         "message": f"Skill '{name}' installed successfully",
