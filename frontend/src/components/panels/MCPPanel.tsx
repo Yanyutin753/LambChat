@@ -6,7 +6,6 @@ import {
   Upload,
   FolderOpen,
   Check,
-  ServerOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -18,13 +17,11 @@ import { MCPServerForm } from "../mcp/MCPServerForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { useMCP } from "../../hooks/useMcp";
 import { useAuth } from "../../hooks/useAuth";
-import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import type { MCPServerResponse, MCPServerCreate } from "../../types";
 
 export function MCPPanel() {
   const { t } = useTranslation();
-  const { enableMcp } = useSettingsContext();
   const {
     servers,
     isLoading,
@@ -38,7 +35,7 @@ export function MCPPanel() {
     promoteServer,
     demoteServer,
     clearError,
-  } = useMCP({ enabled: enableMcp });
+  } = useMCP();
   const { hasAnyPermission, user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -326,18 +323,6 @@ export function MCPPanel() {
     );
   }
 
-  if (!enableMcp) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400">
-        <ServerOff
-          size={48}
-          className="mb-3 text-stone-300 dark:text-stone-600"
-        />
-        <p className="text-center">{t("mcp.featureDisabled")}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full flex-col min-h-0">
       {/* Header */}
@@ -448,7 +433,7 @@ export function MCPPanel() {
           <div className="fixed inset-0 " onClick={handleCancel} />
           {/* Modal */}
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               {/* Mobile drag handle */}
               <div className="bottom-sheet-handle sm:hidden" />
 
@@ -525,7 +510,7 @@ export function MCPPanel() {
             onClick={() => setShowImportModal(false)}
           />
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content">
+            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               <div className="bottom-sheet-handle sm:hidden" />
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
                 <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">

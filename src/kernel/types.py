@@ -79,6 +79,11 @@ class Permission(str, Enum):
     AGENT_READ = "agent:read"
     AGENT_ADMIN = "agent:admin"
 
+    # Marketplace
+    MARKETPLACE_READ = "marketplace:read"
+    MARKETPLACE_PUBLISH = "marketplace:publish"
+    MARKETPLACE_ADMIN = "marketplace:admin"
+
 
 class MessageType(str, Enum):
     """消息类型"""

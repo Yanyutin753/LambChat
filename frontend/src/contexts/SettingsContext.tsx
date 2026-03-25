@@ -4,7 +4,6 @@ import type { SettingsResponse } from "../types";
 
 interface SettingsContextValue {
   settings: SettingsResponse | null;
-  enableMcp: boolean;
   enableSkills: boolean;
   isLoading: boolean;
   error: string | null;
@@ -43,7 +42,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const value: SettingsContextValue = {
     settings,
-    enableMcp: getBooleanSetting("ENABLE_MCP"),
     enableSkills: getBooleanSetting("ENABLE_SKILLS"),
     isLoading,
     error,

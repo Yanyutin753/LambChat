@@ -1,0 +1,199 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lambchat
+
+---
+# MongoDB Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: lambchat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:8.2.5
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: "mongo_lambchat"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: "mongo_lambchat_123"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "300m"
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /data/db
+      volumes:
+      - name: mongo-data
+        emptyDir: {}
+
+---
+# MongoDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: lambchat
+spec:
+  selector:
+    app: mongodb
+  ports:
+  - port: 27017
+    targetPort: 27017
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: lambchat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:8.6.0
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: lambchat
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+
+---
+# LambChat App Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lambchat
+  namespace: lambchat
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: lambchat
+  template:
+    metadata:
+      labels:
+        app: lambchat
+    spec:
+      containers:
+      - name: lambchat
+        image: lambchat:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: REDIS_URL
+          value: "redis://redis:6379/0"
+        - name: MONGODB_URL
+          value: "mongodb://mongodb:27017"
+        - name: MONGODB_DB
+          value: "agent_state"
+        - name: MONGODB_USERNAME
+          value: "mongo_lambchat"
+        - name: MONGODB_PASSWORD
+          value: "mongo_lambchat_123"
+        - name: MONGODB_AUTH_SOURCE
+          value: "admin"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+
+---
+# LambChat Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: lambchat
+  namespace: lambchat
+spec:
+  type: LoadBalancer
+  selector:
+    app: lambchat
+  ports:
+  - port: 80
+    targetPort: 8080
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: lambchat
+  namespace: lambchat
+  annotations:
+    ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: lambchat.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lambchat
+            port:
+              number: 80

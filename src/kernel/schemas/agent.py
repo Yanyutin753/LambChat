@@ -35,6 +35,7 @@ class AgentRequest(BaseModel):
     )
     attachments: Optional[list[AttachmentSchema]] = Field(None, description="File attachments")
     context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
+    project_id: Optional[str] = Field(None, description="Project ID to assign to new session")
 
 
 class AgentStep(BaseModel):

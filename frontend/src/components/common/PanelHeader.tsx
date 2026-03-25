@@ -21,8 +21,12 @@ interface PanelHeaderProps {
   onSearchChange?: (value: string) => void;
   /** 搜索占位符 */
   searchPlaceholder?: string;
+  /** 搜索区域右侧附加控件 */
+  searchAccessory?: ReactNode;
   /** 额外的头部内容 */
   children?: ReactNode;
+  /** 额外 class */
+  className?: string;
 }
 
 export function PanelHeader({
@@ -33,10 +37,12 @@ export function PanelHeader({
   searchValue,
   onSearchChange,
   searchPlaceholder,
+  searchAccessory,
   children,
+  className,
 }: PanelHeaderProps) {
   return (
-    <div className="panel-header">
+    <div className={className ? `panel-header ${className}` : "panel-header"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3.5">
           {icon && (
@@ -64,18 +70,21 @@ export function PanelHeader({
 
       {/* 搜索框 */}
       {onSearchChange !== undefined && (
-        <div className="relative mt-2 sm:mt-3">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-          />
-          <input
-            type="text"
-            value={searchValue}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="panel-search"
-            placeholder={searchPlaceholder}
-          />
+        <div className="mt-2 flex items-center gap-2 sm:mt-3">
+          <div className="relative flex-1">
+            <Search
+              size={18}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+            />
+            <input
+              type="text"
+              value={searchValue}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="panel-search h-10"
+              placeholder={searchPlaceholder}
+            />
+          </div>
+          {searchAccessory}
         </div>
       )}
 

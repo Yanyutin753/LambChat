@@ -9,7 +9,7 @@ import json
 import mimetypes
 import uuid
 from io import StringIO
-from typing import Any
+from typing import Any, TypeAlias
 
 from langchain_core.runnables.schema import CustomStreamEvent, StandardStreamEvent
 
@@ -19,7 +19,7 @@ from src.infra.writer.present import Presenter
 logger = get_logger(__name__)
 
 # Type alias for astream_events event types
-StreamEvent = StandardStreamEvent | CustomStreamEvent
+StreamEvent: TypeAlias = StandardStreamEvent | CustomStreamEvent
 
 # 预定义工具名常量
 _TOOL_TASK = "task"

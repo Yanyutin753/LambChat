@@ -52,6 +52,10 @@ export enum Permission {
   // Agent
   AGENT_READ = "agent:read",
   AGENT_ADMIN = "agent:admin",
+  // Marketplace
+  MARKETPLACE_READ = "marketplace:read",
+  MARKETPLACE_PUBLISH = "marketplace:publish",
+  MARKETPLACE_ADMIN = "marketplace:admin",
 }
 
 // 用户信息
@@ -78,6 +82,12 @@ export interface UserCreate {
   email: string;
   password: string;
   roles?: string[];
+}
+
+// 注册响应
+export interface RegisterResponse {
+  user: User;
+  requires_verification: boolean;
 }
 
 // 用户更新请求

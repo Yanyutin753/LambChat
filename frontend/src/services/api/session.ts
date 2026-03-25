@@ -214,19 +214,24 @@ export const sessionApi = {
     message: string,
     sessionId?: string,
     agentOptions?: Record<string, boolean | string | number>,
+    projectId?: string,
   ): Promise<{
     session_id: string;
     run_id: string;
     trace_id: string;
     status: string;
   }> {
+    const body: Record<string, unknown> = {
+      message,
+      session_id: sessionId,
+      agent_options: agentOptions,
+    };
+    if (projectId) {
+      body.project_id = projectId;
+    }
     return authFetch(`${API_BASE}/api/chat/stream?agent_id=${agentId}`, {
       method: "POST",
-      body: JSON.stringify({
-        message,
-        session_id: sessionId,
-        agent_options: agentOptions,
-      }),
+      body: JSON.stringify(body),
     });
   },
 

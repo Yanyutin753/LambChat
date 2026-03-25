@@ -28,6 +28,7 @@ export function useSessionList(
   isProjectsCollapsed?: boolean,
   setIsProjectsCollapsed?: (collapsed: boolean) => void,
   sidebarVisible?: boolean,
+  isChatsCollapsed?: boolean,
 ): UseSessionListReturn {
   const [sessions, setSessions] = useState<BackendSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +48,8 @@ export function useSessionList(
   const loadSessions = async (reset = false) => {
     if (!reset && (isLoading || isLoadingMore)) return;
     if (!reset && !hasMore) return;
+    // Prevent infinite loops when collapsed sections hide all content
+    if (!reset && isChatsCollapsed) return;
 
     const targetSkip = reset ? 0 : skip;
     // Skip if already loading this exact skip value (prevents duplicate requests)
@@ -116,6 +119,9 @@ export function useSessionList(
 
   useEffect(() => {
     if (isLoading || isLoadingMore) return;
+    // Don't auto-fill when chats are collapsed — content is intentionally hidden,
+    // so loading more sessions won't fill visible space and causes infinite loop
+    if (isChatsCollapsed) return;
 
     // sessionListContent renders in both mobile & desktop sidebars.
     // Query DOM to find the scroll container that has actual dimensions.
@@ -154,6 +160,7 @@ export function useSessionList(
     isLoadingMore,
     isProjectsCollapsed,
     sidebarVisible,
+    isChatsCollapsed,
   ]);
 
   // Initial load on mount / refresh

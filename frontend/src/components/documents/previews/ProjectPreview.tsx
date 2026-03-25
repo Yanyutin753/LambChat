@@ -14,8 +14,10 @@ import {
   ExternalLink,
   X,
   AlertCircle,
+  Download,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { exportProjectZip } from "../../../utils/exportProjectZip";
 
 // Sandpack 支持的模板类型（精简版）
 type SandpackTemplate =
@@ -202,7 +204,7 @@ export default function ProjectPreview({
           </div>
 
           {/* 右侧：标签切换 + 操作按钮 */}
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 flex-nowrap">
             {/* 手机端：单个切换按钮 | 桌面端：双按钮组 */}
             {showTabs && (
               <>
@@ -268,6 +270,19 @@ export default function ProjectPreview({
                 title={t("project.toggleExplorer", "切换文件浏览器")}
               >
                 <FolderTree size={14} className="sm:w-4 sm:h-4" />
+              </button>
+            )}
+
+            {/* 导出 ZIP — 仅全屏模式 */}
+            {isFullscreen && (
+              <button
+                onClick={() => exportProjectZip(files, name)}
+                className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 text-xs font-medium transition-colors"
+              >
+                <Download size={14} />
+                <span className="hidden sm:inline">
+                  {t("project.exportZip")}
+                </span>
               </button>
             )}
 

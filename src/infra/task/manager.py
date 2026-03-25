@@ -55,8 +55,8 @@ class BackgroundTaskManager:
         # 使用 run_id 作为 key 管理状态
         self._tasks: Dict[str, asyncio.Task] = {}  # run_id -> Task
         self._run_info: Dict[
-            str, Dict[str, str]
-        ] = {}  # run_id -> {session_id, trace_id, agent_id, user_id}
+            str, Dict[str, Any]
+        ] = {}  # run_id -> {session_id, trace_id, agent_id, user_id, ...}
         self._pending_tasks: Dict[str, Dict[str, Any]] = {}  # run_id -> task context (queued tasks)
         self._lock = asyncio.Lock()
         self._storage = None
@@ -83,6 +83,7 @@ class BackgroundTaskManager:
         agent_options: Optional[Dict[str, Any]] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         run_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -109,7 +110,9 @@ class BackgroundTaskManager:
 
         async with self._lock:
             # 确保 session 记录存在
-            await self._executor.ensure_session(session_id, agent_id, user_id)
+            await self._executor.ensure_session(
+                session_id, agent_id, user_id, project_id=project_id
+            )
 
             # 更新 MongoDB session 状态（包含 current_run_id）
             await self._executor._update_session_status(
@@ -425,11 +428,19 @@ class BackgroundTaskManager:
         """
         清理残留的运行中任务（服务启动时调用）
 
-        只清理心跳超时的任务，说明任务所在的实例已经下线或卡死。
+        清理两类任务：
+        1. task_status=RUNNING：心跳超时的任务（executor 崩溃）
+        2. task_status=PENDING + 在 active set 中：心跳超时的任务
+           （任务被分派后 executor 崩溃，但状态未更新为 RUNNING）
         心跳还在的任务说明其他实例正在运行，不应清理。
         """
+        from .concurrency import get_concurrency_limiter
+
+        limiter = get_concurrency_limiter()
+        redis = limiter.redis
+
         try:
-            # 查找所有 task_status=running 的 session
+            # 清理 RUNNING 状态且心跳超时的任务
             cursor = self.storage.collection.find(
                 {"metadata.task_status": TaskStatus.RUNNING.value}
             )
@@ -439,6 +450,7 @@ class BackgroundTaskManager:
             for session in running_sessions:
                 session_id = session.get("_id")
                 run_id = session.get("metadata", {}).get("current_run_id")
+                user_id = session.get("user_id")
 
                 if not run_id:
                     continue
@@ -447,15 +459,14 @@ class BackgroundTaskManager:
                 heartbeat_exists = await self._heartbeat.check_exists(run_id)
 
                 if heartbeat_exists:
-                    # 心跳存在，说明其他实例正在运行此任务，跳过
                     logger.debug(
                         f"Task still running on another instance: session={session_id}, run_id={run_id}"
                     )
                     continue
 
-                # 心跳不存在，说明任务所在的实例已下线，清理此任务
+                # 心跳不存在，清理
                 logger.warning(
-                    f"Cleaning up stale task (no heartbeat): session={session_id}, run_id={run_id}"
+                    f"Cleaning up stale RUNNING task (no heartbeat): session={session_id}, run_id={run_id}"
                 )
                 if self._executor is None:
                     self._executor = TaskExecutor(self.storage, self._run_info, self._heartbeat)
@@ -465,20 +476,67 @@ class BackgroundTaskManager:
                     "Task interrupted (instance unavailable)",
                     run_id=run_id,
                 )
-                # 释放 Redis 并发槽位
-                user_id = session.get("user_id")
                 if user_id:
                     try:
-                        from .concurrency import get_concurrency_limiter
-
-                        limiter = get_concurrency_limiter()
                         await limiter.release(user_id, run_id)
                     except Exception as e:
                         logger.warning(f"Failed to release concurrency slot for stale task: {e}")
                 cleaned_count += 1
 
+            # 清理 PENDING 状态但心跳超时的任务（被分派后 executor 崩溃，状态未更新）
+            cursor = self.storage.collection.find(
+                {"metadata.task_status": TaskStatus.PENDING.value}
+            )
+            pending_sessions = await cursor.to_list(length=1000)
+
+            for session in pending_sessions:
+                session_id = str(session.get("_id"))
+                run_id = session.get("metadata", {}).get("current_run_id")
+                user_id = session.get("user_id")
+
+                if not run_id or not user_id:
+                    continue
+
+                # 检查是否在 active set 中
+                active_key = f"chat:active:{user_id}"
+                in_active = await redis.zscore(active_key, run_id) is not None
+                if not in_active:
+                    # 不在 active set 中，由 _replay_pending_queued_tasks 处理
+                    continue
+
+                # 在 active set 中，检查心跳是否超时
+                heartbeat_exists = await self._heartbeat.check_exists(run_id)
+                if heartbeat_exists:
+                    # 有心跳，说明有 worker 在处理
+                    logger.debug(
+                        f"Pending task still in active set (running elsewhere): session={session_id}, run_id={run_id}"
+                    )
+                    continue
+
+                # 心跳超时，清理
+                logger.warning(
+                    f"Cleaning up stale PENDING task (in active set, no heartbeat): "
+                    f"session={session_id}, run_id={run_id}"
+                )
+                if self._executor is None:
+                    self._executor = TaskExecutor(self.storage, self._run_info, self._heartbeat)
+                await self._executor._update_session_status(
+                    session_id,
+                    TaskStatus.FAILED,
+                    "Task interrupted (instance unavailable)",
+                    run_id=run_id,
+                )
+                try:
+                    await limiter.release(user_id, run_id)
+                except Exception as e:
+                    logger.warning(f"Failed to release concurrency slot for stale task: {e}")
+                cleaned_count += 1
+
             if cleaned_count > 0:
                 logger.info(f"Cleaned up {cleaned_count} stale tasks without heartbeat")
+
+            # 重放 PENDING session 的排队任务（服务器重启后恢复）
+            await self._replay_pending_queued_tasks()
 
             # 清理过期的排队条目
             await self._cleanup_stale_queues()
@@ -517,6 +575,98 @@ class BackgroundTaskManager:
                     break
         except Exception as e:
             logger.warning(f"Failed to cleanup stale queues: {e}")
+
+    async def _replay_pending_queued_tasks(self) -> None:
+        """
+        服务器重启后重放 PENDING 状态的排队任务。
+
+        排队任务在 Redis 队列中持久化，但进程内存（_run_info 等）在重启后丢失。
+        对每个 PENDING session：
+        - 队列条目仍在 → 触发 release() 释放并发槽，触发 _try_dequeue_next 重新分派
+        - 队列条目已消失 + 无心跳 → 任务被遗弃，标记为 FAILED
+        """
+        try:
+            from .concurrency import get_concurrency_limiter
+
+            limiter = get_concurrency_limiter()
+            redis = limiter.redis
+
+            # 查找所有 task_status=pending 的 session
+            cursor = self.storage.collection.find(
+                {"metadata.task_status": TaskStatus.PENDING.value}
+            )
+            pending_sessions = await cursor.to_list(length=1000)
+
+            replayed = 0
+            abandoned = 0
+
+            for session in pending_sessions:
+                session_id = str(session.get("_id"))
+                run_id = session.get("metadata", {}).get("current_run_id")
+                user_id = session.get("user_id")
+
+                if not run_id or not user_id:
+                    continue
+
+                # 检查 Redis 队列中是否还有这个任务的条目
+                queue_key = f"chat:queue:{user_id}"
+                entries = await redis.lrange(queue_key, 0, -1)
+                queue_entry = None
+                for entry in entries:
+                    data = json.loads(entry)
+                    if data.get("run_id") == run_id:
+                        queue_entry = data
+                        break
+
+                if queue_entry:
+                    # 队列条目存在，触发 release 释放并发槽 → 会触发 _try_dequeue_next
+                    logger.info(
+                        f"Replaying queued task on startup: session={session_id}, run_id={run_id}"
+                    )
+                    try:
+                        await limiter.release(user_id, run_id)
+                        replayed += 1
+                    except Exception as e:
+                        logger.warning(f"Failed to replay queued task {run_id}: {e}")
+                else:
+                    # 队列条目已消失：任务已被分派或被超时清理
+                    # - in_active：cleanup_stale_tasks 已处理（心跳超时后标记 FAILED）
+                    # - 有心跳：其他 worker 在处理，不动
+                    # - 无心跳且不在 active：任务被遗弃，标记 FAILED
+                    active_key = f"chat:active:{user_id}"
+                    in_active = await redis.zscore(active_key, run_id) is not None
+                    heartbeat_exists = await self._heartbeat.check_exists(run_id)
+
+                    if in_active or heartbeat_exists:
+                        # 任务正在被处理（in_active 或有心跳），cleanup_stale_tasks 会处理超时情况
+                        logger.debug(
+                            f"Pending task still active or running elsewhere: "
+                            f"session={session_id}, run_id={run_id}"
+                        )
+                    else:
+                        # 既不在 active set 也没有心跳 → 任务被遗弃
+                        logger.warning(
+                            f"Abandoned queued task (no queue entry, no active, no heartbeat): "
+                            f"session={session_id}, run_id={run_id}"
+                        )
+                        if self._executor is None:
+                            self._executor = TaskExecutor(
+                                self.storage, self._run_info, self._heartbeat
+                            )
+                        await self._executor._update_session_status(
+                            session_id,
+                            TaskStatus.FAILED,
+                            "Task abandoned (server restarted while queued)",
+                            run_id=run_id,
+                        )
+                        abandoned += 1
+
+            if replayed > 0:
+                logger.info(f"Replayed {replayed} queued tasks on startup")
+            if abandoned > 0:
+                logger.warning(f"Marked {abandoned} abandoned queued tasks as FAILED")
+        except Exception as e:
+            logger.error(f"Failed to replay pending queued tasks: {e}")
 
     async def shutdown(self) -> None:
         """

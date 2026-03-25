@@ -8,10 +8,12 @@ import type {
   LoginRequest,
   TokenResponse,
   PermissionsResponse,
+  RegisterResponse,
 } from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 import { setTokens, clearTokens, getRefreshToken } from "./token";
+import i18n from "../../i18n";
 
 export const authApi = {
   /**
@@ -47,7 +49,10 @@ export const authApi = {
   /**
    * 用户注册
    */
-  async register(userData: UserCreate, turnstileToken?: string): Promise<User> {
+  async register(
+    userData: UserCreate,
+    turnstileToken?: string,
+  ): Promise<RegisterResponse> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -55,7 +60,7 @@ export const authApi = {
       headers["X-Turnstile-Token"] = turnstileToken;
     }
 
-    return authFetch<User>(`${API_BASE}/api/auth/register`, {
+    return authFetch<RegisterResponse>(`${API_BASE}/api/auth/register`, {
       method: "POST",
       skipAuth: true,
       body: JSON.stringify(userData),
@@ -72,18 +77,23 @@ export const authApi = {
       throw new Error("No refresh token available");
     }
 
-    const response = await authFetch<TokenResponse>(
-      `${API_BASE}/api/auth/refresh`,
-      {
-        method: "POST",
-        skipAuth: true,
-        body: JSON.stringify({ refresh_token: refreshToken }),
+    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept-Language": i18n.language || "en",
       },
-    );
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
 
-    setTokens(response.access_token, response.refresh_token);
+    if (!response.ok) {
+      throw new Error("Token refresh failed");
+    }
 
-    return response;
+    const tokenResponse = (await response.json()) as TokenResponse;
+    setTokens(tokenResponse.access_token, tokenResponse.refresh_token);
+
+    return tokenResponse;
   },
 
   /**

@@ -142,7 +142,7 @@ class TraceStorage:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
-        创建新的 trace 文档
+        创建 trace 文档（幂等：若已存在则跳过）
 
         Args:
             trace_id: 唯一 trace 标识
@@ -153,8 +153,10 @@ class TraceStorage:
             metadata: 额外元数据
 
         Returns:
-            是否创建成功
+            是否创建成功（已存在也返回 True）
         """
+        from pymongo.errors import DuplicateKeyError
+
         now = _utc_now()
         doc: Dict[str, Any] = {
             "trace_id": trace_id,
@@ -175,6 +177,10 @@ class TraceStorage:
             logger.info(
                 f"Created trace {trace_id} for session {session_id}, inserted_id={result.inserted_id}"
             )
+            return True
+        except DuplicateKeyError:
+            # Trace already exists (e.g., queued path created it before dequeue)
+            logger.debug("Trace %s already exists, skipping", trace_id)
             return True
         except Exception as e:
             logger.error(f"Failed to create trace {trace_id}: {e}")

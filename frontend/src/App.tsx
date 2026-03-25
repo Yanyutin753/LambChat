@@ -48,7 +48,7 @@ const AuthPage = lazy(() =>
   import("./components/auth/AuthPage").then((m) => ({ default: m.AuthPage })),
 );
 const AppContent = lazy(() =>
-  import("./components/layout/AppContent").then((m) => ({
+  import("./components/layout/AppContent/index").then((m) => ({
     default: m.AppContent,
   })),
 );
@@ -97,6 +97,11 @@ function ChatPage() {
 function SkillsPage() {
   usePageTitle("nav.skills");
   return <AppContent activeTab="skills" />;
+}
+
+function MarketplacePage() {
+  usePageTitle("nav.marketplace");
+  return <AppContent activeTab="marketplace" />;
 }
 
 function UsersPage() {
@@ -209,6 +214,19 @@ function App() {
                 toastMessage={t("errors.noPermission")}
               >
                 <SkillsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/marketplace"
+            element={
+              <ProtectedRoute
+                permissions={[Permission.MARKETPLACE_READ]}
+                redirectTo="/chat"
+                showToast
+                toastMessage={t("errors.noPermission")}
+              >
+                <MarketplacePage />
               </ProtectedRoute>
             }
           />

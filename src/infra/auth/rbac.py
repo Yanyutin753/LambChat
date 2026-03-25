@@ -162,6 +162,9 @@ class RBACManager:
                     Permission.CHANNEL_DELETE.value,
                     # Agent
                     Permission.AGENT_READ.value,
+                    # Marketplace
+                    Permission.MARKETPLACE_READ.value,
+                    Permission.MARKETPLACE_PUBLISH.value,
                 ],
                 "limits": {"max_channels": 10},
                 "is_system": False,
@@ -178,6 +181,8 @@ class RBACManager:
                     Permission.CHANNEL_READ.value,
                     # Agent
                     Permission.AGENT_READ.value,
+                    # Marketplace
+                    Permission.MARKETPLACE_READ.value,
                 ],
                 "limits": {"max_channels": 0},  # 不能创建渠道
                 "is_system": False,

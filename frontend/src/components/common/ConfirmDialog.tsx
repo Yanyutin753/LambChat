@@ -69,19 +69,15 @@ export function ConfirmDialog({
         "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-white",
     },
     info: {
-      icon: "text-blue-500 dark:text-blue-400",
-      confirmButton:
-        "bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white",
+      icon: "text-[var(--theme-primary)]",
+      confirmButton: "btn-primary shadow-sm",
     },
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onCancel}
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
       {/* Dialog */}
       <div className="relative z-10 w-full max-w-sm mx-4 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">

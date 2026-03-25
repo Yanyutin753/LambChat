@@ -4,18 +4,66 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ChevronRight,
-  Star,
-  Folder as FolderIcon,
-  MoreHorizontal,
-} from "lucide-react";
+import { Star, MoreHorizontal } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import toast from "react-hot-toast";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
 import { projectApi } from "../../services/api";
 import { SessionItem } from "./SessionItem";
 import { ProjectMenu } from "./ProjectMenu";
+
+// Dynamic icon renderer - supports both lucide icons and emojis
+function DynamicIcon({
+  name,
+  size,
+  className,
+}: {
+  name?: string;
+  size?: number;
+  className?: string;
+}) {
+  if (!name)
+    return (
+      <span
+        className={className}
+        style={{ fontSize: size ? size * 0.9 : undefined }}
+      >
+        📁
+      </span>
+    );
+  // Check if it's an emoji (simple heuristic: has emoji characters but no letters)
+  const isEmoji =
+    /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(
+      name,
+    );
+  if (isEmoji) {
+    return (
+      <span
+        className={className}
+        style={{ fontSize: size ? size * 0.9 : undefined }}
+      >
+        {name}
+      </span>
+    );
+  }
+  const IconComponent = (
+    LucideIcons as unknown as Record<
+      string,
+      React.ComponentType<{ size?: number; className?: string }>
+    >
+  )[name];
+  return IconComponent ? (
+    <IconComponent size={size} className={className} />
+  ) : (
+    <span
+      className={className}
+      style={{ fontSize: size ? size * 0.9 : undefined }}
+    >
+      📁
+    </span>
+  );
+}
 
 interface ProjectItemProps {
   project: Project;
@@ -28,7 +76,10 @@ interface ProjectItemProps {
   onSessionUpdate: (session: BackendSession) => void;
   onRenameProject: (projectId: string, name: string) => void;
   onDeleteProject: (projectId: string) => void;
+  onUpdateIcon?: (projectId: string, icon: string) => void;
   draggingSessionId?: string | null;
+  onNewSessionInProject?: (projectId: string) => void;
+  forceExpandProjectId?: string | null;
 }
 
 export function ProjectItem({
@@ -43,6 +94,9 @@ export function ProjectItem({
   onRenameProject,
   onDeleteProject,
   draggingSessionId,
+  onNewSessionInProject,
+  forceExpandProjectId,
+  onUpdateIcon,
 }: ProjectItemProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -60,11 +114,34 @@ export function ProjectItem({
 
   const isFavorites = project.type === "favorites";
 
+  // Auto-expand when a new session is created in this project
+  useEffect(() => {
+    if (forceExpandProjectId === project.id) {
+      setIsExpanded(true);
+    }
+  }, [forceExpandProjectId, project.id]);
+
   // Start editing
   const handleStartEdit = () => {
     setEditName(project.name);
     setIsEditing(true);
     setIsMenuOpen(false);
+  };
+
+  const [isEditingIcon, setIsEditingIcon] = useState(false);
+  const [editIcon, setEditIcon] = useState("");
+
+  const handleStartIconEdit = () => {
+    setEditIcon(project.icon || "📁");
+    setIsEditingIcon(true);
+  };
+
+  const handleSaveIcon = () => {
+    const trimmedIcon = editIcon.trim() || "📁";
+    setIsEditingIcon(false);
+    if (trimmedIcon !== project.icon) {
+      onUpdateIcon?.(project.id, trimmedIcon);
+    }
   };
 
   // Focus input when editing starts
@@ -183,7 +260,7 @@ export function ProjectItem({
         onDrop={handleDrop}
         data-project-drop
         data-project-id={project.id}
-        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 transition-all duration-150 ${
+        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-150 ${
           isDragOver || draggingSessionId
             ? "bg-stone-200/60 dark:bg-stone-700/40 ring-1 ring-inset ring-stone-300 dark:ring-stone-600"
             : isExpanded
@@ -191,25 +268,36 @@ export function ProjectItem({
               : "hover:bg-stone-100 dark:hover:bg-stone-800/30"
         }`}
       >
-        {/* Chevron icon */}
-        <ChevronRight
-          size={14}
-          className={`flex-shrink-0 text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
-            isExpanded ? "rotate-90" : ""
-          }`}
-        />
-
-        {/* Project icon */}
-        {isFavorites ? (
-          <Star
-            size={15}
-            className="flex-shrink-0 text-amber-500 fill-amber-500"
+        {/* Project icon - editable */}
+        {isEditingIcon ? (
+          <input
+            type="text"
+            value={editIcon}
+            onChange={(e) => setEditIcon(e.target.value)}
+            onBlur={handleSaveIcon}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSaveIcon();
+              if (e.key === "Escape") setIsEditingIcon(false);
+            }}
+            className="w-16 text-xs bg-white dark:bg-stone-700 border border-stone-300 dark:border-stone-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-stone-400"
+            autoFocus
           />
         ) : (
-          <FolderIcon
-            size={15}
-            className="flex-shrink-0 text-stone-400 dark:text-stone-500 group-hover:text-stone-500 dark:group-hover:text-stone-400 transition-colors"
-          />
+          <button
+            onClick={handleStartIconEdit}
+            className="flex-shrink-0 hover:opacity-70 transition-opacity"
+            title="Click to edit icon"
+          >
+            {isFavorites ? (
+              <Star size={15} className="text-amber-500 fill-amber-500" />
+            ) : (
+              <DynamicIcon
+                name={project.icon}
+                size={15}
+                className="text-stone-400 dark:text-stone-500"
+              />
+            )}
+          </button>
         )}
 
         {/* Project name - editable or display */}
@@ -281,6 +369,11 @@ export function ProjectItem({
           onClose={() => setIsMenuOpen(false)}
           onRename={handleStartEdit}
           onDelete={() => onDeleteProject(project.id)}
+          onNewSessionInProject={
+            onNewSessionInProject
+              ? () => onNewSessionInProject(project.id)
+              : undefined
+          }
           anchorEl={menuAnchor}
         />
       )}

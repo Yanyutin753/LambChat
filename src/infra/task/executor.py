@@ -58,6 +58,8 @@ class TaskExecutor:
         disabled_tools: Optional[List[str]] = None,
         agent_options: Optional[Dict[str, Any]] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
+        existing_trace_id: Optional[str] = None,
+        user_message_written: bool = False,
     ) -> None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -78,6 +80,7 @@ class TaskExecutor:
                     agent_id=agent_id,
                     user_id=user_id,
                     run_id=run_id,  # 传递 run_id
+                    trace_id=existing_trace_id,  # reuse trace from queued path
                     enable_storage=True,
                 )
             )
@@ -96,17 +99,26 @@ class TaskExecutor:
 
             await presenter._ensure_trace()
 
+            # Check if user:message was already written (queued path wrote it to MongoDB)
+            # In single-worker, also check _run_info (set by chat.py); in multi-worker, use parameter
+            already_written = user_message_written or self._run_info.get(run_id, {}).get(
+                "user_message_written", False
+            )
+
             # 立即发送 user:message 事件（任务开始时固定发送）
-            if message:
+            if message and not already_written:
                 await presenter.emit_user_message(message, attachments=attachments)
 
-            # 保存 trace_id 和 agent_id 到 run_info
-            self._run_info[run_id] = {
+            # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
+            run_info_entry: dict[str, Any] = {
                 "session_id": session_id,
                 "trace_id": presenter.trace_id,
                 "agent_id": agent_id,
                 "user_id": user_id,
             }
+            if already_written:
+                run_info_entry["user_message_written"] = True
+            self._run_info[run_id] = run_info_entry
 
             dual_writer = get_dual_writer()
 
@@ -376,6 +388,7 @@ class TaskExecutor:
         session_id: str,
         agent_id: str,
         user_id: str,
+        project_id: str | None = None,
     ) -> None:
         """确保 session 记录存在，不存在则创建
 
@@ -396,15 +409,20 @@ class TaskExecutor:
                 return
 
             # 创建新的 session
+            metadata = {"agent_id": agent_id}
+            if project_id:
+                metadata["project_id"] = project_id
             await self._storage.create(
                 SessionCreate(
                     name="新对话",
-                    metadata={"agent_id": agent_id},
+                    metadata=metadata,
                 ),
                 user_id=user_id,
                 session_id=session_id,
             )
-            logger.info(f"Created session {session_id} for user {user_id}")
+            logger.info(
+                f"Created session {session_id} for user {user_id} (project_id={project_id})"
+            )
         except PermissionError:
             raise  # 重新抛出权限错误
         except Exception as e:

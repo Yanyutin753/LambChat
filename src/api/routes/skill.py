@@ -1,919 +1,738 @@
 """
-Skill API router
+用户 Skills API
 
-Provides endpoints for managing skill configurations.
-Follows the same pattern as MCP routes for consistency.
+提供用户 Skills 的 CRUD、Toggle 和发布到商店操作。
+Simplified architecture: files + metadata (stored in __meta__ doc), enabled/disabled in user metadata.
 """
 
 import io
-import re
 import zipfile
-from typing import Optional, cast
+from typing import Optional
 
-import yaml
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from src.api.deps import require_permissions
-from src.infra.skill.github_sync import GitHubSyncService
-from src.infra.skill.storage import SkillStorage, SystemSkill, UserSkill
-from src.kernel.schemas.skill import (
-    GitHubInstallRequest,
-    GitHubPreviewResponse,
-    SkillCreate,
-    SkillExportResponse,
-    SkillImportRequest,
-    SkillImportResponse,
-    SkillMoveRequest,
-    SkillMoveResponse,
-    SkillResponse,
-    SkillSource,
-    SkillsResponse,
-    SkillToggleResponse,
-    SkillUpdate,
+from src.infra.skill.marketplace import MarketplaceStorage
+from src.infra.skill.storage import SkillStorage
+from src.infra.skill.types import (
+    InstalledFrom,
+    MarketplaceSkillCreate,
+    MarketplaceSkillResponse,
+    MarketplaceSkillUpdate,
+    PublishToMarketplaceRequest,
+    UserSkill,
 )
+from src.infra.user.storage import UserStorage
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
-admin_router = APIRouter()
+
+
+def get_storage() -> SkillStorage:
+    return SkillStorage()
+
+
+def get_marketplace_storage() -> MarketplaceStorage:
+    return MarketplaceStorage()
+
 
 MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
 
 
-# Dependency to get SkillStorage
-async def get_skill_storage() -> SkillStorage:
-    return SkillStorage()
+def sanitize_file_path(path: str) -> str:
+    """Sanitize file path to prevent path traversal."""
+    parts = [p for p in path.replace("\\", "/").split("/") if p and p != ".."]
+    return "/".join(parts)
 
 
-# Dependency to get GitHubSyncService
-async def get_github_sync_service() -> GitHubSyncService:
-    return GitHubSyncService()
+class UpdateFileRequest(BaseModel):
+    """更新文件内容的请求"""
+
+    content: str
 
 
-def _is_admin(user: TokenPayload) -> bool:
-    """Check if user has admin permissions"""
-    return "skill:admin" in (user.permissions or [])
+def _parse_zip_skills(zip_content: bytes) -> list[tuple[str, dict[str, str]]]:
+    """
+    解析 ZIP 内容，找到所有 SKILL.md 文件，每个 SKILL.md 的上级文件夹作为一个独立 skill。
+
+    Returns:
+        list of (skill_name, files_dict) tuples
+    """
+    if len(zip_content) > MAX_ZIP_SIZE:
+        raise ValueError("ZIP file too large (max 10MB)")
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(zip_content))
+    except zipfile.BadZipFile:
+        raise ValueError("Invalid ZIP file")
+
+    try:
+        names = zf.namelist()
+
+        # 检测并去掉单顶层目录前缀（如 awesome-claude-skills/xxx → xxx）
+        top_level = set()
+        for n in names:
+            parts = n.split("/")
+            if parts[0]:
+                top_level.add(parts[0])
+        prefix = ""
+        if len(top_level) == 1:
+            top = list(top_level)[0]
+            is_dir = any(n.startswith(top + "/") for n in names)
+            if is_dir:
+                prefix = top + "/"
+
+        # 读取所有有效文件
+        all_files: dict[str, str] = {}
+        for name in names:
+            if (
+                name.endswith("/")
+                or "__MACOSX" in name
+                or name.endswith(".DS_Store")
+                or name.endswith("Thumbs.db")
+                or ".git/" in name
+            ):
+                continue
+            try:
+                raw = zf.read(name)
+            except Exception:
+                continue
+            try:
+                text = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            all_files[name] = text
+
+        # 去掉顶层目录前缀
+        if prefix:
+            all_files = {
+                k[len(prefix) :]: v
+                for k, v in all_files.items()
+                if k.startswith(prefix) and k[len(prefix) :]
+            }
+
+        # 找到所有 SKILL.md 的路径
+        skill_md_paths = [p for p in all_files.keys() if p.split("/")[-1].lower() == "skill.md"]
+
+        if not skill_md_paths:
+            raise ValueError("No SKILL.md found in ZIP")
+
+        skills: list[tuple[str, dict[str, str]]] = []
+
+        for skill_md_path in skill_md_paths:
+            # SKILL.md 所在的文件夹就是 skill 的根目录
+            skill_root = skill_md_path.rsplit("/", 1)[0] if "/" in skill_md_path else ""
+            skill_prefix = skill_root + "/" if skill_root else ""
+
+            # 收集该 skill 根目录下的所有文件（相对路径）
+            files: dict[str, str] = {}
+            for fpath, content in all_files.items():
+                if fpath.startswith(skill_prefix):
+                    rel = fpath[len(skill_prefix) :]
+                    if rel:
+                        files[rel] = content
+
+            # 优先使用文件夹名（路径安全），回退到 SKILL.md 的 name 字段
+            skill_md_content = files.get("SKILL.md", all_files.get(skill_md_path, ""))
+            skill_name = None
+            if skill_root:
+                skill_name = skill_root
+            if not skill_name and skill_md_content:
+                try:
+                    from src.infra.skill.parser import parse_skill_md, sanitize_skill_name
+
+                    parsed_name, _, _ = parse_skill_md(skill_md_content)
+                    if parsed_name:
+                        skill_name = sanitize_skill_name(parsed_name)
+                except Exception:
+                    pass
+            if not skill_name:
+                skill_name = "unnamed-skill"
+
+            if files:
+                skills.append((skill_name, files))
+
+        if not skills:
+            raise ValueError("No valid skills found in ZIP")
+
+        return skills
+    finally:
+        zf.close()
 
 
 # ==========================================
-# User API Endpoints - Static routes first
+# 用户 Skills API
 # ==========================================
 
 
-@router.get("/", response_model=SkillsResponse)
-async def list_skills(
-    user: TokenPayload = Depends(require_permissions("skill:read")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Get all visible skills (system + user's own)"""
-    is_admin = _is_admin(user)
-    skills = await storage.get_visible_skills(user.sub, is_admin)
-    return SkillsResponse(skills=skills, total=len(skills))
-
-
-@router.post("/", response_model=SkillResponse, status_code=201)
-async def create_skill(
-    data: SkillCreate,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Create a new user skill"""
-    # Check if name already exists in user's skills
-    existing = await storage.get_user_skill(data.name, user.sub)
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Skill '{data.name}' already exists")
-
-    # Also check system skills (users can't override with same name unless admin)
-    system_existing = await storage.get_system_skill(data.name)
-    if system_existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Skill '{data.name}' already exists as a system skill",
-        )
-
-    skill = await storage.create_user_skill(data, user.sub)
-
-    # Get files for response
-    files = data.files
-    if not files and data.content:
-        files = {"SKILL.md": data.content}
-
-    return SkillResponse(
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        files=files,
-        enabled=skill.enabled,
-        source=skill.source,
-        github_url=skill.github_url,
-        version=skill.version,
-        is_system=False,
-        can_edit=True,
-        created_at=skill.created_at,
-        updated_at=skill.updated_at,
-    )
-
-
-@router.post("/import", response_model=SkillImportResponse)
-async def import_skills(
-    data: SkillImportRequest,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Import skills from JSON configuration"""
-    result = await storage.import_skills(data, user.sub, is_admin=False)
-    return result
-
-
-@router.get("/export", response_model=SkillExportResponse)
-async def export_skills(
-    user: TokenPayload = Depends(require_permissions("skill:read")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Export user's skills as JSON configuration"""
-    config = await storage.export_user_skills(user.sub)
-    return config
-
-
-@router.post("/github/preview", response_model=GitHubPreviewResponse)
-async def preview_github_skills(
-    data: GitHubInstallRequest,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
-    github_sync: GitHubSyncService = Depends(get_github_sync_service),
-):
-    """Preview skills available in a GitHub repository"""
-    try:
-        result = await github_sync.fetch_skills_from_repo(data.repo_url, data.branch)
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch skills from repository: {str(e)}"
-        )
-
-
-@router.post("/github/install", response_model=SkillImportResponse)
-async def install_github_skills(
-    data: GitHubInstallRequest,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
-    storage: SkillStorage = Depends(get_skill_storage),
-    github_sync: GitHubSyncService = Depends(get_github_sync_service),
-):
-    """Install skills from a GitHub repository"""
-    try:
-        # First fetch the preview to get skill paths
-        preview = await github_sync.fetch_skills_from_repo(data.repo_url, data.branch)
-
-        if not preview.skills:
-            return SkillImportResponse(
-                message="No skills found in repository",
-                imported_count=0,
-                skipped_count=0,
-                errors=[],
-            )
-
-        # Filter to selected skills if specified
-        skill_paths = (
-            [s.path for s in preview.skills if s.name in data.skill_names]
-            if data.skill_names
-            else [s.path for s in preview.skills]
-        )
-
-        # Fetch full content for each skill
-        skills_data = await github_sync.fetch_all_skill_contents(
-            data.repo_url, skill_paths, data.branch
-        )
-
-        # Install skills
-        result = await storage.install_github_skills(data, skills_data, user.sub, is_admin=False)
-        return result
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to install skills: {str(e)}")
-
-
-@router.post("/upload", response_model=SkillResponse, status_code=201)
-async def upload_skill(
+@router.post("/upload/preview")
+async def preview_zip_skills(
     file: UploadFile,
     user: TokenPayload = Depends(require_permissions("skill:write")),
-    storage: SkillStorage = Depends(get_skill_storage),
+    storage: SkillStorage = Depends(get_storage),
 ):
-    """Upload and install a skill from a ZIP file"""
+    """预览 ZIP 文件中的 skills（不创建，返回 skill 列表供用户选择）"""
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
 
     try:
         content = await file.read()
-        if len(content) > MAX_ZIP_SIZE:
-            raise HTTPException(status_code=400, detail="ZIP file too large (max 10MB)")
-        zf = zipfile.ZipFile(io.BytesIO(content))
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid ZIP file")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to read file content")
 
     try:
-        skill_data = _parse_zip_to_skill(zf)
+        skills = _parse_zip_skills(content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        # Check if name already exists
-        existing = await storage.get_user_skill(skill_data["name"], user.sub)
-        if existing:
-            raise HTTPException(
-                status_code=400, detail=f"Skill '{skill_data['name']}' already exists"
-            )
+    # 批量检查哪些已存在
+    user_skills = await storage.list_user_skills(user.sub)
+    existing_names = {s["skill_name"] for s in user_skills}
 
-        system_existing = await storage.get_system_skill(skill_data["name"])
-        if system_existing:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Skill '{skill_data['name']}' already exists as a system skill",
-            )
+    skill_list = []
+    for skill_name, files in skills:
+        # 提取 description
+        description = ""
+        skill_md_content = files.get("SKILL.md", "")
+        if skill_md_content:
+            try:
+                from src.infra.skill.parser import parse_skill_md
 
-        create_data = SkillCreate(**skill_data)
-        skill = await storage.create_user_skill(create_data, user.sub)
-    finally:
-        zf.close()
+                _, desc, tags = parse_skill_md(skill_md_content)
+                if desc:
+                    description = desc
+            except Exception:
+                pass
 
-    return SkillResponse(
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        files=create_data.files,
-        enabled=skill.enabled,
-        source=skill.source,
-        github_url=skill.github_url,
-        version=skill.version,
-        is_system=False,
-        can_edit=True,
-        created_at=skill.created_at,
-        updated_at=skill.updated_at,
-    )
-
-
-def _parse_zip_to_skill(zf: zipfile.ZipFile) -> dict:
-    """Parse a ZIP file into skill data (name, description, content, files)."""
-    # Collect all files, stripping directory prefixes
-    all_files: dict[str, str] = {}
-    skill_md_content: str | None = None
-
-    # Determine if ZIP has a single top-level directory
-    names = zf.namelist()
-    top_level = set()
-    for n in names:
-        parts = n.split("/")
-        if parts[0]:
-            top_level.add(parts[0])
-
-    prefix = ""
-    if len(top_level) == 1:
-        top = list(top_level)[0]
-        # Verify it is a directory (all other paths start with it/)
-        is_dir = any(n.startswith(top + "/") for n in names)
-        if is_dir:
-            prefix = top + "/"
-
-    for name in names:
-        if (
-            name.endswith("/")
-            or "__MACOSX" in name
-            or name.endswith(".DS_Store")
-            or name.endswith("Thumbs.db")
-            or ".git/" in name
-        ):
-            continue
-        if name.startswith(prefix):
-            rel_path = name[len(prefix) :]
-        else:
-            rel_path = name
-        if not rel_path:
-            continue
-
-        try:
-            raw = zf.read(name)
-        except Exception:
-            continue
-
-        # Skip binary files
-        try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-
-        all_files[rel_path] = text
-
-        if rel_path == "SKILL.md":
-            skill_md_content = text
-
-    if not skill_md_content:
-        raise HTTPException(status_code=400, detail="ZIP must contain a SKILL.md file")
-
-    # Parse YAML frontmatter
-    fm = _parse_frontmatter(skill_md_content)
-
-    skill_name = fm.get("name", "")
-    # Fallback: use directory name from prefix
-    if not skill_name and prefix:
-        skill_name = prefix.rstrip("/")
-    if not skill_name:
-        raise HTTPException(
-            status_code=400, detail="Skill name not found in SKILL.md frontmatter or directory name"
+        skill_list.append(
+            {
+                "name": skill_name,
+                "description": description,
+                "file_count": len(files),
+                "files": sorted(files.keys()),
+                "already_exists": skill_name in existing_names,
+            }
         )
 
-    # Sanitize skill name
-    if not re.match(r"^[\w\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af\-.]+$", skill_name):
-        raise HTTPException(status_code=400, detail=f"Invalid skill name: {skill_name}")
-
     return {
-        "name": skill_name,
-        "description": fm.get("description", ""),
-        "content": skill_md_content,
-        "files": all_files,
-        "enabled": fm.get("enabled", True),
-        "version": fm.get("version"),
-        "source": SkillSource.MANUAL,
+        "skill_count": len(skill_list),
+        "skills": skill_list,
     }
 
 
-def _parse_frontmatter(content: str) -> dict:
-    """Parse YAML frontmatter from markdown content."""
-    match = re.match(r"^---\s*\r?\n(.*?)\r?\n---", content, re.DOTALL)
-    if not match:
-        return {}
-    try:
-        return yaml.safe_load(match.group(1)) or {}
-    except yaml.YAMLError:
-        return {}
-
-
-# ==========================================
-# User API Endpoints - Dynamic routes (with path parameters)
-# MUST come after static routes to avoid route shadowing
-# ==========================================
-
-
-@router.get("/{name}", response_model=SkillResponse)
-async def get_skill(
-    name: str,
-    user: TokenPayload = Depends(require_permissions("skill:read")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Get a specific skill"""
-    # Try user skill first
-    skill = await storage.get_user_skill(name, user.sub)
-    if skill:
-        files = await storage.get_skill_files(name, user_id=user.sub)
-        return SkillResponse(
-            name=skill.name,
-            description=skill.description,
-            content=skill.content,
-            files=files,
-            enabled=skill.enabled,
-            source=skill.source,
-            github_url=skill.github_url,
-            version=skill.version,
-            is_system=False,
-            can_edit=True,
-            created_at=skill.created_at,
-            updated_at=skill.updated_at,
-        )
-
-    # Try system skill
-    system_skill = await storage.get_system_skill(name)
-    if system_skill:
-        is_admin = _is_admin(user)
-        files = await storage.get_skill_files(name, user_id=None)
-        return SkillResponse(
-            name=system_skill.name,
-            description=system_skill.description,
-            content=system_skill.content,
-            files=files,
-            enabled=system_skill.enabled,
-            source=system_skill.source,
-            github_url=system_skill.github_url,
-            version=system_skill.version,
-            is_system=True,
-            can_edit=is_admin,
-            created_at=system_skill.created_at,
-            updated_at=system_skill.updated_at,
-        )
-
-    raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
-
-
-@router.put("/{name}", response_model=SkillResponse)
-async def update_skill(
-    name: str,
-    data: SkillUpdate,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Update a user skill or system skill (admin can change is_system type)"""
-    is_admin = _is_admin(user)
-
-    # Check if admin is trying to change is_system type
-    if is_admin and data.is_system is not None:
-        # Get current skill type
-        user_skill = await storage.get_user_skill(name, user.sub)
-        system_skill = await storage.get_system_skill(name)
-
-        current_is_system = system_skill is not None
-        new_is_system = data.is_system
-
-        # Remove is_system from updates to avoid passing it to update methods
-        update_data = data.model_copy()
-        update_data.is_system = None
-
-        if current_is_system and not new_is_system:
-            # Demote system skill to user skill
-            skill: Optional[UserSkill] | Optional[SystemSkill] = await storage.demote_to_user_skill(
-                name, user.sub, user.sub
-            )
-            if not skill:
-                raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
-            # Apply remaining updates to the new user skill
-            if any(
-                [
-                    update_data.description is not None,
-                    update_data.content is not None,
-                    update_data.enabled is not None,
-                    update_data.files is not None,
-                ]
-            ):
-                skill = await storage.update_user_skill(name, update_data, user.sub)
-        elif not current_is_system and new_is_system:
-            # Promote user skill to system skill
-            skill = await storage.promote_to_system_skill(name, user.sub, user.sub)
-            if not skill:
-                raise HTTPException(status_code=404, detail=f"User skill '{name}' not found")
-            # Apply remaining updates to the new system skill
-            if any(
-                [
-                    update_data.description is not None,
-                    update_data.content is not None,
-                    update_data.enabled is not None,
-                    update_data.files is not None,
-                ]
-            ):
-                skill = await storage.update_system_skill(name, update_data, user.sub)
-        else:
-            # No type change, just update in place
-            if system_skill:
-                skill = await storage.update_system_skill(name, update_data, user.sub)
-                if not skill:
-                    raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
-            elif user_skill:
-                skill = await storage.update_user_skill(name, update_data, user.sub)
-                if not skill:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"User skill '{name}' not found or not owned by user",
-                    )
-            else:
-                raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
-    else:
-        # Non-admin or no is_system change, update user skill only
-        # Remove is_system from updates if present (non-admin can't change it)
-        update_data = data.model_copy()
-        update_data.is_system = None
-
-        skill = await storage.update_user_skill(name, update_data, user.sub)
-        if not skill:
-            raise HTTPException(
-                status_code=404, detail=f"Skill '{name}' not found or not owned by user"
-            )
-
-    # After this point, skill is guaranteed to be not None
-    skill = cast(UserSkill | SystemSkill, skill)
-
-    # Sync content as SKILL.md when files are not explicitly provided
-    # (files sync is handled inside update_system_skill/update_user_skill)
-    if data.content is not None and data.files is None:
-        final_system_skill = await storage.get_system_skill(skill.name)
-        file_user_id = "system" if final_system_skill else user.sub
-        await storage.sync_skill_files(skill.name, {"SKILL.md": data.content}, user_id=file_user_id)
-
-    # Determine final skill type and response
-    if final_system_skill:
-        return SkillResponse(
-            name=final_system_skill.name,
-            description=final_system_skill.description,
-            content=final_system_skill.content,
-            enabled=final_system_skill.enabled,
-            source=final_system_skill.source,
-            github_url=final_system_skill.github_url,
-            version=final_system_skill.version,
-            is_system=True,
-            can_edit=is_admin,
-            created_at=final_system_skill.created_at,
-            updated_at=final_system_skill.updated_at,
-        )
-    else:
-        # Cast to UserSkill since we know it's a user skill here
-        user_skill = cast(UserSkill, skill)
-        return SkillResponse(
-            name=user_skill.name,
-            description=user_skill.description,
-            content=user_skill.content,
-            enabled=user_skill.enabled,
-            source=user_skill.source,
-            github_url=user_skill.github_url,
-            version=user_skill.version,
-            is_system=False,
-            can_edit=True,
-            created_at=user_skill.created_at,
-            updated_at=user_skill.updated_at,
-        )
-
-
-@router.delete("/{name}")
-async def delete_skill(
-    name: str,
-    user: TokenPayload = Depends(require_permissions("skill:delete")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Delete a user skill"""
-    deleted = await storage.delete_user_skill(name, user.sub)
-    if not deleted:
-        raise HTTPException(
-            status_code=404, detail=f"Skill '{name}' not found or not owned by user"
-        )
-
-    return {"message": f"Skill '{name}' deleted successfully"}
-
-
-@router.patch("/{name}/toggle", response_model=SkillToggleResponse)
-async def toggle_skill(
-    name: str,
-    user: TokenPayload = Depends(require_permissions("skill:write")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Toggle a skill's enabled status (user preferences for system skills)"""
-    skill = await storage.toggle_skill(name, user.sub)
-
-    if not skill:
-        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
-
-    status_text = "enabled" if skill.enabled else "disabled"
-    return SkillToggleResponse(
-        skill=skill,
-        message=f"Skill '{name}' has been {status_text}",
-    )
-
-
-# ==========================================
-# Admin API Endpoints - Static routes first
-# ==========================================
-
-
-@admin_router.get("/", response_model=SkillsResponse)
-async def admin_list_skills(
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Get all skills (admin view - includes all system skills)"""
-    skills = await storage.get_visible_skills(user.sub, is_admin=True)
-    return SkillsResponse(skills=skills, total=len(skills))
-
-
-@admin_router.post("/", response_model=SkillResponse, status_code=201)
-async def admin_create_skill(
-    data: SkillCreate,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Create a new system skill (admin only)"""
-    existing = await storage.get_system_skill(data.name)
-    if existing:
-        raise HTTPException(status_code=400, detail=f"System skill '{data.name}' already exists")
-
-    # Set source to builtin if not specified
-    if data.source == SkillSource.MANUAL:
-        data.source = SkillSource.BUILTIN
-
-    skill = await storage.create_system_skill(data, user.sub)
-
-    # Get files for response
-    files = data.files
-    if not files and data.content:
-        files = {"SKILL.md": data.content}
-
-    return SkillResponse(
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        files=files,
-        enabled=skill.enabled,
-        source=skill.source,
-        github_url=skill.github_url,
-        version=skill.version,
-        is_system=True,
-        can_edit=True,
-        created_at=skill.created_at,
-        updated_at=skill.updated_at,
-    )
-
-
-@admin_router.get("/export", response_model=SkillExportResponse)
-async def admin_export_skills(
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Export all system skills as JSON configuration (admin only)"""
-    config = await storage.export_all_skills()
-    return config
-
-
-@admin_router.post("/import", response_model=SkillImportResponse)
-async def admin_import_skills(
-    data: SkillImportRequest,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Import skills as system skills (admin only)"""
-    result = await storage.import_skills(data, user.sub, is_admin=True)
-    return result
-
-
-@admin_router.post("/github/install", response_model=SkillImportResponse)
-async def admin_install_github_skills(
-    data: GitHubInstallRequest,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
-    github_sync: GitHubSyncService = Depends(get_github_sync_service),
-):
-    """Install skills from GitHub as system skills (admin only)"""
-    try:
-        # First fetch the preview to get skill paths
-        preview = await github_sync.fetch_skills_from_repo(data.repo_url, data.branch)
-
-        if not preview.skills:
-            return SkillImportResponse(
-                message="No skills found in repository",
-                imported_count=0,
-                skipped_count=0,
-                errors=[],
-            )
-
-        # Filter to selected skills if specified
-        skill_paths = (
-            [s.path for s in preview.skills if s.name in data.skill_names]
-            if data.skill_names
-            else [s.path for s in preview.skills]
-        )
-
-        # Fetch full content for each skill
-        skills_data = await github_sync.fetch_all_skill_contents(
-            data.repo_url, skill_paths, data.branch
-        )
-
-        # Install skills as system skills
-        result = await storage.install_github_skills(data, skills_data, user.sub, is_admin=True)
-        return result
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to install skills: {str(e)}")
-
-
-@admin_router.post("/upload", response_model=SkillResponse, status_code=201)
-async def admin_upload_skill(
+@router.post("/upload", status_code=201)
+async def upload_skill_from_zip(
     file: UploadFile,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
+    skill_names: Optional[str] = Form(default=None),
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
 ):
-    """Upload and install a skill from a ZIP file as a system skill (admin only)"""
+    """从 ZIP 文件上传创建技能（支持多个 SKILL.md，可选择性安装）"""
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
 
     try:
         content = await file.read()
-        if len(content) > MAX_ZIP_SIZE:
-            raise HTTPException(status_code=400, detail="ZIP file too large (max 10MB)")
-        zf = zipfile.ZipFile(io.BytesIO(content))
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid ZIP file")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to read file content")
 
     try:
-        skill_data = _parse_zip_to_skill(zf)
+        skills = _parse_zip_skills(content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        existing = await storage.get_system_skill(skill_data["name"])
-        if existing:
-            raise HTTPException(
-                status_code=400, detail=f"System skill '{skill_data['name']}' already exists"
+    # 如果指定了 skill_names，只安装选中的
+    if skill_names:
+        name_set = set(n.strip() for n in skill_names.split(",") if n.strip())
+        skills = [(n, f) for n, f in skills if n in name_set]
+
+    created: list[dict] = []
+    errors: list[dict] = []
+
+    # 批量获取已存在 skill
+    user_skills = await storage.list_user_skills(user.sub)
+    existing_names = {s["skill_name"] for s in user_skills}
+
+    for skill_name, files in skills:
+        if skill_name in existing_names:
+            errors.append({"name": skill_name, "reason": "already exists"})
+            continue
+
+        try:
+            await storage.create_user_skill(
+                skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL
             )
+            created.append({"name": skill_name, "file_count": len(files)})
+        except Exception as e:
+            errors.append({"name": skill_name, "reason": str(e)})
 
-        skill_data["source"] = SkillSource.BUILTIN
-        create_data = SkillCreate(**skill_data)
-        skill = await storage.create_system_skill(create_data, user.sub)
-    finally:
-        zf.close()
+    if not created and errors:
+        raise HTTPException(status_code=400, detail=f"All skills failed: {errors[0]['reason']}")
 
-    return SkillResponse(
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        files=create_data.files,
-        enabled=skill.enabled,
-        source=skill.source,
-        github_url=skill.github_url,
-        version=skill.version,
-        is_system=True,
-        can_edit=True,
-        created_at=skill.created_at,
-        updated_at=skill.updated_at,
+    return {
+        "message": f"Created {len(created)} skill(s)",
+        "created": created,
+        "errors": errors,
+        "skill_count": len(created),
+    }
+
+
+@router.get("/", response_model=list[UserSkill])
+async def list_user_skills(
+    skip: int = 0,
+    limit: int = 100,
+    user: TokenPayload = Depends(require_permissions("skill:read")),
+    storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """列出用户安装的所有 Skills（含发布状态）"""
+    # Get disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    disabled_skills = []
+    if user_doc and user_doc.metadata:
+        disabled_skills = user_doc.metadata.get("disabled_skills", [])
+
+    skills = await storage.list_user_skills(
+        user.sub, skip=skip, limit=limit, disabled_skills=disabled_skills
     )
+    if not skills:
+        return []
+
+    # 批量查询发布状态
+    published_map = await marketplace.get_user_published_skills(user.sub)
+
+    # 批量获取所有 SKILL.md 用于提取 description
+    from src.infra.skill.parser import parse_skill_md
+
+    skill_names = [s["skill_name"] for s in skills]
+    skill_md_map = await storage.batch_get_skill_md_contents(skill_names, user.sub)
+    description_map: dict[str, str] = {}
+    tags_map: dict[str, list[str]] = {}
+    for name, content in skill_md_map.items():
+        if content:
+            _, parsed_desc, parsed_tags = parse_skill_md(content)
+            if parsed_desc:
+                description_map[name] = parsed_desc
+            if parsed_tags:
+                tags_map[name] = parsed_tags
+
+    return [
+        UserSkill(
+            skill_name=s["skill_name"],
+            description=description_map.get(s["skill_name"], ""),
+            tags=tags_map.get(s["skill_name"], []),
+            files=s.get("file_paths", []),
+            enabled=s["enabled"],
+            file_count=s["file_count"],
+            installed_from=s.get("installed_from"),
+            published_marketplace_name=s.get("published_marketplace_name"),
+            created_at=s.get("created_at"),
+            updated_at=s.get("updated_at"),
+            is_published=bool(s.get("published_marketplace_name")),
+            marketplace_is_active=published_map.get(
+                s.get("published_marketplace_name") or s["skill_name"], {}
+            ).get("is_active", True),
+        )
+        for s in skills
+    ]
+
+
+@router.get("/{name}", response_model=UserSkill)
+async def get_user_skill(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("skill:read")),
+    storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """获取用户某个 Skill 的详细信息"""
+    files = await storage.get_skill_files(name, user.sub)
+    if not files:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+
+    # Get disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    disabled_skills = set()
+    if user_doc and user_doc.metadata:
+        disabled_skills = set(user_doc.metadata.get("disabled_skills", []))
+    enabled = name not in disabled_skills
+
+    # Get metadata from __meta__ doc
+    meta = await storage.get_skill_meta(name, user.sub)
+    published_map = await marketplace.get_user_published_skills(user.sub)
+
+    # 使用文件聚合统计获取时间戳，与 list_user_skills 保持一致
+    file_stats = await storage.get_skill_file_stats(name, user.sub)
+
+    def extract_metadata(files: dict[str, str]) -> tuple[str, list[str]]:
+        from src.infra.skill.parser import parse_skill_md
+
+        _, desc, tags = parse_skill_md(files.get("SKILL.md", ""))
+        return desc, tags
+
+    description, tags = extract_metadata(files)
+
+    return UserSkill(
+        skill_name=name,
+        description=description,
+        tags=tags,
+        enabled=enabled,
+        files=list(files.keys()),
+        file_count=file_stats["file_count"],
+        installed_from=meta.installed_from.value if meta else None,
+        published_marketplace_name=meta.published_marketplace_name if meta else None,
+        created_at=file_stats.get("created_at"),
+        updated_at=file_stats.get("updated_at"),
+        is_published=bool(meta.published_marketplace_name) if meta else name in published_map,
+        marketplace_is_active=published_map.get(
+            (meta.published_marketplace_name if meta else None) or name, {}
+        ).get("is_active", True),
+    )
+
+
+@router.get("/{name}/files/{path:path}")
+async def get_skill_file(
+    name: str,
+    path: str,
+    user: TokenPayload = Depends(require_permissions("skill:read")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """读取 Skill 的单个文件"""
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    content = await storage.get_skill_file(name, safe_path, user.sub)
+    if content is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    return {"content": content}
+
+
+@router.put("/{name}/files/{path:path}")
+async def update_skill_file(
+    name: str,
+    path: str,
+    body: UpdateFileRequest,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """更新 Skill 的单个文件"""
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    content = body.content
+
+    # 检查 __meta__ 是否已存在，以决定是否是新 skill
+    existing_meta = await storage.get_skill_meta(name, user.sub)
+    is_new = existing_meta is None
+
+    await storage.set_skill_file(name, safe_path, content, user.sub)
+
+    # 新 skill 自动创建 __meta__
+    if is_new:
+        await storage.set_skill_meta(name, user.sub)
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {"message": "File updated"}
+
+
+@router.delete("/{name}/files/{path:path}")
+async def delete_skill_file(
+    name: str,
+    path: str,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """删除 Skill 的单个文件"""
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    # 检查 skill 和文件是否存在
+    existing_paths = await storage.list_skill_file_paths(name, user.sub)
+    if not existing_paths:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+    if safe_path not in existing_paths:
+        raise HTTPException(status_code=404, detail=f"File '{path}' not found in skill '{name}'")
+
+    await storage.delete_skill_file(name, safe_path, user.sub)
+
+    # 检查 skill 是否还有剩余文件（排除 __meta__），若无则清理 __meta__ 避免幽灵 skill
+    remaining = await storage.list_skill_file_paths(name, user.sub)
+    if not remaining:
+        await storage.delete_skill_meta(name, user.sub)
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {"message": f"File '{path}' deleted"}
+
+
+@router.delete("/{name}")
+async def delete_user_skill(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("skill:delete")),
+    storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
+):
+    """删除（卸载）用户的 Skill，同时停用商店发布（不删除，保留其他已安装用户的访问）"""
+    meta = await storage.get_skill_meta(name, user.sub)
+    published_marketplace_name = meta.published_marketplace_name if meta else None
+    existing_mp = await marketplace.get_marketplace_skill(published_marketplace_name or name)
+    if existing_mp and existing_mp.created_by == user.sub:
+        await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
+
+    # 删除用户的文件和元数据
+    await storage.delete_skill_and_meta(name, user.sub)
+
+    # 清理 disabled_skills 中的条目（如果有）
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    if user_doc and user_doc.metadata:
+        disabled = set(user_doc.metadata.get("disabled_skills", []))
+        if name in disabled:
+            disabled.discard(name)
+            await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {"message": f"Skill '{name}' deleted"}
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除请求"""
+
+    names: list[str]
+
+
+class BatchToggleRequest(BaseModel):
+    """批量切换请求"""
+
+    names: list[str]
+    enabled: bool
+
+
+class ToggleRequest(BaseModel):
+    """Toggle 请求（可选指定目标状态）"""
+
+    enabled: Optional[bool] = None
+
+
+async def _ensure_skill_exists(storage: SkillStorage, skill_name: str, user_id: str) -> None:
+    """Reject toggle operations for non-existent skills to avoid ghost disabled state."""
+    paths = await storage.list_skill_file_paths(skill_name, user_id)
+    if not paths:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
 
 
 # ==========================================
-# Admin API Endpoints - Dynamic routes (with path parameters)
-# MUST come after static routes to avoid route shadowing
+# 批量操作
 # ==========================================
 
 
-@admin_router.get("/{name}", response_model=SkillResponse)
-async def admin_get_skill(
-    name: str,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
+@router.post("/batch/delete")
+async def batch_delete_skills(
+    body: BatchDeleteRequest,
+    user: TokenPayload = Depends(require_permissions("skill:delete")),
+    storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
-    """Get a system skill (admin only)"""
-    skill = await storage.get_system_skill(name)
-    if not skill:
-        raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
+    """批量删除 Skills"""
+    deleted: list[str] = []
+    errors: list[dict[str, str]] = []
 
-    files = await storage.get_skill_files(name, user_id=None)
-    return SkillResponse(
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        files=files,
-        enabled=skill.enabled,
-        source=skill.source,
-        github_url=skill.github_url,
-        version=skill.version,
-        is_system=True,
-        can_edit=True,
-        created_at=skill.created_at,
-        updated_at=skill.updated_at,
-    )
+    for name in body.names:
+        try:
+            meta = await storage.get_skill_meta(name, user.sub)
+            published_marketplace_name = meta.published_marketplace_name if meta else None
+            existing_mp = await marketplace.get_marketplace_skill(
+                published_marketplace_name or name
+            )
+            if existing_mp and existing_mp.created_by == user.sub:
+                await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
+
+            await storage.delete_skill_and_meta(name, user.sub)
+            deleted.append(name)
+        except Exception as e:
+            errors.append({"name": name, "reason": str(e)})
+
+    if deleted:
+        await storage.invalidate_user_cache(user.sub)
+
+        # 清理 disabled_skills 中已删除的 skill
+        user_storage = UserStorage()
+        user_doc = await user_storage.get_by_id(user.sub)
+        if user_doc and user_doc.metadata:
+            disabled = set(user_doc.metadata.get("disabled_skills", []))
+            if disabled & set(deleted):
+                disabled -= set(deleted)
+                await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
+
+    return {"deleted": deleted, "errors": errors}
 
 
-@admin_router.put("/{name}", response_model=SkillResponse)
-async def admin_update_skill(
-    name: str,
-    data: SkillUpdate,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
+@router.post("/batch/toggle")
+async def batch_toggle_skills(
+    body: BatchToggleRequest,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
 ):
-    """Update a system skill (admin only)"""
-    skill = await storage.update_system_skill(name, data, user.sub)
-    if not skill:
-        raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
+    """批量切换 Skills 的启用状态"""
+    missing_names = []
+    for name in body.names:
+        try:
+            await _ensure_skill_exists(storage, name, user.sub)
+        except HTTPException:
+            missing_names.append(name)
 
-    # Sync content as SKILL.md when files are not explicitly provided
-    # (files sync is handled inside update_system_skill)
-    if data.content is not None and data.files is None:
-        await storage.sync_skill_files(skill.name, {"SKILL.md": data.content}, user_id="system")
+    if missing_names:
+        missing = ", ".join(sorted(missing_names))
+        raise HTTPException(status_code=404, detail=f"Skill(s) not found: {missing}")
 
-    return SkillResponse(
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        enabled=skill.enabled,
-        source=skill.source,
-        github_url=skill.github_url,
-        version=skill.version,
-        is_system=True,
-        can_edit=True,
-        created_at=skill.created_at,
-        updated_at=skill.updated_at,
-    )
+    # Get current disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    if user_doc is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    disabled = set((user_doc.metadata or {}).get("disabled_skills", []))
+
+    if body.enabled:
+        # Enable: remove from disabled set
+        disabled -= set(body.names)
+    else:
+        # Disable: add to disabled set
+        disabled |= set(body.names)
+
+    # Update user metadata
+    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
+
+    # Invalidate cache
+    await storage.invalidate_user_cache(user.sub)
+
+    return {"updated": body.names, "errors": []}
 
 
-@admin_router.delete("/{name}")
-async def admin_delete_skill(
+@router.patch("/{name}/toggle")
+async def toggle_user_skill(
     name: str,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
+    body: Optional[ToggleRequest] = None,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
 ):
-    """Delete a system skill (admin only)"""
-    deleted = await storage.delete_system_skill(name)
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
+    """切换或设置 Skill 的启用状态"""
+    await _ensure_skill_exists(storage, name, user.sub)
 
-    return {"message": f"System skill '{name}' deleted successfully"}
+    # Get current disabled_skills from user metadata
+    user_storage = UserStorage()
+    user_doc = await user_storage.get_by_id(user.sub)
+    if user_doc is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    disabled = set((user_doc.metadata or {}).get("disabled_skills", []))
 
+    target_enabled = body.enabled if body else None
 
-@admin_router.patch("/{name}/toggle", response_model=SkillToggleResponse)
-async def admin_toggle_skill(
-    name: str,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """Toggle a system skill's enabled status (admin only)"""
-    skill = await storage.toggle_system_skill(name)
+    if target_enabled is not None:
+        # 直接设置目标状态
+        if target_enabled:
+            disabled.discard(name)
+        else:
+            disabled.add(name)
+    else:
+        # Flip 当前状态
+        if name in disabled:
+            disabled.discard(name)
+        else:
+            disabled.add(name)
 
-    if not skill:
-        raise HTTPException(status_code=404, detail=f"System skill '{name}' not found")
+    # Update user metadata
+    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
 
-    status_text = "enabled" if skill.enabled else "disabled"
-    return SkillToggleResponse(
-        skill=skill,
-        message=f"System skill '{name}' has been {status_text}",
-    )
+    # Invalidate cache
+    await storage.invalidate_user_cache(user.sub)
+
+    is_enabled = name not in disabled
+    status = "enabled" if is_enabled else "disabled"
+    return {
+        "skill_name": name,
+        "enabled": is_enabled,
+        "message": f"Skill '{name}' is now {status}",
+    }
 
 
 # ==========================================
-# Skill Type Conversion (Admin only)
+# 发布到商店
 # ==========================================
 
 
-@admin_router.post("/{name}/promote", response_model=SkillMoveResponse)
-async def promote_skill(
+@router.post("/{name}/publish", response_model=MarketplaceSkillResponse)
+async def publish_skill_to_marketplace(
     name: str,
-    data: SkillMoveRequest,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
+    data: Optional[PublishToMarketplaceRequest] = None,
+    user: TokenPayload = Depends(require_permissions("marketplace:publish")),
+    storage: SkillStorage = Depends(get_storage),
+    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
-    """
-    Promote a user skill to system skill (admin only).
+    """将用户的 Skill 发布到商店（支持多次发布更新）"""
+    user_files = await storage.get_skill_files(name, user.sub)
+    if not user_files:
+        raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
 
-    Requires the owner's user_id in request body to identify which user's skill to promote.
-    """
-    if not data.target_user_id:
-        raise HTTPException(
-            status_code=400, detail="target_user_id is required to identify the user skill"
-        )
+    from src.infra.skill.parser import parse_skill_md as _parse_md
+    from src.infra.skill.parser import sanitize_skill_name
 
-    skill = await storage.promote_to_system_skill(name, data.target_user_id, user.sub)
-
-    if not skill:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User skill '{name}' not found or system skill with same name exists",
-        )
-
-    return SkillMoveResponse(
-        skill=SkillResponse(
-            name=skill.name,
-            description=skill.description,
-            content=skill.content,
-            enabled=skill.enabled,
-            source=skill.source,
-            github_url=skill.github_url,
-            version=skill.version,
-            is_system=True,
-            can_edit=True,
-            created_at=skill.created_at,
-            updated_at=skill.updated_at,
-        ),
-        message=f"Skill '{name}' has been promoted to system skill",
-        from_type="user",
-        to_type="system",
+    _, default_description, default_tags = _parse_md(user_files.get("SKILL.md", ""))
+    target_name = sanitize_skill_name(
+        (data.skill_name if data and data.skill_name else name).strip()
     )
+    if not target_name:
+        raise HTTPException(status_code=400, detail="Marketplace skill name is required")
 
-
-@admin_router.post("/{name}/demote", response_model=SkillMoveResponse)
-async def demote_skill(
-    name: str,
-    data: SkillMoveRequest,
-    user: TokenPayload = Depends(require_permissions("skill:admin")),
-    storage: SkillStorage = Depends(get_skill_storage),
-):
-    """
-    Demote a system skill to user skill (admin only).
-
-    Requires target_user_id in request body to specify who will own the skill.
-    """
-    if not data.target_user_id:
-        raise HTTPException(
-            status_code=400, detail="target_user_id is required to specify the new owner"
+    existing = await marketplace.get_marketplace_skill(target_name)
+    if existing:
+        if existing.created_by != user.sub:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Marketplace skill name '{target_name}' is already taken",
+            )
+        update_data = MarketplaceSkillUpdate(
+            description=data.description
+            if data and data.description is not None
+            else default_description,
+            tags=data.tags if data and data.tags is not None else existing.tags,
+            version=data.version if data and data.version is not None else existing.version,
+            is_active=True,
         )
-
-    skill = await storage.demote_to_user_skill(name, data.target_user_id, user.sub)
-
-    if not skill:
-        raise HTTPException(
-            status_code=404,
-            detail=f"System skill '{name}' not found or user already has skill with same name",
+        await marketplace.update_marketplace_skill(target_name, update_data)
+    else:
+        create_data = MarketplaceSkillCreate(
+            skill_name=target_name,
+            description=data.description
+            if data and data.description is not None
+            else default_description,
+            tags=data.tags if data and data.tags is not None else default_tags,
+            version=data.version if data and data.version is not None else "1.0.0",
         )
+        await marketplace.create_marketplace_skill(create_data, user_id=user.sub)
 
-    return SkillMoveResponse(
-        skill=SkillResponse(
-            name=skill.name,
-            description=skill.description,
-            content=skill.content,
-            enabled=skill.enabled,
-            source=skill.source,
-            github_url=skill.github_url,
-            version=skill.version,
-            is_system=False,
-            can_edit=True,
-            created_at=skill.created_at,
-            updated_at=skill.updated_at,
-        ),
-        message=f"System skill '{name}' has been demoted to user skill",
-        from_type="system",
-        to_type="user",
-    )
+    try:
+        await marketplace.sync_marketplace_files(target_name, user_files)
+        # Update __meta__ doc with published_marketplace_name
+        meta = await storage.get_skill_meta(name, user.sub)
+        await storage.set_skill_meta(
+            name,
+            user.sub,
+            installed_from=meta.installed_from if meta else InstalledFrom.MANUAL,
+            published_marketplace_name=target_name,
+        )
+    except Exception:
+        if not existing:
+            await marketplace.delete_marketplace_skill(target_name)
+        raise HTTPException(status_code=500, detail="Failed to sync files to marketplace")
+
+    response = await marketplace.get_marketplace_skill_response(target_name)
+    if not response:
+        raise HTTPException(status_code=500, detail="Failed to publish skill")
+    return response

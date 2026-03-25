@@ -87,25 +87,19 @@ export const FEATURES: FeatureItem[] = [
 
 export const TECH_STACK = [
   {
+    labelKey: "sandboxExecution",
     label: "FastAPI",
     color: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   },
   {
+    labelKey: "harnessEngineeringAgent",
     label: "React 19",
     color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   },
   {
+    labelKey: "customSkillsMcp",
     label: "MongoDB",
     color: "bg-green-500/10 text-green-600 dark:text-green-400",
-  },
-  { label: "Redis", color: "bg-red-500/10 text-red-600 dark:text-red-400" },
-  {
-    label: "deepagents",
-    color: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  },
-  {
-    label: "TailwindCSS",
-    color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
   },
 ];
 

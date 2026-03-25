@@ -52,6 +52,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string>("");
@@ -66,6 +67,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
   // Refs for connection management
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pendingProjectIdRef = useRef<string | null>(null);
+  const autoExpandProjectIdRef = useRef<string | null>(null);
   const isConnectingRef = useRef(false);
   const isLoadingHistoryRef = useRef(false);
   const isSendingRef = useRef(false);
@@ -280,6 +283,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
         if (sessionData) {
           setSessionId(targetSessionId);
+          setCurrentProjectId(
+            (sessionData.metadata?.project_id as string) || null,
+          );
 
           const currentRunId =
             targetRunId ||
@@ -474,53 +480,26 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           headers["Authorization"] = `Bearer ${token}`;
         }
 
-        const disabledTools = options?.getEnabledTools?.();
-        const submitResponse = await fetch(
-          `${API_BASE}/chat/stream?agent_id=${currentAgent}`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              message: content,
-              session_id: sessionId,
-              disabled_tools: disabledTools,
-              agent_options: agentOptions,
-              attachments: attachments?.map((a) => ({
-                id: a.id,
-                key: a.key,
-                name: a.name,
-                type: a.type,
-                mime_type: a.mimeType,
-                size: a.size,
-                url: a.url,
-              })),
-            }),
-          },
-        );
+        const submitData = (await sessionApi.submitChat(
+          currentAgent,
+          content,
+          sessionId ?? undefined,
+          agentOptions,
+          pendingProjectIdRef.current ?? undefined,
+        )) as {
+          session_id: string;
+          run_id: string;
+          trace_id: string;
+          status: string;
+          queue_position?: number;
+        };
 
-        if (!submitResponse.ok) {
-          if (submitResponse.status === 429) {
-            let detail = i18n.t("chat.rateLimited");
-            try {
-              const errBody = await submitResponse.json();
-              detail = errBody.detail?.message || errBody.detail || detail;
-            } catch {
-              // ignore JSON parse errors - fallback detail already set
-              console.warn("[sendMessage] Failed to parse error response");
-            }
-            toast.error(detail, { duration: 5000 });
-            setMessages((prev) =>
-              prev.filter((m) => m.id !== assistantMessage.id),
-            );
-            setIsLoading(false);
-            return;
-          }
-          throw new Error(`Submit failed: ${submitResponse.status}`);
-        }
-
-        const submitData = await submitResponse.json();
         const newSessionId = submitData.session_id;
         const newRunId = submitData.run_id;
+        const projectId = pendingProjectIdRef.current;
+
+        // Clear pending project ID after use
+        pendingProjectIdRef.current = null;
 
         // Handle queued status — show toast and wait via SSE
         if (submitData.status === "queued") {
@@ -539,9 +518,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             created_at: now,
             updated_at: now,
             is_active: true,
-            metadata: {},
+            metadata: projectId ? { project_id: projectId } : {},
           };
           setNewlyCreatedSession(newSession);
+          setCurrentProjectId(projectId);
 
           sessionApi
             .generateTitle(newSessionId, content, i18n.language)
@@ -610,7 +590,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         isSendingRef.current = false;
       }
     },
-    [sessionId, currentAgent, options, createSSEContext],
+    [sessionId, currentAgent, createSSEContext],
   );
 
   const stopGeneration = useCallback(async () => {
@@ -758,6 +738,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     refreshAgents: fetchAgents,
     loadHistory,
     reconnectSSE: handleReconnectSSE,
+    setPendingProjectId: (id: string | null) => {
+      pendingProjectIdRef.current = id;
+      autoExpandProjectIdRef.current = id;
+    },
+    autoExpandProjectId: autoExpandProjectIdRef.current,
+    currentProjectId,
   };
 }
 

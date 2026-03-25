@@ -56,9 +56,9 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
         <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
             <img
               src="/icons/icon.svg"
               alt={APP_NAME}
@@ -67,14 +67,14 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
           </div>
         </div>
 
-        <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1 backdrop-blur-sm dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+        <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
           <LanguageToggle />
           <ThemeToggle />
         </div>
 
         <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-          <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
-          <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
+          <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
+          <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
         </div>
 
         <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
@@ -93,7 +93,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
 
             <button
               onClick={handleBackToLogin}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              className="auth-secondary-button flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium shadow-sm transition-all"
             >
               <ArrowLeft size={16} />
               {t("auth.backToLogin")}
@@ -105,9 +105,9 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+    <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50 backdrop-blur-sm transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
           <img
             src="/icons/icon.svg"
             alt={APP_NAME}
@@ -116,14 +116,14 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
         </div>
       </div>
 
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1 backdrop-blur-sm dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
         <LanguageToggle />
         <ThemeToggle />
       </div>
 
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
+        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
 
       <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
@@ -139,7 +139,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
           </div>
 
           {/* 表单卡片 */}
-          <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-6 shadow-xl shadow-gray-200/20 backdrop-blur-sm dark:border-stone-700/50 dark:bg-stone-800/80 dark:shadow-stone-900/30 sm:p-8">
+          <div className="auth-panel rounded-2xl p-6 sm:p-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* 邮箱输入 */}
               <div>
@@ -154,7 +154,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-4"
+                    className="auth-input w-full rounded-xl py-2.5 pl-10 pr-3 text-sm transition-all sm:py-3 sm:pl-11 sm:pr-4"
                     placeholder={t("auth.emailPlaceholder")}
                   />
                 </div>
@@ -164,7 +164,7 @@ export function ForgotPassword({ onBackToLogin }: ForgotPasswordProps) {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-xl bg-gray-900 py-3 text-sm font-medium text-white shadow-lg shadow-gray-900/25 transition-all hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 dark:bg-white dark:text-gray-900 dark:shadow-white/10 dark:hover:bg-stone-100 sm:py-3.5"
+                className="auth-primary-button w-full rounded-xl py-3 text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 sm:py-3.5"
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">

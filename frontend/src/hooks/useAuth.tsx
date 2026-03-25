@@ -14,6 +14,7 @@ import {
 import {
   authApi,
   getAccessToken,
+  getRefreshToken,
   isAuthenticated,
   isTokenExpired,
   getRedirectPath,
@@ -88,16 +89,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // 检查 token 是否过期
+      let validToken = accessToken;
+
+      // 检查 token 是否过期，尝试用 refresh token 刷新
       if (isTokenExpired(accessToken)) {
-        authApi.logout();
-        setToken(null);
-        setUser(null);
-        setIsLoading(false);
-        return;
+        const refreshToken = getRefreshToken();
+        if (refreshToken && !isTokenExpired(refreshToken)) {
+          try {
+            const tokenResponse = await authApi.refreshToken();
+            validToken = tokenResponse.access_token;
+          } catch {
+            // 刷新失败，需要重新登录
+            authApi.logout();
+            setToken(null);
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+        } else {
+          // refresh token 也不存在或已过期，需要重新登录
+          authApi.logout();
+          setToken(null);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
       }
 
-      setToken(accessToken);
+      setToken(validToken);
 
       // 尝试获取用户信息
       try {
@@ -187,11 +206,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ): Promise<{ requiresVerification: boolean; email: string }> => {
       setIsLoading(true);
       try {
-        await authApi.register(userData, turnstileToken);
-        // 不再自动登录，返回是否需要验证
-        // 根据 REQUIRE_EMAIL_VERIFICATION 配置，用户可能需要先验证邮箱
+        const response = await authApi.register(userData, turnstileToken);
         return {
-          requiresVerification: true, // 注册成功后需要验证邮箱
+          requiresVerification: response.requires_verification,
           email: userData.email,
         };
       } finally {

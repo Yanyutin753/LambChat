@@ -34,32 +34,32 @@ interface ProtectedRouteProps {
 function LoadingSpinner() {
   const { t } = useTranslation();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-stone-50 to-stone-100 dark:from-stone-900 dark:to-stone-800">
+    <div className="auth-shell flex min-h-screen items-center justify-center">
       <div className="text-center">
         <div className="flex items-center justify-center gap-1.5 mb-6">
           <span
-            className="h-3 w-3 rounded-full bg-stone-500 dark:bg-amber-400"
+            className="h-3 w-3 rounded-full bg-[var(--theme-primary)]"
             style={{
               animation: "bounce 1.4s ease-in-out infinite both",
               animationDelay: "-0.32s",
             }}
           />
           <span
-            className="h-3 w-3 rounded-full bg-stone-500 dark:bg-amber-400"
+            className="h-3 w-3 rounded-full bg-[var(--theme-primary)]"
             style={{
               animation: "bounce 1.4s ease-in-out infinite both",
               animationDelay: "-0.16s",
             }}
           />
           <span
-            className="h-3 w-3 rounded-full bg-stone-500 dark:bg-amber-400"
+            className="h-3 w-3 rounded-full bg-[var(--theme-primary)]"
             style={{
               animation: "bounce 1.4s ease-in-out infinite both",
               animationDelay: "0s",
             }}
           />
         </div>
-        <p className="text-stone-500 dark:text-amber-400 text-sm font-medium tracking-wide">
+        <p className="text-[var(--theme-text-secondary)] text-sm font-medium tracking-wide">
           {t("common.loading")}
         </p>
       </div>

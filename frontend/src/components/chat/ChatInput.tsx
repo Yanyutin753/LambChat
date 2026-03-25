@@ -185,16 +185,17 @@ interface ChatInputProps {
   toolsLoading?: boolean;
   enabledToolsCount?: number;
   totalToolsCount?: number;
-  enableMcp?: boolean;
   // Skills
   skills?: SkillResponse[];
-  onToggleSkill?: (name: string) => Promise<void>;
+  onToggleSkill?: (name: string) => Promise<boolean>;
   onToggleSkillCategory?: (
     category: SkillSource,
     enabled: boolean,
-  ) => Promise<void>;
-  onToggleAllSkills?: (enabled: boolean) => Promise<void>;
+  ) => Promise<boolean>;
+  onToggleAllSkills?: (enabled: boolean) => Promise<boolean>;
   skillsLoading?: boolean;
+  pendingSkillNames?: string[];
+  skillsMutating?: boolean;
   enabledSkillsCount?: number;
   totalSkillsCount?: number;
   enableSkills?: boolean;
@@ -353,13 +354,14 @@ export const ChatInput = memo(function ChatInput({
   toolsLoading: _toolsLoading,
   enabledToolsCount = 0,
   totalToolsCount = 0,
-  enableMcp = true,
   // Skills
   skills = [],
   onToggleSkill,
   onToggleSkillCategory,
   onToggleAllSkills,
   skillsLoading: _skillsLoading,
+  pendingSkillNames = [],
+  skillsMutating = false,
   enabledSkillsCount = 0,
   totalSkillsCount = 0,
   enableSkills = true,
@@ -584,8 +586,7 @@ export const ChatInput = memo(function ChatInput({
               {/* Other tool buttons in scrollable container */}
               <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
                 {/* Tool selector button */}
-                {enableMcp &&
-                  onToggleTool &&
+                {onToggleTool &&
                   onToggleCategory &&
                   onToggleAll && (
                     <ToolSelector
@@ -607,6 +608,8 @@ export const ChatInput = memo(function ChatInput({
                       onToggleSkill={onToggleSkill}
                       onToggleCategory={onToggleSkillCategory}
                       onToggleAll={onToggleAllSkills}
+                      pendingSkillNames={pendingSkillNames}
+                      isMutating={skillsMutating}
                       enabledCount={enabledSkillsCount}
                       totalCount={totalSkillsCount}
                     />

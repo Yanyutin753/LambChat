@@ -196,6 +196,19 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "删除渠道",
         "description": "删除渠道配置",
     },
+    # Marketplace
+    Permission.MARKETPLACE_READ.value: {
+        "label": "浏览商店",
+        "description": "查看和浏览技能商店",
+    },
+    Permission.MARKETPLACE_PUBLISH.value: {
+        "label": "发布技能",
+        "description": "发布和更新商店中的技能",
+    },
+    Permission.MARKETPLACE_ADMIN.value: {
+        "label": "管理商店",
+        "description": "管理技能商店（激活/停用/删除任意技能）",
+    },
 }
 
 # 权限分组配置
@@ -294,6 +307,14 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.CHANNEL_READ.value,
             Permission.CHANNEL_WRITE.value,
             Permission.CHANNEL_DELETE.value,
+        ],
+    },
+    {
+        "name": "技能商店",
+        "permissions": [
+            Permission.MARKETPLACE_READ.value,
+            Permission.MARKETPLACE_PUBLISH.value,
+            Permission.MARKETPLACE_ADMIN.value,
         ],
     },
 ]

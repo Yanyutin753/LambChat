@@ -3,7 +3,6 @@ Core authentication routes (register, login, refresh, me, permissions)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.api.deps import get_current_user_required
 from src.infra.auth.jwt import create_access_token, decode_token
@@ -15,6 +14,7 @@ from src.kernel.exceptions import ValidationError
 from src.kernel.schemas.permission import PermissionsResponse, get_permissions_response
 from src.kernel.schemas.user import (
     LoginRequest,
+    RegisterResponse,
     Token,
     TokenPayload,
     User,
@@ -25,11 +25,10 @@ from src.kernel.schemas.user import (
 from .utils import _get_client_ip, _get_frontend_url, _get_language
 
 router = APIRouter()
-security = HTTPBearer()
 logger = get_logger(__name__)
 
 
-@router.post("/register", response_model=User)
+@router.post("/register", response_model=RegisterResponse)
 async def register(user_data: UserCreate, request: Request):
     """用户注册"""
     # 检查是否允许注册
@@ -55,7 +54,8 @@ async def register(user_data: UserCreate, request: Request):
         user = await manager.register(user_data)
 
         # 如果要求邮箱验证，发送验证邮件
-        if settings.REQUIRE_EMAIL_VERIFICATION:
+        requires_verification = settings.REQUIRE_EMAIL_VERIFICATION
+        if requires_verification:
             from src.infra.email import get_email_service
 
             email_service = await get_email_service()
@@ -94,7 +94,7 @@ async def register(user_data: UserCreate, request: Request):
             else:
                 logger.warning("[Auth] Email verification required but email service not enabled")
 
-        return user
+        return RegisterResponse(user=user, requires_verification=requires_verification)
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -142,12 +142,17 @@ async def login(credentials: LoginRequest, request: Request):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
+async def refresh_token(request: Request):
     """刷新令牌"""
     try:
-        token = credentials.credentials
+        body = await request.json()
+        token = body.get("refresh_token")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="缺少刷新令牌",
+            )
+
         payload = decode_token(token)
 
         # 验证是否是 refresh token

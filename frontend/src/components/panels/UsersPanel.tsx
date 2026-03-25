@@ -163,7 +163,7 @@ function UserFormModal({
     <>
       <div className="fixed inset-0" onClick={onClose} />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div className="modal-bottom-sheet-content sm:modal-centered-content">
+        <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
@@ -347,7 +347,7 @@ function DeleteConfirmModal({
     <>
       <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div className="modal-bottom-sheet-content sm:modal-centered-content">
+        <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">

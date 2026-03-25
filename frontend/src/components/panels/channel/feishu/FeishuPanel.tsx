@@ -430,10 +430,10 @@ export function FeishuPanel({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-        <div className="mx-auto max-w-2xl space-y-4">
+        <div className="mx-auto max-w-2xl sm:max-w-5xl space-y-4">
           {/* Status Card */}
           {hasExistingConfig && status && (
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {status.connected ? (
@@ -490,7 +490,7 @@ export function FeishuPanel({
           )}
 
           {/* Configuration Form */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
             <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
               {t("feishu.configuration", "Configuration")}
             </h3>

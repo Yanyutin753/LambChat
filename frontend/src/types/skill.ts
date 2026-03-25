@@ -1,119 +1,164 @@
 // ============================================
-// Skills Types
+// Skills Types - Simplified Architecture
 // ============================================
 
-// Skill Source Type
-export type SkillSource = "builtin" | "github" | "manual";
+// Skill Source Type (based on installed_from)
+export type SkillSource = "marketplace" | "manual";
 
-// Skill Base
-export interface SkillBase {
-  name: string;
+// ============================================
+// User Skills Types (from /api/skills/)
+// ============================================
+
+// User skill from API list response
+export interface UserSkill {
+  skill_name: string;
   description: string;
-  content: string;
+  tags: string[];
+  files: string[];
   enabled: boolean;
-  files?: Record<string, string>;
-}
-
-// Skill Response (from API)
-export interface SkillResponse extends SkillBase {
-  source: SkillSource;
-  github_url?: string;
-  version?: string;
-  is_system: boolean;
-  can_edit: boolean;
+  file_count: number;
+  installed_from: "manual" | "marketplace";
+  published_marketplace_name?: string;
   created_at?: string;
   updated_at?: string;
+  is_published: boolean;
+  marketplace_is_active: boolean;
 }
 
-// Skills List Response
+// User skill with files list (from GET /api/skills/{name})
+export interface UserSkillDetail {
+  files?: string[];
+  enabled?: boolean;
+  skill_name?: string;
+  description?: string;
+  tags?: string[];
+  is_published?: boolean;
+  marketplace_is_active?: boolean;
+}
+
+// Skill file content response
+export interface SkillFileResponse {
+  content: string;
+}
+
+// Skill toggle response
+export interface SkillToggleResponse {
+  skill_name: string;
+  enabled: boolean;
+  message: string;
+}
+
+// Publish to marketplace request
+export interface PublishToMarketplaceRequest {
+  skill_name?: string;
+  description?: string;
+  tags?: string[];
+  version?: string;
+}
+
+// ============================================
+// Frontend Skill Type (composed from API)
+// ============================================
+
+// Full skill used in frontend components
+export interface SkillResponse {
+  name: string;
+  description: string;
+  tags: string[];
+  enabled: boolean;
+  source: SkillSource;
+  content?: string; // Main SKILL.md content
+  files: Record<string, string>;
+  file_count: number;
+  installed_from: "manual" | "marketplace";
+  published_marketplace_name?: string;
+  created_at?: string;
+  updated_at?: string;
+  is_published: boolean;
+  marketplace_is_active: boolean;
+}
+
+// Skills list response
 export interface SkillsResponse {
-  skills: SkillResponse[];
+  skills: UserSkill[];
   total: number;
 }
 
-// Skill Create Request
+// Skill Create Request (simplified - write individual files via /files/{path})
 export interface SkillCreate {
   name: string;
   description: string;
+  tags: string[];
   content: string;
   enabled?: boolean;
-  source?: SkillSource;
-  github_url?: string;
-  version?: string;
-  files?: Record<string, string>;
+  files?: Record<string, string>; // For multi-file support
+  source?: SkillSource; // Used by form, not sent to API
 }
 
 // Skill Update Request
 export interface SkillUpdate {
-  name?: string;
   description?: string;
   content?: string;
   enabled?: boolean;
-  version?: string;
-  files?: Record<string, string>;
-  is_system?: boolean;
 }
 
-// Skill Toggle Response
-export interface SkillToggleResponse {
-  skill: SkillResponse;
-  message: string;
-}
+// ============================================
+// Marketplace Types (from /api/marketplace/)
+// ============================================
 
-// Skill Import Request
-export interface SkillImportRequest {
-  skills: Record<string, Record<string, unknown>>;
-  overwrite?: boolean;
-}
-
-// Skill Import Response
-export interface SkillImportResponse {
-  message: string;
-  imported_count: number;
-  skipped_count: number;
-  errors: string[];
-}
-
-// Skill Export Response
-export interface SkillExportResponse {
-  skills: Record<string, Record<string, unknown>>;
-}
-
-// Skill Move Request
-export interface SkillMoveRequest {
-  target_user_id?: string;
-}
-
-// Skill Move Response
-export interface SkillMoveResponse {
-  skill: SkillResponse;
-  message: string;
-  from_type: string;
-  to_type: string;
-}
-
-// GitHub Skill Preview
-export interface GitHubSkillPreview {
-  name: string;
+// Marketplace skill response
+export interface MarketplaceSkillResponse {
+  skill_name: string;
   description: string;
-  path: string;
+  tags: string[];
+  version: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+  created_by_username?: string;
+  is_active: boolean;
+  is_owner: boolean;
+  file_count: number;
 }
 
-// GitHub Preview Response
-export interface GitHubPreviewResponse {
-  repo_url: string;
-  skills: GitHubSkillPreview[];
+// Direct create in marketplace request
+export interface MarketplaceCreateRequest {
+  skill_name: string;
+  description?: string;
+  tags?: string[];
+  version?: string;
+  files: Record<string, string>;
 }
 
-// GitHub Install Request
-export interface GitHubInstallRequest {
-  repo_url: string;
-  branch?: string;
-  skill_names?: string[];
-  as_system?: boolean;
+// Marketplace skill files response
+export interface MarketplaceSkillFilesResponse {
+  files: string[];
 }
 
+// Marketplace skill file content response
+export interface MarketplaceSkillFileResponse {
+  content: string;
+}
+
+// Marketplace install response
+export interface MarketplaceInstallResponse {
+  message: string;
+  skill_name: string;
+  file_count: number;
+}
+
+// Marketplace update response (same as install)
+export type MarketplaceUpdateResponse = MarketplaceInstallResponse;
+
+// Tags response
+export interface TagsResponse {
+  tags: string[];
+}
+
+// ============================================
 // Legacy types for backwards compatibility
+// ============================================
+
 export interface SkillMetadata {
   name: string;
   description: string;

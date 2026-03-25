@@ -80,9 +80,15 @@ async def websocket_endpoint(
         # 如果还没有accept（URL有token的情况），现在accept
         if not needs_accept:
             await websocket.accept()
+    except WebSocketDisconnect:
+        logger.info("[WebSocket] Client disconnected during auth")
+        return
     except Exception as e:
         logger.warning(f"[WebSocket] Auth failed: {e}")
-        await websocket.close(code=4001, reason="Unauthorized")
+        try:
+            await websocket.close(code=4001, reason="Unauthorized")
+        except Exception:
+            pass  # Connection already closed
         return
 
     manager = get_connection_manager()

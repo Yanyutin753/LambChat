@@ -1,37 +1,41 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import {
   Sparkles,
   ChevronRight,
   Check,
   X,
   Plus,
-  Github,
   FileCode,
-  Settings,
+  Store,
+  Search,
+  Tag,
+  LoaderCircle,
 } from "lucide-react";
 import type { SkillResponse, SkillSource } from "../../types";
+import { collectSkillTags, skillMatchesQuery } from "../../utils/skillFilters";
 
 interface SkillSelectorProps {
   skills: SkillResponse[];
-  onToggleSkill: (name: string) => Promise<void>;
-  onToggleCategory: (category: SkillSource, enabled: boolean) => Promise<void>;
-  onToggleAll: (enabled: boolean) => Promise<void>;
+  onToggleSkill: (name: string) => Promise<boolean>;
+  onToggleCategory: (category: SkillSource, enabled: boolean) => Promise<boolean>;
+  onToggleAll: (enabled: boolean) => Promise<boolean>;
+  pendingSkillNames?: string[];
+  isMutating?: boolean;
   enabledCount: number;
   totalCount: number;
 }
 
 const sourceIcons: Record<SkillSource, typeof FileCode> = {
-  builtin: Settings,
-  github: Github,
+  marketplace: Store,
   manual: FileCode,
 };
 
 const sourceColors: Record<SkillSource, string> = {
-  builtin: "text-stone-500 dark:text-amber-400",
-  github: "text-gray-600 dark:text-gray-400",
-  manual: "text-blue-600 dark:text-blue-400",
+  marketplace: "text-[var(--theme-primary)]",
+  manual: "text-[var(--theme-text)]",
 };
 
 export function SkillSelector({
@@ -39,6 +43,8 @@ export function SkillSelector({
   onToggleSkill,
   onToggleCategory,
   onToggleAll,
+  pendingSkillNames = [],
+  isMutating = false,
   enabledCount,
   totalCount,
 }: SkillSelectorProps) {
@@ -47,7 +53,9 @@ export function SkillSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<
     Set<SkillSource>
-  >(new Set(["builtin", "github", "manual"]));
+  >(new Set(["marketplace", "manual"]));
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   // 锁定滚动
   useEffect(() => {
@@ -62,9 +70,22 @@ export function SkillSelector({
   }, [isOpen]);
 
   // 按来源分组 - 使用 useMemo 缓存计算结果
+  const filteredSkills = useMemo(
+    () =>
+      skills.filter((skill) => {
+        const matchesQuery = skillMatchesQuery(skill, searchQuery);
+        const matchesTags =
+          selectedTags.length === 0 ||
+          selectedTags.every((tag) => skill.tags.includes(tag));
+
+        return matchesQuery && matchesTags;
+      }),
+    [searchQuery, selectedTags, skills],
+  );
+
   const groupedSkills = useMemo(
     () =>
-      skills.reduce(
+      filteredSkills.reduce(
         (acc, skill) => {
           if (!acc[skill.source]) {
             acc[skill.source] = [];
@@ -74,8 +95,42 @@ export function SkillSelector({
         },
         {} as Record<SkillSource, SkillResponse[]>,
       ),
-    [skills],
+    [filteredSkills],
   );
+
+  const availableTags = useMemo(() => collectSkillTags(skills), [skills]);
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || selectedTags.length > 0;
+  const pendingSet = useMemo(
+    () => new Set(pendingSkillNames),
+    [pendingSkillNames],
+  );
+  const allSkillsEnabled = totalCount > 0 && enabledCount === totalCount;
+  const noSkillsEnabled = enabledCount === 0;
+
+  const showBatchToggleToast = (enabled: boolean, count: number, ok: boolean) => {
+    if (ok) {
+      toast.success(
+        enabled
+          ? t("skills.batchEnableSuccess", { count })
+          : t("skills.batchDisableSuccess", { count }),
+      );
+      return;
+    }
+    toast.error(t("skills.batchToggleFailed"));
+  };
+
+  const showSingleToggleToast = (enabled: boolean, ok: boolean) => {
+    if (ok) {
+      toast.success(
+        enabled
+          ? t("skills.batchEnableSuccess", { count: 1 })
+          : t("skills.batchDisableSuccess", { count: 1 }),
+      );
+      return;
+    }
+    toast.error(t("skills.batchToggleFailed"));
+  };
 
   const toggleCategoryExpand = (source: SkillSource) => {
     setExpandedCategories((prev) => {
@@ -89,8 +144,14 @@ export function SkillSelector({
     });
   };
 
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag],
+    );
+  };
+
   const ModalContent = () => (
-    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[480px] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden">
+    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
         {/* Mobile drag handle */}
@@ -125,15 +186,30 @@ export function SkillSelector({
       {/* Actions */}
       <div className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 border-b border-stone-200/80 dark:border-stone-700/80 bg-stone-50/80 dark:bg-stone-800/50">
         <button
-          onClick={() => onToggleAll(true)}
-          className="px-3 py-2 sm:py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 rounded-lg transition-colors"
+          onClick={async () => {
+            const changedCount = totalCount - enabledCount;
+            if (changedCount === 0) {
+              return;
+            }
+            const ok = await onToggleAll(true);
+            showBatchToggleToast(true, changedCount, ok);
+          }}
+          disabled={isMutating || allSkillsEnabled}
+          className="px-3 py-2 sm:py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("skillSelector.selectAll")}
         </button>
         <div className="w-px h-4 bg-stone-200 dark:bg-stone-700" />
         <button
-          onClick={() => onToggleAll(false)}
-          className="px-3 py-2 sm:py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 rounded-lg transition-colors"
+          onClick={async () => {
+            if (enabledCount === 0) {
+              return;
+            }
+            const ok = await onToggleAll(false);
+            showBatchToggleToast(false, enabledCount, ok);
+          }}
+          disabled={isMutating || noSkillsEnabled}
+          className="px-3 py-2 sm:py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("skillSelector.deselectAll")}
         </button>
@@ -151,6 +227,51 @@ export function SkillSelector({
         </button>
       </div>
 
+      <div className="border-b border-stone-200/80 bg-white/80 px-4 py-3 dark:border-stone-700/80 dark:bg-stone-800/60 sm:px-5">
+        <div className="relative">
+          <Search
+            size={16}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("skills.searchPlaceholder")}
+            className="w-full rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-700 outline-none transition-colors focus:border-[var(--theme-primary)] focus:bg-white dark:border-stone-700 dark:bg-stone-900/60 dark:text-stone-100 dark:focus:bg-stone-900"
+          />
+        </div>
+        {availableTags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {availableTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className={`skill-tag-chip ${
+                  selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
+                }`}
+              >
+                <Tag size={11} />
+                {tag}
+              </button>
+            ))}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedTags([]);
+                }}
+                className="text-xs text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
+              >
+                {t("marketplace.clearFilters")}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Categories */}
       <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-1.5">
         {Object.entries(groupedSkills).map(
@@ -162,6 +283,13 @@ export function SkillSelector({
             ).length;
             const allEnabled = enabledInCategory === categorySkills.length;
             const isExpanded = expandedCategories.has(cat);
+            const categoryPending = categorySkills.some((skill) =>
+              pendingSet.has(skill.name),
+            );
+            const categoryTargetEnabled = !allEnabled;
+            const categoryChangedCount = categorySkills.filter(
+              (skill) => skill.enabled !== categoryTargetEnabled,
+            ).length;
 
             return (
               <div
@@ -196,20 +324,37 @@ export function SkillSelector({
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
-                      await onToggleCategory(cat, !allEnabled);
+                      if (isMutating) {
+                        return;
+                      }
+                      if (categoryChangedCount === 0) {
+                        return;
+                      }
+                      const ok = await onToggleCategory(cat, categoryTargetEnabled);
+                      showBatchToggleToast(
+                        categoryTargetEnabled,
+                        categoryChangedCount,
+                        ok,
+                      );
                     }}
-                    className={`w-5 h-5 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                    disabled={isMutating || categoryChangedCount === 0}
+                    className={`w-5 h-5 sm:w-5 sm:h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-60 ${
                       allEnabled
-                        ? "bg-stone-500 dark:bg-amber-400 border-stone-500 dark:border-amber-400"
-                        : "border-stone-300 dark:border-stone-600 hover:border-stone-400 dark:hover:border-stone-500"
+                        ? "bg-[var(--theme-primary)] border-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
+                        : "border-stone-300 dark:border-stone-600 hover:border-[var(--theme-primary)]/40 dark:hover:border-[var(--theme-primary)]/40"
                     }`}
                   >
-                    {allEnabled && (
+                    {categoryPending ? (
+                      <LoaderCircle
+                        size={12}
+                        className="animate-spin text-[var(--theme-primary)]"
+                      />
+                    ) : allEnabled ? (
                       <Check
                         size={12}
-                        className="text-white dark:text-stone-900"
+                        className="text-white animate-[check-pop_200ms_ease-out]"
                       />
-                    )}
+                    ) : null}
                   </button>
                 </div>
 
@@ -220,43 +365,65 @@ export function SkillSelector({
                       {categorySkills.map((skill: SkillResponse) => (
                         <div key={skill.name} className="group">
                           {/* Skill Row */}
-                          <div
-                            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-2 sm:py-2 rounded-lg hover:bg-white dark:hover:bg-stone-700/50 active:bg-stone-100 dark:active:bg-stone-600/50 cursor-pointer transition-all duration-150"
-                            onClick={async () =>
-                              await onToggleSkill(skill.name)
-                            }
+                          <button
+                            type="button"
+                            disabled={isMutating}
+                            className={`flex w-full items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-2 sm:py-2 rounded-lg transition-all duration-200 disabled:cursor-not-allowed ${
+                              skill.enabled
+                                ? "bg-[var(--theme-primary)]/[0.06] dark:bg-[var(--theme-primary)]/[0.08]"
+                                : "hover:bg-white dark:hover:bg-stone-700/50 active:bg-stone-100 dark:active:bg-stone-600/50"
+                            } ${
+                              pendingSet.has(skill.name) || isMutating
+                                ? "opacity-70"
+                                : ""
+                            }`}
+                            onClick={async () => {
+                              if (isMutating) {
+                                return;
+                              }
+                              const ok = await onToggleSkill(skill.name);
+                              showSingleToggleToast(!skill.enabled, ok);
+                            }}
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                <span className="text-[12px] sm:text-[13px] font-medium text-stone-700 dark:text-stone-200 truncate">
+                                <span
+                                  className={`text-[12px] sm:text-[13px] font-medium truncate ${
+                                    skill.enabled
+                                      ? "text-[var(--theme-primary)] dark:text-[var(--theme-primary)]"
+                                      : "text-stone-700 dark:text-stone-200"
+                                  }`}
+                                >
                                   {skill.name}
                                 </span>
-                                {skill.is_system && (
-                                  <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-md bg-stone-100 dark:bg-amber-500/20 text-stone-500 dark:text-amber-400 font-medium">
-                                    {t("skillSelector.system")}
-                                  </span>
-                                )}
                               </div>
-                              <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed">
+                              <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed text-left">
                                 {skill.description ||
                                   t("skillSelector.noDescription")}
                               </p>
                             </div>
                             <div
-                              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                                skill.enabled
-                                  ? "bg-stone-500 dark:bg-amber-400 border-stone-500 dark:border-amber-400"
+                              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                                pendingSet.has(skill.name)
+                                  ? "border-[var(--theme-primary)]/40 bg-[var(--theme-primary)]/[0.08]"
+                                  : skill.enabled
+                                  ? "bg-[var(--theme-primary)] border-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
                                   : "border-stone-300 dark:border-stone-600 group-hover:border-stone-400 dark:group-hover:border-stone-500"
                               }`}
                             >
-                              {skill.enabled && (
+                              {pendingSet.has(skill.name) ? (
+                                <LoaderCircle
+                                  size={12}
+                                  className="animate-spin text-[var(--theme-primary)]"
+                                />
+                              ) : skill.enabled ? (
                                 <Check
                                   size={12}
-                                  className="text-white dark:text-stone-900"
+                                  className="text-white animate-[check-pop_200ms_ease-out]"
                                 />
-                              )}
+                              ) : null}
                             </div>
-                          </div>
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -265,6 +432,11 @@ export function SkillSelector({
               </div>
             );
           },
+        )}
+        {filteredSkills.length === 0 && (
+          <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50/70 px-4 py-6 text-center text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-800/40 dark:text-stone-400">
+            {t("skills.noMatchingSkills")}
+          </div>
         )}
       </div>
 

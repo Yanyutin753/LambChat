@@ -11,6 +11,7 @@ class ProjectBase(BaseModel):
 
     name: str
     type: str = "custom"  # "favorites" or "custom"
+    icon: Optional[str] = None  # lucide-react icon name, e.g. "Folder", "Star", "Book"
     sort_order: int = 0
 
 
@@ -24,6 +25,7 @@ class ProjectUpdate(BaseModel):
     """Schema for updating a project."""
 
     name: Optional[str] = None
+    icon: Optional[str] = None
     sort_order: Optional[int] = None
 
 

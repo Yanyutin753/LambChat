@@ -111,6 +111,20 @@ async def chat_stream(
     )
 
     # Build task context for queued dispatch (stored in Redis, multi-worker safe)
+    # trace_id is generated early so it can be passed to the executor for trace reuse
+    from src.infra.writer.present import Presenter, PresenterConfig
+
+    _pre_presenter = Presenter(
+        PresenterConfig(
+            session_id=session_id,
+            agent_id=agent_id,
+            user_id=user.sub,
+            run_id=run_id,
+            enable_storage=False,
+        )
+    )
+    trace_id = _pre_presenter.trace_id
+
     task_context = {
         "executor_key": "agent_stream",
         "agent_id": agent_id,
@@ -118,6 +132,8 @@ async def chat_stream(
         "disabled_tools": request.disabled_tools,
         "agent_options": request.agent_options,
         "attachments": attachments_data,
+        "trace_id": trace_id,
+        "user_message_written": True,
     }
 
     # 检查并发限制
@@ -152,10 +168,40 @@ async def chat_stream(
                 task_manager.storage, task_manager._run_info, task_manager._heartbeat
             )
         # Create session record immediately (don't wait for dequeue)
-        await task_manager._executor.ensure_session(session_id, agent_id, user.sub)
+        await task_manager._executor.ensure_session(
+            session_id, agent_id, user.sub, project_id=request.project_id
+        )
         await task_manager._executor._update_session_status(
             session_id, TaskStatus.PENDING, run_id=run_id
         )
+
+        # Write user:message event to MongoDB immediately so page refresh can load it
+        presenter = Presenter(
+            PresenterConfig(
+                session_id=session_id,
+                agent_id=agent_id,
+                user_id=user.sub,
+                run_id=run_id,
+                trace_id=trace_id,
+                enable_storage=True,
+            )
+        )
+        await presenter._ensure_trace()
+        await presenter.emit_user_message(
+            request.message,
+            attachments=[a.model_dump() for a in request.attachments]
+            if request.attachments
+            else None,
+        )
+
+        # Mark user message as already written so executor skips re-emitting
+        task_manager._run_info[run_id] = {
+            "session_id": session_id,
+            "agent_id": agent_id,
+            "user_id": user.sub,
+            "trace_id": trace_id,
+            "user_message_written": True,
+        }
 
         return {
             "session_id": session_id,
@@ -176,6 +222,7 @@ async def chat_stream(
         agent_options=request.agent_options,
         attachments=attachments_data,
         run_id=run_id,
+        project_id=request.project_id,
     )
 
     return {
