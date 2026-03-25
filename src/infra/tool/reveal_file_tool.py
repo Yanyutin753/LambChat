@@ -229,7 +229,7 @@ async def reveal_file(
             "url": proxy_url,
             "name": filename,
             "type": file_category,
-            "mimeType": upload_result.content_type or mime_type,
+            "mime_type": upload_result.content_type or mime_type,
             "size": upload_result.size,
             "_meta": {
                 "path": file_path,

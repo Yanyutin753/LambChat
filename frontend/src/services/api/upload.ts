@@ -63,7 +63,15 @@ export const uploadApi = {
       xhr.addEventListener("load", () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
-            const result = JSON.parse(xhr.responseText) as UploadResult;
+            const raw = JSON.parse(xhr.responseText);
+            const result: UploadResult = {
+              key: raw.key,
+              url: raw.url,
+              name: raw.name,
+              type: raw.type,
+              mimeType: raw.mimeType ?? raw.mime_type ?? "",
+              size: raw.size,
+            };
             resolve(result);
           } catch {
             reject(new Error("Failed to parse upload response"));
