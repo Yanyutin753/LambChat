@@ -173,6 +173,7 @@ export type {
   UploadState,
   UploadConfig,
   UploadResult,
+  FileCheckResult,
 } from "./upload";
 
 // ============================================

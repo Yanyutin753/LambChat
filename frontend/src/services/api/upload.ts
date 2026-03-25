@@ -2,7 +2,7 @@
  * Upload API - 文件上传
  */
 
-import type { UploadConfig, UploadResult } from "../../types";
+import type { FileCheckResult, UploadConfig, UploadResult } from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 import { getAccessToken } from "./token";
@@ -118,6 +118,36 @@ export const uploadApi = {
     return {
       promise,
       abort: () => xhr.abort(),
+    };
+  },
+
+  /**
+   * Check if file already exists by hash (for deduplication)
+   */
+  async checkFile(
+    hash: string,
+    size: number,
+    name: string,
+    mimeType: string,
+  ): Promise<FileCheckResult> {
+    const token = getAccessToken();
+    const res = await fetch(`${API_BASE}/api/upload/check`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      body: JSON.stringify({ hash, size, name, mime_type: mimeType }),
+    });
+    if (!res.ok) {
+      if (res.status === 404) return { exists: false } as FileCheckResult;
+      throw new Error(`Check failed: ${res.status}`);
+    }
+    const data = await res.json();
+    return {
+      ...data,
+      mimeType: data.mime_type || data.mimeType,
     };
   },
 

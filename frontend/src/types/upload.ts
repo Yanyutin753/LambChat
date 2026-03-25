@@ -50,3 +50,12 @@ export interface UploadResult {
   mimeType: string;
   size: number;
 }
+
+export interface FileCheckResult {
+  exists: boolean;
+  key: string;
+  name: string;
+  type: FileCategory;
+  mimeType: string;
+  size: number;
+}
