@@ -34,10 +34,12 @@ interface ChatViewProps {
   enabledToolsCount: number;
   totalToolsCount: number;
   skills: SkillResponse[];
-  onToggleSkill: (name: string) => Promise<void>;
-  onToggleSkillCategory: (category: SkillSource, enabled: boolean) => Promise<void>;
-  onToggleAllSkills: (enabled: boolean) => Promise<void>;
+  onToggleSkill: (name: string) => Promise<boolean>;
+  onToggleSkillCategory: (category: SkillSource, enabled: boolean) => Promise<boolean>;
+  onToggleAllSkills: (enabled: boolean) => Promise<boolean>;
   skillsLoading: boolean;
+  pendingSkillNames: string[];
+  skillsMutating: boolean;
   enabledSkillsCount: number;
   totalSkillsCount: number;
   enableSkills: boolean;
@@ -78,6 +80,8 @@ export function ChatView({
   onToggleSkillCategory,
   onToggleAllSkills,
   skillsLoading,
+  pendingSkillNames,
+  skillsMutating,
   enabledSkillsCount,
   totalSkillsCount,
   enableSkills,
@@ -274,6 +278,8 @@ export function ChatView({
         onToggleSkillCategory={onToggleSkillCategory}
         onToggleAllSkills={onToggleAllSkills}
         skillsLoading={skillsLoading}
+        pendingSkillNames={pendingSkillNames}
+        skillsMutating={skillsMutating}
         enabledSkillsCount={enabledSkillsCount}
         totalSkillsCount={totalSkillsCount}
         enableSkills={enableSkills}

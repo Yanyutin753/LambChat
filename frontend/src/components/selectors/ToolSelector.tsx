@@ -273,7 +273,7 @@ export function ToolSelector({
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed">
+                                <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed text-left">
                                   {tool.description || t("tools.noDescription")}
                                 </p>
                               </div>

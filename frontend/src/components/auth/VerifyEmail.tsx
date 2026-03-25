@@ -92,8 +92,8 @@ export function VerifyEmail() {
         <ThemeToggle />
       </div>
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
+        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
     </>
   );
@@ -101,13 +101,13 @@ export function VerifyEmail() {
   // 加载中状态
   if (status === "loading") {
     return (
-      <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
         <Header />
         <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
           <div className="w-full max-w-md py-8">
             <div className="mb-8 text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-                <LoadingSpinner className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <div className="auth-accent-icon mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+                <LoadingSpinner className="h-8 w-8" />
               </div>
               <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
                 {t("auth.verifyingEmail")}
@@ -125,7 +125,7 @@ export function VerifyEmail() {
   // 成功状态
   if (status === "success") {
     return (
-      <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
         <Header />
         <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
           <div className="w-full max-w-md py-8">
@@ -143,7 +143,7 @@ export function VerifyEmail() {
 
             <button
               onClick={handleGoToLogin}
-              className="w-full rounded-xl bg-gray-900 py-3 text-sm font-medium text-white shadow-lg shadow-gray-900/25 transition-all hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:translate-y-0 dark:bg-white dark:text-gray-900 dark:shadow-white/10 dark:hover:bg-stone-100 sm:py-3.5"
+              className="auth-primary-button w-full rounded-xl py-3 text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 sm:py-3.5"
             >
               {t("auth.goToLogin")}
             </button>
@@ -158,7 +158,7 @@ export function VerifyEmail() {
     const email = searchParams.get("email");
 
     return (
-      <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
         <Header />
         <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
           <div className="w-full max-w-md py-8">
@@ -179,7 +179,7 @@ export function VerifyEmail() {
                 <button
                   onClick={handleResend}
                   disabled={isSubmitting}
-                  className="w-full rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700 sm:py-3.5"
+                  className="auth-secondary-button w-full rounded-xl py-3 text-sm font-medium shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 sm:py-3.5"
                 >
                   {isSubmitting ? (
                     <span className="flex items-center justify-center gap-2">
@@ -196,7 +196,7 @@ export function VerifyEmail() {
               )}
               <button
                 onClick={handleGoToLogin}
-                className="w-full rounded-xl bg-gray-900 py-3 text-sm font-medium text-white shadow-lg shadow-gray-900/25 transition-all hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:translate-y-0 dark:bg-white dark:text-gray-900 dark:shadow-white/10 dark:hover:bg-stone-100 sm:py-3.5"
+                className="auth-primary-button w-full rounded-xl py-3 text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 sm:py-3.5"
               >
                 {t("auth.goToLogin")}
               </button>
@@ -209,13 +209,13 @@ export function VerifyEmail() {
 
   // 空闲状态 - 无 token
   return (
-    <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+      <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
       <Header />
       <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-md py-8">
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-              <Mail className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+            <div className="auth-accent-icon mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+              <Mail className="h-8 w-8" />
             </div>
             <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
               {t("auth.verifyEmail")}
@@ -227,7 +227,7 @@ export function VerifyEmail() {
 
           <button
             onClick={handleGoToLogin}
-            className="w-full rounded-xl bg-gray-900 py-3 text-sm font-medium text-white shadow-lg shadow-gray-900/25 transition-all hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:translate-y-0 dark:bg-white dark:text-gray-900 dark:shadow-white/10 dark:hover:bg-stone-100 sm:py-3.5"
+            className="auth-primary-button w-full rounded-xl py-3 text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 sm:py-3.5"
           >
             {t("auth.goToLogin")}
           </button>

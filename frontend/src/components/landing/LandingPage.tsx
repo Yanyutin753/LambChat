@@ -14,8 +14,6 @@ import {
   STATS,
 } from "./data";
 
-/* ── Single shared IntersectionObserver ── */
-
 function useScrollReveal() {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -43,8 +41,6 @@ function useScrollReveal() {
 
   return containerRef;
 }
-
-/* ── Animated counter ── */
 
 function AnimatedNumber({ value }: { value: string }) {
   const [display, setDisplay] = useState(value);
@@ -89,8 +85,6 @@ function AnimatedNumber({ value }: { value: string }) {
   return <span ref={ref}>{display}</span>;
 }
 
-/* ── Inline icons ── */
-
 function GitHubIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -115,13 +109,9 @@ function ArrowIcon() {
   );
 }
 
-/* ── Section divider ── */
-
 function SectionDivider() {
   return <div className="landing-divider mx-auto max-w-4xl" />;
 }
-
-/* ── Section heading with label ── */
 
 function SectionHeading({
   label,
@@ -149,8 +139,6 @@ function SectionHeading({
   );
 }
 
-/* ── Component ── */
-
 export function LandingPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -175,7 +163,6 @@ export function LandingPage() {
       ref={containerRef}
       className="bg-gradient-to-b from-gray-50/80 via-white to-gray-50/60 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950"
     >
-      {/* Navbar */}
       <nav className="fixed top-0 inset-x-0 z-50 backdrop-blur-2xl bg-white/70 dark:bg-stone-950/70 border-b border-gray-200/40 dark:border-stone-700/30">
         <div className="max-w-full mx-auto px-4 sm:px-8 py-2.5 sm:py-3 flex items-center justify-between">
           <div
@@ -198,18 +185,15 @@ export function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
       <section className="relative pt-24 sm:pt-36 md:pt-48 pb-16 sm:pb-24 overflow-hidden">
         <div
           className="pointer-events-none absolute inset-0 -z-10"
           aria-hidden="true"
         >
-          {/* Animated floating gradient orbs */}
           <div className="landing-orb-1 absolute top-10 left-1/4 h-56 sm:h-72 rounded-full bg-amber-200/20 blur-3xl dark:bg-amber-500/5" />
           <div className="landing-orb-2 absolute bottom-0 right-1/4 h-72 sm:h-96 rounded-full bg-rose-200/20 blur-3xl dark:bg-rose-500/5" />
           <div className="landing-orb-3 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[400px] sm:h-[600px] rounded-full bg-stone-200/25 blur-3xl dark:bg-stone-700/10" />
           <div className="landing-orb-4 absolute bottom-20 left-[10%] h-40 sm:h-56 rounded-full bg-violet-200/15 blur-3xl dark:bg-violet-500/5" />
-          {/* Subtle dot grid for texture */}
           <div
             className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]"
             style={{
@@ -223,7 +207,7 @@ export function LandingPage() {
         <div className="relative max-w-3xl sm:max-w-4xl mx-auto px-4 sm:px-6 text-center">
           <div
             data-reveal
-            className="inline-flex items-center gap-2 rounded-full border border-gray-200/60 dark:border-stone-700/40 bg-white/60 dark:bg-stone-800/40 px-3 py-1 sm:px-4 sm:py-1.5 mb-6 sm:mb-8 text-[11px] sm:text-xs font-medium text-gray-500 dark:text-stone-400  shadow-sm"
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200/60 dark:border-stone-700/40 bg-white/60 dark:bg-stone-800/40 px-3 py-1 sm:px-4 sm:py-1.5 mb-6 sm:mb-8 text-[11px] sm:text-xs font-medium text-gray-500 dark:text-stone-400 shadow-sm"
           >
             <span className="relative flex h-2 w-2">
               <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -232,7 +216,6 @@ export function LandingPage() {
             {t("landing.badge")}
           </div>
 
-          {/* Hero glow behind title */}
           <div className="relative">
             <div className="landing-hero-glow absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 sm:w-96 h-32 sm:h-40 bg-gradient-to-r from-violet-200/30 via-amber-200/20 to-rose-200/30 dark:from-violet-500/10 dark:via-amber-500/5 dark:to-rose-500/10 blur-3xl rounded-full pointer-events-none" />
             <h1
@@ -268,7 +251,7 @@ export function LandingPage() {
               href="https://github.com/Yanyutin753/LambChat"
               target="_blank"
               rel="noopener noreferrer"
-              className="group inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-gray-200/80 dark:border-stone-700/50 bg-white/60 dark:bg-stone-800/40 px-5 py-3 sm:px-6 sm:py-3.5 text-sm font-medium text-gray-700 dark:text-stone-300 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:hover:bg-stone-800/80 hover:shadow-md hover:border-gray-300 dark:hover:border-stone-600 active:translate-y-0 "
+              className="group inline-flex items-center gap-1.5 sm:gap-2 rounded-xl border border-gray-200/80 dark:border-stone-700/50 bg-white/60 dark:bg-stone-800/40 px-5 py-3 sm:px-6 sm:py-3.5 text-sm font-medium text-gray-700 dark:text-stone-300 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:hover:bg-stone-800/80 hover:shadow-md hover:border-gray-300 dark:hover:border-stone-600 active:translate-y-0"
             >
               <GitHubIcon />
               {t("landing.viewOnGitHub")}
@@ -282,12 +265,12 @@ export function LandingPage() {
           >
             {TECH_STACK.map((tech, i) => (
               <span
-                key={tech.label}
+                key={tech.labelKey}
                 data-reveal
                 data-reveal-delay={String(i + 1)}
-                className={`inline-flex items-center rounded-lg sm:rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium  shadow-sm ${tech.color}`}
+                className={`inline-flex items-center rounded-lg sm:rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium shadow-sm ${tech.color}`}
               >
-                {tech.label}
+                {t(`landing.${tech.labelKey}`)}
               </span>
             ))}
           </div>
@@ -296,7 +279,6 @@ export function LandingPage() {
 
       <SectionDivider />
 
-      {/* Screenshots */}
       <section className="py-12 sm:py-20 md:py-24">
         <div className="max-w-5xl sm:max-w-6xl mx-auto px-4 sm:px-6">
           <SectionHeading
@@ -334,9 +316,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Features */}
       <section className="py-12 sm:py-20 md:py-24 relative">
-        {/* Subtle background glow */}
         <div
           className="pointer-events-none absolute inset-0 -z-10"
           aria-hidden="true"
@@ -376,7 +356,6 @@ export function LandingPage() {
 
       <SectionDivider />
 
-      {/* Architecture */}
       <section className="py-12 sm:py-20 md:py-24">
         <div className="max-w-5xl sm:max-w-6xl mx-auto px-4 sm:px-6">
           <SectionHeading
@@ -417,7 +396,6 @@ export function LandingPage() {
 
       <SectionDivider />
 
-      {/* Management Panels */}
       <section className="py-12 sm:py-20 md:py-24">
         <div className="max-w-5xl sm:max-w-6xl mx-auto px-4 sm:px-6">
           <SectionHeading
@@ -457,7 +435,6 @@ export function LandingPage() {
 
       <SectionDivider />
 
-      {/* Responsive Design */}
       <section className="py-12 sm:py-20 md:py-24 relative">
         <div
           className="pointer-events-none absolute inset-0 -z-10"
@@ -491,7 +468,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* CTA */}
       <section className="py-14 sm:py-24">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
           <div
@@ -529,7 +505,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t border-gray-200/30 dark:border-stone-700/20 py-6 sm:py-8">
         <div className="max-w-full mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 text-[11px] sm:text-xs text-gray-400 dark:text-stone-500">
           <div className="flex items-center gap-1.5">

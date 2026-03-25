@@ -226,7 +226,12 @@ async def install_marketplace_skill(
     # 2. 检查用户是否已安装（检查 __meta__ 或文件是否存在）
     existing_meta = await storage.get_skill_meta(name, user.sub)
     if existing_meta:
-        raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
+        if existing_meta.installed_from == InstalledFrom.MARKETPLACE:
+            raise HTTPException(status_code=409, detail=f"Skill '{name}' already installed")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Local manual skill '{name}' already exists. Rename or remove it before installing from marketplace.",
+        )
 
     # 3. 获取商城文件并复制到用户目录
     marketplace_files = await marketplace.get_marketplace_files(name)
@@ -273,6 +278,11 @@ async def update_from_marketplace(
     if not meta:
         raise HTTPException(
             status_code=400, detail=f"Skill '{name}' not installed. Install it first."
+        )
+    if meta.installed_from != InstalledFrom.MARKETPLACE:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Skill '{name}' is a manual skill and cannot be updated from marketplace.",
         )
 
     marketplace_files = await marketplace.get_marketplace_files(name)

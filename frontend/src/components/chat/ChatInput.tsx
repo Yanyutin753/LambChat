@@ -187,13 +187,15 @@ interface ChatInputProps {
   totalToolsCount?: number;
   // Skills
   skills?: SkillResponse[];
-  onToggleSkill?: (name: string) => Promise<void>;
+  onToggleSkill?: (name: string) => Promise<boolean>;
   onToggleSkillCategory?: (
     category: SkillSource,
     enabled: boolean,
-  ) => Promise<void>;
-  onToggleAllSkills?: (enabled: boolean) => Promise<void>;
+  ) => Promise<boolean>;
+  onToggleAllSkills?: (enabled: boolean) => Promise<boolean>;
   skillsLoading?: boolean;
+  pendingSkillNames?: string[];
+  skillsMutating?: boolean;
   enabledSkillsCount?: number;
   totalSkillsCount?: number;
   enableSkills?: boolean;
@@ -358,6 +360,8 @@ export const ChatInput = memo(function ChatInput({
   onToggleSkillCategory,
   onToggleAllSkills,
   skillsLoading: _skillsLoading,
+  pendingSkillNames = [],
+  skillsMutating = false,
   enabledSkillsCount = 0,
   totalSkillsCount = 0,
   enableSkills = true,
@@ -604,6 +608,8 @@ export const ChatInput = memo(function ChatInput({
                       onToggleSkill={onToggleSkill}
                       onToggleCategory={onToggleSkillCategory}
                       onToggleAll={onToggleAllSkills}
+                      pendingSkillNames={pendingSkillNames}
+                      isMutating={skillsMutating}
                       enabledCount={enabledSkillsCount}
                       totalCount={totalSkillsCount}
                     />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { useLocation, useNavigate } from "react-router-dom";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
 import { useSkills } from "../../../hooks/useSkills";
 import { sanitizeSkillName } from "../../../utils/skillFilters";
@@ -23,6 +24,8 @@ export interface ZipSkillPreview {
 
 export function useSkillsActions() {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     skills,
     isLoading,
@@ -68,6 +71,17 @@ export function useSkillsActions() {
   useEffect(() => {
     setPage(1);
   }, [searchQuery, selectedTags]);
+
+  useEffect(() => {
+    const prefillSearch = (
+      location.state as { prefillSkillSearch?: string } | null
+    )?.prefillSkillSearch;
+    if (!prefillSearch) {
+      return;
+    }
+    setSearchQuery(prefillSearch);
+    navigate(location.pathname, { replace: true });
+  }, [location.pathname, location.state, navigate]);
 
   const paginatedSkills = filteredSkills.slice(
     (page - 1) * pageSize,

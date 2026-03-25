@@ -8,7 +8,7 @@ import uuid
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from src.infra.logging import get_logger
-from src.infra.skill.storage import SkillStorage
+from src.infra.skill.manager import SkillManager
 from src.infra.tool.human_tool import get_human_tool
 from src.infra.tool.mcp_global import get_global_mcp_tools
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
@@ -157,9 +157,8 @@ class FastAgentContext:
         # 加载技能（使用与 Search Agent 相同的方式，保持一致）
         if settings.ENABLE_SKILLS and self.user_id:
             try:
-                storage = SkillStorage()
-                effective_skills = await storage.get_effective_skills(self.user_id)
-                skills_data = effective_skills.get("skills", {})
+                manager = SkillManager(user_id=self.user_id)
+                skills_data = await manager.get_effective_skills()
                 for skill_name, skill_data in skills_data.items():
                     skill_dict = (
                         skill_data.model_dump()

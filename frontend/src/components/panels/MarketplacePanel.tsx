@@ -14,9 +14,11 @@ import {
   ChevronDown,
   RefreshCcw,
   Pencil,
+  AlertTriangle,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -29,6 +31,7 @@ import { useAuth } from "../../hooks/useAuth";
 
 export function MarketplacePanel() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { hasAnyPermission } = useAuth();
   const {
     skills,
@@ -69,8 +72,17 @@ export function MarketplacePanel() {
   const canWrite = hasAnyPermission([Permission.MARKETPLACE_PUBLISH]);
   const canAdmin = hasAnyPermission([Permission.MARKETPLACE_ADMIN]);
 
-  // Build set of installed skill names
-  const installedNames = new Set(userSkills.map((s) => s.name));
+  // Only marketplace-installed local skills are eligible for "update from marketplace".
+  const installedMarketplaceNames = new Set(
+    userSkills
+      .filter((skill) => skill.installed_from === "marketplace")
+      .map((skill) => skill.name),
+  );
+  const localManualConflicts = new Set(
+    userSkills
+      .filter((skill) => skill.installed_from !== "marketplace")
+      .map((skill) => skill.name),
+  );
 
   // Refresh user skills on mount to know which are installed
   useEffect(() => {
@@ -125,7 +137,7 @@ export function MarketplacePanel() {
   };
 
   const handleInstallClick = (skillName: string) => {
-    const action = installedNames.has(skillName) ? "update" : "install";
+    const action = installedMarketplaceNames.has(skillName) ? "update" : "install";
     setInstallConfirm({ isOpen: true, skillName, action });
   };
 
@@ -149,11 +161,15 @@ export function MarketplacePanel() {
         );
         await fetchUserSkills();
       } else {
-        toast.error(
-          action === "install"
-            ? t("marketplace.installFailed")
-            : t("marketplace.updateFailed"),
-        );
+        if (action === "install" && localManualConflicts.has(skillName)) {
+          toast.error(t("marketplace.installNameConflict"));
+        } else {
+          toast.error(
+            action === "install"
+              ? t("marketplace.installFailed")
+              : t("marketplace.updateFailed"),
+          );
+        }
       }
     } finally {
       setInstallingSkill(null);
@@ -385,7 +401,10 @@ export function MarketplacePanel() {
         ) : (
           <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {skills.map((skill) => {
-              const isInstalled = installedNames.has(skill.skill_name);
+              const isInstalled = installedMarketplaceNames.has(skill.skill_name);
+              const hasLocalManualConflict = localManualConflicts.has(
+                skill.skill_name,
+              );
               const isOwner = skill.is_owner;
               const canManage = isOwner || canAdmin;
               return (
@@ -420,10 +439,38 @@ export function MarketplacePanel() {
                             {t("marketplace.installed")}
                           </span>
                         )}
+                        {hasLocalManualConflict && (
+                          <span className="skill-status-pill skill-status-pill--disabled">
+                            {t("marketplace.nameConflict")}
+                          </span>
+                        )}
                       </div>
                       <p className="mt-2 text-sm leading-relaxed text-[var(--theme-text-secondary)] line-clamp-3 min-h-[3.75rem]">
                         {skill.description || t("marketplace.noDescription")}
                       </p>
+                      {hasLocalManualConflict && (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle
+                              size={14}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <span>{t("marketplace.installNameConflict")}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate("/skills", {
+                                state: { prefillSkillSearch: skill.skill_name },
+                              })
+                            }
+                            className="mt-2 inline-flex items-center gap-1.5 font-medium text-amber-900 underline decoration-amber-400 underline-offset-2 transition-colors hover:text-amber-950 dark:text-amber-200 dark:decoration-amber-700 dark:hover:text-amber-100"
+                          >
+                            <Pencil size={13} />
+                            <span>{t("marketplace.viewInMySkills")}</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -496,13 +543,26 @@ export function MarketplacePanel() {
                         ) : (
                           <button
                             onClick={() => handleInstallClick(skill.skill_name)}
+                            disabled={hasLocalManualConflict}
+                            title={
+                              hasLocalManualConflict
+                                ? t("marketplace.installNameConflict")
+                                : undefined
+                            }
                             className={`text-xs flex min-h-9 items-center gap-1.5 px-3 py-2 ${
-                              isInstalled
+                              hasLocalManualConflict
+                                ? "btn-secondary cursor-not-allowed opacity-60"
+                                : isInstalled
                                 ? "btn-secondary"
                                 : "btn-primary shadow-sm"
                             }`}
                           >
-                            {isInstalled ? (
+                            {hasLocalManualConflict ? (
+                              <>
+                                <AlertTriangle size={14} />
+                                <span>{t("marketplace.nameConflict")}</span>
+                              </>
+                            ) : isInstalled ? (
                               <>
                                 <RefreshCcw size={14} />
                                 <span>{t("marketplace.update")}</span>

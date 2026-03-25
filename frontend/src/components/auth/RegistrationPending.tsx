@@ -54,7 +54,7 @@ export function RegistrationPending() {
   }
 
   return (
-    <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+    <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
       {/* 左上角返回按钮 */}
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <div
@@ -73,8 +73,8 @@ export function RegistrationPending() {
 
       {/* 背景装饰 */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
+        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
 
       {/* 主内容区域 */}
@@ -94,10 +94,10 @@ export function RegistrationPending() {
           </div>
 
           {/* 邮箱信息卡片 */}
-          <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-stone-700 dark:bg-stone-800">
+          <div className="auth-panel mb-6 rounded-xl p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-                <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <div className="auth-accent-icon flex h-10 w-10 items-center justify-center rounded-full">
+                <Mail className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-stone-100">
@@ -111,25 +111,25 @@ export function RegistrationPending() {
           </div>
 
           {/* 操作指引 */}
-          <div className="mb-6 rounded-xl bg-gray-50 p-4 dark:bg-stone-800/50">
+          <div className="auth-muted-panel mb-6 rounded-xl p-4">
             <h2 className="mb-3 font-medium text-gray-900 dark:text-stone-100">
               {t("auth.whatToDoNext")}
             </h2>
             <ol className="space-y-2 text-sm text-gray-600 dark:text-stone-400">
               <li className="flex items-start gap-2">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
+                <span className="auth-accent-badge mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                   1
                 </span>
                 <span>{t("auth.checkInboxStep")}</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
+                <span className="auth-accent-badge mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                   2
                 </span>
                 <span>{t("auth.clickVerifyLinkStep")}</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
+                <span className="auth-accent-badge mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                   3
                 </span>
                 <span>{t("auth.loginAfterVerifyStep")}</span>
@@ -148,7 +148,7 @@ export function RegistrationPending() {
             <button
               onClick={handleResendVerification}
               disabled={isResending}
-              className="mb-4 w-full rounded-xl border border-gray-200 bg-white py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700 sm:py-3.5"
+              className="auth-secondary-button mb-4 w-full rounded-xl py-3 text-sm font-medium shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 sm:py-3.5"
             >
               {isResending ? (
                 <span className="flex items-center justify-center gap-2">
@@ -167,7 +167,7 @@ export function RegistrationPending() {
           {/* 返回登录 */}
           <button
             onClick={handleGoToLogin}
-            className="w-full rounded-xl bg-gray-900 py-3 text-sm font-medium text-white shadow-lg shadow-gray-900/25 transition-all hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:translate-y-0 dark:bg-white dark:text-gray-900 dark:shadow-white/10 dark:hover:bg-stone-100 sm:py-3.5"
+            className="auth-primary-button w-full rounded-xl py-3 text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 sm:py-3.5"
           >
             {t("auth.backToLogin")}
           </button>

@@ -521,6 +521,13 @@ class ToggleRequest(BaseModel):
     enabled: Optional[bool] = None
 
 
+async def _ensure_skill_exists(storage: SkillStorage, skill_name: str, user_id: str) -> None:
+    """Reject toggle operations for non-existent skills to avoid ghost disabled state."""
+    paths = await storage.list_skill_file_paths(skill_name, user_id)
+    if not paths:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+
+
 # ==========================================
 # 批量操作
 # ==========================================
@@ -574,6 +581,17 @@ async def batch_toggle_skills(
     storage: SkillStorage = Depends(get_storage),
 ):
     """批量切换 Skills 的启用状态"""
+    missing_names = []
+    for name in body.names:
+        try:
+            await _ensure_skill_exists(storage, name, user.sub)
+        except HTTPException:
+            missing_names.append(name)
+
+    if missing_names:
+        missing = ", ".join(sorted(missing_names))
+        raise HTTPException(status_code=404, detail=f"Skill(s) not found: {missing}")
+
     # Get current disabled_skills from user metadata
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)
@@ -603,6 +621,8 @@ async def toggle_user_skill(
     storage: SkillStorage = Depends(get_storage),
 ):
     """切换或设置 Skill 的启用状态"""
+    await _ensure_skill_exists(storage, name, user.sub)
+
     # Get current disabled_skills from user metadata
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)

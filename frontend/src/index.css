@@ -69,6 +69,131 @@ select:-webkit-autofill:active {
   --theme-text-secondary: #a8a29e; /* stone-400 */
 }
 
+.auth-shell {
+  background:
+    radial-gradient(
+      circle at bottom left,
+      color-mix(in srgb, var(--theme-primary) 12%, transparent) 0%,
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      color-mix(in srgb, var(--theme-primary) 10%, transparent) 0%,
+      transparent 42%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--theme-bg) 92%, white 8%) 0%,
+      var(--theme-bg-card) 52%,
+      color-mix(in srgb, var(--theme-bg) 94%, black 6%) 100%
+    );
+}
+
+.dark .auth-shell {
+  background:
+    radial-gradient(
+      circle at bottom left,
+      color-mix(in srgb, var(--theme-primary) 18%, transparent) 0%,
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      color-mix(in srgb, var(--theme-primary) 14%, transparent) 0%,
+      transparent 40%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--theme-bg) 96%, black 4%) 0%,
+      var(--theme-bg-card) 50%,
+      color-mix(in srgb, var(--theme-bg) 92%, var(--theme-primary-light) 8%) 100%
+    );
+}
+
+.auth-panel {
+  border: 1px solid color-mix(in srgb, var(--theme-border) 74%, transparent);
+  background: color-mix(in srgb, var(--theme-bg-card) 88%, transparent);
+  box-shadow:
+    0 24px 44px -32px color-mix(in srgb, var(--theme-text) 18%, transparent),
+    0 10px 24px -20px color-mix(in srgb, var(--theme-primary) 14%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.auth-input {
+  border: 1px solid color-mix(in srgb, var(--theme-border) 82%, transparent);
+  background: color-mix(in srgb, var(--theme-bg-card) 84%, transparent);
+  color: var(--theme-text);
+}
+
+.auth-input::placeholder {
+  color: color-mix(in srgb, var(--theme-text-secondary) 72%, transparent);
+}
+
+.auth-input:focus {
+  border-color: color-mix(in srgb, var(--theme-primary) 56%, white 44%);
+  background: var(--theme-bg-card);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--theme-primary) 14%, transparent),
+    0 16px 28px -24px color-mix(in srgb, var(--theme-primary) 22%, transparent);
+  outline: none;
+}
+
+.dark .auth-input:focus {
+  border-color: color-mix(in srgb, var(--theme-primary) 48%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-bg-card) 94%, black 6%);
+}
+
+.auth-primary-button {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-primary) 88%, black 12%) 0%,
+    var(--theme-primary) 100%
+  );
+  color: #fff;
+  box-shadow:
+    0 18px 32px -24px color-mix(in srgb, var(--theme-primary) 42%, transparent),
+    0 8px 20px -18px color-mix(in srgb, var(--theme-primary) 30%, transparent);
+}
+
+.auth-primary-button:hover {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-primary-hover) 84%, black 16%) 0%,
+    var(--theme-primary-hover) 100%
+  );
+  box-shadow:
+    0 22px 36px -24px color-mix(in srgb, var(--theme-primary) 46%, transparent),
+    0 10px 22px -18px color-mix(in srgb, var(--theme-primary) 34%, transparent);
+}
+
+.dark .auth-primary-button {
+  color: #1c1917;
+}
+
+.auth-secondary-button {
+  border: 1px solid color-mix(in srgb, var(--theme-border) 88%, transparent);
+  background: color-mix(in srgb, var(--theme-bg-card) 92%, transparent);
+  color: color-mix(in srgb, var(--theme-text) 84%, var(--theme-text-secondary));
+}
+
+.auth-secondary-button:hover {
+  background: color-mix(in srgb, var(--theme-primary-light) 42%, var(--theme-bg-card));
+  border-color: color-mix(in srgb, var(--theme-primary) 28%, var(--theme-border));
+}
+
+.auth-accent-icon {
+  background: color-mix(in srgb, var(--theme-primary) 12%, transparent);
+  color: var(--theme-primary);
+}
+
+.auth-accent-badge {
+  background: color-mix(in srgb, var(--theme-primary) 12%, transparent);
+  color: var(--theme-primary);
+}
+
+.auth-muted-panel {
+  background: color-mix(in srgb, var(--theme-bg) 72%, var(--theme-bg-card) 28%);
+}
+
 /* Chat input focus glow effect */
 .chat-input-container:focus-within {
   border-color: #a8a29e;

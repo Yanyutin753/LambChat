@@ -2,6 +2,9 @@
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
+from bson import ObjectId
+from bson.errors import InvalidId
+
 from src.infra.logging import get_logger
 from src.infra.skill.constants import (
     SKILL_MARKETPLACE_COLLECTION,
@@ -73,11 +76,25 @@ class MarketplaceStorage:
         if not user_ids:
             return {}
         collection = self._get_users_collection()
+        object_ids = []
+        for user_id in user_ids:
+            try:
+                object_ids.append(ObjectId(user_id))
+            except (InvalidId, TypeError):
+                continue
+        if not object_ids:
+            return {}
         result: dict[str, str] = {}
-        cursor = collection.find({"id": {"$in": user_ids}}, {"id": 1, "username": 1})
+        cursor = collection.find({"_id": {"$in": object_ids}}, {"_id": 1, "username": 1})
         async for doc in cursor:
-            result[doc["id"]] = doc.get("username", doc["id"])
+            key = str(doc["_id"])
+            result[key] = doc.get("username", key)
         return result
+
+    @staticmethod
+    def _normalize_version(version: Optional[str]) -> str:
+        """Ensure legacy null versions are exposed as the default string value."""
+        return version or "1.0.0"
 
     def _build_response(
         self,
@@ -91,7 +108,7 @@ class MarketplaceStorage:
             skill_name=doc["skill_name"],
             description=doc.get("description", ""),
             tags=doc.get("tags", []),
-            version=doc.get("version", "1.0.0"),
+            version=self._normalize_version(doc.get("version")),
             created_at=doc.get("created_at"),
             updated_at=doc.get("updated_at"),
             created_by=created_by,
@@ -186,7 +203,7 @@ class MarketplaceStorage:
             skill_name=doc["skill_name"],
             description=doc.get("description", ""),
             tags=doc.get("tags", []),
-            version=doc.get("version", "1.0.0"),
+            version=self._normalize_version(doc.get("version")),
             created_at=doc.get("created_at"),
             updated_at=doc.get("updated_at"),
             created_by=doc.get("created_by"),
@@ -245,7 +262,12 @@ class MarketplaceStorage:
             "is_active": True,
         }
         await collection.insert_one(doc)
-        return MarketplaceSkill(**doc)
+        return MarketplaceSkill(
+            **{
+                **doc,
+                "version": self._normalize_version(doc.get("version")),
+            }
+        )
 
     async def update_marketplace_skill(
         self, skill_name: str, data: MarketplaceSkillUpdate
@@ -270,7 +292,16 @@ class MarketplaceStorage:
         await collection.update_one({"skill_name": skill_name}, {"$set": update_data})
 
         updated = await collection.find_one({"skill_name": skill_name})
-        return MarketplaceSkill(**updated) if updated else None
+        return (
+            MarketplaceSkill(
+                **{
+                    **updated,
+                    "version": self._normalize_version(updated.get("version")),
+                }
+            )
+            if updated
+            else None
+        )
 
     async def set_marketplace_active(
         self, skill_name: str, is_active: bool
@@ -286,7 +317,12 @@ class MarketplaceStorage:
         )
         if not result:
             return None
-        return MarketplaceSkill(**result)
+        return MarketplaceSkill(
+            **{
+                **result,
+                "version": self._normalize_version(result.get("version")),
+            }
+        )
 
     async def delete_marketplace_skill(self, skill_name: str) -> bool:
         """删除商城 Skill 元数据和所有文件"""

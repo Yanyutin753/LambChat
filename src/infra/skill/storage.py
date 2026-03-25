@@ -449,7 +449,7 @@ class SkillStorage:
             logger.warning(f"[Skills Cache] Redis get failed: {e}")
 
         if disabled_skills is None:
-            disabled_skills = []
+            disabled_skills = await self._get_user_disabled_skills(user_id)
         disabled_set = set(disabled_skills)
 
         # 获取所有用户 skill 名称（排除 __meta__）
@@ -499,6 +499,19 @@ class SkillStorage:
             logger.warning(f"[Skills Cache] Redis set failed: {e}")
 
         return result
+
+    async def _get_user_disabled_skills(self, user_id: str) -> list[str]:
+        """Load disabled skills from user metadata for cache-safe default behavior."""
+        try:
+            from src.infra.user.storage import UserStorage
+
+            user_storage = UserStorage()
+            user_doc = await user_storage.get_by_id(user_id)
+            if user_doc and user_doc.metadata:
+                return user_doc.metadata.get("disabled_skills", [])
+        except Exception as e:
+            logger.warning(f"Failed to load disabled_skills for user {user_id}: {e}")
+        return []
 
     async def get_all_user_skill_names(self, user_id: str) -> list[str]:
         """获取用户所有 skill 名称（无论 enabled/disabled，排除 __meta__）"""

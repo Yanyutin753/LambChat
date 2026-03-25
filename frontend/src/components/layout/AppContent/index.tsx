@@ -67,6 +67,8 @@ export function AppContent({ activeTab }: AppContentProps) {
     isLoading: skillsLoading,
     enabledCount: enabledSkillsCount,
     totalCount: totalSkillsCount,
+    pendingSkillNames,
+    isMutating: skillsMutating,
     toggleSkillWrapper,
     toggleCategory: toggleSkillCategory,
     toggleAll: toggleAllSkills,
@@ -248,6 +250,8 @@ export function AppContent({ activeTab }: AppContentProps) {
               onToggleSkillCategory={toggleSkillCategory}
               onToggleAllSkills={toggleAllSkills}
               skillsLoading={skillsLoading}
+              pendingSkillNames={pendingSkillNames}
+              skillsMutating={skillsMutating}
               enabledSkillsCount={enabledSkillsCount}
               totalSkillsCount={totalSkillsCount}
               enableSkills={enableSkills}

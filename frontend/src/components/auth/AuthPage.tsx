@@ -249,7 +249,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
   };
 
   return (
-    <div className="min-h-screen overflow-y-auto overflow-x-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-stone-950 dark:via-stone-900 dark:to-stone-800">
+    <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
       {/* 左上角 Logo */}
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <Link
@@ -272,8 +272,8 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
       {/* 背景装饰 */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-gray-200/50 blur-3xl dark:bg-stone-700/30" />
+        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
+        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
 
       {/* 主内容区域 - CSS Grid 实现居中且可滚动 */}
@@ -290,7 +290,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
           </div>
 
           {/* 表单卡片 */}
-          <div className="w-full rounded-2xl border border-gray-200/60 bg-white/90 p-5 shadow-xl  dark:border-stone-700/40 dark:bg-stone-900/90 sm:p-8">
+          <div className="auth-panel w-full rounded-2xl p-5 sm:p-8">
             {/* OAuth 登录按钮 - 放在最上面 */}
             {oauthProviders.length > 0 && (
               <div className="mb-4 space-y-2.5 sm:mb-6 sm:space-y-3">
@@ -388,7 +388,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-4"
+                    className="auth-input w-full rounded-xl py-2.5 pl-10 pr-3 text-sm transition-all sm:py-3 sm:pl-11 sm:pr-4"
                     placeholder={
                       mode === "login"
                         ? t("auth.usernameOrEmailPlaceholder")
@@ -418,7 +418,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-4"
+                      className="auth-input w-full rounded-xl py-2.5 pl-10 pr-3 text-sm transition-all sm:py-3 sm:pl-11 sm:pr-4"
                       placeholder={t("auth.emailPlaceholder")}
                       autoComplete="email"
                     />
@@ -439,7 +439,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-4"
+                    className="auth-input w-full rounded-xl py-2.5 pl-10 pr-3 text-sm transition-all sm:py-3 sm:pl-11 sm:pr-4"
                     placeholder={t("auth.passwordPlaceholder")}
                     autoComplete={
                       mode === "login" ? "current-password" : "new-password"
@@ -462,7 +462,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                       type="password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200/80 bg-white/80 py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-stone-600/60 dark:bg-stone-800/60 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-blue-400 dark:focus:bg-stone-800 dark:focus:ring-blue-500/20 sm:py-3 sm:pl-11 sm:pr-4"
+                      className="auth-input w-full rounded-xl py-2.5 pl-10 pr-3 text-sm transition-all sm:py-3 sm:pl-11 sm:pr-4"
                       placeholder={t("auth.confirmPasswordPlaceholder")}
                       autoComplete="new-password"
                     />
@@ -472,7 +472,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
               {/* Turnstile 人机验证 */}
               {requiresTurnstile() && (
-                <div className="mb-4 w-full rounded-xl border border-gray-200/80 bg-white/80 p-3 dark:border-stone-600/60 dark:bg-stone-800/60 sm:mb-6 sm:p-4">
+                <div className="auth-input mb-4 w-full rounded-xl p-3 sm:mb-6 sm:p-4">
                   <div className="flex justify-center">
                     <Turnstile
                       key={turnstileKey}
@@ -493,7 +493,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-xl bg-gray-900 py-3 text-sm font-medium text-white shadow-lg shadow-gray-900/25 transition-all hover:-translate-y-0.5 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 dark:bg-white dark:text-gray-900 dark:shadow-white/10 dark:hover:bg-stone-100 sm:py-3.5"
+                className="auth-primary-button w-full rounded-xl py-3 text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 sm:py-3.5"
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">

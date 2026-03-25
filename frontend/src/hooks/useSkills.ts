@@ -211,6 +211,9 @@ export function useSkills(options?: { enabled?: boolean }) {
     async (name: string): Promise<boolean> => {
       // 记录期望的 toggle 状态
       const currentSkill = skills.find((s) => s.name === name);
+      if (!currentSkill) {
+        return false;
+      }
       const newEnabled = currentSkill ? !currentSkill.enabled : true;
       pendingTogglesRef.current.set(name, newEnabled);
 
@@ -220,7 +223,12 @@ export function useSkills(options?: { enabled?: boolean }) {
       );
 
       try {
-        await skillApi.toggle(name);
+        const result = await skillApi.toggle(name, newEnabled);
+        setSkills((prev) =>
+          prev.map((s) =>
+            s.name === name ? { ...s, enabled: result.enabled } : s,
+          ),
+        );
         return true;
       } catch (err) {
         // Rollback on error
@@ -303,32 +311,38 @@ export function useSkills(options?: { enabled?: boolean }) {
 
   // Toggle skill wrapper (for compatibility)
   const toggleSkillWrapper = useCallback(
-    async (name: string): Promise<void> => {
-      await toggleSkill(name);
+    async (name: string): Promise<boolean> => {
+      return await toggleSkill(name);
     },
     [toggleSkill],
   );
 
   // Toggle category (not applicable in new architecture - just toggle all)
   const toggleCategory = useCallback(
-    async (_category: SkillSource, enabled: boolean): Promise<void> => {
-      const promises = skills
+    async (_category: SkillSource, enabled: boolean): Promise<boolean> => {
+      const names = skills
         .filter((s) => s.source === _category && s.enabled !== enabled)
-        .map((s) => toggleSkill(s.name));
-      await Promise.all(promises);
+        .map((s) => s.name);
+      if (names.length === 0) {
+        return true;
+      }
+      return await batchToggleSkills(names, enabled);
     },
-    [skills, toggleSkill],
+    [batchToggleSkills, skills],
   );
 
   // Toggle all skills
   const toggleAll = useCallback(
-    async (enabled: boolean): Promise<void> => {
-      const promises = skills
+    async (enabled: boolean): Promise<boolean> => {
+      const names = skills
         .filter((s) => s.enabled !== enabled)
-        .map((s) => toggleSkill(s.name));
-      await Promise.all(promises);
+        .map((s) => s.name);
+      if (names.length === 0) {
+        return true;
+      }
+      return await batchToggleSkills(names, enabled);
     },
-    [skills, toggleSkill],
+    [batchToggleSkills, skills],
   );
 
   // Get enabled skill names
@@ -475,6 +489,8 @@ export function useSkills(options?: { enabled?: boolean }) {
   // Stats
   const enabledCount = skills.filter((s) => s.enabled).length;
   const totalCount = skills.length;
+  const pendingSkillNames = Array.from(pendingTogglesRef.current.keys());
+  const isMutating = pendingSkillNames.length > 0;
 
   // Publish skill to marketplace
   const publishToMarketplace = useCallback(
@@ -525,6 +541,8 @@ export function useSkills(options?: { enabled?: boolean }) {
     previewGitHubSkills,
     installGitHubSkills,
     publishToMarketplace,
+    pendingSkillNames,
+    isMutating,
     getEnabledSkillNames,
     getCategoryStats,
     enabledCount,

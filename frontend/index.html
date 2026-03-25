@@ -109,6 +109,12 @@
   <body>
     <!-- Inline critical CSS for flash-of-unstyled-content prevention -->
     <style>
+      :root {
+        --boot-theme-primary: #78716c;
+        --boot-theme-border: #e7e5e4;
+        --boot-theme-bg: #ffffff;
+      }
+
       html,
       body,
       #root {
@@ -120,12 +126,14 @@
 
       /* Prevent FOUC - show white/dark background immediately */
       body {
-        background-color: #ffffff;
+        background-color: var(--boot-theme-bg);
       }
 
       @media (prefers-color-scheme: dark) {
-        body {
-          background-color: #1c1917;
+        :root {
+          --boot-theme-primary: #a8a29e;
+          --boot-theme-border: #44403c;
+          --boot-theme-bg: #1c1917;
         }
       }
 
@@ -141,17 +149,11 @@
         content: "";
         width: 32px;
         height: 32px;
-        border: 3px solid #e5e7eb;
-        border-top-color: #3b82f6;
+        border: 3px solid var(--boot-theme-border);
+        border-top-color: var(--boot-theme-primary);
         border-radius: 50%;
         animation: lc-spin 0.6s linear infinite;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        #root:empty::after {
-          border-color: #374151;
-          border-top-color: #60a5fa;
-        }
+        box-shadow: 0 0 0 4px rgb(120 113 108 / 0.08);
       }
 
       @keyframes lc-spin {
