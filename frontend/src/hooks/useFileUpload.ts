@@ -29,6 +29,28 @@ function getFileCategory(file: File): FileCategory {
   return "document";
 }
 
+function computeFileHash(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      new URL("../workers/hashWorker.ts", import.meta.url),
+      { type: "module" },
+    );
+    worker.onmessage = (e) => {
+      worker.terminate();
+      if (e.data.error) {
+        reject(new Error(e.data.error));
+      } else {
+        resolve(e.data.hash);
+      }
+    };
+    worker.onerror = (e) => {
+      worker.terminate();
+      reject(new Error(e.message));
+    };
+    worker.postMessage({ file });
+  });
+}
+
 export function useFileUpload({
   attachments,
   onAttachmentsChange,
@@ -108,40 +130,78 @@ export function useFileUpload({
         mimeType: file.type,
         size: file.size,
         url: "",
+        uploadProgress: 0,
+        isUploading: true,
       };
 
       onAttachmentsChange((prev) => [...prev, tempAttachment]);
 
-      const handle = uploadApi.uploadFile(file, {
-        onProgress: (progress) => {
+      computeFileHash(file)
+        .then((hash) => {
           onAttachmentsChange((prev: MessageAttachment[]) =>
             prev.map((a) =>
-              a.id === tempId
-                ? { ...a, uploadProgress: progress, isUploading: true }
-                : a,
+              a.id === tempId ? { ...a, uploadProgress: 1 } : a,
             ),
           );
-        },
-      });
+          return uploadApi
+            .checkFile(hash, file.size, file.name, file.type)
+            .then((check) => ({ hash, check }));
+        })
+        .then(({ check }) => {
+          if (check.exists) {
+            abortMapRef.current.delete(tempId);
+            const finalAttachment: MessageAttachment = {
+              id: crypto.randomUUID(),
+              key: check.key,
+              name: check.name || file.name,
+              type: check.type as FileCategory,
+              mimeType: check.mimeType,
+              size: check.size,
+              url: `/api/upload/file/${check.key}`,
+            };
+            onAttachmentsChange((prev: MessageAttachment[]) =>
+              prev.map((a) =>
+                a.id === tempId
+                  ? {
+                      ...finalAttachment,
+                      uploadProgress: 100,
+                      isUploading: false,
+                    }
+                  : a,
+              ),
+            );
+            return;
+          }
 
-      abortMapRef.current.set(tempId, handle.abort);
+          const handle = uploadApi.uploadFile(file, {
+            onProgress: (progress) => {
+              onAttachmentsChange((prev: MessageAttachment[]) =>
+                prev.map((a) =>
+                  a.id === tempId
+                    ? { ...a, uploadProgress: progress, isUploading: true }
+                    : a,
+                ),
+              );
+            },
+          });
 
-      handle.promise
-        .then((result) => {
-          abortMapRef.current.delete(tempId);
-          const finalAttachment: MessageAttachment = {
-            id: crypto.randomUUID(),
-            key: result.key,
-            name: result.name || file.name,
-            type: result.type as FileCategory,
-            mimeType: result.mimeType,
-            size: result.size,
-            url: result.url,
-          };
+          abortMapRef.current.set(tempId, handle.abort);
 
-          onAttachmentsChange((prev: MessageAttachment[]) =>
-            prev.map((a) => (a.id === tempId ? finalAttachment : a)),
-          );
+          return handle.promise.then((result) => {
+            abortMapRef.current.delete(tempId);
+            const finalAttachment: MessageAttachment = {
+              id: crypto.randomUUID(),
+              key: result.key,
+              name: result.name || file.name,
+              type: result.type as FileCategory,
+              mimeType: result.mimeType,
+              size: result.size,
+              url: result.url,
+            };
+            onAttachmentsChange((prev: MessageAttachment[]) =>
+              prev.map((a) => (a.id === tempId ? finalAttachment : a)),
+            );
+          });
         })
         .catch((error) => {
           abortMapRef.current.delete(tempId);
@@ -149,7 +209,6 @@ export function useFileUpload({
             error instanceof Error &&
             error.message === "Upload was aborted"
           ) {
-            // Cancelled by user, already removed in cancelUpload
             return;
           }
           console.error("Upload failed:", error);
