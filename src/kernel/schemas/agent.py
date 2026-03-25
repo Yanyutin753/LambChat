@@ -11,11 +11,13 @@ from src.kernel.schemas.message import ToolCall
 class AttachmentSchema(BaseModel):
     """Attachment schema for file uploads."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(..., description="Unique attachment ID")
     key: str = Field(..., description="Storage key")
     name: str = Field(..., description="Original filename")
     type: str = Field(..., description="File category: image, video, audio, document")
-    mime_type: str = Field(..., description="MIME type")
+    mime_type: str = Field(..., description="MIME type", alias="mimeType")
     size: int = Field(..., description="File size in bytes")
     url: str = Field(..., description="Accessible URL")
 
