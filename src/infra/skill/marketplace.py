@@ -108,7 +108,7 @@ class MarketplaceStorage:
             skill_name=doc["skill_name"],
             description=doc.get("description", ""),
             tags=doc.get("tags", []),
-            version=self._normalize_version(doc.get("version")),
+            version=self._normalize_version(doc.get("version") if isinstance(doc.get("version"), str) else None),
             created_at=doc.get("created_at"),
             updated_at=doc.get("updated_at"),
             created_by=created_by,
@@ -203,7 +203,7 @@ class MarketplaceStorage:
             skill_name=doc["skill_name"],
             description=doc.get("description", ""),
             tags=doc.get("tags", []),
-            version=self._normalize_version(doc.get("version")),
+            version=self._normalize_version(doc.get("version") if isinstance(doc.get("version"), str) else None),
             created_at=doc.get("created_at"),
             updated_at=doc.get("updated_at"),
             created_by=doc.get("created_by"),
@@ -262,10 +262,11 @@ class MarketplaceStorage:
             "is_active": True,
         }
         await collection.insert_one(doc)
+        doc_version: str | None = doc.get("version")  # type: ignore[assignment]
         return MarketplaceSkill(
             **{
                 **doc,
-                "version": self._normalize_version(doc.get("version")),
+                "version": self._normalize_version(doc_version),
             }
         )
 
@@ -296,7 +297,7 @@ class MarketplaceStorage:
             MarketplaceSkill(
                 **{
                     **updated,
-                    "version": self._normalize_version(updated.get("version")),
+                    "version": self._normalize_version(updated.get("version") if isinstance(updated.get("version"), str) else None),
                 }
             )
             if updated
@@ -320,7 +321,7 @@ class MarketplaceStorage:
         return MarketplaceSkill(
             **{
                 **result,
-                "version": self._normalize_version(result.get("version")),
+                "version": self._normalize_version(result.get("version") if isinstance(result.get("version"), str) else None),
             }
         )
 

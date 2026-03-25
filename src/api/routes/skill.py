@@ -595,6 +595,8 @@ async def batch_toggle_skills(
     # Get current disabled_skills from user metadata
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)
+    if user_doc is None:
+        raise HTTPException(status_code=404, detail="User not found")
     disabled = set((user_doc.metadata or {}).get("disabled_skills", []))
 
     if body.enabled:
@@ -626,6 +628,8 @@ async def toggle_user_skill(
     # Get current disabled_skills from user metadata
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)
+    if user_doc is None:
+        raise HTTPException(status_code=404, detail="User not found")
     disabled = set((user_doc.metadata or {}).get("disabled_skills", []))
 
     target_enabled = body.enabled if body else None
