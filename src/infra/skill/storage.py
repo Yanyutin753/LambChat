@@ -516,7 +516,7 @@ class SkillStorage:
     async def get_all_user_skill_names(self, user_id: str) -> list[str]:
         """获取用户所有 skill 名称（无论 enabled/disabled，排除 __meta__）"""
         collection = self._get_files_collection()
-        pipeline = [
+        pipeline: list[dict[str, Any]] = [
             {"$match": {"user_id": user_id, "file_path": {"$ne": "__meta__"}}},
             {"$group": {"_id": "$skill_name"}},
         ]
