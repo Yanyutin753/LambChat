@@ -41,6 +41,12 @@ logger = get_logger(__name__)
 
 ProjectTemplate = Literal["react", "vue", "vanilla", "static"]
 
+# 上传并发数
+UPLOAD_CONCURRENCY = 10
+
+# 同名项目最大保留版本数，超出时清理最旧的
+MAX_PROJECT_VERSIONS = 5
+
 BINARY_EXTENSIONS = {
     ".png",
     ".jpg",
@@ -87,10 +93,50 @@ BINARY_EXTENSIONS = {
     ".wasm",
 }
 
+# 前端相关扩展名白名单，不在列表中的非二进制文件会被跳过
+FRONTEND_EXTENSIONS = {
+    # Web 核心
+    ".html",
+    ".htm",
+    ".css",
+    # JavaScript / TypeScript
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".ts",
+    ".tsx",
+    ".mts",
+    ".cts",
+    # 框架 / 预处理器
+    ".vue",
+    ".svelte",
+    ".less",
+    ".scss",
+    ".sass",
+    ".styl",
+    # 数据 / 配置
+    ".json",
+    ".json5",
+    ".toml",
+    ".yaml",
+    ".yml",
+    # 模板 / 标记
+    ".md",
+    ".mdx",
+    ".txt",
+    ".graphql",
+    ".gql",
+    # 其他前端资源
+    ".map",
+    ".xml",
+}
+
 IGNORE_DIRS = {
     "node_modules",
     ".git",
     ".venv",
+    "venv",
     "__pycache__",
     ".DS_Store",
     "dist",
@@ -98,6 +144,9 @@ IGNORE_DIRS = {
     ".next",
     ".nuxt",
     "coverage",
+    ".turbo",
+    ".cache",
+    ".parcel-cache",
 }
 
 IGNORE_FILES = {
@@ -108,6 +157,8 @@ IGNORE_FILES = {
     ".env.local",
     ".env.development",
     ".env.production",
+    "tsconfig.tsbuildinfo",
+    ".eslintcache",
 }
 
 # 入口文件候选顺序
@@ -144,7 +195,7 @@ def detect_template(package_json_content: str) -> ProjectTemplate:
 
 
 def _should_skip(rel_path: str) -> bool:
-    """检查文件是否应该跳过（仅忽略目录和特定文件，不再按扩展名过滤）"""
+    """检查文件是否应该跳过（忽略目录、隐藏文件、非前端文件）"""
     parts = rel_path.strip("/").split("/")
     filename = parts[-1] if parts else ""
 
@@ -153,6 +204,11 @@ def _should_skip(rel_path: str) -> bool:
     if filename.startswith(".") and filename not in IGNORE_FILES:
         return True
     if filename in IGNORE_FILES:
+        return True
+
+    # 跳过不在白名单中的非二进制文件
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in BINARY_EXTENSIONS and ext not in FRONTEND_EXTENSIONS:
         return True
 
     return False
@@ -170,21 +226,11 @@ def _get_mime_type(filename: str) -> str:
     return mime_type or "application/octet-stream"
 
 
-async def _ensure_storage_initialized() -> None:
-    """确保 storage 已初始化（S3 或本地存储）"""
-    from src.infra.storage.s3 import S3Config, S3Provider, get_storage_service, init_storage
-    from src.kernel.config import settings
+async def _get_storage():
+    """获取已初始化的 storage 服务（复用 upload 模块的初始化逻辑）"""
+    from src.api.routes.upload import get_or_init_storage
 
-    storage = get_storage_service()
-    if storage._backend is None:
-        if settings.S3_ENABLED:
-            config = settings.get_s3_config()
-        else:
-            config = S3Config(
-                provider=S3Provider.LOCAL,
-                storage_path=getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads",
-            )
-        await init_storage(config)
+    return await get_or_init_storage()
 
 
 async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[bytes]:
@@ -250,7 +296,7 @@ async def _list_project_files(backend: Any, project_path: str) -> list[str]:
     return files
 
 
-def _find_entry(file_keys: list[str]) -> Optional[str]:
+def _find_entry(file_keys: set[str]) -> Optional[str]:
     """查找项目入口文件"""
     for candidate in ENTRY_CANDIDATES:
         if candidate in file_keys:
@@ -267,6 +313,95 @@ def _get_base_url(runtime: Any) -> str:
         if isinstance(config, dict):
             return config.get("configurable", {}).get("base_url", "")
     return ""
+
+
+async def _cleanup_old_versions(storage: Any, project_name: str) -> None:
+    """清理同名项目的旧版本上传，保留最近 MAX_PROJECT_VERSIONS 个"""
+    try:
+        existing = await storage.list_files("revealed_projects/")
+        # 提取同名项目的文件夹名
+        folders = set()
+        for key in existing:
+            # key 格式: revealed_projects/{name}_{uuid}/path/to/file
+            parts = key.split("/")
+            if len(parts) >= 2 and parts[1].startswith(f"{project_name}_"):
+                folders.add(parts[1])
+        # 按名称排序（uuid hex 字典序即为时间序），保留最新的 N 个
+        sorted_folders = sorted(folders)
+        if len(sorted_folders) > MAX_PROJECT_VERSIONS:
+            for old_folder in sorted_folders[:-MAX_PROJECT_VERSIONS]:
+                old_prefix = f"revealed_projects/{old_folder}/"
+                old_keys = await storage.list_files(old_prefix)
+                for key in old_keys:
+                    await storage.delete_file(key)
+                logger.info(f"Cleaned up old version: {old_prefix} ({len(old_keys)} files)")
+    except Exception as e:
+        logger.warning(f"Failed to cleanup old versions for {project_name}: {e}")
+
+
+async def _upload_file(
+    storage: Any,
+    backend: Any,
+    file_path: str,
+    rel_path: str,
+    folder_name: str,
+    base_url: str,
+    semaphore: asyncio.Semaphore,
+) -> Optional[tuple[str, dict[str, Any], Optional[str]]]:
+    """下载并上传单个文件到 OSS，返回 (rel_path, file_info, package_json_content)"""
+    async with semaphore:
+        content_bytes = await _download_file_from_backend(backend, file_path)
+        if not content_bytes:
+            logger.debug(f"Failed to read: {rel_path}")
+            return None
+
+        max_size = getattr(storage, "_config", None)
+        max_size = (
+            getattr(max_size, "internal_max_upload_size", 50 * 1024 * 1024)
+            if max_size
+            else 50 * 1024 * 1024
+        )
+        if len(content_bytes) > max_size:
+            logger.info(f"Skipping large file: {rel_path} ({len(content_bytes)} bytes)")
+            return None
+
+        filename = os.path.basename(rel_path)
+        is_binary = _is_binary(filename)
+        mime_type = _get_mime_type(filename)
+
+        upload_filename = rel_path.lstrip("/")
+        content_type = mime_type if is_binary else "text/plain"
+
+        upload_result = await storage.upload_bytes(
+            data=content_bytes,
+            folder=folder_name,
+            filename=upload_filename,
+            content_type=content_type,
+        )
+
+        proxy_url = (
+            f"{base_url}/api/upload/file/{upload_result.key}"
+            if base_url
+            else f"/api/upload/file/{upload_result.key}"
+        )
+
+        file_info: dict[str, Any] = {
+            "url": proxy_url,
+            "is_binary": is_binary,
+            "size": upload_result.size,
+        }
+        if is_binary:
+            file_info["content_type"] = upload_result.content_type or mime_type
+
+        # 提取 package.json 内容
+        package_json_content = None
+        if rel_path == "/package.json":
+            try:
+                package_json_content = content_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
+
+        return rel_path, file_info, package_json_content
 
 
 @tool
@@ -296,10 +431,7 @@ async def reveal_project(
     Returns:
         JSON 格式的项目文件清单，包含每个文件的 OSS URL
     """
-    from src.infra.storage.s3 import get_storage_service
-
-    await _ensure_storage_initialized()
-    storage = get_storage_service()
+    storage = await _get_storage()
 
     backend = get_backend_from_runtime(runtime)
 
@@ -337,59 +469,36 @@ async def reveal_project(
 
         logger.info(f"Found {len(all_files)} files in {project_path}")
 
-        # 上传所有文件到 OSS，构建 manifest
-        files_manifest: dict[str, dict[str, Any]] = {}
-        package_json_content: Optional[str] = None
-
+        # 预处理：计算 rel_path 并过滤需要跳过的文件
+        upload_tasks: list[tuple[str, str]] = []  # (file_path, rel_path)
         for file_path in all_files:
             rel_path = (
                 file_path[len(project_path) :] if file_path.startswith(project_path) else file_path
             )
             if not rel_path.startswith("/"):
                 rel_path = "/" + rel_path
+            if not _should_skip(rel_path):
+                upload_tasks.append((file_path, rel_path))
 
-            if _should_skip(rel_path):
+        # 并发上传所有文件到 OSS
+        semaphore = asyncio.Semaphore(UPLOAD_CONCURRENCY)
+        results = await asyncio.gather(
+            *[
+                _upload_file(storage, backend, fp, rp, folder_name, base_url, semaphore)
+                for fp, rp in upload_tasks
+            ],
+        )
+
+        # 构建 manifest
+        files_manifest: dict[str, dict[str, Any]] = {}
+        package_json_content: Optional[str] = None
+        for upload in results:
+            if upload is None:
                 continue
-
-            content_bytes = await _download_file_from_backend(backend, file_path)
-            if not content_bytes:
-                logger.debug(f"Failed to read: {rel_path}")
-                continue
-
-            filename = os.path.basename(rel_path)
-            is_binary = _is_binary(filename)
-            mime_type = _get_mime_type(filename)
-
-            # 保留目录结构：用 rel_path 的目录部分作为文件名前缀
-            # 例如 /src/App.tsx -> 文件名用 src/App.tsx（去掉开头的 /）
-            upload_filename = rel_path.lstrip("/")
-            content_type = mime_type if is_binary else "text/plain"
-
-            upload_result = await storage.upload_bytes(
-                data=content_bytes,
-                folder=folder_name,
-                filename=upload_filename,
-                content_type=content_type,
-            )
-
-            proxy_url = f"{base_url}/api/upload/file/{upload_result.key}" if base_url else f"/api/upload/file/{upload_result.key}"
-
-            file_info: dict[str, Any] = {
-                "url": proxy_url,
-                "is_binary": is_binary,
-                "size": upload_result.size,
-            }
-            if is_binary:
-                file_info["content_type"] = upload_result.content_type or mime_type
-
+            rel_path, file_info, pkg_content = upload
             files_manifest[rel_path] = file_info
-
-            # 缓存 package.json 内容用于模板检测
-            if rel_path == "/package.json":
-                try:
-                    package_json_content = content_bytes.decode("utf-8")
-                except UnicodeDecodeError:
-                    pass
+            if pkg_content is not None:
+                package_json_content = pkg_content
 
         if not files_manifest:
             return json.dumps(
@@ -402,6 +511,9 @@ async def reveal_project(
                 },
                 ensure_ascii=False,
             )
+
+        # 异步清理同名项目的旧版本（不阻塞返回）
+        asyncio.create_task(_cleanup_old_versions(storage, project_name))
 
         # 检测模板
         detected_template = template
@@ -420,7 +532,7 @@ async def reveal_project(
             "description": description or "",
             "template": detected_template,
             "files": files_manifest,
-            "entry": _find_entry(list(files_manifest.keys())),
+            "entry": _find_entry(set(files_manifest.keys())),
             "path": project_path,
             "file_count": len(files_manifest),
         }

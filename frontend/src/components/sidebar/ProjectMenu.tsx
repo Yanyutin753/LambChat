@@ -102,7 +102,7 @@ export function ProjectMenu({
         >
           {/* Handle bar */}
           <div className="flex justify-center py-2">
-            <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-stone-600" />
+            <div className="w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
           </div>
 
           {/* Header */}
@@ -112,7 +112,7 @@ export function ProjectMenu({
             </span>
             <button
               onClick={onClose}
-              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-stone-700"
+              className="p-1 rounded-full hover:bg-stone-100 dark:hover:bg-stone-700"
             >
               <X size={18} className="text-stone-400" />
             </button>
@@ -127,7 +127,7 @@ export function ProjectMenu({
                   onNewSessionInProject(_project.id);
                   onClose();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-3 text-base text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
                 <Plus size={18} />
                 <span>{t("sidebar.newChat")}</span>
@@ -140,14 +140,14 @@ export function ProjectMenu({
                 onRename();
                 onClose();
               }}
-              className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-3 text-base text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
             >
               <Edit2 size={18} />
               <span>{t("sidebar.rename")}</span>
             </button>
 
             {/* Divider */}
-            <div className="h-px bg-gray-200 dark:bg-stone-700 my-2" />
+            <div className="h-px bg-stone-200 dark:bg-stone-700 my-2" />
 
             {/* Delete */}
             <button
@@ -180,7 +180,7 @@ export function ProjectMenu({
     <div
       ref={menuRef}
       style={menuStyle}
-      className="w-48 rounded-lg border border-gray-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1"
+      className="w-48 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1"
     >
       {/* Rename option */}
       <button
@@ -188,7 +188,7 @@ export function ProjectMenu({
           onRename();
           onClose();
         }}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
       >
         <Edit2 size={14} />
         <span>{t("sidebar.rename")}</span>
@@ -201,7 +201,7 @@ export function ProjectMenu({
             onNewSessionInProject(_project.id);
             onClose();
           }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
         >
           <Plus size={14} />
           <span>{t("sidebar.newChat")}</span>
@@ -209,7 +209,7 @@ export function ProjectMenu({
       )}
 
       {/* Divider */}
-      <div className="h-px bg-gray-200 dark:bg-stone-700 my-1" />
+      <div className="h-px bg-stone-200 dark:bg-stone-700 my-1" />
 
       {/* Delete option */}
       <button

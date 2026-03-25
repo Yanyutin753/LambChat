@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import {
   Wrench,
   ChevronRight,
-  Check,
   Globe,
   Bot,
   MessageCircle,
@@ -13,6 +12,7 @@ import {
   Info,
   Plus,
 } from "lucide-react";
+import { Checkbox } from "../common/Checkbox";
 import type { ToolState, ToolCategory, ToolParamInfo } from "../../types";
 
 interface ToolSelectorProps {
@@ -205,24 +205,10 @@ export function ToolSelector({
                       {enabledInCategory}/{categoryTools.length}
                     </span>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleCategory(cat, !allEnabled);
-                    }}
-                    className={`w-5 h-5 sm:w-5 sm:h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                      allEnabled
-                        ? "bg-stone-500 dark:bg-amber-400 border-stone-500 dark:border-amber-400"
-                        : "border-stone-300 dark:border-stone-600 hover:border-stone-400 dark:hover:border-stone-500"
-                    }`}
-                  >
-                    {allEnabled && (
-                      <Check
-                        size={12}
-                        className="text-white dark:text-stone-900"
-                      />
-                    )}
-                  </button>
+                  <Checkbox
+                    checked={allEnabled}
+                    onChange={() => onToggleCategory(cat, !allEnabled)}
+                  />
                 </div>
 
                 {/* Tools List */}
@@ -277,20 +263,7 @@ export function ToolSelector({
                                   {tool.description || t("tools.noDescription")}
                                 </p>
                               </div>
-                              <div
-                                className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                                  tool.enabled
-                                    ? "bg-stone-500 dark:bg-amber-400 border-stone-500 dark:border-amber-400"
-                                    : "border-stone-300 dark:border-stone-600 group-hover:border-stone-400 dark:group-hover:border-stone-500"
-                                }`}
-                              >
-                                {tool.enabled && (
-                                  <Check
-                                    size={12}
-                                    className="text-white dark:text-stone-900"
-                                  />
-                                )}
-                              </div>
+                              <Checkbox checked={tool.enabled} />
                             </div>
 
                             {/* Parameters - Conditional Render */}
@@ -388,7 +361,7 @@ export function ToolSelector({
     return (
       <div className="relative" onClick={(e) => e.stopPropagation()}>
         <div
-          className="flex items-center justify-center rounded-full p-2 border border-gray-200/50 dark:border-stone-700/50 bg-gray-50/50 dark:bg-stone-800/50 text-gray-300 dark:text-stone-600 cursor-not-allowed"
+          className="flex items-center justify-center rounded-full p-2 border border-stone-200/50 dark:border-stone-700/50 bg-stone-50/50 dark:bg-stone-800/50 text-stone-300 dark:text-stone-600 cursor-not-allowed"
           title={t("tools.noTools")}
         >
           <Wrench size={18} />
@@ -406,7 +379,7 @@ export function ToolSelector({
           e.preventDefault();
           setIsOpen(true);
         }}
-        className="flex items-center justify-center rounded-full p-2 border border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-amber-300 transition-all duration-300"
+        className="flex items-center justify-center rounded-full p-2 border border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-amber-300 transition-all duration-300"
         title={`${enabledCount}/${totalCount} ${t("tools.toolsEnabled")}`}
       >
         <Wrench size={18} />

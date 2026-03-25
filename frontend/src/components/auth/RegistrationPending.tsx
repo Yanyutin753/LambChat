@@ -58,23 +58,17 @@ export function RegistrationPending() {
       {/* 左上角返回按钮 */}
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <div
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80"
+          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60"
           onClick={handleGoToLogin}
         >
-          <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-stone-400" />
+          <ArrowLeft className="h-5 w-5 text-stone-600 dark:text-stone-400" />
         </div>
       </div>
 
       {/* 右上角按钮 */}
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/40 p-1.5 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 sm:right-4 sm:top-4">
         <LanguageToggle />
         <ThemeToggle />
-      </div>
-
-      {/* 背景装饰 */}
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
 
       {/* 主内容区域 */}
@@ -85,10 +79,10 @@ export function RegistrationPending() {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
               <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
             </div>
-            <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+            <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
               {t("auth.registrationSuccessTitle")}
             </h1>
-            <p className="text-gray-600 dark:text-stone-400">
+            <p className="text-stone-600 dark:text-stone-400">
               {t("auth.registrationSuccessDesc")}
             </p>
           </div>
@@ -100,10 +94,10 @@ export function RegistrationPending() {
                 <Mail className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-stone-100">
+                <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
                   {t("auth.verificationEmailSentTo")}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-stone-400">
+                <p className="text-sm text-stone-600 dark:text-stone-400">
                   {email}
                 </p>
               </div>
@@ -112,10 +106,10 @@ export function RegistrationPending() {
 
           {/* 操作指引 */}
           <div className="auth-muted-panel mb-6 rounded-xl p-4">
-            <h2 className="mb-3 font-medium text-gray-900 dark:text-stone-100">
+            <h2 className="mb-3 font-medium text-stone-900 dark:text-stone-100">
               {t("auth.whatToDoNext")}
             </h2>
-            <ol className="space-y-2 text-sm text-gray-600 dark:text-stone-400">
+            <ol className="space-y-2 text-sm text-stone-600 dark:text-stone-400">
               <li className="flex items-start gap-2">
                 <span className="auth-accent-badge mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                   1
@@ -154,7 +148,7 @@ export function RegistrationPending() {
                 <span className="flex items-center justify-center gap-2">
                   <LoadingSpinner
                     size="sm"
-                    className="text-gray-700 dark:text-stone-300"
+                    className="text-stone-700 dark:text-stone-300"
                   />
                   {t("auth.sending")}
                 </span>

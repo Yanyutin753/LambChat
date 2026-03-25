@@ -1,12 +1,7 @@
 import { useTranslation } from "react-i18next";
-import {
-  X,
-  Archive,
-  Upload,
-  Check,
-  Sparkles,
-} from "lucide-react";
+import { X, Archive, Upload, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { Checkbox } from "../../common/Checkbox";
 
 interface GitHubSkill {
   name: string;
@@ -162,7 +157,9 @@ export function GithubImportModal({
                   </div>
                   <div className="space-y-1.5 max-h-60 overflow-y-auto rounded-xl p-1">
                     {githubSkills.map((skill) => {
-                      const selected = selectedGithubSkills.includes(skill.name);
+                      const selected = selectedGithubSkills.includes(
+                        skill.name,
+                      );
                       return (
                         <div
                           key={skill.name}
@@ -173,21 +170,7 @@ export function GithubImportModal({
                               : "hover:bg-[var(--theme-primary)]/4"
                           }`}
                         >
-                          <div
-                            className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border-2 transition-all duration-150 ${
-                              selected
-                                ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
-                                : "border-[var(--theme-border)] group-hover:border-[var(--theme-primary)]/40"
-                            }`}
-                          >
-                            {selected && (
-                              <Check
-                                size={12}
-                                strokeWidth={3}
-                                className="text-white animate-[check-pop_200ms_ease-out]"
-                              />
-                            )}
-                          </div>
+                          <Checkbox size="sm" checked={selected} />
                           <div className="flex-1 min-w-0">
                             <p
                               className={`text-sm font-medium truncate transition-colors ${

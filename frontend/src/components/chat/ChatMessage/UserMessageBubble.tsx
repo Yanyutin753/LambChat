@@ -88,7 +88,7 @@ export function UserMessageBubble({
                 "hover:bg-black/5 dark:hover:bg-white/5",
                 copied
                   ? "text-emerald-500 dark:text-emerald-400"
-                  : "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
+                  : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
               )}
               title={copied ? t("chat.message.copied") : t("chat.message.copy")}
             >

@@ -322,7 +322,7 @@ function RolesAgentTab({
                     type="checkbox"
                     checked={currentRoleAgents.includes(agent.id)}
                     onChange={() => toggleAgent(agent.id)}
-                    className="h-5 w-5 rounded border-stone-300 text-stone-600 focus:ring-stone-500 focus:ring-offset-2 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-400"
+                    className="h-5 w-5"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">

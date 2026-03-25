@@ -558,11 +558,9 @@ class AgentEventProcessor:
             return
 
         try:
-            from src.infra.storage.s3 import get_storage_service
-            from src.infra.tool.reveal_file_tool import _ensure_storage_initialized
+            from src.api.routes.upload import get_or_init_storage
 
-            await _ensure_storage_initialized()
-            storage = get_storage_service()
+            storage = await get_or_init_storage()
         except Exception as e:
             logger.warning("Failed to initialize storage for binary upload: %s", e)
             return

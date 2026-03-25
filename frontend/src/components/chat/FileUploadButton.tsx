@@ -146,7 +146,7 @@ export const FileUploadButton = memo(function FileUploadButton({
       <button
         type="button"
         onClick={() => setShowDropdown(!showDropdown)}
-        className="flex items-center justify-center rounded-full w-8 h-8 border border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 transition-all duration-300"
+        className="flex items-center justify-center rounded-full w-8 h-8 border border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 transition-all duration-300"
         title={t("fileUpload.title")}
       >
         <Paperclip size={18} />

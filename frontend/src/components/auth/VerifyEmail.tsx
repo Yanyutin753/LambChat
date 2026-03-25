@@ -79,7 +79,7 @@ export function VerifyEmail() {
   const Header = () => (
     <>
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60">
           <img
             src="/icons/icon.svg"
             alt={APP_NAME}
@@ -87,13 +87,9 @@ export function VerifyEmail() {
           />
         </div>
       </div>
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/40 p-1.5 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 sm:right-4 sm:top-4">
         <LanguageToggle />
         <ThemeToggle />
-      </div>
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
     </>
   );
@@ -109,10 +105,10 @@ export function VerifyEmail() {
               <div className="auth-accent-icon mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
                 <LoadingSpinner className="h-8 w-8" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
                 {t("auth.verifyingEmail")}
               </h1>
-              <p className="text-gray-600 dark:text-stone-400">
+              <p className="text-stone-600 dark:text-stone-400">
                 {t("auth.pleaseWait")}
               </p>
             </div>
@@ -133,10 +129,10 @@ export function VerifyEmail() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
                 <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
                 {t("auth.verifyEmailSuccessTitle")}
               </h1>
-              <p className="text-gray-600 dark:text-stone-400">
+              <p className="text-stone-600 dark:text-stone-400">
                 {t("auth.verifyEmailSuccessDesc")}
               </p>
             </div>
@@ -166,10 +162,10 @@ export function VerifyEmail() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
                 <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
                 {t("auth.verifyEmailFailed")}
               </h1>
-              <p className="text-gray-600 dark:text-stone-400">
+              <p className="text-stone-600 dark:text-stone-400">
                 {t("auth.verifyEmailFailedDesc")}
               </p>
             </div>
@@ -185,7 +181,7 @@ export function VerifyEmail() {
                     <span className="flex items-center justify-center gap-2">
                       <LoadingSpinner
                         size="sm"
-                        className="text-gray-700 dark:text-stone-300"
+                        className="text-stone-700 dark:text-stone-300"
                       />
                       {t("auth.sending")}
                     </span>
@@ -209,7 +205,7 @@ export function VerifyEmail() {
 
   // 空闲状态 - 无 token
   return (
-      <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
+    <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
       <Header />
       <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-md py-8">
@@ -217,10 +213,10 @@ export function VerifyEmail() {
             <div className="auth-accent-icon mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
               <Mail className="h-8 w-8" />
             </div>
-            <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+            <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
               {t("auth.verifyEmail")}
             </h1>
-            <p className="text-gray-600 dark:text-stone-400">
+            <p className="text-stone-600 dark:text-stone-400">
               {t("auth.verifyEmailDesc")}
             </p>
           </div>

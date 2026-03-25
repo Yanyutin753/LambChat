@@ -254,7 +254,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
         <Link
           to="/"
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60"
         >
           <img
             src="/icons/icon.svg"
@@ -265,15 +265,9 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
       </div>
 
       {/* 右上角按钮 */}
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/40 p-1.5 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 sm:right-4 sm:top-4">
         <LanguageToggle />
         <ThemeToggle />
-      </div>
-
-      {/* 背景装饰 */}
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
 
       {/* 主内容区域 - CSS Grid 实现居中且可滚动 */}
@@ -281,10 +275,10 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
         <div className="w-full max-w-md py-8">
           {/* Logo 和标题 */}
           <div className="mb-6 text-center sm:mb-8">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-stone-100 mb-2 tracking-tight font-serif sm:text-3xl">
+            <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-2 tracking-tight font-serif sm:text-3xl">
               {APP_NAME}
             </h1>
-            <p className="mt-1.5 text-sm text-gray-500 dark:text-stone-400 sm:mt-2">
+            <p className="mt-1.5 text-sm text-stone-500 dark:text-stone-400 sm:mt-2">
               {mode === "login" ? t("auth.loginHint") : t("auth.registerHint")}
             </p>
           </div>
@@ -299,7 +293,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                     key={provider.id}
                     type="button"
                     onClick={() => handleOAuthLogin(provider.id)}
-                    className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-gray-50 hover:shadow-md active:translate-y-0 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 dark:hover:shadow-lg sm:gap-3 sm:px-4 sm:py-3"
+                    className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm font-medium text-stone-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-stone-50 hover:shadow-md active:translate-y-0 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200 dark:hover:bg-stone-700 dark:hover:shadow-lg sm:gap-3 sm:px-4 sm:py-3"
                   >
                     {provider.id === "google" && (
                       <svg
@@ -350,11 +344,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
                 {/* 分隔线 */}
                 <div className="relative flex items-center py-2.5 sm:py-3">
-                  <div className="flex-grow border-t border-gray-200 dark:border-stone-700" />
-                  <span className="flex-shrink-0 mx-3 text-[10px] font-medium uppercase tracking-widest text-gray-400 dark:text-stone-500 sm:mx-4 sm:text-xs">
+                  <div className="flex-grow border-t border-stone-200 dark:border-stone-700" />
+                  <span className="flex-shrink-0 mx-3 text-[10px] font-medium uppercase tracking-widest text-stone-400 dark:text-stone-500 sm:mx-4 sm:text-xs">
                     {t("auth.or")}
                   </span>
-                  <div className="flex-grow border-t border-gray-200 dark:border-stone-700" />
+                  <div className="flex-grow border-t border-stone-200 dark:border-stone-700" />
                 </div>
               </div>
             )}
@@ -373,11 +367,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
               {/* 账号输入 */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
+                <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
                   {t("auth.account")}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-stone-500 sm:pl-3.5">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500 sm:pl-3.5">
                     {mode === "login" ? (
                       <AtSign size={16} className="sm:h-[18px] sm:w-[18px]" />
                     ) : (
@@ -398,7 +392,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   />
                 </div>
                 {mode === "login" && (
-                  <p className="mt-1 text-[10px] text-gray-400 dark:text-stone-500 sm:mt-1.5 sm:text-xs">
+                  <p className="mt-1 text-[10px] text-stone-400 dark:text-stone-500 sm:mt-1.5 sm:text-xs">
                     {t("auth.supportsUsernameOrEmailLogin")}
                   </p>
                 )}
@@ -407,11 +401,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
               {/* 邮箱（仅注册） */}
               {mode === "register" && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
+                  <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
                     {t("auth.email")}
                   </label>
                   <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-stone-500 sm:pl-3.5">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500 sm:pl-3.5">
                       <Mail size={16} className="sm:h-[18px] sm:w-[18px]" />
                     </div>
                     <input
@@ -428,11 +422,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
               {/* 密码 */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
+                <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
                   {t("auth.password")}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-stone-500 sm:pl-3.5">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500 sm:pl-3.5">
                     <Lock size={16} className="sm:h-[18px] sm:w-[18px]" />
                   </div>
                   <input
@@ -451,11 +445,11 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
               {/* 确认密码（仅注册） */}
               {mode === "register" && (
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
+                  <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
                     {t("auth.confirmPassword")}
                   </label>
                   <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-stone-500 sm:pl-3.5">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500 sm:pl-3.5">
                       <Lock size={16} className="sm:h-[18px] sm:w-[18px]" />
                     </div>
                     <input
@@ -499,7 +493,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   <span className="flex items-center justify-center gap-2">
                     <LoadingSpinner
                       size="sm"
-                      className="text-white dark:text-gray-900"
+                      className="text-white dark:text-stone-900"
                     />
                     {t("auth.processing")}
                   </span>
@@ -512,7 +506,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             </form>
 
             {/* 切换登录/注册 */}
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-1 text-xs text-gray-500 dark:text-stone-400 sm:mt-5 sm:text-sm">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-1 text-xs text-stone-500 dark:text-stone-400 sm:mt-5 sm:text-sm">
               {registrationEnabled ? (
                 <>
                   <span>
@@ -523,7 +517,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                   <button
                     type="button"
                     onClick={switchMode}
-                    className="font-medium text-gray-900 underline-offset-2 transition-all hover:text-gray-700 hover:underline dark:text-white dark:hover:text-stone-200"
+                    className="font-medium text-stone-900 underline-offset-2 transition-all hover:text-stone-700 hover:underline dark:text-white dark:hover:text-stone-200"
                   >
                     {mode === "login"
                       ? t("auth.registerNow")
@@ -532,7 +526,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                 </>
               ) : (
                 mode === "login" && (
-                  <span className="text-gray-400 dark:text-stone-500">
+                  <span className="text-stone-400 dark:text-stone-500">
                     {t("auth.registrationDisabled")}
                   </span>
                 )
@@ -544,7 +538,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
               <div className="mt-2 text-center">
                 <Link
                   to="/auth/reset-request"
-                  className="text-xs text-gray-500 transition-colors hover:text-gray-700 dark:text-stone-400 dark:hover:text-stone-200 sm:text-sm"
+                  className="text-xs text-stone-500 transition-colors hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 sm:text-sm"
                 >
                   {t("auth.forgotPassword")}
                 </Link>
@@ -552,17 +546,17 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             )}
 
             {/* 服务条款 */}
-            <p className="mt-3 text-center text-[10px] text-gray-400 dark:text-stone-500 sm:mt-4 sm:text-xs">
+            <p className="mt-3 text-center text-[10px] text-stone-400 dark:text-stone-500 sm:mt-4 sm:text-xs">
               {t("auth.termsHint")}
             </p>
 
             {/* 页脚 */}
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2 text-[10px] text-gray-400 dark:text-stone-500 sm:mt-6 sm:gap-x-3 sm:text-xs">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2 text-[10px] text-stone-400 dark:text-stone-500 sm:mt-6 sm:gap-x-3 sm:text-xs">
               <a
                 href="https://github.com/LLM-Lamb/LambChat"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 transition-colors hover:text-gray-600 dark:hover:text-stone-300 sm:gap-1.5"
+                className="inline-flex items-center gap-1 transition-colors hover:text-stone-600 dark:hover:text-stone-300 sm:gap-1.5"
               >
                 <svg
                   className="h-3 w-3 sm:h-3.5 sm:w-3.5"
@@ -573,19 +567,19 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
                 </svg>
                 <span>GitHub</span>
               </a>
-              <span className="text-gray-300 dark:text-stone-600">·</span>
+              <span className="text-stone-300 dark:text-stone-600">·</span>
               <span>
                 {t("auth.poweredBy")}{" "}
                 <a
                   href="https://github.com/Yanyutin753/LambChat"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-serif text-gray-600 hover:text-gray-900 dark:text-stone-400 dark:hover:text-stone-200"
+                  className="font-serif text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200"
                 >
                   {APP_NAME}
                 </a>
               </span>
-              <span className="text-gray-300 dark:text-stone-600">·</span>
+              <span className="text-stone-300 dark:text-stone-600">·</span>
               <span>{new Date().getFullYear()}</span>
             </div>
           </div>

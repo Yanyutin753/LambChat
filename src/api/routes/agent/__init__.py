@@ -114,64 +114,6 @@ HUMAN_TOOLS = [
     ),
 ]
 
-# Reveal File 工具定义
-REVEAL_FILE_TOOLS = [
-    ToolInfo(
-        name="reveal_file",
-        description="向用户展示/推荐一个文件，前端会自动展开文件树并显示可点击的文件路径",
-        category="builtin",
-        parameters=[
-            ToolParamInfo(
-                name="path",
-                type="string",
-                description="要展示的文件路径（绝对路径或相对于工作目录的路径）",
-                required=True,
-            ),
-            ToolParamInfo(
-                name="description",
-                type="string",
-                description="对文件内容的简要描述，帮助用户理解为什么要查看这个文件",
-                required=False,
-            ),
-        ],
-    ),
-]
-
-# Reveal Project 工具定义
-REVEAL_PROJECT_TOOLS = [
-    ToolInfo(
-        name="reveal_project",
-        description="向用户展示一个前端项目（多文件预览），当 AI 生成了包含多个文件的前端项目（HTML/CSS/JS 或 React/Vue 项目）时，使用此工具让用户可以在沙箱环境中预览整个项目",
-        category="builtin",
-        parameters=[
-            ToolParamInfo(
-                name="project_path",
-                type="string",
-                description="项目目录路径（包含 index.html 或 package.json 的目录）",
-                required=True,
-            ),
-            ToolParamInfo(
-                name="name",
-                type="string",
-                description="项目名称（可选，默认使用目录名）",
-                required=False,
-            ),
-            ToolParamInfo(
-                name="description",
-                type="string",
-                description="项目描述（可选）",
-                required=False,
-            ),
-            ToolParamInfo(
-                name="template",
-                type="string",
-                description="项目模板类型（可选，自动检测：react/vue/vanilla/static）",
-                required=False,
-            ),
-        ],
-    ),
-]
-
 
 def extract_tool_parameters(tool) -> list[ToolParamInfo]:
     """从 LangChain 工具中提取参数信息"""
@@ -377,13 +319,7 @@ async def list_tools(
     # 1. Human 工具
     tools.extend(HUMAN_TOOLS)
 
-    # 2. Reveal File 工具
-    tools.extend(REVEAL_FILE_TOOLS)
-
-    # 3. Reveal Project 工具
-    tools.extend(REVEAL_PROJECT_TOOLS)
-
-    # 4. MCP 工具 - 使用全局单例（分布式优化）
+    # 2. MCP 工具 - 使用全局单例（分布式优化）
     if settings.ENABLE_MCP:
         try:
             from src.infra.tool.mcp_global import get_global_mcp_tools

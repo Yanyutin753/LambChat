@@ -10,18 +10,18 @@ export function ProfileNotificationTab() {
   return (
     <div className="space-y-3">
       {/* Browser Notification Setting */}
-      <div className="rounded-xl bg-gray-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h4 className="font-medium text-sm text-gray-900 dark:text-stone-100">
+            <h4 className="font-medium text-sm text-stone-900 dark:text-stone-100">
               {t("profile.browserNotification")}
             </h4>
-            <p className="text-xs text-gray-500 dark:text-stone-400 mt-1 leading-relaxed">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">
               {t("profile.browserNotificationDesc")}
             </p>
           </div>
           {!isSupported ? (
-            <span className="shrink-0 text-xs text-gray-400 mt-0.5">
+            <span className="shrink-0 text-xs text-stone-400 mt-0.5">
               {t("profile.notSupported")}
             </span>
           ) : permission === "granted" ? (
@@ -50,13 +50,13 @@ export function ProfileNotificationTab() {
       </div>
 
       {/* WebSocket Connection Status */}
-      <div className="rounded-xl bg-gray-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h4 className="font-medium text-sm text-gray-900 dark:text-stone-100">
+            <h4 className="font-medium text-sm text-stone-900 dark:text-stone-100">
               {t("profile.realtimeNotification")}
             </h4>
-            <p className="text-xs text-gray-500 dark:text-stone-400 mt-1 leading-relaxed">
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 leading-relaxed">
               {t("profile.realtimeNotificationDesc")}
             </p>
           </div>

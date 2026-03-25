@@ -75,10 +75,10 @@ export function OAuthCallback() {
   }, [navigate, refreshUser, searchParams]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-stone-900">
+    <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
       <div className="text-center">
         <Loading size="lg" />
-        <p className="mt-4 text-gray-600 dark:text-stone-400">
+        <p className="mt-4 text-stone-600 dark:text-stone-400">
           {t("auth.completingLogin")}
         </p>
       </div>

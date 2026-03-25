@@ -58,7 +58,7 @@ export function LanguageToggle() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
         title={t("settings.title")}
         aria-label={t("settings.title")}
         aria-expanded={isOpen}
@@ -69,7 +69,7 @@ export function LanguageToggle() {
 
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-40 rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 py-1 z-50"
+          className="absolute right-0 mt-2 w-40 rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 py-1 z-50"
           role="menu"
         >
           {LANGUAGES.map((lang) => (
@@ -78,8 +78,8 @@ export function LanguageToggle() {
               onClick={() => selectLanguage(lang.code)}
               className={`w-full px-4 py-2 text-left text-sm flex items-center justify-between transition-colors ${
                 i18n.language === lang.code
-                  ? "bg-gray-100 dark:bg-stone-700 text-gray-900 dark:text-stone-100"
-                  : "text-gray-700 dark:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+                  ? "bg-stone-100 dark:bg-stone-700 text-stone-900 dark:text-stone-100"
+                  : "text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/50"
               }`}
               role="menuitem"
               aria-selected={i18n.language === lang.code}
@@ -88,7 +88,7 @@ export function LanguageToggle() {
               {i18n.language === lang.code && (
                 <Check
                   size={16}
-                  className="text-gray-700 dark:text-stone-200"
+                  className="text-stone-700 dark:text-stone-200"
                 />
               )}
             </button>

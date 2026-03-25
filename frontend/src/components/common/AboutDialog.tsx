@@ -42,13 +42,13 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-stone-100 font-serif">
+            <h2 className="text-lg font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("about.title", APP_NAME)}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-stone-700 dark:hover:text-stone-300"
+            className="rounded-lg p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-700 dark:hover:text-stone-300"
           >
             <X className="h-5 w-5" />
           </button>
@@ -57,7 +57,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
         {/* Content */}
         <div className="space-y-3">
           {isLoading ? (
-            <div className="py-8 text-center text-gray-500 dark:text-stone-400">
+            <div className="py-8 text-center text-stone-500 dark:text-stone-400">
               {t("common.loading", "Loading...")}
             </div>
           ) : error ? (
@@ -67,12 +67,12 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
           ) : versionInfo ? (
             <>
               {/* App Version */}
-              <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-stone-700/50">
+              <div className="flex items-center justify-between rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
                 <div>
-                  <div className="text-xs text-gray-500 dark:text-stone-400">
+                  <div className="text-xs text-stone-500 dark:text-stone-400">
                     {t("about.currentVersion", "Current Version")}
                   </div>
-                  <div className="font-mono text-2xl font-bold text-gray-900 dark:text-stone-100">
+                  <div className="font-mono text-2xl font-bold text-stone-900 dark:text-stone-100">
                     {versionInfo.app_version}
                   </div>
                 </div>
@@ -90,15 +90,15 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
 
               {/* Latest Version */}
               {versionInfo.latest_version && (
-                <div className="rounded-lg bg-gray-50 p-4 dark:bg-stone-700/50">
+                <div className="rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <ArrowDownCircle className="h-5 w-5 text-gray-400 dark:text-stone-500" />
-                      <span className="text-sm text-gray-500 dark:text-stone-400">
+                      <ArrowDownCircle className="h-5 w-5 text-stone-400 dark:text-stone-500" />
+                      <span className="text-sm text-stone-500 dark:text-stone-400">
                         {t("about.latestVersion", "Latest Version")}
                       </span>
                     </div>
-                    <span className="font-mono text-lg font-bold text-gray-900 dark:text-stone-100">
+                    <span className="font-mono text-lg font-bold text-stone-900 dark:text-stone-100">
                       {versionInfo.latest_version}
                     </span>
                   </div>
@@ -137,7 +137,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
               {versionInfo.github_url && (
                 <button
                   onClick={handleGoToGitHub}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 p-3 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-stone-600 dark:text-stone-400 dark:hover:bg-stone-700"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-200 p-3 text-sm font-medium text-stone-600 hover:bg-stone-50 dark:border-stone-600 dark:text-stone-400 dark:hover:bg-stone-700"
                 >
                   <Github className="h-4 w-4" />
                   {t("about.viewOnGitHub", "View on GitHub")}
@@ -151,7 +151,7 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
         <div className="mt-6 flex justify-end">
           <button
             onClick={onClose}
-            className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600"
+            className="rounded-lg bg-stone-100 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-200 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600"
           >
             {t("common.close", "Close")}
           </button>

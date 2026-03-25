@@ -80,7 +80,7 @@ export function ConfirmDialog({
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
 
       {/* Dialog */}
-      <div className="relative z-10 w-full max-w-sm mx-4 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-sm mx-4 bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Content */}
         <div className="p-5">
           <div className="flex items-start gap-3">
@@ -90,10 +90,10 @@ export function ConfirmDialog({
               <AlertTriangle size={22} />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-stone-100">
+              <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
                 {title}
               </h3>
-              <p className="mt-1.5 text-sm text-gray-600 dark:text-stone-400 leading-relaxed">
+              <p className="mt-1.5 text-sm text-stone-600 dark:text-stone-400 leading-relaxed">
                 {message}
               </p>
             </div>
@@ -101,10 +101,10 @@ export function ConfirmDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 bg-gray-50 dark:bg-stone-900/50 border-t border-gray-100 dark:border-stone-700">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 bg-stone-50 dark:bg-stone-900/50 border-t border-stone-100 dark:border-stone-700">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-gray-200 dark:border-stone-600 rounded-lg hover:bg-gray-50 dark:hover:bg-stone-700 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
           >
             {cancelLabel}
           </button>

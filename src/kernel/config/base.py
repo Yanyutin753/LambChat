@@ -164,6 +164,7 @@ class Settings(BaseSettings):
     S3_CUSTOM_DOMAIN: Optional[str] = None
     S3_PATH_STYLE: bool = False
     S3_MAX_FILE_SIZE: int = 10 * 1024 * 1024
+    S3_INTERNAL_UPLOAD_MAX_SIZE: int = 50 * 1024 * 1024
     S3_PUBLIC_BUCKET: bool = False
     S3_PRESIGNED_URL_EXPIRES: int = 7 * 24 * 3600
 
@@ -310,6 +311,7 @@ class Settings(BaseSettings):
             custom_domain=self.S3_CUSTOM_DOMAIN,
             path_style=self.S3_PATH_STYLE,
             max_file_size=self.S3_MAX_FILE_SIZE,
+            internal_max_upload_size=self.S3_INTERNAL_UPLOAD_MAX_SIZE,
             presigned_url_expires=self.S3_PRESIGNED_URL_EXPIRES,
             storage_path=self.LOCAL_STORAGE_PATH,
         )

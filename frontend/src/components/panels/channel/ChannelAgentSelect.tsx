@@ -35,7 +35,7 @@ export function ChannelAgentSelect({
 
   return (
     <div className="space-y-1.5">
-      <label className="block text-sm font-medium text-gray-700 dark:text-stone-300">
+      <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
         <div className="flex items-center gap-1.5">
           <Bot size={14} />
           {t("channel.agent", "Agent")}
@@ -46,7 +46,7 @@ export function ChannelAgentSelect({
           value={value || ""}
           onChange={(e) => onChange(e.target.value || null)}
           disabled={loading}
-          className="w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-9 py-2 text-sm text-gray-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100"
+          className="w-full appearance-none rounded-lg border border-stone-300 bg-white pl-3 pr-9 py-2 text-sm text-stone-900 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100"
         >
           <option value="">
             {loading
@@ -61,10 +61,10 @@ export function ChannelAgentSelect({
         </select>
         <ChevronDown
           size={16}
-          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400"
         />
       </div>
-      <p className="text-xs text-gray-500 dark:text-stone-500">
+      <p className="text-xs text-stone-500 dark:text-stone-500">
         {t(
           "channel.agentHint",
           "Select which agent handles messages from this channel",

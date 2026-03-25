@@ -395,7 +395,7 @@ export function FeishuPanel({
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+      <div className="flex h-full items-center justify-center text-stone-500 dark:text-stone-400">
         <LoadingSpinner size="sm" />
         <span className="ml-2">{t("common.loading")}</span>
       </div>
@@ -433,7 +433,7 @@ export function FeishuPanel({
         <div className="mx-auto max-w-2xl sm:max-w-5xl space-y-4">
           {/* Status Card */}
           {hasExistingConfig && status && (
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+            <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {status.connected ? (
@@ -490,26 +490,26 @@ export function FeishuPanel({
           )}
 
           {/* Configuration Form */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
-            <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+            <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
               {t("feishu.configuration", "Configuration")}
             </h3>
 
             <div className="space-y-4">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-stone-800">
+              <div className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800">
                 <div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.enabled", "Enable Feishu Bot")}
                   </span>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
                     {t("feishu.enabledDesc", "Enable or disable this channel")}
                   </p>
                 </div>
                 <button
                   onClick={() => setEnabled(!enabled)}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    enabled ? "bg-stone-900" : "bg-gray-200 dark:bg-stone-600"
+                    enabled ? "bg-stone-900" : "bg-stone-200 dark:bg-stone-600"
                   }`}
                 >
                   <span
@@ -523,7 +523,7 @@ export function FeishuPanel({
               {/* Instance Name - Only show for new instances */}
               {!hasExistingConfig && (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.instanceName", "Instance Name")}{" "}
                     <span className="text-red-500">*</span>
                   </label>
@@ -535,20 +535,20 @@ export function FeishuPanel({
                       "feishu.instanceNamePlaceholder",
                       "My Feishu Bot",
                     )}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
               )}
 
               {/* App Credentials */}
               <div className="space-y-3">
-                <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <h4 className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
                   {t("feishu.credentials", "App Credentials")}
                 </h4>
 
                 {/* App ID */}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.appId", "App ID")}{" "}
                     <span className="text-red-500">*</span>
                   </label>
@@ -557,16 +557,16 @@ export function FeishuPanel({
                     value={appId}
                     onChange={(e) => setAppId(e.target.value)}
                     placeholder={t("feishu.appIdPlaceholder", "cli_xxxxxxxxxx")}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
 
                 {/* App Secret */}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.appSecret", "App Secret")}{" "}
                     {hasExistingConfig ? (
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-stone-400">
                         {t("feishu.leaveEmpty")}
                       </span>
                     ) : (
@@ -582,57 +582,57 @@ export function FeishuPanel({
                         ? t("feishu.passwordMask", "••••••••••••")
                         : ""
                     }
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
               </div>
 
               {/* Security Settings */}
               <div className="space-y-3">
-                <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <h4 className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
                   {t("feishu.security", "Security Settings")}
-                  <span className="ml-1 normal-case tracking-normal text-gray-400">
+                  <span className="ml-1 normal-case tracking-normal text-stone-400">
                     {t("feishu.optional")}
                   </span>
                 </h4>
 
                 {/* Encrypt Key */}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.encryptKey", "Encrypt Key")}
                   </label>
                   <input
                     type="text"
                     value={encryptKey}
                     onChange={(e) => setEncryptKey(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
 
                 {/* Verification Token */}
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.verificationToken", "Verification Token")}
                   </label>
                   <input
                     type="text"
                     value={verificationToken}
                     onChange={(e) => setVerificationToken(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
               </div>
 
               {/* Behavior Settings */}
               <div className="space-y-3">
-                <h4 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <h4 className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
                   {t("feishu.behavior", "Behavior Settings")}
                 </h4>
 
                 {/* React Emoji */}
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <label className="text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t("feishu.reactEmoji", "Reaction Emoji")}
                     </label>
                     <button
@@ -640,8 +640,8 @@ export function FeishuPanel({
                       onClick={() => setUseCustomEmoji(!useCustomEmoji)}
                       className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                         useCustomEmoji
-                          ? "bg-stone-900 text-gray-100 dark:bg-gray-100 dark:text-gray-900"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-stone-800 dark:text-gray-400 dark:hover:bg-stone-700"
+                          ? "bg-stone-900 text-stone-100 dark:bg-stone-100 dark:text-stone-900"
+                          : "bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
                       }`}
                     >
                       <Sparkles size={12} />
@@ -659,9 +659,9 @@ export function FeishuPanel({
                           "feishu.customEmojiPlaceholder",
                           "Enter emoji or text (e.g., 🎯 or DONE)",
                         )}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                        className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
                       />
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                         {t(
                           "feishu.customEmojiHint",
                           "Enter an emoji character or a Feishu emoji type code",
@@ -677,12 +677,12 @@ export function FeishuPanel({
                           onClick={() => setReactEmoji(emoji.value)}
                           className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 transition-all ${
                             reactEmoji === emoji.value
-                              ? "border-stone-400 bg-gray-100 dark:border-stone-500 dark:bg-stone-800"
-                              : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
+                              ? "border-stone-400 bg-stone-100 dark:border-stone-500 dark:bg-stone-800"
+                              : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
                           }`}
                         >
                           <span className="text-base">{emoji.emoji}</span>
-                          <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                          <span className="text-[10px] text-stone-500 dark:text-stone-400">
                             {t(emoji.labelKey)}
                           </span>
                         </button>
@@ -693,7 +693,7 @@ export function FeishuPanel({
 
                 {/* Group Policy */}
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <label className="mb-2 block text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.groupPolicy", "Group Message Policy")}
                   </label>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -702,18 +702,18 @@ export function FeishuPanel({
                       onClick={() => setGroupPolicy("mention")}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
                         groupPolicy === "mention"
-                          ? "border-stone-400 bg-gray-50 dark:border-stone-500 dark:bg-stone-800"
-                          : "border-gray-200 bg-white hover:border-gray-300 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
+                          ? "border-stone-400 bg-stone-50 dark:border-stone-500 dark:bg-stone-800"
+                          : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
                       }`}
                     >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm dark:bg-stone-700">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-stone-100 text-sm dark:bg-stone-700">
                         @
                       </div>
                       <div>
-                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                        <span className="block text-sm font-medium text-stone-700 dark:text-stone-200">
                           {t("feishu.groupPolicyMention", "Mention Only")}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-stone-500 dark:text-stone-400">
                           {t(
                             "feishu.groupPolicyMentionDesc",
                             "Reply when @mentioned",
@@ -726,18 +726,18 @@ export function FeishuPanel({
                       onClick={() => setGroupPolicy("open")}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
                         groupPolicy === "open"
-                          ? "border-stone-400 bg-gray-50 dark:border-stone-500 dark:bg-stone-800"
-                          : "border-gray-200 bg-white hover:border-gray-300 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
+                          ? "border-stone-400 bg-stone-50 dark:border-stone-500 dark:bg-stone-800"
+                          : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
                       }`}
                     >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gray-100 text-sm dark:bg-stone-700">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-stone-100 text-sm dark:bg-stone-700">
                         💬
                       </div>
                       <div>
-                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                        <span className="block text-sm font-medium text-stone-700 dark:text-stone-200">
                           {t("feishu.groupPolicyOpen", "All Messages")}
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-stone-500 dark:text-stone-400">
                           {t(
                             "feishu.groupPolicyOpenDesc",
                             "Reply to all messages",
@@ -752,18 +752,18 @@ export function FeishuPanel({
           </div>
 
           {/* Agent Selector */}
-          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-800">
+          <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-800">
             <ChannelAgentSelect value={agentId} onChange={setAgentId} />
           </div>
 
           {/* Help Card */}
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
                   {t("feishu.setupGuide", "Setup Guide")}
                 </p>
-                <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-stone-600 dark:text-stone-300">
                   <li>
                     {t(
                       "feishu.step1",

@@ -86,21 +86,11 @@ def get_mime_type(filename: str) -> str:
     return mime_type or "application/octet-stream"
 
 
-async def _ensure_storage_initialized() -> None:
-    """确保 storage 已初始化（S3 或本地存储）"""
-    from src.infra.storage.s3 import S3Config, S3Provider, get_storage_service, init_storage
-    from src.kernel.config import settings
+async def _get_storage():
+    """获取已初始化的 storage 服务（复用 upload 模块的初始化逻辑）"""
+    from src.api.routes.upload import get_or_init_storage
 
-    storage = get_storage_service()
-    if storage._backend is None:
-        if settings.S3_ENABLED:
-            config = settings.get_s3_config()
-        else:
-            config = S3Config(
-                provider=S3Provider.LOCAL,
-                storage_path=getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads",
-            )
-        await init_storage(config)
+    return await get_or_init_storage()
 
 
 async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[bytes]:
@@ -154,7 +144,11 @@ async def reveal_file(
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
-    向用户展示/推荐一个文件（用户要求展示的时候，一定要调用）
+    向用户展示/推荐一个文件
+
+    用户要求查看、打开、显示文件时，必须调用此工具。
+    只回复文件路径或文件名是不够的。
+    用户无法直接访问隔离环境中的文件系统，`reveal_file` 才会把文件真正暴露给前端界面。
 
     当你想让用户查看某个文件时，使用此工具。
     前端自动给用户显示可点击的文件。
@@ -166,10 +160,7 @@ async def reveal_file(
     Returns:
         JSON 格式的结果，包含文件信息
     """
-    from src.infra.storage.s3 import get_storage_service
-
-    await _ensure_storage_initialized()
-    storage = get_storage_service()
+    storage = await _get_storage()
 
     backend = get_backend_from_runtime(runtime)
 

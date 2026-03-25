@@ -135,7 +135,7 @@ export function FeedbackButtons({
         className={clsx(
           "flex items-center justify-center rounded-md p-1.5 transition-all",
           !isLastMessage && "opacity-0 group-hover:opacity-100",
-          "text-gray-400 dark:text-stone-500 hover:bg-gray-200 dark:hover:bg-stone-700 hover:text-gray-600 dark:hover:text-stone-300",
+          "text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
         title={t("feedback.positive")}
@@ -145,7 +145,7 @@ export function FeedbackButtons({
           className={clsx(
             selectedRating === "up"
               ? "text-stone-600 dark:text-stone-300"
-              : "text-gray-400 dark:text-stone-500",
+              : "text-stone-400 dark:text-stone-500",
           )}
         />
       </button>
@@ -155,7 +155,7 @@ export function FeedbackButtons({
         className={clsx(
           "flex items-center justify-center rounded-md p-1.5 transition-all",
           !isLastMessage && "opacity-0 group-hover:opacity-100",
-          "text-gray-400 dark:text-stone-500 hover:bg-gray-200 dark:hover:bg-stone-700 hover:text-gray-600 dark:hover:text-stone-300",
+          "text-stone-400 dark:text-stone-500 hover:bg-stone-200 dark:hover:bg-stone-700 hover:text-stone-600 dark:hover:text-stone-300",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
         title={t("feedback.negative")}
@@ -165,7 +165,7 @@ export function FeedbackButtons({
           className={clsx(
             selectedRating === "down"
               ? "text-stone-600 dark:text-stone-300"
-              : "text-gray-400 dark:text-stone-500",
+              : "text-stone-400 dark:text-stone-500",
           )}
         />
       </button>

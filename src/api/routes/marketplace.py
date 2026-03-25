@@ -216,11 +216,11 @@ async def install_marketplace_skill(
     storage: SkillStorage = Depends(get_storage),
 ):
     """安装商城 Skill 到用户目录"""
-    # 1. 检查商城 Skill 是否存在且激活
+    # 1. 检查商城 Skill 是否存在且激活（创建者可安装自己已停用的 skill）
     marketplace_skill = await marketplace.get_marketplace_skill(name)
     if not marketplace_skill:
         raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
-    if not marketplace_skill.is_active:
+    if not marketplace_skill.is_active and marketplace_skill.created_by != user.sub:
         raise HTTPException(status_code=403, detail="This skill has been deactivated")
 
     # 2. 检查用户是否已安装（检查 __meta__ 或文件是否存在）
@@ -270,7 +270,7 @@ async def update_from_marketplace(
     marketplace_skill = await marketplace.get_marketplace_skill(name)
     if not marketplace_skill:
         raise HTTPException(status_code=404, detail=f"Marketplace skill '{name}' not found")
-    if not marketplace_skill.is_active:
+    if not marketplace_skill.is_active and marketplace_skill.created_by != user.sub:
         raise HTTPException(status_code=403, detail="This skill has been deactivated")
 
     # Check if skill is installed by checking __meta__

@@ -435,7 +435,7 @@ export function SettingsPanel() {
         {/* Right Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Header with Category Dropdown (mobile) and Search */}
-          <div className="flex-shrink-0 border-b border-gray-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-900">
+          <div className="flex-shrink-0 border-b border-stone-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-900">
             {/* Mobile Category Selector */}
             <div className="mb-2 sm:hidden">
               <div className="relative">
@@ -444,7 +444,7 @@ export function SettingsPanel() {
                   onChange={(e) =>
                     setActiveCategory(e.target.value as SettingCategory)
                   }
-                  className="w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-8 text-sm font-medium text-gray-900 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                  className="w-full appearance-none rounded-lg border border-stone-200 bg-stone-50 py-2 pl-3 pr-8 text-sm font-medium text-stone-900 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
                 >
                   {CATEGORY_ORDER.map((category) => (
                     <option key={category} value={category}>
@@ -455,7 +455,7 @@ export function SettingsPanel() {
                 </select>
                 <ChevronDown
                   size={18}
-                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-stone-500"
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
                 />
               </div>
             </div>
@@ -465,14 +465,14 @@ export function SettingsPanel() {
               <div className="relative flex-1">
                 <Search
                   size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-stone-500"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
                 />
                 <input
                   type="text"
                   placeholder={t("settings.searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-amber-500"
+                  className="w-full rounded-lg border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-amber-500"
                 />
               </div>
               {canManage && (
@@ -480,7 +480,7 @@ export function SettingsPanel() {
                   <button
                     onClick={handleExport}
                     disabled={!settings}
-                    className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
+                    className="flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
                     title="Export settings"
                   >
                     <Download size={18} />
@@ -491,7 +491,7 @@ export function SettingsPanel() {
                   <button
                     onClick={handleImportClick}
                     disabled={!settings || isImporting}
-                    className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
+                    className="flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
                     title="Import settings"
                   >
                     <Upload size={18} />

@@ -266,7 +266,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
         className={`flex items-center justify-center rounded-full p-2 border transition-all duration-300 ${
           isActive
             ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-            : "border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+            : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
         }`}
         title={description}
       >
@@ -288,7 +288,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
           className={`flex items-center gap-1 rounded-full px-2 py-1.5 border text-sm transition-all duration-300 ${
             showDropdown || value !== option.default
               ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-              : "border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+              : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
           }`}
           title={description}
         >
@@ -298,7 +298,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
         </button>
 
         {showDropdown && (
-          <div className="absolute bottom-full left-0 mb-1 z-50 min-w-[120px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden">
+          <div className="absolute bottom-full left-0 mb-1 z-50 min-w-[120px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden">
             {option.options.map((opt) => (
               <button
                 key={String(opt.value)}
@@ -310,7 +310,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
                 className={`w-full px-3 py-2 text-left text-sm transition-colors ${
                   value === opt.value
                     ? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-                    : "hover:bg-gray-100 dark:hover:bg-stone-700 text-gray-700 dark:text-stone-300"
+                    : "hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300"
                 }`}
               >
                 {opt.label}
@@ -332,7 +332,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
       className={`flex items-center justify-center rounded-full p-2 border transition-all duration-300 ${
         value !== option.default
           ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-          : "border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+          : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
       }`}
       title={description}
     >
@@ -500,7 +500,7 @@ export const ChatInput = memo(function ChatInput({
   };
 
   return (
-    <div className="px-3 sm:px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:bg-stone-900">
+    <div className="px-3 sm:px-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:bg-stone-900">
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* ChatGPT-style container */}
         <div
@@ -569,7 +569,7 @@ export const ChatInput = memo(function ChatInput({
                 canSend ? t("chat.placeholder") : t("chat.noPermission")
               }
               disabled={disabled || !canSend}
-              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-2 px-1 resize-none text-[15px] text-gray-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-2 px-1 resize-none text-[15px] text-stone-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
               rows={1}
             />
           </div>
@@ -586,18 +586,16 @@ export const ChatInput = memo(function ChatInput({
               {/* Other tool buttons in scrollable container */}
               <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
                 {/* Tool selector button */}
-                {onToggleTool &&
-                  onToggleCategory &&
-                  onToggleAll && (
-                    <ToolSelector
-                      tools={tools}
-                      onToggleTool={onToggleTool}
-                      onToggleCategory={onToggleCategory}
-                      onToggleAll={onToggleAll}
-                      enabledCount={enabledToolsCount}
-                      totalCount={totalToolsCount}
-                    />
-                  )}
+                {onToggleTool && onToggleCategory && onToggleAll && (
+                  <ToolSelector
+                    tools={tools}
+                    onToggleTool={onToggleTool}
+                    onToggleCategory={onToggleCategory}
+                    onToggleAll={onToggleAll}
+                    enabledCount={enabledToolsCount}
+                    totalCount={totalToolsCount}
+                  />
+                )}
                 {/* Skill selector button */}
                 {enableSkills &&
                   onToggleSkill &&

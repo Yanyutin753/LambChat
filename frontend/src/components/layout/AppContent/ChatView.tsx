@@ -35,7 +35,10 @@ interface ChatViewProps {
   totalToolsCount: number;
   skills: SkillResponse[];
   onToggleSkill: (name: string) => Promise<boolean>;
-  onToggleSkillCategory: (category: SkillSource, enabled: boolean) => Promise<boolean>;
+  onToggleSkillCategory: (
+    category: SkillSource,
+    enabled: boolean,
+  ) => Promise<boolean>;
   onToggleAllSkills: (enabled: boolean) => Promise<boolean>;
   skillsLoading: boolean;
   pendingSkillNames: string[];
@@ -56,8 +59,12 @@ interface ChatViewProps {
   onSendMessage: (content: string) => void;
   onStopGeneration: () => void;
   attachments: MessageAttachment[];
-  onAttachmentsChange: React.Dispatch<React.SetStateAction<MessageAttachment[]>>;
-  settings: { settings?: { frontend?: Array<{ key: string; value: unknown }> } };
+  onAttachmentsChange: React.Dispatch<
+    React.SetStateAction<MessageAttachment[]>
+  >;
+  settings: {
+    settings?: { frontend?: Array<{ key: string; value: unknown }> };
+  };
   i18n: { language?: string };
 }
 
@@ -128,7 +135,9 @@ export function ChatView({
               virtuosoScrollerRef.current = el;
               if (typeof vRef === "function") vRef(el);
               else if (vRef)
-                (vRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                (
+                  vRef as React.MutableRefObject<HTMLDivElement | null>
+                ).current = el;
             }}
           >
             {children}
@@ -160,12 +169,18 @@ export function ChatView({
       (s) => s.key === "WELCOME_SUGGESTIONS",
     )?.value;
     const currentLang = i18n.language?.split("-")[0] || "en";
-    if (Array.isArray(rawValue)) return rawValue;
-    if (rawValue && typeof rawValue === "object") {
-      const langMap = rawValue as Record<string, Array<{ icon: string; text: string }>>;
-      return langMap[currentLang] || langMap["en"];
+    let list: Array<{ icon: string; text: string }> | undefined;
+    if (Array.isArray(rawValue)) list = rawValue;
+    else if (rawValue && typeof rawValue === "object") {
+      const langMap = rawValue as Record<
+        string,
+        Array<{ icon: string; text: string }>
+      >;
+      list = langMap[currentLang] || langMap["en"];
     }
-    return undefined;
+    if (!list) return undefined;
+    const shuffled = [...list].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 4);
   })();
 
   return (
@@ -211,18 +226,21 @@ export function ChatView({
                     <span className="text-[13px] sm:text-sm leading-snug text-stone-500 dark:text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 transition-colors duration-300">
                       {suggestion.text}
                     </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 ml-auto shrink-0 text-stone-300 dark:text-stone-600 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-stone-400 dark:group-hover:text-stone-500 transition-all duration-300">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-4 h-4 ml-auto shrink-0 text-stone-300 dark:text-stone-600 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-stone-400 dark:group-hover:text-stone-500 transition-all duration-300"
+                    >
                       <path d="M7 5l5 5-5 5" />
                     </svg>
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="welcome-footer mt-8 sm:mt-10 flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500">
-              <a href="https://github.com/Yanyutin753/LambChat" target="_blank" rel="noopener noreferrer" className="font-medium hover:text-stone-600 dark:hover:text-stone-300 transition-colors font-serif">
-                {APP_NAME}
-              </a>
             </div>
           </div>
         ) : (
@@ -240,17 +258,43 @@ export function ChatView({
       </main>
 
       {messages.length > 0 && showScrollTop && (
-        <button onClick={scrollToTop} className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95" style={{ bottom: "9rem" }}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-stone-500 dark:text-stone-300">
-            <path fillRule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clipRule="evenodd" />
+        <button
+          onClick={scrollToTop}
+          className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ bottom: "9rem" }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="w-4 h-4 text-stone-500 dark:text-stone-300"
+          >
+            <path
+              fillRule="evenodd"
+              d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
       )}
 
       {messages.length > 0 && !isNearBottom && (
-        <button onClick={scrollToBottom} className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95" style={{ bottom: "9rem", transform: "translateX(-50%)" }}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-stone-500 dark:text-stone-300">
-            <path fillRule="evenodd" d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z" clipRule="evenodd" />
+        <button
+          onClick={scrollToBottom}
+          className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{ bottom: "9rem", transform: "translateX(-50%)" }}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="w-4 h-4 text-stone-500 dark:text-stone-300"
+          >
+            <path
+              fillRule="evenodd"
+              d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
       )}

@@ -22,17 +22,17 @@ const AgentItem = memo(function AgentItem({
   return (
     <button
       onClick={onSelect}
-      className="w-full px-3 py-3 sm:py-4 text-left hover:bg-gray-100/80 dark:hover:bg-stone-700/50 transition-colors"
+      className="w-full px-3 py-3 sm:py-4 text-left hover:bg-stone-100/80 dark:hover:bg-stone-700/50 transition-colors"
     >
       <div className="flex items-center gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-stone-100 to-stone-200 dark:from-amber-500/20 dark:to-orange-500/20">
           <Bot size={18} className="text-stone-600 dark:text-amber-400" />
         </div>
         <div className="flex-1 min-w-0 space-y-1">
-          <div className="text-sm font-medium text-gray-700 dark:text-stone-200 font-serif">
+          <div className="text-sm font-medium text-stone-700 dark:text-stone-200 font-serif">
             {t(agent.name)}
           </div>
-          <div className="text-xs text-gray-400 dark:text-stone-500 truncate">
+          <div className="text-xs text-stone-400 dark:text-stone-500 truncate">
             {t(agent.description)}
           </div>
         </div>
@@ -126,12 +126,12 @@ const AgentSelector = memo(function AgentSelector({
         onClick={toggleSelector}
         className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
       >
-        <span className="text-base font-semibold text-gray-700 dark:text-stone-200 font-serif">
+        <span className="text-base font-semibold text-stone-700 dark:text-stone-200 font-serif">
           {t(currentAgentInfo?.name || currentAgent)}
         </span>
         <ChevronDown
           size={18}
-          className={`text-gray-400 dark:text-stone-500 transition-transform duration-200 ${
+          className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
             showSelector ? "rotate-180" : ""
           }`}
         />
@@ -139,9 +139,9 @@ const AgentSelector = memo(function AgentSelector({
 
       {/* 下拉列表 */}
       {showSelector && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-gray-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {agentsLoading ? (
-            <div className="px-3 py-2 text-sm text-gray-400 dark:text-stone-500">
+            <div className="px-3 py-2 text-sm text-stone-400 dark:text-stone-500">
               Loading...
             </div>
           ) : (

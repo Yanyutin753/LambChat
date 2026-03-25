@@ -155,11 +155,11 @@ export function ProfileInfoTab() {
             <img
               src={user.avatar_url}
               alt="Avatar"
-              className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-stone-700 shadow-lg ring-2 ring-gray-100 dark:ring-stone-600"
+              className="w-20 h-20 rounded-full object-cover border-4 border-white dark:border-stone-700 shadow-lg ring-2 ring-stone-100 dark:ring-stone-600"
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-lg ring-2 ring-gray-100 dark:ring-stone-600">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center border-4 border-white dark:border-stone-700 shadow-lg ring-2 ring-stone-100 dark:ring-stone-600">
               <span className="text-2xl font-bold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
@@ -202,14 +202,14 @@ export function ProfileInfoTab() {
       {/* User Info */}
       <div className="space-y-0">
         {/* Username - editable */}
-        <div className="py-3.5 border-b border-gray-100 dark:border-stone-700/60">
+        <div className="py-3.5 border-b border-stone-100 dark:border-stone-700/60">
           {isEditingUsername ? (
             <div className="space-y-2">
               <input
                 type="text"
                 value={newUsername}
                 onChange={(e) => setNewUsername(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 dark:border-stone-600 bg-gray-50 dark:bg-stone-900 px-3 py-2.5 text-sm text-gray-900 dark:text-stone-100 placeholder-gray-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                className="w-full rounded-lg border border-stone-300 dark:border-stone-600 bg-stone-50 dark:bg-stone-900 px-3 py-2.5 text-sm text-stone-900 dark:text-stone-100 placeholder-stone-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                 minLength={3}
                 maxLength={50}
                 placeholder="Enter new username"
@@ -241,7 +241,7 @@ export function ProfileInfoTab() {
                     setNewUsername("");
                     setUsernameError("");
                   }}
-                  className="flex-1 sm:flex-none px-4 py-2 border border-gray-200 dark:border-stone-600 text-gray-600 dark:text-stone-400 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-stone-700 transition-colors"
+                  className="flex-1 sm:flex-none px-4 py-2 border border-stone-200 dark:border-stone-600 text-stone-600 dark:text-stone-400 text-sm font-medium rounded-lg hover:bg-stone-50 dark:hover:bg-stone-700 transition-colors"
                 >
                   {t("common.cancel")}
                 </button>
@@ -249,11 +249,11 @@ export function ProfileInfoTab() {
             </div>
           ) : (
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-gray-500 dark:text-stone-400 shrink-0">
+              <span className="text-sm text-stone-500 dark:text-stone-400 shrink-0">
                 {t("profile.username")}
               </span>
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm font-medium text-gray-900 dark:text-stone-100 truncate">
+                <span className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
                   {user?.username || "-"}
                 </span>
                 <button
@@ -271,17 +271,17 @@ export function ProfileInfoTab() {
           )}
         </div>
 
-        <div className="flex items-center justify-between py-3.5 border-b border-gray-100 dark:border-stone-700/60 gap-3">
-          <span className="text-sm text-gray-500 dark:text-stone-400 shrink-0">
+        <div className="flex items-center justify-between py-3.5 border-b border-stone-100 dark:border-stone-700/60 gap-3">
+          <span className="text-sm text-stone-500 dark:text-stone-400 shrink-0">
             {t("profile.email")}
           </span>
-          <span className="text-sm font-medium text-gray-900 dark:text-stone-100 truncate text-right">
+          <span className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate text-right">
             {user?.email || "-"}
           </span>
         </div>
         {user?.roles && user.roles.length > 0 && (
           <div className="flex items-center justify-between py-3.5 gap-3">
-            <span className="text-sm text-gray-500 dark:text-stone-400 shrink-0">
+            <span className="text-sm text-stone-500 dark:text-stone-400 shrink-0">
               {t("profile.roles")}
             </span>
             <div className="flex flex-wrap justify-end gap-1.5">

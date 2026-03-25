@@ -4,9 +4,10 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit2, Trash2, FolderPlus, Star, ChevronRight, X } from "lucide-react";
+import { Edit2, Trash2, FolderPlus, ChevronRight, X } from "lucide-react";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
+import { DynamicIcon } from "../common/DynamicIcon";
 
 interface SessionMenuProps {
   session: BackendSession;
@@ -138,7 +139,7 @@ export function SessionMenu({
         >
           {/* Handle bar */}
           <div className="flex justify-center py-2">
-            <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-stone-600" />
+            <div className="w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
           </div>
 
           {/* Header */}
@@ -148,7 +149,7 @@ export function SessionMenu({
             </span>
             <button
               onClick={onClose}
-              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-stone-700"
+              className="p-1 rounded-full hover:bg-stone-100 dark:hover:bg-stone-700"
             >
               <X size={18} className="text-stone-400" />
             </button>
@@ -162,7 +163,7 @@ export function SessionMenu({
                 onRename();
                 onClose();
               }}
-              className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-3 text-base text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
             >
               <Edit2 size={18} />
               <span>{t("sidebar.rename")}</span>
@@ -172,7 +173,7 @@ export function SessionMenu({
             <div className="mt-1">
               <button
                 onClick={() => setShowProjectSubmenu(!showProjectSubmenu)}
-                className="w-full flex items-center justify-between gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                className="w-full flex items-center justify-between gap-3 px-3 py-3 text-base text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <FolderPlus size={18} />
@@ -189,9 +190,9 @@ export function SessionMenu({
               {showProjectSubmenu && (
                 <div
                   ref={submenuRef}
-                  className="mt-1 ml-4 pl-3 border-l-2 border-gray-200 dark:border-stone-700"
+                  className="mt-1 ml-4 pl-3 border-l-2 border-stone-200 dark:border-stone-700"
                 >
-                  <p className="px-3 py-2 text-xs text-stone-400 dark:text-stone-500">
+                  <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
                     {t("sidebar.moveToProjectHint")}
                   </p>
 
@@ -205,12 +206,15 @@ export function SessionMenu({
                         }
                         onClose();
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-base text-stone-600 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-700 dark:hover:text-amber-300 rounded-lg transition-colors"
                     >
-                      <Star
+                      <DynamicIcon
+                        name={favoritesProject.icon}
                         size={18}
                         className={
-                          isFavorite ? "text-yellow-500 fill-yellow-500" : ""
+                          isFavorite
+                            ? "text-amber-500"
+                            : "text-stone-400 dark:text-stone-500"
                         }
                       />
                       <span>
@@ -224,7 +228,7 @@ export function SessionMenu({
                   {customProjects.length > 0 && (
                     <>
                       {favoritesProject && (
-                        <div className="h-px bg-gray-200 dark:bg-stone-700 mx-3 my-1" />
+                        <div className="h-px bg-stone-200/70 dark:bg-stone-700/50 mx-3 my-1" />
                       )}
                       {customProjects.map((project) => (
                         <button
@@ -233,22 +237,28 @@ export function SessionMenu({
                             onMoveToProject(project.id);
                             onClose();
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-base text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/70 rounded-lg transition-colors"
                         >
+                          <DynamicIcon
+                            name={project.icon}
+                            size={18}
+                            className="text-stone-400 dark:text-stone-500 shrink-0"
+                          />
                           <span className="truncate">{project.name}</span>
                         </button>
                       ))}
                     </>
                   )}
 
-                  <div className="h-px bg-gray-200 dark:bg-stone-700 mx-3 my-1" />
+                  <div className="h-px bg-stone-200/70 dark:bg-stone-700/50 mx-3 my-1" />
                   <button
                     onClick={() => {
                       onMoveToProject(null);
                       onClose();
                     }}
-                    className="w-full flex items-center gap-3 px-3 py-3 text-base text-gray-500 dark:text-stone-400 hover:bg-gray-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                    className="w-full flex items-center gap-3 px-3 py-2.5 text-base text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700/70 rounded-lg transition-colors"
                   >
+                    <DynamicIcon name="🏷️" size={18} className="shrink-0" />
                     <span>{t("sidebar.uncategorized")}</span>
                   </button>
                 </div>
@@ -256,7 +266,7 @@ export function SessionMenu({
             </div>
 
             {/* Divider */}
-            <div className="h-px bg-gray-200 dark:bg-stone-700 my-2" />
+            <div className="h-px bg-stone-200 dark:bg-stone-700 my-2" />
 
             {/* Delete */}
             <button
@@ -296,7 +306,7 @@ export function SessionMenu({
     <div
       ref={menuRef}
       style={menuStyle}
-      className="w-48 rounded-lg border border-gray-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1"
+      className="w-48 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg py-1"
     >
       {/* Rename option */}
       <button
@@ -304,7 +314,7 @@ export function SessionMenu({
           onRename();
           onClose();
         }}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
       >
         <Edit2 size={14} />
         <span>{t("sidebar.rename")}</span>
@@ -314,7 +324,7 @@ export function SessionMenu({
       <div>
         <button
           onClick={() => setShowProjectSubmenu(!showProjectSubmenu)}
-          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
         >
           <div className="flex items-center gap-2">
             <FolderPlus size={14} />
@@ -330,8 +340,8 @@ export function SessionMenu({
 
         {/* Project submenu - inline expansion */}
         {showProjectSubmenu && (
-          <div className="bg-gray-50 dark:bg-stone-900/50 max-h-60 overflow-y-auto">
-            <p className="px-3 py-1.5 text-xs text-stone-400 dark:text-stone-500">
+          <div className="bg-stone-50 dark:bg-stone-900/50 max-h-60 overflow-y-auto py-1">
+            <p className="px-4 py-1.5 text-[11px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
               {t("sidebar.moveToProjectHint")}
             </p>
 
@@ -346,12 +356,15 @@ export function SessionMenu({
                   }
                   onClose();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 pl-8 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+                className="w-full flex items-center gap-2.5 px-4 py-1.5 text-sm text-stone-600 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-700 dark:hover:text-amber-300 transition-colors"
               >
-                <Star
+                <DynamicIcon
+                  name={favoritesProject.icon}
                   size={14}
                   className={
-                    isFavorite ? "text-yellow-500 fill-yellow-500" : ""
+                    isFavorite
+                      ? "text-amber-500"
+                      : "text-stone-400 dark:text-stone-500"
                   }
                 />
                 <span>
@@ -366,7 +379,7 @@ export function SessionMenu({
             {customProjects.length > 0 && (
               <>
                 {favoritesProject && (
-                  <div className="h-px bg-gray-200 dark:bg-stone-700 mx-3" />
+                  <div className="h-px bg-stone-200/70 dark:bg-stone-700/50 mx-3" />
                 )}
                 {customProjects.map((project) => (
                   <button
@@ -375,8 +388,13 @@ export function SessionMenu({
                       onMoveToProject(project.id);
                       onClose();
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 pl-8 text-sm text-gray-700 dark:text-stone-200 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-4 py-1.5 text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/70 transition-colors"
                   >
+                    <DynamicIcon
+                      name={project.icon}
+                      size={14}
+                      className="text-stone-400 dark:text-stone-500 shrink-0"
+                    />
                     <span className="truncate">{project.name}</span>
                   </button>
                 ))}
@@ -384,14 +402,15 @@ export function SessionMenu({
             )}
 
             {/* Uncategorized option */}
-            <div className="h-px bg-gray-200 dark:bg-stone-700 mx-3" />
+            <div className="h-px bg-stone-200/70 dark:bg-stone-700/50 mx-3" />
             <button
               onClick={() => {
                 onMoveToProject(null);
                 onClose();
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 pl-8 text-sm text-gray-500 dark:text-stone-400 hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+              className="w-full flex items-center gap-2.5 px-4 py-1.5 text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-700/70 transition-colors"
             >
+              <DynamicIcon name="🏷️" size={14} className="shrink-0" />
               <span>{t("sidebar.uncategorized")}</span>
             </button>
           </div>
@@ -399,7 +418,7 @@ export function SessionMenu({
       </div>
 
       {/* Divider */}
-      <div className="h-px bg-gray-200 dark:bg-stone-700 my-1" />
+      <div className="h-px bg-stone-200 dark:bg-stone-700 my-1" />
 
       {/* Delete option */}
       <button

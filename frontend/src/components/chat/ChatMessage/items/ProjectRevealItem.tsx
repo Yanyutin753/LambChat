@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ExternalLink, Code2, FolderTree, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -49,7 +49,9 @@ function isV2(result: ProjectRevealResult): result is ProjectRevealResultV2 {
   if ("version" in result && result.version === 2) return true;
   // 也通过 files 的值类型判断
   const firstFile = Object.values(result.files)[0];
-  return typeof firstFile === "object" && firstFile !== null && "url" in firstFile;
+  return (
+    typeof firstFile === "object" && firstFile !== null && "url" in firstFile
+  );
 }
 
 /**
@@ -57,6 +59,15 @@ function isV2(result: ProjectRevealResult): result is ProjectRevealResultV2 {
  */
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * 从 /icon.png 生成多种可能的引用形式:
+ *   "/icon.png", "icon.png", "./icon.png"
+ */
+function getPathVariants(relPath: string): string[] {
+  const bare = relPath.startsWith("/") ? relPath.slice(1) : relPath;
+  return [relPath, bare, `./${bare}`];
 }
 
 /**
@@ -68,17 +79,20 @@ function replaceBinaryRefs(
 ): string {
   let result = content;
   for (const [relPath, fullUrl] of Object.entries(binaryUrlMap)) {
-    const escaped = escapeRegex(relPath);
-    const patterns = [
-      // url("./logo.png"), url('../fonts/a.woff'), url(img.png)
-      new RegExp(`(url\\(['"]?)${escaped}(['"]?\\))`, "g"),
-      // src="./img.png", src="img.png"
-      new RegExp(`(src=['"])${escaped}(['"])`, "g"),
-      // href="style.css" (less common for binary but safe)
-      new RegExp(`(href=['"])${escaped}(['"])`, "g"),
-    ];
-    for (const pattern of patterns) {
-      result = result.replace(pattern, `$1${fullUrl}$2`);
+    const variants = getPathVariants(relPath);
+    for (const variant of variants) {
+      const escaped = escapeRegex(variant);
+      const patterns = [
+        // url("./logo.png"), url('../fonts/a.woff'), url(img.png)
+        new RegExp(`(url\\(['"]?)${escaped}(['"]?\\))`, "g"),
+        // src="./img.png", src="img.png"
+        new RegExp(`(src=['"])${escaped}(['"])`, "g"),
+        // href="style.css" (less common for binary but safe)
+        new RegExp(`(href=['"])${escaped}(['"])`, "g"),
+      ];
+      for (const pattern of patterns) {
+        result = result.replace(pattern, `$1${fullUrl}$2`);
+      }
     }
   }
   return result;
@@ -91,17 +105,19 @@ async function fetchTextFiles(
   textFileEntries: Array<[string, FileManifestEntry]>,
 ): Promise<Record<string, string>> {
   const entries = await Promise.all(
-    textFileEntries.map(async ([path, entry]): Promise<[string, string] | null> => {
-      try {
-        const fullUrl = getFullUrl(entry.url) || entry.url;
-        const resp = await fetch(fullUrl);
-        if (!resp.ok) return null;
-        const text = await resp.text();
-        return [path, text];
-      } catch {
-        return null;
-      }
-    }),
+    textFileEntries.map(
+      async ([path, entry]): Promise<[string, string] | null> => {
+        try {
+          const fullUrl = getFullUrl(entry.url) || entry.url;
+          const resp = await fetch(fullUrl);
+          if (!resp.ok) return null;
+          const text = await resp.text();
+          return [path, text];
+        } catch {
+          return null;
+        }
+      },
+    ),
   );
 
   const result: Record<string, string> = {};
@@ -140,7 +156,7 @@ export function ProjectRevealItem({
       parsed =
         typeof result === "string"
           ? (JSON.parse(result) as ProjectRevealResult)
-          : (result as ProjectRevealResult);
+          : (result as unknown as ProjectRevealResult);
 
       if (parsed.error) {
         error = parsed.message || parsed.error;
@@ -167,13 +183,14 @@ export function ProjectRevealItem({
   useEffect(() => {
     if (!v2) return;
 
+    const v2Files = v2.files;
     let cancelled = false;
 
     async function loadFiles() {
       const textEntries: Array<[string, FileManifestEntry]> = [];
       const binMap: Record<string, string> = {};
 
-      for (const [path, entry] of Object.entries(v2.files)) {
+      for (const [path, entry] of Object.entries(v2Files)) {
         if (entry.is_binary) {
           const fullUrl = getFullUrl(entry.url) || entry.url;
           binMap[path] = fullUrl;
@@ -210,7 +227,10 @@ export function ProjectRevealItem({
   }, [v2]);
 
   // v1: 直接使用内嵌的文件内容
-  const v1Files = parsed && !v2 && !parsed.error ? (parsed.files as Record<string, string>) : null;
+  const v1Files =
+    parsed && !v2 && !parsed.error
+      ? (parsed.files as Record<string, string>)
+      : null;
 
   // 最终传给 Sandpack 的文件内容
   const sandpackFiles = v2 ? loadedFiles : v1Files;
@@ -299,10 +319,10 @@ export function ProjectRevealItem({
               </div>
             </div>
           </div>
-          <div className="h-[300px] sm:h-[450px] bg-stone-900 flex items-center justify-center">
+          <div className="h-[300px] sm:h-[600px] bg-stone-900 flex items-center justify-center">
             <div className="text-stone-400 text-sm flex items-center gap-2">
               <LoadingSpinner size="sm" className="text-stone-400" />
-              Loading files...
+              {t("project.loadingFiles")}
             </div>
           </div>
         </div>
@@ -321,7 +341,7 @@ export function ProjectRevealItem({
             {projectName || t("project.empty")}
           </div>
           <div className="text-xs text-amber-500 dark:text-amber-400 truncate mt-0.5">
-            {loadingError ? "Failed to load files" : t("project.noFiles")}
+            {loadingError ? t("project.loadFilesFailed") : t("project.noFiles")}
           </div>
         </div>
       </div>
@@ -392,7 +412,7 @@ export function ProjectRevealItem({
           </div>
         </div>
 
-        <div className="h-[300px] sm:h-[450px] bg-stone-900">
+        <div className="h-[300px] sm:h-[600px] bg-stone-900">
           {success && Object.keys(filesForExport).length > 0 && (
             <ProjectPreview
               name={projectName}

@@ -301,7 +301,7 @@ export function MermaidDiagram({
             )}
           </button>
         </div>
-        <pre className="p-3 bg-gray-50 dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-xs text-stone-700 dark:text-stone-300 font-mono">
+        <pre className="p-3 bg-stone-50 dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-xs text-stone-700 dark:text-stone-300 font-mono">
           {chart}
         </pre>
       </div>
@@ -338,7 +338,7 @@ export function MermaidDiagram({
             )}
           </button>
         </div>
-        <pre className="p-3 bg-gray-50 dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-xs text-stone-700 dark:text-stone-300 font-mono">
+        <pre className="p-3 bg-stone-50 dark:bg-stone-800 overflow-x-auto max-h-64 overflow-y-auto text-xs text-stone-700 dark:text-stone-300 font-mono">
           {chart}
         </pre>
       </div>
@@ -347,7 +347,7 @@ export function MermaidDiagram({
 
   if (!svg) {
     return (
-      <div className="mermaid-diagram overflow-x-auto rounded-lg bg-gray-50 p-4 dark:bg-stone-800">
+      <div className="mermaid-diagram overflow-x-auto rounded-lg bg-stone-50 p-4 dark:bg-stone-800">
         <div className="text-sm text-stone-500 dark:text-stone-400">
           Loading diagram...
         </div>
@@ -439,7 +439,7 @@ export function MermaidDiagram({
 
       {/* Diagram container - centered with zoom and drag */}
       <div
-        className={`mermaid-diagram overflow-hidden p-4 bg-gray-50 dark:bg-stone-800 flex items-center justify-center min-h-[200px] max-h-[500px] cursor-${
+        className={`mermaid-diagram overflow-hidden p-4 bg-stone-50 dark:bg-stone-800 flex items-center justify-center min-h-[200px] max-h-[500px] cursor-${
           isDragging ? "grabbing" : "grab"
         }`}
         onWheel={handleWheel}

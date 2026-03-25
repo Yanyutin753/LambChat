@@ -71,12 +71,10 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
           ...(maxHeight ? { maxHeight, overflow: "auto" } : {}),
         },
         ".cm-gutters": {
-          borderRight: isDark
-            ? "1px solid #44403c"
-            : "1px solid #e7e5e4",
+          borderRight: isDark ? "1px solid #44403c" : "1px solid #e7e5e4",
         },
         ".cm-lineNumbers .cm-gutterElement": {
-          color: isDark ? "#71717a" : "#a1a1aa",
+          color: isDark ? "#a8a29e" : "#78716c",
           userSelect: "none",
         },
       }),

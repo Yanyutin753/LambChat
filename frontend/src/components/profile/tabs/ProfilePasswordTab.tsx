@@ -73,7 +73,7 @@ export function ProfilePasswordTab() {
 
       {/* Old Password */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1.5">
+        <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
           {t("profile.oldPassword")}
         </label>
         <div className="relative">
@@ -81,13 +81,13 @@ export function ProfilePasswordTab() {
             type={showPassword ? "text" : "password"}
             value={oldPassword}
             onChange={(e) => setOldPassword(e.target.value)}
-            className="w-full px-3.5 py-2.5 pr-10 rounded-lg border border-gray-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-gray-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm"
+            className="w-full px-3.5 py-2.5 pr-10 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm"
             placeholder={t("profile.oldPassword")}
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-stone-300 transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
@@ -96,28 +96,28 @@ export function ProfilePasswordTab() {
 
       {/* New Password */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1.5">
+        <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
           {t("profile.newPassword")}
         </label>
         <input
           type={showPassword ? "text" : "password"}
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-gray-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm"
+          className="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm"
           placeholder={t("profile.newPassword")}
         />
       </div>
 
       {/* Confirm Password */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1.5">
+        <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
           {t("profile.confirmPassword")}
         </label>
         <input
           type={showPassword ? "text" : "password"}
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-lg border border-gray-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-gray-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm"
+          className="w-full px-3.5 py-2.5 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 text-sm"
           placeholder={t("profile.confirmPassword")}
         />
       </div>

@@ -95,29 +95,29 @@ export function ProfileModal({
 
       {/* Dialog - Mobile: bottom sheet with top tabs */}
       <div
-        className="sm:hidden relative z-10 w-full bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up-sheet"
+        className="sm:hidden relative z-10 w-full bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up-sheet"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-9 h-1 bg-gray-300 dark:bg-stone-600 rounded-full" />
+          <div className="w-9 h-1 bg-stone-300 dark:bg-stone-600 rounded-full" />
         </div>
 
         {/* Header */}
         <div className="px-4 py-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-stone-100">
+          <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
             {t("profile.title")}
           </h3>
           <button
             onClick={onCloseProfileModal}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
           >
-            <X size={18} className="text-gray-500 dark:text-stone-400" />
+            <X size={18} className="text-stone-500 dark:text-stone-400" />
           </button>
         </div>
 
         {/* Mobile Tabs - scrollable, no visible scrollbar */}
-        <div className="border-b border-gray-100 dark:border-stone-700/80">
+        <div className="border-b border-stone-100 dark:border-stone-700/80">
           <div
             ref={mobileTabsRef}
             className="flex overflow-x-auto scrollbar-none -mb-px scroll-smooth"
@@ -132,7 +132,7 @@ export function ProfileModal({
                 className={`relative shrink-0 px-4 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
                   activeTab === tab.key
                     ? "text-amber-600 dark:text-amber-400"
-                    : "text-gray-500 dark:text-stone-400"
+                    : "text-stone-500 dark:text-stone-400"
                 }`}
               >
                 {tab.label}
@@ -148,9 +148,9 @@ export function ProfileModal({
         <div className="flex-1 overflow-y-auto p-4">{tabContent}</div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-100 dark:border-stone-700/60 flex items-center justify-between safe-area-bottom">
-          <div className="text-xs text-gray-400 dark:text-stone-500">
-            <span className="font-semibold text-gray-500 dark:text-stone-400 font-serif">
+        <div className="px-4 py-3 border-t border-stone-100 dark:border-stone-700/60 flex items-center justify-between safe-area-bottom">
+          <div className="text-xs text-stone-400 dark:text-stone-500">
+            <span className="font-semibold text-stone-500 dark:text-stone-400 font-serif">
               {APP_NAME}
             </span>
             {versionInfo?.app_version && (
@@ -159,7 +159,7 @@ export function ProfileModal({
           </div>
           <button
             onClick={onCloseProfileModal}
-            className="text-xs text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300 transition-colors"
+            className="text-xs text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
           >
             {t("common.close")}
           </button>
@@ -168,26 +168,26 @@ export function ProfileModal({
 
       {/* Dialog - Desktop: wider with left sidebar tabs */}
       <div
-        className="hidden sm:flex relative z-10 w-[560px] h-[520px] bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-gray-200 dark:border-stone-700 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200"
+        className="hidden sm:flex relative z-10 w-[560px] h-[520px] bg-white dark:bg-stone-800 rounded-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden flex-col animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 py-3 flex items-center justify-between border-b border-gray-100 dark:border-stone-700/80">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-stone-100">
+        <div className="px-5 py-3 flex items-center justify-between border-b border-stone-100 dark:border-stone-700/80">
+          <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
             {t("profile.title")}
           </h3>
           <button
             onClick={onCloseProfileModal}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-stone-700 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
           >
-            <X size={18} className="text-gray-500 dark:text-stone-400" />
+            <X size={18} className="text-stone-500 dark:text-stone-400" />
           </button>
         </div>
 
         {/* Body: left tabs + right content */}
         <div className="flex flex-1 min-h-0">
           {/* Left sidebar tabs */}
-          <div className="w-32 shrink-0 border-r border-gray-100 dark:border-stone-700/80 py-2">
+          <div className="w-32 shrink-0 border-r border-stone-100 dark:border-stone-700/80 py-2">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -195,7 +195,7 @@ export function ProfileModal({
                 className={`w-full text-left px-4 py-2 text-xs font-medium transition-colors ${
                   activeTab === tab.key
                     ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-r-2 border-amber-500 dark:border-amber-400"
-                    : "text-gray-500 dark:text-stone-400 hover:text-gray-700 dark:hover:text-stone-200 hover:bg-gray-50 dark:hover:bg-stone-700/50"
+                    : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-700/50"
                 }`}
               >
                 {tab.label}
@@ -208,9 +208,9 @@ export function ProfileModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-gray-100 dark:border-stone-700/60 flex items-center justify-between">
-          <div className="text-xs text-gray-400 dark:text-stone-500">
-            <span className="font-semibold text-gray-500 dark:text-stone-400 font-serif">
+        <div className="px-5 py-3 border-t border-stone-100 dark:border-stone-700/60 flex items-center justify-between">
+          <div className="text-xs text-stone-400 dark:text-stone-500">
+            <span className="font-semibold text-stone-500 dark:text-stone-400 font-serif">
               {APP_NAME}
             </span>
             {versionInfo?.app_version && (
@@ -219,7 +219,7 @@ export function ProfileModal({
           </div>
           <button
             onClick={onCloseProfileModal}
-            className="text-xs text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300 transition-colors"
+            className="text-xs text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
           >
             {t("common.close")}
           </button>

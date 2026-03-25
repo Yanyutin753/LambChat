@@ -2,34 +2,30 @@
  * Session management hooks
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import { sessionApi, type BackendSession } from "../services/api";
 
 const PAGE_SIZE = 20;
 
-// ─── Paginated session list with auto-fill (sidebar) ─────────────────
+// ─── Per-project paginated session list ─────────────────────────────
 
-interface UseSessionListReturn {
+interface UseProjectSessionListReturn {
   sessions: BackendSession[];
   isLoading: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
   error: string | null;
-  loadSessions: (reset?: boolean) => Promise<void>;
-  loadMoreSessions: () => void;
-  setSessions: React.Dispatch<React.SetStateAction<BackendSession[]>>;
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   loadMoreRef: React.RefCallback<HTMLElement>;
+  refresh: () => Promise<void>;
+  prependSession: (session: BackendSession) => void;
+  removeSession: (sessionId: string) => void;
+  updateSession: (session: BackendSession) => void;
 }
 
-export function useSessionList(
-  refreshKey?: number,
-  isProjectsCollapsed?: boolean,
-  setIsProjectsCollapsed?: (collapsed: boolean) => void,
-  sidebarVisible?: boolean,
-  isChatsCollapsed?: boolean,
-): UseSessionListReturn {
+export function useProjectSessionList(
+  projectId: string,
+): UseProjectSessionListReturn {
   const [sessions, setSessions] = useState<BackendSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -37,24 +33,11 @@ export function useSessionList(
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  // Track in-flight request's skip to prevent duplicate requests
-  const loadingSkipRef = useRef<number | null>(null);
+  const { ref: loadMoreRef, inView } = useInView({ threshold: 0.1 });
 
-  const { ref: loadMoreRef, inView } = useInView({
-    threshold: 0.1,
-  });
-
-  const loadSessions = async (reset = false) => {
-    if (!reset && (isLoading || isLoadingMore)) return;
-    if (!reset && !hasMore) return;
-    // Prevent infinite loops when collapsed sections hide all content
-    if (!reset && isChatsCollapsed) return;
-
+  const fetchSessions = async (reset = false) => {
     const targetSkip = reset ? 0 : skip;
-    // Skip if already loading this exact skip value (prevents duplicate requests)
-    if (!reset && loadingSkipRef.current === targetSkip) return;
-    loadingSkipRef.current = targetSkip;
+    if (!reset && (isLoadingMore || !hasMore)) return;
 
     if (reset) {
       setIsLoading(true);
@@ -66,6 +49,7 @@ export function useSessionList(
 
     try {
       const response = await sessionApi.list({
+        project_id: projectId,
         limit: PAGE_SIZE,
         skip: targetSkip,
         status: "active",
@@ -86,93 +70,51 @@ export function useSessionList(
         setSessions((prev) => [...prev, ...newSessions]);
         setSkip(targetSkip + newSessions.length);
       }
-      // If no new sessions returned, stop loading even if backend says has_more
-      // (e.g. remaining sessions are filtered out by status=active)
       setHasMore(newSessions.length > 0 ? newHasMore : false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load sessions");
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
-      // Don't reset loadingSkipRef here - let it be cleared after skip is updated
-      // This prevents auto-fill from sending duplicate requests while skip is stale
     }
   };
 
-  const loadMoreSessions = useCallback(() => {
-    if (hasMore && !isLoadingMore && !isLoading) {
-      loadSessions(false);
+  // Infinite scroll
+  useEffect(() => {
+    if (inView && hasMore && !isLoadingMore && !isLoading) {
+      fetchSessions(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasMore, isLoadingMore, isLoading]);
+  }, [inView, hasMore, isLoadingMore, isLoading]);
 
-  // Infinite scroll via sentinel
+  // Re-fetch when projectId changes
   useEffect(() => {
-    if (inView && hasMore && !isLoadingMore) {
-      loadMoreSessions();
-    }
-  }, [inView, hasMore, isLoadingMore, loadMoreSessions]);
-
-  // Auto-fill sidebar: expand projects first, then load more if still needed
-  const loadSessionsRef = useRef(loadSessions);
-  loadSessionsRef.current = loadSessions;
-
-  useEffect(() => {
-    if (isLoading || isLoadingMore) return;
-    // Don't auto-fill when chats are collapsed — content is intentionally hidden,
-    // so loading more sessions won't fill visible space and causes infinite loop
-    if (isChatsCollapsed) return;
-
-    // sessionListContent renders in both mobile & desktop sidebars.
-    // Query DOM to find the scroll container that has actual dimensions.
-    const allContainers = document.querySelectorAll<HTMLDivElement>(
-      "[data-sidebar-scroll]",
-    );
-    let container: HTMLDivElement | null = null;
-    for (const el of allContainers) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        container = el;
-        break;
-      }
-    }
-
-    if (!container || container.scrollHeight > container.clientHeight) return;
-
-    // First: expand projects to reveal already-loaded sessions (no network request)
-    if (isProjectsCollapsed && setIsProjectsCollapsed) {
-      const hasProjectSessions = sessions.some((s) => s.metadata?.project_id);
-      if (hasProjectSessions) {
-        setIsProjectsCollapsed(false);
-        return; // re-run after expansion to re-check if container is now full
-      }
-    }
-
-    // Second: load more sessions only if projects are already expanded
-    if (hasMore) {
-      loadSessionsRef.current(false);
-    }
+    setSessions([]);
+    setSkip(0);
+    setHasMore(false);
+    fetchSessions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    sessions,
-    hasMore,
-    isLoading,
-    isLoadingMore,
-    isProjectsCollapsed,
-    sidebarVisible,
-    isChatsCollapsed,
-  ]);
+  }, [projectId]);
 
-  // Initial load on mount / refresh
-  useEffect(() => {
-    loadSessions(true);
+  const refresh = useCallback(async () => {
+    await fetchSessions(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
+  }, [projectId]);
 
-  // Clear loadingSkipRef after skip is updated to prevent duplicate requests
-  useEffect(() => {
-    loadingSkipRef.current = null;
-  }, [skip]);
+  const prependSession = useCallback((session: BackendSession) => {
+    setSessions((prev) => {
+      if (prev.some((s) => s.id === session.id)) return prev;
+      return [session, ...prev];
+    });
+  }, []);
+
+  const removeSession = useCallback((sessionId: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+  }, []);
+
+  const updateSession = useCallback((session: BackendSession) => {
+    setSessions((prev) => prev.map((s) => (s.id === session.id ? session : s)));
+  }, []);
 
   return {
     sessions,
@@ -180,11 +122,11 @@ export function useSessionList(
     isLoadingMore,
     hasMore,
     error,
-    loadSessions,
-    loadMoreSessions,
-    setSessions,
-    scrollContainerRef,
     loadMoreRef,
+    refresh,
+    prependSession,
+    removeSession,
+    updateSession,
   };
 }
 

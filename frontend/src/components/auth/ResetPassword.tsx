@@ -80,7 +80,7 @@ export function ResetPassword() {
     return (
       <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
         <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60">
             <img
               src="/icons/icon.svg"
               alt={APP_NAME}
@@ -89,14 +89,9 @@ export function ResetPassword() {
           </div>
         </div>
 
-        <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+        <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/40 p-1.5 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 sm:right-4 sm:top-4">
           <LanguageToggle />
           <ThemeToggle />
-        </div>
-
-        <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-          <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
-          <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
         </div>
 
         <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
@@ -105,10 +100,10 @@ export function ResetPassword() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
                 <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
                 {t("auth.resetPasswordSuccessTitle")}
               </h1>
-              <p className="text-gray-600 dark:text-stone-400">
+              <p className="text-stone-600 dark:text-stone-400">
                 {t("auth.resetPasswordSuccessDesc")}
               </p>
             </div>
@@ -130,7 +125,7 @@ export function ResetPassword() {
     return (
       <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
         <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60">
             <img
               src="/icons/icon.svg"
               alt={APP_NAME}
@@ -139,14 +134,9 @@ export function ResetPassword() {
           </div>
         </div>
 
-        <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+        <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/40 p-1.5 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 sm:right-4 sm:top-4">
           <LanguageToggle />
           <ThemeToggle />
-        </div>
-
-        <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-          <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
-          <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
         </div>
 
         <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
@@ -155,10 +145,10 @@ export function ResetPassword() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
                 <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
                 {t("auth.resetPasswordFailed")}
               </h1>
-              <p className="text-gray-600 dark:text-stone-400">
+              <p className="text-stone-600 dark:text-stone-400">
                 {t("auth.resetPasswordFailedDesc")}
               </p>
             </div>
@@ -178,7 +168,7 @@ export function ResetPassword() {
   return (
     <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
       <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/50  transition-colors hover:bg-white/80 dark:bg-stone-800/50 dark:hover:bg-stone-800/80">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60">
           <img
             src="/icons/icon.svg"
             alt={APP_NAME}
@@ -187,24 +177,19 @@ export function ResetPassword() {
         </div>
       </div>
 
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/50 p-1  dark:bg-stone-800/50 sm:right-4 sm:top-4 sm:gap-2 sm:bg-transparent sm:backdrop-blur-none dark:sm:bg-transparent">
+      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 rounded-lg bg-white/40 p-1.5 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 sm:right-4 sm:top-4">
         <LanguageToggle />
         <ThemeToggle />
-      </div>
-
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
-        <div className="absolute -bottom-20 -right-20 h-80 w-80 rounded-full bg-[var(--theme-primary)]/10 blur-3xl" />
       </div>
 
       <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-md py-8">
           {/* 标题 */}
           <div className="mb-6 text-center sm:mb-8">
-            <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-stone-100 sm:text-3xl">
+            <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
               {t("auth.resetPassword")}
             </h1>
-            <p className="text-sm text-gray-600 dark:text-stone-400 sm:text-base">
+            <p className="text-sm text-stone-600 dark:text-stone-400 sm:text-base">
               {t("auth.resetPasswordDesc")}
             </p>
           </div>
@@ -214,11 +199,11 @@ export function ResetPassword() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* 新密码 */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
+                <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
                   {t("auth.newPassword")}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-stone-500 sm:pl-3.5">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500 sm:pl-3.5">
                     <Lock size={16} className="sm:h-[18px] sm:w-[18px]" />
                   </div>
                   <input
@@ -234,11 +219,11 @@ export function ResetPassword() {
 
               {/* 确认密码 */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
+                <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300 sm:mb-1.5 sm:text-sm">
                   {t("auth.confirmNewPassword")}
                 </label>
                 <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-stone-500 sm:pl-3.5">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500 sm:pl-3.5">
                     <Lock size={16} className="sm:h-[18px] sm:w-[18px]" />
                   </div>
                   <input
@@ -262,7 +247,7 @@ export function ResetPassword() {
                   <span className="flex items-center justify-center gap-2">
                     <LoadingSpinner
                       size="sm"
-                      className="text-white dark:text-gray-900"
+                      className="text-white dark:text-stone-900"
                     />
                     {t("auth.processing")}
                   </span>

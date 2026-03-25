@@ -176,7 +176,7 @@ function UserFormModal({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2">
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
@@ -268,7 +268,7 @@ function UserFormModal({
                               type="checkbox"
                               checked={selectedRoles.includes(role.name)}
                               onChange={() => toggleRole(role.name)}
-                              className="h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-500 dark:border-stone-600 dark:bg-stone-700"
+                              className=""
                             />
                             <span className="text-sm text-stone-700 dark:text-stone-300">
                               {role.name}
@@ -294,7 +294,7 @@ function UserFormModal({
                       type="checkbox"
                       checked={isActive}
                       onChange={(e) => setIsActive(e.target.checked)}
-                      className="h-4 w-4 rounded border-stone-300 text-amber-500 focus:ring-amber-500 dark:border-stone-600 dark:bg-stone-700"
+                      className=""
                     />
                     <span className="text-sm text-stone-700 dark:text-stone-300">
                       {t("users.enableAccount")}
@@ -532,7 +532,9 @@ export function UsersPanel() {
       <PanelHeader
         title={t("users.title")}
         subtitle={t("users.subtitle")}
-        icon={<Users size={18} className="text-stone-600 dark:text-stone-400" />}
+        icon={
+          <Users size={18} className="text-stone-600 dark:text-stone-400" />
+        }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={t("users.searchPlaceholder")}

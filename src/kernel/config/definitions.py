@@ -520,6 +520,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 10485760,
         "depends_on": "S3_ENABLED",
     },
+    "S3_INTERNAL_UPLOAD_MAX_SIZE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.S3,
+        "description": "Maximum internal upload size in bytes (default: 50MB)",
+        "default": 52428800,
+        "depends_on": "S3_ENABLED",
+    },
     "S3_PUBLIC_BUCKET": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.S3,

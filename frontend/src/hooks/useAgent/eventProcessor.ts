@@ -119,7 +119,7 @@ export function processMessageEvent(
       result.parts = updateSubagentResult(
         parts,
         agentId || "unknown",
-        data.result || "",
+        String(data.result || ""),
         data.success !== false,
         depth,
         data.error,

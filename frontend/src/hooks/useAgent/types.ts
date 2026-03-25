@@ -40,7 +40,7 @@ export interface EventData {
   tool?: string;
   tool_call_id?: string;
   args?: Record<string, unknown>;
-  result?: string;
+  result?: string | Record<string, unknown>;
   success?: boolean;
   content?: string;
   thinking_id?: string;
@@ -124,7 +124,7 @@ export interface HistoryEventData {
   tool?: string;
   tool_call_id?: string;
   args?: Record<string, unknown>;
-  result?: string;
+  result?: string | Record<string, unknown>;
   success?: boolean;
   error?: string;
   depth?: number;

@@ -5,22 +5,24 @@ import toast from "react-hot-toast";
 import {
   Sparkles,
   ChevronRight,
-  Check,
   X,
   Plus,
   FileCode,
   Store,
   Search,
   Tag,
-  LoaderCircle,
 } from "lucide-react";
+import { Checkbox } from "../common/Checkbox";
 import type { SkillResponse, SkillSource } from "../../types";
 import { collectSkillTags, skillMatchesQuery } from "../../utils/skillFilters";
 
 interface SkillSelectorProps {
   skills: SkillResponse[];
   onToggleSkill: (name: string) => Promise<boolean>;
-  onToggleCategory: (category: SkillSource, enabled: boolean) => Promise<boolean>;
+  onToggleCategory: (
+    category: SkillSource,
+    enabled: boolean,
+  ) => Promise<boolean>;
   onToggleAll: (enabled: boolean) => Promise<boolean>;
   pendingSkillNames?: string[];
   isMutating?: boolean;
@@ -108,7 +110,11 @@ export function SkillSelector({
   const allSkillsEnabled = totalCount > 0 && enabledCount === totalCount;
   const noSkillsEnabled = enabledCount === 0;
 
-  const showBatchToggleToast = (enabled: boolean, count: number, ok: boolean) => {
+  const showBatchToggleToast = (
+    enabled: boolean,
+    count: number,
+    ok: boolean,
+  ) => {
     if (ok) {
       toast.success(
         enabled
@@ -321,41 +327,23 @@ export function SkillSelector({
                       {enabledInCategory}/{categorySkills.length}
                     </span>
                   </div>
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      if (isMutating) {
-                        return;
-                      }
-                      if (categoryChangedCount === 0) {
-                        return;
-                      }
-                      const ok = await onToggleCategory(cat, categoryTargetEnabled);
+                  <Checkbox
+                    checked={allEnabled}
+                    pending={categoryPending}
+                    disabled={isMutating || categoryChangedCount === 0}
+                    onChange={async () => {
+                      if (isMutating || categoryChangedCount === 0) return;
+                      const ok = await onToggleCategory(
+                        cat,
+                        categoryTargetEnabled,
+                      );
                       showBatchToggleToast(
                         categoryTargetEnabled,
                         categoryChangedCount,
                         ok,
                       );
                     }}
-                    disabled={isMutating || categoryChangedCount === 0}
-                    className={`w-5 h-5 sm:w-5 sm:h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-60 ${
-                      allEnabled
-                        ? "bg-[var(--theme-primary)] border-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
-                        : "border-stone-300 dark:border-stone-600 hover:border-[var(--theme-primary)]/40 dark:hover:border-[var(--theme-primary)]/40"
-                    }`}
-                  >
-                    {categoryPending ? (
-                      <LoaderCircle
-                        size={12}
-                        className="animate-spin text-[var(--theme-primary)]"
-                      />
-                    ) : allEnabled ? (
-                      <Check
-                        size={12}
-                        className="text-white animate-[check-pop_200ms_ease-out]"
-                      />
-                    ) : null}
-                  </button>
+                  />
                 </div>
 
                 {/* Skills List */}
@@ -402,27 +390,10 @@ export function SkillSelector({
                                   t("skillSelector.noDescription")}
                               </p>
                             </div>
-                            <div
-                              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                                pendingSet.has(skill.name)
-                                  ? "border-[var(--theme-primary)]/40 bg-[var(--theme-primary)]/[0.08]"
-                                  : skill.enabled
-                                  ? "bg-[var(--theme-primary)] border-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
-                                  : "border-stone-300 dark:border-stone-600 group-hover:border-stone-400 dark:group-hover:border-stone-500"
-                              }`}
-                            >
-                              {pendingSet.has(skill.name) ? (
-                                <LoaderCircle
-                                  size={12}
-                                  className="animate-spin text-[var(--theme-primary)]"
-                                />
-                              ) : skill.enabled ? (
-                                <Check
-                                  size={12}
-                                  className="text-white animate-[check-pop_200ms_ease-out]"
-                                />
-                              ) : null}
-                            </div>
+                            <Checkbox
+                              checked={skill.enabled}
+                              pending={pendingSet.has(skill.name)}
+                            />
                           </button>
                         </div>
                       ))}
@@ -457,7 +428,7 @@ export function SkillSelector({
     return (
       <div className="relative" onClick={(e) => e.stopPropagation()}>
         <div
-          className="flex items-center justify-center rounded-full p-2 border border-gray-200/50 dark:border-stone-700/50 bg-gray-50/50 dark:bg-stone-800/50 text-gray-300 dark:text-stone-600 cursor-not-allowed"
+          className="flex items-center justify-center rounded-full p-2 border border-stone-200/50 dark:border-stone-700/50 bg-stone-50/50 dark:bg-stone-800/50 text-stone-300 dark:text-stone-600 cursor-not-allowed"
           title={t("skillSelector.noSkills")}
         >
           <Sparkles size={18} />
@@ -475,7 +446,7 @@ export function SkillSelector({
           e.preventDefault();
           setIsOpen(true);
         }}
-        className="flex items-center justify-center rounded-full p-2 border border-gray-200 dark:border-stone-700 bg-transparent hover:bg-gray-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-amber-300 transition-all duration-300"
+        className="flex items-center justify-center rounded-full p-2 border border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-amber-300 transition-all duration-300"
         title={`${enabledCount}/${totalCount} ${t(
           "skillSelector.skillsEnabled",
         )}`}

@@ -82,9 +82,9 @@ export function UserAgentPreferencePanel() {
         </div>
       )}
 
-      <div className="rounded-xl bg-gray-50 dark:bg-stone-700/50 p-3 sm:p-4">
+      <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3 sm:p-4">
         {availableAgents.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-stone-400 py-2">
+          <p className="text-sm text-stone-500 dark:text-stone-400 py-2">
             {t("agentConfig.noAvailableAgents")}
           </p>
         ) : (
@@ -104,13 +104,13 @@ export function UserAgentPreferencePanel() {
                   value={agent.id}
                   checked={selectedAgent === agent.id}
                   onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="h-4 w-4 shrink-0 border-stone-300 text-amber-500 focus:ring-amber-500/30 dark:border-stone-500 dark:text-amber-400"
+                  className="shrink-0"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-gray-900 dark:text-stone-100 truncate">
+                  <span className="block text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
                     {t(agent.name)}
                   </span>
-                  <span className="block text-xs text-gray-500 dark:text-stone-400 mt-0.5 truncate">
+                  <span className="block text-xs text-stone-500 dark:text-stone-400 mt-0.5 truncate">
                     {t(agent.description)}
                   </span>
                 </span>
@@ -143,7 +143,7 @@ export function UserAgentPreferencePanel() {
       )}
 
       {currentPreference && !hasChanges && (
-        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-stone-400">
+        <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
           <Check
             size={16}
             className="text-green-500 dark:text-green-400 shrink-0"

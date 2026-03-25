@@ -11,6 +11,7 @@ from src.infra.tool.human_tool import get_human_tool
 from src.infra.tool.mcp_global import get_global_mcp_tools
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
 from src.infra.tool.reveal_project_tool import get_reveal_project_tool
+from src.infra.tool.transfer_file_tool import get_transfer_file_tool
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
@@ -78,7 +79,7 @@ class SearchAgentContext:
         if not self.disabled_tools:
             return self.tools
 
-        builtin_tools = frozenset(["ask_human", "reveal_file", "reveal_project"])
+        builtin_tools = frozenset(["ask_human", "reveal_file", "reveal_project", "transfer_file"])
 
         disabled_set = set(self.disabled_tools)
         mcp_servers = set()
@@ -135,6 +136,10 @@ class SearchAgentContext:
         reveal_project_tool = get_reveal_project_tool()
         self.tools.append(reveal_project_tool)
         logger.info("[SearchAgentContext] Added reveal_project tool")
+
+        transfer_file_tool = get_transfer_file_tool()
+        self.tools.append(transfer_file_tool)
+        logger.info("[SearchAgentContext] Added transfer_file tool")
 
         # Memory 工具（统一接口，自动选择 Hindsight 或 memU 后端）
         if settings.ENABLE_MEMORY:

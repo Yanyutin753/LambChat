@@ -9,9 +9,9 @@ import {
   Globe,
   Tag,
   Archive,
-  Check,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Checkbox } from "../common/Checkbox";
 import type { SkillResponse } from "../../types";
 
 interface SkillCardProps {
@@ -71,28 +71,16 @@ export function SkillCard({
       {/* Selection checkbox - top right */}
       {selectionMode && onSelect && (
         <div
-          className={`absolute top-3 right-3 z-10 cursor-pointer transition-all duration-200 ${
+          className={`absolute top-3 right-3 z-10 transition-all duration-200 ${
             selected ? "scale-110" : "scale-90 group-hover:scale-100"
           }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(skill.name);
-          }}
         >
-          <div
-            className={`flex h-6 w-6 items-center justify-center rounded-lg border-2 shadow-sm backdrop-blur-sm transition-all duration-200 ${
-              selected
-                ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-[0_0_12px_color-mix(in_srgb,var(--theme-primary)_40%,transparent)]"
-                : "border-[var(--theme-border)] bg-white/70 dark:bg-stone-800/70 opacity-0 group-hover:opacity-100 hover:border-[var(--theme-primary)]/40"
-            }`}
-          >
-            {selected && (
-              <Check
-                size={13}
-                className="animate-[check-pop_200ms_ease-out]"
-              />
-            )}
-          </div>
+          <Checkbox
+            size="lg"
+            checked={selected}
+            onChange={() => onSelect(skill.name)}
+            className="shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100"
+          />
         </div>
       )}
       <div className="flex items-start justify-between gap-3">
@@ -165,7 +153,10 @@ export function SkillCard({
 
       <div className="skill-card-actions mt-auto flex items-center gap-1 border-t border-[var(--theme-border)] pt-4">
         <button
-          onClick={(e) => { e.stopPropagation(); onToggle(skill.name); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(skill.name);
+          }}
           className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
           title={
             skill.enabled ? t("skills.card.disable") : t("skills.card.enable")
@@ -182,7 +173,10 @@ export function SkillCard({
         </button>
 
         <button
-          onClick={(e) => { e.stopPropagation(); onEdit(skill); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(skill);
+          }}
           className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
           title={t("skills.card.edit")}
         >
@@ -193,7 +187,10 @@ export function SkillCard({
           isPublished !== undefined &&
           onPublish && (
             <button
-              onClick={(e) => { e.stopPropagation(); onPublish(skill); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPublish(skill);
+              }}
               className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
               title={
                 isPublished
@@ -204,9 +201,7 @@ export function SkillCard({
               <Globe
                 size={13}
                 className={
-                  isPublished
-                    ? "text-green-600 dark:text-green-500"
-                    : undefined
+                  isPublished ? "text-green-600 dark:text-green-500" : undefined
                 }
               />
             </button>
@@ -214,7 +209,10 @@ export function SkillCard({
 
         {onExportZip && (
           <button
-            onClick={(e) => { e.stopPropagation(); onExportZip(skill.name); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExportZip(skill.name);
+            }}
             className="skill-card-action inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
             title={t("skills.exportZip")}
           >
@@ -225,7 +223,10 @@ export function SkillCard({
         <div className="ml-auto" />
 
         <button
-          onClick={(e) => { e.stopPropagation(); onDelete(skill.name); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(skill.name);
+          }}
           className="skill-card-danger inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--theme-text-secondary)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
           title={t("skills.card.delete")}
         >

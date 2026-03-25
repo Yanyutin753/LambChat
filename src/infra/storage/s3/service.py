@@ -81,8 +81,23 @@ class S3StorageService:
         filename: str,
         content_type: Optional[str] = None,
         metadata: Optional[dict[str, str]] = None,
+        *,
+        skip_size_limit: bool = False,
     ) -> UploadResult:
         """Upload a file to storage."""
+        # Check file size via current position
+        if not skip_size_limit:
+            current_pos = file.tell()
+            file.seek(0, 2)
+            file_size = file.tell()
+            file.seek(current_pos)
+            if file_size > self._config.internal_max_upload_size:
+                max_mb = self._config.internal_max_upload_size / (1024 * 1024)
+                raise ValueError(
+                    f"File size ({file_size / (1024 * 1024):.1f}MB) exceeds "
+                    f"internal upload limit ({max_mb:.0f}MB)"
+                )
+
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safe_filename = self._sanitize_filename(filename)
         unique_suffix = uuid.uuid4().hex[:8]
@@ -98,8 +113,17 @@ class S3StorageService:
         filename: str,
         content_type: Optional[str] = None,
         metadata: Optional[dict[str, str]] = None,
+        *,
+        skip_size_limit: bool = False,
     ) -> UploadResult:
         """Upload bytes to storage."""
+        if not skip_size_limit and len(data) > self._config.internal_max_upload_size:
+            max_mb = self._config.internal_max_upload_size / (1024 * 1024)
+            raise ValueError(
+                f"Data size ({len(data) / (1024 * 1024):.1f}MB) exceeds "
+                f"internal upload limit ({max_mb:.0f}MB)"
+            )
+
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         safe_filename = self._sanitize_filename(filename)
         unique_suffix = uuid.uuid4().hex[:8]

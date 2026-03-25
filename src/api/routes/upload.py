@@ -233,6 +233,7 @@ async def upload_file(
             filename=file.filename or "unknown",
             content_type=file.content_type,
             metadata={"uploaded_by": current_user.sub},
+            skip_size_limit=True,
         )
 
         # 获取 base_url 并生成完整 URL

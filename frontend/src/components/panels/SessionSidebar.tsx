@@ -1,5 +1,6 @@
 /**
- * Session sidebar component for displaying and managing chat history
+ * Session sidebar component for displaying and managing chat history.
+ * Each project independently loads its sessions with per-project pagination.
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -9,12 +10,13 @@ import { Plus, ChevronDown, X, Search, FolderPlus } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
-import { useSessionList } from "../../hooks/useSession";
+import { useProjectSessionList } from "../../hooks/useSession";
 import { useProjectManager } from "../../hooks/useProjectManager";
 import { APP_NAME } from "../../constants";
 import { useTouchDrag } from "../../hooks/useTouchDrag";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { ProjectItem } from "../sidebar/ProjectItem";
+import type { ProjectItemHandle } from "../sidebar/ProjectItem";
 import { SessionItem } from "../sidebar/SessionItem";
 import { getSessionTitle, groupSessionsByTime } from "./sessionHelpers";
 
@@ -59,7 +61,6 @@ export function SessionSidebar({
 
   const handleNewSessionInProject = useCallback(
     (projectId: string) => {
-      // passed via onSetPendingProjectId callback
       onSetPendingProjectId?.(projectId);
       onNewSession();
     },
@@ -71,107 +72,70 @@ export function SessionSidebar({
 
   // ─── Hooks ──────────────────────────────────────────────────────
 
-  const {
-    sessions,
-    setSessions,
-    isLoading,
-    isLoadingMore,
-    hasMore,
-    error,
-    loadSessions,
-    loadMoreSessions,
-    scrollContainerRef,
-    loadMoreRef,
-  } = useSessionList(
-    refreshKey,
-    isProjectsCollapsed,
-    setIsProjectsCollapsed,
-    mobileOpen,
-    isChatsCollapsed,
+  // Uncategorized sessions — independent pagination
+  const uncategorizedList = useProjectSessionList("none");
+
+  // Project refs for cross-project operations
+  const projectRefs = useRef<Map<string, ProjectItemHandle>>(new Map());
+
+  const getProjectRef = useCallback(
+    (projectId: string): ProjectItemHandle | null => {
+      return projectRefs.current.get(projectId) ?? null;
+    },
+    [],
+  );
+
+  const setProjectRef = useCallback(
+    (projectId: string, handle: ProjectItemHandle | null) => {
+      if (handle) {
+        projectRefs.current.set(projectId, handle);
+      } else {
+        projectRefs.current.delete(projectId);
+      }
+    },
+    [],
   );
 
   const projectManager = useProjectManager();
 
-  // Keep a ref to handleMoveSession for the touch drag hook
+  // Touch drag — sessions array is now distributed, pass empty (touch drag
+  // only works on uncategorized sessions in the sidebar)
   const handleMoveSession = useCallback(
     async (sessionId: string, projectId: string | null) => {
       try {
         const response = await sessionApi.moveToProject(sessionId, projectId);
         if (response.session) {
-          setSessions((prev) =>
-            prev.map((s) => (s.id === sessionId ? response.session : s)),
-          );
+          // Remove from whichever list currently owns this session
+          for (const [, handle] of projectRefs.current) {
+            if (handle.sessions.some((s) => s.id === sessionId)) {
+              handle.removeSession(sessionId);
+              break;
+            }
+          }
+          if (uncategorizedList.sessions.some((s) => s.id === sessionId)) {
+            uncategorizedList.removeSession(sessionId);
+          }
+          // Add to target
+          if (projectId) {
+            getProjectRef(projectId)?.prependSession(response.session);
+          } else {
+            uncategorizedList.prependSession(response.session);
+          }
         }
       } catch (err) {
         console.error("Failed to move session:", err);
         toast.error(t("sidebar.sessionMoveFailed"));
       }
     },
-    [setSessions, t],
+    [getProjectRef, uncategorizedList, t],
   );
 
   const handleMoveSessionRef = useRef(handleMoveSession);
   handleMoveSessionRef.current = handleMoveSession;
 
-  const touchDrag = useTouchDrag(sessions, (sessionId, projectId) => {
+  const touchDrag = useTouchDrag([], (sessionId, projectId) => {
     handleMoveSessionRef.current(sessionId, projectId);
   });
-
-  // ─── Pull-to-refresh ────────────────────────────────────────────
-
-  const [pullDistance, setPullDistance] = useState(0);
-  const touchStartRef = useRef(0);
-  const isPullingRef = useRef(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (touchDrag.draggingSessionId) return;
-    touchStartRef.current = e.touches[0].clientY;
-    isPullingRef.current = true;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchDrag.draggingSessionId) return;
-    if (!isPullingRef.current || isLoadingMore) return;
-    const distance = e.touches[0].clientY - touchStartRef.current;
-    if (distance < 0) {
-      setPullDistance(Math.min(Math.abs(distance), 80));
-    } else {
-      setPullDistance(0);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (touchDrag.draggingSessionId) return;
-    if (pullDistance > 60 && hasMore && !isLoadingMore) {
-      loadMoreSessions();
-    }
-    setPullDistance(0);
-    isPullingRef.current = false;
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    touchStartRef.current = e.clientY;
-    isPullingRef.current = true;
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (e.buttons !== 1) return;
-    if (!isPullingRef.current || isLoadingMore) return;
-    const distance = e.clientY - touchStartRef.current;
-    if (distance < 0) {
-      setPullDistance(Math.min(Math.abs(distance), 80));
-    } else {
-      setPullDistance(0);
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (pullDistance > 60 && hasMore && !isLoadingMore) {
-      loadMoreSessions();
-    }
-    setPullDistance(0);
-    isPullingRef.current = false;
-  };
 
   // ─── Delete confirmation ────────────────────────────────────────
 
@@ -185,7 +149,11 @@ export function SessionSidebar({
     if (!sessionId) return;
     try {
       await sessionApi.delete(sessionId);
-      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      // Remove from all lists
+      for (const [, handle] of projectRefs.current) {
+        handle.removeSession(sessionId);
+      }
+      uncategorizedList.removeSession(sessionId);
       if (currentSessionId === sessionId) onNewSession();
       toast.success(t("sidebar.sessionDeleted"));
     } catch (err) {
@@ -211,20 +179,17 @@ export function SessionSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
-  // Handle new / updated session from parent
+  // Handle new session from parent — prepend to the correct list
   useEffect(() => {
     if (newSession && newSession.id) {
-      setSessions((prev) => {
-        const existingIndex = prev.findIndex((s) => s.id === newSession.id);
-        if (existingIndex >= 0) {
-          const updated = [...prev];
-          updated[existingIndex] = { ...updated[existingIndex], ...newSession };
-          return updated;
-        }
-        return [newSession, ...prev];
-      });
+      const projectId = newSession.metadata?.project_id as string | undefined;
+      if (projectId) {
+        getProjectRef(projectId)?.prependSession(newSession);
+      } else {
+        uncategorizedList.prependSession(newSession);
+      }
     }
-  }, [newSession, setSessions]);
+  }, [newSession, getProjectRef, uncategorizedList.prependSession]);
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────
 
@@ -251,22 +216,6 @@ export function SessionSidebar({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onNewSession]);
 
-  // ─── Derived data ───────────────────────────────────────────────
-
-  const handleSessionUpdate = (updatedSession: BackendSession) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === updatedSession.id ? updatedSession : s)),
-    );
-  };
-
-  // ─── Search filter ──────────────────────────────────────────────
-
-  const filteredSessions = sessions.filter((session) => {
-    if (!searchQuery.trim()) return true;
-    const title = getSessionTitle(session, t).toLowerCase();
-    return title.includes(searchQuery.toLowerCase());
-  });
-
   // ─── Select session helper (mobile close) ───────────────────────
 
   const selectAndClose = (sessionId: string) => {
@@ -275,6 +224,10 @@ export function SessionSidebar({
   };
 
   const { projects } = projectManager;
+
+  // ─── Scroll container ref ──────────────────────────────────────
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // ─── JSX ────────────────────────────────────────────────────────
 
@@ -365,16 +318,8 @@ export function SessionSidebar({
         ref={scrollContainerRef}
         data-sidebar-scroll
         className="flex-1 overflow-y-auto px-2 scrollbar-thin relative"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
         onScroll={(e) => {
-          const target = e.currentTarget;
-          setIsScrolled(target.scrollTop > 100);
+          setIsScrolled(e.currentTarget.scrollTop > 100);
         }}
       >
         {/* Scroll to top button */}
@@ -393,239 +338,209 @@ export function SessionSidebar({
           </button>
         )}
 
-        {(pullDistance > 0 || isLoadingMore) && (
+        <div className="space-y-1">
+          {/* Project section header */}
           <div
-            className="flex items-center justify-center py-2 text-gray-400 dark:text-stone-500 transition-all"
-            style={{ height: isLoadingMore ? 40 : pullDistance * 0.5 }}
+            onClick={() => setIsProjectsCollapsed(!isProjectsCollapsed)}
+            className="px-2 py-1.5 mt-1 flex justify-between items-center text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 hover:text-stone-500 dark:hover:text-stone-400 cursor-pointer transition-colors select-none"
           >
-            {isLoadingMore ? (
-              <LoadingSpinner size="sm" />
-            ) : (
-              <ChevronDown
-                size={20}
-                className={`transition-transform ${
-                  pullDistance > 60 ? "rotate-180" : ""
-                }`}
-              />
-            )}
+            <h2>{t("sidebar.projects")}</h2>
+            <ChevronDown
+              size={12}
+              className={`transition-transform duration-200 ${
+                isProjectsCollapsed ? "-rotate-90" : ""
+              }`}
+            />
           </div>
-        )}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <LoadingSpinner size="sm" />
-          </div>
-        ) : error ? (
-          <div className="py-6 text-center">
-            <p className="text-sm text-gray-400 dark:text-stone-500">{error}</p>
+
+          {/* New project button */}
+          {!isProjectsCollapsed && (
             <button
-              onClick={() => loadSessions(true)}
-              className="mt-2 text-xs text-gray-500 dark:text-stone-400 hover:text-gray-700 dark:hover:text-stone-200"
+              onClick={() => projectManager.setShowNewProjectModal(true)}
+              className="group flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-150 hover:bg-stone-100 dark:hover:bg-stone-800/30"
             >
-              {t("sidebar.retry")}
-            </button>
-          </div>
-        ) : filteredSessions.length === 0 && projects.length === 0 ? (
-          <div className="py-8 text-center">
-            <p className="text-sm text-gray-400 dark:text-stone-500">
-              {searchQuery
-                ? t("sidebar.noMatchingSessions")
-                : t("sidebar.noSessions")}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {/* Project section header */}
-            <div
-              onClick={() => setIsProjectsCollapsed(!isProjectsCollapsed)}
-              className="px-2 py-1.5 mt-1 flex justify-between items-center text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 hover:text-stone-500 dark:hover:text-stone-400 cursor-pointer transition-colors select-none"
-            >
-              <h2>{t("sidebar.projects")}</h2>
-              <ChevronDown
-                size={12}
-                className={`transition-transform duration-200 ${
-                  isProjectsCollapsed ? "-rotate-90" : ""
-                }`}
+              <FolderPlus
+                size={15}
+                className="flex-shrink-0 text-stone-400 dark:text-stone-500 group-hover:text-stone-500 dark:group-hover:text-stone-400 transition-colors"
               />
-            </div>
+              <span className="text-sm text-stone-500 dark:text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300 transition-colors">
+                {t("sidebar.newProject")}
+              </span>
+            </button>
+          )}
 
-            {/* New project button */}
-            {!isProjectsCollapsed && (
-              <button
-                onClick={() => projectManager.setShowNewProjectModal(true)}
-                className="group flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-150 hover:bg-stone-100 dark:hover:bg-stone-800/30"
-              >
-                <FolderPlus
-                  size={15}
-                  className="flex-shrink-0 text-stone-400 dark:text-stone-500 group-hover:text-stone-500 dark:group-hover:text-stone-400 transition-colors"
-                />
-                <span className="text-sm text-stone-500 dark:text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300 transition-colors">
-                  {t("sidebar.newProject")}
-                </span>
-              </button>
-            )}
-
-            {/* Favorites project */}
-            {!isProjectsCollapsed &&
-              (() => {
-                const favoritesProject = projects.find(
-                  (p) => p.type === "favorites",
-                );
-                if (!favoritesProject) return null;
-                const favoritesSessions = filteredSessions.filter(
-                  (s) => s.metadata?.project_id === favoritesProject.id,
-                );
-                if (favoritesSessions.length === 0) return null;
-                return (
-                  <ProjectItem
-                    project={favoritesProject}
-                    sessions={favoritesSessions}
-                    currentSessionId={currentSessionId}
-                    allProjects={projects}
-                    onSelectSession={selectAndClose}
-                    onDeleteSession={(sessionId) => {
-                      setDeleteConfirm({ isOpen: true, sessionId });
-                    }}
-                    onMoveSession={handleMoveSession}
-                    onSessionUpdate={handleSessionUpdate}
-                    onRenameProject={projectManager.handleRenameProject}
-                    onDeleteProject={(id) =>
-                      projectManager.handleDeleteProject(id, () =>
-                        loadSessions(true),
-                      )
-                    }
-                    onUpdateIcon={projectManager.handleUpdateIcon}
-                    draggingSessionId={
-                      touchDrag.touchDropTarget === favoritesProject.id
-                        ? touchDrag.draggingSessionId
-                        : null
-                    }
-                  />
-                );
-              })()}
-
-            {/* Custom projects */}
-            {!isProjectsCollapsed &&
-              projects
-                .filter((p) => p.type === "custom")
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .map((project) => {
-                  const projectSessions = filteredSessions.filter(
-                    (s) => s.metadata?.project_id === project.id,
-                  );
-                  return (
-                    <ProjectItem
-                      key={project.id}
-                      project={project}
-                      sessions={projectSessions}
-                      currentSessionId={currentSessionId}
-                      allProjects={projects}
-                      onSelectSession={selectAndClose}
-                      onDeleteSession={(sessionId) => {
-                        setDeleteConfirm({ isOpen: true, sessionId });
-                      }}
-                      onMoveSession={handleMoveSession}
-                      onSessionUpdate={handleSessionUpdate}
-                      onRenameProject={projectManager.handleRenameProject}
-                      onDeleteProject={(id) =>
-                        projectManager.handleDeleteProject(id, () =>
-                          loadSessions(true),
-                        )
-                      }
-                      onUpdateIcon={projectManager.handleUpdateIcon}
-                      draggingSessionId={
-                        touchDrag.touchDropTarget === project.id
-                          ? touchDrag.draggingSessionId
-                          : null
-                      }
-                      onNewSessionInProject={handleNewSessionInProject}
-                      forceExpandProjectId={autoExpandProjectId}
-                    />
-                  );
-                })}
-
-            {/* Divider */}
-            {!isProjectsCollapsed && (
-              <div className="border-t border-dashed border-stone-300 dark:border-stone-600 mx-2 mt-2 mb-2 opacity-40" />
-            )}
-
-            {/* Uncategorized sessions (by time) */}
-            {(() => {
-              const uncategorizedSessions = filteredSessions.filter(
-                (s) => !s.metadata?.project_id,
+          {/* Favorites project */}
+          {!isProjectsCollapsed &&
+            (() => {
+              const favoritesProject = projects.find(
+                (p) => p.type === "favorites",
               );
-              if (uncategorizedSessions.length === 0) return null;
-              const groupedUncategorized = groupSessionsByTime(
-                uncategorizedSessions,
-                t,
-              );
+              if (!favoritesProject) return null;
               return (
-                <>
-                  {/* Chats section header */}
-                  <div
-                    onClick={() => setIsChatsCollapsed(!isChatsCollapsed)}
-                    className="px-2 py-1.5 mt-1 flex justify-between items-center text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 hover:text-stone-500 dark:hover:text-stone-400 cursor-pointer transition-colors select-none"
-                  >
-                    <h2>{t("sidebar.chats")}</h2>
-                    <ChevronDown
-                      size={12}
-                      className={`transition-transform duration-200 ${
-                        isChatsCollapsed ? "-rotate-90" : ""
-                      }`}
-                    />
-                  </div>
-
-                  {!isChatsCollapsed &&
-                    groupedUncategorized.map((group) => (
-                      <div key={group.label}>
-                        <div className="px-2 py-1.5 mt-1 text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 select-none">
-                          {group.label}
-                        </div>
-                        <div className="space-y-0.5">
-                          {group.sessions
-                            .filter((session) => session.id)
-                            .map((session) => (
-                              <SessionItem
-                                key={session.id}
-                                session={session}
-                                isActive={currentSessionId === session.id}
-                                projects={projects}
-                                onSelect={() => selectAndClose(session.id)}
-                                onDelete={() =>
-                                  setDeleteConfirm({
-                                    isOpen: true,
-                                    sessionId: session.id,
-                                  })
-                                }
-                                onMoveToProject={(projectId) =>
-                                  handleMoveSession(session.id, projectId)
-                                }
-                                onSessionUpdate={handleSessionUpdate}
-                                isFavorite={false}
-                                onDragStartTouch={
-                                  touchDrag.handleDragStartTouch
-                                }
-                                isDraggingTouch={
-                                  touchDrag.draggingSessionId === session.id
-                                }
-                              />
-                            ))}
-                        </div>
-                      </div>
-                    ))}
-                </>
+                <ProjectItem
+                  ref={(el) => setProjectRef(favoritesProject.id, el)}
+                  project={favoritesProject}
+                  currentSessionId={currentSessionId}
+                  allProjects={projects}
+                  onSelectSession={selectAndClose}
+                  onDeleteSession={(sessionId) => {
+                    setDeleteConfirm({ isOpen: true, sessionId });
+                  }}
+                  onMoveSession={handleMoveSession}
+                  onRenameProject={projectManager.handleRenameProject}
+                  onDeleteProject={(id) => {
+                    projectManager.handleDeleteProject(id, () => {
+                      uncategorizedList.refresh();
+                    });
+                  }}
+                  onUpdateIcon={projectManager.handleUpdateIcon}
+                  draggingSessionId={
+                    touchDrag.touchDropTarget === favoritesProject.id
+                      ? touchDrag.draggingSessionId
+                      : null
+                  }
+                />
               );
             })()}
 
-            <div ref={loadMoreRef} className="flex justify-center py-2">
-              {isLoadingMore && (
-                <div className="flex items-center gap-2 text-gray-400 dark:text-stone-500">
-                  <LoadingSpinner size="xs" />
-                  <span className="text-xs">{t("common.loading")}</span>
+          {/* Custom projects */}
+          {!isProjectsCollapsed &&
+            projects
+              .filter((p) => p.type === "custom")
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((project) => (
+                <ProjectItem
+                  key={project.id}
+                  ref={(el) => setProjectRef(project.id, el)}
+                  project={project}
+                  currentSessionId={currentSessionId}
+                  allProjects={projects}
+                  onSelectSession={selectAndClose}
+                  onDeleteSession={(sessionId) => {
+                    setDeleteConfirm({ isOpen: true, sessionId });
+                  }}
+                  onMoveSession={handleMoveSession}
+                  onRenameProject={projectManager.handleRenameProject}
+                  onDeleteProject={(id) => {
+                    projectManager.handleDeleteProject(id, () => {
+                      uncategorizedList.refresh();
+                    });
+                  }}
+                  onUpdateIcon={projectManager.handleUpdateIcon}
+                  draggingSessionId={
+                    touchDrag.touchDropTarget === project.id
+                      ? touchDrag.draggingSessionId
+                      : null
+                  }
+                  onNewSessionInProject={handleNewSessionInProject}
+                  forceExpandProjectId={autoExpandProjectId}
+                />
+              ))}
+
+          {/* Divider */}
+          {!isProjectsCollapsed && (
+            <div className="border-t border-dashed border-stone-300 dark:border-stone-600 mx-2 mt-2 mb-2 opacity-40" />
+          )}
+
+          {/* Uncategorized sessions (by time) */}
+          {(() => {
+            const rawSessions = uncategorizedList.sessions;
+            const filtered = searchQuery.trim()
+              ? rawSessions.filter((s) => {
+                  const title = getSessionTitle(s, t).toLowerCase();
+                  return title.includes(searchQuery.toLowerCase());
+                })
+              : rawSessions;
+
+            if (filtered.length === 0 && !uncategorizedList.isLoading)
+              return null;
+
+            const groupedUncategorized = groupSessionsByTime(filtered, t);
+            return (
+              <>
+                {/* Chats section header */}
+                <div
+                  onClick={() => setIsChatsCollapsed(!isChatsCollapsed)}
+                  className="px-2 py-1.5 mt-1 flex justify-between items-center text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 hover:text-stone-500 dark:hover:text-stone-400 cursor-pointer transition-colors select-none"
+                >
+                  <h2>{t("sidebar.chats")}</h2>
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform duration-200 ${
+                      isChatsCollapsed ? "-rotate-90" : ""
+                    }`}
+                  />
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+
+                {!isChatsCollapsed && (
+                  <>
+                    {uncategorizedList.isLoading ? (
+                      <div className="flex justify-center py-4">
+                        <LoadingSpinner size="sm" />
+                      </div>
+                    ) : (
+                      groupedUncategorized.map((group) => (
+                        <div key={group.label}>
+                          <div className="px-2 py-1.5 mt-1 text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 select-none">
+                            {group.label}
+                          </div>
+                          <div className="space-y-0.5">
+                            {group.sessions
+                              .filter((session) => session.id)
+                              .map((session) => (
+                                <SessionItem
+                                  key={session.id}
+                                  session={session}
+                                  isActive={currentSessionId === session.id}
+                                  projects={projects}
+                                  onSelect={() => selectAndClose(session.id)}
+                                  onDelete={() =>
+                                    setDeleteConfirm({
+                                      isOpen: true,
+                                      sessionId: session.id,
+                                    })
+                                  }
+                                  onMoveToProject={(projectId) =>
+                                    handleMoveSession(session.id, projectId)
+                                  }
+                                  onSessionUpdate={(s) =>
+                                    uncategorizedList.updateSession(s)
+                                  }
+                                  isFavorite={false}
+                                  onDragStartTouch={
+                                    touchDrag.handleDragStartTouch
+                                  }
+                                  isDraggingTouch={
+                                    touchDrag.draggingSessionId === session.id
+                                  }
+                                />
+                              ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {/* Infinite scroll sentinel for uncategorized */}
+                    {uncategorizedList.hasMore && (
+                      <div
+                        ref={uncategorizedList.loadMoreRef}
+                        className="flex justify-center py-2"
+                      >
+                        {uncategorizedList.isLoadingMore && (
+                          <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+                            <LoadingSpinner size="xs" />
+                            <span className="text-xs">
+                              {t("common.loading")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Footer */}
@@ -711,7 +626,7 @@ export function SessionSidebar({
 
       {/* New Project Modal */}
       {projectManager.showNewProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => projectManager.setShowNewProjectModal(false)}
@@ -732,7 +647,7 @@ export function SessionSidebar({
                   projectManager.setNewProjectIcon(e.target.value)
                 }
                 placeholder="Icon"
-                className="w-20 text-sm bg-transparent text-stone-500 dark:text-stone-400 placeholder-stone-400 focus:outline-none"
+                className="w-8 text-sm bg-transparent text-stone-500 dark:text-stone-400 placeholder-stone-400 focus:outline-none"
               />
               <div className="w-px h-5 bg-stone-300 dark:bg-stone-600" />
               <input

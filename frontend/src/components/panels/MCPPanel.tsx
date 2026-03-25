@@ -1,12 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  Plus,
-  X,
-  Download,
-  Upload,
-  FolderOpen,
-  Check,
-} from "lucide-react";
+import { Plus, X, Download, Upload, FolderOpen, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -329,7 +322,12 @@ export function MCPPanel() {
       <PanelHeader
         title={t("mcp.title")}
         subtitle={t("mcp.subtitle")}
-        icon={<FolderOpen size={18} className="text-stone-600 dark:text-stone-400" />}
+        icon={
+          <FolderOpen
+            size={18}
+            className="text-stone-600 dark:text-stone-400"
+          />
+        }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
         searchPlaceholder={t("mcp.searchPlaceholder")}
@@ -450,7 +448,7 @@ export function MCPPanel() {
               </div>
 
               {/* Content */}
-              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2">
                 {/* Admin option for creating system server */}
                 {isCreating && canAdmin && (
                   <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20">
@@ -459,7 +457,7 @@ export function MCPPanel() {
                       id="createAsSystem"
                       checked={createAsSystem}
                       onChange={(e) => setCreateAsSystem(e.target.checked)}
-                      className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100"
+                      className=""
                     />
                     <label
                       htmlFor="createAsSystem"
@@ -477,7 +475,7 @@ export function MCPPanel() {
                       id="changeToSystem"
                       checked={changeToSystem}
                       onChange={(e) => setChangeToSystem(e.target.checked)}
-                      className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100"
+                      className=""
                     />
                     <label
                       htmlFor="changeToSystem"
@@ -523,7 +521,7 @@ export function MCPPanel() {
                   <X size={20} />
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2">
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2">
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
@@ -553,7 +551,7 @@ export function MCPPanel() {
                       id="overwrite"
                       checked={importOverwrite}
                       onChange={(e) => setImportOverwrite(e.target.checked)}
-                      className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-100"
+                      className=""
                     />
                     <label
                       htmlFor="overwrite"

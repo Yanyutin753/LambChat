@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { X, Archive, UploadCloud, FileArchive, Upload, Check } from "lucide-react";
+import { X, Archive, UploadCloud, FileArchive, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { Checkbox } from "../../common/Checkbox";
 import type { ZipSkillPreview } from "./useSkillsActions";
 
 interface ZipUploadModalProps {
@@ -111,7 +112,10 @@ export function ZipUploadModal({
                 </div>
                 {zipFile && (
                   <div className="flex items-center gap-2 rounded-xl bg-[var(--theme-primary-light)]/60 px-3 py-1.5">
-                    <Archive size={14} className="text-[var(--theme-primary)]" />
+                    <Archive
+                      size={14}
+                      className="text-[var(--theme-primary)]"
+                    />
                     <span className="text-xs font-medium text-[var(--theme-text)]">
                       {zipFile.name}
                     </span>
@@ -176,21 +180,7 @@ export function ZipUploadModal({
                                 : "hover:bg-[var(--theme-primary)]/4"
                           }`}
                         >
-                          <div
-                            className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] border-2 transition-all duration-150 ${
-                              selected
-                                ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
-                                : "border-[var(--theme-border)] group-hover:border-[var(--theme-primary)]/40"
-                            }`}
-                          >
-                            {selected && (
-                              <Check
-                                size={12}
-                                strokeWidth={3}
-                                className="text-white animate-[check-pop_200ms_ease-out]"
-                              />
-                            )}
-                          </div>
+                          <Checkbox size="sm" checked={selected} />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <p
@@ -207,11 +197,12 @@ export function ZipUploadModal({
                                   {t("skills.installed")}
                                 </span>
                               )}
-                              {!skill.already_exists && skill.file_count > 1 && (
-                                <span className="shrink-0 text-[10px] text-[var(--theme-text-secondary)]">
-                                  {skill.file_count} files
-                                </span>
-                              )}
+                              {!skill.already_exists &&
+                                skill.file_count > 1 && (
+                                  <span className="shrink-0 text-[10px] text-[var(--theme-text-secondary)]">
+                                    {skill.file_count} files
+                                  </span>
+                                )}
                             </div>
                             {skill.description && (
                               <p className="mt-0.5 text-xs text-[var(--theme-text-secondary)] truncate">

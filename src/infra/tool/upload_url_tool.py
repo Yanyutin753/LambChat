@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 # 下载超时（秒）
 _DOWNLOAD_TIMEOUT = 60
 
-# 最大文件大小（100MB）
-_MAX_FILE_SIZE = 100 * 1024 * 1024
+# 最大文件大小（50MB，与 S3_INTERNAL_UPLOAD_MAX_SIZE 保持一致）
+_MAX_FILE_SIZE = 50 * 1024 * 1024
 
 
 @tool
@@ -53,7 +53,10 @@ async def upload_url_to_sandbox(
     except httpx.HTTPStatusError as e:
         logger.warning(f"[upload_url_to_sandbox] HTTP error downloading {url}: {e}")
         return json.dumps(
-            {"success": False, "error": f"Download failed: HTTP {e.response.status_code}"}
+            {
+                "success": False,
+                "error": f"Download failed: HTTP {e.response.status_code}",
+            }
         )
     except Exception as e:
         logger.warning(f"[upload_url_to_sandbox] Failed to download {url}: {e}")
@@ -74,7 +77,11 @@ async def upload_url_to_sandbox(
         result = results[0]
         if result.error:
             return json.dumps(
-                {"success": False, "error": f"Upload failed: {result.error}", "path": file_path}
+                {
+                    "success": False,
+                    "error": f"Upload failed: {result.error}",
+                    "path": file_path,
+                }
             )
         logger.info(f"[upload_url_to_sandbox] Uploaded {url} -> {file_path} ({len(content)} bytes)")
         return json.dumps({"success": True, "path": file_path, "size": len(content)})

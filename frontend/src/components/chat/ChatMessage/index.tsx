@@ -99,8 +99,8 @@ function TokenDetailsButton({
         className={clsx(
           "p-1.5 rounded-md transition-colors",
           !isLastMessage && "opacity-0 group-hover:opacity-100",
-          "hover:bg-gray-200 dark:hover:bg-stone-700",
-          "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
+          "hover:bg-stone-200 dark:hover:bg-stone-700",
+          "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
         )}
         title="Token usage"
       >
@@ -113,7 +113,7 @@ function TokenDetailsButton({
             "absolute bottom-full mb-2 left-0 z-50",
             "min-w-[150px] w-auto p-3 rounded-lg shadow-lg",
             "bg-white dark:bg-stone-800",
-            "border border-gray-200 dark:border-stone-700",
+            "border border-stone-200 dark:border-stone-700",
             "whitespace-nowrap",
           )}
         >
@@ -152,7 +152,7 @@ function TokenDetailsButton({
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
+                <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-1.5 text-amber-600 dark:text-amber-400">
                   <span className="">{t("chat.message.tokenTotal")}</span>
                   <span className="font-medium">
                     {tokenUsage.total_tokens?.toLocaleString()} tokens
@@ -161,21 +161,21 @@ function TokenDetailsButton({
               </>
             )}
             {duration && (
-              <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5">
-                <span className="text-gray-500 dark:text-stone-400">
+              <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-1.5">
+                <span className="text-stone-500 dark:text-stone-400">
                   {t("chat.message.duration")}
                 </span>
-                <span className="text-gray-700 dark:text-stone-200 font-medium">
+                <span className="text-stone-700 dark:text-stone-200 font-medium">
                   {(duration / 1000).toFixed(2)}s
                 </span>
               </div>
             )}
             {timestamp && (
-              <div className="flex justify-between gap-4 border-t border-gray-100 dark:border-stone-700 pt-1.5 mt-1.5">
-                <span className="text-gray-500 dark:text-stone-400">
+              <div className="flex justify-between gap-4 border-t border-stone-100 dark:border-stone-700 pt-1.5 mt-1.5">
+                <span className="text-stone-500 dark:text-stone-400">
                   {t("chat.message.startTime")}
                 </span>
-                <span className="text-gray-700 dark:text-stone-200 font-medium tabular-nums">
+                <span className="text-stone-700 dark:text-stone-200 font-medium tabular-nums">
                   {new Date(timestamp).toLocaleString([], {
                     year: "numeric",
                     month: "2-digit",
@@ -241,7 +241,7 @@ export function ChatMessage({
         <div className="min-w-0 min-h-0">
           {/* Header: Avatar + Role label + Stop button */}
           <div className="mb-3 flex items-center gap-2">
-            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-amber-400 dark:bg-stone-800 dark:text-amber-400">
+            <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-amber-400 dark:bg-stone-800 dark:text-amber-400">
               <Bot size={15} />
             </div>
             <span className="text-base sm:text-lg font-semibold text-stone-800 dark:text-stone-100 tracking-tight font-serif">
@@ -333,8 +333,8 @@ export function ChatMessage({
               className={clsx(
                 "p-1.5 rounded-md transition-colors",
                 !isLastMessage && "opacity-0 group-hover:opacity-100",
-                "hover:bg-gray-200 dark:hover:bg-stone-700",
-                "text-gray-400 dark:text-stone-500 hover:text-gray-600 dark:hover:text-stone-300",
+                "hover:bg-stone-200 dark:hover:bg-stone-700",
+                "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
               )}
               title={t("chat.message.copy")}
             >

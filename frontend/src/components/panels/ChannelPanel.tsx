@@ -279,14 +279,14 @@ export function ChannelPanel({
         return (
           <div
             key={field.name}
-            className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-stone-800"
+            className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800"
           >
             <div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
                 {field.title}
               </span>
               {field.description && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-stone-500 dark:text-stone-400">
                   {field.description}
                 </p>
               )}
@@ -294,7 +294,7 @@ export function ChannelPanel({
             <button
               onClick={() => updateFormField(field.name, !value)}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                value ? "bg-stone-900" : "bg-gray-200 dark:bg-stone-600"
+                value ? "bg-stone-900" : "bg-stone-200 dark:bg-stone-600"
               }`}
             >
               <span
@@ -309,14 +309,14 @@ export function ChannelPanel({
       case "select":
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
               {field.title}
             </label>
             <div className="relative">
               <select
                 value={String(value)}
                 onChange={(e) => updateFormField(field.name, e.target.value)}
-                className="w-full appearance-none rounded-lg border border-gray-200 bg-white pl-3 pr-9 py-2 text-sm text-gray-900 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100"
+                className="w-full appearance-none rounded-lg border border-stone-200 bg-white pl-3 pr-9 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
               >
                 {field.options?.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -326,7 +326,7 @@ export function ChannelPanel({
               </select>
               <ChevronDown
                 size={16}
-                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-stone-500"
+                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
               />
             </div>
           </div>
@@ -335,13 +335,13 @@ export function ChannelPanel({
       case "password":
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
               {field.title}{" "}
               {field.required && !hasExistingConfig && (
                 <span className="text-red-500">*</span>
               )}
               {hasExistingConfig && field.sensitive && (
-                <span className="ml-1 text-xs text-gray-400">
+                <span className="ml-1 text-xs text-stone-400">
                   ({t("channel.leaveEmpty")})
                 </span>
               )}
@@ -354,7 +354,7 @@ export function ChannelPanel({
                 field.placeholder ||
                 (hasExistingConfig ? t("common.masked") : "")
               }
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+              className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
             />
           </div>
         );
@@ -362,7 +362,7 @@ export function ChannelPanel({
       default:
         return (
           <div key={field.name}>
-            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
               {field.title}
               {field.required && (!hasExistingConfig || !field.sensitive) && (
                 <span className="text-red-500"> *</span>
@@ -373,7 +373,7 @@ export function ChannelPanel({
               value={String(value)}
               onChange={(e) => updateFormField(field.name, e.target.value)}
               placeholder={field.placeholder || ""}
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+              className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
             />
           </div>
         );
@@ -402,7 +402,7 @@ export function ChannelPanel({
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-gray-500 dark:text-gray-400">
+      <div className="flex h-full items-center justify-center text-stone-500 dark:text-stone-400">
         <LoadingSpinner size="sm" />
         <span className="ml-2">{t("common.loading")}</span>
       </div>
@@ -433,7 +433,7 @@ export function ChannelPanel({
           <div className="mx-auto max-w-2xl sm:max-w-5xl space-y-4">
             {/* Status Card */}
             {hasExistingConfig && status && (
-              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+              <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {status.connected ? (
@@ -493,8 +493,8 @@ export function ChannelPanel({
             )}
 
             {/* Configuration Card */}
-            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
-              <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
+            <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+              <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
                 {t("channel.configuration", "Configuration")}
               </h3>
 
@@ -502,7 +502,7 @@ export function ChannelPanel({
                 {/* Instance Name - only show for new instances */}
                 {isNewInstance && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t("channel.instanceName", "Instance Name")}{" "}
                       <span className="text-red-500">*</span>
                     </label>
@@ -514,30 +514,30 @@ export function ChannelPanel({
                         "channel.instanceNamePlaceholder",
                         "e.g., My Work Bot",
                       )}
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-gray-100 dark:placeholder-gray-500"
+                      className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
                     />
                   </div>
                 )}
 
                 {/* Instance Name Display - show for existing instances */}
                 {!isNewInstance && hasExistingConfig && (
-                  <div className="rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-stone-800">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <div className="rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800">
+                    <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t("channel.instanceName", "Instance Name")}
                     </span>
-                    <p className="text-sm text-gray-900 dark:text-gray-100">
+                    <p className="text-sm text-stone-900 dark:text-stone-100">
                       {instanceName}
                     </p>
                   </div>
                 )}
 
                 {/* Enable Toggle */}
-                <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-stone-800">
+                <div className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800">
                   <div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t("channel.enabled", "Enable Channel")}
                     </span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-stone-500 dark:text-stone-400">
                       {t(
                         "channel.enabledDesc",
                         "Enable or disable this channel",
@@ -547,7 +547,9 @@ export function ChannelPanel({
                   <button
                     onClick={() => setEnabled(!enabled)}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      enabled ? "bg-stone-900" : "bg-gray-200 dark:bg-stone-600"
+                      enabled
+                        ? "bg-stone-900"
+                        : "bg-stone-200 dark:bg-stone-600"
                     }`}
                   >
                     <span
@@ -568,13 +570,13 @@ export function ChannelPanel({
 
             {/* Help Card */}
             {metadata.setup_guide.length > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
                       {t("channel.setupGuide", "Setup Guide")}
                     </p>
-                    <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                    <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-stone-600 dark:text-stone-300">
                       {metadata.setup_guide.map((step, index) => (
                         <li key={index} className="leading-relaxed">
                           {step}

@@ -29,10 +29,10 @@ export function ProfilePreferencesTab() {
   return (
     <div className="space-y-3">
       {/* Language */}
-      <div className="rounded-xl bg-gray-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Languages size={16} className="text-gray-500 dark:text-stone-400" />
-          <h4 className="font-medium text-sm text-gray-900 dark:text-stone-100">
+          <Languages size={16} className="text-stone-500 dark:text-stone-400" />
+          <h4 className="font-medium text-sm text-stone-900 dark:text-stone-100">
             {t("profile.language")}
           </h4>
         </div>
@@ -44,7 +44,7 @@ export function ProfilePreferencesTab() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 i18n.language === lang.code
                   ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                  : "bg-white dark:bg-stone-600/50 text-gray-600 dark:text-stone-300 border border-gray-200 dark:border-stone-600 hover:bg-gray-100 dark:hover:bg-stone-600"
+                  : "bg-white dark:bg-stone-600/50 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-600"
               }`}
             >
               {lang.nativeName}
@@ -54,14 +54,14 @@ export function ProfilePreferencesTab() {
       </div>
 
       {/* Theme */}
-      <div className="rounded-xl bg-gray-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
+      <div className="rounded-xl bg-stone-50 dark:bg-stone-700/50 p-3.5 sm:p-4">
         <div className="flex items-center gap-2 mb-3">
           {theme === "dark" ? (
-            <Moon size={16} className="text-gray-500 dark:text-stone-400" />
+            <Moon size={16} className="text-stone-500 dark:text-stone-400" />
           ) : (
-            <Sun size={16} className="text-gray-500 dark:text-stone-400" />
+            <Sun size={16} className="text-stone-500 dark:text-stone-400" />
           )}
-          <h4 className="font-medium text-sm text-gray-900 dark:text-stone-100">
+          <h4 className="font-medium text-sm text-stone-900 dark:text-stone-100">
             {t("profile.theme")}
           </h4>
         </div>
@@ -71,7 +71,7 @@ export function ProfilePreferencesTab() {
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
               theme === "light"
                 ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                : "bg-white dark:bg-stone-600/50 text-gray-600 dark:text-stone-300 border border-gray-200 dark:border-stone-600 hover:bg-gray-100 dark:hover:bg-stone-600"
+                : "bg-white dark:bg-stone-600/50 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-600"
             }`}
           >
             <Sun size={14} />
@@ -82,7 +82,7 @@ export function ProfilePreferencesTab() {
             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
               theme === "dark"
                 ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
-                : "bg-white dark:bg-stone-600/50 text-gray-600 dark:text-stone-300 border border-gray-200 dark:border-stone-600 hover:bg-gray-100 dark:hover:bg-stone-600"
+                : "bg-white dark:bg-stone-600/50 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-600 hover:bg-stone-100 dark:hover:bg-stone-600"
             }`}
           >
             <Moon size={14} />

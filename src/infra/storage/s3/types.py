@@ -39,6 +39,7 @@ class S3Config(BaseModel):
     )
     # Upload settings
     max_file_size: int = 10 * 1024 * 1024  # 10MB default
+    internal_max_upload_size: int = 50 * 1024 * 1024  # 50MB default for internal uploads
     # URL expiration for presigned URLs (in seconds)
     presigned_url_expires: int = 7 * 24 * 3600  # 7 days default
     # Local storage settings

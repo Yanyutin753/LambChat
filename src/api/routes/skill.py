@@ -475,16 +475,8 @@ async def delete_user_skill(
     name: str,
     user: TokenPayload = Depends(require_permissions("skill:delete")),
     storage: SkillStorage = Depends(get_storage),
-    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
-    """删除（卸载）用户的 Skill，同时停用商店发布（不删除，保留其他已安装用户的访问）"""
-    meta = await storage.get_skill_meta(name, user.sub)
-    published_marketplace_name = meta.published_marketplace_name if meta else None
-    existing_mp = await marketplace.get_marketplace_skill(published_marketplace_name or name)
-    if existing_mp and existing_mp.created_by == user.sub:
-        await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
-
-    # 删除用户的文件和元数据
+    """删除（卸载）用户的 Skill（不影响商店发布状态）"""
     await storage.delete_skill_and_meta(name, user.sub)
 
     # 清理 disabled_skills 中的条目（如果有）
@@ -538,7 +530,6 @@ async def batch_delete_skills(
     body: BatchDeleteRequest,
     user: TokenPayload = Depends(require_permissions("skill:delete")),
     storage: SkillStorage = Depends(get_storage),
-    marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
 ):
     """批量删除 Skills"""
     deleted: list[str] = []
@@ -546,14 +537,6 @@ async def batch_delete_skills(
 
     for name in body.names:
         try:
-            meta = await storage.get_skill_meta(name, user.sub)
-            published_marketplace_name = meta.published_marketplace_name if meta else None
-            existing_mp = await marketplace.get_marketplace_skill(
-                published_marketplace_name or name
-            )
-            if existing_mp and existing_mp.created_by == user.sub:
-                await marketplace.set_marketplace_active(existing_mp.skill_name, is_active=False)
-
             await storage.delete_skill_and_meta(name, user.sub)
             deleted.append(name)
         except Exception as e:

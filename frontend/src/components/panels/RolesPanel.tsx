@@ -247,7 +247,7 @@ function RoleFormModal({
 
           <form
             onSubmit={handleSubmit}
-            className="flex-1 overflow-y-auto px-2 sm:px-6 py-4 space-y-2"
+            className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2"
           >
             {error && (
               <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
@@ -453,7 +453,7 @@ function RoleFormModal({
                         onChange={(e) =>
                           toggleGroup(group.permissions, e.target.checked)
                         }
-                        className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-300 dark:focus:ring-stone-500"
+                        className=""
                       />
                       <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
                         {group.name}
@@ -472,7 +472,7 @@ function RoleFormModal({
                               permission.value,
                             )}
                             onChange={() => togglePermission(permission.value)}
-                            className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-500 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-300 dark:focus:ring-stone-500"
+                            className=""
                           />
                           <span className="text-sm text-stone-600 dark:text-stone-400">
                             {permissionLabels[permission.value] ||
