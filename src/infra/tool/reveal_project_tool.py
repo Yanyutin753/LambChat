@@ -6,18 +6,19 @@ Reveal Project 工具
 
 工作流程：
 1. Agent 调用 reveal_project 指定项目目录
-2. 后端递归扫描目录，读取所有文件内容
-3. 返回项目结构给前端
-4. 前端用 Sandpack 渲染
+2. 后端递归扫描目录，将所有文件上传到 OSS/S3
+3. 返回文件清单（manifest）给前端
+4. 前端从 OSS 拉取文本文件内容，替换二进制文件引用，用 Sandpack 渲染
 
-返回格式：
+返回格式（v2）：
 {
     "type": "project_reveal",
+    "version": 2,
     "name": "项目名称",
     "template": "react" | "vue" | "vanilla" | "static",
     "files": {
-        "/App.js": "内容...",
-        "/styles.css": "内容...",
+        "/App.js": {"url": "/api/upload/file/...", "is_binary": false, "size": 123},
+        "/logo.png": {"url": "/api/upload/file/...", "is_binary": true, "size": 4567, "content_type": "image/png"},
     },
     "entry": "/index.html"
 }
@@ -25,7 +26,9 @@ Reveal Project 工具
 
 import asyncio
 import json
+import mimetypes
 import os
+import uuid
 from typing import Annotated, Any, Literal, Optional
 
 from langchain.tools import ToolRuntime, tool
@@ -38,28 +41,20 @@ logger = get_logger(__name__)
 
 ProjectTemplate = Literal["react", "vue", "vanilla", "static"]
 
-FRONTEND_EXTENSIONS = {
-    ".html",
-    ".css",
-    ".js",
-    ".jsx",
-    ".ts",
-    ".tsx",
-    ".vue",
-    ".json",
-    ".svg",
-}
-
 BINARY_EXTENSIONS = {
     ".png",
     ".jpg",
     ".jpeg",
     ".gif",
     ".ico",
+    ".webp",
+    ".bmp",
+    ".svg",
     ".woff",
     ".woff2",
     ".ttf",
     ".eot",
+    ".otf",
     ".mp3",
     ".mp4",
     ".webm",
@@ -68,6 +63,28 @@ BINARY_EXTENSIONS = {
     ".mpeg",
     ".mov",
     ".avi",
+    ".wav",
+    ".ogg",
+    ".flac",
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".gz",
+    ".tar",
+    ".bz2",
+    ".7z",
+    ".rar",
+    ".exe",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".bin",
+    ".dat",
+    ".wasm",
 }
 
 IGNORE_DIRS = {
@@ -109,30 +126,25 @@ ENTRY_CANDIDATES = [
 ]
 
 
-def detect_template(files: dict[str, str]) -> ProjectTemplate:
-    """根据 package.json 依赖检测项目模板类型"""
-    if "/package.json" in files:
-        try:
-            package = json.loads(files["/package.json"])
-            deps = {
-                **package.get("dependencies", {}),
-                **package.get("devDependencies", {}),
-            }
-            if "react" in deps:
-                return "react"
-            if "vue" in deps:
-                return "vue"
-        except (json.JSONDecodeError, AttributeError):
-            pass
-
-    if "/index.html" in files:
-        return "vanilla"
-
-    return "static"
+def detect_template(package_json_content: str) -> ProjectTemplate:
+    """根据 package.json 内容检测项目模板类型"""
+    try:
+        package = json.loads(package_json_content)
+        deps = {
+            **package.get("dependencies", {}),
+            **package.get("devDependencies", {}),
+        }
+        if "react" in deps:
+            return "react"
+        if "vue" in deps:
+            return "vue"
+    except (json.JSONDecodeError, AttributeError):
+        pass
+    return "vanilla"
 
 
 def _should_skip(rel_path: str) -> bool:
-    """检查文件是否应该跳过（忽略目录/文件/二进制/非前端）"""
+    """检查文件是否应该跳过（仅忽略目录和特定文件，不再按扩展名过滤）"""
     parts = rel_path.strip("/").split("/")
     filename = parts[-1] if parts else ""
 
@@ -143,13 +155,36 @@ def _should_skip(rel_path: str) -> bool:
     if filename in IGNORE_FILES:
         return True
 
-    ext = os.path.splitext(filename)[1].lower()
-    if ext in BINARY_EXTENSIONS:
-        return True
-    if ext not in FRONTEND_EXTENSIONS:
-        return True
-
     return False
+
+
+def _is_binary(filename: str) -> bool:
+    """根据扩展名判断是否为二进制文件"""
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in BINARY_EXTENSIONS
+
+
+def _get_mime_type(filename: str) -> str:
+    """根据文件名获取 MIME 类型"""
+    mime_type, _ = mimetypes.guess_type(filename)
+    return mime_type or "application/octet-stream"
+
+
+async def _ensure_storage_initialized() -> None:
+    """确保 storage 已初始化（S3 或本地存储）"""
+    from src.infra.storage.s3 import S3Config, S3Provider, get_storage_service, init_storage
+    from src.kernel.config import settings
+
+    storage = get_storage_service()
+    if storage._backend is None:
+        if settings.S3_ENABLED:
+            config = settings.get_s3_config()
+        else:
+            config = S3Config(
+                provider=S3Provider.LOCAL,
+                storage_path=getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads",
+            )
+        await init_storage(config)
 
 
 async def _download_file_from_backend(backend: Any, file_path: str) -> Optional[bytes]:
@@ -200,7 +235,6 @@ async def _execute_command(backend: Any, command: str) -> Optional[str]:
 
 async def _list_project_files(backend: Any, project_path: str) -> list[str]:
     """递归列出项目目录下的所有文件（使用 find 命令）"""
-    # 设置 LANG 和 LC_ALL 以正确处理中文文件名
     output = await _execute_command(
         backend,
         f'LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 find "{project_path}" -type f 2>/dev/null | head -200',
@@ -216,12 +250,23 @@ async def _list_project_files(backend: Any, project_path: str) -> list[str]:
     return files
 
 
-def _find_entry(project_files: dict[str, str]) -> Optional[str]:
+def _find_entry(file_keys: list[str]) -> Optional[str]:
     """查找项目入口文件"""
     for candidate in ENTRY_CANDIDATES:
-        if candidate in project_files:
+        if candidate in file_keys:
             return candidate
     return None
+
+
+def _get_base_url(runtime: Any) -> str:
+    """从 ToolRuntime 提取 base_url"""
+    if not runtime:
+        return ""
+    if hasattr(runtime, "config"):
+        config = runtime.config
+        if isinstance(config, dict):
+            return config.get("configurable", {}).get("base_url", "")
+    return ""
 
 
 @tool
@@ -249,14 +294,20 @@ async def reveal_project(
         runtime: 工具运行时（自动注入）
 
     Returns:
-        JSON 格式的项目信息，包含所有文件内容
+        JSON 格式的项目文件清单，包含每个文件的 OSS URL
     """
+    from src.infra.storage.s3 import get_storage_service
+
+    await _ensure_storage_initialized()
+    storage = get_storage_service()
+
     backend = get_backend_from_runtime(runtime)
 
     if backend is None:
         return json.dumps(
             {
                 "type": "project_reveal",
+                "version": 2,
                 "error": "backend_not_available",
                 "message": "无法访问文件系统",
             },
@@ -265,6 +316,10 @@ async def reveal_project(
 
     project_path = project_path.rstrip("/")
     project_name = name or os.path.basename(project_path)
+    base_url = _get_base_url(runtime)
+
+    # 生成唯一文件夹名，避免项目名冲突
+    folder_name = f"revealed_projects/{project_name}_{uuid.uuid4().hex[:8]}"
 
     try:
         all_files = await _list_project_files(backend, project_path)
@@ -273,6 +328,7 @@ async def reveal_project(
             return json.dumps(
                 {
                     "type": "project_reveal",
+                    "version": 2,
                     "error": "no_files_found",
                     "message": f"在 {project_path} 中没有找到文件",
                 },
@@ -281,8 +337,9 @@ async def reveal_project(
 
         logger.info(f"Found {len(all_files)} files in {project_path}")
 
-        # 收集前端文件
-        project_files: dict[str, str] = {}
+        # 上传所有文件到 OSS，构建 manifest
+        files_manifest: dict[str, dict[str, Any]] = {}
+        package_json_content: Optional[str] = None
 
         for file_path in all_files:
             rel_path = (
@@ -299,34 +356,76 @@ async def reveal_project(
                 logger.debug(f"Failed to read: {rel_path}")
                 continue
 
-            try:
-                project_files[rel_path] = content_bytes.decode("utf-8")
-            except UnicodeDecodeError:
-                logger.debug(f"Not UTF-8: {rel_path}")
+            filename = os.path.basename(rel_path)
+            is_binary = _is_binary(filename)
+            mime_type = _get_mime_type(filename)
 
-        if not project_files:
+            # 保留目录结构：用 rel_path 的目录部分作为文件名前缀
+            # 例如 /src/App.tsx -> 文件名用 src/App.tsx（去掉开头的 /）
+            upload_filename = rel_path.lstrip("/")
+            content_type = mime_type if is_binary else "text/plain"
+
+            upload_result = await storage.upload_bytes(
+                data=content_bytes,
+                folder=folder_name,
+                filename=upload_filename,
+                content_type=content_type,
+            )
+
+            proxy_url = f"{base_url}/api/upload/file/{upload_result.key}" if base_url else f"/api/upload/file/{upload_result.key}"
+
+            file_info: dict[str, Any] = {
+                "url": proxy_url,
+                "is_binary": is_binary,
+                "size": upload_result.size,
+            }
+            if is_binary:
+                file_info["content_type"] = upload_result.content_type or mime_type
+
+            files_manifest[rel_path] = file_info
+
+            # 缓存 package.json 内容用于模板检测
+            if rel_path == "/package.json":
+                try:
+                    package_json_content = content_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    pass
+
+        if not files_manifest:
             return json.dumps(
                 {
                     "type": "project_reveal",
-                    "error": "no_frontend_files",
-                    "message": f"在 {project_path} 中没有找到前端文件",
+                    "version": 2,
+                    "error": "no_files_found",
+                    "message": f"在 {project_path} 中没有找到可上传的文件",
                     "scanned_files": len(all_files),
                 },
                 ensure_ascii=False,
             )
 
+        # 检测模板
+        detected_template = template
+        if not detected_template:
+            if package_json_content:
+                detected_template = detect_template(package_json_content)
+            elif "/index.html" in files_manifest:
+                detected_template = "vanilla"
+            else:
+                detected_template = "static"
+
         result = {
             "type": "project_reveal",
+            "version": 2,
             "name": project_name,
             "description": description or "",
-            "template": template or detect_template(project_files),
-            "files": project_files,
-            "entry": _find_entry(project_files),
+            "template": detected_template,
+            "files": files_manifest,
+            "entry": _find_entry(list(files_manifest.keys())),
             "path": project_path,
-            "file_count": len(project_files),
+            "file_count": len(files_manifest),
         }
 
-        logger.info(f"Revealed project {project_name} with {len(project_files)} files")
+        logger.info(f"Revealed project {project_name} with {len(files_manifest)} files (v2)")
         return json.dumps(result, ensure_ascii=False)
 
     except Exception as e:
@@ -334,6 +433,7 @@ async def reveal_project(
         return json.dumps(
             {
                 "type": "project_reveal",
+                "version": 2,
                 "error": str(e),
                 "message": f"读取项目失败: {e}",
             },
