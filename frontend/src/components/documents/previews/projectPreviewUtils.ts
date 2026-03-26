@@ -176,3 +176,62 @@ export function resolveEntryFile(
   const matched = ENTRY_CANDIDATES.find((path) => path in files);
   return matched || Object.keys(files)[0] || "/index.js";
 }
+
+/** normalizePaths: 确保所有文件路径以 / 开头 */
+function normalizePaths(
+  files: Record<string, string>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [path, content] of Object.entries(files)) {
+    result[path.startsWith("/") ? path : `/${path}`] = content;
+  }
+  return result;
+}
+
+export interface SandpackConfig {
+  /** 传给 SandpackProvider 的 template（static 模板时为 undefined） */
+  template?: SandpackTemplate;
+  /** 传给 SandpackProvider 的 customSetup（仅 static 模板使用） */
+  customSetup?: { entry: string; environment: "static" };
+  /** 规范化后的用户文件 */
+  files: Record<string, string>;
+  /** 入口文件路径 */
+  entryFile: string;
+  /** 文件浏览器可见的文件列表 */
+  visibleFiles: string[];
+}
+
+/**
+ * 构建完整的 Sandpack 配置
+ *
+ * 核心设计：
+ * - static 模板：不使用 Sandpack 内置模板，改用 customSetup 避免模板默认文件
+ *   （Hello world、/styles.css、/package.json）通过 Object.assign 污染用户项目
+ * - 框架模板（react/vue 等）：正常使用内置模板以获取依赖和构建配置
+ */
+export function buildSandpackConfig(
+  template: string,
+  files: Record<string, string>,
+  entry?: string,
+): SandpackConfig {
+  const normalized = normalizePaths(files);
+  const detected = resolveSandpackTemplate(template, normalized);
+  const entryFile = resolveEntryFile(normalized, entry);
+  const visibleFiles = Object.keys(normalized);
+
+  if (detected === "static") {
+    return {
+      customSetup: { entry: entryFile, environment: "static" },
+      files: normalized,
+      entryFile,
+      visibleFiles,
+    };
+  }
+
+  return {
+    template: detected,
+    files: normalized,
+    entryFile,
+    visibleFiles,
+  };
+}

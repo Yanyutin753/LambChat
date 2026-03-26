@@ -76,30 +76,41 @@ function isV2(result: ProjectRevealResult): result is ProjectRevealResultV2 {
  */
 async function fetchTextFiles(
   textFileEntries: Array<[string, FileManifestEntry]>,
-): Promise<Record<string, string>> {
+): Promise<{ files: Record<string, string>; failed: string[] }> {
   const entries = await Promise.all(
     textFileEntries.map(
       async ([path, entry]): Promise<[string, string] | null> => {
         try {
           const fullUrl = getFullUrl(entry.url) || entry.url;
           const resp = await fetch(fullUrl);
-          if (!resp.ok) return null;
+          if (!resp.ok) {
+            console.warn(`[reveal_project] Failed to fetch ${path}: ${resp.status}`);
+            return null;
+          }
           const text = await resp.text();
           return [path, text];
-        } catch {
+        } catch (e) {
+          console.warn(`[reveal_project] Error fetching ${path}:`, e);
           return null;
         }
       },
     ),
   );
 
-  const result: Record<string, string> = {};
+  const files: Record<string, string> = {};
+  const failed: string[] = [];
   for (const entry of entries) {
     if (entry) {
-      result[entry[0]] = entry[1];
+      files[entry[0]] = entry[1];
     }
   }
-  return result;
+  // 找出哪些文件没加载成功
+  for (const [path] of textFileEntries) {
+    if (!(path in files)) {
+      failed.push(path);
+    }
+  }
+  return { files, failed };
 }
 
 export function ProjectRevealItem({
@@ -183,11 +194,23 @@ export function ProjectRevealItem({
       setBinaryFiles(binMap);
 
       try {
-        const rawFiles = await fetchTextFiles(textEntries);
+        const { files: rawFiles, failed } = await fetchTextFiles(textEntries);
+
+        if (failed.length > 0) {
+          console.warn(
+            `[reveal_project] ${failed.length} files failed to load:`,
+            failed,
+          );
+        }
+
         const resolved = rewriteProjectTextFiles(rawFiles, binMap);
 
         if (!cancelled) {
           setLoadedFiles(resolved);
+          // 如果关键文件（如 index.html）加载失败，标记错误
+          if (Object.keys(resolved).length === 0 && textEntries.length > 0) {
+            setLoadingError(true);
+          }
         }
       } catch {
         if (!cancelled) {
