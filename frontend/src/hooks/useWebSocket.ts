@@ -158,7 +158,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           if (authFailureCountRef.current >= MAX_AUTH_FAILURES) {
             // Switch to long-interval polling instead of permanently disabling
             console.warn(
-              `[WebSocket] Auth failed ${authFailureCountRef.current} times, retrying in ${AUTH_FAILURE_COOLDOWN / 1000}s`,
+              `[WebSocket] Auth failed ${
+                authFailureCountRef.current
+              } times, retrying in ${AUTH_FAILURE_COOLDOWN / 1000}s`,
             );
             if (enabled && !wasManualDisconnect) {
               reconnectTimeoutRef.current = setTimeout(() => {
