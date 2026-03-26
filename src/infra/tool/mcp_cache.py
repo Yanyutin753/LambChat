@@ -49,6 +49,10 @@ def _cleanup_expired_cache() -> int:
     for user_id in expired_users:
         _tools_cache.pop(user_id, None)
         _cache_locks.pop(user_id, None)
+    # 清理没有对应缓存条目的孤立 lock
+    orphan_locks = [uid for uid in _cache_locks if uid not in _tools_cache]
+    for uid in orphan_locks:
+        _cache_locks.pop(uid, None)
     return len(expired_users)
 
 
@@ -65,6 +69,11 @@ def _cleanup_excess_cache() -> int:
     for user_id, _ in sorted_entries[:to_remove]:
         _tools_cache.pop(user_id, None)
         _cache_locks.pop(user_id, None)
+
+    # 清理没有对应缓存条目的孤立 lock
+    orphan_locks = [uid for uid in _cache_locks if uid not in _tools_cache]
+    for uid in orphan_locks:
+        _cache_locks.pop(uid, None)
 
     return to_remove
 
@@ -248,12 +257,15 @@ async def invalidate_user_cache(user_id: str) -> bool:
         logger.warning(f"[MCP Cache] Redis delete hash failed for user {user_id}: {e}")
 
     # 清除进程内缓存
-    if user_id in _tools_cache:
+    had_cache = user_id in _tools_cache
+    if had_cache:
         cached = _tools_cache.pop(user_id)
         logger.info(
             f"[MCP Cache] Invalidated memory cache for user {user_id}, {len(cached.tools)} tools"
         )
-        return True
+    # 无论缓存是否存在，都清理对应的 lock（防止孤立）
+    _cache_locks.pop(user_id, None)
+    return had_cache
 
     logger.debug(f"[MCP Cache] No memory cache to invalidate for user {user_id}")
     return False

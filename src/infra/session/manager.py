@@ -4,11 +4,14 @@
 
 from typing import List, Optional
 
+from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import get_trace_storage
 from src.infra.storage.s3 import get_storage_service
 from src.infra.upload.file_record import FileRecordStorage
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
+
+logger = get_logger(__name__)
 
 
 class SessionManager:
