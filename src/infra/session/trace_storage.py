@@ -38,6 +38,8 @@ from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
+_SESSION_EVENTS_BATCH_SIZE = 200
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
@@ -413,28 +415,34 @@ class TraceStorage:
                 "events.timestamp": 1,
             }
 
-            # 按 started_at 排序获取所有 traces（每个 trace 对应一个 run）
-            cursor = self.collection.find(match_query, projection).sort("started_at", 1)
-            traces = await cursor.to_list(length=None)
-
-            # 合并所有事件：按 run 顺序，每个 run 内的事件保持原有顺序
             all_events: List[Dict[str, Any]] = []
-            for trace in traces:
-                events = trace.get("events", [])
-                # 事件类型过滤（服务端过滤，减少内存中处理的数据量）
-                if event_types:
-                    events = [e for e in events if e.get("event_type") in event_types]
-                # 添加 trace 信息
-                for event in events:
-                    all_events.append(
-                        {
-                            "trace_id": trace.get("trace_id"),
-                            "run_id": trace.get("run_id"),
-                            "event_type": event.get("event_type"),
-                            "data": event.get("data"),
-                            "timestamp": event.get("timestamp"),
-                        }
-                    )
+            # 按 started_at 排序分批获取 traces，避免长会话时一次性加载全部文档
+            cursor = self.collection.find(match_query, projection).sort("started_at", 1)
+            while True:
+                traces = await cursor.to_list(length=_SESSION_EVENTS_BATCH_SIZE)
+                if not traces:
+                    break
+
+                # 合并当前批次事件：按 run 顺序，每个 run 内的事件保持原有顺序
+                for trace in traces:
+                    events = trace.get("events", [])
+                    # 事件类型过滤（服务端过滤，减少内存中处理的数据量）
+                    if event_types:
+                        events = [e for e in events if e.get("event_type") in event_types]
+                    # 添加 trace 信息
+                    for event in events:
+                        all_events.append(
+                            {
+                                "trace_id": trace.get("trace_id"),
+                                "run_id": trace.get("run_id"),
+                                "event_type": event.get("event_type"),
+                                "data": event.get("data"),
+                                "timestamp": event.get("timestamp"),
+                            }
+                        )
+
+                if len(traces) < _SESSION_EVENTS_BATCH_SIZE:
+                    break
 
             logger.debug(
                 f"Session {session_id} (run_id={run_id}) returned {len(all_events)} events"

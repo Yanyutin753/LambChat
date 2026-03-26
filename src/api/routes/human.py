@@ -11,6 +11,7 @@ Human Input 路由
 
 import asyncio
 import json
+import time
 import uuid
 from datetime import datetime
 from typing import Callable, Dict, List, Optional
@@ -68,7 +69,8 @@ async def _notify_approval_created(session_id: str) -> None:
 
 # 单进程内使用 asyncio.Event 加速（可选优化）
 # 分布式环境下会同时使用 Redis Stream 作为备用
-_local_events: Dict[str, asyncio.Event] = {}
+# 存储 (event, created_at) 以支持 TTL 清理
+_local_events: Dict[str, tuple[asyncio.Event, float]] = {}
 
 # MongoDB 存储实例
 _approval_storage = get_approval_storage()
@@ -112,7 +114,7 @@ async def create_approval(
     await _approval_storage.create(approval)
 
     # 创建本地 Event（单进程优化）
-    _local_events[approval_id] = asyncio.Event()
+    _local_events[approval_id] = (asyncio.Event(), time.time())
 
     # 通知前端有新的审批请求
     await _notify_approval_created(session_id or "")
@@ -136,8 +138,9 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
         ApprovalResponse 或 None (超时)
     """
     local_event = _local_events.get(approval_id)
+    event = local_event[0] if local_event else None
 
-    if local_event:
+    if event:
         # 单进程内：同时等待本地 Event 和 MongoDB 轮询
         try:
             # 先检查是否已有响应
@@ -146,7 +149,7 @@ async def wait_for_response(approval_id: str, timeout: float = 300) -> Optional[
                 return response
 
             # 创建两个任务：本地 Event 和 MongoDB 轮询
-            local_wait = asyncio.wait_for(local_event.wait(), timeout=timeout)
+            local_wait = asyncio.wait_for(event.wait(), timeout=timeout)
             mongo_wait = wait_for_response_distributed(approval_id, timeout)
 
             done, pending = await asyncio.wait(
@@ -186,6 +189,15 @@ def _cleanup_approval(approval_id: str) -> None:
     _local_events.pop(approval_id, None)
 
 
+def _cleanup_stale_events(max_age: float = 3600) -> int:
+    """清理超时的本地 Event（防止遗弃的审批泄漏内存）"""
+    now = time.time()
+    stale = [aid for aid, (_, created) in _local_events.items() if now - created > max_age]
+    for aid in stale:
+        _local_events.pop(aid, None)
+    return len(stale)
+
+
 # ============================================================================
 # API 路由
 # ============================================================================
@@ -198,6 +210,7 @@ async def get_pending_approvals():
 
     前端轮询此接口获取待审批的请求。
     """
+    _cleanup_stale_events()
     pending = await _approval_storage.list_pending()
     return {"approvals": [a.model_dump() for a in pending], "count": len(pending)}
 
@@ -236,8 +249,9 @@ async def respond_to_approval(
     await notify_approval_response(approval_id, approval_response)
 
     # 2. 触发本地 Event（单进程内快速响应）
-    if approval_id in _local_events:
-        _local_events[approval_id].set()
+    entry = _local_events.get(approval_id)
+    if entry:
+        entry[0].set()
 
     return {"status": "success", "approval_id": approval_id, "approved": approved}
 

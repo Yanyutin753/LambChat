@@ -712,6 +712,8 @@ class BackgroundTaskManager:
                     logger.warning(f"Task marked as failed (shutdown): run_id={run_id}")
 
             self._tasks.clear()
+            self._run_info.clear()
+            self._pending_tasks.clear()
             logger.info("Task manager shutdown complete")
 
 

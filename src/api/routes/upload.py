@@ -558,7 +558,8 @@ async def delete_file(
             logger.error(f"Background delete failed for key {key}: {e}")
 
     # Create task and return immediately (non-blocking)
-    asyncio.create_task(background_delete())
+    task = asyncio.create_task(background_delete())
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
     return {"deleted": True, "key": key, "status": "deleting"}
 
 

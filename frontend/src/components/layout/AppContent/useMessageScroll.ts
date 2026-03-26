@@ -34,6 +34,9 @@ export function useMessageScroll(
   // Track if we've done initial scroll (for page refresh case)
   const initialScrollDoneRef = useRef(false);
 
+  // Track scroll polling interval for cleanup on unmount
+  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Called by Virtuoso's atBottomStateChange
   const handleVirtuosoAtBottomChange = useCallback((atBottom: boolean) => {
     cancelAnimationFrame(rafRef.current);
@@ -49,6 +52,12 @@ export function useMessageScroll(
   const scrollToBottom = useCallback(() => {
     userScrolledUpRef.current = false;
 
+    // Clear any existing scroll polling interval
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+
     const scroller = virtuosoScrollerRef.current;
     if (!scroller || !virtuosoRef.current) return;
 
@@ -63,16 +72,20 @@ export function useMessageScroll(
       });
     };
     doScroll();
-    const id = setInterval(() => {
+    scrollIntervalRef.current = setInterval(() => {
       if (
         scroller.scrollTop + scroller.clientHeight >=
         scroller.scrollHeight - 1
       ) {
-        clearInterval(id);
+        clearInterval(scrollIntervalRef.current!);
+        scrollIntervalRef.current = null;
         return;
       }
       doScroll();
-      if (++attempts > 20) clearInterval(id);
+      if (++attempts > 20) {
+        clearInterval(scrollIntervalRef.current!);
+        scrollIntervalRef.current = null;
+      }
     }, 30);
   }, []);
 
@@ -117,6 +130,7 @@ export function useMessageScroll(
     return () => {
       scroller.removeEventListener("scroll", handleScroll);
       if (timer) clearTimeout(timer);
+      if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
     };
   }, [messages.length]);
 

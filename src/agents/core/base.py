@@ -12,7 +12,6 @@ from collections.abc import AsyncGenerator
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from src.infra.agent import AgentEventProcessor
@@ -90,7 +89,7 @@ class BaseGraphAgent(ABC):
         self.recursion_limit = recursion_limit or settings.SESSION_MAX_RUNS_PER_SESSION
         self.enable_checkpointer = enable_checkpointer
         self._graph: Any = None
-        self._checkpointer: MemorySaver | None = None
+        self._checkpointer: Any = None
         self._initialized = False
         self._stream_tasks: Dict[str, asyncio.Task] = {}  # run_id -> Task
 
@@ -132,9 +131,20 @@ class BaseGraphAgent(ABC):
         if self._initialized:
             return
 
-        # 创建 checkpointer
+        # 创建 checkpointer（优先 MongoDB，fallback 到 MemorySaver）
         if self.enable_checkpointer:
-            self._checkpointer = MemorySaver()
+            from src.infra.storage.checkpoint import get_mongo_checkpointer
+
+            self._checkpointer = get_mongo_checkpointer()
+            if self._checkpointer is None:
+                from langgraph.checkpoint.memory import MemorySaver
+
+                self._checkpointer = MemorySaver()
+                logger.warning(
+                    f"[Agent {self._agent_id}] Using MemorySaver (data will be lost on restart)"
+                )
+            else:
+                logger.info(f"[Agent {self._agent_id}] Using MongoDB checkpointer")
 
         # 构建 graph
         builder = GraphBuilder(self.state_class)
@@ -270,8 +280,8 @@ class BaseGraphAgent(ABC):
                 TaskInterruptedError,
             )
 
-            # 使用队列来传递事件
-            event_queue: asyncio.Queue = asyncio.Queue()
+            # 使用队列来传递事件（限制大小防止消费者慢时内存无限增长）
+            event_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
             stream_error = None
             stream_done = False
 

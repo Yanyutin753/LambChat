@@ -63,7 +63,9 @@ class FeishuChannel(BaseChannel):
         self._health_check_thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._processed_message_ids: OrderedDict[str, None] = OrderedDict()
-        self._chat_mode_cache: dict[str, str] = {}  # Cache: chat_id -> "group"|"thread"
+        self._chat_mode_cache: OrderedDict[str, str] = (
+            OrderedDict()
+        )  # Cache: chat_id -> "group"|"thread"
 
         # Connection state tracking
         self._connection_state = ConnectionState.DISCONNECTED
@@ -937,11 +939,15 @@ class FeishuChannel(BaseChannel):
     async def _get_chat_mode(self, chat_id: str) -> str:
         """Get chat mode with caching."""
         if chat_id in self._chat_mode_cache:
+            self._chat_mode_cache.move_to_end(chat_id)
             return self._chat_mode_cache[chat_id]
 
         loop = asyncio.get_running_loop()
         mode = await loop.run_in_executor(None, self._get_chat_mode_sync, chat_id)
         self._chat_mode_cache[chat_id] = mode
+        # LRU eviction: keep at most 1000 entries
+        while len(self._chat_mode_cache) > 1000:
+            self._chat_mode_cache.popitem(last=False)
         return mode
 
     def _send_file_message_sync(self, chat_id: str, file_key: str, file_name: str) -> bool:

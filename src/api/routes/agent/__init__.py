@@ -281,22 +281,28 @@ async def chat_stream(
     logger.info(f"[API] disabled_tools: {request_body.disabled_tools}")
 
     async def event_generator():
-        async for event in agent.stream(
-            request_body.message,
-            session_id,
-            user_id=user_id,
-            disabled_tools=request_body.disabled_tools,
-            agent_options=agent_options,
-            base_url=base_url,
-        ):
-            # event 格式: {"event": "xxx", "data": {...}}
-            # 确保 data 被正确序列化为 JSON
-            data_str = (
-                event["data"]
-                if isinstance(event["data"], str)
-                else json.dumps(event["data"], ensure_ascii=False)
-            )
-            yield f"event: {event['event']}\ndata: {data_str}\n\n"
+        try:
+            async for event in agent.stream(
+                request_body.message,
+                session_id,
+                user_id=user_id,
+                disabled_tools=request_body.disabled_tools,
+                agent_options=agent_options,
+                base_url=base_url,
+            ):
+                # event 格式: {"event": "xxx", "data": {...}}
+                # 确保 data 被正确序列化为 JSON
+                data_str = (
+                    event["data"]
+                    if isinstance(event["data"], str)
+                    else json.dumps(event["data"], ensure_ascii=False)
+                )
+                yield f"event: {event['event']}\ndata: {data_str}\n\n"
+        finally:
+            # 清理请求上下文，防止 contextvars 泄漏
+            from src.infra.logging.context import TraceContext
+
+            TraceContext.clear_request_context()
 
     return StreamingResponse(
         event_generator(),

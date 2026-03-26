@@ -63,6 +63,9 @@ BINDING_COLLECTION = "user_sandbox_bindings"
 # 每用户锁的最大数量（LRU 淘汰）
 _MAX_LOCKS = 10_000
 
+# 内存缓存的最大条目数（LRU 淘汰，防止内存泄漏）
+_MAX_CACHE_ENTRIES = 5_000
+
 
 class E2BSandboxAdapter:
     """E2B 沙箱生命周期适配器
@@ -196,7 +199,7 @@ class SessionSandboxManager:
         self._daytona_client: Optional["Daytona"] = None
         self._e2b_adapter: Optional[E2BSandboxAdapter] = None
         self._collection: Any = None
-        self._cache: dict[str, tuple[str, CompositeBackend, object | None]] = {}
+        self._cache: OrderedDict[str, tuple[str, CompositeBackend, object | None]] = OrderedDict()
         self._locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
         self._locks_mutex = threading.Lock()
 
@@ -261,7 +264,16 @@ class SessionSandboxManager:
             else:
                 # 超出上限时淘汰最久未使用的锁
                 while len(self._locks) >= _MAX_LOCKS:
-                    self._locks.popitem(last=False)
+                    evicted = False
+                    for existing_user_id, existing_lock in list(self._locks.items()):
+                        if existing_lock.locked():
+                            continue
+                        self._locks.pop(existing_user_id, None)
+                        evicted = True
+                        break
+                    # 如果所有锁都在使用中，宁可临时超出上限也不要破坏互斥语义
+                    if not evicted:
+                        break
                 self._locks[user_id] = asyncio.Lock()
             return self._locks[user_id]
 
@@ -269,6 +281,19 @@ class SessionSandboxManager:
         """从 MongoDB 获取用户的沙箱绑定"""
         doc = await self._bindings.find_one({"user_id": user_id})
         return doc
+
+    def _evict_if_needed(self) -> None:
+        """淘汰最久未使用的缓存条目（LRU），防止内存泄漏。
+
+        仅移除内存引用，不停止沙箱（平台有自己的 auto-stop/auto-archive 生命周期）。
+        下次访问会从 MongoDB binding 重新创建。
+        """
+        while len(self._cache) > _MAX_CACHE_ENTRIES:
+            evicted_user_id, (sandbox_id, _, _) = self._cache.popitem(last=False)
+            logger.info(
+                f"[SessionSandboxManager] Evicted LRU cache entry: "
+                f"user={evicted_user_id}, sandbox={sandbox_id}"
+            )
 
     async def _save_binding(
         self,
@@ -339,6 +364,7 @@ class SessionSandboxManager:
         async with lock:
             # 1. 检查内存缓存
             if user_id in self._cache:
+                self._cache.move_to_end(user_id)  # LRU: mark as recently used
                 sandbox_id, backend, _ = self._cache[user_id]
                 logger.debug(
                     f"[SessionSandboxManager] Cache hit: user={user_id}, sandbox={sandbox_id}"
@@ -379,8 +405,8 @@ class SessionSandboxManager:
                         await self._start_sandbox(sandbox_id)
                         backend = await self._create_backend(sandbox_id, user_id=user_id)
                         self._cache[user_id] = (sandbox_id, backend, None)
+                        self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
-                        logger.info(f"[SessionSandboxManager] Resumed sandbox {sandbox_id}")
                         work_dir = await self._get_work_dir(sandbox_id)
                         return backend, work_dir
                     except Exception as e:
@@ -395,6 +421,7 @@ class SessionSandboxManager:
                     try:
                         backend = await self._create_backend(sandbox_id, user_id=user_id)
                         self._cache[user_id] = (sandbox_id, backend, None)
+                        self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
                         work_dir = await self._get_work_dir(sandbox_id)
                         return backend, work_dir
@@ -632,6 +659,7 @@ class SessionSandboxManager:
 
         # 更新内存缓存
         self._cache[user_id] = (sandbox_id, backend, None)
+        self._evict_if_needed()
 
         logger.info(
             f"[SessionSandboxManager] Created sandbox {sandbox_id} for user {user_id} (session={session_id})"
@@ -655,6 +683,7 @@ class SessionSandboxManager:
         lock = self._get_user_lock(user_id)
         async with lock:
             if user_id in self._cache:
+                self._cache.move_to_end(user_id)  # LRU: mark as recently used
                 sandbox_id, backend, provider_obj = self._cache[user_id]
                 try:
                     if self._e2b_adapter.sandbox_is_running(provider_obj):
@@ -677,6 +706,7 @@ class SessionSandboxManager:
                         self._e2b_adapter.extend_timeout(provider_obj, settings.E2B_TIMEOUT)
                         backend = self._build_composite_backend(provider_obj, user_id)
                         self._cache[user_id] = (metadata_sandbox_id, backend, provider_obj)
+                        self._evict_if_needed()
                         info = self._e2b_adapter.get_sandbox_info(provider_obj)
                         await self._save_binding(
                             user_id, metadata_sandbox_id, info.get("state", "running")
@@ -712,6 +742,7 @@ class SessionSandboxManager:
                 pass
             raise
         self._cache[user_id] = (sandbox_id, backend, provider_obj)
+        self._evict_if_needed()
         logger.info(f"[E2B] Created sandbox {sandbox_id} for user {user_id} (session={session_id})")
         return backend, work_dir
 

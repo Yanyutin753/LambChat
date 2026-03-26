@@ -13,7 +13,7 @@ Dual Event Writer - 双写事件到 Redis Stream + MongoDB
 
 import asyncio
 import json
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -31,6 +31,7 @@ logger = get_logger(__name__)
 _MONGO_FLUSH_INTERVAL = 1.0  # 每 1000ms 刷新一次
 _MONGO_BATCH_SIZE = 200  # 每 200 条立即刷新
 _MONGO_BUFFER_MAX = 100000  # buffer 上限，防止 MongoDB 慢/宕机时 OOM
+_TTL_SET_KEYS_MAX = 10000  # _ttl_set_keys 上限，防止内存泄漏
 
 
 def _utc_now() -> datetime:
@@ -53,7 +54,7 @@ class DualEventWriter:
     def __init__(self):
         self._redis = None
         self._trace = None
-        self._ttl_set_keys: set[str] = set()
+        self._ttl_set_keys: OrderedDict[str, bool] = OrderedDict()
         # MongoDB 批量写入缓冲
         # (trace_id, event_type, data, session_id, run_id, timestamp)
         self._mongo_buffer: list[tuple[str, str, dict, str, Optional[str], datetime]] = []
@@ -275,7 +276,10 @@ class DualEventWriter:
                 ttl = await self.redis.ttl(stream_key)
                 if ttl == -1:
                     await self.redis.expire(stream_key, settings.SSE_CACHE_TTL)
-                self._ttl_set_keys.add(stream_key)
+                self._ttl_set_keys[stream_key] = True
+                # LRU eviction
+                while len(self._ttl_set_keys) > _TTL_SET_KEYS_MAX:
+                    self._ttl_set_keys.popitem(last=False)
             return True
         except Exception as e:
             logger.warning(f"Redis xadd failed (streaming event): {e}")

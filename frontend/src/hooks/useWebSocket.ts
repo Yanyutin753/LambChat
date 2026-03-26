@@ -20,6 +20,8 @@ interface UseWebSocketOptions {
 const INITIAL_RECONNECT_DELAY = 1000; // 1 second
 const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const RECONNECT_DELAY_MULTIPLIER = 1.5;
+const MAX_AUTH_FAILURES = 3; // Switch to long interval after this many consecutive 401s
+const AUTH_FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown after max failures
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const { onTaskComplete, enabled = true } = options;
@@ -36,6 +38,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   // Exponential backoff state
   const reconnectAttemptRef = useRef(0);
+  // Consecutive auth failure counter
+  const authFailureCountRef = useRef(0);
 
   // Update ref when callback changes
   useEffect(() => {
@@ -121,6 +125,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             isConnectingRef.current = false;
             setIsConnected(true);
             reconnectAttemptRef.current = 0;
+            authFailureCountRef.current = 0;
             console.log("[WebSocket] Auth confirmed");
             return;
           }
@@ -147,10 +152,32 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         wsRef.current = null;
 
         // Don't reconnect on auth failure - token is invalid/expired
-        // 4001: server explicitly rejects auth; 1006: abnormal close (proxy/browser may map 4001 to 1006)
+        // 4001: server explicitly rejects auth; reason may also indicate Unauthorized
         if (event.code === 4001 || event.reason === "Unauthorized") {
-          console.warn("[WebSocket] Auth failed, stopping reconnect");
-          return;
+          authFailureCountRef.current++;
+          if (authFailureCountRef.current >= MAX_AUTH_FAILURES) {
+            // Switch to long-interval polling instead of permanently disabling
+            console.warn(
+              `[WebSocket] Auth failed ${
+                authFailureCountRef.current
+              } times, retrying in ${AUTH_FAILURE_COOLDOWN / 1000}s`,
+            );
+            if (enabled && !wasManualDisconnect) {
+              reconnectTimeoutRef.current = setTimeout(() => {
+                reconnectTimeoutRef.current = null;
+                authFailureCountRef.current = 0; // Reset counter for the cooldown retry
+                connect();
+              }, AUTH_FAILURE_COOLDOWN);
+            }
+            return;
+          }
+          console.warn(
+            `[WebSocket] Auth failed (${authFailureCountRef.current}/${MAX_AUTH_FAILURES}), will retry`,
+          );
+          // Fall through to normal reconnect with backoff
+        } else {
+          // Non-auth failure: reset auth failure counter
+          authFailureCountRef.current = 0;
         }
 
         // Only attempt to reconnect if still enabled and not manually closed
@@ -209,6 +236,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     setIsConnected(false);
     // Reset reconnect attempt counter on manual disconnect
     reconnectAttemptRef.current = 0;
+    authFailureCountRef.current = 0;
     // NOTE: Don't reset isDisconnectingRef here - let the onclose handler do it
     // This prevents race conditions where connect() is called before the socket finishes closing
   }, []);

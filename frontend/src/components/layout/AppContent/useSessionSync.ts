@@ -26,6 +26,8 @@ export function useSessionSync({
   // Track if navigation was initiated internally (not from URL)
   const isInternalNavRef = useRef(false);
   const isLoadingRef = useRef(false);
+  // Track a single sync delay timeout for cleanup on unmount
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to store loadHistory to avoid stale closure in useEffect
   const loadHistoryRef = useRef(loadHistory);
@@ -37,15 +39,32 @@ export function useSessionSync({
   locationPathRef.current = location.pathname;
   locationStateRef.current = location.state;
 
+  // Cleanup tracked timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const scheduleSyncReset = useCallback(() => {
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    syncTimeoutRef.current = setTimeout(() => {
+      isSyncingRef.current = false;
+      syncTimeoutRef.current = null;
+    }, 100);
+  }, []);
+
   // Sync from URL only on initial mount
   useEffect(() => {
     if (urlSessionId && !isSyncingRef.current) {
       isSyncingRef.current = true;
       loadHistory(urlSessionId).finally(() => {
-        // Delay reset to allow state to settle
-        setTimeout(() => {
-          isSyncingRef.current = false;
-        }, 100);
+        scheduleSyncReset();
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,18 +111,14 @@ export function useSessionSync({
       // New session created - update URL
       isSyncingRef.current = true;
       navigate(`/chat/${sessionId}`, { replace: true });
-      setTimeout(() => {
-        isSyncingRef.current = false;
-      }, 100);
+      scheduleSyncReset();
     } else if (!sessionId && urlSessionId) {
       // Session cleared - clear URL
       isSyncingRef.current = true;
       navigate("/chat", { replace: true });
-      setTimeout(() => {
-        isSyncingRef.current = false;
-      }, 100);
+      scheduleSyncReset();
     }
-  }, [sessionId, urlSessionId, navigate]);
+  }, [sessionId, urlSessionId, navigate, scheduleSyncReset]);
 
   // Handle session selection from sidebar
   const handleSelectSession = useCallback(
