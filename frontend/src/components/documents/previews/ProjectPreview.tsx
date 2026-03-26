@@ -58,7 +58,7 @@ function CustomLayout({
       {showExplorer && (
         <SandpackFileExplorer
           className="!w-48 !h-full shrink-0"
-          autoHiddenFiles={false}
+          autoHiddenFiles={true}
         />
       )}
 
@@ -112,12 +112,20 @@ export default function ProjectPreview({
   const [showExplorer, setShowExplorer] = useState(showFileExplorer);
   const isFullscreen = !!externalFullscreen;
 
-  // 检测并转换文件格式
+  // 用户提供的文件路径集合（用于过滤模板默认文件）
+  const userFilePaths = useMemo(() => {
+    const paths = new Set<string>();
+    for (const path of Object.keys(files)) {
+      paths.add(path.startsWith("/") ? path : `/${path}`);
+    }
+    return paths;
+  }, [files]);
+
+  // 检测并转换文件格式，隐藏模板自带的默认文件中用户未覆盖的部分
   const sandpackFiles = useMemo(() => {
     const result: Record<string, string> = {};
 
     for (const [path, content] of Object.entries(files)) {
-      // 确保路径以 / 开头
       const normalizedPath = path.startsWith("/") ? path : `/${path}`;
       result[normalizedPath] = content;
     }
@@ -291,6 +299,7 @@ export default function ProjectPreview({
           theme="dark"
           options={{
             activeFile: entryFile,
+            visibleFiles: [...userFilePaths],
             classes: {
               "sp-wrapper": "!h-full !flex !flex-col",
               "sp-layout": "!h-full !border-0",
@@ -328,6 +337,11 @@ export function ProjectPreviewCompact({
 
   // 获取入口文件
   const entryFile = resolveEntryFile(files);
+
+  // 用户文件路径集合，用于过滤模板默认文件
+  const visibleFiles = Object.keys(files).map((p) =>
+    p.startsWith("/") ? p : `/${p}`,
+  );
 
   return (
     <div className="my-2 sm:my-3">
@@ -373,6 +387,7 @@ export function ProjectPreviewCompact({
             theme="dark"
             options={{
               activeFile: entryFile,
+              visibleFiles,
               classes: {
                 "sp-wrapper": "!h-full",
                 "sp-layout": "!h-full !border-0",
