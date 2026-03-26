@@ -20,7 +20,8 @@ interface UseWebSocketOptions {
 const INITIAL_RECONNECT_DELAY = 1000; // 1 second
 const MAX_RECONNECT_DELAY = 30000; // 30 seconds
 const RECONNECT_DELAY_MULTIPLIER = 1.5;
-const MAX_AUTH_FAILURES = 3; // Stop reconnecting after this many consecutive 401s
+const MAX_AUTH_FAILURES = 3; // Switch to long interval after this many consecutive 401s
+const AUTH_FAILURE_COOLDOWN = 5 * 60 * 1000; // 5 minutes cooldown after max failures
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const { onTaskComplete, enabled = true } = options;
@@ -155,9 +156,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         if (event.code === 4001 || event.reason === "Unauthorized") {
           authFailureCountRef.current++;
           if (authFailureCountRef.current >= MAX_AUTH_FAILURES) {
+            // Switch to long-interval polling instead of permanently disabling
             console.warn(
-              `[WebSocket] Auth failed ${authFailureCountRef.current} times, disabled until re-login`,
+              `[WebSocket] Auth failed ${authFailureCountRef.current} times, retrying in ${AUTH_FAILURE_COOLDOWN / 1000}s`,
             );
+            if (enabled && !wasManualDisconnect) {
+              reconnectTimeoutRef.current = setTimeout(() => {
+                reconnectTimeoutRef.current = null;
+                authFailureCountRef.current = 0; // Reset counter for the cooldown retry
+                connect();
+              }, AUTH_FAILURE_COOLDOWN);
+            }
             return;
           }
           console.warn(
