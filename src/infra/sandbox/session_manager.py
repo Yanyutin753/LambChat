@@ -264,7 +264,16 @@ class SessionSandboxManager:
             else:
                 # 超出上限时淘汰最久未使用的锁
                 while len(self._locks) >= _MAX_LOCKS:
-                    self._locks.popitem(last=False)
+                    evicted = False
+                    for existing_user_id, existing_lock in list(self._locks.items()):
+                        if existing_lock.locked():
+                            continue
+                        self._locks.pop(existing_user_id, None)
+                        evicted = True
+                        break
+                    # 如果所有锁都在使用中，宁可临时超出上限也不要破坏互斥语义
+                    if not evicted:
+                        break
                 self._locks[user_id] = asyncio.Lock()
             return self._locks[user_id]
 

@@ -26,8 +26,8 @@ export function useSessionSync({
   // Track if navigation was initiated internally (not from URL)
   const isInternalNavRef = useRef(false);
   const isLoadingRef = useRef(false);
-  // Track sync delay timeouts for cleanup on unmount
-  const syncTimeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Track a single sync delay timeout for cleanup on unmount
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to store loadHistory to avoid stale closure in useEffect
   const loadHistoryRef = useRef(loadHistory);
@@ -42,8 +42,21 @@ export function useSessionSync({
   // Cleanup tracked timeouts on unmount
   useEffect(() => {
     return () => {
-      syncTimeoutRefs.current.forEach(clearTimeout);
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
     };
+  }, []);
+
+  const scheduleSyncReset = useCallback(() => {
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    syncTimeoutRef.current = setTimeout(() => {
+      isSyncingRef.current = false;
+      syncTimeoutRef.current = null;
+    }, 100);
   }, []);
 
   // Sync from URL only on initial mount
@@ -51,10 +64,7 @@ export function useSessionSync({
     if (urlSessionId && !isSyncingRef.current) {
       isSyncingRef.current = true;
       loadHistory(urlSessionId).finally(() => {
-        const id = setTimeout(() => {
-          isSyncingRef.current = false;
-        }, 100);
-        syncTimeoutRefs.current.push(id);
+        scheduleSyncReset();
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,20 +111,14 @@ export function useSessionSync({
       // New session created - update URL
       isSyncingRef.current = true;
       navigate(`/chat/${sessionId}`, { replace: true });
-      const id = setTimeout(() => {
-        isSyncingRef.current = false;
-      }, 100);
-      syncTimeoutRefs.current.push(id);
+      scheduleSyncReset();
     } else if (!sessionId && urlSessionId) {
       // Session cleared - clear URL
       isSyncingRef.current = true;
       navigate("/chat", { replace: true });
-      const id = setTimeout(() => {
-        isSyncingRef.current = false;
-      }, 100);
-      syncTimeoutRefs.current.push(id);
+      scheduleSyncReset();
     }
-  }, [sessionId, urlSessionId, navigate]);
+  }, [sessionId, urlSessionId, navigate, scheduleSyncReset]);
 
   // Handle session selection from sidebar
   const handleSelectSession = useCallback(

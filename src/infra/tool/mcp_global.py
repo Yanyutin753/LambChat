@@ -88,6 +88,19 @@ def _get_local_lock(user_id: str) -> asyncio.Lock:
     return _local_locks.setdefault(user_id, asyncio.Lock())
 
 
+def _cleanup_orphan_locks() -> int:
+    """Clean up local locks that have no cache entry and are not in use."""
+    orphan_locks = [uid for uid in _local_locks if uid not in _global_entries]
+    removed = 0
+    for uid in orphan_locks:
+        lock = _local_locks.get(uid)
+        if lock is None or lock.locked():
+            continue
+        _local_locks.pop(uid, None)
+        removed += 1
+    return removed
+
+
 async def acquire_distributed_lock(
     lock_key: str, ttl: int = DISTRIBUTED_LOCK_TTL
 ) -> tuple[bool, str]:
@@ -248,12 +261,9 @@ async def get_global_mcp_tools(
         _cleanup_counter = 0
         _cleanup_expired_entries()
         _cleanup_excess_entries()
-        # Clean orphan local locks (locks without corresponding entries)
-        orphan_locks = [uid for uid in _local_locks if uid not in _global_entries]
-        for uid in orphan_locks:
-            _local_locks.pop(uid, None)
-        if orphan_locks:
-            logger.debug(f"[Global MCP] Cleaned up {len(orphan_locks)} orphan local locks")
+        removed = _cleanup_orphan_locks()
+        if removed:
+            logger.debug(f"[Global MCP] Cleaned up {removed} orphan local locks")
 
     # 1. 快速路径：检查全局单例
     if user_id in _global_entries:

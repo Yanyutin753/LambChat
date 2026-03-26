@@ -43,16 +43,25 @@ _cache_locks: dict[str, asyncio.Lock] = {}
 _cleanup_lock = asyncio.Lock()
 
 
+def _remove_lock_if_idle(user_id: str) -> bool:
+    """Remove a cached lock only when it is currently idle."""
+    lock = _cache_locks.get(user_id)
+    if lock is None or lock.locked():
+        return False
+    _cache_locks.pop(user_id, None)
+    return True
+
+
 def _cleanup_expired_cache() -> int:
     """清理过期的缓存条目，返回清理的数量"""
     expired_users = [user_id for user_id, entry in _tools_cache.items() if entry.is_expired()]
     for user_id in expired_users:
         _tools_cache.pop(user_id, None)
-        _cache_locks.pop(user_id, None)
+        _remove_lock_if_idle(user_id)
     # 清理没有对应缓存条目的孤立 lock
     orphan_locks = [uid for uid in _cache_locks if uid not in _tools_cache]
     for uid in orphan_locks:
-        _cache_locks.pop(uid, None)
+        _remove_lock_if_idle(uid)
     return len(expired_users)
 
 
@@ -68,12 +77,12 @@ def _cleanup_excess_cache() -> int:
     to_remove = len(_tools_cache) - MAX_CACHE_ENTRIES
     for user_id, _ in sorted_entries[:to_remove]:
         _tools_cache.pop(user_id, None)
-        _cache_locks.pop(user_id, None)
+        _remove_lock_if_idle(user_id)
 
     # 清理没有对应缓存条目的孤立 lock
     orphan_locks = [uid for uid in _cache_locks if uid not in _tools_cache]
     for uid in orphan_locks:
-        _cache_locks.pop(uid, None)
+        _remove_lock_if_idle(uid)
 
     return to_remove
 
@@ -264,7 +273,7 @@ async def invalidate_user_cache(user_id: str) -> bool:
             f"[MCP Cache] Invalidated memory cache for user {user_id}, {len(cached.tools)} tools"
         )
     # 无论缓存是否存在，都清理对应的 lock（防止孤立）
-    _cache_locks.pop(user_id, None)
+    _remove_lock_if_idle(user_id)
     return had_cache
 
 
@@ -289,7 +298,8 @@ async def invalidate_all_cache() -> int:
     # 清除所有进程内缓存
     count = len(_tools_cache)
     _tools_cache.clear()
-    _cache_locks.clear()
+    for user_id in list(_cache_locks):
+        _remove_lock_if_idle(user_id)
     logger.info(f"[MCP Cache] Invalidated all memory cache, {count} entries")
     return count
 
