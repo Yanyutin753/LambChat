@@ -62,52 +62,6 @@ class ConnectionManager:
                     del self._connections[user_id]
         logger.info(f"WebSocket disconnected: user_id={user_id}")
 
-    async def send_to_user(self, user_id: str, message: dict) -> int:
-        """
-        向指定用户发送消息
-
-        Args:
-            user_id: 用户 ID
-            message: 消息内容（dict，会被序列化为 JSON）
-
-        Returns:
-            成功发送的连接数
-        """
-        if not message:
-            return 0
-
-        json_str = json.dumps(message, ensure_ascii=False)
-        sent_count = 0
-
-        logger.info(
-            f"[WebSocket] send_to_user: user_id={user_id}, connections={list(self._connections.keys())}"
-        )
-
-        async with self._lock:
-            connections = self._connections.get(user_id, set()).copy()
-
-        logger.info(f"[WebSocket] Sending to {len(connections)} connections: {json_str}")
-
-        # 遍历副本以避免在发送时修改集合
-        disconnected = set()
-        for ws in connections:
-            try:
-                await ws.send_text(json_str)
-                sent_count += 1
-                logger.info("[WebSocket] Sent successfully to one connection")
-            except Exception as e:
-                logger.warning(f"Failed to send to WebSocket: {e}")
-                disconnected.add(ws)
-
-        # 清理断开的连接
-        if disconnected:
-            async with self._lock:
-                for ws in disconnected:
-                    if user_id in self._connections:
-                        self._connections[user_id].discard(ws)
-
-        return sent_count
-
     async def broadcast(self, message: dict) -> int:
         """
         向所有用户广播消息

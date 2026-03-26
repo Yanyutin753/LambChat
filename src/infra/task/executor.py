@@ -352,7 +352,7 @@ class TaskExecutor:
             if message:
                 notification["data"]["message"] = message
 
-            await manager.send_to_user(user_id, notification)
+            await manager.send_to_user_with_broadcast(user_id, notification)
             logger.info(
                 f"Task notification sent: user_id={user_id}, session={session_id}, status={status.value}"
             )
