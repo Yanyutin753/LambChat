@@ -86,7 +86,7 @@ class S3StorageService:
             except (ConnectionError, TimeoutError, OSError) as e:
                 last_exc = e
                 if attempt < max_retries:
-                    backoff = UPLOAD_RETRY_BACKOFF_BASE ** attempt + random.uniform(
+                    backoff = UPLOAD_RETRY_BACKOFF_BASE**attempt + random.uniform(
                         0, UPLOAD_RETRY_BACKOFF_JITTER
                     )
                     logger.warning(
@@ -95,9 +95,7 @@ class S3StorageService:
                     )
                     await asyncio.sleep(backoff)
                 else:
-                    logger.error(
-                        f"Upload {label} failed after {max_retries} attempts: {e}"
-                    )
+                    logger.error(f"Upload {label} failed after {max_retries} attempts: {e}")
             except Exception as e:
                 # Non-transient errors (e.g. auth, validation) — raise immediately
                 if "oss2" in type(e).__module__ or "minio" in type(e).__module__:
@@ -120,7 +118,7 @@ class S3StorageService:
                     ):
                         last_exc = e
                         if attempt < max_retries:
-                            backoff = UPLOAD_RETRY_BACKOFF_BASE ** attempt + random.uniform(
+                            backoff = UPLOAD_RETRY_BACKOFF_BASE**attempt + random.uniform(
                                 0, UPLOAD_RETRY_BACKOFF_JITTER
                             )
                             logger.warning(
@@ -129,9 +127,7 @@ class S3StorageService:
                             )
                             await asyncio.sleep(backoff)
                             continue
-                        logger.error(
-                            f"Upload {label} failed after {max_retries} attempts: {e}"
-                        )
+                        logger.error(f"Upload {label} failed after {max_retries} attempts: {e}")
                 raise
 
         raise last_exc  # type: ignore[misc]
