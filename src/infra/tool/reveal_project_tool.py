@@ -513,7 +513,8 @@ async def reveal_project(
             )
 
         # 异步清理同名项目的旧版本（不阻塞返回）
-        asyncio.create_task(_cleanup_old_versions(storage, project_name))
+        task = asyncio.create_task(_cleanup_old_versions(storage, project_name))
+        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
         # 检测模板
         detected_template = template

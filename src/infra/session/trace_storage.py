@@ -414,8 +414,9 @@ class TraceStorage:
             }
 
             # 按 started_at 排序获取所有 traces（每个 trace 对应一个 run）
-            cursor = self.collection.find(match_query, projection).sort("started_at", 1)
-            traces = await cursor.to_list(length=None)
+            # 限制最大加载数量，防止长会话 OOM
+            cursor = self.collection.find(match_query, projection).sort("started_at", 1).limit(500)
+            traces = await cursor.to_list(length=500)
 
             # 合并所有事件：按 run 顺序，每个 run 内的事件保持原有顺序
             all_events: List[Dict[str, Any]] = []

@@ -162,7 +162,7 @@ class FeedbackStorage:
                 "session_id": session_id,
                 "run_id": run_id,
             }
-        ).sort("created_at", -1)
+        ).sort("created_at", -1).limit(100)
         feedbacks: list[Feedback] = []
         async for doc in cursor:
             doc["id"] = str(doc.pop("_id"))

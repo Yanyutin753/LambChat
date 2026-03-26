@@ -7,6 +7,7 @@ Redis-based distributed cancellation, and agent cleanup.
 """
 
 import asyncio
+import time
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -20,7 +21,13 @@ from .exceptions import TaskInterruptedError
 logger = get_logger(__name__)
 
 # 内存中的中断标志集合（用于快速检查）
-_interrupted_runs: set = set()
+# run_id -> 加入时间戳，支持定期清理过期条目
+_interrupted_runs: Dict[str, float] = {}
+
+# 清理参数
+_INTERRUPT_MAX_AGE = 600  # 10 分钟
+_INTERRUPT_CLEANUP_INTERVAL = 1000  # 每 1000 次检查触发一次清理
+_interrupt_check_counter = 0
 
 
 class TaskCancellation:
@@ -69,7 +76,7 @@ class TaskCancellation:
         interrupt_signal_set = False
 
         # 1. 立即设置内存中的中断标志（最快）
-        _interrupted_runs.add(run_id)
+        _interrupted_runs[run_id] = time.time()
         logger.info(f"Memory interrupt flag set for run_id={run_id}")
 
         # 2. 设置 Redis 中断信号（用于分布式场景）
@@ -219,7 +226,14 @@ class TaskCancellation:
         Returns:
             True 如果任务被中断
         """
-        global _interrupted_runs
+        global _interrupted_runs, _interrupt_check_counter
+
+        # 定期清理过期条目
+        _interrupt_check_counter += 1
+        if _interrupt_check_counter >= _INTERRUPT_CLEANUP_INTERVAL:
+            _interrupt_check_counter = 0
+            _cleanup_stale_interrupts()
+
         return run_id in _interrupted_runs
 
     @staticmethod
@@ -239,7 +253,7 @@ class TaskCancellation:
         global _interrupted_runs
 
         # 1. 首先检查内存标志（最快，无 IO）
-        if run_id in _interrupted_runs:
+        if run_id in _interrupted_runs and time.time() - _interrupted_runs[run_id] < _INTERRUPT_MAX_AGE:
             logger.info(f"Memory interrupt detected for run_id={run_id}")
             raise TaskInterruptedError(f"Task interrupted: run_id={run_id}")
 
@@ -266,7 +280,7 @@ class TaskCancellation:
         global _interrupted_runs
 
         # 1. 清除内存标志
-        _interrupted_runs.discard(run_id)
+        _interrupted_runs.pop(run_id, None)
 
         # 2. 清除 Redis 标志
         try:
@@ -274,3 +288,14 @@ class TaskCancellation:
             await redis_client.delete(f"{INTERRUPT_PREFIX}{run_id}")
         except Exception as e:
             logger.warning(f"Failed to clear interrupt signal: {e}")
+
+
+def _cleanup_stale_interrupts() -> None:
+    """清理超过 _INTERRUPT_MAX_AGE 的过期中断条目"""
+    global _interrupted_runs
+    now = time.time()
+    expired = [rid for rid, t in _interrupted_runs.items() if now - t > _INTERRUPT_MAX_AGE]
+    for rid in expired:
+        _interrupted_runs.pop(rid, None)
+    if expired:
+        logger.info(f"Cleaned up {len(expired)} stale interrupt entries")

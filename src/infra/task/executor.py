@@ -168,6 +168,8 @@ class TaskExecutor:
             from .cancellation import TaskCancellation
 
             await TaskCancellation.clear_interrupt(run_id)
+            # 清除请求上下文，防止 contextvars 泄漏到后续任务
+            TraceContext.clear_request_context()
 
     async def _handle_cancelled_error(
         self,
