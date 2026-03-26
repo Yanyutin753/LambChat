@@ -18,10 +18,7 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
-import {
-  resolveEntryFile,
-  resolveSandpackTemplate,
-} from "./projectPreviewUtils";
+import { buildSandpackConfig } from "./projectPreviewUtils";
 
 interface ProjectPreviewProps {
   name: string;
@@ -54,7 +51,6 @@ function CustomLayout({
         isFullscreen ? "!min-h-[calc(100vh-120px)]" : "!min-h-[400px]",
       )}
     >
-      {/* 文件浏览器 */}
       {showExplorer && (
         <SandpackFileExplorer
           className="!w-48 !h-full shrink-0"
@@ -62,7 +58,6 @@ function CustomLayout({
         />
       )}
 
-      {/* 代码编辑器 - 始终渲染，用 CSS 控制显示/隐藏 */}
       <div
         className={clsx(
           "flex-1 !min-w-0 !h-full overflow-hidden",
@@ -78,7 +73,6 @@ function CustomLayout({
         />
       </div>
 
-      {/* 预览 - 始终渲染，用 CSS 控制显示/隐藏 */}
       <div
         className={clsx(
           "flex-1 !min-w-0 !h-full overflow-hidden",
@@ -112,42 +106,12 @@ export default function ProjectPreview({
   const [showExplorer, setShowExplorer] = useState(showFileExplorer);
   const isFullscreen = !!externalFullscreen;
 
-  // 用户提供的文件路径集合（用于过滤模板默认文件）
-  const userFilePaths = useMemo(() => {
-    const paths = new Set<string>();
-    for (const path of Object.keys(files)) {
-      paths.add(path.startsWith("/") ? path : `/${path}`);
-    }
-    return paths;
-  }, [files]);
+  const config = useMemo(
+    () => buildSandpackConfig(template, files, entry),
+    [template, files, entry],
+  );
 
-  // 检测并转换文件格式，隐藏模板自带的默认文件中用户未覆盖的部分
-  const sandpackFiles = useMemo(() => {
-    const result: Record<string, string> = {};
-
-    for (const [path, content] of Object.entries(files)) {
-      const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-      result[normalizedPath] = content;
-    }
-
-    return result;
-  }, [files]);
-
-  // 获取入口文件
-  const entryFile = useMemo(() => {
-    return resolveEntryFile(sandpackFiles, entry);
-  }, [entry, sandpackFiles]);
-
-  // 获取 Sandpack 模板 - 如果入口是 HTML 用 static，否则用传入的模板
-  const sandpackTemplate = useMemo(() => {
-    return resolveSandpackTemplate(template, sandpackFiles);
-  }, [template, sandpackFiles]);
-  const resolvedTemplateLabel = sandpackTemplate;
-
-  // 文件数量
-  const fileCount = Object.keys(sandpackFiles).length;
-
-  if (fileCount === 0) {
+  if (Object.keys(config.files).length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-4">
         <AlertCircle size={32} className="text-amber-500" />
@@ -181,20 +145,18 @@ export default function ProjectPreview({
               </h3>
               <p className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
                 {t("project.fileCount", "{{count}} 个文件", {
-                  count: fileCount,
+                  count: Object.keys(config.files).length,
                 })}
-                {resolvedTemplateLabel !== "static" &&
-                  ` · ${resolvedTemplateLabel}`}
+                {config.template && config.template !== "static" &&
+                  ` · ${config.template}`}
               </p>
             </div>
           </div>
 
           {/* 右侧：标签切换 + 操作按钮 */}
           <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 flex-nowrap">
-            {/* 手机端：单个切换按钮 | 桌面端：双按钮组 */}
             {showTabs && (
               <>
-                {/* 手机切换按钮 */}
                 <button
                   onClick={() =>
                     setActiveTab(activeTab === "preview" ? "code" : "preview")
@@ -213,7 +175,6 @@ export default function ProjectPreview({
                   )}
                 </button>
 
-                {/* 桌面双按钮组 */}
                 <div className="hidden sm:flex items-center bg-stone-100 dark:bg-stone-800 rounded-lg p-0.5">
                   <button
                     onClick={() => setActiveTab("preview")}
@@ -243,7 +204,6 @@ export default function ProjectPreview({
               </>
             )}
 
-            {/* 文件浏览器切换 */}
             {showFileExplorer && (
               <button
                 onClick={() => setShowExplorer(!showExplorer)}
@@ -259,7 +219,6 @@ export default function ProjectPreview({
               </button>
             )}
 
-            {/* 导出 ZIP — 仅全屏模式 */}
             {isFullscreen && (
               <button
                 onClick={() => exportProjectZip(files, name)}
@@ -272,7 +231,6 @@ export default function ProjectPreview({
               </button>
             )}
 
-            {/* 关闭按钮 */}
             {onClose && (
               <button
                 onClick={onClose}
@@ -294,12 +252,13 @@ export default function ProjectPreview({
         )}
       >
         <SandpackProvider
-          template={sandpackTemplate}
-          files={sandpackFiles}
+          template={config.template}
+          customSetup={config.customSetup}
+          files={config.files}
           theme="dark"
           options={{
-            activeFile: entryFile,
-            visibleFiles: [...userFilePaths],
+            activeFile: config.entryFile,
+            visibleFiles: config.visibleFiles,
             classes: {
               "sp-wrapper": "!h-full !flex !flex-col",
               "sp-layout": "!h-full !border-0",
@@ -331,16 +290,9 @@ export function ProjectPreviewCompact({
   onExpand?: () => void;
 }) {
   const { t } = useTranslation();
-  const fileCount = Object.keys(files).length;
-  const sandpackTemplate = resolveSandpackTemplate(template, files);
-  const resolvedTemplateLabel = sandpackTemplate;
-
-  // 获取入口文件
-  const entryFile = resolveEntryFile(files);
-
-  // 用户文件路径集合，用于过滤模板默认文件
-  const visibleFiles = Object.keys(files).map((p) =>
-    p.startsWith("/") ? p : `/${p}`,
+  const config = useMemo(
+    () => buildSandpackConfig(template, files),
+    [template, files],
   );
 
   return (
@@ -358,10 +310,10 @@ export function ProjectPreviewCompact({
               </h4>
               <p className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
                 {t("project.fileCount", "{{count}} 个文件", {
-                  count: fileCount,
+                  count: Object.keys(config.files).length,
                 })}
-                {resolvedTemplateLabel !== "static" &&
-                  ` · ${resolvedTemplateLabel}`}
+                {config.template && config.template !== "static" &&
+                  ` · ${config.template}`}
               </p>
             </div>
           </div>
@@ -382,12 +334,13 @@ export function ProjectPreviewCompact({
         {/* 预览区域 */}
         <div className="h-[250px] sm:h-[400px]">
           <SandpackProvider
-            template={sandpackTemplate}
-            files={files}
+            template={config.template}
+            customSetup={config.customSetup}
+            files={config.files}
             theme="dark"
             options={{
-              activeFile: entryFile,
-              visibleFiles,
+              activeFile: config.entryFile,
+              visibleFiles: config.visibleFiles,
               classes: {
                 "sp-wrapper": "!h-full",
                 "sp-layout": "!h-full !border-0",
