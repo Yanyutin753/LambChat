@@ -11,8 +11,6 @@ export interface TaskCompleteNotification {
   };
 }
 
-type WebSocketMessage = TaskCompleteNotification;
-
 interface UseWebSocketOptions {
   onTaskComplete?: (notification: TaskCompleteNotification) => void;
   enabled?: boolean;
