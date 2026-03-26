@@ -4,6 +4,8 @@ WebSocket 路由
 提供 WebSocket 连接用于实时任务通知。
 """
 
+import json
+
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from src.api.deps import get_current_user_from_websocket
@@ -61,8 +63,6 @@ async def websocket_endpoint(
             logger.info("[WebSocket] Waiting for auth message from client")
             try:
                 auth_message = await websocket.receive_text()
-                import json
-
                 auth_data = json.loads(auth_message)
                 if auth_data.get("type") == "auth":
                     auth_token = auth_data.get("token")
@@ -80,6 +80,9 @@ async def websocket_endpoint(
         # 如果还没有accept（URL有token的情况），现在accept
         if not needs_accept:
             await websocket.accept()
+
+        # Send auth confirmation to client
+        await websocket.send_text(json.dumps({"type": "auth:ok"}))
     except WebSocketDisconnect:
         logger.info("[WebSocket] Client disconnected during auth")
         return

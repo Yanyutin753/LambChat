@@ -11,8 +11,6 @@ export interface TaskCompleteNotification {
   };
 }
 
-type WebSocketMessage = TaskCompleteNotification;
-
 interface UseWebSocketOptions {
   onTaskComplete?: (notification: TaskCompleteNotification) => void;
   enabled?: boolean;
@@ -110,17 +108,23 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       // Send authentication after connection is established
       ws.onopen = () => {
         console.log("[WebSocket] Connected, sending auth");
-        // Send auth token after connection
         ws.send(JSON.stringify({ type: "auth", token }));
-        isConnectingRef.current = false;
-        setIsConnected(true);
-        // Reset reconnect attempt counter on successful connection
-        reconnectAttemptRef.current = 0;
+        // Don't set isConnected yet — wait for auth:ok from server
       };
 
       ws.onmessage = (event) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data);
+          const message = JSON.parse(event.data);
+
+          if (message.type === "auth:ok") {
+            // Auth confirmed by server — now truly connected
+            isConnectingRef.current = false;
+            setIsConnected(true);
+            reconnectAttemptRef.current = 0;
+            console.log("[WebSocket] Auth confirmed");
+            return;
+          }
+
           console.log("[WebSocket] Received:", message);
 
           if (message.type === "task:complete" && onTaskCompleteRef.current) {
@@ -141,6 +145,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         isDisconnectingRef.current = false; // Reset here after socket is fully closed
 
         wsRef.current = null;
+
+        // Don't reconnect on auth failure - token is invalid/expired
+        // 4001: server explicitly rejects auth; 1006: abnormal close (proxy/browser may map 4001 to 1006)
+        if (event.code === 4001 || event.reason === "Unauthorized") {
+          console.warn("[WebSocket] Auth failed, stopping reconnect");
+          return;
+        }
 
         // Only attempt to reconnect if still enabled and not manually closed
         if (

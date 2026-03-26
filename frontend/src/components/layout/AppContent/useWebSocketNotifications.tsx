@@ -9,10 +9,12 @@ import { sessionApi } from "../../../services/api";
 
 interface UseWebSocketNotificationsOptions {
   sessionId: string | null;
+  enabled?: boolean;
 }
 
 export function useWebSocketNotifications({
   sessionId,
+  enabled = true,
 }: UseWebSocketNotificationsOptions) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -28,7 +30,7 @@ export function useWebSocketNotifications({
 
   // WebSocket for task completion notifications
   useWebSocket({
-    enabled: true,
+    enabled,
     onTaskComplete: async (notification: {
       data: { session_id: string; status: string; message?: string };
     }) => {

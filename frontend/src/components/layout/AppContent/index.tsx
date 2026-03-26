@@ -127,11 +127,11 @@ export function AppContent({ activeTab }: AppContentProps) {
     useAgentOptions(agents, currentAgent);
 
   // Auth & permissions
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAuthenticated } = useAuth();
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
 
   // WebSocket notifications
-  useWebSocketNotifications({ sessionId });
+  useWebSocketNotifications({ sessionId, enabled: isAuthenticated });
 
   // Session name
   const [sessionName, setSessionName] = useState<string | null>(null);
