@@ -12,6 +12,7 @@ import random
 import re
 import uuid
 from datetime import datetime, timezone
+from collections.abc import Awaitable
 from typing import BinaryIO, Callable, Optional, TypeVar
 
 from src.infra.logging import get_logger
@@ -69,7 +70,7 @@ class S3StorageService:
 
     @staticmethod
     async def _retry_async(
-        func: Callable[..., T],
+        func: Callable[..., "Awaitable[T]"],
         max_retries: int = UPLOAD_MAX_RETRIES,
         label: str = "operation",
     ) -> T:
@@ -134,7 +135,6 @@ class S3StorageService:
                 raise
 
         raise last_exc  # type: ignore[misc]
->>>>>>> 54a4e36 (feat: add retry mechanism for OSS upload with exponential backoff)
 
     def _get_backend(self) -> S3StorageBackend:
         """Get or create the storage backend"""
