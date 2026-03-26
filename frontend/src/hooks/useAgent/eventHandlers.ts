@@ -75,6 +75,13 @@ export function handleStreamEvent(
 
   ctx.processedEventIdsRef.current.add(eventId);
 
+  // Cap the dedup set to prevent unbounded memory growth during long streams.
+  // Safe to clear: event dedup is only needed within a single streaming session,
+  // and the set is fully cleared on loadHistory/sendMessage/clearMessages.
+  if (ctx.processedEventIdsRef.current.size > 10_000) {
+    ctx.processedEventIdsRef.current.clear();
+  }
+
   const eventType = event.event;
   let data: EventData = {};
   try {
@@ -137,7 +144,7 @@ export function handleStreamEvent(
 
     case "skills:changed": {
       if (ctx.options?.onSkillAdded) {
-        const action = data.action as string || "updated";
+        const action = (data.action as string) || "updated";
         const description =
           action === "created"
             ? i18n.t("chat.skillCreated")

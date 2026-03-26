@@ -267,9 +267,6 @@ async def invalidate_user_cache(user_id: str) -> bool:
     _cache_locks.pop(user_id, None)
     return had_cache
 
-    logger.debug(f"[MCP Cache] No memory cache to invalidate for user {user_id}")
-    return False
-
 
 async def invalidate_all_cache() -> int:
     """
@@ -292,6 +289,7 @@ async def invalidate_all_cache() -> int:
     # 清除所有进程内缓存
     count = len(_tools_cache)
     _tools_cache.clear()
+    _cache_locks.clear()
     logger.info(f"[MCP Cache] Invalidated all memory cache, {count} entries")
     return count
 

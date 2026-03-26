@@ -248,6 +248,12 @@ async def get_global_mcp_tools(
         _cleanup_counter = 0
         _cleanup_expired_entries()
         _cleanup_excess_entries()
+        # Clean orphan local locks (locks without corresponding entries)
+        orphan_locks = [uid for uid in _local_locks if uid not in _global_entries]
+        for uid in orphan_locks:
+            _local_locks.pop(uid, None)
+        if orphan_locks:
+            logger.debug(f"[Global MCP] Cleaned up {len(orphan_locks)} orphan local locks")
 
     # 1. 快速路径：检查全局单例
     if user_id in _global_entries:

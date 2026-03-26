@@ -344,6 +344,15 @@ export default function DocumentPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, content, s3Key, signedUrl, externalImageUrl]);
 
+  // Revoke blob URLs on change or unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (htmlUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(htmlUrl);
+      }
+    };
+  }, [htmlUrl]);
+
   // Handle ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
