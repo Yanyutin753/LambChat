@@ -144,9 +144,7 @@ class BaseGraphAgent(ABC):
                     f"[Agent {self._agent_id}] Using MemorySaver (data will be lost on restart)"
                 )
             else:
-                logger.info(
-                    f"[Agent {self._agent_id}] Using MongoDB checkpointer"
-                )
+                logger.info(f"[Agent {self._agent_id}] Using MongoDB checkpointer")
 
         # 构建 graph
         builder = GraphBuilder(self.state_class)

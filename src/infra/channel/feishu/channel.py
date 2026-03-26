@@ -63,7 +63,9 @@ class FeishuChannel(BaseChannel):
         self._health_check_thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._processed_message_ids: OrderedDict[str, None] = OrderedDict()
-        self._chat_mode_cache: OrderedDict[str, str] = OrderedDict()  # Cache: chat_id -> "group"|"thread"
+        self._chat_mode_cache: OrderedDict[str, str] = (
+            OrderedDict()
+        )  # Cache: chat_id -> "group"|"thread"
 
         # Connection state tracking
         self._connection_state = ConnectionState.DISCONNECTED

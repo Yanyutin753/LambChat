@@ -253,7 +253,10 @@ class TaskCancellation:
         global _interrupted_runs
 
         # 1. 首先检查内存标志（最快，无 IO）
-        if run_id in _interrupted_runs and time.time() - _interrupted_runs[run_id] < _INTERRUPT_MAX_AGE:
+        if (
+            run_id in _interrupted_runs
+            and time.time() - _interrupted_runs[run_id] < _INTERRUPT_MAX_AGE
+        ):
             logger.info(f"Memory interrupt detected for run_id={run_id}")
             raise TaskInterruptedError(f"Task interrupted: run_id={run_id}")
 
