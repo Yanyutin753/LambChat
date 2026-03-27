@@ -416,14 +416,18 @@ class RoleStorage:
                         "updated_at": now,
                     }
                 )
+                # 清除 get_by_name 可能缓存的 None，避免新建角色后查询命中空缓存
+                await self.invalidate_cache(role_data["name"])
             elif role_data.get("is_system", False):
-                # 系统角色：更新权限列表和is_system标记
+                # 系统角色：更新权限列表、描述、限制和is_system标记
                 now = datetime.now()
                 await self.collection.update_one(
                     {"name": role_data["name"]},
                     {
                         "$set": {
                             "permissions": role_data["permissions"],
+                            "description": role_data.get("description"),
+                            "limits": role_data.get("limits"),
                             "is_system": True,  # 确保is_system被更新
                             "updated_at": now,
                         }

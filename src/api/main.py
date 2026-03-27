@@ -55,11 +55,14 @@ async def lifespan(app: FastAPI):
     setup_logging()
 
     # 初始化默认角色（更新系统角色权限）
-    from src.infra.role.storage import RoleStorage
+    try:
+        from src.infra.role.storage import RoleStorage
 
-    role_storage = RoleStorage()
-    await role_storage.init_default_roles()
-    logger.info("Default roles initialized")
+        role_storage = RoleStorage()
+        await role_storage.init_default_roles()
+        logger.info("Default roles initialized")
+    except Exception as e:
+        logger.error("Failed to initialize default roles: %s", e)
 
     # 配置 uvicorn 访问日志格式，与项目日志完全统一
     import logging
