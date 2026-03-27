@@ -374,7 +374,9 @@ async def _execute_command(backend: Any, command: str) -> Optional[str]:
     return None
 
 
-async def _list_project_files_via_backend_api(backend: Any, project_path: str) -> tuple[list[str], bool]:
+async def _list_project_files_via_backend_api(
+    backend: Any, project_path: str
+) -> tuple[list[str], bool]:
     """优先使用 backend 的原生文件 API 递归列出项目文件。"""
     if not hasattr(backend, "ls_info"):
         return [], True
