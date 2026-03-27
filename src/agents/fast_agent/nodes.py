@@ -158,19 +158,11 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         "recursion_limit": config.get("recursion_limit", settings.SESSION_MAX_RUNS_PER_SESSION),
     }
 
-    # 从内层 graph 的 checkpoint 获取历史消息
-    inner_state = await inner_graph.aget_state(inner_config)
-    existing_messages = inner_state.values.get("messages", [])
-
-    # 构建传入的消息列表（包含附件）
+    # 构建传入的新消息（包含附件）
+    # 注意：checkpointer + add_messages reducer 会自动维护历史消息，
+    # 只需传入新消息，避免与 checkpoint 中的历史消息重复。
     user_input = state.get("input", "")
     new_message = build_human_message(user_input, attachments)
-
-    # 消息列表（记忆召回改为由 agent 通过 tool 主动触发）
-    all_messages = existing_messages + [new_message]
-
-    # 传递 messages
-    inner_config["configurable"]["messages"] = existing_messages
 
     # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）
     logger.info("[FastAgent] Creating AgentEventProcessor")
@@ -179,7 +171,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     logger.info("[FastAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
     async for event in inner_graph.astream_events(
-        {"messages": all_messages, "files": {}},
+        {"messages": [new_message], "files": {}},
         inner_config,
         version="v2",
     ):
@@ -193,9 +185,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 获取内层 graph 的最终状态
     inner_state = await inner_graph.aget_state(inner_config)
-    new_messages = inner_state.values.get("messages", [])
-
-    final_messages = new_messages if len(new_messages) > len(all_messages) else all_messages
+    final_messages = inner_state.values.get("messages", [])
 
     # 自动记忆存储（异步，不阻塞响应）
     schedule_auto_retain(user_input, event_processor.output_text, context.user_id)
