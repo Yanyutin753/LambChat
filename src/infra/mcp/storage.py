@@ -55,6 +55,7 @@ class MCPStorage:
         self._system_collection: Optional["AsyncIOMotorCollection"] = None
         self._user_collection: Optional["AsyncIOMotorCollection"] = None
         self._preferences_collection: Optional["AsyncIOMotorCollection"] = None
+        self._tool_preferences_collection: Optional["AsyncIOMotorCollection"] = None
 
     async def _invalidate_user_cache(self, user_id: str) -> None:
         """Invalidate MCP tools cache for a specific user"""
@@ -93,6 +94,14 @@ class MCPStorage:
             db = self._client[settings.MONGODB_DB]
             self._preferences_collection = db["user_mcp_preferences"]
         return self._preferences_collection
+
+    def _get_tool_preferences_collection(self) -> "AsyncIOMotorCollection":
+        """Get user MCP tool preferences collection lazily"""
+        if self._tool_preferences_collection is None:
+            self._client = get_mongo_client()
+            db = self._client[settings.MONGODB_DB]
+            self._tool_preferences_collection = db["user_mcp_tool_preferences"]
+        return self._tool_preferences_collection
 
     # ==========================================
     # System MCP Servers (Admin)
@@ -431,6 +440,157 @@ class MCPStorage:
 
         # Invalidate cache for this user
         await self._invalidate_user_cache(user_id)
+
+    # ==========================================
+    # Tool Discovery & Tool-level Preferences
+    # ==========================================
+
+    async def discover_server_tools(
+        self, server_name: str, user_id: str
+    ) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """
+        Discover tools available from a specific MCP server.
+
+        Connects to the server and lists its tools without caching.
+        Returns (tools_list, error_message).
+        """
+        manager = None
+        try:
+            # Find the server config (user or system)
+            server: UserMCPServer | SystemMCPServer | None = await self.get_user_server(
+                server_name, user_id
+            )
+            if not server:
+                server = await self.get_system_server(server_name)
+            if not server:
+                return [], f"Server '{server_name}' not found"
+
+            from src.infra.tool.mcp_client import MCPClientManager
+
+            manager = MCPClientManager(use_database=False)
+
+            # Build config for just this one server
+            config_dict = self._server_to_config_dict_static(server)
+            config = {"mcpServers": {server_name: config_dict}}
+
+            # Bypass initialize() which tries to load from file/database,
+            # directly use _initialize_with_config with our custom config
+            await manager._initialize_with_config(config)
+            tools = manager._tools
+
+            result = []
+            for tool in tools:
+                # langchain-mcp-adapters may prefix with "server_name:"
+                # Strip it so the frontend can construct the qualified name itself
+                tool_name = tool.name
+                if tool_name.startswith(f"{server_name}:"):
+                    tool_name = tool_name[len(server_name) + 1 :]
+                tool_info: dict[str, Any] = {
+                    "name": tool_name,
+                    "description": getattr(tool, "description", ""),
+                    "parameters": [],
+                }
+                # Extract parameters if possible
+                try:
+                    if hasattr(tool, "args_schema") and tool.args_schema:
+                        if isinstance(tool.args_schema, dict):
+                            schema = tool.args_schema
+                        else:
+                            schema = tool.args_schema.schema()
+                        properties = schema.get("properties", {})
+                        required = set(schema.get("required", []))
+                        for param_name, param_info in properties.items():
+                            if isinstance(param_info, dict):
+                                tool_info["parameters"].append(
+                                    {
+                                        "name": param_name,
+                                        "type": param_info.get("type", "string"),
+                                        "description": param_info.get("description", ""),
+                                        "required": param_name in required,
+                                        "default": param_info.get("default"),
+                                    }
+                                )
+                except Exception:
+                    pass
+                result.append(tool_info)
+
+            return result, None
+
+        except Exception as e:
+            logger.error(f"[MCP] Failed to discover tools for server '{server_name}': {e}")
+            return [], str(e)
+        finally:
+            if manager:
+                await manager.close()
+
+    def _server_to_config_dict_static(self, server) -> dict[str, Any]:
+        """Convert a server object to config dict (static method style)"""
+        result = {"transport": server.transport.value}
+        if server.transport.value == "stdio":
+            if server.command:
+                result["command"] = server.command
+            if server.args:
+                result["args"] = server.args
+            if server.env:
+                result["env"] = server.env
+        else:
+            if server.url:
+                result["url"] = server.url
+            if server.headers:
+                result["headers"] = server.headers
+        return result
+
+    async def get_tool_preferences(self, user_id: str) -> dict[str, bool]:
+        """
+        Get user's tool-level preferences.
+
+        Returns a dict mapping fully qualified tool name (server_name:tool_name or tool_name)
+        to enabled status. Only disabled tools are stored, so missing keys mean enabled.
+        """
+        collection = self._get_tool_preferences_collection()
+        preferences: dict[str, bool] = {}
+        async for doc in collection.find({"user_id": user_id}):
+            tool_key = doc["tool_name"]
+            enabled = doc.get("enabled", True)
+            if not enabled:
+                preferences[tool_key] = False
+        return preferences
+
+    async def set_tool_preference(
+        self, tool_name: str, server_name: str, user_id: str, enabled: bool
+    ) -> None:
+        """
+        Set user's preference for a specific MCP tool.
+
+        Args:
+            tool_name: The tool name (without server prefix)
+            server_name: The MCP server name
+            user_id: The user's ID
+            enabled: Whether the tool is enabled
+        """
+        collection = self._get_tool_preferences_collection()
+        # Use a composite key: server_name:tool_name for uniqueness
+        qualified_name = f"{server_name}:{tool_name}"
+        await collection.update_one(
+            {"tool_name": qualified_name, "user_id": user_id},
+            {
+                "$set": {
+                    "tool_name": qualified_name,
+                    "server_name": server_name,
+                    "tool_base_name": tool_name,
+                    "enabled": enabled,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+            upsert=True,
+        )
+        # Invalidate MCP tools cache for this user
+        await self._invalidate_user_cache(user_id)
+
+    async def get_disabled_tool_names(self, user_id: str) -> set[str]:
+        """Get set of fully qualified tool names that are disabled by the user."""
+        prefs = await self.get_tool_preferences(user_id)
+        return {name for name, enabled in prefs.items() if not enabled}
 
     # ==========================================
     # Combined Operations (for runtime)

@@ -331,19 +331,46 @@ async def list_tools(
             from src.infra.tool.mcp_global import get_global_mcp_tools
 
             # 使用全局单例，避免重复初始化
-            mcp_tools, _ = await get_global_mcp_tools(user.sub)
+            mcp_tools, manager = await get_global_mcp_tools(user.sub)
 
-            # 获取服务器名称映射（从工具名推断）
-            # MCP 工具名格式通常是 "server_name:tool_name" 或直接是 tool_name
+            # 获取服务器名称映射（从 manager 的 _tool_server_map 或从工具名推断）
+            tool_server_map = getattr(manager, "_tool_server_map", {}) if manager else {}
+
+            # 获取用户禁用的工具列表（从 user metadata disabled_tools 字段读取）
+            from src.infra.user.storage import UserStorage
+
+            user_storage = UserStorage()
+            db_user = await user_storage.get_by_id(user.sub)
+            disabled_tools_raw = (
+                (db_user.metadata or {}).get("disabled_tools", []) if db_user else []
+            )
+            disabled_tool_names = set(disabled_tools_raw)
+
+            mcp_start_idx = len(tools)  # HUMAN tools are already in the list
+
             for tool in mcp_tools:
                 tool_name = tool.name
                 server_name = None
 
-                # 尝试从工具名提取服务器名
+                # 1. 从 manager 的 tool_server_map 获取服务器名
+                # 工具名可能是 "server_name:tool_name" 格式
+                raw_name = tool_name
                 if ":" in tool_name:
                     parts = tool_name.split(":", 1)
-                    server_name = parts[0]
-                    # 保持原始工具名（用户选择时使用原始名）
+                    candidate_server = parts[0]
+                    candidate_tool = parts[1]
+                    # 在 map 中查找 (candidate_server, candidate_tool)
+                    if (candidate_server, candidate_tool) in tool_server_map:
+                        server_name = tool_server_map[(candidate_server, candidate_tool)]
+                        raw_name = candidate_tool
+                    else:
+                        server_name = candidate_server
+                        raw_name = candidate_tool
+
+                # 2. 检查工具是否被用户禁用
+                qualified_name = f"{server_name}:{raw_name}" if server_name else tool_name
+                if qualified_name in disabled_tool_names or tool_name in disabled_tool_names:
+                    continue
 
                 # 提取工具描述
                 description = tool.description if hasattr(tool, "description") else ""
@@ -360,6 +387,9 @@ async def list_tools(
                         parameters=parameters,
                     )
                 )
+
+            # 按 MCP 工具名称排序（首字母排序），HUMAN 工具保持在前
+            tools[mcp_start_idx:] = sorted(tools[mcp_start_idx:], key=lambda t: t.name.lower())
 
             logger.info(
                 f"[Tools API] Got {len(mcp_tools)} MCP tools from global cache for user {user.sub}"

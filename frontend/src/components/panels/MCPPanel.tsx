@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, X, Download, Upload, FolderOpen, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -29,7 +29,13 @@ export function MCPPanel() {
     demoteServer,
     clearError,
   } = useMCP();
-  const { hasAnyPermission, user } = useAuth();
+  const { hasAnyPermission, user, refreshUser } = useAuth();
+
+  // Derive disabled tool names from user metadata (shared with ToolSelector)
+  const disabledToolNames = useMemo(() => {
+    const dt: string[] = (user?.metadata?.disabled_tools as string[]) || [];
+    return new Set(dt);
+  }, [user?.metadata?.disabled_tools]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(
@@ -406,6 +412,11 @@ export function MCPPanel() {
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                disabledToolNames={disabledToolNames}
+                onToolToggled={() => {
+                  // Refresh user metadata to sync disabledToolNames with ToolSelector
+                  refreshUser();
+                }}
               />
             ))}
           </div>

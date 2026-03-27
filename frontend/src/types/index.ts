@@ -138,6 +138,10 @@ export type {
   MCPExportResponse,
   MCPServerMoveRequest,
   MCPServerMoveResponse,
+  MCPToolInfo,
+  MCPToolParamInfo,
+  MCPToolDiscoveryResponse,
+  MCPToolToggleResponse,
 } from "./mcp";
 
 // ============================================

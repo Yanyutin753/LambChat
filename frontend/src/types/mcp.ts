@@ -90,3 +90,35 @@ export interface MCPServerMoveResponse {
   from_type: string;
   to_type: string;
 }
+
+// MCP Tool Info (discovered from server)
+export interface MCPToolInfo {
+  name: string;
+  description: string;
+  parameters: MCPToolParamInfo[];
+}
+
+// MCP Tool Parameter Info
+export interface MCPToolParamInfo {
+  name: string;
+  type: string;
+  description: string;
+  required: boolean;
+  default?: unknown;
+}
+
+// MCP Tool Discovery Response
+export interface MCPToolDiscoveryResponse {
+  server_name: string;
+  tools: MCPToolInfo[];
+  count: number;
+  error?: string;
+}
+
+// MCP Tool Toggle Response
+export interface MCPToolToggleResponse {
+  server_name: string;
+  tool_name: string;
+  enabled: boolean;
+  message: string;
+}

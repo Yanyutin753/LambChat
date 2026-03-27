@@ -60,7 +60,7 @@ export function ToolSelector({
     };
   }, [isOpen]);
 
-  // 按类别分组 - 使用 useMemo 缓存计算结果
+  // 按类别分组，每组内按工具名称排序 - 使用 useMemo 缓存计算结果
   const groupedTools = useMemo(
     () =>
       tools.reduce(
@@ -74,6 +74,20 @@ export function ToolSelector({
         {} as Record<ToolCategory, ToolState[]>,
       ),
     [tools],
+  );
+
+  // Sort tools within each category by name
+  const sortedGroupedTools = useMemo(
+    () => {
+      const sorted: Record<string, ToolState[]> = {};
+      for (const [category, categoryTools] of Object.entries(groupedTools)) {
+        sorted[category] = [...categoryTools].sort((a, b) =>
+          a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+        );
+      }
+      return sorted;
+    },
+    [groupedTools],
   );
 
   const toggleToolExpand = (toolName: string, e: React.MouseEvent) => {
@@ -165,7 +179,7 @@ export function ToolSelector({
 
       {/* Categories */}
       <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-1.5">
-        {Object.entries(groupedTools).map(
+        {Object.entries(sortedGroupedTools).map(
           ([category, categoryTools]: [string, ToolState[]]) => {
             const cat = category as ToolCategory;
             const Icon = categoryIcons[cat];
