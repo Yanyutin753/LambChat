@@ -10,7 +10,7 @@ import type {
 
 const API_BASE = "/api";
 
-export function useTools() {
+export function useTools(disabledToolsVersion?: string) {
   const [tools, setTools] = useState<ToolState[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,12 +147,13 @@ export function useTools() {
   const enabledCount = tools.filter((t) => t.enabled).length;
 
   // 初始加载 — 从 authApi 获取当前 user metadata
+  // disabledToolsVersion 变化时重新获取（当 MCPServerCard 切换工具时触发）
   useEffect(() => {
     authApi
       .getCurrentUser()
       .then((user) => fetchTools(user.metadata))
       .catch(() => fetchTools());
-  }, [fetchTools]);
+  }, [fetchTools, disabledToolsVersion]);
 
   return {
     tools,

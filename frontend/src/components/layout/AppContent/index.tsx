@@ -49,6 +49,15 @@ export function AppContent({ activeTab }: AppContentProps) {
     isLoading: approvalLoading,
   } = useApprovals({ sessionId: null });
 
+  // Auth & permissions (needed before useTools for disabledToolsVersion)
+  const { hasPermission, isAuthenticated, user } = useAuth();
+
+  // Derive a version key from disabled_tools so useTools re-fetches when they change
+  // (e.g. when user toggles a tool in MCPServerCard)
+  const disabledToolsVersion = JSON.stringify(
+    user?.metadata?.disabled_tools ?? [],
+  );
+
   // Tools
   const {
     tools,
@@ -59,7 +68,7 @@ export function AppContent({ activeTab }: AppContentProps) {
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
-  } = useTools();
+  } = useTools(disabledToolsVersion);
 
   // Skills
   const {
@@ -126,8 +135,6 @@ export function AppContent({ activeTab }: AppContentProps) {
   const { agentOptionValues, currentAgentOptions, handleToggleAgentOption } =
     useAgentOptions(agents, currentAgent);
 
-  // Auth & permissions
-  const { hasPermission, isAuthenticated } = useAuth();
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
 
   // WebSocket notifications
