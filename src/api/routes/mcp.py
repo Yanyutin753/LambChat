@@ -20,6 +20,10 @@ from src.kernel.schemas.mcp import (
     MCPServersResponse,
     MCPServerToggleResponse,
     MCPServerUpdate,
+    MCPToolDiscoveryResponse,
+    MCPToolInfo,
+    MCPToolToggleRequest,
+    MCPToolToggleResponse,
 )
 from src.kernel.schemas.user import TokenPayload
 
@@ -307,6 +311,58 @@ async def toggle_server(
     return MCPServerToggleResponse(
         server=server,
         message=f"Server '{name}' has been {status_text}",
+    )
+
+
+# ==========================================
+# Tool Discovery & Tool Toggle Endpoints
+# ==========================================
+
+
+@router.get("/{name}/tools", response_model=MCPToolDiscoveryResponse)
+async def discover_server_tools(
+    name: str,
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
+    storage: MCPStorage = Depends(get_mcp_storage),
+):
+    """
+    Dynamically discover tools available from a specific MCP server.
+
+    Connects to the server and lists its available tools with descriptions and parameters.
+    This endpoint does NOT use cache - it always probes the server directly.
+    """
+    tools, error = await storage.discover_server_tools(name, user.sub)
+
+    return MCPToolDiscoveryResponse(
+        server_name=name,
+        tools=[MCPToolInfo(**t) for t in tools],
+        count=len(tools),
+        error=error,
+    )
+
+
+@router.patch("/{name}/tools/{tool_name}", response_model=MCPToolToggleResponse)
+async def toggle_tool(
+    name: str,
+    tool_name: str,
+    data: MCPToolToggleRequest,
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
+    storage: MCPStorage = Depends(get_mcp_storage),
+):
+    """
+    Toggle a specific tool's enabled status for the current user.
+
+    This allows users to disable individual tools from an MCP server
+    while keeping the server itself enabled.
+    """
+    await storage.set_tool_preference(tool_name, name, user.sub, data.enabled)
+
+    status_text = "enabled" if data.enabled else "disabled"
+    return MCPToolToggleResponse(
+        server_name=name,
+        tool_name=tool_name,
+        enabled=data.enabled,
+        message=f"Tool '{tool_name}' from server '{name}' has been {status_text}",
     )
 
 

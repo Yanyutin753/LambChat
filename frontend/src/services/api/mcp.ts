@@ -11,6 +11,8 @@ import type {
   MCPImportRequest,
   MCPImportResponse,
   MCPExportResponse,
+  MCPToolDiscoveryResponse,
+  MCPToolToggleResponse,
 } from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
@@ -122,5 +124,31 @@ export const mcpApi = {
    */
   async export(): Promise<MCPExportResponse> {
     return authFetch<MCPExportResponse>(`${API_BASE}/api/mcp/export`);
+  },
+
+  /**
+   * Discover tools from a specific MCP server
+   */
+  async discoverTools(name: string): Promise<MCPToolDiscoveryResponse> {
+    return authFetch<MCPToolDiscoveryResponse>(
+      `${API_BASE}/api/mcp/${encodeURIComponent(name)}/tools`,
+    );
+  },
+
+  /**
+   * Toggle a specific tool's enabled status
+   */
+  async toggleTool(
+    serverName: string,
+    toolName: string,
+    enabled: boolean,
+  ): Promise<MCPToolToggleResponse> {
+    return authFetch<MCPToolToggleResponse>(
+      `${API_BASE}/api/mcp/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(toolName)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
+      },
+    );
   },
 };

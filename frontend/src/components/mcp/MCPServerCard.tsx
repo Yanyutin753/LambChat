@@ -1,12 +1,27 @@
-import { Server, ToggleLeft, ToggleRight, Edit3, Trash2 } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import {
+  Server,
+  ToggleLeft,
+  ToggleRight,
+  Edit3,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
+  Loader2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { MCPServerResponse } from "../../types";
+import { mcpApi } from "../../services/api/mcp";
+import { authApi } from "../../services/api";
+import type { MCPServerResponse, MCPToolInfo } from "../../types";
 
 interface MCPServerCardProps {
   server: MCPServerResponse;
   onToggle: (name: string) => void;
   onEdit: (server: MCPServerResponse) => void;
   onDelete: (name: string, isSystem: boolean) => void;
+  disabledToolNames?: Set<string>;
+  onToolToggled?: () => void;
 }
 
 const TRANSPORT_LABELS: Record<string, string> = {
@@ -30,12 +45,111 @@ export function MCPServerCard({
   onToggle,
   onEdit,
   onDelete,
+  disabledToolNames = new Set(),
+  onToolToggled,
 }: MCPServerCardProps) {
   const { t } = useTranslation();
+  const [isToolsExpanded, setIsToolsExpanded] = useState(false);
+  const [tools, setTools] = useState<MCPToolInfo[]>([]);
+  const [toolsLoading, setToolsLoading] = useState(false);
+  const [toolsError, setToolsError] = useState<string | null>(null);
+
+  // Sync disabled state from props (derived from disabled_tools metadata)
+  const [localDisabledTools, setLocalDisabledTools] = useState<Set<string>>(
+    new Set(),
+  );
+  useEffect(() => {
+    setLocalDisabledTools(new Set(disabledToolNames));
+  }, [disabledToolNames]);
+
+  const disabledTools = localDisabledTools;
+
   const transportLabel =
     TRANSPORT_LABELS[server.transport] || server.transport.toUpperCase();
   const transportColor =
     TRANSPORT_COLORS[server.transport] || DEFAULT_TRANSPORT_COLOR;
+
+  const handleToggleTools = useCallback(async () => {
+    if (isToolsExpanded) {
+      setIsToolsExpanded(false);
+      return;
+    }
+
+    // If we haven't loaded tools yet, fetch them
+    if (tools.length === 0 && !toolsLoading) {
+      setIsToolsExpanded(true);
+      setToolsLoading(true);
+      setToolsError(null);
+      try {
+        const result = await mcpApi.discoverTools(server.name);
+        if (result.error) {
+          setToolsError(result.error);
+        } else {
+          // Sort tools by name
+          const sortedTools = [...result.tools].sort((a, b) =>
+            a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+          );
+          setTools(sortedTools);
+        }
+      } catch (err) {
+        setToolsError(
+          err instanceof Error ? err.message : "Failed to discover tools",
+        );
+      } finally {
+        setToolsLoading(false);
+      }
+    } else {
+      setIsToolsExpanded(true);
+    }
+  }, [isToolsExpanded, tools.length, toolsLoading, server.name]);
+
+  const handleToggleTool = useCallback(
+    async (toolName: string, currentEnabled: boolean) => {
+      const newEnabled = !currentEnabled;
+      const qualifiedName = `${server.name}:${toolName}`;
+
+      // Optimistic update
+      setLocalDisabledTools((prev) => {
+        const next = new Set(prev);
+        if (newEnabled) {
+          next.delete(qualifiedName);
+        } else {
+          next.add(qualifiedName);
+        }
+        return next;
+      });
+
+      try {
+        // Use the same disabled_tools metadata as ToolSelector
+        const user = await authApi.getCurrentUser();
+        const currentDisabled: string[] = (user.metadata?.disabled_tools as string[]) || [];
+        const updatedDisabled = newEnabled
+          ? currentDisabled.filter((n) => n !== qualifiedName)
+          : [...new Set([...currentDisabled, qualifiedName])];
+        await authApi.updateMetadata({ disabled_tools: updatedDisabled });
+
+        // Notify parent to refresh ToolSelector
+        onToolToggled?.();
+      } catch {
+        // Revert on error
+        setLocalDisabledTools((prev) => {
+          const next = new Set(prev);
+          if (newEnabled) {
+            next.add(qualifiedName);
+          } else {
+            next.delete(qualifiedName);
+          }
+          return next;
+        });
+      }
+    },
+    [server.name, onToolToggled],
+  );
+
+  const enabledToolCount =
+    tools.length > 0
+      ? tools.filter((t) => !disabledTools.has(`${server.name}:${t.name}`)).length
+      : 0;
 
   return (
     <div
@@ -156,6 +270,108 @@ export function MCPServerCard({
           )}
         </div>
       </div>
+
+      {/* Tools Discovery Section */}
+      {server.enabled && (
+        <div className="mt-3 border-t border-stone-100 dark:border-stone-700/50 pt-2">
+          <button
+            onClick={handleToggleTools}
+            className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors w-full"
+          >
+            {isToolsExpanded ? (
+              <ChevronDown size={14} />
+            ) : (
+              <ChevronRight size={14} />
+            )}
+            <Wrench size={12} />
+            <span>{t("mcp.card.tools")}</span>
+            {toolsLoading && <Loader2 size={12} className="animate-spin" />}
+            {tools.length > 0 && !toolsLoading && (
+              <span className="text-stone-400 dark:text-stone-500 tabular-nums">
+                ({enabledToolCount}/{tools.length})
+              </span>
+            )}
+          </button>
+
+          {isToolsExpanded && (
+            <div className="mt-2 ml-4 space-y-0.5">
+              {toolsLoading && (
+                <div className="flex items-center gap-2 py-2 text-xs text-stone-400 dark:text-stone-500">
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>{t("mcp.card.discovering")}</span>
+                </div>
+              )}
+
+              {toolsError && (
+                <div className="text-xs text-red-500 dark:text-red-400 py-1">
+                  {toolsError}
+                </div>
+              )}
+
+              {!toolsLoading && tools.length === 0 && !toolsError && (
+                <div className="text-xs text-stone-400 dark:text-stone-500 py-1">
+                  {t("mcp.card.noTools")}
+                </div>
+              )}
+
+              {!toolsLoading &&
+                tools.map((tool) => {
+                  const qualifiedName = `${server.name}:${tool.name}`;
+                  const isDisabled = disabledTools.has(qualifiedName);
+                  return (
+                    <div
+                      key={tool.name}
+                      className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors ${
+                        isDisabled
+                          ? "opacity-50"
+                          : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
+                      }`}
+                    >
+                      <button
+                        onClick={() => handleToggleTool(tool.name, !isDisabled)}
+                        className="flex-shrink-0"
+                        title={
+                          isDisabled
+                            ? t("mcp.card.enableTool")
+                            : t("mcp.card.disableTool")
+                        }
+                      >
+                        {isDisabled ? (
+                          <ToggleLeft
+                            size={16}
+                            className="text-stone-400 dark:text-stone-500"
+                          />
+                        ) : (
+                          <ToggleRight
+                            size={16}
+                            className="text-green-600 dark:text-green-500"
+                          />
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <code className="text-xs font-medium text-stone-700 dark:text-stone-200 truncate">
+                            {tool.name}
+                          </code>
+                          {tool.parameters.length > 0 && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-400 dark:text-stone-500 tabular-nums">
+                              {tool.parameters.length} params
+                            </span>
+                          )}
+                        </div>
+                        {tool.description && (
+                          <p className="text-[11px] text-stone-400 dark:text-stone-500 truncate mt-0.5">
+                            {tool.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

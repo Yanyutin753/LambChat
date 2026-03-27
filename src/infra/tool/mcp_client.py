@@ -197,6 +197,7 @@ class MCPClientManager:
         self._use_database = use_database
         self._client: Optional[MultiServerMCPClient] = None
         self._tools: list[BaseTool] = []
+        self._tool_server_map: dict[tuple[str, str], str] = {}
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -455,6 +456,8 @@ class MCPClientManager:
         # 处理结果
         all_tools: list[BaseTool] = []
         failed_servers: list[str] = []
+        # Track which server each tool belongs to: (server_name, raw_tool_name) -> server_name
+        self._tool_server_map.clear()
 
         for server_name, result in results:
             if isinstance(result, Exception):
@@ -470,6 +473,14 @@ class MCPClientManager:
                         f"[MCP] Failed to load tools from server '{server_name}': {result}"
                     )
             else:
+                for tool in result:
+                    # Map (server_name, raw_tool_name) to avoid conflicts when
+                    # multiple servers expose tools with the same name
+                    raw_name = tool.name
+                    # langchain-mcp-adapters may prefix with "server_name:"
+                    if raw_name.startswith(f"{server_name}:"):
+                        raw_name = raw_name[len(server_name) + 1 :]
+                    self._tool_server_map[(server_name, raw_name)] = server_name
                 all_tools.extend(result)
                 logger.info(f"[MCP] Loaded {len(result)} tools from server '{server_name}'")
 
@@ -578,6 +589,7 @@ class MCPClientManager:
         # MultiServerMCPClient 的连接会在对象销毁时自动清理
         self._client = None
         self._tools.clear()
+        self._tool_server_map.clear()
         self._initialized = False
 
 

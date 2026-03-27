@@ -137,3 +137,40 @@ class MCPServerMoveResponse(BaseModel):
     message: str
     from_type: str = Field(..., description="Original server type (user/system)")
     to_type: str = Field(..., description="New server type (user/system)")
+
+
+# ============================================
+# MCP Tool Discovery & Toggle Schemas
+# ============================================
+
+
+class MCPToolInfo(BaseModel):
+    """Information about a tool discovered from an MCP server"""
+
+    name: str = Field(..., description="Tool name")
+    description: str = Field(default="", description="Tool description")
+    parameters: list[dict[str, Any]] = Field(default_factory=list, description="Tool parameters")
+
+
+class MCPToolDiscoveryResponse(BaseModel):
+    """Response for tool discovery from an MCP server"""
+
+    server_name: str = Field(..., description="MCP server name")
+    tools: list[MCPToolInfo] = Field(default_factory=list, description="Discovered tools")
+    count: int = Field(0, description="Number of discovered tools")
+    error: Optional[str] = Field(None, description="Error message if discovery failed")
+
+
+class MCPToolToggleRequest(BaseModel):
+    """Request to toggle a specific tool's enabled status"""
+
+    enabled: bool = Field(..., description="Whether the tool is enabled")
+
+
+class MCPToolToggleResponse(BaseModel):
+    """Response after toggling a tool's enabled status"""
+
+    server_name: str = Field(..., description="MCP server name")
+    tool_name: str = Field(..., description="Tool name")
+    enabled: bool = Field(..., description="New enabled status")
+    message: str
