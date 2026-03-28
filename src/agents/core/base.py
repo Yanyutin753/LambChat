@@ -319,7 +319,7 @@ class BaseGraphAgent(ABC):
             interrupt_check_interval = 1.0
 
             # 创建事件处理器
-            event_processor = AgentEventProcessor(presenter)
+            event_processor = AgentEventProcessor(presenter, base_url=kwargs.get("base_url", ""))
 
             try:
                 while True:
