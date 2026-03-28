@@ -130,6 +130,8 @@ class FeishuResponseCollector:
         """循环切换 emoji 表示正在处理。"""
         try:
             while self._processing_active:
+                from src.infra.channel.feishu.channel import FeishuChannel
+
                 for emoji in FeishuChannel.PROCESSING_EMOJIS:
                     await asyncio.sleep(3)
                     if not self._processing_active:
