@@ -79,6 +79,16 @@ async def _get_live_record_by_hash(file_hash: str, storage=None) -> dict | None:
     return None
 
 
+def _get_base_url(request: Request) -> str:
+    """获取 base_url，优先 request.base_url，fallback 到 APP_BASE_URL 环境变量"""
+    base_url = str(request.base_url).rstrip("/")
+    if not base_url or base_url == "http://None":
+        from src.kernel.config import settings
+
+        base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+    return base_url
+
+
 def _build_upload_response(
     request: Request,
     *,
@@ -90,7 +100,7 @@ def _build_upload_response(
     exists: bool = False,
 ) -> dict:
     """Build a normalized upload response payload."""
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _get_base_url(request)
     proxy_url = f"{base_url}/api/upload/file/{key}"
     payload = {
         "key": key,
@@ -633,7 +643,8 @@ class SignedUrlResponse(BaseModel):
     dependencies=[Depends(require_permissions("file:upload"))],
 )
 async def get_signed_urls(
-    request: SignedUrlRequest,
+    body: SignedUrlRequest,
+    req: Request,
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> SignedUrlResponse:
     """
@@ -657,14 +668,16 @@ async def get_signed_urls(
 
     storage = await get_or_init_storage()
 
+    base_url = _get_base_url(req)
+
     # Local storage: return proxy URLs directly
     if storage.is_local:
         urls = []
-        for key in request.keys:
+        for key in body.keys:
             try:
                 exists = await storage.file_exists(key)
                 if exists:
-                    urls.append(SignedUrlItem(key=key, url=f"/api/upload/file/{key}"))
+                    urls.append(SignedUrlItem(key=key, url=f"{base_url}/api/upload/file/{key}"))
                 else:
                     urls.append(SignedUrlItem(key=key, error="File not found"))
             except Exception as e:
@@ -703,6 +716,7 @@ async def get_signed_urls(
 )
 async def get_single_signed_url(
     key: str,
+    request: Request,
     expires: int = 3600,
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> SignedUrlItem:
@@ -734,12 +748,14 @@ async def get_single_signed_url(
 
     storage = await get_or_init_storage()
 
+    base_url = _get_base_url(request)
+
     try:
         if storage.is_local:
             exists = await storage.file_exists(key)
             if not exists:
                 return SignedUrlItem(key=key, error="File not found")
-            return SignedUrlItem(key=key, url=f"/api/upload/file/{key}")
+            return SignedUrlItem(key=key, url=f"{base_url}/api/upload/file/{key}")
         # If bucket is public, return direct URL
         if storage._config.public_bucket:
             url = await storage.get_file_url(key)
@@ -771,7 +787,7 @@ async def get_file_proxy(
 
     storage = await get_or_init_storage()
 
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _get_base_url(request)
     proxy_url = f"{base_url}/api/upload/file/{key}"
 
     # Local storage: serve file directly with FileResponse (native Range/sendfile support)

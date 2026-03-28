@@ -113,6 +113,13 @@ async def lifespan(app: FastAPI):
     await task_manager.start_pubsub_listener()
     logger.info("Task pub/sub listener started")
 
+    # 启动 Settings pub/sub 监听器（支持分布式设置同步）
+    from src.infra.settings.pubsub import get_settings_pubsub
+
+    settings_pubsub = get_settings_pubsub()
+    await settings_pubsub.start_listener()
+    logger.info("Settings pub/sub listener started")
+
     # 初始化内置 skills
     from src.infra.skill import init_skill_indexes
 
@@ -165,6 +172,13 @@ async def lifespan(app: FastAPI):
         # 先停止 pub/sub 监听器，再关闭任务
         await task_manager.stop_pubsub_listener()
         logger.info("Task pub/sub listener stopped")
+
+        # 停止 Settings pub/sub 监听器
+        from src.infra.settings.pubsub import get_settings_pubsub
+
+        settings_pubsub = get_settings_pubsub()
+        await settings_pubsub.stop_listener()
+        logger.info("Settings pub/sub listener stopped")
 
         await task_manager.shutdown()
         logger.info("Background tasks marked as failed")

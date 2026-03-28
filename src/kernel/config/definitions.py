@@ -59,6 +59,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # Application Settings
     # ============================================
+    "APP_BASE_URL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.AGENT,
+        "description": "Public base URL for file download/upload URLs (e.g. https://lambchat.com). Required when behind a reverse proxy where request.base_url is incorrect.",
+        "default": "",
+        "frontend_visible": True,
+    },
     "DEBUG": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.AGENT,

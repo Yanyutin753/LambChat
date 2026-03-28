@@ -271,8 +271,12 @@ async def chat_stream(
     user_id = user.sub  # 在闭包外部捕获
 
     # 获取 base_url（用于生成完整的文件 URL）
-    # request.base_url 返回的是 base URL（如 http://localhost:8000/），需要去掉末尾的 /
+    # 优先 request.base_url，fallback 到 APP_BASE_URL 环境变量
     base_url = str(request.base_url).rstrip("/")
+    if not base_url or base_url == "http://None":
+        from src.kernel.config import settings
+
+        base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
 
     # Pass all agent_options to the agent
     agent_options = request_body.agent_options or {}

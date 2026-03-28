@@ -9,3 +9,6 @@ HEARTBEAT_PREFIX = "task:heartbeat:"
 INTERRUPT_PREFIX = "task:interrupt:"  # 中断信号前缀
 HEARTBEAT_INTERVAL = 10  # 心跳间隔（秒）
 HEARTBEAT_TIMEOUT = 60  # 心跳超时阈值（秒）
+
+# Settings sync channel (distributed instances)
+SETTINGS_CHANNEL = "settings:changed"

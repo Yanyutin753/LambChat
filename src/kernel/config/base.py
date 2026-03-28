@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    APP_BASE_URL: str = ""  # e.g. https://lambchat.example.com — 用于生成文件 URL 的固定前缀
     LOG_LEVEL: str = "INFO"
 
     # LLM Settings

@@ -33,7 +33,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime
+from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
 
 logger = get_logger(__name__)
 
@@ -227,18 +227,11 @@ async def reveal_file(
 
         file_category = get_file_category(upload_result.content_type or mime_type)
 
-        base_url = ""
-        if runtime:
-            if hasattr(runtime, "config"):
-                config = runtime.config
-                if isinstance(config, dict):
-                    configurable = config.get("configurable", {})
-                    base_url = configurable.get("base_url", "")
-            else:
-                logger.warning("[reveal_file] runtime has no 'config' attribute")
+        base_url = get_base_url_from_runtime(runtime)
+        if not base_url:
+            logger.warning("[reveal_file] base_url is empty, URL may be incomplete")
 
-        proxy_path = f"/api/upload/file/{upload_result.key}"
-        proxy_url = f"{base_url}{proxy_path}" if base_url else proxy_path
+        proxy_url = f"{base_url}/api/upload/file/{upload_result.key}"
 
         result = {
             "key": upload_result.key,

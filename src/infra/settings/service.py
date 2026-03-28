@@ -2,6 +2,7 @@
 Settings Service - Database-first settings with .env fallback
 """
 
+import json
 import os
 from typing import Any, Optional
 
@@ -131,6 +132,9 @@ class SettingsService:
 
         await refresh_settings(key)
 
+        # Broadcast to other instances via Redis pub/sub
+        await self._publish_change(key, value)
+
         return result
 
     async def init_from_env(self) -> int:
@@ -138,6 +142,7 @@ class SettingsService:
         Import settings from .env to database if not already set.
 
         Only imports values that don't exist in database yet.
+        Each imported setting is also refreshed locally and broadcast to other instances.
 
         Returns:
             Number of settings imported
@@ -155,10 +160,11 @@ class SettingsService:
             if env_value is None:
                 continue  # No env value, skip
 
-            # Parse and store
+            # Parse and store via self.set() to trigger refresh + pub/sub broadcast
             parsed_value = self._parse_env_value(key, env_value)
-            await self._storage.set(key, parsed_value, "system:init")
-            imported += 1
+            result = await self.set(key, parsed_value, "system:init")
+            if result is not None:
+                imported += 1
 
         return imported
 
@@ -178,6 +184,9 @@ class SettingsService:
         from src.kernel.config import refresh_settings
 
         await refresh_settings(key)
+
+        # Broadcast reset to other instances
+        await self._publish_change(key, None)
 
         return count
 
@@ -241,6 +250,26 @@ class SettingsService:
     async def close(self) -> None:
         """Close connections"""
         await self._storage.close()
+
+    @staticmethod
+    async def _publish_change(key: Optional[str], value: Any) -> None:
+        """Broadcast a settings change to other instances via Redis pub/sub."""
+        try:
+            from src.infra.storage.redis import get_redis_client
+            from src.infra.task.constants import SETTINGS_CHANNEL
+            from src.infra.settings.pubsub import get_settings_pubsub
+
+            redis_client = get_redis_client()
+            instance_id = get_settings_pubsub().instance_id
+            await redis_client.publish(
+                SETTINGS_CHANNEL,
+                json.dumps({"key": key, "instance_id": instance_id}),
+            )
+        except Exception as e:
+            # Pub/sub failure should not block the setting update
+            import logging
+
+            logging.getLogger(__name__).warning(f"Failed to publish setting change: {e}")
 
 
 # Global instance getter

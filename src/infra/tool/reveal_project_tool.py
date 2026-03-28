@@ -35,7 +35,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime
+from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
 
 logger = get_logger(__name__)
 
@@ -612,13 +612,7 @@ def _find_entry(file_keys: set[str], template: Optional[str] = None) -> Optional
 
 def _get_base_url(runtime: Any) -> str:
     """从 ToolRuntime 提取 base_url"""
-    if not runtime:
-        return ""
-    if hasattr(runtime, "config"):
-        config = runtime.config
-        if isinstance(config, dict):
-            return config.get("configurable", {}).get("base_url", "")
-    return ""
+    return get_base_url_from_runtime(runtime)
 
 
 async def _cleanup_old_versions(storage: Any, project_name: str) -> None:
@@ -685,11 +679,7 @@ async def _upload_file(
             content_type=content_type,
         )
 
-        proxy_url = (
-            f"{base_url}/api/upload/file/{upload_result.key}"
-            if base_url
-            else f"/api/upload/file/{upload_result.key}"
-        )
+        proxy_url = f"{base_url}/api/upload/file/{upload_result.key}"
 
         file_info: dict[str, Any] = {
             "url": proxy_url,

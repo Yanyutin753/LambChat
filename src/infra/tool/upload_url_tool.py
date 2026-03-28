@@ -15,7 +15,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime
+from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
 
 logger = get_logger(__name__)
 
@@ -44,6 +44,14 @@ async def upload_url_to_sandbox(
     backend = get_backend_from_runtime(runtime)
     if backend is None:
         return json.dumps({"success": False, "error": "No sandbox backend available"})
+
+    # 如果 url 是相对路径，拼接 base_url
+    if url.startswith("/"):
+        base_url = get_base_url_from_runtime(runtime)
+        if base_url:
+            url = f"{base_url}{url}"
+        else:
+            logger.warning("[upload_url_to_sandbox] url is relative but base_url is empty: %s", url)
 
     # 下载文件
     try:
