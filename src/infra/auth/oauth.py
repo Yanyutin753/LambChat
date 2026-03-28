@@ -411,12 +411,21 @@ class OAuthService:
                 suffix = "".join(random.choices(string.digits, k=4))
                 username = f"{base_username}_{suffix}"
 
+            # 为新用户分配默认角色（与 UserManager.register 逻辑一致）
+            existing_users = await self.storage.list_users(limit=1)
+            if not existing_users:
+                default_roles = ["admin"]
+            else:
+                default_role = settings.DEFAULT_USER_ROLE
+                default_roles = [default_role or "user"]
+
             user_data = UserCreate(
                 username=username,
                 email=user_info.email,
                 avatar_url=user_info.avatar_url,
                 oauth_provider=user_info.provider,
                 oauth_id=user_info.oauth_id,
+                roles=default_roles,
             )
 
             try:
