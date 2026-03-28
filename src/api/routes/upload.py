@@ -80,12 +80,13 @@ async def _get_live_record_by_hash(file_hash: str, storage=None) -> dict | None:
 
 
 def _get_base_url(request: Request) -> str:
-    """获取 base_url，优先 request.base_url，fallback 到 APP_BASE_URL 环境变量"""
+    """获取 base_url，优先 APP_BASE_URL 环境变量，fallback 到 request.base_url"""
+    app_base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+    if app_base_url:
+        return app_base_url
     base_url = str(request.base_url).rstrip("/")
-    if not base_url or base_url == "http://None":
-        from src.kernel.config import settings
-
-        base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+    if base_url == "http://None":
+        return ""
     return base_url
 
 
@@ -220,6 +221,7 @@ class FileCheckRequest(BaseModel):
 
 @router.post("/check")
 async def check_file_exists(
+    request: Request,
     body: FileCheckRequest,
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> dict:
@@ -227,9 +229,11 @@ async def check_file_exists(
     record = await _get_live_record_by_hash(body.hash, storage)
     if record is None:
         return {"exists": False}
+    base_url = _get_base_url(request)
     return {
         "exists": True,
         "key": record["key"],
+        "url": f"{base_url}/api/upload/file/{record['key']}",
         "name": record["name"],
         "type": record["category"],
         "mime_type": record["mime_type"],
