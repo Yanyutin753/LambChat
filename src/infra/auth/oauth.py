@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 # HTTP 请求超时设置（秒）
 HTTP_TIMEOUT = 10.0
 
+
 class OAuthUserInfo(BaseModel):
     """OAuth 用户信息"""
 

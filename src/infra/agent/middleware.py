@@ -86,9 +86,7 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
 
     def _extract_messages(
         self,
-        response: (
-            ModelResponse[ResponseT] | AIMessage | ExtendedModelResponse[ResponseT]
-        ),
+        response: (ModelResponse[ResponseT] | AIMessage | ExtendedModelResponse[ResponseT]),
     ) -> list:
         """Extract AIMessage list from various response types."""
         if isinstance(response, AIMessage):
@@ -96,17 +94,13 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
         if isinstance(response, ModelResponse):
             return response.result if response.result else []
         if hasattr(response, "model_response"):
-            return (
-                response.model_response.result if response.model_response.result else []
-            )
+            return response.model_response.result if response.model_response.result else []
         return []
 
     async def awrap_model_call(
         self,
         request: ModelRequest[ContextT],
-        handler: Callable[
-            [ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]
-        ],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT] | AIMessage | ExtendedModelResponse[ResponseT]:
         last_response = None
         for attempt in range(self.max_retries + 1):
