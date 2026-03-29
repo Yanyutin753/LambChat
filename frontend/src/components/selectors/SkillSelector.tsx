@@ -393,6 +393,13 @@ export function SkillSelector({
                             <Checkbox
                               checked={skill.enabled}
                               pending={pendingSet.has(skill.name)}
+                              onChange={async () => {
+                                if (isMutating) {
+                                  return;
+                                }
+                                const ok = await onToggleSkill(skill.name);
+                                showSingleToggleToast(!skill.enabled, ok);
+                              }}
                             />
                           </button>
                         </div>

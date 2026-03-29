@@ -182,7 +182,7 @@ export const FileUploadButton = memo(function FileUploadButton({
             );
           })}
           {uploadLimits && (
-            <div className="px-3.5 py-2 border-t border-stone-100 dark:border-stone-700/60 text-[11px] text-stone-400 dark:text-stone-500">
+            <div className="px-3.5 py-2 border-t border-stone-100 dark:border-stone-700/60 text-xs text-stone-400 dark:text-stone-500">
               {t("fileUpload.maxFilesSummary", {
                 maxFiles: uploadLimits.maxFiles,
               })}

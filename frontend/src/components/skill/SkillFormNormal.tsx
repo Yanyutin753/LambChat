@@ -59,7 +59,7 @@ export function SkillFormNormal(a: SkillFormActions) {
                 <p className="text-xs text-red-500">{a.errors.name}</p>
               )}
               {a.isEditing && !a.errors.name && (
-                <p className="text-[11px] text-stone-400 dark:text-stone-500">
+                <p className="text-xs text-stone-400 dark:text-stone-500">
                   {t("skills.form.nameCannotChange")}
                 </p>
               )}

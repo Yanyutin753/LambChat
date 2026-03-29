@@ -5,9 +5,7 @@ import { X } from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
 import { APP_NAME } from "../../constants";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
-import { ProfilePasswordTab } from "./tabs/ProfilePasswordTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
-import { UserAgentPreferencePanel } from "./UserAgentPreferencePanel";
 import { ProfilePreferencesTab } from "./tabs/ProfilePreferencesTab";
 
 interface ProfileModalProps {
@@ -23,7 +21,7 @@ export function ProfileModal({
 }: ProfileModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<
-    "info" | "password" | "notification" | "agent" | "preferences"
+    "info" | "notification" | "preferences"
   >("info");
 
   const mobileTabsRef = useRef<HTMLDivElement>(null);
@@ -69,18 +67,14 @@ export function ProfileModal({
 
   const tabs: { key: typeof activeTab; label: string }[] = [
     { key: "info", label: t("profile.title") },
-    { key: "password", label: t("profile.changePassword") },
     { key: "notification", label: t("profile.notifications") },
-    { key: "agent", label: t("agentConfig.defaultAgent") },
     { key: "preferences", label: t("profile.preferences") },
   ];
 
   const tabContent = (
     <>
       {activeTab === "info" && <ProfileInfoTab />}
-      {activeTab === "password" && <ProfilePasswordTab />}
       {activeTab === "notification" && <ProfileNotificationTab />}
-      {activeTab === "agent" && <UserAgentPreferencePanel />}
       {activeTab === "preferences" && <ProfilePreferencesTab />}
     </>
   );

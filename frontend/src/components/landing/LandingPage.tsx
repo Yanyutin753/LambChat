@@ -875,10 +875,10 @@ export function LandingPage() {
 
           {/* Bottom bar */}
           <div className="pt-5 sm:pt-6 border-t border-stone-200/60 dark:border-stone-800/40 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span className="text-[11px] text-stone-400 dark:text-stone-500 font-serif">
+            <span className="text-xs text-stone-400 dark:text-stone-500 font-serif">
               &copy; {new Date().getFullYear()} {APP_NAME}
             </span>
-            <div className="flex items-center gap-1 text-[11px] text-stone-400 dark:text-stone-500">
+            <div className="flex items-center gap-1 text-xs text-stone-400 dark:text-stone-500">
               <span>Open Source</span>
               <span className="mx-1 text-stone-300 dark:text-stone-600">
                 &middot;

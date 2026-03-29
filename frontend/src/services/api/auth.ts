@@ -105,34 +105,6 @@ export const authApi = {
   },
 
   /**
-   * 修改密码
-   */
-  async changePassword(
-    oldPassword: string,
-    newPassword: string,
-    turnstileToken?: string,
-  ): Promise<{ message: string }> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (turnstileToken) {
-      headers["X-Turnstile-Token"] = turnstileToken;
-    }
-
-    return authFetch<{ message: string }>(
-      `${API_BASE}/api/auth/change-password`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          old_password: oldPassword,
-          new_password: newPassword,
-        }),
-        headers,
-      },
-    );
-  },
-
-  /**
    * 更新头像
    */
   async updateAvatar(avatarUrl: string): Promise<User> {
@@ -271,6 +243,25 @@ export const authApi = {
         method: "POST",
         skipAuth: true,
         body: JSON.stringify({ email }),
+      },
+    );
+  },
+
+  /**
+   * 修改密码
+   */
+  async changePassword(
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    return authFetch<{ message: string }>(
+      `${API_BASE}/api/auth/change-password`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          old_password: oldPassword,
+          new_password: newPassword,
+        }),
       },
     );
   },

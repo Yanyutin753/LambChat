@@ -121,7 +121,7 @@ export const AttachmentCard = memo(function AttachmentCard({
           <span className="text-[13px] font-medium text-stone-800 dark:text-stone-100 truncate max-w-[120px] sm:max-w-[160px] leading-tight">
             {attachment.name}
           </span>
-          <span className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+          <span className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
             {isUploading
               ? `${attachment.uploadProgress ?? 0}%`
               : formatFileSize(attachment.size)}

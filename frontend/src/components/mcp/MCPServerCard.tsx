@@ -360,7 +360,7 @@ export function MCPServerCard({
                           )}
                         </div>
                         {tool.description && (
-                          <p className="text-[11px] text-stone-400 dark:text-stone-500 truncate mt-0.5">
+                          <p className="text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5">
                             {tool.description}
                           </p>
                         )}

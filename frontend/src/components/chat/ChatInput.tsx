@@ -459,9 +459,18 @@ export const ChatInput = memo(function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    const newlineModifier = localStorage.getItem("newlineModifier") || "shift";
+
+    if (e.key === "Enter") {
+      const needsModifier = newlineModifier === "ctrl" ? e.ctrlKey : e.shiftKey;
+
+      if (needsModifier) {
+        // Modifier held: allow default newline behavior
+        return;
+      }
+
+      // No modifier: send (or show stop confirm if loading)
       e.preventDefault();
-      // 如果正在加载，按 Enter 应该停止而不是发送
       if (isLoading) {
         setStopConfirmOpen(true);
       } else {
@@ -500,7 +509,7 @@ export const ChatInput = memo(function ChatInput({
   };
 
   return (
-    <div className="px-3 sm:px-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:bg-stone-900">
+    <div className="px-3 sm:px-4 pb-2 sm:pb-1 dark:bg-stone-900">
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* ChatGPT-style container */}
         <div
@@ -675,6 +684,15 @@ export const ChatInput = memo(function ChatInput({
           </div>
         </div>
       </form>
+
+      {/* Keyboard shortcut hint — desktop only */}
+      <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-1 px-2 justify-center">
+        <span className="text-xs text-stone-400 dark:text-stone-500">
+          {localStorage.getItem("newlineModifier") === "ctrl"
+            ? t("chat.sendHintCtrl")
+            : t("chat.sendHintShift")}
+        </span>
+      </div>
 
       {/* 文件预览弹窗 */}
       {previewAttachment && (
