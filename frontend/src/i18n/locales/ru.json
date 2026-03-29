@@ -562,7 +562,7 @@
     "managementPanelsDesc": "Полная панель администратора для навыков, MCP, ролей и настроек",
     "mcp": "MCP",
     "mcpIntegration": "Интеграция MCP",
-    "mcpIntegrationDesc": "Системный и пользовательский MCP с зашифрованным хранением, динамическим кэшированием, множественными транспортами (stdio, SSE, HTTP).",
+    "mcpIntegrationDesc": "Системный и пользовательский MCP с зашифрованным хранением, динамическим кэшированием, транспортами SSE и HTTP.",
     "mobile": "Мобильный",
     "moreFeatures": "Дополнительные возможности",
     "oauthProviders": "OAuth провайдеры",
@@ -699,13 +699,11 @@
       "serverNameUneditable": "Имя сервера нельзя изменить",
       "transportHttp": "Streamable HTTP",
       "transportSse": "SSE (Server-Sent Events)",
-      "transportStdio": "STDIO (Стандартный ввод/вывод)",
       "transportType": "Тип транспорта",
       "transportUneditable": "Тип транспорта нельзя изменить",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
-        "commandRequired": "Команда обязательна для транспорта STDIO",
         "nameRequired": "Имя обязательно",
         "urlRequired": "URL обязателен для HTTP транспорта"
       },

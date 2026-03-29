@@ -582,7 +582,7 @@
     "managementPanelsDesc": "A unified admin surface for Skills, MCP, roles, settings, and the integration points your team actually needs.",
     "mcp": "MCP",
     "mcpIntegration": "MCP Integration",
-    "mcpIntegrationDesc": "System and user level MCP integration with encrypted storage, dynamic caching, and support for stdio, SSE, and HTTP transports.",
+    "mcpIntegrationDesc": "System and user level MCP integration with encrypted storage, dynamic caching, and support for SSE and HTTP transports.",
     "mobile": "Mobile",
     "moreFeatures": "More Features",
     "oauthProviders": "OAuth Providers",
@@ -727,13 +727,11 @@
       "serverNameUneditable": "Server name cannot be changed",
       "transportHttp": "Streamable HTTP",
       "transportSse": "SSE (Server-Sent Events)",
-      "transportStdio": "STDIO (Standard Input/Output)",
       "transportType": "Transport Type",
       "transportUneditable": "Transport type cannot be changed",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
-        "commandRequired": "Command is required for STDIO transport",
         "nameRequired": "Name is required",
         "urlRequired": "URL is required for HTTP transports"
       },

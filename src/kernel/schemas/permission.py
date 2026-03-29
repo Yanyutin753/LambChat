@@ -115,10 +115,6 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "读取MCP配置",
         "description": "查看MCP服务配置",
     },
-    Permission.MCP_WRITE_STDIO.value: {
-        "label": "创建STDIO类型MCP",
-        "description": "创建stdio传输类型的MCP服务",
-    },
     Permission.MCP_WRITE_SSE.value: {
         "label": "创建SSE类型MCP",
         "description": "创建SSE传输类型的MCP服务",
@@ -263,7 +259,6 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
         "name": "MCP服务",
         "permissions": [
             Permission.MCP_READ.value,
-            Permission.MCP_WRITE_STDIO.value,
             Permission.MCP_WRITE_SSE.value,
             Permission.MCP_WRITE_HTTP.value,
             Permission.MCP_DELETE.value,

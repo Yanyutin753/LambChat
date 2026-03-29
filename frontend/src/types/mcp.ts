@@ -3,16 +3,13 @@
 // ============================================
 
 // MCP Transport Type
-export type MCPTransport = "stdio" | "sse" | "streamable_http";
+export type MCPTransport = "sse" | "streamable_http";
 
 // MCP Server Base
 export interface MCPServerBase {
   name: string;
   transport: MCPTransport;
   enabled: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
 }
@@ -35,9 +32,6 @@ export interface MCPServerCreate {
   name: string;
   transport: MCPTransport;
   enabled?: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
 }
@@ -46,9 +40,6 @@ export interface MCPServerCreate {
 export interface MCPServerUpdate {
   transport?: MCPTransport;
   enabled?: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
 }

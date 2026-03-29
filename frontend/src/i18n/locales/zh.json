@@ -581,7 +581,7 @@
     "managementPanelsDesc": "统一管理 Skills、MCP、角色、设置与接入能力，方便团队运营自己的 agent 平台。",
     "mcp": "MCP",
     "mcpIntegration": "MCP 集成",
-    "mcpIntegrationDesc": "支持系统级与用户级 MCP 配置，加密存储、动态缓存，并兼容 stdio、SSE、HTTP 等传输方式。",
+    "mcpIntegrationDesc": "支持系统级与用户级 MCP 配置，加密存储、动态缓存，并兼容 SSE、HTTP 等传输方式。",
     "mobile": "手机端",
     "moreFeatures": "更多功能",
     "oauthProviders": "OAuth 提供商",
@@ -726,13 +726,11 @@
       "serverNameUneditable": "服务器名称无法修改",
       "transportHttp": "流式 HTTP",
       "transportSse": "SSE（服务器发送事件）",
-      "transportStdio": "STDIO（标准输入/输出）",
       "transportType": "传输类型",
       "transportUneditable": "传输类型无法修改",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
-        "commandRequired": "STDIO 传输需要命令",
         "nameRequired": "请输入服务器名称",
         "urlRequired": "HTTP 传输需要 URL"
       },

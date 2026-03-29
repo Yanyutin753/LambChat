@@ -519,7 +519,7 @@
     "managementPanelsDesc": "スキル、MCP、ロール、設定を一元管理する管理ダッシュボード",
     "mcp": "MCP",
     "mcpIntegration": "MCP 統合",
-    "mcpIntegrationDesc": "システム・ユーザーレベル MCP、暗号化ストレージ、動的キャッシュ、stdio/SSE/HTTP トランスポート対応。",
+    "mcpIntegrationDesc": "システム・ユーザーレベル MCP、暗号化ストレージ、動的キャッシュ、SSE/HTTP トランスポート対応。",
     "mobile": "モバイル",
     "moreFeatures": "その他の機能",
     "oauthProviders": "OAuth プロバイダー",
@@ -656,13 +656,11 @@
       "serverNameUneditable": "サーバー名は変更できません",
       "transportHttp": "ストリーム可能HTTP",
       "transportSse": "SSE（サーバー送信イベント）",
-      "transportStdio": "STDIO（標準入出力）",
       "transportType": "転送タイプ",
       "transportUneditable": "転送タイプは変更できません",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
-        "commandRequired": "STDIO転送にはコマンドが必要です",
         "nameRequired": "サーバー名は必須です",
         "urlRequired": "HTTP転送にはURLが必要です"
       },

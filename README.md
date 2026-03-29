@@ -51,7 +51,7 @@
 - **System + User Level** — Global and per-user MCP configs
 - **Encrypted Storage** — API keys encrypted at rest
 - **Dynamic Caching** — Tool caching with manual refresh
-- **Multiple Transports** — stdio / SSE / HTTP
+- **Multiple Transports** — SSE / HTTP
 - **Permission Control** — Transport-level access control
 
 </details>

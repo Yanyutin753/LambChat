@@ -28,7 +28,6 @@ export enum Permission {
   SETTINGS_MANAGE = "settings:manage",
   // MCP
   MCP_READ = "mcp:read",
-  MCP_WRITE_STDIO = "mcp:write_stdio",
   MCP_WRITE_SSE = "mcp:write_sse",
   MCP_WRITE_HTTP = "mcp:write_http",
   MCP_DELETE = "mcp:delete",

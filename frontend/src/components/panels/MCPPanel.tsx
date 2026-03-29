@@ -78,7 +78,6 @@ export function MCPPanel() {
   const canRead = hasAnyPermission([Permission.MCP_READ]);
   const canWrite = hasAnyPermission([
     Permission.MCP_ADMIN,
-    Permission.MCP_WRITE_STDIO,
     Permission.MCP_WRITE_SSE,
     Permission.MCP_WRITE_HTTP,
   ]);
@@ -86,9 +85,6 @@ export function MCPPanel() {
 
   // 动态生成用户可以使用的传输类型权限
   const allowedTransports = [
-    hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_STDIO])
-      ? Permission.MCP_WRITE_STDIO
-      : null,
     hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_SSE])
       ? Permission.MCP_WRITE_SSE
       : null,
@@ -545,9 +541,8 @@ export function MCPPanel() {
                       placeholder={`{
   "mcpServers": {
     "server-name": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@example/server"],
+      "transport": "sse",
+      "url": "http://localhost:3000/sse",
       "enabled": true
     }
   }

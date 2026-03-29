@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 class MCPTransport(str, Enum):
     """MCP transport type"""
 
-    STDIO = "stdio"
     SSE = "sse"
     STREAMABLE_HTTP = "streamable_http"
 
@@ -22,11 +21,6 @@ class MCPServerBase(BaseModel):
     name: str = Field(..., description="Server name (unique identifier)")
     transport: MCPTransport = Field(..., description="Transport type")
     enabled: bool = Field(True, description="Whether server is enabled")
-
-    # stdio configuration
-    command: Optional[str] = Field(None, description="Command for stdio transport")
-    args: Optional[list[str]] = Field(None, description="Arguments for command")
-    env: Optional[dict[str, str]] = Field(None, description="Environment variables")
 
     # http configuration
     url: Optional[str] = Field(None, description="URL for http transport")
@@ -44,9 +38,6 @@ class MCPServerUpdate(BaseModel):
 
     transport: Optional[MCPTransport] = None
     enabled: Optional[bool] = None
-    command: Optional[str] = None
-    args: Optional[list[str]] = None
-    env: Optional[dict[str, str]] = None
     url: Optional[str] = None
     headers: Optional[dict[str, str]] = None
 

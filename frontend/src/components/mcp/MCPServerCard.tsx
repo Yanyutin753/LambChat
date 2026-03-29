@@ -25,13 +25,11 @@ interface MCPServerCardProps {
 }
 
 const TRANSPORT_LABELS: Record<string, string> = {
-  stdio: "STDIO",
   sse: "SSE",
   streamable_http: "HTTP",
 };
 
 const TRANSPORT_COLORS: Record<string, string> = {
-  stdio: "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
   sse: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
   streamable_http:
     "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300",
@@ -190,30 +188,14 @@ export function MCPServerCard({
 
           {/* Transport-specific details */}
           <div className="mt-2 text-sm text-stone-600 dark:text-stone-400">
-            {server.transport === "stdio" && server.command && (
-              <div className="font-mono text-xs bg-stone-50 dark:bg-stone-800 rounded px-2 py-1 truncate">
-                <span className="text-stone-500 dark:text-stone-500">$</span>{" "}
-                {server.command}
-                {server.args &&
-                  server.args.length > 0 &&
-                  ` ${server.args.join(" ")}`}
-              </div>
-            )}
-            {server.transport !== "stdio" && server.url && (
+            {server.url && (
               <div className="font-mono text-xs bg-stone-50 dark:bg-stone-800 rounded px-2 py-1 truncate">
                 {server.url}
               </div>
             )}
           </div>
 
-          {/* Environment variables or headers info */}
-          {server.env && Object.keys(server.env).length > 0 && (
-            <div className="mt-1 text-xs text-stone-500 dark:text-stone-500">
-              {t("mcp.card.envVarsCount", {
-                count: Object.keys(server.env).length,
-              })}
-            </div>
-          )}
+          {/* Headers info */}
           {server.headers && Object.keys(server.headers).length > 0 && (
             <div className="mt-1 text-xs text-stone-500 dark:text-stone-500">
               {t("mcp.card.headersCount", {

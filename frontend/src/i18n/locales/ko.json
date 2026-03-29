@@ -519,7 +519,7 @@
     "managementPanelsDesc": "스킬, MCP, 역할, 설정을 통합 관리하는 관리 대시보드",
     "mcp": "MCP",
     "mcpIntegration": "MCP 통합",
-    "mcpIntegrationDesc": "시스템/사용자 수준 MCP, 암호화 저장, 동적 캐싱, stdio/SSE/HTTP 전송 지원.",
+    "mcpIntegrationDesc": "시스템/사용자 수준 MCP, 암호화 저장, 동적 캐싱, SSE/HTTP 전송 지원.",
     "mobile": "모바일",
     "moreFeatures": "더 많은 기능",
     "oauthProviders": "OAuth 제공자",
@@ -656,13 +656,11 @@
       "serverNameUneditable": "서버 이름은 변경할 수 없습니다",
       "transportHttp": "스트리밍 가능 HTTP",
       "transportSse": "SSE (서버 전송 이벤트)",
-      "transportStdio": "STDIO (표준 입출력)",
       "transportType": "전송 유형",
       "transportUneditable": "전송 유형은 변경할 수 없습니다",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
-        "commandRequired": "STDIO 전송에는 명령이 필요합니다",
         "nameRequired": "서버 이름은 필수입니다",
         "urlRequired": "HTTP 전송에는 URL이 필요합니다"
       },

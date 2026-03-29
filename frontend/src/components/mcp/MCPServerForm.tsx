@@ -28,7 +28,6 @@ export function MCPServerForm({
   isLoading = false,
   allowedTransports = [
     Permission.MCP_ADMIN,
-    Permission.MCP_WRITE_STDIO,
     Permission.MCP_WRITE_SSE,
     Permission.MCP_WRITE_HTTP,
   ],
@@ -42,11 +41,6 @@ export function MCPServerForm({
     label: string;
     permission: Permission;
   }[] = [
-    {
-      value: "stdio" as MCPTransport,
-      label: t("mcp.form.transportStdio"),
-      permission: Permission.MCP_WRITE_STDIO,
-    },
     {
       value: "sse" as MCPTransport,
       label: t("mcp.form.transportSse"),
@@ -70,18 +64,6 @@ export function MCPServerForm({
   );
   const [enabled, setEnabled] = useState(server?.enabled ?? true);
 
-  // STDIO fields
-  const [command, setCommand] = useState(server?.command ?? "");
-  const [args, setArgs] = useState(server?.args?.join(", ") ?? "");
-  const [envVars, setEnvVars] = useState<KeyValuePair[]>(
-    server?.env
-      ? Object.entries(server.env).map(([key, value]) => ({
-          key,
-          value: String(value),
-        }))
-      : [],
-  );
-
   // HTTP fields
   const [url, setUrl] = useState(server?.url ?? "");
   const [headers, setHeaders] = useState<KeyValuePair[]>(
@@ -101,16 +83,6 @@ export function MCPServerForm({
       setName(server.name);
       setTransport(server.transport);
       setEnabled(server.enabled);
-      setCommand(server.command ?? "");
-      setArgs(server.args?.join(", ") ?? "");
-      setEnvVars(
-        server.env
-          ? Object.entries(server.env).map(([key, value]) => ({
-              key,
-              value: String(value),
-            }))
-          : [],
-      );
       setUrl(server.url ?? "");
       setHeaders(
         server.headers
@@ -122,11 +94,8 @@ export function MCPServerForm({
       );
     } else {
       setName("");
-      setTransport("stdio");
+      setTransport("sse");
       setEnabled(true);
-      setCommand("");
-      setArgs("");
-      setEnvVars([]);
       setUrl("");
       setHeaders([]);
     }
@@ -140,11 +109,7 @@ export function MCPServerForm({
       newErrors.name = t("mcp.form.validation.nameRequired");
     }
 
-    if (transport === "stdio" && !command.trim()) {
-      newErrors.command = t("mcp.form.validation.commandRequired");
-    }
-
-    if (transport !== "stdio" && !url.trim()) {
+    if (!url.trim()) {
       newErrors.url = t("mcp.form.validation.urlRequired");
     }
 
@@ -161,61 +126,22 @@ export function MCPServerForm({
       name: name.trim(),
       transport,
       enabled,
+      url: url.trim(),
     };
 
-    if (transport === "stdio") {
-      data.command = command.trim();
-      if (args.trim()) {
-        data.args = args
-          .split(",")
-          .map((a: string) => a.trim())
-          .filter((a: string) => a);
-      }
-      if (envVars.length > 0) {
-        data.env = envVars.reduce(
-          (acc, { key, value }) => {
-            if (key.trim()) {
-              acc[key.trim()] = value;
-            }
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-      }
-    } else {
-      data.url = url.trim();
-      if (headers.length > 0) {
-        data.headers = headers.reduce(
-          (acc, { key, value }) => {
-            if (key.trim()) {
-              acc[key.trim()] = value;
-            }
-            return acc;
-          },
-          {} as Record<string, string>,
-        );
-      }
+    if (headers.length > 0) {
+      data.headers = headers.reduce(
+        (acc, { key, value }) => {
+          if (key.trim()) {
+            acc[key.trim()] = value;
+          }
+          return acc;
+        },
+        {} as Record<string, string>,
+      );
     }
 
     await onSave(data);
-  };
-
-  const addEnvVar = () => {
-    setEnvVars([...envVars, { key: "", value: "" }]);
-  };
-
-  const updateEnvVar = (
-    index: number,
-    field: "key" | "value",
-    value: string,
-  ) => {
-    const newEnvVars = [...envVars];
-    newEnvVars[index][field] = value;
-    setEnvVars(newEnvVars);
-  };
-
-  const removeEnvVar = (index: number) => {
-    setEnvVars(envVars.filter((_, i) => i !== index));
   };
 
   const addHeader = () => {
@@ -314,172 +240,79 @@ export function MCPServerForm({
         </label>
       </div>
 
-      {/* STDIO-specific fields */}
-      {transport === "stdio" && (
-        <>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-              {t("mcp.form.command")}
-            </label>
-            <input
-              type="text"
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              placeholder={t("mcp.form.commandPlaceholder")}
-              className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
-                errors.command
-                  ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
-                  : ""
-              }`}
-            />
-            {errors.command && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {errors.command}
-              </p>
-            )}
-          </div>
+      {/* URL field */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
+          {t("mcp.form.url")}
+        </label>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder={t("mcp.form.urlPlaceholder")}
+          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
+            errors.url
+              ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
+              : ""
+          }`}
+        />
+        {errors.url && (
+          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+            {errors.url}
+          </p>
+        )}
+      </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-              {t("mcp.form.args")}
-            </label>
-            <input
-              type="text"
-              value={args}
-              onChange={(e) => setArgs(e.target.value)}
-              placeholder={t("mcp.form.argsPlaceholder")}
-              className="w-full rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
-            />
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("mcp.form.envVars")}
-              </label>
+      {/* HTTP Headers */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
+            {t("mcp.form.httpHeaders")}
+          </label>
+          <button
+            type="button"
+            onClick={addHeader}
+            className="flex items-center gap-1 rounded-md bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+          >
+            <Plus size={12} />
+            {t("mcp.form.add")}
+          </button>
+        </div>
+        <div className="space-y-2">
+          {headers.map((header, index) => (
+            <div key={index} className="flex gap-2">
+              <input
+                type="text"
+                value={header.key}
+                onChange={(e) => updateHeader(index, "key", e.target.value)}
+                placeholder={t("mcp.form.headerNamePlaceholder")}
+                className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+              />
+              <input
+                type="text"
+                value={header.value}
+                onChange={(e) =>
+                  updateHeader(index, "value", e.target.value)
+                }
+                placeholder={t("mcp.form.valuePlaceholder")}
+                className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+              />
               <button
                 type="button"
-                onClick={addEnvVar}
-                className="flex items-center gap-1 rounded-md bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                onClick={() => removeHeader(index)}
+                className="rounded-lg p-2 text-stone-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
               >
-                <Plus size={12} />
-                {t("mcp.form.add")}
+                <Trash2 size={18} />
               </button>
             </div>
-            <div className="space-y-2">
-              {envVars.map((env, index) => (
-                <div key={index} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={env.key}
-                    onChange={(e) => updateEnvVar(index, "key", e.target.value)}
-                    placeholder={t("mcp.form.keyPlaceholder")}
-                    className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
-                  />
-                  <input
-                    type="text"
-                    value={env.value}
-                    onChange={(e) =>
-                      updateEnvVar(index, "value", e.target.value)
-                    }
-                    placeholder={t("mcp.form.valuePlaceholder")}
-                    className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeEnvVar(index)}
-                    className="rounded-lg p-2 text-stone-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ))}
-              {envVars.length === 0 && (
-                <p className="text-sm text-stone-500 dark:text-stone-500 italic">
-                  {t("mcp.form.noEnvVars")}
-                </p>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* HTTP-specific fields */}
-      {transport !== "stdio" && (
-        <>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-              {t("mcp.form.url")}
-            </label>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={t("mcp.form.urlPlaceholder")}
-              className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
-                errors.url
-                  ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
-                  : ""
-              }`}
-            />
-            {errors.url && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {errors.url}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("mcp.form.httpHeaders")}
-              </label>
-              <button
-                type="button"
-                onClick={addHeader}
-                className="flex items-center gap-1 rounded-md bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
-              >
-                <Plus size={12} />
-                {t("mcp.form.add")}
-              </button>
-            </div>
-            <div className="space-y-2">
-              {headers.map((header, index) => (
-                <div key={index} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={header.key}
-                    onChange={(e) => updateHeader(index, "key", e.target.value)}
-                    placeholder={t("mcp.form.headerNamePlaceholder")}
-                    className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
-                  />
-                  <input
-                    type="text"
-                    value={header.value}
-                    onChange={(e) =>
-                      updateHeader(index, "value", e.target.value)
-                    }
-                    placeholder={t("mcp.form.valuePlaceholder")}
-                    className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeHeader(index)}
-                    className="rounded-lg p-2 text-stone-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ))}
-              {headers.length === 0 && (
-                <p className="text-sm text-stone-500 dark:text-stone-500 italic">
-                  {t("mcp.form.noHeaders")}
-                </p>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+          ))}
+          {headers.length === 0 && (
+            <p className="text-sm text-stone-500 dark:text-stone-500 italic">
+              {t("mcp.form.noHeaders")}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Actions */}
       <div className="flex justify-end gap-2 pt-2">
