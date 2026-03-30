@@ -55,6 +55,10 @@ export enum Permission {
   MARKETPLACE_READ = "marketplace:read",
   MARKETPLACE_PUBLISH = "marketplace:publish",
   MARKETPLACE_ADMIN = "marketplace:admin",
+  // Environment Variables
+  ENVVAR_READ = "envvar:read",
+  ENVVAR_WRITE = "envvar:write",
+  ENVVAR_DELETE = "envvar:delete",
 }
 
 // 用户信息

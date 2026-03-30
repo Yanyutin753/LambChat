@@ -38,6 +38,7 @@ export { agentConfigApi } from "./api/agent_config";
 export { skillApi } from "./api/skill";
 export { settingsApi } from "./api/settings";
 export { mcpApi } from "./api/mcp";
+export { envvarApi } from "./api/envvar";
 export { uploadApi } from "./api/upload";
 export { versionApi } from "./api/version";
 export { projectApi } from "./api/project";

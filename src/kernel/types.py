@@ -51,6 +51,7 @@ class Permission(str, Enum):
     MCP_READ = "mcp:read"
     MCP_WRITE_SSE = "mcp:write_sse"
     MCP_WRITE_HTTP = "mcp:write_http"
+    MCP_WRITE_SANDBOX = "mcp:write_sandbox"
     MCP_DELETE = "mcp:delete"
     MCP_ADMIN = "mcp:admin"
 
@@ -82,6 +83,11 @@ class Permission(str, Enum):
     MARKETPLACE_READ = "marketplace:read"
     MARKETPLACE_PUBLISH = "marketplace:publish"
     MARKETPLACE_ADMIN = "marketplace:admin"
+
+    # Environment Variables
+    ENVVAR_READ = "envvar:read"
+    ENVVAR_WRITE = "envvar:write"
+    ENVVAR_DELETE = "envvar:delete"
 
 
 class MessageType(str, Enum):

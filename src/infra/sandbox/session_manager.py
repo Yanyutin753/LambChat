@@ -105,7 +105,7 @@ class E2BSandboxAdapter:
 
         return E2BSandbox
 
-    def create_sandbox(self, user_id: str | None = None) -> tuple[object, str]:
+    def create_sandbox(self, user_id: str | None = None, envs: dict[str, str] | None = None) -> tuple[object, str]:
         """创建沙箱，支持 lifecycle 配置和 metadata"""
         self._sync_from_settings()
         e2b_class = self._get_e2b_class()
@@ -126,6 +126,10 @@ class E2BSandboxAdapter:
         # Metadata 用于可观测性
         if user_id:
             kwargs["metadata"] = {"user_id": user_id}
+
+        # 用户环境变量注入
+        if envs:
+            kwargs["envs"] = envs
 
         sandbox = e2b_class.create(**kwargs)
         return sandbox, "/home/user"
@@ -615,6 +619,9 @@ class SessionSandboxManager:
         """
         from daytona import CreateSandboxFromSnapshotParams
 
+        # 加载用户环境变量
+        user_envs = await self._get_user_env_vars(user_id)
+
         def _sync_create():
             client = self._get_daytona_client()
             params = CreateSandboxFromSnapshotParams(
@@ -623,6 +630,7 @@ class SessionSandboxManager:
                 auto_archive_interval=settings.DAYTONA_AUTO_ARCHIVE_INTERVAL,
                 language="python",
                 snapshot=settings.DAYTONA_IMAGE if settings.DAYTONA_IMAGE else None,
+                env_vars=user_envs if user_envs else None,
             )
             sandbox = client.create(params)
             daytona_backend = DaytonaBackend(sandbox=sandbox)
@@ -666,6 +674,17 @@ class SessionSandboxManager:
         )
 
         return backend, work_dir
+
+    async def _get_user_env_vars(self, user_id: str) -> dict[str, str]:
+        """加载用户的环境变量（解密后）"""
+        try:
+            from src.infra.envvar.storage import EnvVarStorage
+
+            storage = EnvVarStorage()
+            return await storage.get_decrypted_vars(user_id)
+        except Exception as e:
+            logger.warning(f"[SessionSandboxManager] Failed to load env vars for user {user_id}: {e}")
+            return {}
 
     def _delete_sandbox(self, sandbox_id: str) -> None:
         """删除沙箱（同步，用于 to_thread）"""
@@ -724,8 +743,13 @@ class SessionSandboxManager:
         adapter = self._e2b_adapter
         from src.infra.backend.e2b import E2BBackend
 
+        # 加载用户环境变量
+        user_envs = await self._get_user_env_vars(user_id)
+
         def _sync_create():
-            sandbox, work_dir = adapter.create_sandbox(user_id=user_id)
+            sandbox, work_dir = adapter.create_sandbox(
+                user_id=user_id, envs=user_envs if user_envs else None
+            )
             e2b_backend = E2BBackend(sandbox=sandbox)
             skills_backend = create_skills_backend(user_id=user_id)
             composite = CompositeBackend(default=e2b_backend, routes={"/skills/": skills_backend})

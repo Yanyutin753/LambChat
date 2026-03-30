@@ -1139,5 +1139,29 @@
       "enterUsername": "사용자 이름을 입력해주세요",
       "passwordMinLength": "비밀번호는 6자 이상이어야 합니다"
     }
+  },
+  "envVars": {
+    "title": "환경 변수",
+    "description": "샌드박스에서 사용할 환경 변수를 관리합니다. 값은 암호화되어 저장되며 샌드박스 생성 시 자동으로 주입됩니다.",
+    "keyPlaceholder": "KEY",
+    "valuePlaceholder": "VALUE",
+    "empty": "환경 변수가 없습니다",
+    "count": "{{count}}개",
+    "added": "환경 변수가 추가되었습니다",
+    "addFailed": "추가 실패",
+    "updated": "환경 변수가 업데이트되었습니다",
+    "updateFailed": "업데이트 실패",
+    "deleted": "환경 변수가 삭제되었습니다",
+    "deleteFailed": "삭제 실패",
+    "confirmDelete": "환경 변수 {{key}}를 삭제하시겠습니까?",
+    "fetchFailed": "환경 변수 로드 실패",
+    "fetchValueFailed": "값 가져오기 실패",
+    "invalidKey": "키는 영문자 또는 밑줄로 시작해야 하며, 영문자, 숫자, 밑줄만 포함할 수 있습니다",
+    "valueTooLong": "값은 4096자를 초과할 수 없습니다",
+    "reveal": "값 표시",
+    "hide": "값 숨기기",
+    "edit": "편집",
+    "delete": "삭제",
+    "newValuePlaceholder": "덮어쓸 새 값을 입력"
   }
 }

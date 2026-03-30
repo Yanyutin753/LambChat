@@ -1223,5 +1223,29 @@
       "enterUsername": "Please enter username",
       "passwordMinLength": "Password must be at least 6 characters"
     }
+  },
+  "envVars": {
+    "title": "Environment Variables",
+    "description": "Manage environment variables for sandboxes. Values are encrypted and automatically injected when sandboxes are created.",
+    "keyPlaceholder": "KEY",
+    "valuePlaceholder": "VALUE",
+    "empty": "No environment variables",
+    "count": "{{count}} variable(s)",
+    "added": "Environment variable added",
+    "addFailed": "Failed to add",
+    "updated": "Environment variable updated",
+    "updateFailed": "Failed to update",
+    "deleted": "Environment variable deleted",
+    "deleteFailed": "Failed to delete",
+    "confirmDelete": "Delete environment variable {{key}}?",
+    "fetchFailed": "Failed to load environment variables",
+    "fetchValueFailed": "Failed to get value",
+    "invalidKey": "Key must start with a letter or underscore, and contain only letters, digits, and underscores",
+    "valueTooLong": "Value must not exceed 4096 characters",
+    "reveal": "Show value",
+    "hide": "Hide value",
+    "edit": "Edit",
+    "delete": "Delete",
+    "newValuePlaceholder": "Enter new value to overwrite"
   }
 }

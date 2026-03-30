@@ -119,9 +119,7 @@ class Settings(BaseSettings):
 
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
-    SANDBOX_PLATFORM: str = "runloop"
-    RUNLOOP_API_KEY: str = ""
-    RUNLOOP_BASE_URL: str = "https://api.runloop.ai"
+    SANDBOX_PLATFORM: str = "daytona"
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180
@@ -129,7 +127,6 @@ class Settings(BaseSettings):
     DAYTONA_AUTO_STOP_INTERVAL: int = 5
     DAYTONA_AUTO_ARCHIVE_INTERVAL: int = 5
     DAYTONA_AUTO_DELETE_INTERVAL: int = 1440
-    MODAL_APP_NAME: str = ""
 
     # E2B Settings
     E2B_API_KEY: str = ""

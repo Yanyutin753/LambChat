@@ -1223,5 +1223,29 @@
       "enterUsername": "请输入用户名",
       "passwordMinLength": "密码至少需要6个字符"
     }
+  },
+  "envVars": {
+    "title": "环境变量",
+    "description": "管理沙箱中使用的环境变量，值会加密存储并在沙箱创建时自动注入。",
+    "keyPlaceholder": "KEY",
+    "valuePlaceholder": "VALUE",
+    "empty": "暂无环境变量",
+    "count": "{{count}} 个环境变量",
+    "added": "环境变量已添加",
+    "addFailed": "添加失败",
+    "updated": "环境变量已更新",
+    "updateFailed": "更新失败",
+    "deleted": "环境变量已删除",
+    "deleteFailed": "删除失败",
+    "confirmDelete": "确定要删除环境变量 {{key}} 吗？",
+    "fetchFailed": "加载环境变量失败",
+    "fetchValueFailed": "获取环境变量值失败",
+    "invalidKey": "变量名只能包含字母、数字和下划线，且不能以数字开头",
+    "valueTooLong": "变量值不能超过 4096 个字符",
+    "reveal": "显示值",
+    "hide": "隐藏值",
+    "edit": "编辑",
+    "delete": "删除",
+    "newValuePlaceholder": "输入新值以覆盖"
   }
 }

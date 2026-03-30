@@ -7,6 +7,7 @@ import { APP_NAME } from "../../constants";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
 import { ProfilePreferencesTab } from "./tabs/ProfilePreferencesTab";
+import { ProfileEnvVarsTab } from "./tabs/ProfileEnvVarsTab";
 
 interface ProfileModalProps {
   showProfileModal: boolean;
@@ -21,7 +22,7 @@ export function ProfileModal({
 }: ProfileModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<
-    "info" | "notification" | "preferences"
+    "info" | "notification" | "preferences" | "envvars"
   >("info");
 
   const mobileTabsRef = useRef<HTMLDivElement>(null);
@@ -69,6 +70,7 @@ export function ProfileModal({
     { key: "info", label: t("profile.title") },
     { key: "notification", label: t("profile.notifications") },
     { key: "preferences", label: t("profile.preferences") },
+    { key: "envvars", label: t("envVars.title") },
   ];
 
   const tabContent = (
@@ -76,6 +78,7 @@ export function ProfileModal({
       {activeTab === "info" && <ProfileInfoTab />}
       {activeTab === "notification" && <ProfileNotificationTab />}
       {activeTab === "preferences" && <ProfilePreferencesTab />}
+      {activeTab === "envvars" && <ProfileEnvVarsTab />}
     </>
   );
 

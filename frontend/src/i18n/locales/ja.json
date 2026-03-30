@@ -1138,5 +1138,29 @@
       "enterUsername": "ユーザー名を入力してください",
       "passwordMinLength": "パスワードは6文字以上である必要があります"
     }
+  },
+  "envVars": {
+    "title": "環境変数",
+    "description": "サンドボックスで使用する環境変数を管理します。値は暗号化して保存され、サンドボックス作成時に自動的に注入されます。",
+    "keyPlaceholder": "KEY",
+    "valuePlaceholder": "VALUE",
+    "empty": "環境変数はありません",
+    "count": "{{count}} 件",
+    "added": "環境変数を追加しました",
+    "addFailed": "追加に失敗しました",
+    "updated": "環境変数を更新しました",
+    "updateFailed": "更新に失敗しました",
+    "deleted": "環境変数を削除しました",
+    "deleteFailed": "削除に失敗しました",
+    "confirmDelete": "環境変数 {{key}} を削除しますか？",
+    "fetchFailed": "環境変数の読み込みに失敗しました",
+    "fetchValueFailed": "値の取得に失敗しました",
+    "invalidKey": "キーは英字またはアンダースコアで始まり、英字、数字、アンダースコアのみ使用できます",
+    "valueTooLong": "値は4096文字以内にしてください",
+    "reveal": "値を表示",
+    "hide": "値を非表示",
+    "edit": "編集",
+    "delete": "削除",
+    "newValuePlaceholder": "上書きする新しい値を入力"
   }
 }
