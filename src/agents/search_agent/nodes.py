@@ -39,6 +39,7 @@ from src.infra.sandbox.session_manager import get_session_sandbox_manager
 from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import create_store
+from src.infra.tool.sandbox_mcp_prompt import build_sandbox_mcp_prompt
 from src.infra.writer.present import Presenter
 from src.kernel.config import settings
 
@@ -278,6 +279,11 @@ async def _create_backend_and_prompt(
             .replace("{skills}", skills_prompt)
             .replace("{memory_guide}", memory_guide)
         )
+
+        # 注入沙箱 MCP 工具描述（放在 system prompt 末尾，最大化 KV cache 命中率）
+        sandbox_mcp_prompt = await build_sandbox_mcp_prompt(sandbox_backend, user_id)
+        if sandbox_mcp_prompt:
+            system_prompt = system_prompt + "\n\n" + sandbox_mcp_prompt
         # sandbox_backend 是 CompositeBackend(default=DaytonaBackend)，需要提取出 DaytonaBackend
         return (
             create_sandbox_backend_factory(sandbox_backend.default, assistant_id, user_id=user_id),
