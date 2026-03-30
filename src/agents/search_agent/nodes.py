@@ -28,7 +28,11 @@ from src.agents.search_agent.prompt import (
     SANDBOX_SYSTEM_PROMPT,
 )
 from src.infra.agent import AgentEventProcessor
-from src.infra.agent.middleware import create_retry_middleware
+from src.infra.agent.middleware import (
+    AppPromptMiddleware,
+    SandboxMCPMiddleware,
+    create_retry_middleware,
+)
 from src.infra.backend import (
     create_persistent_backend_factory,
     create_sandbox_backend_factory,
@@ -39,7 +43,6 @@ from src.infra.sandbox.session_manager import get_session_sandbox_manager
 from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import create_store
-from src.infra.tool.sandbox_mcp_prompt import build_sandbox_mcp_prompt
 from src.infra.writer.present import Presenter
 from src.kernel.config import settings
 
@@ -92,15 +95,25 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 创建 Backend 工厂和获取系统提示
     backend_start = time.time()
-    backend_factory, system_prompt, store = await _create_backend_and_prompt(
+    backend_factory, system_prompt, store, sandbox_backend = await _create_backend_and_prompt(
         state=state,
         context=context,
         presenter=presenter,
         assistant_id=assistant_id,
-        skills=context.skills,
     )
     backend_init_time = time.time() - backend_start
     logger.debug(f"[Agent] Backend init: {backend_init_time * 1000:.3f}ms")
+
+    # 构建 skills 提示（使用预加载的 skills，避免重复数据库查询）
+    skills_prompt = ""
+    if settings.ENABLE_SKILLS and context.skills:
+        try:
+            skills_prompt = await build_skills_prompt(context.skills)
+        except Exception as e:
+            logger.warning(f"Failed to build skills prompt: {e}")
+
+    # 构建记忆系统提示
+    memory_guide = HINDSIGHT_MEMORY_SECTION if settings.ENABLE_MEMORY else EMPTY_MEMORY_SECTION
 
     # 过滤工具（懒加载 MCP 工具）
     filtered_tools = None
@@ -127,6 +140,16 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         }
     ]
 
+    # 构建中间件栈：retry → app prompt (skills/memory) → sandbox MCP
+    user_middleware = create_retry_middleware()
+    user_middleware.append(
+        AppPromptMiddleware(skills_prompt=skills_prompt, memory_guide=memory_guide)
+    )
+    if sandbox_backend:
+        user_middleware.append(
+            SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
+        )
+
     inner_graph = create_deep_agent(
         model=llm,
         system_prompt=system_prompt,
@@ -136,7 +159,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         store=store,  # 传递 PostgresStore
         skills=None,  # 禁用 SkillsMiddleware，使用 build_skills_prompt 代替
         subagents=custom_subagents,
-        middleware=create_retry_middleware(),
+        middleware=user_middleware,
     ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[Agent] Graph compile: {graph_compile_time * 1000:.3f}ms")
@@ -194,52 +217,34 @@ async def _create_backend_and_prompt(
     context: SearchAgentContext,
     presenter: Presenter,
     assistant_id: str,
-    skills: list[dict],
-) -> tuple[Any, str, Any]:
+) -> tuple[Any, str, Any, Any]:
     """
     创建 Backend 工厂函数和系统提示
 
     根据是否启用沙箱模式，返回相应的 Backend 工厂和系统提示。
-    同时构建并注入 skills 提示。
+    skills 和 memory_guide 的注入由 AppPromptMiddleware 在请求时完成（KV cache 友好）。
 
     Args:
         state: 状态字典
         context: Agent 上下文
         presenter: 输出处理器
         assistant_id: 助手 ID
-        skills: 预加载的技能列表，用于构建 skills prompt
 
     Returns:
-        (backend_factory, system_prompt, store) 元组，store 在沙箱模式下为 None
+        (backend_factory, system_prompt, store, sandbox_backend) 元组。
+        sandbox_backend 在沙箱模式下为 CompositeBackend 实例，否则为 None。
     """
-    # 构建 skills 提示（使用预加载的 skills，避免重复数据库查询）
-    skills_prompt = ""
-    if settings.ENABLE_SKILLS and skills:
-        try:
-            skills_prompt = await build_skills_prompt(skills)
-        except Exception as e:
-            logger.warning(f"Failed to build skills prompt: {e}")
-
-    # 构建记忆系统提示
-    memory_guide = HINDSIGHT_MEMORY_SECTION if settings.ENABLE_MEMORY else EMPTY_MEMORY_SECTION
-
     # 创建 store（优先 PostgreSQL → MongoDB fallback）
     store = create_store()
 
-    # 获取 user_id 用于 skills 读写
+    # 获取 user_id
     user_id = context.user_id or "default"
 
     if not settings.ENABLE_SANDBOX:
         # 非沙箱模式：使用持久化 backend（PostgreSQL 或 MongoDB，由 store 决定）
         logger.info(f"Sandbox disabled, using PersistentBackend for assistant: {assistant_id}")
         backend_factory = create_persistent_backend_factory(assistant_id, user_id=user_id)
-        return (
-            backend_factory,
-            DEFAULT_SYSTEM_PROMPT.replace("{skills}", skills_prompt).replace(
-                "{memory_guide}", memory_guide
-            ),
-            store,
-        )
+        return backend_factory, DEFAULT_SYSTEM_PROMPT, store, None
 
     # 沙箱模式
     if not context.user_id:
@@ -273,22 +278,14 @@ async def _create_backend_and_prompt(
 
         logger.info(f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}")
 
-        # 格式化沙箱提示词，注入 work_dir, skills 和 memory_guide
-        system_prompt = (
-            SANDBOX_SYSTEM_PROMPT.replace("{work_dir}", work_dir)
-            .replace("{skills}", skills_prompt)
-            .replace("{memory_guide}", memory_guide)
-        )
+        # 格式化沙箱提示词，注入 work_dir（skills/memory_guide 由 AppPromptMiddleware 注入）
+        system_prompt = SANDBOX_SYSTEM_PROMPT.replace("{work_dir}", work_dir)
 
-        # 注入沙箱 MCP 工具描述（放在 system prompt 末尾，最大化 KV cache 命中率）
-        sandbox_mcp_prompt = await build_sandbox_mcp_prompt(sandbox_backend, user_id)
-        if sandbox_mcp_prompt:
-            system_prompt = system_prompt + "\n\n" + sandbox_mcp_prompt
-        # sandbox_backend 是 CompositeBackend(default=DaytonaBackend)，需要提取出 DaytonaBackend
         return (
             create_sandbox_backend_factory(sandbox_backend.default, assistant_id, user_id=user_id),
             system_prompt,
             store,
+            sandbox_backend,
         )
 
     except Exception as e:

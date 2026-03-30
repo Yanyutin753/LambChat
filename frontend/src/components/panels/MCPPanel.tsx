@@ -91,6 +91,9 @@ export function MCPPanel() {
     hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_HTTP])
       ? Permission.MCP_WRITE_HTTP
       : null,
+    hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_SANDBOX])
+      ? Permission.MCP_WRITE_SANDBOX
+      : null,
   ].filter(Boolean) as Permission[];
   // Note: canDelete permission is checked server-side
   // Client-side uses canWrite for UI actions, server validates actual permissions

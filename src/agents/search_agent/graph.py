@@ -57,6 +57,7 @@ class SearchAgent(BaseGraphAgent):
     _description_key = "agents.search.description"
     _version = "1.0.0"
     _sort_order = 1  # 排序权重，数值越小越靠前
+    _supports_sandbox = True  # 支持沙箱环境
     # Agent 选项配置（供前端渲染）
     _options = {
         "enable_thinking": {

@@ -193,6 +193,16 @@ def main():
     # 安装 Playwright Chromium 浏览器
     template = template.run_cmd("playwright install chromium --with-deps")
 
+    # 安装 Bun + mcporter（用于沙箱内 MCP 服务器管理）
+    template = template.run_cmd("curl -fsSL https://bun.sh/install | bash")
+    template = template.run_cmd("~/.bun/bin/bun install -g mcporter")
+    template = template.run_cmd("mkdir -p ~/.mcporter")
+
+    # 安装 Node.js / npx（sandbox MCP 常用 npx 启动 stdio 服务器）
+    template = template.run_cmd(
+        "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*"
+    )
+
     print("\nBuilding template (this may take a few minutes)...\n")
 
     try:

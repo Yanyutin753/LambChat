@@ -26,7 +26,7 @@ from src.agents.fast_agent.prompt import (
     HINDSIGHT_MEMORY_SECTION,
 )
 from src.infra.agent import AgentEventProcessor
-from src.infra.agent.middleware import create_retry_middleware
+from src.infra.agent.middleware import AppPromptMiddleware, create_retry_middleware
 from src.infra.backend.deepagent import create_persistent_backend_factory
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
@@ -94,11 +94,11 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         except Exception as e:
             logger.warning(f"Failed to build skills prompt: {e}")
 
-    # 构建系统提示
+    # 构建记忆系统提示
     memory_guide = HINDSIGHT_MEMORY_SECTION if settings.ENABLE_MEMORY else EMPTY_MEMORY_SECTION
-    system_prompt = FAST_SYSTEM_PROMPT.replace("{skills}", skills_prompt).replace(
-        "{memory_guide}", memory_guide
-    )
+
+    # 构建系统提示（skills/memory_guide 由 AppPromptMiddleware 在请求时注入）
+    system_prompt = FAST_SYSTEM_PROMPT
 
     # 创建 backend（无沙箱，PostgreSQL 或 MongoDB 由 store 决定）
     backend_start = time.time()
@@ -136,6 +136,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         }
     ]
 
+    # 构建中间件栈：retry → app prompt (skills/memory)
+    user_middleware = create_retry_middleware()
+    user_middleware.append(
+        AppPromptMiddleware(skills_prompt=skills_prompt, memory_guide=memory_guide)
+    )
+
     inner_graph = create_deep_agent(
         model=llm,
         system_prompt=system_prompt,
@@ -145,7 +151,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         store=store,
         skills=None,
         subagents=custom_subagents,
-        middleware=create_retry_middleware(),
+        middleware=user_middleware,
     ).with_config({"recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION})
     graph_compile_time = time.time() - graph_compile_start
     logger.debug(f"[FastAgent] Graph compile: {graph_compile_time * 1000:.3f}ms")

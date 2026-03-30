@@ -61,8 +61,10 @@ class DaytonaBackend(BaseSandbox):
         self,
         sandbox: daytona.Sandbox,
         timeout: int | None = None,
+        env_vars: dict[str, str] | None = None,
     ):
         self._sandbox = sandbox
+        self.env_vars = env_vars or {}
         # 优先级：参数 > settings > 环境变量 > 默认值
         self._timeout = (
             timeout
@@ -85,7 +87,10 @@ class DaytonaBackend(BaseSandbox):
         effective_timeout = min(timeout or self._timeout, self._timeout)
 
         try:
-            result = self._sandbox.process.exec(command, timeout=effective_timeout)
+            kwargs: dict = {"timeout": effective_timeout}
+            if self.env_vars:
+                kwargs["env"] = self.env_vars
+            result = self._sandbox.process.exec(command, **kwargs)
             return ExecuteResponse(
                 output=result.result,
                 exit_code=result.exit_code,

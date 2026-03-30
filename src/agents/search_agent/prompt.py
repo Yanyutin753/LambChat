@@ -50,8 +50,6 @@ Note: When writing skill files, DO NOT create directories manually. The skills s
 
 Structure: `SKILL.md` required (first line: `# Title`), optional `scripts/`, `references/`
 
-{skills}
-{memory_guide}
 """
 
 DEFAULT_SYSTEM_PROMPT = """
@@ -83,8 +81,6 @@ Modify: `edit_file(path, old, new)` — PREFER over write_file for existing file
 Create: `write_file(path, content)` — only for new files or full rewrites
 Requirement: SKILL.md with `# Title` as first line
 
-{skills}
-{memory_guide}
 """
 
 WORKFLOW_SECTION = """

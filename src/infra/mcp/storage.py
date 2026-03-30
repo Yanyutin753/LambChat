@@ -179,6 +179,10 @@ class MCPStorage:
             update_data["headers"] = (
                 encrypt_value(updates.headers) if updates.headers else updates.headers
             )
+        if updates.command is not None:
+            update_data["command"] = updates.command
+        if updates.env_keys is not None:
+            update_data["env_keys"] = updates.env_keys
 
         await collection.update_one({"name": name}, {"$set": update_data})
 
@@ -230,6 +234,8 @@ class MCPStorage:
             "enabled": server.enabled,
             "url": server.url,
             "headers": server.headers,
+            "command": server.command,
+            "env_keys": server.env_keys,
             "user_id": user_id,
             "is_system": False,
             "created_at": now,
@@ -268,6 +274,10 @@ class MCPStorage:
             update_data["headers"] = (
                 encrypt_value(updates.headers) if updates.headers else updates.headers
             )
+        if updates.command is not None:
+            update_data["command"] = updates.command
+        if updates.env_keys is not None:
+            update_data["env_keys"] = updates.env_keys
 
         await collection.update_one({"name": name, "user_id": user_id}, {"$set": update_data})
 
@@ -320,6 +330,8 @@ class MCPStorage:
             "enabled": user_server.enabled,
             "url": user_server.url,
             "headers": user_server.headers,
+            "command": user_server.command,
+            "env_keys": user_server.env_keys,
             "is_system": True,
             "created_at": user_server.created_at or now,
             "updated_at": now,
@@ -368,6 +380,8 @@ class MCPStorage:
             "enabled": system_server.enabled,
             "url": system_server.url,
             "headers": system_server.headers,
+            "command": system_server.command,
+            "env_keys": system_server.env_keys,
             "user_id": target_user_id,
             "is_system": False,
             "created_at": system_server.created_at or now,
@@ -565,6 +579,40 @@ class MCPStorage:
     # ==========================================
     # Combined Operations (for runtime)
     # ==========================================
+
+    async def get_sandbox_servers(self, user_id: str) -> list[dict[str, Any]]:
+        """Get all enabled sandbox-transport MCP servers for a user (system + user).
+
+        Used during sandbox rebuild to re-register mcporter configs.
+        Returns list of config dicts with name, command, env_keys.
+        """
+        servers = []
+
+        # System sandbox servers
+        system_collection = self._get_system_collection()
+        async for doc in system_collection.find({"transport": "sandbox", "enabled": True}):
+            servers.append(
+                {
+                    "name": doc.get("name", ""),
+                    "command": doc.get("command", ""),
+                    "env_keys": doc.get("env_keys", []),
+                }
+            )
+
+        # User sandbox servers
+        user_collection = self._get_user_collection()
+        async for doc in user_collection.find(
+            {"user_id": user_id, "transport": "sandbox", "enabled": True}
+        ):
+            servers.append(
+                {
+                    "name": doc.get("name", ""),
+                    "command": doc.get("command", ""),
+                    "env_keys": doc.get("env_keys", []),
+                }
+            )
+
+        return servers
 
     async def get_effective_config(self, user_id: str) -> dict[str, Any]:
         """
@@ -768,6 +816,8 @@ class MCPStorage:
                     enabled=config.get("enabled", True),
                     url=config.get("url"),
                     headers=config.get("headers"),
+                    command=config.get("command"),
+                    env_keys=config.get("env_keys"),
                 )
 
                 # Check if exists
@@ -791,6 +841,8 @@ class MCPStorage:
                                 enabled=server.enabled,
                                 url=server.url,
                                 headers=server.headers,
+                                command=server.command,
+                                env_keys=server.env_keys,
                             ),
                             user_id,
                         )
@@ -805,6 +857,8 @@ class MCPStorage:
                                 enabled=server.enabled,
                                 url=server.url,
                                 headers=server.headers,
+                                command=server.command,
+                                env_keys=server.env_keys,
                             ),
                             user_id,
                         )
@@ -862,7 +916,10 @@ class MCPStorage:
 
         return SystemMCPServer(
             name=doc["name"],
-            transport=MCPTransport(doc.get("transport", "streamable_http")),
+            transport=MCPTransport._value2member_map_.get(
+                doc.get("transport", "streamable_http"),
+                MCPTransport.STREAMABLE_HTTP,
+            ),
             enabled=doc.get("enabled", True),
             url=doc.get("url"),
             headers=doc.get("headers"),
@@ -889,7 +946,10 @@ class MCPStorage:
 
         return UserMCPServer(
             name=doc["name"],
-            transport=MCPTransport(doc.get("transport", "streamable_http")),
+            transport=MCPTransport._value2member_map_.get(
+                doc.get("transport", "streamable_http"),
+                MCPTransport.STREAMABLE_HTTP,
+            ),
             enabled=doc.get("enabled", True),
             url=doc.get("url"),
             headers=doc.get("headers"),
@@ -925,7 +985,10 @@ class MCPStorage:
 
         return MCPServerResponse(
             name=doc_copy["name"],
-            transport=MCPTransport(doc_copy.get("transport", "streamable_http")),
+            transport=MCPTransport._value2member_map_.get(
+                doc_copy.get("transport", "streamable_http"),
+                MCPTransport.STREAMABLE_HTTP,
+            ),
             enabled=doc_copy.get("enabled", True),
             url=doc_copy.get("url"),
             headers=doc_copy.get("headers"),
@@ -949,6 +1012,11 @@ class MCPStorage:
             result["url"] = doc["url"]
         if doc.get("headers"):
             result["headers"] = doc["headers"]
+        # Sandbox transport fields
+        if doc.get("command"):
+            result["command"] = doc["command"]
+        if doc.get("env_keys"):
+            result["env_keys"] = doc["env_keys"]
 
         return result
 

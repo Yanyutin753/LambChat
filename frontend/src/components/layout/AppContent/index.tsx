@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { SessionSidebar } from "../../panels/SessionSidebar";
@@ -34,11 +34,8 @@ export function AppContent({ activeTab }: AppContentProps) {
   const { versionInfo } = useVersion();
 
   // Page-level drag & drop
-  const {
-    isPageDragging,
-    pageDragAttachments,
-    setPageDragAttachments,
-  } = useDragAndDrop();
+  const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
+    useDragAndDrop();
 
   // Approvals
   const {
@@ -68,6 +65,7 @@ export function AppContent({ activeTab }: AppContentProps) {
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
+    refreshToolsForAgent,
   } = useTools(disabledToolsVersion);
 
   // Skills
@@ -131,6 +129,15 @@ export function AppContent({ activeTab }: AppContentProps) {
     },
   });
 
+  // Re-fetch tools when currentAgent changes (for sandbox filtering)
+  const prevAgentRef = useRef(currentAgent);
+  useEffect(() => {
+    if (prevAgentRef.current !== currentAgent) {
+      prevAgentRef.current = currentAgent;
+      refreshToolsForAgent(currentAgent, user?.metadata);
+    }
+  }, [currentAgent, refreshToolsForAgent, user?.metadata]);
+
   // Agent options
   const { agentOptionValues, currentAgentOptions, handleToggleAgentOption } =
     useAgentOptions(agents, currentAgent);
@@ -187,8 +194,19 @@ export function AppContent({ activeTab }: AppContentProps) {
         {isPageDragging && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-500/5 dark:bg-stone-500/10  transition-colors">
             <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-stone-400 dark:border-stone-500 bg-white/95 dark:bg-stone-800/95 px-16 py-12 shadow-xl transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-stone-500 dark:text-stone-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-12 h-12 text-stone-500 dark:text-stone-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                />
               </svg>
               <span className="text-lg font-medium text-stone-600 dark:text-stone-300">
                 {t("chat.dropFilesHere", "Drop files here to upload")}

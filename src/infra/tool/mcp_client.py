@@ -310,7 +310,6 @@ class MCPClientManager:
 
         return result
 
-
     async def _initialize_with_config(self, config: dict) -> None:
         """使用配置初始化 MCP 客户端"""
         mcp_servers = config.get("mcpServers", {})
@@ -357,7 +356,9 @@ class MCPClientManager:
                 if server_config.get("headers"):
                     server_configs[server_name]["headers"] = server_config["headers"]
             else:
-                logger.warning(f"Skipping MCP server '{server_name}': unsupported transport '{transport}'")
+                logger.debug(
+                    f"Skipping MCP server '{server_name}': unsupported transport '{transport}'"
+                )
                 continue
 
         # 创建 MultiServerMCPClient

@@ -1,19 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Plus,
-  Trash2,
-  Variable,
-  Pencil,
-  X,
-  Check,
-} from "lucide-react";
+import { Plus, Trash2, Braces, Pencil, X, Check } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { envvarApi } from "../../../services/api/envvar";
 import type { EnvVarResponse } from "../../../services/api/envvar";
 import { useAuth } from "../../../hooks/useAuth";
 import { Permission } from "../../../types/auth";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { ConfirmDialog } from "../../common/ConfirmDialog";
 
 const ENV_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const MAX_VALUE_LENGTH = 4096;
@@ -38,6 +32,9 @@ export function ProfileEnvVarsTab() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // 删除确认框
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const fetchVars = useCallback(async () => {
     if (!canRead) return;
@@ -77,9 +74,7 @@ export function ProfileEnvVarsTab() {
       setNewValue("");
       fetchVars();
     } catch (err) {
-      toast.error(
-        (err as Error).message || t("envVars.addFailed"),
-      );
+      toast.error((err as Error).message || t("envVars.addFailed"));
     } finally {
       setAdding(false);
     }
@@ -116,13 +111,19 @@ export function ProfileEnvVarsTab() {
 
   // 删除
   const handleDelete = async (key: string) => {
-    if (!confirm(t("envVars.confirmDelete", { key }))) return;
+    setDeleteTarget(key);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await envvarApi.delete(key);
+      await envvarApi.delete(deleteTarget);
       toast.success(t("envVars.deleted"));
       fetchVars();
     } catch {
       toast.error(t("envVars.deleteFailed"));
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -136,12 +137,17 @@ export function ProfileEnvVarsTab() {
 
   return (
     <div className="space-y-4">
+      <ConfirmDialog
+        isOpen={deleteTarget !== null}
+        title={t("envVars.confirmDelete", { key: deleteTarget ?? "" })}
+        message={t("envVars.description")}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+        variant="danger"
+      />
       <div className="rounded-2xl bg-stone-50 dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
         <div className="flex items-center gap-2 mb-3">
-          <Variable
-            size={15}
-            className="text-amber-500 dark:text-amber-400"
-          />
+          <Braces size={15} className="text-amber-500 dark:text-amber-400" />
           <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
             {t("envVars.title")}
           </h3>
@@ -174,11 +180,7 @@ export function ProfileEnvVarsTab() {
               disabled={adding || !newKey.trim() || !newValue.trim()}
               className="shrink-0 p-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {adding ? (
-                <LoadingSpinner size="xs" />
-              ) : (
-                <Plus size={14} />
-              )}
+              {adding ? <LoadingSpinner size="xs" /> : <Plus size={14} />}
             </button>
           </div>
         )}
@@ -204,7 +206,9 @@ export function ProfileEnvVarsTab() {
                     <span className="text-xs font-mono font-medium text-stone-700 dark:text-stone-200 shrink-0">
                       {envVar.key}
                     </span>
-                    <span className="text-stone-300 dark:text-stone-600">=</span>
+                    <span className="text-stone-300 dark:text-stone-600">
+                      =
+                    </span>
                     <input
                       type="password"
                       value={editingValue}
@@ -240,7 +244,9 @@ export function ProfileEnvVarsTab() {
                     <span className="text-xs font-mono font-medium text-stone-700 dark:text-stone-200 shrink-0 max-w-[40%] truncate">
                       {envVar.key}
                     </span>
-                    <span className="text-stone-300 dark:text-stone-600">=</span>
+                    <span className="text-stone-300 dark:text-stone-600">
+                      =
+                    </span>
                     <span className="flex-1 min-w-0 text-xs font-mono text-stone-400 dark:text-stone-500 select-none">
                       ••••••••
                     </span>

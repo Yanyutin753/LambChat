@@ -50,8 +50,10 @@ class E2BBackend(BaseSandbox):
         self,
         sandbox: "E2BSandbox",
         timeout: int | None = None,
+        env_vars: dict[str, str] | None = None,
     ):
         self._sandbox = sandbox
+        self.env_vars = env_vars or {}
         self._timeout = (
             timeout or settings.E2B_TIMEOUT or int(os.environ.get("E2B_TIMEOUT", _DEFAULT_TIMEOUT))
         )
@@ -72,10 +74,10 @@ class E2BBackend(BaseSandbox):
         effective_timeout = min(timeout or self._timeout, self._timeout)
 
         try:
-            result = self._sandbox.commands.run(
-                cmd=command,
-                timeout=effective_timeout,
-            )
+            kwargs: dict = {"cmd": command, "timeout": effective_timeout}
+            if self.env_vars:
+                kwargs["envs"] = self.env_vars
+            result = self._sandbox.commands.run(**kwargs)
             output = result.stdout or ""
             if result.stderr:
                 output = f"{output}\n{result.stderr}" if output else result.stderr
@@ -149,12 +151,15 @@ class E2BBackend(BaseSandbox):
                 on_stderr(line)
 
         try:
-            result = self._sandbox.commands.run(
-                cmd=command,
-                timeout=effective_timeout,
-                on_stdout=_on_stdout,
-                on_stderr=_on_stderr,
-            )
+            kwargs: dict = {
+                "cmd": command,
+                "timeout": effective_timeout,
+                "on_stdout": _on_stdout,
+                "on_stderr": _on_stderr,
+            }
+            if self.env_vars:
+                kwargs["envs"] = self.env_vars
+            result = self._sandbox.commands.run(**kwargs)
             output = "\n".join(stdout_parts)
             if stderr_parts:
                 output = (

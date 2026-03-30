@@ -51,6 +51,7 @@ class FastAgent(BaseGraphAgent):
     _description_key = "agents.fast.description"
     _version = "1.0.0"
     _sort_order = 2  # 排序权重，数值越小越靠前
+    _supports_sandbox = False  # 不支持沙箱环境
 
     _options = {
         "enable_thinking": {

@@ -8,6 +8,7 @@ import {
   Bot,
   MessageCircle,
   Terminal,
+  Container,
   X,
   Info,
   Plus,
@@ -30,6 +31,7 @@ const categoryIcons: Record<ToolCategory, typeof Bot> = {
   skill: Bot,
   human: MessageCircle,
   mcp: Globe,
+  sandbox: Container,
 };
 
 export function ToolSelector({
@@ -77,18 +79,15 @@ export function ToolSelector({
   );
 
   // Sort tools within each category by name
-  const sortedGroupedTools = useMemo(
-    () => {
-      const sorted: Record<string, ToolState[]> = {};
-      for (const [category, categoryTools] of Object.entries(groupedTools)) {
-        sorted[category] = [...categoryTools].sort((a, b) =>
-          a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-        );
-      }
-      return sorted;
-    },
-    [groupedTools],
-  );
+  const sortedGroupedTools = useMemo(() => {
+    const sorted: Record<string, ToolState[]> = {};
+    for (const [category, categoryTools] of Object.entries(groupedTools)) {
+      sorted[category] = [...categoryTools].sort((a, b) =>
+        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+      );
+    }
+    return sorted;
+  }, [groupedTools]);
 
   const toggleToolExpand = (toolName: string, e: React.MouseEvent) => {
     e.stopPropagation();

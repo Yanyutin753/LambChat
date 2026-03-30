@@ -9,7 +9,6 @@ User-Sandbox 绑定管理器
 """
 
 import asyncio
-import shlex
 import threading
 from collections import OrderedDict
 from datetime import datetime
@@ -23,7 +22,7 @@ from deepagents.backends import CompositeBackend
 from src.infra.backend.daytona import DaytonaBackend
 from src.infra.backend.skills_store import create_skills_backend
 from src.infra.logging import get_logger
-from src.infra.tool.sandbox_mcp_prompt import invalidate_sandbox_mcp_prompt_cache
+from src.infra.tool.sandbox_mcp_rebuild import ensure_sandbox_mcp
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
@@ -380,6 +379,7 @@ class SessionSandboxManager:
                 try:
                     work_dir = await self._get_work_dir(sandbox_id)
                     await self._save_binding(user_id, sandbox_id, "running")
+                    await ensure_sandbox_mcp(backend, user_id)
                     return backend, work_dir
                 except Exception as e:
                     logger.warning(
@@ -416,6 +416,7 @@ class SessionSandboxManager:
                         self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
                         work_dir = await self._get_work_dir(sandbox_id)
+                        await ensure_sandbox_mcp(backend, user_id)
                         return backend, work_dir
                     except Exception as e:
                         logger.warning(
@@ -432,6 +433,7 @@ class SessionSandboxManager:
                         self._evict_if_needed()
                         await self._save_binding(user_id, sandbox_id, "running")
                         work_dir = await self._get_work_dir(sandbox_id)
+                        await ensure_sandbox_mcp(backend, user_id)
                         return backend, work_dir
                     except Exception as e:
                         logger.warning(
@@ -677,6 +679,7 @@ class SessionSandboxManager:
             f"[SessionSandboxManager] Created sandbox {sandbox_id} for user {user_id} (session={session_id})"
         )
 
+        await ensure_sandbox_mcp(backend, user_id)
         return backend, work_dir
 
     async def _get_user_env_vars(self, user_id: str) -> dict[str, str]:
@@ -714,6 +717,7 @@ class SessionSandboxManager:
                     if self._e2b_adapter.sandbox_is_running(provider_obj):
                         self._e2b_adapter.extend_timeout(provider_obj, settings.E2B_TIMEOUT)
                         await self._save_binding(user_id, sandbox_id, "running")
+                        await ensure_sandbox_mcp(backend, user_id)
                         return backend, self._e2b_adapter.get_work_dir(provider_obj)
                 except Exception as e:
                     logger.warning(f"[E2B] Cache hit but sandbox {sandbox_id} unhealthy: {e}")
@@ -736,6 +740,7 @@ class SessionSandboxManager:
                         await self._save_binding(
                             user_id, metadata_sandbox_id, info.get("state", "running")
                         )
+                        await ensure_sandbox_mcp(backend, user_id)
                         return backend, self._e2b_adapter.get_work_dir(provider_obj)
                     except Exception as e:
                         logger.warning(f"[E2B] Failed to reconnect {metadata_sandbox_id}: {e}")
@@ -775,127 +780,8 @@ class SessionSandboxManager:
         self._evict_if_needed()
         logger.info(f"[E2B] Created sandbox {sandbox_id} for user {user_id} (session={session_id})")
 
-        # Rebuild sandbox MCP config (non-blocking)
-        try:
-            await self._rebuild_sandbox_mcp(backend, user_id)
-            invalidate_sandbox_mcp_prompt_cache(user_id)
-        except Exception as e:
-            logger.warning(f"[E2B] Sandbox MCP rebuild failed (non-fatal): {e}")
-
+        await ensure_sandbox_mcp(backend, user_id)
         return backend, work_dir
-
-    async def _rebuild_sandbox_mcp(self, backend: Any, user_id: str) -> None:
-        """Register user's sandbox MCP servers inside the sandbox via mcporter.
-
-        Called after sandbox creation to ensure mcporter config is up to date.
-        Non-blocking: failures are logged as warnings but don't propagate.
-        """
-        try:
-            from src.infra.envvar.storage import EnvVarStorage
-            from src.infra.mcp.storage import MCPStorage
-
-            mcp_storage = MCPStorage()
-            env_storage = EnvVarStorage()
-
-            # Check mcporter availability
-            version_result = await backend.aexecute("mcporter --version", timeout=10)
-            if version_result.exit_code != 0:
-                logger.warning(
-                    "[Sandbox MCP Rebuild] mcporter not available in sandbox, skipping rebuild"
-                )
-                return
-
-            # Get sandbox-transport MCP servers
-            sandbox_servers = await mcp_storage.get_sandbox_servers(user_id)
-            if not sandbox_servers:
-                logger.debug(f"[Sandbox MCP Rebuild] No sandbox MCP servers for user {user_id}")
-                return
-
-            # Get user's env vars for injection
-            env_vars = await env_storage.get_decrypted_vars(user_id)
-
-            # Register each server with mcporter
-            for server_config in sandbox_servers:
-                server_name = server_config.get("name", "")
-                command = server_config.get("command", "")
-                env_keys = server_config.get("env_keys", [])
-
-                if not command:
-                    continue
-
-                env_flags = ""
-                for key in env_keys:
-                    val = env_vars.get(key, "")
-                    env_flags += f" --env {shlex.quote(key)}={shlex.quote(val)}"
-
-                cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(command)}{env_flags}"
-                result = await backend.aexecute(cmd, timeout=30)
-                if result.exit_code != 0:
-                    logger.warning(
-                        f"[Sandbox MCP Rebuild] Failed to register '{server_name}': {result.output}"
-                    )
-                else:
-                    logger.info(
-                        f"[Sandbox MCP Rebuild] Registered MCP server '{server_name}' in sandbox"
-                    )
-
-            # Preheat npx caches in background to avoid cold-start latency
-            await self._preheat_mcp_cache(backend, sandbox_servers, env_vars)
-
-        except Exception as e:
-            logger.warning(f"[Sandbox MCP Rebuild] Failed: {e}")
-
-    async def _preheat_mcp_cache(
-        self,
-        backend: Any,
-        servers: list[dict[str, Any]],
-        env_vars: dict[str, str],
-    ) -> None:
-        """Preheat npx/npm caches for sandbox MCP commands in the background.
-
-        For commands starting with 'npx', runs a dry install so the package is
-        already cached when the agent first calls a tool. Failures are logged
-        but never propagate.
-        """
-        for server_config in servers:
-            command: str = server_config.get("command", "")
-            if not command.startswith("npx "):
-                continue
-
-            env_keys: list[str] = server_config.get("env_keys", [])
-            env_prefix = ""
-            for key in env_keys:
-                val = env_vars.get(key, "")
-                env_prefix += f" {shlex.quote(key)}={shlex.quote(val)}"
-
-            # Extract the package spec from 'npx -y @scope/pkg' or 'npx @scope/pkg@1.2'
-            tokens = command.split()
-            pkg = ""
-            skip_next = False
-            for tok in tokens[1:]:
-                if skip_next:
-                    skip_next = False
-                    continue
-                if tok in ("-y", "--yes"):
-                    continue
-                pkg = tok
-                break
-
-            if not pkg:
-                continue
-
-            dry_cmd = f"env{env_prefix} npx -y {shlex.quote(pkg)} --help"
-            logger.debug(f"[Sandbox MCP Preheat] Warming cache for '{pkg}'")
-            try:
-                result = await backend.aexecute(dry_cmd, timeout=120)
-                if result.exit_code == 0:
-                    logger.info(f"[Sandbox MCP Preheat] Cache warmed for '{pkg}'")
-                else:
-                    logger.debug(
-                        f"[Sandbox MCP Preheat] '{pkg}' dry run non-zero (ok): {result.output[:200]}"
-                    )
-            except Exception as e:
-                logger.debug(f"[Sandbox MCP Preheat] Failed for '{pkg}': {e}")
 
     def _build_composite_backend(self, provider_obj: object, user_id: str) -> CompositeBackend:
         from src.infra.backend.e2b import E2BBackend

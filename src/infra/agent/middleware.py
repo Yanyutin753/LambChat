@@ -1,11 +1,11 @@
-"""DeepAgent retry middleware for handling transient LLM errors and empty responses."""
+"""DeepAgent middleware: retry, app-level prompt injection, and sandbox MCP prompt."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from langchain.agents.middleware import ModelRetryMiddleware
 from langchain.agents.middleware.types import (
@@ -17,6 +17,7 @@ from langchain.agents.middleware.types import (
 )
 from langchain_core.messages import AIMessage
 
+from src.infra.tool.sandbox_mcp_prompt import build_sandbox_mcp_prompt
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
@@ -123,6 +124,67 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
                 await asyncio.sleep(self.retry_delay)
 
         return last_response  # type: ignore[return-value]
+
+
+class AppPromptMiddleware(AgentMiddleware):
+    """Injects per-session dynamic content (skills, memory guide) into the system prompt tail.
+
+    These sections vary per user / feature-flag configuration.  By injecting them via
+    middleware instead of baking into the base prompt string, they end up at the TAIL of
+    the final system message — after deepagent's BASE_AGENT_PROMPT and all built-in
+    middleware injections — which maximises KV cache hit rates.
+    """
+
+    def __init__(self, *, skills_prompt: str = "", memory_guide: str = "") -> None:
+        super().__init__()
+        self._skills_prompt = skills_prompt
+        self._memory_guide = memory_guide
+        self._combined = (self._memory_guide + "\n\n" + self._skills_prompt).strip()
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        if not self._combined:
+            return await handler(request)
+        from deepagents.middleware._utils import append_to_system_message
+
+        new_system_message = append_to_system_message(request.system_message, self._combined)
+        request = request.override(system_message=new_system_message)
+        return await handler(request)
+
+
+class SandboxMCPMiddleware(AgentMiddleware):
+    """Injects sandbox MCP tool descriptions into the system prompt at request time.
+
+    By injecting via middleware (instead of baking into the base system prompt string),
+    the sandbox MCP tools end up at the TAIL of the final system message — after
+    deepagent's BASE_AGENT_PROMPT and all other middleware injections (memory, subagent,
+    summarization, etc.).  This maximizes KV cache hit rates because changes to MCP tools
+    only invalidate the tail of the cache, not the stable prefix.
+
+    ``build_sandbox_mcp_prompt`` has its own per-user 30-minute cache, so repeated
+    ``awrap_model_call`` invocations within a session are essentially free.
+    """
+
+    def __init__(self, *, backend: Any, user_id: str) -> None:
+        super().__init__()
+        self._backend = backend
+        self._user_id = user_id
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        from deepagents.middleware._utils import append_to_system_message
+
+        prompt = await build_sandbox_mcp_prompt(self._backend, self._user_id)
+        if prompt:
+            new_system_message = append_to_system_message(request.system_message, prompt)
+            request = request.override(system_message=new_system_message)
+        return await handler(request)
 
 
 def create_retry_middleware() -> list[AgentMiddleware]:

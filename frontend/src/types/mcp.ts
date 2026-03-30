@@ -3,7 +3,7 @@
 // ============================================
 
 // MCP Transport Type
-export type MCPTransport = "sse" | "streamable_http";
+export type MCPTransport = "sse" | "streamable_http" | "sandbox";
 
 // MCP Server Base
 export interface MCPServerBase {
@@ -12,6 +12,8 @@ export interface MCPServerBase {
   enabled: boolean;
   url?: string;
   headers?: Record<string, string>;
+  command?: string;
+  env_keys?: string[];
 }
 
 // MCP Server Response (from API)
@@ -34,6 +36,8 @@ export interface MCPServerCreate {
   enabled?: boolean;
   url?: string;
   headers?: Record<string, string>;
+  command?: string;
+  env_keys?: string[];
 }
 
 // MCP Server Update Request
@@ -42,6 +46,8 @@ export interface MCPServerUpdate {
   enabled?: boolean;
   url?: string;
   headers?: Record<string, string>;
+  command?: string;
+  env_keys?: string[];
 }
 
 // MCP Toggle Response

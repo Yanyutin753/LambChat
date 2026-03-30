@@ -46,7 +46,7 @@ def _validate_key(key: str) -> None:
 # ==========================================
 
 
-@router.get("/", response_model=EnvVarListResponse)
+@router.get("", response_model=EnvVarListResponse)
 async def list_env_vars(
     user: TokenPayload = Depends(require_permissions("envvar:read")),
     storage: EnvVarStorage = Depends(get_envvar_storage),
@@ -56,7 +56,7 @@ async def list_env_vars(
     return EnvVarListResponse(variables=variables, count=len(variables))
 
 
-@router.post("/", response_model=EnvVarResponse, status_code=201)
+@router.post("", response_model=EnvVarResponse, status_code=201)
 async def create_env_var(
     data: EnvVarCreate,
     user: TokenPayload = Depends(require_permissions("envvar:write")),

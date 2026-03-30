@@ -11,18 +11,27 @@ tools via the system prompt and calls/discovers them directly via bash + mcporte
 
 import json
 import shlex
-from typing import Annotated, Any, Optional
+import sys
+from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 from langchain_core.tools import BaseTool, InjectedToolArg, StructuredTool
 from pydantic import BaseModel, Field
 
+from src.infra.tool.sandbox_mcp_utils import build_env_flags
+
 # ToolRuntime moved to langchain.tools in langchain_core >= 1.2.20.
 # Must be a real runtime import (not TYPE_CHECKING) because InjectedToolArg
 # needs to inspect the actual type annotation at runtime.
-try:
-    from langchain.tools import ToolRuntime  # type: ignore[assignment]
-except ImportError:
-    ToolRuntime = Any  # fallback for older langchain_core
+if TYPE_CHECKING:
+    from langchain.tools import ToolRuntime
+else:
+    try:
+        from langchain.tools import ToolRuntime  # type: ignore[assignment]
+    except ImportError:  # pragma: no cover
+        _mod = type(sys)("langchain.tools")  # type: ignore[assignment]
+        _mod.ToolRuntime = Any  # type: ignore[assignment]
+        sys.modules.setdefault("langchain.tools", _mod)
+        from langchain.tools import ToolRuntime  # type: ignore[assignment]
 
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import (
@@ -120,19 +129,7 @@ async def _delete_server_from_mongodb(user_id: str, server_name: str) -> bool:
 # ── Tool implementations ───────────────────────────────────────
 
 
-async def _build_env_flags_async(user_id: str, env_key_names: list[str]) -> str:
-    """Async version of env flag building."""
-    if not env_key_names:
-        return ""
-    from src.infra.envvar.storage import EnvVarStorage
-
-    storage = EnvVarStorage()
-    env_vars = await storage.get_decrypted_vars(user_id)
-    env_flags = ""
-    for key in env_key_names:
-        val = env_vars.get(key, "")
-        env_flags += f" --env {shlex.quote(key)}={shlex.quote(val)}"
-    return env_flags
+# build_env_flags removed — use src.infra.tool.sandbox_mcp_utils.build_env_flags instead
 
 
 async def _mcporter_add(
@@ -146,11 +143,11 @@ async def _mcporter_add(
     if backend is None:
         return json.dumps({"error": "No sandbox backend available"})
 
-    user_id = get_user_id_from_runtime(runtime)
+    user_id = get_user_id_from_runtime(runtime) or "unknown"
     env_key_list = [k.strip() for k in env_keys.split(",") if k.strip()] if env_keys else []
 
     # Register in sandbox
-    env_flags = await _build_env_flags_async(user_id, env_key_list)
+    env_flags = await build_env_flags(user_id, env_key_list)
     cmd = (
         f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(command)}{env_flags}"
     )
@@ -159,13 +156,13 @@ async def _mcporter_add(
         return json.dumps({"error": f"mcporter failed: {result.output}"})
 
     # Persist to MongoDB
-    ok = await _persist_server_to_mongodb(user_id or "unknown", server_name, command, env_key_list)
+    ok = await _persist_server_to_mongodb(user_id, server_name, command, env_key_list)
     if not ok:
         return json.dumps(
             {"error": "Server registered in sandbox but failed to persist to database"}
         )
 
-    invalidate_sandbox_mcp_prompt_cache(user_id or "unknown")
+    invalidate_sandbox_mcp_prompt_cache(user_id)
     return json.dumps(
         {
             "success": True,
@@ -188,7 +185,7 @@ async def _mcporter_update(
     if backend is None:
         return json.dumps({"error": "No sandbox backend available"})
 
-    user_id = get_user_id_from_runtime(runtime)
+    user_id = get_user_id_from_runtime(runtime) or "unknown"
     env_key_list = [k.strip() for k in env_keys.split(",") if k.strip()] if env_keys else None
 
     # We need to know the current command to rebuild mcporter config.
@@ -196,7 +193,7 @@ async def _mcporter_update(
     from src.infra.mcp.storage import MCPStorage
 
     storage = MCPStorage()
-    existing = await storage.get_user_server(server_name, user_id or "unknown")
+    existing = await storage.get_user_server(server_name, user_id)
     if not existing:
         return json.dumps({"error": f"Server '{server_name}' not found in database"})
 
@@ -209,12 +206,12 @@ async def _mcporter_update(
     )
     # remove may fail if server wasn't in mcporter yet, that's ok
 
-    env_flags = await _build_env_flags_async(user_id or "unknown", resolved_env_keys)
+    env_flags = await build_env_flags(user_id, resolved_env_keys)
     add_cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(resolved_command)}{env_flags}"
     result = await backend.aexecute(add_cmd, timeout=_MCPORTER_TIMEOUT)
     if result.exit_code != 0:
         # Try to restore the old one if possible
-        old_env = await _build_env_flags_async(user_id or "unknown", existing.env_keys or [])
+        old_env = await build_env_flags(user_id, existing.env_keys or [])
         restore_cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(existing.command or '')}{old_env}"
         await backend.aexecute(restore_cmd, timeout=_MCPORTER_TIMEOUT)
         return json.dumps({"error": f"mcporter update failed: {result.output}"})
@@ -226,11 +223,11 @@ async def _mcporter_update(
         command=resolved_command,
         env_keys=resolved_env_keys,
     )
-    updated = await storage.update_user_server(server_name, update, user_id or "unknown")
+    updated = await storage.update_user_server(server_name, update, user_id)
     if not updated:
         return json.dumps({"error": "mcporter updated but failed to persist to database"})
 
-    invalidate_sandbox_mcp_prompt_cache(user_id or "unknown")
+    invalidate_sandbox_mcp_prompt_cache(user_id)
     return json.dumps(
         {
             "success": True,
@@ -251,17 +248,17 @@ async def _mcporter_remove(
     if backend is None:
         return json.dumps({"error": "No sandbox backend available"})
 
-    user_id = get_user_id_from_runtime(runtime)
+    user_id = get_user_id_from_runtime(runtime) or "unknown"
 
     # Unregister from mcporter
     cmd = f"mcporter config remove {shlex.quote(server_name)}"
     result = await backend.aexecute(cmd, timeout=_MCPORTER_TIMEOUT)
 
     # Persist removal to MongoDB (even if mcporter remove failed, e.g. server wasn't registered)
-    deleted = await _delete_server_from_mongodb(user_id or "unknown", server_name)
+    deleted = await _delete_server_from_mongodb(user_id, server_name)
 
     if result.exit_code != 0 and deleted:
-        invalidate_sandbox_mcp_prompt_cache(user_id or "unknown")
+        invalidate_sandbox_mcp_prompt_cache(user_id)
         return json.dumps(
             {
                 "success": True,
@@ -272,7 +269,7 @@ async def _mcporter_remove(
     if result.exit_code != 0:
         return json.dumps({"error": f"mcporter failed: {result.output}"})
 
-    invalidate_sandbox_mcp_prompt_cache(user_id or "unknown")
+    invalidate_sandbox_mcp_prompt_cache(user_id)
     return json.dumps(
         {
             "success": True,

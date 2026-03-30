@@ -61,6 +61,8 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
         return "mcp:write_sse" in permissions
     elif transport in ("streamable_http", "http"):
         return "mcp:write_http" in permissions
+    elif transport == "sandbox":
+        return "mcp:write_sandbox" in permissions
 
     return False
 
@@ -115,6 +117,8 @@ async def create_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
+        command=server.command,
+        env_keys=server.env_keys,
         is_system=False,
         can_edit=True,
         created_at=server.created_at,
@@ -185,6 +189,8 @@ async def get_server(
             enabled=server.enabled,
             url=server.url,
             headers=server.headers,
+            command=server.command,
+            env_keys=server.env_keys,
             is_system=False,
             can_edit=True,
             created_at=server.created_at,
@@ -200,8 +206,7 @@ async def get_server(
             transport=system_server.transport,
             enabled=system_server.enabled,
             command=system_server.command,
-            args=system_server.args,
-            env=system_server.env,
+            env_keys=system_server.env_keys,
             url=system_server.url,
             headers=system_server.headers,
             is_system=True,
@@ -242,6 +247,8 @@ async def update_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
+        command=server.command,
+        env_keys=server.env_keys,
         is_system=False,
         can_edit=True,
         created_at=server.created_at,
@@ -387,6 +394,8 @@ async def admin_create_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
+        command=server.command,
+        env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
         created_at=server.created_at,
@@ -427,6 +436,8 @@ async def admin_get_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
+        command=server.command,
+        env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
         created_at=server.created_at,
@@ -461,6 +472,8 @@ async def admin_update_server(
         enabled=server.enabled,
         url=server.url,
         headers=server.headers,
+        command=server.command,
+        env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
         created_at=server.created_at,
@@ -566,6 +579,8 @@ async def promote_server(
             enabled=server.enabled,
             url=server.url,
             headers=server.headers,
+            command=server.command,
+            env_keys=server.env_keys,
             is_system=True,
             can_edit=True,
             created_at=server.created_at,
@@ -619,6 +634,8 @@ async def demote_server(
             enabled=server.enabled,
             url=server.url,
             headers=server.headers,
+            command=server.command,
+            env_keys=server.env_keys,
             is_system=False,
             can_edit=True,
             created_at=server.created_at,

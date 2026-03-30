@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Settings, ChevronDown } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -51,13 +51,23 @@ function SelectRow<T extends string>({
 }) {
   const { t } = useTranslation();
   const selected = options.find((o) => o.key === value);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dropUp, setDropUp] = useState(false);
+
+  useEffect(() => {
+    if (!open || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    setDropUp(spaceBelow < 120 && spaceAbove > spaceBelow);
+  }, [open]);
 
   return (
     <div className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
       <span className="text-sm text-stone-700 dark:text-stone-200">
         {label}
       </span>
-      <div className="relative">
+      <div className="relative" ref={containerRef}>
         <button
           onClick={onToggle}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-600 transition-colors min-w-[120px] justify-between"
@@ -81,7 +91,12 @@ function SelectRow<T extends string>({
           />
         </button>
         {open && (
-          <div className="absolute right-0 top-full mt-1 z-10 min-w-[160px] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 shadow-lg overflow-hidden">
+          <div
+            className={`absolute right-0 z-10 min-w-[160px] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 shadow-lg overflow-hidden ${
+              dropUp ? "bottom-full mb-1" : "top-full mt-1"
+            }`}
+            style={{ maxHeight: "40vh", overflowY: "auto" }}
+          >
             {options.map((opt) => (
               <button
                 key={opt.key}
@@ -92,9 +107,7 @@ function SelectRow<T extends string>({
                     : "text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
                 }`}
               >
-                {renderLabel
-                  ? renderLabel(opt.key)
-                  : t(opt.labelKey)}
+                {renderLabel ? renderLabel(opt.key) : t(opt.labelKey)}
               </button>
             ))}
           </div>
@@ -218,10 +231,7 @@ export function ProfilePreferencesTab() {
         </h3>
       </div>
 
-      <div
-        className="space-y-0"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="space-y-0" onClick={(e) => e.stopPropagation()}>
         <SelectRow
           label={t("profile.language")}
           value={i18n.language}

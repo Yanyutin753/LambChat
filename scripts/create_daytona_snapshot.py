@@ -223,6 +223,16 @@ def main():
     # 安装 Playwright 浏览器二进制 (Chromium)
     image = image.run_commands("playwright install chromium --with-deps")
 
+    # 安装 mcporter (通过 bun)
+    image = image.run_commands("curl -fsSL https://bun.sh/install | bash")
+    image = image.run_commands("~/.bun/bin/bun install -g mcporter")
+    image = image.run_commands("mkdir -p ~/.mcporter")
+
+    # 安装 Node.js / npx（sandbox MCP 常用 npx 启动 stdio 服务器）
+    image = image.run_commands(
+        "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs && rm -rf /var/lib/apt/lists/*"
+    )
+
     # 创建快照参数
     params = CreateSnapshotParams(
         name=SNAPSHOT_NAME,

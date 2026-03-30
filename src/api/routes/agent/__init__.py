@@ -9,7 +9,7 @@ import json
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from src.agents.core.base import AgentFactory
@@ -32,7 +32,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="read_file",
         description="读取文件内容",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="file_path", type="string", description="文件路径", required=True),
         ],
@@ -40,7 +40,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="write_file",
         description="写入文件",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="file_path", type="string", description="文件路径", required=True),
             ToolParamInfo(name="content", type="string", description="文件内容", required=True),
@@ -49,7 +49,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="edit_file",
         description="编辑文件",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="file_path", type="string", description="文件路径", required=True),
             ToolParamInfo(
@@ -64,7 +64,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="ls",
         description="列出目录内容",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="path", type="string", description="目录路径", required=False),
         ],
@@ -72,7 +72,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="glob",
         description="按模式搜索文件",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="pattern", type="string", description="glob 模式", required=True),
             ToolParamInfo(name="path", type="string", description="搜索路径", required=False),
@@ -81,7 +81,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="grep",
         description="在文件中搜索内容",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(
                 name="pattern",
@@ -95,7 +95,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="bash",
         description="执行 shell 命令",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="command", type="string", description="要执行的命令", required=True),
         ],
@@ -107,7 +107,7 @@ SANDBOX_MCP_TOOLS = [
     ToolInfo(
         name="sandbox_mcp_add",
         description="在沙箱中注册新的 MCP 服务器，并持久化到数据库",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(
                 name="server_name", type="string", description="服务器名称", required=True
@@ -129,7 +129,7 @@ SANDBOX_MCP_TOOLS = [
     ToolInfo(
         name="sandbox_mcp_update",
         description="更新沙箱中 MCP 服务器的命令或环境变量，并持久化到数据库",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(
                 name="server_name", type="string", description="服务器名称", required=True
@@ -151,7 +151,7 @@ SANDBOX_MCP_TOOLS = [
     ToolInfo(
         name="sandbox_mcp_remove",
         description="从沙箱中移除 MCP 服务器，并从数据库删除",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(
                 name="server_name", type="string", description="服务器名称", required=True
@@ -375,20 +375,35 @@ async def chat_stream(
 @router.get("/tools", response_model=ToolsListResponse)
 async def list_tools(
     user: TokenPayload = Depends(get_current_user_required),
+    agent_id: Optional[str] = Query(None, description="当前选中的 Agent ID，用于判断是否支持沙箱"),
 ):
     """
     获取当前用户可用的所有工具列表
 
     返回 Skill 工具、Human 工具和 MCP 工具的完整列表。
     MCP 工具会实际连接服务器获取工具列表、描述和参数。
+    当传入 agent_id 时，根据该 Agent 是否支持沙箱来过滤沙箱类工具。
     """
+    # 判断当前 Agent 是否支持沙箱
+    agent_supports_sandbox = True  # 默认支持（向后兼容）
+    if agent_id:
+        from src.agents.core.base import _AGENT_REGISTRY
+
+        agent_cls = _AGENT_REGISTRY.get(agent_id)
+        if agent_cls:
+            agent_supports_sandbox = getattr(agent_cls, "_supports_sandbox", True)
+        else:
+            logger.warning(
+                f"[Tools API] Unknown agent_id={agent_id}, defaulting sandbox support to True"
+            )
+
     tools = []
 
     # 1. Human 工具
     tools.extend(HUMAN_TOOLS)
 
-    # 2. Sandbox MCP 管理工具（仅在沙箱模式启用时显示）
-    if settings.ENABLE_SANDBOX:
+    # 2. Sandbox MCP 管理工具（仅在沙箱模式启用且当前 Agent 支持沙箱时显示）
+    if settings.ENABLE_SANDBOX and agent_supports_sandbox:
         tools.extend(SANDBOX_MCP_TOOLS)
 
     # 3. MCP 工具 - 使用全局单例（分布式优化）
@@ -466,7 +481,7 @@ async def list_tools(
 
     # 3. Sandbox MCP 工具 — 沙箱内运行的 MCP 服务器无法从 API 层直接发现，
     #    将每个已启用的 sandbox 服务器作为一条工具条目展示在 mcp 分类下。
-    if settings.ENABLE_SANDBOX and settings.ENABLE_MCP:
+    if settings.ENABLE_SANDBOX and settings.ENABLE_MCP and agent_supports_sandbox:
         try:
             from src.infra.mcp.storage import MCPStorage
 
@@ -500,7 +515,7 @@ async def list_tools(
                     ToolInfo(
                         name=qualified_name,
                         description=f"MCP server in sandbox: {command}",
-                        category="mcp",
+                        category="sandbox",
                         server=server_name,
                         parameters=[],
                     )

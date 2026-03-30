@@ -16,6 +16,7 @@ export function useTools(disabledToolsVersion?: string) {
   const [error, setError] = useState<string | null>(null);
   const disabledToolsRef = useRef<Set<string>>(new Set());
   const savingRef = useRef(false);
+  const agentIdRef = useRef<string | undefined>(undefined);
 
   // 从 user metadata 同步 disabled_tools 到 ref
   const syncFromMetadata = useCallback((metadata?: Record<string, unknown>) => {
@@ -48,11 +49,18 @@ export function useTools(disabledToolsVersion?: string) {
         // 先从 metadata 同步
         syncFromMetadata(metadata);
 
-        const response = await authenticatedRequest(`${API_BASE}/tools`, {
-          headers: {
-            "Content-Type": "application/json",
+        const agentId = agentIdRef.current;
+        const queryParams = agentId
+          ? `?agent_id=${encodeURIComponent(agentId)}`
+          : "";
+        const response = await authenticatedRequest(
+          `${API_BASE}/tools${queryParams}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
           },
-        });
+        );
 
         if (!response.ok) {
           throw new Error("Failed to fetch tools");
@@ -155,6 +163,15 @@ export function useTools(disabledToolsVersion?: string) {
       .catch(() => fetchTools());
   }, [fetchTools, disabledToolsVersion]);
 
+  // Refresh tools with a specific agent ID (for sandbox filtering)
+  const refreshToolsForAgent = useCallback(
+    (agentId: string, metadata?: Record<string, unknown>) => {
+      agentIdRef.current = agentId;
+      return fetchTools(metadata);
+    },
+    [fetchTools],
+  );
+
   return {
     tools,
     isLoading,
@@ -166,5 +183,6 @@ export function useTools(disabledToolsVersion?: string) {
     toggleAll,
     getDisabledToolNames,
     refreshTools: fetchTools,
+    refreshToolsForAgent,
   };
 }

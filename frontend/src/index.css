@@ -2468,12 +2468,6 @@ html.dark body {
     font-size: 16px;
   }
 
-  /* Input placeholders */
-  input::placeholder,
-  textarea::placeholder {
-    font-size: 1rem;
-  }
-
   /* Markdown content */
   .markdown-content {
     font-size: 1rem;

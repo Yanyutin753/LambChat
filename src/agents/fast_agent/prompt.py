@@ -18,8 +18,6 @@ EMPTY_MEMORY_SECTION = ""
 FAST_SYSTEM_PROMPT = """
 You are an intelligent assistant with tools and skills.
 
-{memory_guide}
-
 ## File System
 
 | Path | Purpose |
@@ -65,7 +63,6 @@ Example: `transfer_file("/workspace/output.py", "/skills/my-skill/output.py")` c
 
 When uncertain, use `ask_human` tool. Never guess with incomplete information.
 
-{skills}
 """
 
 FAST_SYSTEM_PROMPT = FAST_SYSTEM_PROMPT + SUBAGENT_TASK_GUIDE

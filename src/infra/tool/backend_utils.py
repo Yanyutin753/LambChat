@@ -7,11 +7,29 @@ Backend 工具函数
 
 from typing import Any, Optional
 
-from deepagents.backends.protocol import BackendProtocol
+from deepagents.backends.protocol import SandboxBackendProtocol
 
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def get_user_id_from_runtime(runtime: Any) -> Optional[str]:
+    """从 ToolRuntime 获取 user_id。
+
+    通过 runtime.config.configurable.context.user_id 获取，
+    与 get_backend_from_runtime 同风格。
+    """
+    if runtime is not None:
+        if hasattr(runtime, "config") and runtime.config:
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                if isinstance(configurable, dict):
+                    ctx = configurable.get("context")
+                    if ctx and hasattr(ctx, "user_id"):
+                        return ctx.user_id
+    return None
 
 
 def get_base_url_from_runtime(runtime: Any) -> str:
@@ -41,7 +59,7 @@ def get_base_url_from_runtime(runtime: Any) -> str:
     return ""
 
 
-def get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
+def get_backend_from_runtime(runtime: Any) -> Optional[SandboxBackendProtocol]:
     """从 ToolRuntime 获取 backend（分布式安全）
 
     Backend 通过 runtime.config["configurable"]["backend"] 传递

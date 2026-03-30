@@ -547,6 +547,7 @@ class AgentFactory:
                 or getattr(agent_cls, "_description", ""),
                 "version": getattr(agent_cls, "_version", "0.1.0"),
                 "sort_order": getattr(agent_cls, "_sort_order", 100),
+                "supports_sandbox": getattr(agent_cls, "_supports_sandbox", False),
                 "options": getattr(agent_cls, "_options", {}),
             }
             for aid, agent_cls in _AGENT_REGISTRY.items()

@@ -3,7 +3,7 @@
 // ============================================
 
 // Tool Category
-export type ToolCategory = "builtin" | "skill" | "human" | "mcp";
+export type ToolCategory = "builtin" | "skill" | "human" | "mcp" | "sandbox";
 
 // Tool Parameter Info
 export interface ToolParamInfo {

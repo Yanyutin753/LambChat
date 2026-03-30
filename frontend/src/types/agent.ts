@@ -19,6 +19,7 @@ export interface AgentInfo {
   description: string;
   version: string;
   sort_order?: number;
+  supports_sandbox?: boolean;
   options?: Record<string, AgentOption>;
 }
 
