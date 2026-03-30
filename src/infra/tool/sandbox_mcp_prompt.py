@@ -71,20 +71,30 @@ def invalidate_sandbox_mcp_prompt_cache(user_id: str) -> None:
 def _format_tools_list(data: Any) -> str:
     """Format mcporter list JSON output into a readable prompt section.
 
-    Expected mcporter list --json format (per-server):
+    Actual mcporter list --json format:
     {
-      "server_name": {
-        "tools": [
-          {
-            "name": "tool_name",
-            "description": "...",
-            "inputSchema": { ... }
-          }
-        ]
-      }
+      "mode": "list",
+      "servers": [
+        {
+          "name": "server_name",
+          "status": "ok",
+          "tools": [
+            {
+              "name": "tool_name",
+              "description": "...",
+              "inputSchema": { ... }
+            }
+          ]
+        }
+      ]
     }
     """
     if not isinstance(data, dict):
+        return ""
+
+    # mcporter returns servers as a list under "servers" key
+    servers = data.get("servers", [])
+    if not isinstance(servers, list):
         return ""
 
     lines = ["## Sandbox MCP Tools", ""]
@@ -96,11 +106,12 @@ def _format_tools_list(data: Any) -> str:
 
     tool_count = 0
 
-    for server_name, server_data in sorted(data.items()):
-        if not isinstance(server_data, dict):
+    for server in servers:
+        if not isinstance(server, dict):
             continue
 
-        tools = server_data.get("tools", [])
+        server_name = server.get("name", "")
+        tools = server.get("tools", [])
         if not tools:
             continue
 
@@ -164,6 +175,7 @@ async def _fetch_and_format(backend: Any) -> str:
 
         try:
             data = json.loads(result.output)
+            logger.debug(f"[SandboxMCP Prompt] mcporter list output: {data}")
         except json.JSONDecodeError:
             logger.warning("[SandboxMCP Prompt] mcporter list returned invalid JSON")
             return ""
