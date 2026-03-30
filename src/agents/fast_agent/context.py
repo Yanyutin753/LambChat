@@ -58,7 +58,18 @@ class FastAgentContext:
         if not self.disabled_tools:
             return self.tools
 
-        builtin_tools = frozenset(["ask_human", "reveal_file", "reveal_project", "transfer_file"])
+        builtin_tools = frozenset(
+            [
+                "ask_human",
+                "reveal_file",
+                "reveal_project",
+                "transfer_file",
+                "sandbox_mcp_list",
+                "sandbox_mcp_add",
+                "sandbox_mcp_update",
+                "sandbox_mcp_remove",
+            ]
+        )
 
         disabled_set = set(self.disabled_tools)
         mcp_servers = set()
@@ -158,6 +169,13 @@ class FastAgentContext:
 
         # MCP 工具延迟加载（不在 setup 时初始化）
         logger.info("[FastAgentContext] MCP tools will be lazy loaded on first use")
+
+        # 沙箱 MCP 管理工具
+        if settings.ENABLE_SANDBOX:
+            from src.infra.tool.sandbox_mcp_tool import get_sandbox_mcp_tools
+
+            self.tools.extend(get_sandbox_mcp_tools())
+            logger.info("[FastAgentContext] Added sandbox_mcp tools (sandbox mode)")
 
         # 加载技能（使用与 Search Agent 相同的方式，保持一致）
         if settings.ENABLE_SKILLS and self.user_id:
