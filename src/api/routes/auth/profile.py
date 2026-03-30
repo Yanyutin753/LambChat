@@ -2,11 +2,10 @@
 User profile routes (password change, avatar, profile, username)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from src.api.deps import get_current_user_required
-from src.infra.auth.turnstile import get_turnstile_service
 from src.infra.logging import get_logger
 from src.infra.user.manager import UserManager
 from src.kernel.exceptions import ValidationError
