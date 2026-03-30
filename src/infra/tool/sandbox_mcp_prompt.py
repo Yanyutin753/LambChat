@@ -19,6 +19,9 @@ _sandbox_mcp_prompt_cache: dict[str, tuple[str, float]] = {}
 # Cache TTL in seconds
 _CACHE_TTL = 1800  # 30 minutes
 
+# Max tools to inject into system prompt (beyond this, LLM uses bash to discover more)
+_MAX_TOOLS_IN_PROMPT = 20
+
 # mcporter timeout
 _MCPORTER_TIMEOUT = 15
 
@@ -105,6 +108,8 @@ def _format_tools_list(data: Any) -> str:
     lines.append("")
 
     tool_count = 0
+    total_count = 0
+    has_more = False
 
     for server in servers:
         if not isinstance(server, dict):
@@ -116,6 +121,13 @@ def _format_tools_list(data: Any) -> str:
             continue
 
         for tool in tools:
+            total_count += 1
+
+            # Skip tools beyond the limit
+            if tool_count >= _MAX_TOOLS_IN_PROMPT:
+                has_more = True
+                continue
+
             tool_name = tool.get("name", "")
             description = tool.get("description", "")
             input_schema = tool.get("inputSchema", {})
@@ -161,6 +173,14 @@ def _format_tools_list(data: Any) -> str:
 
     if tool_count == 0:
         return ""
+
+    # If there are more tools than shown, tell the LLM to discover them via bash
+    if has_more:
+        remaining = total_count - tool_count
+        lines.append(
+            f"(Showing {tool_count} of {total_count} tools. "
+            f"{remaining} more available. Run `mcporter list` via bash to see all.)"
+        )
 
     return "\n".join(lines)
 

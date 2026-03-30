@@ -1,13 +1,12 @@
 """Sandbox MCP Tools - Manage MCP servers inside the sandbox via mcporter CLI.
 
-Exposes four independent tools so the LLM can naturally discover and use them:
-  - sandbox_mcp_list:    List registered MCP servers and their tools
+Exposes three independent tools so the LLM can manage MCP servers:
   - sandbox_mcp_add:      Register a new MCP server (persists to MongoDB)
   - sandbox_mcp_update:   Update an existing MCP server's command/env (persists to MongoDB)
   - sandbox_mcp_remove:   Unregister an MCP server (persists to MongoDB)
 
-All write operations (add/update/remove) sync changes back to MongoDB via MCPStorage,
-so they survive sandbox rebuilds.
+Note: sandbox_mcp_list and sandbox_mcp_call were removed. The LLM discovers
+tools via the system prompt and calls/discovers them directly via bash + mcporter.
 """
 
 import json
@@ -39,12 +38,6 @@ _MCPORTER_TIMEOUT = 60
 
 
 # ── Args schemas ────────────────────────────────────────────────
-
-
-class _ListInput(BaseModel):
-    server_name: Optional[str] = Field(
-        None, description="MCP server name to list tools from (omit for all servers)"
-    )
 
 
 class _AddInput(BaseModel):
@@ -125,31 +118,6 @@ async def _delete_server_from_mongodb(user_id: str, server_name: str) -> bool:
 
 
 # ── Tool implementations ───────────────────────────────────────
-
-
-async def _mcporter_list(
-    runtime: Annotated[ToolRuntime, InjectedToolArg],
-    server_name: Optional[str] = None,
-) -> str:
-    """List MCP servers or tools from a specific server."""
-    backend = get_backend_from_runtime(runtime)
-    if backend is None:
-        return json.dumps({"error": "No sandbox backend available"})
-
-    if server_name:
-        cmd = f"mcporter list {shlex.quote(server_name)} --json"
-    else:
-        cmd = "mcporter list --json"
-
-    result = await backend.aexecute(cmd, timeout=_MCPORTER_TIMEOUT)
-    if result.exit_code != 0:
-        return json.dumps({"error": result.output})
-
-    try:
-        data = json.loads(result.output)
-        return json.dumps(data, indent=2)
-    except json.JSONDecodeError:
-        return result.output
 
 
 async def _build_env_flags_async(user_id: str, env_key_names: list[str]) -> str:
@@ -320,24 +288,13 @@ async def _mcporter_remove(
 def get_sandbox_mcp_tools() -> list[BaseTool]:
     """Get all sandbox MCP management tools.
 
-    Returns four independent LangChain StructuredTools so the LLM can
-    discover and use each one naturally:
-      - sandbox_mcp_list:    list servers / tools
+    Returns three independent LangChain StructuredTools so the LLM can
+    manage MCP servers:
       - sandbox_mcp_add:      register a new server (persists to MongoDB)
       - sandbox_mcp_update:   update server command/env_keys (persists to MongoDB)
       - sandbox_mcp_remove:   unregister a server (persists to MongoDB)
     """
     return [
-        StructuredTool(
-            name="sandbox_mcp_list",
-            description=(
-                "List MCP servers registered in the sandbox and the tools they expose. "
-                "Optionally pass server_name to list tools from a specific server."
-            ),
-            args_schema=_ListInput,
-            func=None,
-            coroutine=_mcporter_list,
-        ),
         StructuredTool(
             name="sandbox_mcp_add",
             description=(

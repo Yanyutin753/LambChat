@@ -105,19 +105,6 @@ BUILTIN_TOOLS = [
 # Sandbox MCP 管理工具定义
 SANDBOX_MCP_TOOLS = [
     ToolInfo(
-        name="sandbox_mcp_list",
-        description="列出沙箱中已注册的 MCP 服务器及其工具",
-        category="builtin",
-        parameters=[
-            ToolParamInfo(
-                name="server_name",
-                type="string",
-                description="服务器名称（可选，省略则列出所有）",
-                required=False,
-            ),
-        ],
-    ),
-    ToolInfo(
         name="sandbox_mcp_add",
         description="在沙箱中注册新的 MCP 服务器，并持久化到数据库",
         category="builtin",

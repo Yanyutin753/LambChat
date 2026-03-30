@@ -64,7 +64,6 @@ class FastAgentContext:
                 "reveal_file",
                 "reveal_project",
                 "transfer_file",
-                "sandbox_mcp_list",
                 "sandbox_mcp_add",
                 "sandbox_mcp_update",
                 "sandbox_mcp_remove",
