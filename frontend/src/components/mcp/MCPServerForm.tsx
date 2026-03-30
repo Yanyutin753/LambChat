@@ -13,7 +13,7 @@ interface MCPServerFormProps {
   onSave: (data: MCPServerCreate) => Promise<boolean>;
   onCancel: () => void;
   isLoading?: boolean;
-  allowedTransports?: Permission[]; // Permissions for allowed transport types
+  allowedTransports?: Permission[];
 }
 
 interface KeyValuePair {
@@ -35,7 +35,6 @@ export function MCPServerForm({
   const { t } = useTranslation();
   const isEditing = !!server;
 
-  // Determine available transport types based on permissions
   const allTransports: {
     value: MCPTransport;
     label: string;
@@ -52,8 +51,8 @@ export function MCPServerForm({
       permission: Permission.MCP_WRITE_HTTP,
     },
   ];
-  const availableTransports = allTransports.filter((t) =>
-    allowedTransports.includes(t.permission),
+  const availableTransports = allTransports.filter((tr) =>
+    allowedTransports.includes(tr.permission),
   );
 
   const defaultTransport = availableTransports[0]?.value ?? "sse";
@@ -126,9 +125,9 @@ export function MCPServerForm({
       name: name.trim(),
       transport,
       enabled,
-      url: url.trim(),
     };
 
+    data.url = url.trim();
     if (headers.length > 0) {
       data.headers = headers.reduce(
         (acc, { key, value }) => {
@@ -205,9 +204,9 @@ export function MCPServerForm({
             disabled={isEditing}
             className="w-full appearance-none rounded-lg border border-stone-200 bg-white pl-3 pr-9 py-2 text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
           >
-            {availableTransports.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            {availableTransports.map((tr) => (
+              <option key={tr.value} value={tr.value}>
+                {tr.label}
               </option>
             ))}
           </select>
@@ -291,9 +290,7 @@ export function MCPServerForm({
               <input
                 type="text"
                 value={header.value}
-                onChange={(e) =>
-                  updateHeader(index, "value", e.target.value)
-                }
+                onChange={(e) => updateHeader(index, "value", e.target.value)}
                 placeholder={t("mcp.form.valuePlaceholder")}
                 className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
               />
