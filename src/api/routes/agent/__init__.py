@@ -5,6 +5,7 @@ Agent 路由
 每个 Agent 就是一个 Graph，流式请求接入 graph 后输出 SSE 事件。
 """
 
+import asyncio
 import json
 import uuid
 from typing import Optional
@@ -264,15 +265,25 @@ async def list_agents(
         from src.infra.role.manager import get_role_manager
 
         role_manager = get_role_manager()
-        for role_name in user_roles:
+
+        # 并行查询所有角色信息，避免 N+1 问题
+        async def _fetch_role(role_name: str):
             role = await role_manager.get_role_by_name(role_name)
             if role:
-                role_ids.append(role.id)
                 role_agents = await storage.get_role_agents(role.id)
-                # None = 未配置, list = 已配置(空列表表示明确禁止所有)
-                role_agent_map[role.id] = role_agents
+                return role.id, role.id, role_agents, role_name
+            return None
+
+        role_results = await asyncio.gather(
+            *[_fetch_role(rn) for rn in user_roles]
+        )
+        for result in role_results:
+            if result is not None:
+                rid, _, role_agents, role_name = result
+                role_ids.append(rid)
+                role_agent_map[rid] = role_agents
                 logger.info(
-                    f"[Agents API] role_name={role_name}, role_id={role.id}, role_agents={role_agents}"
+                    f"[Agents API] role_name={role_name}, role_id={rid}, role_agents={role_agents}"
                 )
 
     logger.info(f"[Agents API] final role_ids={role_ids}, role_agent_map={role_agent_map}")

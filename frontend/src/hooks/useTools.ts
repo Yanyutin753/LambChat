@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { authApi } from "../services/api";
 import { authenticatedRequest } from "../services/api/authenticatedRequest";
 import type {
@@ -152,7 +152,7 @@ export function useTools(disabledToolsVersion?: string) {
   }, [tools]);
 
   // 获取启用的工具数量
-  const enabledCount = tools.filter((t) => t.enabled).length;
+  const enabledCount = useMemo(() => tools.filter((t) => t.enabled).length, [tools]);
 
   // 初始加载 — 从 authApi 获取当前 user metadata
   // disabledToolsVersion 变化时重新获取（当 MCPServerCard 切换工具时触发）

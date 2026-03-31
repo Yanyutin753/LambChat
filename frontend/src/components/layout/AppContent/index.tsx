@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { SessionSidebar } from "../../panels/SessionSidebar";
@@ -51,8 +51,9 @@ export function AppContent({ activeTab }: AppContentProps) {
 
   // Derive a version key from disabled_tools so useTools re-fetches when they change
   // (e.g. when user toggles a tool in MCPServerCard)
-  const disabledToolsVersion = JSON.stringify(
-    user?.metadata?.disabled_tools ?? [],
+  const disabledToolsVersion = useMemo(
+    () => JSON.stringify(user?.metadata?.disabled_tools ?? []),
+    [user?.metadata?.disabled_tools],
   );
 
   // Tools
@@ -181,11 +182,27 @@ export function AppContent({ activeTab }: AppContentProps) {
     clearMessages,
   });
 
+  // Stable callbacks to prevent child re-renders
+  const handleCloseProfileModal = useCallback(() => setShowProfileModal(false), []);
+  const handleShowProfile = useCallback(() => setShowProfileModal(true), []);
+  const handleMobileClose = useCallback(() => setMobileSidebarOpen(false), []);
+  const handleSelectSessionAndClose = useCallback(
+    (id: string) => {
+      handleSelectSession(id);
+      setMobileSidebarOpen(false);
+    },
+    [handleSelectSession],
+  );
+  const handleNewSessionAndClose = useCallback(() => {
+    handleNewSession();
+    setMobileSidebarOpen(false);
+  }, [handleNewSession]);
+
   return (
     <>
       <ProfileModal
         showProfileModal={showProfileModal}
-        onCloseProfileModal={() => setShowProfileModal(false)}
+        onCloseProfileModal={handleCloseProfileModal}
         versionInfo={versionInfo}
       />
 
@@ -219,22 +236,16 @@ export function AppContent({ activeTab }: AppContentProps) {
         {activeTab === "chat" && (
           <SessionSidebar
             currentSessionId={sessionId}
-            onSelectSession={(id) => {
-              handleSelectSession(id);
-              setMobileSidebarOpen(false);
-            }}
-            onNewSession={() => {
-              handleNewSession();
-              setMobileSidebarOpen(false);
-            }}
+            onSelectSession={handleSelectSessionAndClose}
+            onNewSession={handleNewSessionAndClose}
             onSetPendingProjectId={setPendingProjectId}
             autoExpandProjectId={autoExpandProjectId}
             newSession={newlyCreatedSession}
             mobileOpen={mobileSidebarOpen}
-            onMobileClose={() => setMobileSidebarOpen(false)}
+            onMobileClose={handleMobileClose}
             isCollapsed={sidebarCollapsed}
             onToggleCollapsed={setSidebarCollapsed}
-            onShowProfile={() => setShowProfileModal(true)}
+            onShowProfile={handleShowProfile}
           />
         )}
 
@@ -252,7 +263,7 @@ export function AppContent({ activeTab }: AppContentProps) {
             currentProjectId={currentProjectId}
             projectManager={projectManager}
             onNewSession={handleNewSession}
-            onShowProfile={() => setShowProfileModal(true)}
+            onShowProfile={handleShowProfile}
           />
 
           {activeTab === "chat" ? (

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import {
   Server,
   ToggleLeft,
@@ -55,15 +55,11 @@ export function MCPServerCard({
   const [toolsLoading, setToolsLoading] = useState(false);
   const [toolsError, setToolsError] = useState<string | null>(null);
 
-  // Sync disabled state from props (derived from disabled_tools metadata)
-  const [localDisabledTools, setLocalDisabledTools] = useState<Set<string>>(
-    new Set(),
-  );
-  useEffect(() => {
-    setLocalDisabledTools(new Set(disabledToolNames));
-  }, [disabledToolNames]);
+  // Track pending toggle to debounce rapid clicks and avoid race conditions
+  const pendingToggleRef = useRef<Promise<void> | null>(null);
 
-  const disabledTools = localDisabledTools;
+  // Use prop directly instead of redundant local state
+  const disabledTools = disabledToolNames;
 
   const transportLabel =
     TRANSPORT_LABELS[server.transport] || server.transport.toUpperCase();
@@ -109,50 +105,41 @@ export function MCPServerCard({
       const newEnabled = !currentEnabled;
       const qualifiedName = `${server.name}:${toolName}`;
 
-      // Optimistic update
-      setLocalDisabledTools((prev) => {
-        const next = new Set(prev);
-        if (newEnabled) {
-          next.delete(qualifiedName);
-        } else {
-          next.add(qualifiedName);
+      // Serialize toggles: wait for any in-flight toggle, then run this one
+      const togglePromise = (async () => {
+        if (pendingToggleRef.current) {
+          await pendingToggleRef.current;
         }
-        return next;
-      });
 
-      try {
-        // Use the same disabled_tools metadata as ToolSelector
-        const user = await authApi.getCurrentUser();
-        const currentDisabled: string[] =
-          (user.metadata?.disabled_tools as string[]) || [];
-        const updatedDisabled = newEnabled
-          ? currentDisabled.filter((n) => n !== qualifiedName)
-          : [...new Set([...currentDisabled, qualifiedName])];
-        await authApi.updateMetadata({ disabled_tools: updatedDisabled });
+        try {
+          const user = await authApi.getCurrentUser();
+          const currentDisabled: string[] =
+            (user.metadata?.disabled_tools as string[]) || [];
+          const updatedDisabled = newEnabled
+            ? currentDisabled.filter((n) => n !== qualifiedName)
+            : [...new Set([...currentDisabled, qualifiedName])];
+          await authApi.updateMetadata({ disabled_tools: updatedDisabled });
 
-        // Notify parent to refresh ToolSelector
-        onToolToggled?.();
-      } catch {
-        // Revert on error
-        setLocalDisabledTools((prev) => {
-          const next = new Set(prev);
-          if (newEnabled) {
-            next.add(qualifiedName);
-          } else {
-            next.delete(qualifiedName);
-          }
-          return next;
-        });
-      }
+          onToolToggled?.();
+        } catch {
+          // Parent will refresh with server truth on failure
+        }
+      })();
+
+      pendingToggleRef.current = togglePromise;
+      await togglePromise;
+      pendingToggleRef.current = null;
     },
     [server.name, onToolToggled],
   );
 
-  const enabledToolCount =
-    tools.length > 0
-      ? tools.filter((t) => !disabledTools.has(`${server.name}:${t.name}`))
-          .length
-      : 0;
+  const enabledToolCount = useMemo(
+    () =>
+      tools.length > 0
+        ? tools.filter((t) => !disabledTools.has(`${server.name}:${t.name}`)).length
+        : 0,
+    [tools, disabledTools, server.name],
+  );
 
   return (
     <div

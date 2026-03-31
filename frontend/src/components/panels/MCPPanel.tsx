@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Plus, X, Download, Upload, FolderOpen, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -98,8 +98,12 @@ export function MCPPanel() {
   // Note: canDelete permission is checked server-side
   // Client-side uses canWrite for UI actions, server validates actual permissions
 
-  const filteredServers = servers.filter((server) =>
-    server.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredServers = useMemo(
+    () =>
+      servers.filter((server) =>
+        server.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [servers, searchQuery],
   );
 
   // Get paginated servers
@@ -233,6 +237,11 @@ export function MCPPanel() {
   const handleToggle = async (name: string) => {
     await toggleServer(name);
   };
+
+  // Stable callback for tool toggled — avoids inline arrow in .map()
+  const handleToolToggled = useCallback(() => {
+    refreshUser();
+  }, [refreshUser]);
 
   const handleExport = async () => {
     try {
@@ -412,10 +421,7 @@ export function MCPPanel() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 disabledToolNames={disabledToolNames}
-                onToolToggled={() => {
-                  // Refresh user metadata to sync disabledToolNames with ToolSelector
-                  refreshUser();
-                }}
+                onToolToggled={handleToolToggled}
               />
             ))}
           </div>
