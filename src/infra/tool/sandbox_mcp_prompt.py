@@ -42,6 +42,9 @@ async def build_sandbox_mcp_prompt(
     Returns:
         Formatted prompt string, or empty string if no tools available.
     """
+    # Cleanup stale cache entries periodically
+    _cleanup_stale_cache()
+
     # Check cache
     if not force_refresh and user_id in _sandbox_mcp_prompt_cache:
         prompt, total_count, ts = _sandbox_mcp_prompt_cache[user_id]
@@ -60,6 +63,16 @@ async def build_sandbox_mcp_prompt(
     )
 
     return _maybe_append_overflow_hint(prompt, total_count)
+
+
+def _cleanup_stale_cache() -> None:
+    """Remove expired entries from the cache."""
+    now = time.time()
+    stale = [uid for uid, (_, _, ts) in _sandbox_mcp_prompt_cache.items() if now - ts > _CACHE_TTL]
+    for uid in stale:
+        del _sandbox_mcp_prompt_cache[uid]
+    if stale:
+        logger.debug(f"[SandboxMCP Prompt] Cleaned up {len(stale)} stale cache entries")
 
 
 def invalidate_sandbox_mcp_prompt_cache(user_id: str) -> None:

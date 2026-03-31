@@ -43,6 +43,18 @@ _cache_locks: dict[str, asyncio.Lock] = {}
 _cleanup_lock = asyncio.Lock()
 
 
+async def _close_client(client: MultiServerMCPClient) -> None:
+    """Close MCP client connections."""
+    try:
+        # MultiServerMCPClient may have cleanup methods
+        if hasattr(client, "close"):
+            await client.close()
+        elif hasattr(client, "__aexit__"):
+            await client.__aexit__(None, None, None)
+    except Exception as e:
+        logger.debug(f"Error closing MCP client: {e}")
+
+
 def _remove_lock_if_idle(user_id: str) -> bool:
     """Remove a cached lock only when it is currently idle."""
     lock = _cache_locks.get(user_id)
@@ -56,7 +68,13 @@ def _cleanup_expired_cache() -> int:
     """清理过期的缓存条目，返回清理的数量"""
     expired_users = [user_id for user_id, entry in _tools_cache.items() if entry.is_expired()]
     for user_id in expired_users:
-        _tools_cache.pop(user_id, None)
+        entry = _tools_cache.pop(user_id, None)
+        if entry and entry.client:
+            try:
+                # Close MCP client to release connections
+                asyncio.create_task(_close_client(entry.client))
+            except Exception as e:
+                logger.debug(f"Failed to close MCP client for {user_id}: {e}")
         _remove_lock_if_idle(user_id)
     # 清理没有对应缓存条目的孤立 lock
     orphan_locks = [uid for uid in _cache_locks if uid not in _tools_cache]
@@ -75,8 +93,13 @@ def _cleanup_excess_cache() -> int:
 
     # 删除超出部分
     to_remove = len(_tools_cache) - MAX_CACHE_ENTRIES
-    for user_id, _ in sorted_entries[:to_remove]:
+    for user_id, entry in sorted_entries[:to_remove]:
         _tools_cache.pop(user_id, None)
+        if entry and entry.client:
+            try:
+                asyncio.create_task(_close_client(entry.client))
+            except Exception as e:
+                logger.debug(f"Failed to close MCP client for {user_id}: {e}")
         _remove_lock_if_idle(user_id)
 
     # 清理没有对应缓存条目的孤立 lock
@@ -269,6 +292,11 @@ async def invalidate_user_cache(user_id: str) -> bool:
     had_cache = user_id in _tools_cache
     if had_cache:
         cached = _tools_cache.pop(user_id)
+        if cached.client:
+            try:
+                await _close_client(cached.client)
+            except Exception as e:
+                logger.debug(f"[MCP Cache] Error closing client for {user_id}: {e}")
         logger.info(
             f"[MCP Cache] Invalidated memory cache for user {user_id}, {len(cached.tools)} tools"
         )

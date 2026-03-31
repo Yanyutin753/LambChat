@@ -86,7 +86,6 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
         super().__init__()
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-        self.tools: list = []
 
     def _extract_messages(
         self,

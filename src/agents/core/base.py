@@ -357,6 +357,8 @@ class BaseGraphAgent(ABC):
                         await stream_task
                     except (asyncio.CancelledError, TaskInterruptedError):
                         pass
+                # 清理 event_processor 内存
+                event_processor.clear()
 
         except asyncio.CancelledError:
             # 任务被取消，yield 队列中剩余的事件（由 manager.py 保存）

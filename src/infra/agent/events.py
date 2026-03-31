@@ -94,6 +94,13 @@ class AgentEventProcessor:
         self._chunk_buffer = ""
         self._chunk_buffer_key: tuple[int, str | None, str | None] | None = None
 
+    def clear(self) -> None:
+        """释放本次 session 持有的内存（session 结束后调用）"""
+        self._output_buffer.close()
+        self._output_buffer = StringIO()
+        self.checkpoint_to_agent.clear()
+        self.thinking_ids.clear()
+
     @property
     def output_text(self) -> str:
         """获取累积的输出文本"""
