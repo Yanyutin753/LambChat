@@ -271,15 +271,13 @@ async def list_agents(
             role = await role_manager.get_role_by_name(role_name)
             if role:
                 role_agents = await storage.get_role_agents(role.id)
-                return role.id, role.id, role_agents, role_name
+                return role.id, role_agents, role_name
             return None
 
-        role_results = await asyncio.gather(
-            *[_fetch_role(rn) for rn in user_roles]
-        )
+        role_results = await asyncio.gather(*[_fetch_role(rn) for rn in user_roles])
         for result in role_results:
             if result is not None:
-                rid, _, role_agents, role_name = result
+                rid, role_agents, role_name = result
                 role_ids.append(rid)
                 role_agent_map[rid] = role_agents
                 logger.info(

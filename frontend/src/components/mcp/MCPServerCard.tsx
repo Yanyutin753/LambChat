@@ -11,6 +11,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { mcpApi } from "../../services/api/mcp";
 import { authApi } from "../../services/api";
 import type { MCPServerResponse, MCPToolInfo } from "../../types";
@@ -122,7 +123,8 @@ export function MCPServerCard({
 
           onToolToggled?.();
         } catch {
-          // Parent will refresh with server truth on failure
+          toast.error(t("mcp.card.toolToggleFailed", "Failed to toggle tool"));
+          onToolToggled?.();
         }
       })();
 
@@ -130,7 +132,7 @@ export function MCPServerCard({
       await togglePromise;
       pendingToggleRef.current = null;
     },
-    [server.name, onToolToggled],
+    [server.name, onToolToggled, t],
   );
 
   const enabledToolCount = useMemo(

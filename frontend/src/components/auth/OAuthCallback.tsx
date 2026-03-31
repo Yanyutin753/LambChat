@@ -77,7 +77,7 @@ export function OAuthCallback() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
       <div className="text-center">
-        <Loading size="lg" />
+        <Loading size="lg" className="justify-center" />
         <p className="mt-4 text-stone-600 dark:text-stone-400">
           {t("auth.completingLogin")}
         </p>

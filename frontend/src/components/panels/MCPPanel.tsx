@@ -55,13 +55,7 @@ export function MCPPanel() {
 
   // Pagination state
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const pageSize = 20;
-
-  // Update total when servers change
-  useEffect(() => {
-    setTotal(servers.length);
-  }, [servers]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -105,6 +99,7 @@ export function MCPPanel() {
       ),
     [servers, searchQuery],
   );
+  const total = filteredServers.length;
 
   // Get paginated servers
   const paginatedServers = filteredServers.slice(
@@ -112,23 +107,23 @@ export function MCPPanel() {
     page * pageSize,
   );
 
-  const handleCreate = async () => {
+  const handleCreate = useCallback(async () => {
     setIsCreating(true);
     setEditingServer(null);
     setCreateAsSystem(false);
     setChangeToSystem(false);
     setShowModal(true);
-  };
+  }, []);
 
-  const handleEdit = (server: MCPServerResponse) => {
+  const handleEdit = useCallback((server: MCPServerResponse) => {
     setEditingServer(server);
     setIsCreating(false);
     setCreateAsSystem(false);
     setChangeToSystem(server.is_system); // Initialize with current type
     setShowModal(true);
-  };
+  }, []);
 
-  const handleSave = async (data: MCPServerCreate): Promise<boolean> => {
+  const handleSave = useCallback(async (data: MCPServerCreate): Promise<boolean> => {
     let success = false;
 
     try {
@@ -201,20 +196,20 @@ export function MCPPanel() {
     }
 
     return success;
-  };
+  }, [isCreating, editingServer, createAsSystem, changeToSystem, canAdmin, createServer, updateServer, promoteServer, demoteServer, user?.id, t]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setShowModal(false);
     setEditingServer(null);
     setIsCreating(false);
     setCreateAsSystem(false);
     setChangeToSystem(false);
-  };
+  }, []);
 
-  const handleDelete = async (name: string, isSystem: boolean = false) => {
+  const handleDelete = useCallback(async (name: string, isSystem: boolean = false) => {
     setDeleteConfirmData({ name, isSystem });
     setIsDeleteConfirmOpen(true);
-  };
+  }, []);
 
   const confirmDelete = async () => {
     if (!deleteConfirmData) return;
@@ -234,9 +229,9 @@ export function MCPPanel() {
     setDeleteConfirmData(null);
   };
 
-  const handleToggle = async (name: string) => {
+  const handleToggle = useCallback(async (name: string) => {
     await toggleServer(name);
-  };
+  }, [toggleServer]);
 
   // Stable callback for tool toggled — avoids inline arrow in .map()
   const handleToolToggled = useCallback(() => {

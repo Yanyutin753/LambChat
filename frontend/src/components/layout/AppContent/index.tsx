@@ -51,8 +51,10 @@ export function AppContent({ activeTab }: AppContentProps) {
 
   // Derive a version key from disabled_tools so useTools re-fetches when they change
   // (e.g. when user toggles a tool in MCPServerCard)
+  // Use sorted JSON string as dependency so only actual content changes trigger refetch
   const disabledToolsVersion = useMemo(
-    () => JSON.stringify(user?.metadata?.disabled_tools ?? []),
+    () => JSON.stringify(((user?.metadata?.disabled_tools as string[] | undefined) ?? []).slice().sort()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [user?.metadata?.disabled_tools],
   );
 

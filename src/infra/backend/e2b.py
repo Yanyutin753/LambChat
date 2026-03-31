@@ -253,7 +253,9 @@ class E2BBackend(BaseSandbox):
 
             def _match_glob(entries_list: list[Any], current_path: str, depth: int) -> None:
                 if depth > _max_depth:
-                    logger.warning(f"E2B glob_info reached max depth {_max_depth} at {current_path}")
+                    logger.warning(
+                        f"E2B glob_info reached max depth {_max_depth} at {current_path}"
+                    )
                     return
                 for entry in entries_list:
                     full_path = entry.path

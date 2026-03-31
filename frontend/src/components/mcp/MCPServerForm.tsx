@@ -23,6 +23,12 @@ interface KeyValuePair {
   value: string;
 }
 
+// Simple counter-based ID generator (avoids crypto.randomUUID() browser compat issues)
+let _headerIdCounter = 0;
+function nextHeaderId(): string {
+  return `h-${++_headerIdCounter}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function MCPServerForm({
   server,
   onSave,
@@ -77,7 +83,7 @@ export function MCPServerForm({
   const [headers, setHeaders] = useState<KeyValuePair[]>(
     server?.headers
       ? Object.entries(server.headers).map(([key, value]) => ({
-          id: crypto.randomUUID(),
+          id: nextHeaderId(),
           key,
           value: String(value),
         }))
@@ -100,7 +106,7 @@ export function MCPServerForm({
       setHeaders(
         server.headers
           ? Object.entries(server.headers).map(([key, value]) => ({
-              id: crypto.randomUUID(),
+              id: nextHeaderId(),
               key,
               value: String(value),
             }))
