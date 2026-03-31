@@ -6,9 +6,10 @@ Self-hosted memory system using MongoDB for storage with hybrid search
 """
 
 import asyncio
+import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional
 
 from src.infra.logging import get_logger
@@ -39,6 +40,13 @@ _STOPWORDS = frozenset(
 )
 
 
+def _ensure_aware(dt: datetime) -> datetime:
+    """Make a datetime timezone-aware (UTC) if it is naive."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 # ============================================================================
 # NativeMemoryBackend
 # ============================================================================
@@ -47,9 +55,13 @@ _STOPWORDS = frozenset(
 class NativeMemoryBackend(MemoryBackend):
     """MongoDB-native memory backend. No external API dependencies."""
 
+    # Maximum entries in the per-instance index cache
+    _INDEX_CACHE_MAX_SIZE: int = 1000
+
     def __init__(self):
         self._collection: Any = None
         self._embedding_fn: Optional[Callable] = None
+        self._httpx_client: Any = None  # keep ref for proper cleanup
         # In-memory cache for memory index: {user_id: (built_at, index_str)}
         self._index_cache: dict[str, tuple[float, str]] = {}
 
@@ -61,6 +73,16 @@ class NativeMemoryBackend(MemoryBackend):
     # Lifecycle
     # ------------------------------------------------------------------
 
+    async def _invalidate_cache(self, user_id: str) -> None:
+        """Invalidate local index cache and publish invalidation to other instances."""
+        self._index_cache.pop(user_id, None)
+        try:
+            from src.infra.memory.distributed import publish_memory_invalidation
+
+            await publish_memory_invalidation(user_id)
+        except Exception:
+            pass  # non-critical: other instances will eventually refresh via TTL
+
     async def initialize(self) -> None:
         """Ensure indexes exist; set up optional embedding function."""
         self._ensure_collection()
@@ -68,6 +90,12 @@ class NativeMemoryBackend(MemoryBackend):
         self._setup_embedding_fn()
 
     async def close(self) -> None:
+        if self._httpx_client is not None:
+            try:
+                await self._httpx_client.aclose()
+            except Exception:
+                pass
+            self._httpx_client = None
         self._collection = None
         self._embedding_fn = None
         self._index_cache.clear()
@@ -105,8 +133,8 @@ class NativeMemoryBackend(MemoryBackend):
         }
 
         await self._collection.insert_one(doc)
-        # Invalidate index cache
-        self._index_cache.pop(user_id, None)
+        # Invalidate index cache (local + distributed)
+        await self._invalidate_cache(user_id)
 
         return {
             "success": True,
@@ -130,9 +158,14 @@ class NativeMemoryBackend(MemoryBackend):
                 user_id, query, max_results * 2, memory_types
             )
 
-        memories = self._rrf_merge(text_results, vector_results, max_results)
+        memories = self._rrf_merge(text_results, vector_results, max_results * 2)
+
+        # LLM re-ranking: filter for contextual relevance
+        if memories and len(memories) > max_results:
+            memories = await self._llm_rerank(user_id, query, memories, max_results)
 
         if memories:
+            memories = memories[:max_results]
             await self._update_access_stats([m["memory_id"] for m in memories])
 
         return {
@@ -149,9 +182,66 @@ class NativeMemoryBackend(MemoryBackend):
     ) -> dict[str, Any]:
         result = await self._collection.delete_one({"user_id": user_id, "memory_id": memory_id})
         if result.deleted_count > 0:
-            self._index_cache.pop(user_id, None)
+            await self._invalidate_cache(user_id)
             return {"success": True, "message": f"Memory {memory_id} deleted"}
         return {"success": False, "error": "Memory not found"}
+
+    # ------------------------------------------------------------------
+    # Session summary (for context survival)
+    # ------------------------------------------------------------------
+
+    async def store_session_summary(
+        self, user_id: str, session_id: str, summary: str
+    ) -> None:
+        """Store or update a session-level summary as a project-type memory.
+
+        This captures the key state of a conversation so it can be recovered
+        after context compaction or in future sessions.
+        """
+        if not summary or len(summary.strip()) < 20:
+            return
+
+        summary = summary.strip()
+
+        # Upsert: replace existing summary for this session
+        existing = await self._collection.find_one(
+            {"user_id": user_id, "context": f"session:{session_id}"},
+            {"memory_id": 1},
+        )
+        now = datetime.now(timezone.utc)
+        summary_text = f"[Session {session_id[:8]}] {summary}"
+
+        if existing:
+            await self._collection.update_one(
+                {"memory_id": existing["memory_id"]},
+                {
+                    "$set": {
+                        "content": summary_text[:5000],
+                        "summary": summary[:100],
+                        "updated_at": now,
+                    }
+                },
+            )
+        else:
+            await self._collection.insert_one(
+                {
+                    "memory_id": uuid.uuid4().hex,
+                    "user_id": user_id,
+                    "content": summary_text[:5000],
+                    "summary": summary[:100],
+                    "memory_type": "project",
+                    "context": f"session:{session_id}",
+                    "tags": self._extract_tags(summary),
+                    "source": "session_summary",
+                    "embedding": await self._maybe_embed(summary_text),
+                    "created_at": now,
+                    "updated_at": now,
+                    "accessed_at": now,
+                    "access_count": 0,
+                }
+            )
+        await self._invalidate_cache(user_id)
+        logger.debug("[NativeMemory] Stored session summary for %s", session_id[:8])
 
     # ------------------------------------------------------------------
     # Auto-retain (smart filtering)
@@ -163,12 +253,20 @@ class NativeMemoryBackend(MemoryBackend):
         conversation_summary: str,
         context: Optional[str] = None,
     ) -> None:
-        memories = self._smart_filter_and_classify(conversation_summary)
+        # Try LLM-based extraction first, fall back to rule-based
+        memories = await self._llm_extract_memories(user_id, conversation_summary)
+        if not memories:
+            memories = self._smart_filter_and_classify(conversation_summary)
+        if not memories:
+            return
+
+        # Deduplicate against existing memories
+        memories = await self._deduplicate_against_existing(user_id, memories)
         if not memories:
             return
 
         # Daily rate limit
-        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         daily_count = await self._collection.count_documents(
             {
                 "user_id": user_id,
@@ -203,8 +301,279 @@ class NativeMemoryBackend(MemoryBackend):
 
         if docs:
             await self._collection.insert_many(docs)
-            self._index_cache.pop(user_id, None)
+            await self._invalidate_cache(user_id)
             logger.debug(f"[NativeMemory] Auto-retained {len(docs)} memories for {user_id}")
+
+    # ------------------------------------------------------------------
+    # Memory consolidation
+    # ------------------------------------------------------------------
+
+    async def consolidate_memories(self, user_id: str) -> dict[str, Any]:
+        """Consolidate memories: merge near-duplicates, prune stale/never-accessed.
+
+        Uses LLM for semantic merging of overlapping memories, then removes
+        memories that were never accessed and are older than 90 days.
+        Protected by a distributed lock to prevent concurrent consolidation
+        across instances.
+
+        Returns stats about what was done.
+        """
+        # Acquire distributed lock
+        import uuid as _uuid
+
+        instance_id = _uuid.uuid4().hex[:8]
+        try:
+            from src.infra.memory.distributed import (
+                acquire_consolidation_lock,
+                release_consolidation_lock,
+            )
+
+            locked = await acquire_consolidation_lock(user_id, instance_id)
+            if not locked:
+                logger.info("[NativeMemory] Consolidation already in progress for %s, skipping", user_id)
+                return {"merged": 0, "pruned": 0, "total_before": 0, "skipped": True}
+        except Exception:
+            locked = False  # fallback: proceed without distributed lock
+
+        try:
+            return await self._do_consolidate(user_id, instance_id, staleness_days, prune_threshold)
+        finally:
+            if locked:
+                try:
+                    from src.infra.memory.distributed import release_consolidation_lock
+
+                    await release_consolidation_lock(user_id, instance_id)
+                except Exception:
+                    pass
+
+    async def _do_consolidate(
+        self,
+        user_id: str,
+        instance_id: str,
+        staleness_days: int,
+        prune_threshold: int,
+    ) -> dict[str, Any]:
+        """Internal consolidation implementation (called after lock acquired)."""
+
+        # Fetch all memories for this user
+        cursor = self._collection.find(
+            {"user_id": user_id},
+            sort=[("memory_type", 1), ("updated_at", -1)],
+        )
+        all_memories = await cursor.to_list(length=200)
+
+        if len(all_memories) < 5:
+            return {"merged": 0, "pruned": 0, "total_before": len(all_memories)}
+
+        # Phase 1: Prune stale, never-accessed memories
+        now = datetime.utcnow()
+        pruned_ids = []
+        for m in all_memories:
+            updated = _ensure_aware(m.get("updated_at", now))
+            age_days = (now - updated).days
+            if age_days > prune_threshold and m.get("access_count", 0) == 0:
+                pruned_ids.append(m["memory_id"])
+
+        if pruned_ids:
+            await self._collection.delete_many(
+                {"user_id": user_id, "memory_id": {"$in": pruned_ids}}
+            )
+
+        # Phase 2: LLM-based merge of similar memories per type
+        merged_count = 0
+        for mtype in MemoryType:
+            type_memories = [
+                m for m in all_memories
+                if m.get("memory_type") == mtype.value and m["memory_id"] not in pruned_ids
+            ]
+            if len(type_memories) < 2:
+                continue
+
+            # Group by tag overlap for candidate merging
+            groups: dict[str, list] = {}
+            for m in type_memories:
+                key_tags = frozenset(m.get("tags", [])[:3])
+                if not key_tags:
+                    continue
+                found = False
+                for existing_key in groups:
+                    if len(key_tags & existing_key) >= 2:
+                        groups[existing_key].append(m)
+                        found = True
+                        break
+                if not found:
+                    groups[key_tags] = [m]
+
+            for group_key, group in groups.items():
+                if len(group) < 2:
+                    continue
+
+                try:
+                    merged = await self._llm_merge_memories(group)
+                    if merged:
+                        # Delete old memories, insert merged one
+                        old_ids = [m["memory_id"] for m in group]
+                        await self._collection.delete_many(
+                            {"user_id": user_id, "memory_id": {"$in": old_ids}}
+                        )
+                        await self._collection.insert_one(merged)
+                        merged_count += 1
+                except Exception as e:
+                    logger.debug("[NativeMemory] Merge failed for group: %s", e)
+
+        await self._invalidate_cache(user_id)
+
+        total_after = len(all_memories) - len(pruned_ids) - merged_count
+        result = {
+            "merged": merged_count,
+            "pruned": len(pruned_ids),
+            "total_before": len(all_memories),
+            "total_after": total_after,
+        }
+        logger.info(
+            "[NativeMemory] Consolidation for %s: merged=%d, pruned=%d, %d -> %d",
+            user_id, merged_count, len(pruned_ids),
+            result["total_before"], result["total_after"],
+        )
+        return result
+
+    async def _llm_rerank(
+        self, user_id: str, query: str, candidates: list[dict], max_results: int
+    ) -> list[dict]:
+        """Use LLM to re-rank candidate memories by contextual relevance."""
+        try:
+            from langchain_core.messages import HumanMessage, SystemMessage
+            from src.infra.llm.client import LLMClient
+
+            model = LLMClient.get_model(
+                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
+                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
+                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
+                temperature=0.1,
+                max_tokens=200,
+            )
+
+            items_text = "\n".join(
+                f"[{i}] {m['summary']}" for i, m in enumerate(candidates)
+            )
+
+            prompt = (
+                f"Query: {query}\n\n"
+                f"Ranked by relevance:\n{items_text}\n\n"
+                f"Return a JSON array of up to {max_results} index numbers (most relevant first). "
+                "Be strict — only include memories that are genuinely useful for this query."
+            )
+
+            response = await model.ainvoke(
+                [SystemMessage(content="You rank memory relevance. Output only a JSON array of numbers, e.g. [0, 3, 1]."), HumanMessage(content=prompt)],
+            )
+
+            text = response.content
+            if isinstance(text, list):
+                for item in text:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text = item.get("text", "")
+                        break
+                else:
+                    return candidates[:max_results]
+            text = str(text).strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            indices = json.loads(text)
+            if not isinstance(indices, list):
+                return candidates[:max_results]
+
+            ranked = []
+            for idx in indices:
+                if isinstance(idx, (int, float)) and 0 <= int(idx) < len(candidates):
+                    ranked.append(candidates[int(idx)])
+            return ranked[:max_results] if ranked else candidates[:max_results]
+
+        except Exception as e:
+            logger.debug("[NativeMemory] LLM rerank failed, using RRF order: %s", e)
+            return candidates[:max_results]
+
+    async def _llm_merge_memories(self, memories: list[dict]) -> Optional[dict]:
+        """Use LLM to merge overlapping memories into one consolidated memory."""
+        if len(memories) > 5:
+            memories = memories[:5]
+
+        try:
+            from langchain_core.messages import HumanMessage, SystemMessage
+            from src.infra.llm.client import LLMClient
+
+            model = LLMClient.get_model(
+                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
+                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
+                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
+                temperature=0.1,
+                max_tokens=500,
+            )
+
+            items_text = "\n".join(
+                f"[{i+1}] {m['content']}" for i, m in enumerate(memories)
+            )
+
+            prompt = (
+                "These memories are overlapping or related. Merge them into a single "
+                "consolidated memory that captures all unique information.\n\n"
+                f"Memories to merge:\n{items_text}\n\n"
+                "Return JSON: {\"content\": \"merged content\", \"type\": \"memory_type\", "
+                "\"summary\": \"concise summary\"}\n"
+                "Keep the most recent/relevant details. If memories contradict, "
+                "prefer the newer one."
+            )
+
+            response = await model.ainvoke(
+                [SystemMessage(content="You are a memory consolidation assistant. Output only JSON."), HumanMessage(content=prompt)],
+            )
+
+            text = response.content
+            if isinstance(text, list):
+                for item in text:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text = item.get("text", "")
+                        break
+                else:
+                    return None
+            text = str(text).strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            parsed = json.loads(text)
+            content = parsed.get("content", "").strip()
+            if not content:
+                return None
+
+            mem_type = parsed.get("type", memories[0].get("memory_type", "user"))
+            summary = parsed.get("summary", self._build_summary(content))
+
+            now = datetime.now(timezone.utc)
+            return {
+                "memory_id": uuid.uuid4().hex,
+                "user_id": memories[0]["user_id"],
+                "content": content[:5000],
+                "summary": summary[:100],
+                "memory_type": mem_type,
+                "context": "consolidated",
+                "tags": self._extract_tags(content),
+                "source": "auto_retained",
+                "embedding": await self._maybe_embed(content),
+                "created_at": now,
+                "updated_at": now,
+                "accessed_at": now,
+                "access_count": 0,
+            }
+        except Exception as e:
+            logger.debug("[NativeMemory] LLM merge failed: %s", e)
+            return None
 
     # ------------------------------------------------------------------
     # Memory index (for system prompt injection)
@@ -270,7 +639,7 @@ class NativeMemoryBackend(MemoryBackend):
             mtype = group["_id"]
             lines.append(f"\n## [{mtype}]")
             for item in group["items"]:
-                age_days = (now - item["updated_at"]).days
+                age_days = (now - _ensure_aware(item["updated_at"])).days
                 staleness = f" (stale: {age_days}d old)" if age_days > staleness_days else ""
                 lines.append(f"- {item['summary']}{staleness}")
 
@@ -279,7 +648,25 @@ class NativeMemoryBackend(MemoryBackend):
 
         # Cache it
         self._index_cache[user_id] = (asyncio.get_event_loop().time(), result)
+        # Evict oldest entries if cache exceeds max size
+        if len(self._index_cache) > self._INDEX_CACHE_MAX_SIZE:
+            self._evict_index_cache()
         return result
+
+    def _evict_index_cache(self) -> None:
+        """Remove expired and oldest entries to keep cache bounded."""
+        now = asyncio.get_event_loop().time()
+        cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
+        # Remove expired entries first
+        expired = [uid for uid, (t, _) in self._index_cache.items() if (now - t) >= cache_ttl]
+        for uid in expired:
+            del self._index_cache[uid]
+        # If still over limit, remove oldest entries
+        if len(self._index_cache) > self._INDEX_CACHE_MAX_SIZE:
+            sorted_entries = sorted(self._index_cache.items(), key=lambda x: x[1][0])
+            to_remove = len(self._index_cache) - self._INDEX_CACHE_MAX_SIZE
+            for uid, _ in sorted_entries[:to_remove]:
+                del self._index_cache[uid]
 
     # ------------------------------------------------------------------
     # Search implementations
@@ -372,9 +759,11 @@ class NativeMemoryBackend(MemoryBackend):
         except Exception:
             pass
 
-        # Fallback: Python cosine similarity
+        # Fallback: Python cosine similarity (only project needed fields)
         logger.debug("[NativeMemory] Atlas $vectorSearch unavailable, using Python cosine fallback")
-        cursor = self._collection.find(base).limit(200)
+        projection = {"memory_id": 1, "content": 1, "summary": 1, "memory_type": 1,
+                      "source": 1, "created_at": 1, "updated_at": 1, "embedding": 1}
+        cursor = self._collection.find(base, projection).limit(200)
         docs = await cursor.to_list(length=200)
         scored = []
         for d in docs:
@@ -492,9 +881,161 @@ class NativeMemoryBackend(MemoryBackend):
 
         return memories[:3]
 
+    async def _llm_extract_memories(
+        self, user_id: str, conversation: str
+    ) -> list[dict]:
+        """Use a lightweight LLM call to extract structured memories from a conversation turn.
+
+        Falls back gracefully on any error (returns empty list).
+        """
+        if len(conversation.strip()) < 30:
+            return []
+
+        try:
+            from langchain_core.messages import HumanMessage, SystemMessage
+            from src.infra.llm.client import LLMClient
+
+            model = LLMClient.get_model(
+                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
+                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
+                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
+                temperature=0.1,
+                max_tokens=500,
+            )
+
+            # Pre-inject existing memory index for dedup guidance
+            existing_index = ""
+            try:
+                cached = self._index_cache.get(user_id)
+                if cached and (asyncio.get_event_loop().time() - cached[0]) < 300:
+                    existing_index = cached[1]
+            except Exception:
+                pass
+
+            existing_hint = ""
+            if existing_index:
+                existing_hint = f"\n\nExisting memories (do NOT duplicate):\n{existing_index}"
+
+            prompt = (
+                "Analyze this conversation turn and extract memories worth remembering "
+                "across sessions. Return a JSON array of objects with 'content', 'type' "
+                "(one of: user, feedback, project, reference), and 'summary' (max 80 chars).\n\n"
+                "Rules:\n"
+                "- Only extract non-obvious, durable information (preferences, decisions, context)\n"
+                "- Do NOT extract code, file paths, git commands, error traces\n"
+                "- Do NOT extract greetings, thanks, or trivial chitchat\n"
+                "- Include *why* for feedback type memories\n"
+                "- Convert relative dates to absolute dates for project type\n"
+                "- Return empty array [] if nothing is worth remembering\n"
+                "- Maximum 3 memories per turn"
+                f"{existing_hint}\n\n"
+                "Conversation:\n"
+                f"{conversation[:2000]}\n\n"
+                'Return ONLY valid JSON: [{"content": "...", "type": "user", "summary": "..."}]'
+            )
+
+            response = await model.ainvoke(
+                [SystemMessage(content="You are a memory extraction assistant. Output only JSON."), HumanMessage(content=prompt)],
+            )
+
+            # Extract text from response
+            text = response.content
+            if isinstance(text, list):
+                for item in text:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text = item.get("text", "")
+                        break
+                else:
+                    return []
+            text = str(text).strip()
+
+            # Strip markdown code fences
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            parsed = json.loads(text)
+            if not isinstance(parsed, list):
+                return []
+
+            memories = []
+            for item in parsed[:3]:
+                content = item.get("content", "").strip()
+                mem_type = item.get("type", "user")
+                summary = item.get("summary", "")
+                if not content or len(content) < 15:
+                    continue
+                if mem_type not in ("user", "feedback", "project", "reference"):
+                    mem_type = "user"
+                if not summary:
+                    summary = self._build_summary(content)
+                memories.append(
+                    {
+                        "content": content[:5000],
+                        "summary": summary[:100],
+                        "memory_type": mem_type,
+                        "tags": self._extract_tags(content),
+                    }
+                )
+            if memories:
+                logger.debug("[NativeMemory] LLM extracted %d memories", len(memories))
+            return memories
+
+        except Exception as e:
+            logger.debug("[NativeMemory] LLM extraction failed, falling back to rules: %s", e)
+            return []
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    async def _deduplicate_against_existing(
+        self, user_id: str, candidates: list[dict]
+    ) -> list[dict]:
+        """Filter out candidates that are too similar to existing memories."""
+        if not candidates:
+            return candidates
+
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        try:
+            # Fetch recent summaries for this user
+            recent = await self._collection.find(
+                {
+                    "user_id": user_id,
+                    "updated_at": {"$gte": seven_days_ago},
+                },
+                {"summary": 1},
+            ).to_list(length=50)
+        except Exception:
+            return candidates  # on DB error, keep all candidates
+
+        recent_summaries = [doc["summary"] for doc in recent if doc.get("summary")]
+
+        if not recent_summaries:
+            return candidates
+
+        filtered = []
+        for mem in candidates:
+            summary = mem.get("summary", "")
+            if not summary:
+                filtered.append(mem)
+                continue
+            if any(self._word_similarity(summary, rs) > 0.7 for rs in recent_summaries):
+                continue  # too similar, skip
+            filtered.append(mem)
+
+        return filtered
+
+    @staticmethod
+    def _word_similarity(a: str, b: str) -> float:
+        """Jaccard similarity on word sets."""
+        set_a = set(a.lower().split())
+        set_b = set(b.lower().split())
+        if not set_a or not set_b:
+            return 0.0
+        return len(set_a & set_b) / len(set_a | set_b)
 
     def _extract_tags(self, content: str) -> list[str]:
         words = content.lower().split()
@@ -520,7 +1061,7 @@ class NativeMemoryBackend(MemoryBackend):
     @staticmethod
     def _format_memory(doc: dict, score: float) -> dict:
         now = datetime.now(timezone.utc)
-        staleness_days = (now - doc["updated_at"]).days
+        staleness_days = (now - _ensure_aware(doc["updated_at"])).days
         staleness_days_cfg = getattr(settings, "NATIVE_MEMORY_STALENESS_DAYS", 30)
 
         result: dict[str, Any] = {
@@ -655,6 +1196,7 @@ class NativeMemoryBackend(MemoryBackend):
                 return resp.json()["data"][0]["embedding"]
 
             self._embedding_fn = embed_fn
+            self._httpx_client = client
             logger.info(f"[NativeMemory] Embedding enabled: {api_base} ({model})")
         except ImportError:
             logger.warning("[NativeMemory] httpx not available, embedding disabled")

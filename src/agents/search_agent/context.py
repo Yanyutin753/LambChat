@@ -15,6 +15,7 @@ from src.infra.tool.transfer_file_tool import get_transfer_file_tool, get_transf
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
+    from src.infra.tool.deferred_manager import DeferredToolManager
     from src.infra.tool.mcp_client import MCPClientManager
 
 logger = get_logger(__name__)
@@ -45,6 +46,7 @@ class SearchAgentContext:
         self.tools: List[Any] = []
         self.skills: List[dict] = []
         self.skill_files: Dict[str, Any] = {}
+        self.deferred_manager: Optional["DeferredToolManager"] = None
 
     async def _lazy_load_mcp_tools(self) -> None:
         """懒加载 MCP 工具（仅在首次调用 get_tools 时初始化）"""
@@ -65,7 +67,36 @@ class SearchAgentContext:
             logger.info(
                 f"[SearchAgentContext] Loaded {len(mcp_tools)} MCP tools: {[t.name for t in mcp_tools]}"
             )
-            self.tools.extend(mcp_tools)
+
+            # 延迟加载决策：工具总数超过阈值时延迟 MCP 工具
+            if (
+                settings.ENABLE_DEFERRED_TOOL_LOADING
+                and mcp_tools
+                and (len(self.tools) + len(mcp_tools)) > settings.DEFERRED_TOOL_THRESHOLD
+            ):
+                from src.infra.tool.deferred_manager import (
+                    DeferredToolManager,
+                    restore_discovered_tools,
+                )
+
+                # 恢复上次已发现的工具名（跨 turn 持久化）
+                pre_discovered = await restore_discovered_tools(self.session_id)
+
+                self.deferred_manager = DeferredToolManager(
+                    all_deferred_tools=mcp_tools,
+                    session_id=self.session_id,
+                    disabled_tools=self.disabled_tools,
+                    pre_discovered_names=pre_discovered,
+                )
+                logger.info(
+                    f"[SearchAgentContext] Deferred {len(mcp_tools)} MCP tools "
+                    f"(builtin={len(self.tools)}, threshold={settings.DEFERRED_TOOL_THRESHOLD}, "
+                    f"pre_restored={len(pre_discovered)})"
+                )
+            else:
+                # 低于阈值或未启用延迟：走原有逻辑
+                self.tools.extend(mcp_tools)
+
         except Exception as e:
             logger.error(f"[SearchAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 

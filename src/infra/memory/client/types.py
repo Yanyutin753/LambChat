@@ -81,8 +81,8 @@ Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove)
 ### Memory Types
 Memories are automatically classified by type:
 - **user**: User's role, preferences, knowledge, and working style
-- **feedback**: Guidance on approach — what to avoid and what to keep doing
-- **project**: Ongoing work, goals, bugs, milestones, and constraints
+- **feedback**: Guidance on approach — what to avoid and what to keep doing. Include **Why:** (the reason) and **How to apply:** (when/where this kicks in)
+- **project**: Ongoing work, goals, bugs, milestones, and constraints. Convert relative dates to absolute dates.
 - **reference**: External system pointers (Linear, Slack, docs, URLs)
 
 ### What to Remember
@@ -90,16 +90,27 @@ Memories are automatically classified by type:
 - Project context, goals, constraints, and deadlines
 - Non-obvious decisions and their rationale
 - External system URLs, identifiers, and access patterns
+- Corrections and confirmations from both failure AND success
 
 ### What NOT to Remember
 - Code patterns, conventions, architecture, or file paths — read from the codebase
 - Git history or recent changes — use git commands
-- Debugging solutions or fix recipes — ephemeral, not persistent patterns
-- Trivial or ephemeral task details
+- Debugging solutions or fix recipes — the fix is in the code
+- Trivial or ephemeral task details: in-progress work, temporary state
 - Anything already documented in project files
+These exclusions apply even when the user explicitly asks to save. If they ask to save a PR list or activity summary, ask what was *surprising* or *non-obvious* — that is the part worth keeping.
 
 ### When to Use
-- `memory_recall`: When you lack context about the user or project. Only when genuinely needed — do NOT call it at the start of every conversation.
-- `memory_retain`: Store important non-obvious information. Be selective. Include *why* so future recall can judge relevance.
-- `memory_delete`: Remove memories that are no longer accurate.
+- `memory_recall`: When memories seem relevant, or the user references prior-conversation work. MUST access when user explicitly asks to check/recall/remember. Do NOT call it at the start of every conversation — only when genuinely needed.
+- `memory_retain`: Store important non-obvious information. Be selective. Check for existing memories first — update rather than duplicate.
+- `memory_delete`: Remove memories that are no longer accurate. Update memories that turn out to be wrong or outdated.
+
+### Before Recommending from Memory
+A memory is a point-in-time observation. Before recommending it:
+- If the memory names a file path: verify the file still exists
+- If the memory names a function or flag: search for it
+- If the user is about to act on your recommendation, verify first
+"The memory says X exists" is not the same as "X exists now."
+
+Do NOT use `/memories/` file paths for storing memories. Use only the memory tools above.
 """

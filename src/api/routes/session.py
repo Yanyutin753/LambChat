@@ -193,6 +193,15 @@ async def delete_session(
     success = await manager.delete_session(session_id)
     if not success:
         raise HTTPException(status_code=500, detail="删除失败")
+
+    # 清理延迟工具发现记录
+    try:
+        from src.infra.tool.deferred_manager import clear_discovered_tools
+
+        await clear_discovered_tools(session_id)
+    except Exception:
+        pass
+
     return {"status": "deleted"}
 
 
@@ -483,7 +492,7 @@ async def generate_session_title(
     if not message or not message.strip():
         return {"title": "新对话", "session_id": session_id}
 
-    title_model = settings.SESSION_TITLE_MODEL
+    title_model = settings.SESSION_TITLE_MODEL or settings.LLM_MODEL
     title_api_base = settings.SESSION_TITLE_API_BASE or settings.LLM_API_BASE
     title_api_key = settings.SESSION_TITLE_API_KEY or settings.LLM_API_KEY
     prompt_template = settings.SESSION_TITLE_PROMPT

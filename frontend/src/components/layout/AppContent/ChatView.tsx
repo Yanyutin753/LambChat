@@ -8,8 +8,6 @@ import { Virtuoso } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { Loading } from "../../common";
 import { useMessageScroll } from "./useMessageScroll";
-import { APP_NAME } from "../../../constants";
-import { Sparkles } from "lucide-react";
 import type {
   Message,
   PendingApproval,
@@ -211,18 +209,6 @@ export function ChatView({
         {messages.length === 0 ? (
           <div className="relative flex h-full flex-col items-center justify-center px-4 py-6 sm:py-8 welcome-grain">
             <div className="relative flex flex-col items-center mb-8 sm:mb-10 w-full max-w-[90vw]">
-              {/* Logo & App Name */}
-              <div className="relative flex items-center gap-2.5 mb-4 sm:mb-5 whitespace-nowrap opacity-80">
-                <img
-                  src="/icons/icon.svg"
-                  alt={APP_NAME}
-                  className="size-7 sm:size-8 shrink-0 rounded-full"
-                  draggable={false}
-                />
-                <span className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-stone-800 via-stone-600 to-stone-800 dark:from-stone-50 dark:via-stone-200 dark:to-stone-50 bg-clip-text text-transparent font-serif tracking-tight">
-                  {APP_NAME}
-                </span>
-              </div>
               {/* Greeting */}
               <h1 className="max-w-[90vw] welcome-title text-3xl sm:text-4xl font-bold bg-gradient-to-r from-stone-900 via-stone-600 to-stone-900 dark:from-stone-50 dark:via-stone-200 dark:to-stone-50 bg-clip-text text-transparent font-serif tracking-tight mb-3 sm:mb-4 whitespace-nowrap overflow-hidden text-ellipsis">
                 {greeting}

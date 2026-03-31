@@ -6,8 +6,7 @@ Search Agent 系统提示词
 
 from src.agents.core.subagent_prompts import SUBAGENT_TASK_GUIDE
 
-HINDSIGHT_MEMORY_SECTION = """
-## Cross-Session Memory
+HINDSIGHT_MEMORY_SECTION = """## Cross-Session Memory
 
 Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove)
 
@@ -27,8 +26,7 @@ def get_memory_guide(memory_perform: str) -> str:
     return HINDSIGHT_MEMORY_SECTION
 
 
-SANDBOX_SYSTEM_PROMPT = """
-You are an intelligent assistant with tools and skills.
+SANDBOX_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
 
 ## Storage Architecture (CRITICAL)
 
@@ -37,8 +35,9 @@ You are an intelligent assistant with tools and skills.
 | System | Paths | Access |
 |--------|-------|--------|
 | Sandbox Local | `{work_dir}/` | shell commands |
-| Remote Storage | `/skills/`, `/memories/` | read/write/edit_file tools |
-| `/memories/` stores | User preferences, project context, key decisions |
+| Remote Storage | `/skills/` | read/write/edit_file tools |
+
+Cross-session memory is managed via dedicated tools: `memory_retain`, `memory_recall`, `memory_delete`.
 
 **Rules:**
 - Remote paths DO NOT exist in sandbox filesystem
@@ -71,11 +70,9 @@ Commands: `ls_info("/skills/")`, `read_file("/skills/name/SKILL.md")`, `write_fi
 Note: When writing skill files, DO NOT create directories manually. The skills store automatically handles directory creation. Simply call `write_file("/skills/skill-name/file.md", content)` directly.
 
 Structure: `SKILL.md` required (first line: `# Title`), optional `scripts/`, `references/`
-
 """
 
-DEFAULT_SYSTEM_PROMPT = """
-You are an intelligent assistant with tools and skills.
+DEFAULT_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
 
 ## File System
 
@@ -83,30 +80,11 @@ You are an intelligent assistant with tools and skills.
 |------|---------|
 | `/workspace` | Persistent files |
 | `/skills/` | Skill library (editable) |
-| `/memories/` | Long-term memories (user preferences, project context, important info) |
 
-### Storing Information in `/memories/`
-
-Use `write_file("/memories/...", content)` to store new information, `edit_file(path, old, new)` to update existing entries. Prefer `edit_file` to avoid rewriting entire files.
-- User preferences and working habits
-- Project context and technical stack
-- Important decisions and their rationale
-- Recurring patterns (e.g., user's coding style, preferred tools)
-- Key information the user has shared that you'll need later
-
-Example: If user mentions "I always use bun for JS projects", store this preference so you don't need to ask again.
-
-## Skills
-
-Create: `write_file("/skills/name/SKILL.md", "# Title\n...")`
-Modify: `edit_file(path, old, new)` — PREFER over write_file for existing files
-Create: `write_file(path, content)` — only for new files or full rewrites
-Requirement: SKILL.md with `# Title` as first line
-
+Cross-session memory is managed via dedicated tools: `memory_retain`, `memory_recall`, `memory_delete`.
 """
 
 WORKFLOW_SECTION = """
-
 ## Workflow
 
 ### File Reveal (REQUIRED)
@@ -126,7 +104,7 @@ For multi-file frontend projects (React/Vue/vanilla), use `reveal_project(projec
 
 Use `transfer_file(source_path, target_path)` to move a single text file between different storage backends.
 Use `transfer_path(source_dir, target_prefix)` to batch-transfer all files in a directory to a target backend.
-Path prefix determines the backend: `/skills/*` → skill store, `/memories/*` → memory store, others → workspace/sandbox.
+Path prefix determines the backend: `/skills/*` → skill store, others → workspace/sandbox.
 Only text files are supported (code, config, markdown, etc.). Binary files (images, videos, archives, etc.) will be rejected.
 Example: `transfer_file("/workspace/output.py", "/skills/my-skill/output.py")` copies a file from sandbox to skill store.
 Example: `transfer_path("/workspace/my-skill/", "/skills/")` copies all files in my-skill/ to /skills/my-skill/.
@@ -134,8 +112,9 @@ Example: `transfer_path("/workspace/my-skill/", "/skills/")` copies all files in
 ### Clarification
 
 When uncertain, use `ask_human` tool. Never guess with incomplete information.
-
 """
 
 SANDBOX_SYSTEM_PROMPT = SANDBOX_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
 DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
+
+DEFERRED_TOOL_GUIDE = ""

@@ -143,12 +143,21 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         }
     ]
 
-    # 构建中间件栈：retry → binary upload → app prompt (skills/memory)
+    # 构建中间件栈：retry → binary upload → app prompt (skills/memory) → memory index
     user_middleware = create_retry_middleware()
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     user_middleware.append(
         AppPromptMiddleware(skills_prompt=skills_prompt, memory_guide=memory_guide)
     )
+    if (
+        settings.ENABLE_MEMORY
+        and settings.MEMORY_PERFORM == "native"
+        and settings.NATIVE_MEMORY_INDEX_ENABLED
+        and context.user_id
+    ):
+        from src.infra.agent.middleware import MemoryIndexMiddleware
+
+        user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
 
     inner_graph = create_deep_agent(
         model=llm,
@@ -205,7 +214,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     final_messages = inner_state.values.get("messages", [])
 
     # 自动记忆存储（异步，不阻塞响应）
-    schedule_auto_retain(user_input, event_processor.output_text, context.user_id)
+    session_id = state.get("session_id")
+    schedule_auto_retain(user_input, event_processor.output_text, context.user_id, session_id=session_id)
 
     return {
         "output": event_processor.output_text,

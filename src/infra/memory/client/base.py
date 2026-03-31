@@ -20,7 +20,15 @@ logger = get_logger(__name__)
 # ============================================================================
 
 _loop_locals: dict[int, dict[str, Any]] = {}
-_loop_locals_lock = asyncio.Lock()
+_loop_locals_lock: Optional[asyncio.Lock] = None
+
+
+def _get_loop_locals_lock() -> asyncio.Lock:
+    """Get or create the loop-locals lock (lazy, multi-loop safe)."""
+    global _loop_locals_lock
+    if _loop_locals_lock is None:
+        _loop_locals_lock = asyncio.Lock()
+    return _loop_locals_lock
 
 
 def _get_loop_id() -> int:
@@ -34,7 +42,7 @@ def _get_loop_id() -> int:
 async def _get_loop_local(name: str, factory: Callable[[], Any]) -> Any:
     """Get or create a loop-local resource (async-safe)."""
     loop_id = _get_loop_id()
-    async with _loop_locals_lock:
+    async with _get_loop_locals_lock():
         if loop_id not in _loop_locals:
             _loop_locals[loop_id] = {}
         if name not in _loop_locals[loop_id]:

@@ -121,6 +121,13 @@ async def lifespan(app: FastAPI):
     await settings_pubsub.start_listener()
     logger.info("Settings pub/sub listener started")
 
+    # 启动 Memory pub/sub 监听器（支持分布式记忆缓存失效）
+    from src.infra.memory.distributed import get_memory_pubsub
+
+    memory_pubsub = get_memory_pubsub()
+    await memory_pubsub.start_listener()
+    logger.info("Memory pub/sub listener started")
+
     # 初始化内置 skills
     from src.infra.skill import init_skill_indexes
 
@@ -180,6 +187,15 @@ async def lifespan(app: FastAPI):
         settings_pubsub = get_settings_pubsub()
         await settings_pubsub.stop_listener()
         logger.info("Settings pub/sub listener stopped")
+
+        # 停止 Memory pub/sub 监听器 + 关闭 memory backend
+        from src.infra.memory.distributed import get_memory_pubsub
+        from src.infra.memory.tools import shutdown as memory_shutdown
+
+        memory_pubsub = get_memory_pubsub()
+        await memory_pubsub.stop_listener()
+        await memory_shutdown()
+        logger.info("Memory pub/sub listener stopped, backend closed")
 
         await task_manager.shutdown()
         logger.info("Background tasks marked as failed")

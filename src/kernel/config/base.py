@@ -79,6 +79,9 @@ class Settings(BaseSettings):
 
     # MCP Settings
     ENABLE_MCP: bool = True
+    ENABLE_DEFERRED_TOOL_LOADING: bool = True
+    DEFERRED_TOOL_THRESHOLD: int = 20
+    DEFERRED_TOOL_SEARCH_LIMIT: int = 10
     MCP_ENCRYPTION_SALT: Optional[str] = None  # 默认随机生成，确保加密一致性
 
     # Session Settings

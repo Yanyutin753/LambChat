@@ -14,6 +14,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
+from src.kernel.config import settings
 from src.infra.memory.client.base import MemoryBackend, create_memory_backend, is_memory_enabled
 from src.infra.memory.client.hindsight import get_user_id_from_runtime
 
@@ -21,7 +22,17 @@ logger = get_logger(__name__)
 
 # Module-level cached backend (initialized lazily)
 _backend: Optional[MemoryBackend] = None
-_backend_lock = asyncio.Lock()
+_backend_lock: Optional[asyncio.Lock] = None
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _get_backend_lock() -> asyncio.Lock:
+    """Get or create the backend lock for the current event loop (lazy, multi-loop safe)."""
+    global _backend_lock
+    if _backend_lock is None or _backend_lock.locked():
+        # Create new lock if never created or if the old loop is gone
+        _backend_lock = asyncio.Lock()
+    return _backend_lock
 
 
 async def _get_backend() -> Optional[MemoryBackend]:
@@ -30,11 +41,13 @@ async def _get_backend() -> Optional[MemoryBackend]:
     if _backend is not None:
         return _backend
 
-    async with _backend_lock:
+    async with _get_backend_lock():
         if _backend is None:
             _backend = await create_memory_backend()
             if _backend is None:
-                logger.debug("[Memory] No backend available")
+                logger.warning("[Memory] No backend available (ENABLE_MEMORY=%s, MEMORY_PERFORM=%s)", settings.ENABLE_MEMORY, getattr(settings, "MEMORY_PERFORM", "N/A"))
+            else:
+                logger.info("[Memory] Backend initialized: %s", _backend.name)
         return _backend
 
 
@@ -165,6 +178,41 @@ def get_all_memory_tools() -> list[BaseTool]:
     return [memory_retain, memory_recall, memory_delete]
 
 
+@tool
+async def memory_consolidate(
+    runtime: ToolRuntime = None,  # type: ignore[assignment]
+) -> str:
+    """
+    Consolidate memories: merge overlapping ones and prune stale entries.
+
+    Use this when the user asks to clean up, organize, or consolidate their memories.
+    This is a maintenance operation that should be run periodically.
+    """
+    user_id = get_user_id_from_runtime(runtime)
+    if not user_id:
+        return json.dumps({"success": False, "error": "User not authenticated"}, ensure_ascii=False)
+
+    backend = await _get_backend()
+    if not backend:
+        return json.dumps(
+            {"success": False, "error": "Memory service not available"},
+            ensure_ascii=False,
+        )
+
+    try:
+        # Only native backend supports consolidation
+        if hasattr(backend, "consolidate_memories"):
+            result = await backend.consolidate_memories(user_id)
+            return json.dumps({"success": True, **result}, ensure_ascii=False)
+        return json.dumps(
+            {"success": False, "error": "Consolidation not supported for this backend"},
+            ensure_ascii=False,
+        )
+    except Exception as e:
+        logger.error(f"[Memory] Failed to consolidate memories: {e}")
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
 # ============================================================================
 # Unified Auto-Retention (Background Task)
 # ============================================================================
@@ -174,10 +222,12 @@ async def auto_retain_conversation(
     user_id: str,
     conversation_summary: str,
     context: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> None:
     """
     Automatically store conversation summary as memory (fire-and-forget).
-    Dispatches to the active backend.
+    Dispatches to the active backend. Also stores a session summary
+    if session_id is provided and backend supports it.
     """
     if not user_id or not conversation_summary:
         return
@@ -185,7 +235,14 @@ async def auto_retain_conversation(
     try:
         backend = await _get_backend()
         if backend:
+            # Extract specific memories from the turn
             await backend.auto_retain(user_id, conversation_summary, context)
+
+            # Store session summary for context survival
+            if session_id and hasattr(backend, "store_session_summary"):
+                await backend.store_session_summary(
+                    user_id, session_id, conversation_summary
+                )
             return
 
         logger.debug("[Memory] No backend enabled, skipping auto-retain")
@@ -197,6 +254,7 @@ def schedule_auto_retain(
     user_id: str,
     conversation_summary: str,
     context: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> None:
     """
     Schedule auto-retention as a background task (fire-and-forget).
@@ -219,9 +277,12 @@ def schedule_auto_retain(
             user_id=user_id,
             conversation_summary=conversation_summary,
             context=context,
+            session_id=session_id,
         )
     )
+    _background_tasks.add(task)
     task.add_done_callback(_background_task_error)
+    task.add_done_callback(_background_tasks.discard)
 
 
 def _background_task_error(task: asyncio.Task) -> None:
@@ -232,3 +293,69 @@ def _background_task_error(task: asyncio.Task) -> None:
             logger.warning(f"[Memory] Background auto-retain task failed: {exc}")
     except asyncio.CancelledError:
         pass
+
+
+# ============================================================================
+# Backend Lifecycle (hot-swap support)
+# ============================================================================
+
+
+async def _close_and_reset_backend() -> None:
+    """Close the current backend (if any) and reset the singleton."""
+    global _backend
+    lock = _get_backend_lock()
+    async with lock:
+        backend = _backend
+        _backend = None
+    if backend is not None:
+        try:
+            await backend.close()
+        except Exception as e:
+            logger.warning(f"[Memory] Error closing backend during reset: {e}")
+    logger.info("[Memory] Backend reset (will be recreated on next use)")
+
+
+def schedule_backend_reset() -> None:
+    """Schedule a non-blocking backend reset (fire-and-forget).
+
+    Call this when memory-related settings change so the next request
+    picks up the new configuration without a server restart.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop — reset synchronously (close may be incomplete but safe)
+        global _backend
+        _backend = None
+        logger.info("[Memory] Backend reset (no event loop)")
+        return
+
+    task = loop.create_task(_close_and_reset_backend())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_task_error)
+    task.add_done_callback(_background_tasks.discard)
+
+
+async def shutdown() -> None:
+    """Cancel all pending background tasks and close the backend.
+
+    Call during application shutdown to prevent orphaned tasks.
+    """
+    global _backend, _backend_lock
+
+    # Cancel all background tasks
+    for task in list(_background_tasks):
+        task.cancel()
+    if _background_tasks:
+        await asyncio.gather(*_background_tasks, return_exceptions=True)
+    _background_tasks.clear()
+
+    # Close backend
+    backend = _backend
+    _backend = None
+    _backend_lock = None
+    if backend is not None:
+        try:
+            await backend.close()
+        except Exception as e:
+            logger.warning(f"[Memory] Error closing backend during shutdown: {e}")

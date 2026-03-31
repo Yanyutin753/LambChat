@@ -75,3 +75,4 @@ docs/superpowers/
 docs/
 frontend/src/components/common/DynamicIcon.tsx
 .codex
+claude-code

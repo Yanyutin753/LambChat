@@ -318,6 +318,28 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": True,
         "frontend_visible": True,
     },
+    "ENABLE_DEFERRED_TOOL_LOADING": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.TOOLS,
+        "description": "Enable deferred tool loading for MCP tools (reduces initial context size)",
+        "default": True,
+        "depends_on": "ENABLE_MCP",
+        "frontend_visible": True,
+    },
+    "DEFERRED_TOOL_THRESHOLD": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "description": "Total tool count threshold above which MCP tools are deferred (0 = always defer)",
+        "default": 20,
+        "depends_on": "ENABLE_DEFERRED_TOOL_LOADING",
+    },
+    "DEFERRED_TOOL_SEARCH_LIMIT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "description": "Maximum number of results returned by tool search",
+        "default": 10,
+        "depends_on": "ENABLE_DEFERRED_TOOL_LOADING",
+    },
     # ============================================
     # Database Settings (MongoDB)
     # ============================================

@@ -4,8 +4,7 @@ Fast Agent 系统提示 - 简洁高效
 
 from src.agents.core.subagent_prompts import SUBAGENT_TASK_GUIDE
 
-HINDSIGHT_MEMORY_SECTION = """
-## Cross-Session Memory
+HINDSIGHT_MEMORY_SECTION = """## Cross-Session Memory
 
 Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove)
 
@@ -25,8 +24,7 @@ def get_memory_guide(memory_perform: str) -> str:
     return HINDSIGHT_MEMORY_SECTION
 
 
-FAST_SYSTEM_PROMPT = """
-You are an intelligent assistant with tools and skills.
+FAST_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
 
 ## File System
 
@@ -34,18 +32,8 @@ You are an intelligent assistant with tools and skills.
 |------|---------|
 | `/workspace` | Persistent files |
 | `/skills/` | Skill definitions (read-only) |
-| `/memories/` | Long-term memories (user preferences, project context, important info) |
 
-### Storing Information in `/memories/`
-
-Use `write_file("/memories/...", content)` to store new information, `edit_file(path, old, new)` to update existing entries. Prefer `edit_file` to avoid rewriting entire files.
-- User preferences and working habits
-- Project context and technical stack
-- Important decisions and their rationale
-- Recurring patterns (e.g., user's coding style, preferred tools)
-- Key information the user has shared that you'll need later
-
-Example: If user mentions "I always use bun for JS projects", store this preference so you don't need to ask again.
+Cross-session memory is managed via dedicated tools: `memory_retain`, `memory_recall`, `memory_delete`.
 
 ## Workflow
 
@@ -66,7 +54,7 @@ For multi-file frontend projects, use `reveal_project(project_path, name, templa
 
 Use `transfer_file(source_path, target_path)` to move a single text file between different storage backends.
 Use `transfer_path(source_dir, target_prefix)` to batch-transfer all files in a directory to a target backend.
-Path prefix determines the backend: `/skills/*` → skill store, `/memories/*` → memory store, others → workspace/sandbox.
+Path prefix determines the backend: `/skills/*` → skill store, others → workspace/sandbox.
 Only text files are supported (code, config, markdown, etc.). Binary files (images, videos, archives, etc.) will be rejected.
 Example: `transfer_file("/workspace/output.py", "/skills/my-skill/output.py")` copies a file from sandbox to skill store.
 Example: `transfer_path("/workspace/my-skill/", "/skills/")` copies all files in my-skill/ to /skills/my-skill/.
@@ -74,7 +62,6 @@ Example: `transfer_path("/workspace/my-skill/", "/skills/")` copies all files in
 ### Clarification
 
 When uncertain, use `ask_human` tool. Never guess with incomplete information.
-
 """
 
 FAST_SYSTEM_PROMPT = FAST_SYSTEM_PROMPT + SUBAGENT_TASK_GUIDE
