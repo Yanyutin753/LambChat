@@ -238,10 +238,11 @@ class E2BBackend(BaseSandbox):
             logger.error(f"E2B files.write({file_path}) failed: {e}")
             return WriteResult(path=file_path, error=error)
 
-    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+    def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 递归搜索匹配 glob 模式的文件
 
         E2B 没有 glob API，所以用 list 递归列出后在 Python 端过滤。
+        使用 _max_depth 限制递归深度，防止深层目录结构导致长时间阻塞。
         """
         try:
             import fnmatch
@@ -250,7 +251,12 @@ class E2BBackend(BaseSandbox):
             entries = self._sandbox.files.list(path=path)
             result: list[FileInfo] = []
 
-            def _match_glob(entries_list: list[Any], current_path: str) -> None:
+            def _match_glob(entries_list: list[Any], current_path: str, depth: int) -> None:
+                if depth > _max_depth:
+                    logger.warning(
+                        f"E2B glob_info reached max depth {_max_depth} at {current_path}"
+                    )
+                    return
                 for entry in entries_list:
                     full_path = entry.path
                     name = os.path.basename(full_path)
@@ -265,11 +271,11 @@ class E2BBackend(BaseSandbox):
                     if hasattr(entry, "is_dir") and getattr(entry, "is_dir", False):
                         try:
                             sub_entries = self._sandbox.files.list(path=full_path)
-                            _match_glob(sub_entries, full_path)
+                            _match_glob(sub_entries, full_path, depth + 1)
                         except Exception:
                             pass
 
-            _match_glob(entries, path)
+            _match_glob(entries, path, 0)
             return result
         except Exception as e:
             logger.warning(f"E2B glob_info({pattern}) failed: {e}, falling back to execute()")

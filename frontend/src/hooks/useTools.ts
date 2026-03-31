@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { authApi } from "../services/api";
 import { authenticatedRequest } from "../services/api/authenticatedRequest";
 import type {
@@ -15,7 +15,7 @@ export function useTools(disabledToolsVersion?: string) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const disabledToolsRef = useRef<Set<string>>(new Set());
-  const savingRef = useRef(false);
+  const savingRef = useRef<boolean | "pending">(false);
   const agentIdRef = useRef<string | undefined>(undefined);
 
   // 从 user metadata 同步 disabled_tools 到 ref
@@ -26,13 +26,21 @@ export function useTools(disabledToolsVersion?: string) {
   }, []);
 
   // 保存 disabled_tools 到 user metadata
+  // 使用 pending 标记：如果当前正在保存，等待完成后再保存一次
   const saveToMetadata = useCallback(async () => {
-    if (savingRef.current) return;
+    if (savingRef.current) {
+      savingRef.current = "pending";
+      return;
+    }
     savingRef.current = true;
     try {
-      await authApi.updateMetadata({
-        disabled_tools: [...disabledToolsRef.current],
-      });
+      // 循环保存：如果保存期间有新的变更进来（被标记为 pending），再保存一次
+      do {
+        savingRef.current = true;
+        await authApi.updateMetadata({
+          disabled_tools: [...disabledToolsRef.current],
+        });
+      } while ((savingRef.current as boolean | string) === "pending");
     } catch (err) {
       console.error("Failed to save disabled_tools to metadata:", err);
     } finally {
@@ -152,7 +160,7 @@ export function useTools(disabledToolsVersion?: string) {
   }, [tools]);
 
   // 获取启用的工具数量
-  const enabledCount = tools.filter((t) => t.enabled).length;
+  const enabledCount = useMemo(() => tools.filter((t) => t.enabled).length, [tools]);
 
   // 初始加载 — 从 authApi 获取当前 user metadata
   // disabledToolsVersion 变化时重新获取（当 MCPServerCard 切换工具时触发）

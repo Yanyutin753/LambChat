@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from src.api.deps import get_current_user_from_websocket
 from src.infra.logging import get_logger
 from src.infra.websocket import get_connection_manager
+from src.infra.websocket_rate_limiter import get_ws_rate_limiter
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -45,7 +46,20 @@ async def websocket_endpoint(
             }
         }
     """
-    logger.info("[WebSocket] New connection attempt")
+    # 获取客户端 IP
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    logger.info(f"[WebSocket] Connection from {client_ip}")
+
+    # 检查速率限制
+    rate_limiter = get_ws_rate_limiter()
+    allowed, ttl = await rate_limiter.check(client_ip)
+    if not allowed:
+        logger.warning(f"[WebSocket] IP {client_ip} blocked, TTL={ttl}s")
+        try:
+            await websocket.close(code=4003, reason=f"Too many failures. Retry in {ttl}s")
+        except Exception:
+            pass
+        return
 
     # 认证方式（按优先级）:
     # 1. URL query参数: /ws?token=xxx
@@ -77,6 +91,9 @@ async def websocket_endpoint(
         user = await get_current_user_from_websocket(auth_token)
         logger.info(f"[WebSocket] Auth successful: user_id={user.sub}")
 
+        # 认证成功，重置限速
+        await rate_limiter.reset(client_ip)
+
         # 如果还没有accept（URL有token的情况），现在accept
         if not needs_accept:
             await websocket.accept()
@@ -87,11 +104,13 @@ async def websocket_endpoint(
         logger.info("[WebSocket] Client disconnected during auth")
         return
     except Exception as e:
-        logger.warning(f"[WebSocket] Auth failed: {e}")
+        logger.warning(f"[WebSocket] Auth failed from {client_ip}: {e}")
+        should_block, _ = await rate_limiter.record_failure(client_ip)
+        reason = "Blocked due to too many failed attempts" if should_block else "Unauthorized"
         try:
-            await websocket.close(code=4001, reason="Unauthorized")
+            await websocket.close(code=4001, reason=reason)
         except Exception:
-            pass  # Connection already closed
+            pass
         return
 
     manager = get_connection_manager()

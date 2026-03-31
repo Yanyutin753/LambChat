@@ -84,13 +84,16 @@ class GlobalMCPEntry:
 
 
 def _get_local_lock(user_id: str) -> asyncio.Lock:
-    """获取本地异步锁"""
+    """获取本地异步锁（带容量保护）"""
+    # 如果锁数超过最大缓存条目的 2 倍，先清理孤儿锁
+    if len(_local_locks) > MAX_GLOBAL_ENTRIES * 2:
+        _cleanup_orphan_locks()
     return _local_locks.setdefault(user_id, asyncio.Lock())
 
 
 def _cleanup_orphan_locks() -> int:
     """Clean up local locks that have no cache entry and are not in use."""
-    orphan_locks = [uid for uid in _local_locks if uid not in _global_entries]
+    orphan_locks = [uid for uid in list(_local_locks) if uid not in _global_entries]
     removed = 0
     for uid in orphan_locks:
         lock = _local_locks.get(uid)
@@ -99,6 +102,21 @@ def _cleanup_orphan_locks() -> int:
         _local_locks.pop(uid, None)
         removed += 1
     return removed
+
+
+async def drain_background_tasks(timeout: float = 10.0) -> None:
+    """等待所有后台关闭任务完成（用于优雅停机）"""
+    if not _background_tasks:
+        return
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*list(_background_tasks), return_exceptions=True),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            f"[Global MCP] {len(_background_tasks)} background tasks did not finish in {timeout}s"
+        )
 
 
 async def acquire_distributed_lock(

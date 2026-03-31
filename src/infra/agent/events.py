@@ -258,6 +258,10 @@ class AgentEventProcessor:
         else:
             current_depth = 1
 
+        # 清理可能残留的孤儿条目（防止同名 checkpoint_ns 重复）
+        if checkpoint_ns in self.checkpoint_to_agent:
+            logger.debug("Overwriting existing checkpoint_to_agent entry: %s", checkpoint_ns[:60])
+
         # 记录映射
         self.checkpoint_to_agent[checkpoint_ns] = (instance_id, subagent_type)
 

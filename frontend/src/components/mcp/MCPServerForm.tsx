@@ -18,8 +18,15 @@ interface MCPServerFormProps {
 }
 
 interface KeyValuePair {
+  id: string;
   key: string;
   value: string;
+}
+
+// Simple counter-based ID generator (avoids crypto.randomUUID() browser compat issues)
+let _headerIdCounter = 0;
+function nextHeaderId(): string {
+  return `h-${++_headerIdCounter}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function MCPServerForm({
@@ -76,6 +83,7 @@ export function MCPServerForm({
   const [headers, setHeaders] = useState<KeyValuePair[]>(
     server?.headers
       ? Object.entries(server.headers).map(([key, value]) => ({
+          id: nextHeaderId(),
           key,
           value: String(value),
         }))
@@ -98,6 +106,7 @@ export function MCPServerForm({
       setHeaders(
         server.headers
           ? Object.entries(server.headers).map(([key, value]) => ({
+              id: nextHeaderId(),
               key,
               value: String(value),
             }))
@@ -173,21 +182,19 @@ export function MCPServerForm({
   };
 
   const addHeader = () => {
-    setHeaders([...headers, { key: "", value: "" }]);
+    setHeaders([...headers, { id: crypto.randomUUID(), key: "", value: "" }]);
   };
 
   const updateHeader = (
-    index: number,
+    id: string,
     field: "key" | "value",
     value: string,
   ) => {
-    const newHeaders = [...headers];
-    newHeaders[index][field] = value;
-    setHeaders(newHeaders);
+    setHeaders(headers.map((h) => (h.id === id ? { ...h, [field]: value } : h)));
   };
 
-  const removeHeader = (index: number) => {
-    setHeaders(headers.filter((_, i) => i !== index));
+  const removeHeader = (id: string) => {
+    setHeaders(headers.filter((h) => h.id !== id));
   };
 
   return (
@@ -349,12 +356,12 @@ export function MCPServerForm({
               </button>
             </div>
             <div className="space-y-2">
-              {headers.map((header, index) => (
-                <div key={index} className="flex gap-2">
+              {headers.map((header) => (
+                <div key={header.id} className="flex gap-2">
                   <input
                     type="text"
                     value={header.key}
-                    onChange={(e) => updateHeader(index, "key", e.target.value)}
+                    onChange={(e) => updateHeader(header.id, "key", e.target.value)}
                     placeholder={t("mcp.form.headerNamePlaceholder")}
                     className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
                   />
@@ -362,14 +369,14 @@ export function MCPServerForm({
                     type="text"
                     value={header.value}
                     onChange={(e) =>
-                      updateHeader(index, "value", e.target.value)
+                      updateHeader(header.id, "value", e.target.value)
                     }
                     placeholder={t("mcp.form.valuePlaceholder")}
                     className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
                   />
                   <button
                     type="button"
-                    onClick={() => removeHeader(index)}
+                    onClick={() => removeHeader(header.id)}
                     className="rounded-lg p-2 text-stone-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                   >
                     <Trash2 size={18} />
