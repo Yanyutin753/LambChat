@@ -215,7 +215,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 自动记忆存储（异步，不阻塞响应）
     session_id = state.get("session_id")
-    schedule_auto_retain(user_input, event_processor.output_text, context.user_id, session_id=session_id)
+    schedule_auto_retain(
+        user_input, event_processor.output_text, context.user_id, session_id=session_id
+    )
 
     return {
         "output": event_processor.output_text,

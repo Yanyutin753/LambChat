@@ -126,7 +126,8 @@ class MemoryPubSub:
                     await self._pubsub.subscribe(MEMORY_INVALIDATION_CHANNEL)
                     logger.info(
                         "[MemoryPubSub] Listening on channel: %s (instance=%s)",
-                        MEMORY_INVALIDATION_CHANNEL, self._instance_id,
+                        MEMORY_INVALIDATION_CHANNEL,
+                        self._instance_id,
                     )
                     delay = 1
 

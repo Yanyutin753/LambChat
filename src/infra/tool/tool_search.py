@@ -78,7 +78,9 @@ def _compile_term_patterns(terms: list[str]) -> list[tuple[str, str, re.Pattern[
     for term in terms:
         term_lower = term.lower()
         try:
-            patterns.append((term, term_lower, re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE)))
+            patterns.append(
+                (term, term_lower, re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE))
+            )
         except re.error:
             # Fallback: plain substring
             patterns.append((term, term_lower, re.compile(re.escape(term), re.IGNORECASE)))
@@ -110,7 +112,7 @@ def search_tools_with_keywords(
 
     # select:ToolA,ToolB 直接选择语法
     if query_lower.startswith("select:"):
-        names_str = query_lower[len("select:"):]
+        names_str = query_lower[len("select:") :]
         target_names = {n.strip() for n in names_str.split(",") if n.strip()}
         results: list[ToolSearchResult] = []
         for tool in tools:
@@ -154,7 +156,11 @@ def search_tools_with_keywords(
             continue
         all_match = True
         for _term, _tl, pattern in required_compiled:
-            if not pattern.search(pt.full) and not pattern.search(pt.hint) and not pattern.search(pt.desc):
+            if (
+                not pattern.search(pt.full)
+                and not pattern.search(pt.hint)
+                and not pattern.search(pt.desc)
+            ):
                 all_match = False
                 break
         if all_match:
@@ -167,12 +173,11 @@ def search_tools_with_keywords(
         mcp_mult = 1.2 if pt.is_mcp else 1.0
 
         for term, term_lower, pattern in compiled:
-
             # 名称精确匹配（整个 part 等于 term）
             if term_lower in pt.parts:
-                score += (12 if pt.is_mcp else 10)
+                score += 12 if pt.is_mcp else 10
             elif any(term_lower in part for part in pt.parts):
-                score += (6 if pt.is_mcp else 5)
+                score += 6 if pt.is_mcp else 5
 
             # 全名回退（低权重）
             if score == 0 and term_lower in pt.full:

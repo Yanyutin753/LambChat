@@ -47,7 +47,13 @@ def _is_retryable_error(exc: Exception) -> bool:
     for module in ("anthropic", "openai"):
         try:
             mod = __import__(
-                module, fromlist=["RateLimitError", "APITimeoutError", "APIConnectionError", "APIStatusError"]
+                module,
+                fromlist=[
+                    "RateLimitError",
+                    "APITimeoutError",
+                    "APIConnectionError",
+                    "APIStatusError",
+                ],
             )
             if isinstance(exc, mod.RateLimitError):
                 return True
@@ -447,8 +453,7 @@ class ToolSearchMiddleware(AgentMiddleware):
 
         # 3. 合并到 request.tools（去重）
         existing_names = {
-            t.name if hasattr(t, "name") else t.get("name", "")
-            for t in request.tools
+            t.name if hasattr(t, "name") else t.get("name", "") for t in request.tools
         }
         new_tools = [t for t in extra_tools if t.name not in existing_names]
         if new_tools:

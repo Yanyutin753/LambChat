@@ -50,7 +50,11 @@ async def _get_backend() -> Optional[MemoryBackend]:
         if _backend is None:
             _backend = await create_memory_backend()
             if _backend is None:
-                logger.warning("[Memory] No backend available (ENABLE_MEMORY=%s, MEMORY_PERFORM=%s)", settings.ENABLE_MEMORY, getattr(settings, "MEMORY_PERFORM", "N/A"))
+                logger.warning(
+                    "[Memory] No backend available (ENABLE_MEMORY=%s, MEMORY_PERFORM=%s)",
+                    settings.ENABLE_MEMORY,
+                    getattr(settings, "MEMORY_PERFORM", "N/A"),
+                )
             else:
                 logger.info("[Memory] Backend initialized: %s", _backend.name)
         return _backend
@@ -245,9 +249,7 @@ async def auto_retain_conversation(
 
             # Store session summary for context survival
             if session_id and hasattr(backend, "store_session_summary"):
-                await backend.store_session_summary(
-                    user_id, session_id, conversation_summary
-                )
+                await backend.store_session_summary(user_id, session_id, conversation_summary)
             return
 
         logger.warning("[Memory] No backend enabled, skipping auto-retain")

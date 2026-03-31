@@ -33,7 +33,7 @@ class ToolSearchInput(BaseModel):
         description=(
             "Query to find deferred tools by name or capability. "
             'Use "select:ToolA,ToolB" to fetch exact tools by name. '
-            "Use keywords like \"database query\" for best-match search. "
+            'Use keywords like "database query" for best-match search. '
             'Prefix a term with + to require it in the tool name (e.g., "+slack send").'
         ),
     )
@@ -49,7 +49,7 @@ class ToolSearchTool(BaseTool):
     name: str = "search_tools"
     description: str = (
         "Fetches full schema definitions for deferred tools so they can be called. "
-        "Deferred tools appear by name in the \"Available MCP Tools (Deferred)\" section below. "
+        'Deferred tools appear by name in the "Available MCP Tools (Deferred)" section below. '
         "Until fetched, only the name is known — there is no parameter schema, so the tool cannot be invoked. "
         "This tool takes a query, matches it against the deferred tool list, and returns "
         "the matched tools' complete parameter schemas. Once a tool's schema is returned, "

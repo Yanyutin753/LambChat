@@ -146,10 +146,7 @@ class DeferredToolManager:
 
         # 只显示名称，不显示描述（与 Claude Code 对齐：A/B 测试表明描述提示无益）
         lines = "\n".join(s.name for s in stubs)
-        result = (
-            f"\n\n## Available MCP Tools (Deferred)\n\n"
-            f"{lines}\n"
-        )
+        result = f"\n\n## Available MCP Tools (Deferred)\n\n{lines}\n"
         self._cached_stubs_string = result
         return result
 

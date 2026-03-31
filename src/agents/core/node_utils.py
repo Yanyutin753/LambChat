@@ -32,11 +32,11 @@ def _strip_assistant_boilerplate(text: str) -> str:
         idx = text.find(pattern)
         if idx != -1:
             # Keep everything after the boilerplate (the real answer)
-            after = text[idx + len(pattern):]
+            after = text[idx + len(pattern) :]
             # Skip past common separators (newline, colon, etc.)
             for sep in ("\n", "。", "！", "!", "，", ",", ":", ":"):
                 if after.startswith(sep):
-                    after = after[len(sep):]
+                    after = after[len(sep) :]
                     break
             text = after.strip()
             if not text:

@@ -113,9 +113,8 @@ class NativeMemoryBackend(MemoryBackend):
         Uses dedicated NATIVE_MEMORY_MODEL/API config if set,
         otherwise falls back to the main LLM_MODEL.
         """
-        model = (
-            getattr(settings, "NATIVE_MEMORY_MODEL", None)
-            or getattr(settings, "LLM_MODEL", None)
+        model = getattr(settings, "NATIVE_MEMORY_MODEL", None) or getattr(
+            settings, "LLM_MODEL", None
         )
         api_base = (
             getattr(settings, "NATIVE_MEMORY_API_BASE", None)
@@ -224,9 +223,7 @@ class NativeMemoryBackend(MemoryBackend):
     # Session summary (for context survival)
     # ------------------------------------------------------------------
 
-    async def store_session_summary(
-        self, user_id: str, session_id: str, summary: str
-    ) -> None:
+    async def store_session_summary(self, user_id: str, session_id: str, summary: str) -> None:
         """Store or update a session-level summary as a project-type memory.
 
         This captures the key state of a conversation so it can be recovered
@@ -346,12 +343,14 @@ class NativeMemoryBackend(MemoryBackend):
         try:
             pipeline = [
                 {"$match": {"user_id": user_id, "source": {"$ne": "manual"}}},
-                {"$group": {
-                    "_id": None,
-                    "count": {"$sum": 1},
-                    "oldest": {"$min": "$created_at"},
-                    "newest": {"$max": "$created_at"},
-                }},
+                {
+                    "$group": {
+                        "_id": None,
+                        "count": {"$sum": 1},
+                        "oldest": {"$min": "$created_at"},
+                        "newest": {"$max": "$created_at"},
+                    }
+                },
             ]
             result = await self._collection.aggregate(pipeline).to_list(length=1)
             if not result:
@@ -371,7 +370,9 @@ class NativeMemoryBackend(MemoryBackend):
 
             logger.info(
                 "[NativeMemory] %s has %d auto memories spanning %.1fh, triggering consolidation",
-                user_id[:8], count, span_hours,
+                user_id[:8],
+                count,
+                span_hours,
             )
             await self.consolidate_memories(user_id)
         except asyncio.CancelledError:
@@ -402,7 +403,9 @@ class NativeMemoryBackend(MemoryBackend):
 
             locked = await acquire_consolidation_lock(user_id, instance_id)
             if not locked:
-                logger.info("[NativeMemory] Consolidation already in progress for %s, skipping", user_id)
+                logger.info(
+                    "[NativeMemory] Consolidation already in progress for %s, skipping", user_id
+                )
                 return {"merged": 0, "pruned": 0, "total_before": 0, "skipped": True}
         except Exception:
             locked = False
@@ -493,10 +496,7 @@ class NativeMemoryBackend(MemoryBackend):
         reduced = 0
 
         for mtype in MemoryType:
-            type_memories = [
-                m for m in auto_memories
-                if m.get("memory_type") == mtype.value
-            ]
+            type_memories = [m for m in auto_memories if m.get("memory_type") == mtype.value]
             if len(type_memories) < 3:
                 continue
 
@@ -556,7 +556,11 @@ class NativeMemoryBackend(MemoryBackend):
         }
         logger.info(
             "[NativeMemory] Consolidation for %s: merged=%d, pruned=%d, %d -> %d",
-            user_id, reduced, len(pruned_ids), total_before, final_count,
+            user_id,
+            reduced,
+            len(pruned_ids),
+            total_before,
+            final_count,
         )
         return result
 
@@ -600,14 +604,19 @@ class NativeMemoryBackend(MemoryBackend):
                 "   - Shorter than 15 characters\n"
                 "4. Each output memory should be ONE focused fact or observation\n"
                 "5. When merging, preserve all unique details from all source memories\n"
-                "6. Keep memory type as: \"{type}\"\n\n"
+                '6. Keep memory type as: "{type}"\n\n'
                 'Return ONLY a JSON array: [{"content": "...", "summary": "..."}]\n'
                 "Memories to delete should simply be OMITTED from the array.\n\n"
                 f"Input memories (oldest first):\n{items_text}"
             ).format(type=expected_type)
 
             response = await model.ainvoke(
-                [SystemMessage(content="You consolidate memories. Output only JSON. Be conservative — when in doubt, keep it."), HumanMessage(content=prompt)],
+                [
+                    SystemMessage(
+                        content="You consolidate memories. Output only JSON. Be conservative — when in doubt, keep it."
+                    ),
+                    HumanMessage(content=prompt),
+                ],
             )
 
             text = response.content
@@ -631,7 +640,10 @@ class NativeMemoryBackend(MemoryBackend):
 
             # Safety: if LLM returned nothing but we had many inputs, skip
             if not parsed and len(memories) >= 3:
-                logger.warning("[NativeMemory] LLM returned empty array for %d memories, skipping", len(memories))
+                logger.warning(
+                    "[NativeMemory] LLM returned empty array for %d memories, skipping",
+                    len(memories),
+                )
                 return None
 
             now = datetime.now(timezone.utc)
@@ -641,21 +653,23 @@ class NativeMemoryBackend(MemoryBackend):
                 if not content or len(content) < 10:
                     continue
                 summary = item.get("summary", self._build_summary(content))
-                docs.append({
-                    "memory_id": uuid.uuid4().hex,
-                    "user_id": memories[0]["user_id"],
-                    "content": content[:5000],
-                    "summary": summary[:100],
-                    "memory_type": expected_type,
-                    "context": "consolidated",
-                    "tags": self._extract_tags(content),
-                    "source": "auto_retained",
-                    "embedding": await self._maybe_embed(content),
-                    "created_at": now,
-                    "updated_at": now,
-                    "accessed_at": now,
-                    "access_count": 0,
-                })
+                docs.append(
+                    {
+                        "memory_id": uuid.uuid4().hex,
+                        "user_id": memories[0]["user_id"],
+                        "content": content[:5000],
+                        "summary": summary[:100],
+                        "memory_type": expected_type,
+                        "context": "consolidated",
+                        "tags": self._extract_tags(content),
+                        "source": "auto_retained",
+                        "embedding": await self._maybe_embed(content),
+                        "created_at": now,
+                        "updated_at": now,
+                        "accessed_at": now,
+                        "access_count": 0,
+                    }
+                )
             return docs if docs else None
 
         except Exception as e:
@@ -671,9 +685,7 @@ class NativeMemoryBackend(MemoryBackend):
 
             model = self._get_memory_model()
 
-            items_text = "\n".join(
-                f"[{i}] {m['summary']}" for i, m in enumerate(candidates)
-            )
+            items_text = "\n".join(f"[{i}] {m['summary']}" for i, m in enumerate(candidates))
 
             prompt = (
                 f"Query: {query}\n\n"
@@ -683,7 +695,12 @@ class NativeMemoryBackend(MemoryBackend):
             )
 
             response = await model.ainvoke(
-                [SystemMessage(content="You rank memory relevance. Output only a JSON array of numbers, e.g. [0, 3, 1]."), HumanMessage(content=prompt)],
+                [
+                    SystemMessage(
+                        content="You rank memory relevance. Output only a JSON array of numbers, e.g. [0, 3, 1]."
+                    ),
+                    HumanMessage(content=prompt),
+                ],
             )
 
             text = response.content
@@ -911,8 +928,16 @@ class NativeMemoryBackend(MemoryBackend):
 
         # Fallback: Python cosine similarity (only project needed fields)
         logger.debug("[NativeMemory] Atlas $vectorSearch unavailable, using Python cosine fallback")
-        projection = {"memory_id": 1, "content": 1, "summary": 1, "memory_type": 1,
-                      "source": 1, "created_at": 1, "updated_at": 1, "embedding": 1}
+        projection = {
+            "memory_id": 1,
+            "content": 1,
+            "summary": 1,
+            "memory_type": 1,
+            "source": 1,
+            "created_at": 1,
+            "updated_at": 1,
+            "embedding": 1,
+        }
         cursor = self._collection.find(base, projection).limit(200)
         docs = await cursor.to_list(length=200)
         scored = []
@@ -1031,9 +1056,7 @@ class NativeMemoryBackend(MemoryBackend):
 
         return memories[:3]
 
-    async def _llm_extract_memories(
-        self, user_id: str, conversation: str
-    ) -> list[dict]:
+    async def _llm_extract_memories(self, user_id: str, conversation: str) -> list[dict]:
         """Use a lightweight LLM call to extract structured memories from a conversation turn.
 
         Falls back gracefully on any error (returns empty list).
@@ -1095,7 +1118,12 @@ class NativeMemoryBackend(MemoryBackend):
             )
 
             response = await model.ainvoke(
-                [SystemMessage(content="You are a STRICT memory extraction filter. Be extremely conservative. When in doubt, return []. Output only JSON."), HumanMessage(content=prompt)],
+                [
+                    SystemMessage(
+                        content="You are a STRICT memory extraction filter. Be extremely conservative. When in doubt, return []. Output only JSON."
+                    ),
+                    HumanMessage(content=prompt),
+                ],
             )
 
             # Extract text from response
@@ -1225,7 +1253,9 @@ class NativeMemoryBackend(MemoryBackend):
         if stripped in question_markers:
             return False
         # Reject content that is mostly punctuation or whitespace
-        alpha_ratio = sum(1 for c in stripped if c.isalnum() or "\u4e00" <= c <= "\u9fff") / max(len(stripped), 1)
+        alpha_ratio = sum(1 for c in stripped if c.isalnum() or "\u4e00" <= c <= "\u9fff") / max(
+            len(stripped), 1
+        )
         if alpha_ratio < 0.5:
             return False
         return True
