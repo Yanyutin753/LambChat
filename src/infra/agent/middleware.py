@@ -37,7 +37,7 @@ def _is_retryable_error(exc: Exception) -> bool:
     """Check if an exception is a transient/retryable LLM error.
 
     Retries on: RateLimitError (429), 5xx server errors, timeouts,
-    empty stream (No generations found in stream).
+    APIConnectionError (network/TLS/proxy failures), empty stream.
     Does NOT retry on: 401/403 auth errors, 400 bad request, 404 not found.
     """
     # LangChain empty stream: LLM returned no chunks at all
@@ -47,11 +47,13 @@ def _is_retryable_error(exc: Exception) -> bool:
     for module in ("anthropic", "openai"):
         try:
             mod = __import__(
-                module, fromlist=["RateLimitError", "APITimeoutError", "APIStatusError"]
+                module, fromlist=["RateLimitError", "APITimeoutError", "APIConnectionError", "APIStatusError"]
             )
             if isinstance(exc, mod.RateLimitError):
                 return True
             if isinstance(exc, mod.APITimeoutError):
+                return True
+            if isinstance(exc, mod.APIConnectionError):
                 return True
             if isinstance(exc, mod.APIStatusError) and 500 <= exc.status_code < 600:
                 return True
@@ -202,6 +204,9 @@ async def _build_memory_index_for_user(user_id: str) -> str:
         if backend is None or backend.name != "native":
             return ""
 
+        from src.infra.memory.client.native import NativeMemoryBackend
+
+        assert isinstance(backend, NativeMemoryBackend)
         index = await backend.build_memory_index(user_id)
         return index if index else ""
     except Exception:

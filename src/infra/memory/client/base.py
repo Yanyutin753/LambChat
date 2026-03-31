@@ -155,6 +155,10 @@ class MemoryBackend(ABC):
         """Auto-retain a conversation summary (fire-and-forget)."""
         await self.retain(user_id, conversation_summary, context or "auto_retained")
 
+    async def close(self) -> None:
+        """Release resources held by this backend. Default is a no-op."""
+        pass
+
 
 # ============================================================================
 # Backend Factory

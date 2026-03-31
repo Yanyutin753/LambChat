@@ -497,7 +497,7 @@ export function LandingPage() {
               <ArrowIcon />
             </button>
             <a
-              href="{GITHUB_URL}"
+              href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full sm:w-auto group inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 dark:border-stone-700/50 bg-white dark:bg-stone-800/40 px-7 py-3.5 sm:px-8 sm:py-3.5 text-sm font-medium text-stone-600 dark:text-stone-300 transition-all duration-200 hover:-translate-y-0.5 hover:bg-stone-50 dark:hover:bg-stone-800/70 hover:shadow-md hover:border-stone-300 dark:hover:border-stone-600 active:translate-y-0"
@@ -756,7 +756,7 @@ export function LandingPage() {
                   <ArrowIcon />
                 </button>
                 <a
-                  href="{GITHUB_URL}"
+                  href={GITHUB_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full sm:w-auto group inline-flex items-center justify-center gap-2 rounded-xl border border-stone-200 dark:border-stone-700/50 bg-white dark:bg-stone-800/40 px-7 py-3.5 sm:px-8 sm:py-3.5 text-sm font-medium text-stone-600 dark:text-stone-300 transition-all duration-200 hover:-translate-y-0.5 hover:bg-stone-50 dark:hover:bg-stone-800/70 hover:shadow-md hover:border-stone-300 dark:hover:border-stone-600 active:translate-y-0"
@@ -790,7 +790,7 @@ export function LandingPage() {
                 {t("landing.footerTagline")}
               </p>
               <a
-                href="{GITHUB_URL}"
+                href={GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-stone-200 dark:border-stone-700/40 bg-white dark:bg-stone-800/40 px-3 py-1.5 text-[11px] font-medium text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
@@ -834,7 +834,7 @@ export function LandingPage() {
                 <ul className="space-y-2">
                   <li>
                     <a
-                      href="{GITHUB_URL}"
+                      href={GITHUB_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors inline-flex items-center gap-1.5"
@@ -844,7 +844,7 @@ export function LandingPage() {
                   </li>
                   <li>
                     <a
-                      href="{GITHUB_URL}"
+                      href={GITHUB_URL}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 transition-colors"

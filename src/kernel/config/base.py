@@ -236,9 +236,9 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_EMBEDDING_API_KEY: str = ""
     NATIVE_MEMORY_EMBEDDING_MODEL: str = "text-embedding-3-small"
     NATIVE_MEMORY_STALENESS_DAYS: int = 30
+    NATIVE_MEMORY_PRUNE_THRESHOLD: int = 90
     NATIVE_MEMORY_INDEX_ENABLED: bool = True
     NATIVE_MEMORY_INDEX_CACHE_TTL: int = 300
-    NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY: int = 20
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),

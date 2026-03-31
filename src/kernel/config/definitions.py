@@ -923,6 +923,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 30,
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
+    "NATIVE_MEMORY_PRUNE_THRESHOLD": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Days after which never-accessed memories are pruned during consolidation",
+        "default": 90,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
     "NATIVE_MEMORY_INDEX_ENABLED": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.MEMORY,
@@ -936,13 +943,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.MEMORY,
         "description": "Memory index cache TTL in seconds (per-user)",
         "default": 300,
-        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
-    },
-    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.MEMORY,
-        "description": "Maximum auto-retained memories per user per day",
-        "default": 20,
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
 }

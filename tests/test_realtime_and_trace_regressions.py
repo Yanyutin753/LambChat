@@ -80,7 +80,7 @@ async def test_trace_storage_get_session_events_reads_beyond_500_traces():
 
     storage = TraceStorage()
     storage._collection = SimpleNamespace(find=lambda *_args, **_kwargs: FakeCursor(traces))
-    storage.ensure_indexes_if_needed = AsyncMock()
+    storage.ensure_indexes_if_needed = AsyncMock()  # type: ignore[method-assign]
 
     events = await storage.get_session_events("session-1")
 

@@ -265,9 +265,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
 
-      // Clear existing messages before loading new session
+      // Clear existing messages and approvals before loading new session
       setMessages([]);
       setSessionId(null);
+      options?.onClearApprovals?.();
 
       try {
         const sessionData = await sessionApi.get(targetSessionId);

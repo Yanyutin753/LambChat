@@ -554,7 +554,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
             {/* 页脚 */}
             <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2 text-[10px] text-stone-400 dark:text-stone-500 sm:mt-6 sm:gap-x-3 sm:text-xs">
               <a
-                href="{GITHUB_URL}"
+                href={GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 transition-colors hover:text-stone-600 dark:hover:text-stone-300 sm:gap-1.5"
@@ -572,7 +572,7 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
               <span>
                 {t("auth.poweredBy")}{" "}
                 <a
-                  href="{GITHUB_URL}"
+                  href={GITHUB_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-serif text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200"

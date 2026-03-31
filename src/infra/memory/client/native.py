@@ -265,23 +265,9 @@ class NativeMemoryBackend(MemoryBackend):
         if not memories:
             return
 
-        # Daily rate limit
-        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        daily_count = await self._collection.count_documents(
-            {
-                "user_id": user_id,
-                "source": "auto_retained",
-                "created_at": {"$gte": today},
-            }
-        )
-        max_daily = getattr(settings, "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY", 20)
-        remaining = max_daily - daily_count
-        if remaining <= 0:
-            return
-
         now = datetime.now(timezone.utc)
         docs = []
-        for mem in memories[: min(len(memories), remaining, 3)]:
+        for mem in memories[:3]:
             doc = {
                 "memory_id": uuid.uuid4().hex,
                 "user_id": user_id,
@@ -302,23 +288,73 @@ class NativeMemoryBackend(MemoryBackend):
         if docs:
             await self._collection.insert_many(docs)
             await self._invalidate_cache(user_id)
-            logger.debug(f"[NativeMemory] Auto-retained {len(docs)} memories for {user_id}")
+            logger.info(f"[NativeMemory] Auto-retained {len(docs)} memories for {user_id}")
+
+            # On-demand consolidation: after storing new memories, check if
+            # this user's memory set has grown enough to warrant cleanup.
+            asyncio.create_task(self._maybe_consolidate(user_id))
 
     # ------------------------------------------------------------------
-    # Memory consolidation
+    # Memory consolidation (on-demand)
     # ------------------------------------------------------------------
+
+    async def _maybe_consolidate(self, user_id: str) -> None:
+        """Check if a user's memories need consolidation, and do it if so.
+
+        Triggered automatically after auto-retain stores new memories.
+        Only counts auto-retained memories (manual memories are protected).
+        Only consolidates if:
+          1. The user has > 10 auto-retained memories
+          2. The gap between newest and oldest exceeds 1 day
+        """
+        try:
+            pipeline = [
+                {"$match": {"user_id": user_id, "source": {"$ne": "manual"}}},
+                {"$group": {
+                    "_id": None,
+                    "count": {"$sum": 1},
+                    "oldest": {"$min": "$created_at"},
+                    "newest": {"$max": "$created_at"},
+                }},
+            ]
+            result = await self._collection.aggregate(pipeline).to_list(length=1)
+            if not result:
+                return
+
+            stats = result[0]
+            count = stats["count"]
+            if count <= 10:
+                return
+
+            oldest = _ensure_aware(stats["oldest"])
+            newest = _ensure_aware(stats["newest"])
+            span_hours = (newest - oldest).total_seconds() / 3600
+
+            if span_hours <= 24:
+                return
+
+            logger.info(
+                "[NativeMemory] %s has %d auto memories spanning %.1fh, triggering consolidation",
+                user_id[:8], count, span_hours,
+            )
+            await self.consolidate_memories(user_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.debug("[NativeMemory] _maybe_consolidate failed for %s: %s", user_id[:8], e)
 
     async def consolidate_memories(self, user_id: str) -> dict[str, Any]:
-        """Consolidate memories: merge near-duplicates, prune stale/never-accessed.
+        """Consolidate memories: merge duplicates, update stale info, prune ephemeral.
 
-        Uses LLM for semantic merging of overlapping memories, then removes
-        memories that were never accessed and are older than 90 days.
-        Protected by a distributed lock to prevent concurrent consolidation
-        across instances.
+        Inspired by Claude Code's memory architecture:
+        - Session summaries are ephemeral (auto-prune after 7 days)
+        - Auto-retained memories use soft decay: older + less accessed = more likely to prune
+        - Manual memories (source="manual") are NEVER touched
+        - LLM sees full context per type to make better merge/update decisions
+        - One LLM call per memory type (max 4 total) instead of per-group
 
-        Returns stats about what was done.
+        Protected by a distributed lock to prevent concurrent consolidation.
         """
-        # Acquire distributed lock
         import uuid as _uuid
 
         instance_id = _uuid.uuid4().hex[:8]
@@ -333,10 +369,10 @@ class NativeMemoryBackend(MemoryBackend):
                 logger.info("[NativeMemory] Consolidation already in progress for %s, skipping", user_id)
                 return {"merged": 0, "pruned": 0, "total_before": 0, "skipped": True}
         except Exception:
-            locked = False  # fallback: proceed without distributed lock
+            locked = False
 
         try:
-            return await self._do_consolidate(user_id, instance_id, staleness_days, prune_threshold)
+            return await self._do_consolidate(user_id)
         finally:
             if locked:
                 try:
@@ -346,96 +382,259 @@ class NativeMemoryBackend(MemoryBackend):
                 except Exception:
                     pass
 
-    async def _do_consolidate(
-        self,
-        user_id: str,
-        instance_id: str,
-        staleness_days: int,
-        prune_threshold: int,
-    ) -> dict[str, Any]:
-        """Internal consolidation implementation (called after lock acquired)."""
+    async def _do_consolidate(self, user_id: str) -> dict[str, Any]:
+        """Internal consolidation implementation (called after lock acquired).
 
-        # Fetch all memories for this user
-        cursor = self._collection.find(
+        Three phases:
+        1. Rule-based pruning: session summaries (7d), stale + never accessed (soft decay)
+        2. LLM batch consolidation: one call per type, LLM decides merge/keep/delete
+        3. Count result
+        """
+        # Fetch all memories (oldest first — better LLM context)
+        all_memories = await self._collection.find(
             {"user_id": user_id},
-            sort=[("memory_type", 1), ("updated_at", -1)],
-        )
-        all_memories = await cursor.to_list(length=200)
+            sort=[("created_at", 1)],
+        ).to_list(length=500)
 
         if len(all_memories) < 5:
             return {"merged": 0, "pruned": 0, "total_before": len(all_memories)}
 
-        # Phase 1: Prune stale, never-accessed memories
-        now = datetime.utcnow()
-        pruned_ids = []
+        total_before = len(all_memories)
+        now = datetime.now(timezone.utc)
+        prune_threshold = int(getattr(settings, "NATIVE_MEMORY_PRUNE_THRESHOLD", 90))
+
+        # ------------------------------------------------------------------
+        # Phase 1: Rule-based pruning (no LLM, just delete)
+        # ------------------------------------------------------------------
+        # Inspired by Claude Code:
+        # - Session summaries are ephemeral context bridges, prune after 7 days
+        # - Auto-retained memories use soft decay by age × access
+        # - Manual memories are NEVER pruned
+        pruned_ids: set[str] = set()
+
         for m in all_memories:
+            source = m.get("source", "")
             updated = _ensure_aware(m.get("updated_at", now))
             age_days = (now - updated).days
-            if age_days > prune_threshold and m.get("access_count", 0) == 0:
-                pruned_ids.append(m["memory_id"])
+            access_count = m.get("access_count", 0)
+
+            # Manual memories: always protected
+            if source == "manual":
+                continue
+
+            # Session summaries: ephemeral, prune after 7 days
+            if source == "session_summary" and age_days > 7:
+                pruned_ids.add(m["memory_id"])
+                continue
+
+            # Auto-retained: soft decay
+            #   180+ days → always prune (even if accessed occasionally)
+            #   90+ days  → prune if accessed ≤ 1 time
+            #   30+ days  → prune if never accessed
+            if source == "auto_retained":
+                if age_days > 180:
+                    pruned_ids.add(m["memory_id"])
+                elif age_days > prune_threshold and access_count <= 1:
+                    pruned_ids.add(m["memory_id"])
+                elif age_days > 30 and access_count == 0:
+                    pruned_ids.add(m["memory_id"])
 
         if pruned_ids:
             await self._collection.delete_many(
-                {"user_id": user_id, "memory_id": {"$in": pruned_ids}}
+                {"user_id": user_id, "memory_id": {"$in": list(pruned_ids)}}
             )
 
-        # Phase 2: LLM-based merge of similar memories per type
-        merged_count = 0
+        # Separate manual memories (protected from LLM consolidation)
+        remaining = [m for m in all_memories if m["memory_id"] not in pruned_ids]
+        auto_memories = [m for m in remaining if m.get("source") != "manual"]
+
+        # ------------------------------------------------------------------
+        # Phase 2: LLM batch consolidation per type
+        # ------------------------------------------------------------------
+        # One LLM call per type. The LLM sees ALL memories of that type and
+        # decides: merge overlapping, keep unique, delete stale/duplicate.
+        # This replaces the old tag-based grouping + per-group LLM approach.
+        reduced = 0
+
         for mtype in MemoryType:
             type_memories = [
-                m for m in all_memories
-                if m.get("memory_type") == mtype.value and m["memory_id"] not in pruned_ids
+                m for m in auto_memories
+                if m.get("memory_type") == mtype.value
             ]
-            if len(type_memories) < 2:
+            if len(type_memories) < 3:
                 continue
 
-            # Group by tag overlap for candidate merging
-            groups: dict[str, list] = {}
-            for m in type_memories:
-                key_tags = frozenset(m.get("tags", [])[:3])
-                if not key_tags:
-                    continue
-                found = False
-                for existing_key in groups:
-                    if len(key_tags & existing_key) >= 2:
-                        groups[existing_key].append(m)
-                        found = True
-                        break
-                if not found:
-                    groups[key_tags] = [m]
+            # Split into batches if too many (> 30 per LLM call)
+            for batch in self._split_batches(type_memories, max_size=30):
+                consolidated = await self._llm_batch_consolidate(batch, mtype.value)
+                if consolidated is None:
+                    continue  # LLM failed, keep originals
 
-            for group_key, group in groups.items():
-                if len(group) < 2:
-                    continue
-
-                try:
-                    merged = await self._llm_merge_memories(group)
-                    if merged:
-                        # Delete old memories, insert merged one
-                        old_ids = [m["memory_id"] for m in group]
-                        await self._collection.delete_many(
-                            {"user_id": user_id, "memory_id": {"$in": old_ids}}
-                        )
-                        await self._collection.insert_one(merged)
-                        merged_count += 1
-                except Exception as e:
-                    logger.debug("[NativeMemory] Merge failed for group: %s", e)
+                old_ids = [m["memory_id"] for m in batch]
+                await self._collection.delete_many(
+                    {"user_id": user_id, "memory_id": {"$in": old_ids}}
+                )
+                if consolidated:
+                    await self._collection.insert_many(consolidated)
+                reduced += len(batch) - len(consolidated)
 
         await self._invalidate_cache(user_id)
 
-        total_after = len(all_memories) - len(pruned_ids) - merged_count
+        # ------------------------------------------------------------------
+        # Phase 3: Hard cap safety net (like Claude Code's 200 file limit)
+        # ------------------------------------------------------------------
+        # If the user still has > 200 memories after Phase 1+2, prune the
+        # oldest auto-retained ones until we're back under the cap.
+        # Manual memories are never pruned.
+        max_per_user = 200
+        current_count = await self._collection.count_documents({"user_id": user_id})
+        cap_pruned = 0
+
+        if current_count > max_per_user:
+            # Find oldest auto-retained memories to remove
+            excess = current_count - max_per_user
+            oldest_auto = (
+                self._collection.find(
+                    {"user_id": user_id, "source": {"$ne": "manual"}},
+                    {"memory_id": 1},
+                )
+                .sort("created_at", 1)
+                .limit(excess)
+            )
+            oldest_docs = await oldest_auto.to_list(length=excess)
+            if oldest_docs:
+                cap_ids = [d["memory_id"] for d in oldest_docs]
+                result = await self._collection.delete_many(
+                    {"user_id": user_id, "memory_id": {"$in": cap_ids}}
+                )
+                cap_pruned = result.deleted_count
+                await self._invalidate_cache(user_id)
+
+        # Phase 4: count final state
+        final_count = await self._collection.count_documents({"user_id": user_id})
         result = {
-            "merged": merged_count,
-            "pruned": len(pruned_ids),
-            "total_before": len(all_memories),
-            "total_after": total_after,
+            "merged": reduced,
+            "pruned": len(pruned_ids) + cap_pruned,
+            "total_before": total_before,
+            "total_after": final_count,
         }
         logger.info(
             "[NativeMemory] Consolidation for %s: merged=%d, pruned=%d, %d -> %d",
-            user_id, merged_count, len(pruned_ids),
-            result["total_before"], result["total_after"],
+            user_id, reduced, len(pruned_ids), total_before, final_count,
         )
         return result
+
+    @staticmethod
+    def _split_batches(items: list[dict], max_size: int = 30) -> list[list[dict]]:
+        """Split a list into chunks of at most max_size."""
+        return [items[i : i + max_size] for i in range(0, len(items), max_size)]
+
+    async def _llm_batch_consolidate(
+        self, memories: list[dict], expected_type: str
+    ) -> Optional[list[dict]]:
+        """Send a batch of memories to LLM and get a consolidated set back.
+
+        The LLM decides for each memory: merge with another, keep as-is, or delete.
+        Returns the consolidated list (may be shorter than input), or None on failure.
+        """
+        if len(memories) > 5:
+            memories = memories[:50]  # safety cap
+
+        try:
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            from src.infra.llm.client import LLMClient
+
+            model = LLMClient.get_model(
+                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
+                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
+                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
+                temperature=0.1,
+                max_tokens=2000,
+            )
+
+            # Format memories with date for LLM context (oldest first)
+            items_text = "\n".join(
+                f"[{i + 1}] ({m.get('created_at', '').strftime('%Y-%m-%d') if isinstance(m.get('created_at'), datetime) else 'unknown'}) {m['content']}"
+                for i, m in enumerate(memories)
+            )
+
+            prompt = (
+                "You are a memory consolidation assistant. Given a list of memories, "
+                "produce a clean, deduplicated, consolidated set.\n\n"
+                "Rules:\n"
+                "1. MERGE memories about the same topic — combine all unique facts, "
+                "prefer newer info when conflicting\n"
+                "2. KEEP memories that are unique, specific, and still relevant\n"
+                "3. DELETE (omit from output) memories that are:\n"
+                "   - Duplicates or near-duplicates of another memory\n"
+                "   - Too vague or generic to be useful\n"
+                "   - Outdated (old project status that has since changed)\n"
+                "   - Contradicted by a newer memory\n"
+                "   - Shorter than 15 characters\n"
+                "4. Each output memory should be ONE focused fact or observation\n"
+                "5. When merging, preserve all unique details from all source memories\n"
+                "6. Keep memory type as: \"{type}\"\n\n"
+                'Return ONLY a JSON array: [{"content": "...", "summary": "..."}]\n'
+                "Memories to delete should simply be OMITTED from the array.\n\n"
+                f"Input memories (oldest first):\n{items_text}"
+            ).format(type=expected_type)
+
+            response = await model.ainvoke(
+                [SystemMessage(content="You consolidate memories. Output only JSON. Be conservative — when in doubt, keep it."), HumanMessage(content=prompt)],
+            )
+
+            text = response.content
+            if isinstance(text, list):
+                for item in text:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text = item.get("text", "")
+                        break
+                else:
+                    return None
+            text = str(text).strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+            parsed = json.loads(text)
+            if not isinstance(parsed, list):
+                return None
+
+            # Safety: if LLM returned nothing but we had many inputs, skip
+            if not parsed and len(memories) >= 3:
+                logger.warning("[NativeMemory] LLM returned empty array for %d memories, skipping", len(memories))
+                return None
+
+            now = datetime.now(timezone.utc)
+            docs = []
+            for item in parsed:
+                content = item.get("content", "").strip()
+                if not content or len(content) < 10:
+                    continue
+                summary = item.get("summary", self._build_summary(content))
+                docs.append({
+                    "memory_id": uuid.uuid4().hex,
+                    "user_id": memories[0]["user_id"],
+                    "content": content[:5000],
+                    "summary": summary[:100],
+                    "memory_type": expected_type,
+                    "context": "consolidated",
+                    "tags": self._extract_tags(content),
+                    "source": "auto_retained",
+                    "embedding": await self._maybe_embed(content),
+                    "created_at": now,
+                    "updated_at": now,
+                    "accessed_at": now,
+                    "access_count": 0,
+                })
+            return docs if docs else None
+
+        except Exception as e:
+            logger.debug("[NativeMemory] Batch consolidation failed: %s", e)
+            return None
 
     async def _llm_rerank(
         self, user_id: str, query: str, candidates: list[dict], max_results: int
@@ -443,6 +642,7 @@ class NativeMemoryBackend(MemoryBackend):
         """Use LLM to re-rank candidate memories by contextual relevance."""
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
+
             from src.infra.llm.client import LLMClient
 
             model = LLMClient.get_model(
@@ -496,84 +696,6 @@ class NativeMemoryBackend(MemoryBackend):
         except Exception as e:
             logger.debug("[NativeMemory] LLM rerank failed, using RRF order: %s", e)
             return candidates[:max_results]
-
-    async def _llm_merge_memories(self, memories: list[dict]) -> Optional[dict]:
-        """Use LLM to merge overlapping memories into one consolidated memory."""
-        if len(memories) > 5:
-            memories = memories[:5]
-
-        try:
-            from langchain_core.messages import HumanMessage, SystemMessage
-            from src.infra.llm.client import LLMClient
-
-            model = LLMClient.get_model(
-                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
-                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
-                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
-                temperature=0.1,
-                max_tokens=500,
-            )
-
-            items_text = "\n".join(
-                f"[{i+1}] {m['content']}" for i, m in enumerate(memories)
-            )
-
-            prompt = (
-                "These memories are overlapping or related. Merge them into a single "
-                "consolidated memory that captures all unique information.\n\n"
-                f"Memories to merge:\n{items_text}\n\n"
-                "Return JSON: {\"content\": \"merged content\", \"type\": \"memory_type\", "
-                "\"summary\": \"concise summary\"}\n"
-                "Keep the most recent/relevant details. If memories contradict, "
-                "prefer the newer one."
-            )
-
-            response = await model.ainvoke(
-                [SystemMessage(content="You are a memory consolidation assistant. Output only JSON."), HumanMessage(content=prompt)],
-            )
-
-            text = response.content
-            if isinstance(text, list):
-                for item in text:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        text = item.get("text", "")
-                        break
-                else:
-                    return None
-            text = str(text).strip()
-            if text.startswith("```"):
-                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
-            parsed = json.loads(text)
-            content = parsed.get("content", "").strip()
-            if not content:
-                return None
-
-            mem_type = parsed.get("type", memories[0].get("memory_type", "user"))
-            summary = parsed.get("summary", self._build_summary(content))
-
-            now = datetime.now(timezone.utc)
-            return {
-                "memory_id": uuid.uuid4().hex,
-                "user_id": memories[0]["user_id"],
-                "content": content[:5000],
-                "summary": summary[:100],
-                "memory_type": mem_type,
-                "context": "consolidated",
-                "tags": self._extract_tags(content),
-                "source": "auto_retained",
-                "embedding": await self._maybe_embed(content),
-                "created_at": now,
-                "updated_at": now,
-                "accessed_at": now,
-                "access_count": 0,
-            }
-        except Exception as e:
-            logger.debug("[NativeMemory] LLM merge failed: %s", e)
-            return None
 
     # ------------------------------------------------------------------
     # Memory index (for system prompt injection)
@@ -888,11 +1010,12 @@ class NativeMemoryBackend(MemoryBackend):
 
         Falls back gracefully on any error (returns empty list).
         """
-        if len(conversation.strip()) < 30:
+        if len(conversation.strip()) < 10:
             return []
 
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
+
             from src.infra.llm.client import LLMClient
 
             model = LLMClient.get_model(
@@ -917,25 +1040,40 @@ class NativeMemoryBackend(MemoryBackend):
                 existing_hint = f"\n\nExisting memories (do NOT duplicate):\n{existing_index}"
 
             prompt = (
-                "Analyze this conversation turn and extract memories worth remembering "
-                "across sessions. Return a JSON array of objects with 'content', 'type' "
+                "You are a STRICT memory extraction filter. Your job is to decide if anything "
+                "in this conversation is worth remembering PERMANENTLY across sessions.\n\n"
+                "Return a JSON array of objects with 'content', 'type' "
                 "(one of: user, feedback, project, reference), and 'summary' (max 80 chars).\n\n"
-                "Rules:\n"
-                "- Only extract non-obvious, durable information (preferences, decisions, context)\n"
-                "- Do NOT extract code, file paths, git commands, error traces\n"
-                "- Do NOT extract greetings, thanks, or trivial chitchat\n"
-                "- Include *why* for feedback type memories\n"
-                "- Convert relative dates to absolute dates for project type\n"
-                "- Return empty array [] if nothing is worth remembering\n"
-                "- Maximum 3 memories per turn"
+                "STRICT Rules — extract ONLY if ALL conditions are met:\n"
+                "- The content is a FACTUAL STATEMENT (not a question, not a request)\n"
+                "- The content reveals something NON-OBVIOUS about the user's identity, "
+                "preferences, work context, or goals\n"
+                "- The content would still be useful weeks from now\n"
+                "- The content contains SPECIFIC information (names, tools, decisions, constraints)\n\n"
+                "REJECT (return empty []):\n"
+                "- Questions of any kind (who/what/why/where/when/how/多少/什么/为什么/怎么/哪个)\n"
+                "- Greetings, farewells, thanks, acknowledgments\n"
+                "- Requests for the AI to do something (no 'help me', 'show me', 'check')\n"
+                "- Self-introductions with no substantive information (e.g. 'I am a developer')\n"
+                "- Meta-commentary about the conversation itself\n"
+                "- Code snippets, file paths, git commands, error traces\n"
+                "- Any content that is obvious, generic, or universally true\n"
+                "- Assistant boilerplate, greetings, or identity statements\n"
+                "- Content shorter than 20 characters\n\n"
+                "TYPE rules:\n"
+                "- user: identity, role, expertise level, name, preferences (include specific details)\n"
+                "- feedback: corrections with reason, confirmed preferences, workflow instructions\n"
+                "- project: specific work items with dates/deadlines/constraints\n"
+                "- reference: external system URLs, identifiers, access patterns\n\n"
                 f"{existing_hint}\n\n"
                 "Conversation:\n"
                 f"{conversation[:2000]}\n\n"
-                'Return ONLY valid JSON: [{"content": "...", "type": "user", "summary": "..."}]'
+                'Return ONLY valid JSON: [{"content": "...", "type": "user", "summary": "..."}] '
+                "or [] if nothing is worth remembering."
             )
 
             response = await model.ainvoke(
-                [SystemMessage(content="You are a memory extraction assistant. Output only JSON."), HumanMessage(content=prompt)],
+                [SystemMessage(content="You are a STRICT memory extraction filter. Be extremely conservative. When in doubt, return []. Output only JSON."), HumanMessage(content=prompt)],
             )
 
             # Extract text from response
@@ -965,7 +1103,10 @@ class NativeMemoryBackend(MemoryBackend):
                 content = item.get("content", "").strip()
                 mem_type = item.get("type", "user")
                 summary = item.get("summary", "")
-                if not content or len(content) < 15:
+                if not content:
+                    continue
+                # Post-extraction validation: reject low-quality candidates
+                if not self._is_valid_memory_content(content):
                     continue
                 if mem_type not in ("user", "feedback", "project", "reference"):
                     mem_type = "user"
@@ -980,11 +1121,11 @@ class NativeMemoryBackend(MemoryBackend):
                     }
                 )
             if memories:
-                logger.debug("[NativeMemory] LLM extracted %d memories", len(memories))
+                logger.info("[NativeMemory] LLM extracted %d memories", len(memories))
             return memories
 
         except Exception as e:
-            logger.debug("[NativeMemory] LLM extraction failed, falling back to rules: %s", e)
+            logger.warning("[NativeMemory] LLM extraction failed, falling back to rules: %s", e)
             return []
 
     # ------------------------------------------------------------------
@@ -1036,6 +1177,36 @@ class NativeMemoryBackend(MemoryBackend):
         if not set_a or not set_b:
             return 0.0
         return len(set_a & set_b) / len(set_a | set_b)
+
+    # Patterns that indicate the content is a question or request, not a memory
+    _QUESTION_PATTERNS = re.compile(
+        r"^(为什么|怎么|如何|啥|什么|多少|哪[个里]|谁|谁|where|what|why|how|"
+        r"who|when|which|can you|could you|would you|please |帮我|请帮我|"
+        r"你好|嗨|hi |hello|hey)",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _is_valid_memory_content(cls, content: str) -> bool:
+        """Post-extraction validation: reject questions, noise, and low-signal content."""
+        stripped = content.strip()
+        if len(stripped) < 20:
+            return False
+        # Reject questions (ending with ? or ？)
+        if stripped.endswith("?") or stripped.endswith("？"):
+            return False
+        # Reject content starting with question words
+        if cls._QUESTION_PATTERNS.match(stripped):
+            return False
+        # Reject pure question patterns anywhere in short content
+        question_markers = ("我叫啥", "你叫啥", "我是谁", "你是谁", "什么意思", "怎么回事")
+        if stripped in question_markers:
+            return False
+        # Reject content that is mostly punctuation or whitespace
+        alpha_ratio = sum(1 for c in stripped if c.isalnum() or "\u4e00" <= c <= "\u9fff") / max(len(stripped), 1)
+        if alpha_ratio < 0.5:
+            return False
+        return True
 
     def _extract_tags(self, content: str) -> list[str]:
         words = content.lower().split()

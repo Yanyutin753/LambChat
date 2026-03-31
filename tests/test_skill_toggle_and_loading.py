@@ -8,8 +8,8 @@ from src.agents.fast_agent.context import FastAgentContext
 from src.api.routes import marketplace as marketplace_routes
 from src.api.routes import skill as skill_routes
 from src.infra.skill.marketplace import MarketplaceStorage
-from src.infra.skill.types import InstalledFrom
 from src.infra.skill.storage import SkillStorage
+from src.infra.skill.types import InstalledFrom
 from src.kernel.schemas.user import TokenPayload
 
 

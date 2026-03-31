@@ -12,6 +12,39 @@ from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
+# Patterns matching the standard assistant greeting boilerplate that should
+# be stripped before sending to LLM memory extraction, since it repeats
+# in every conversation and contains no user-specific information.
+_ASSISTANT_BOILERPLATE_PATTERNS = (
+    "我是 Deep Agent，一个 AI 助手",
+    "我是 Deep Agent, an AI assistant",
+    "我是 AI 助手",
+)
+
+
+def _strip_assistant_boilerplate(text: str) -> str:
+    """Remove standard assistant greeting boilerplate from assistant output.
+
+    Keeps only the substantive part of the response that contains
+    actual information exchange with the user.
+    """
+    for pattern in _ASSISTANT_BOILERPLATE_PATTERNS:
+        idx = text.find(pattern)
+        if idx != -1:
+            # Keep everything after the boilerplate (the real answer)
+            after = text[idx + len(pattern):]
+            # Skip past common separators (newline, colon, etc.)
+            for sep in ("\n", "。", "！", "!", "，", ",", ":", ":"):
+                if after.startswith(sep):
+                    after = after[len(sep):]
+                    break
+            text = after.strip()
+            if not text:
+                # Nothing meaningful after boilerplate
+                return ""
+            break
+    return text
+
 
 def schedule_auto_retain(
     user_input: str,
@@ -29,16 +62,21 @@ def schedule_auto_retain(
         return
 
     user_input_clean = user_input.strip()
-    if not user_input_clean or len(user_input_clean) < 10:
+    if not user_input_clean or len(user_input_clean) < 2:
         return
 
     # Combine user input + assistant output for richer context
     parts = [user_input_clean[:500]]
     if assistant_output and assistant_output.strip():
-        parts.append(assistant_output.strip()[:500])
+        # Strip standard assistant greeting boilerplate to reduce noise for LLM extraction.
+        # The template "你好{name}！我是 Deep Agent，一个 AI 助手。" is repeated in every
+        # conversation and contains no user-specific information worth remembering.
+        cleaned_output = _strip_assistant_boilerplate(assistant_output.strip())
+        if cleaned_output:
+            parts.append(cleaned_output[:500])
     conversation_summary = "\n\n".join(parts)
 
-    if len(conversation_summary.strip()) < 10:
+    if len(conversation_summary.strip()) < 5:
         return
 
     from src.infra.memory.tools import schedule_auto_retain

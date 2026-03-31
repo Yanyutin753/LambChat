@@ -166,6 +166,9 @@ class MemoryPubSub:
             if backend is None or backend.name != "native":
                 return
 
+            from src.infra.memory.client.native import NativeMemoryBackend
+
+            assert isinstance(backend, NativeMemoryBackend)
             # Invalidate the index cache for this user
             backend._index_cache.pop(user_id, None)
             logger.debug("[MemoryPubSub] Invalidated index cache for user %s", user_id)

@@ -14,9 +14,9 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
-from src.kernel.config import settings
 from src.infra.memory.client.base import MemoryBackend, create_memory_backend, is_memory_enabled
 from src.infra.memory.client.hindsight import get_user_id_from_runtime
+from src.kernel.config import settings
 
 logger = get_logger(__name__)
 

@@ -242,7 +242,7 @@ export function SessionSidebar({
             className="size-6 rounded-full object-cover ring-1 ring-stone-200 dark:ring-stone-700"
           />
           <a
-            href="{GITHUB_URL}"
+            href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-md font-semibold leading-none text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors font-serif"
