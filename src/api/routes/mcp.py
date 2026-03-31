@@ -228,9 +228,7 @@ async def update_server(
 ):
     """Update a user-owned MCP server"""
     # If changing transport, check permission for the new transport type
-    if data.transport is not None and not _has_permission_for_transport(
-        user, data.transport.value
-    ):
+    if data.transport is not None and not _has_permission_for_transport(user, data.transport.value):
         raise HTTPException(
             status_code=403,
             detail=f"Permission denied. Requires 'mcp:write_{data.transport.value}' or 'mcp:admin' permission.",
