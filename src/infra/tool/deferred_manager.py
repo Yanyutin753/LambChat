@@ -297,7 +297,7 @@ async def clear_discovered_tools(session_id: str) -> None:
         await store.aput(
             _DISCOVERED_TOOLS_NAMESPACE,
             _store_key_for_session(session_id),
-            None,  # value=None means delete
+            None,  # type: ignore[arg-type]  # value=None means delete
         )
     except Exception:
         logger.warning(

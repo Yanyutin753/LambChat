@@ -21,13 +21,16 @@ logger = get_logger(__name__)
 
 _loop_locals: dict[int, dict[str, Any]] = {}
 _loop_locals_lock: Optional[asyncio.Lock] = None
+_loop_locals_lock_loop: Optional[asyncio.AbstractEventLoop] = None
 
 
 def _get_loop_locals_lock() -> asyncio.Lock:
     """Get or create the loop-locals lock (lazy, multi-loop safe)."""
-    global _loop_locals_lock
-    if _loop_locals_lock is None:
+    global _loop_locals_lock, _loop_locals_lock_loop
+    current_loop = asyncio.get_running_loop()
+    if _loop_locals_lock is None or _loop_locals_lock_loop is not current_loop:
         _loop_locals_lock = asyncio.Lock()
+        _loop_locals_lock_loop = current_loop
     return _loop_locals_lock
 
 

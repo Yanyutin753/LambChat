@@ -23,14 +23,20 @@ logger = get_logger(__name__)
 # Module-level cached backend (initialized lazily)
 _backend: Optional[MemoryBackend] = None
 _backend_lock: Optional[asyncio.Lock] = None
+_backend_lock_loop: Optional[asyncio.AbstractEventLoop] = None
 _background_tasks: set[asyncio.Task] = set()
 
 
 def _get_backend_lock() -> asyncio.Lock:
-    """Get or create the backend lock for the current event loop (lazy, multi-loop safe)."""
-    global _backend_lock
-    if _backend_lock is None:
+    """Get or create the backend lock for the current event loop.
+
+    Recreates the lock if the event loop has changed (e.g. after uvicorn reload).
+    """
+    global _backend_lock, _backend_lock_loop
+    current_loop = asyncio.get_running_loop()
+    if _backend_lock is None or _backend_lock_loop is not current_loop:
         _backend_lock = asyncio.Lock()
+        _backend_lock_loop = current_loop
     return _backend_lock
 
 
@@ -244,7 +250,7 @@ async def auto_retain_conversation(
                 )
             return
 
-        logger.debug("[Memory] No backend enabled, skipping auto-retain")
+        logger.warning("[Memory] No backend enabled, skipping auto-retain")
     except Exception as e:
         logger.warning(f"[Memory] Auto-retain failed (non-critical): {e}")
 
@@ -340,7 +346,7 @@ async def shutdown() -> None:
 
     Call during application shutdown to prevent orphaned tasks.
     """
-    global _backend, _backend_lock
+    global _backend, _backend_lock, _backend_lock_loop
 
     # Cancel all background tasks
     for task in list(_background_tasks):
@@ -353,6 +359,7 @@ async def shutdown() -> None:
     backend = _backend
     _backend = None
     _backend_lock = None
+    _backend_lock_loop = None
     if backend is not None:
         try:
             await backend.close()

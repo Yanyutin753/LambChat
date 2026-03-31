@@ -83,7 +83,7 @@ async def release_consolidation_lock(user_id: str, instance_id: str) -> None:
             return 0
         end
         """
-        await redis_client.eval(lua, 1, lock_key, instance_id)
+        await redis_client.eval(lua, 1, lock_key, instance_id)  # type: ignore[misc]
     except Exception as e:
         logger.debug("[Memory] Failed to release consolidation lock for %s: %s", user_id, e)
 

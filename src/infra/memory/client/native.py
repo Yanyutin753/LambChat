@@ -1357,6 +1357,14 @@ class NativeMemoryBackend(MemoryBackend):
         except Exception as e:
             # Text index creation can fail on existing collections with conflicts
             logger.warning(f"[NativeMemory] Text index creation skipped: {e}")
+        try:
+            col.create_index(
+                [("user_id", 1), ("context", 1)],
+                name="native_mem_session_ctx_idx",
+                partialFilterExpression={"context": {"$regex": "^session:"}},
+            )
+        except Exception as e:
+            logger.warning(f"[NativeMemory] Session context index creation skipped: {e}")
 
     def _setup_embedding_fn(self) -> None:
         """Set up optional embedding function from config."""
