@@ -31,6 +31,7 @@ from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     AppPromptMiddleware,
     SandboxMCPMiddleware,
+    ToolResultBinaryMiddleware,
     create_retry_middleware,
 )
 from src.infra.backend import (
@@ -131,17 +132,22 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     graph_compile_start = time.time()
 
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
+    search_base_url = configurable.get("base_url", "")
     custom_subagents: list[SubAgent | CompiledSubAgent] = [
         {
             "name": "general-purpose",
             "description": "General-purpose agent for researching complex questions, searching for files and content, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you. This agent has access to all tools as the main agent.",
             "system_prompt": SUBAGENT_PROMPT,
-            "middleware": create_retry_middleware(),
+            "middleware": [
+                *create_retry_middleware(),
+                ToolResultBinaryMiddleware(base_url=search_base_url),
+            ],
         }
     ]
 
-    # 构建中间件栈：retry → app prompt (skills/memory) → sandbox MCP
+    # 构建中间件栈：retry → binary upload → app prompt (skills/memory) → sandbox MCP
     user_middleware = create_retry_middleware()
+    user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
     user_middleware.append(
         AppPromptMiddleware(skills_prompt=skills_prompt, memory_guide=memory_guide)
     )

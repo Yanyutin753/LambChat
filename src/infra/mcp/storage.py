@@ -142,6 +142,7 @@ class MCPStorage:
             "created_at": now,
             "updated_at": now,
             "updated_by": admin_user_id,
+            "created_by": admin_user_id,
         }
 
         # 加密敏感字段
@@ -337,6 +338,7 @@ class MCPStorage:
             "updated_at": now,
             "updated_by": admin_user_id,
             "promoted_from_user": user_id,  # Track origin
+            "created_by": user_id,  # Original creator
         }
         # 加密敏感字段
         doc = encrypt_server_secrets(doc)
@@ -522,6 +524,10 @@ class MCPStorage:
             result["url"] = server.url
         if server.headers:
             result["headers"] = server.headers
+        if server.command:
+            result["command"] = server.command
+        if server.env_keys:
+            result["env_keys"] = server.env_keys
         return result
 
     async def get_tool_preferences(self, user_id: str) -> dict[str, bool]:
@@ -661,13 +667,14 @@ class MCPStorage:
     async def get_visible_servers(
         self,
         user_id: str,
-        is_admin: bool = False,  # noqa: ARG002
+        is_admin: bool = False,
     ) -> list[MCPServerResponse]:
         """
         Get all MCP servers visible to a user.
 
         Returns system servers (with user preferences applied) + user's own servers.
-        Masks sensitive fields in responses.
+        For system servers, only the creator (created_by) can see sensitive fields
+        (url, headers, command, env_keys) and edit the server.
         """
         servers = []
 
@@ -682,7 +689,14 @@ class MCPStorage:
             if server_name in user_preferences:
                 doc = copy.deepcopy(doc)
                 doc["enabled"] = user_preferences[server_name]
-            server = self._doc_to_response(doc, is_system=True, can_edit=True)
+            # Only the creator (created_by) can see sensitive fields
+            # Admins can always edit system servers; non-admins cannot
+            is_creator = doc.get("created_by", doc.get("updated_by")) == user_id
+            can_edit = is_admin or is_creator
+            hide_sensitive = not (is_admin or is_creator)
+            server = self._doc_to_response(
+                doc, is_system=True, can_edit=can_edit, hide_sensitive=hide_sensitive
+            )
             servers.append(server)
 
         # Get user servers
@@ -741,7 +755,8 @@ class MCPStorage:
             # Return updated server response with user's preference applied
             response_doc = copy.deepcopy(system_doc)
             response_doc["enabled"] = new_enabled
-            return self._doc_to_response(response_doc, is_system=True, can_edit=True)
+            is_creator = response_doc.get("created_by", response_doc.get("updated_by")) == user_id
+            return self._doc_to_response(response_doc, is_system=True, can_edit=is_creator)
 
         return None
 
@@ -929,6 +944,7 @@ class MCPStorage:
             created_at=created_at,
             updated_at=updated_at,
             updated_by=doc.get("updated_by"),
+            created_by=doc.get("created_by"),
         )
 
     def _doc_to_user_server(self, doc: dict[str, Any]) -> UserMCPServer:
@@ -962,17 +978,34 @@ class MCPStorage:
         )
 
     def _doc_to_response(
-        self, doc: dict[str, Any], is_system: bool, can_edit: bool
+        self,
+        doc: dict[str, Any],
+        is_system: bool,
+        can_edit: bool,
+        hide_sensitive: bool = False,
     ) -> MCPServerResponse:
-        """Convert MongoDB document to MCPServerResponse with masked sensitive fields"""
+        """Convert MongoDB document to MCPServerResponse with masked sensitive fields.
+
+        Args:
+            doc: MongoDB document.
+            is_system: Whether this is a system-level server.
+            can_edit: Whether the requesting user can edit this server.
+            hide_sensitive: If True, omit url/headers/command/env_keys from the
+                response entirely (used when non-admins view system servers).
+        """
         # Deep copy to avoid modifying original
         doc_copy = copy.deepcopy(doc)
 
         # 解密敏感字段
         doc_copy = decrypt_server_secrets(doc_copy)
 
-        # Mask sensitive fields (after decrypt, mask for display)
-        doc_copy = self._mask_sensitive_fields(doc_copy)
+        if hide_sensitive:
+            # Non-admin viewing a system server: strip all connection details
+            for field in ("url", "headers", "command", "env_keys", "env"):
+                doc_copy.pop(field, None)
+        else:
+            # Mask sensitive fields (after decrypt, mask for display)
+            doc_copy = self._mask_sensitive_fields(doc_copy)
 
         # Convert datetime to ISO string if needed
         created_at = doc_copy.get("created_at")

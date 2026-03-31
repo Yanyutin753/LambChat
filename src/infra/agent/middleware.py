@@ -1,9 +1,12 @@
-"""DeepAgent middleware: retry, app-level prompt injection, and sandbox MCP prompt."""
+"""DeepAgent middleware: retry, app-level prompt injection, sandbox MCP prompt, and tool binary upload."""
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+import mimetypes
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +18,7 @@ from langchain.agents.middleware.types import (
     ModelResponse,
     ResponseT,
 )
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from src.infra.tool.sandbox_mcp_prompt import build_sandbox_mcp_prompt
 from src.kernel.config import settings
@@ -208,3 +211,117 @@ def create_retry_middleware() -> list[AgentMiddleware]:
             max_retries=settings.LLM_MAX_RETRIES, retry_delay=settings.LLM_RETRY_DELAY
         ),
     ]
+
+
+# MCP content block types that may carry binary data
+_BINARY_BLOCK_TYPES = frozenset(("image", "file"))
+
+
+class ToolResultBinaryMiddleware(AgentMiddleware):
+    """在 ToolMessage 送回 LLM 前，上传 base64 二进制数据并替换为 URL。
+
+    当工具（如 MCP 工具）返回 image/file 类型的 base64 数据时：
+    1. 将二进制数据上传到对象存储
+    2. 用包含 URL 的文本块替换原始 base64 块
+    3. LLM 收到的是可访问的 URL，而非原始 base64
+
+    这样 LLM 就能在后续工具调用（如 analyze_image）中使用正确的 URL。
+    """
+
+    def __init__(self, *, base_url: str = "") -> None:
+        super().__init__()
+        self._base_url = base_url
+
+    async def awrap_tool_call(
+        self,
+        request: Any,
+        handler: Callable[[Any], Awaitable[Any]],
+    ) -> Any:
+        result = await handler(request)
+
+        # Only process ToolMessage results
+        if not isinstance(result, ToolMessage):
+            return result
+
+        content = result.content
+        if not isinstance(content, list):
+            return result
+
+        # Quick check: any base64 blocks?
+        if not any(
+            isinstance(b, dict) and b.get("base64") and b.get("type") in _BINARY_BLOCK_TYPES
+            for b in content
+        ):
+            return result
+
+        # Upload and replace base64 with URL, keeping original block structure
+        new_blocks: list[dict[str, Any]] = []
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("base64")
+                and block.get("type") in _BINARY_BLOCK_TYPES
+            ):
+                url = await self._upload_block(block)
+                if url:
+                    # Keep original structure, replace base64 with url
+                    new_block = {k: v for k, v in block.items() if k != "base64"}
+                    new_block["url"] = url
+                    new_blocks.append(new_block)
+                else:
+                    new_blocks.append(block)
+            else:
+                new_blocks.append(block)
+
+        return ToolMessage(
+            content=new_blocks,
+            tool_call_id=result.tool_call_id,
+            name=getattr(result, "name", None),
+            status=getattr(result, "status", None),
+            artifact=getattr(result, "artifact", None),
+        )
+
+    async def _upload_block(self, block: dict) -> str | None:
+        """Upload a single binary block to storage, return the access URL."""
+        try:
+            from src.api.routes.upload import get_or_init_storage
+
+            storage = await get_or_init_storage()
+        except Exception as e:
+            logger.warning("Failed to initialize storage for binary upload: %s", e)
+            return None
+
+        b64_data = block.get("base64")
+        if not b64_data or not isinstance(b64_data, str):
+            return None
+
+        try:
+            raw_bytes = base64.b64decode(b64_data)
+            mime_type = block.get("mime_type", "application/octet-stream")
+            ext = mimetypes.guess_extension(mime_type) or ".bin"
+            ext = ext.lstrip(".")
+            filename = f"binary_{uuid.uuid4().hex[:8]}.{ext}"
+
+            upload_result = await storage.upload_bytes(
+                data=raw_bytes,
+                folder="tool_binaries",
+                filename=filename,
+                content_type=mime_type,
+            )
+
+            base_url = self._base_url
+            if not base_url:
+                base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+
+            url = (
+                f"{base_url}/api/upload/file/{upload_result.key}"
+                if base_url
+                else f"/api/upload/file/{upload_result.key}"
+            )
+            logger.info(
+                "Middleware uploaded binary block: %s (%d bytes)", upload_result.key, len(raw_bytes)
+            )
+            return url
+        except Exception as e:
+            logger.warning("Failed to upload binary block in middleware: %s", e)
+            return None

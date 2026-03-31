@@ -50,7 +50,8 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
     Permissions:
     - mcp:admin: can create any transport type
     - mcp:write_sse: can create SSE transport
-    - mcp:write_http: can create HTTP/streamable_http transport
+    - mcp:write_http: can create streamable_http transport
+    - mcp:write_sandbox: can create sandbox transport
     """
     if _is_admin(user):
         return True
@@ -59,7 +60,7 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
 
     if transport == "sse":
         return "mcp:write_sse" in permissions
-    elif transport in ("streamable_http", "http"):
+    elif transport == "streamable_http":
         return "mcp:write_http" in permissions
     elif transport == "sandbox":
         return "mcp:write_sandbox" in permissions
@@ -78,8 +79,7 @@ async def list_servers(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Get all visible MCP servers (system + user's own)"""
-    is_admin = _is_admin(user)
-    servers = await storage.get_visible_servers(user.sub, is_admin)
+    servers = await storage.get_visible_servers(user.sub)
     return MCPServersResponse(servers=servers)
 
 
@@ -200,17 +200,18 @@ async def get_server(
     # Try system server
     system_server = await storage.get_system_server(name)
     if system_server:
-        is_admin = _is_admin(user)
+        # Only the creator can see sensitive fields (url, headers, command, env_keys)
+        is_creator = (system_server.created_by or system_server.updated_by) == user.sub
         return MCPServerResponse(
             name=system_server.name,
             transport=system_server.transport,
             enabled=system_server.enabled,
-            command=system_server.command,
-            env_keys=system_server.env_keys,
-            url=system_server.url,
-            headers=system_server.headers,
+            url=system_server.url if is_creator else None,
+            headers=system_server.headers if is_creator else None,
+            command=system_server.command if is_creator else None,
+            env_keys=system_server.env_keys if is_creator else None,
             is_system=True,
-            can_edit=is_admin,
+            can_edit=False,  # System servers are managed through admin routes
             created_at=system_server.created_at,
             updated_at=system_server.updated_at,
         )
@@ -222,24 +223,24 @@ async def get_server(
 async def update_server(
     name: str,
     data: MCPServerUpdate,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Update an MCP server (admin only)"""
+    """Update a user-owned MCP server"""
+    # If changing transport, check permission for the new transport type
+    if data.transport is not None and not _has_permission_for_transport(
+        user, data.transport.value
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Permission denied. Requires 'mcp:write_{data.transport.value}' or 'mcp:admin' permission.",
+        )
+
     server = await storage.update_user_server(name, data, user.sub)
     if not server:
         raise HTTPException(
             status_code=404, detail=f"Server '{name}' not found or not owned by user"
         )
-
-    # 失效全局缓存
-    try:
-        from src.infra.tool.mcp_global import invalidate_global_cache
-
-        await invalidate_global_cache(user.sub)
-        logger.info(f"[MCP API] Invalidated cache for user {user.sub} after server update")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
 
     return MCPServerResponse(
         name=server.name,
@@ -259,24 +260,15 @@ async def update_server(
 @router.delete("/{name}")
 async def delete_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Delete an MCP server (admin only)"""
+    """Delete a user-owned MCP server"""
     deleted = await storage.delete_user_server(name, user.sub)
     if not deleted:
         raise HTTPException(
             status_code=404, detail=f"Server '{name}' not found or not owned by user"
         )
-
-    # 失效全局缓存
-    try:
-        from src.infra.tool.mcp_global import invalidate_global_cache
-
-        await invalidate_global_cache(user.sub)
-        logger.info(f"[MCP API] Invalidated cache for user {user.sub} after server deletion")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
 
     return {"message": f"Server '{name}' deleted successfully"}
 
@@ -284,23 +276,14 @@ async def delete_server(
 @router.patch("/{name}/toggle", response_model=MCPServerToggleResponse)
 async def toggle_server(
     name: str,
-    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    user: TokenPayload = Depends(require_permissions("mcp:read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Toggle a server's enabled status (admin only)"""
+    """Toggle a server's enabled status (user servers: direct toggle; system servers: toggle user preference)"""
     server = await storage.toggle_server(name, user.sub)
 
     if not server:
         raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
-
-    # 失效全局缓存
-    try:
-        from src.infra.tool.mcp_global import invalidate_global_cache
-
-        await invalidate_global_cache(user.sub)
-        logger.info(f"[MCP API] Invalidated cache for user {user.sub} after server toggle")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
 
     status_text = "enabled" if server.enabled else "disabled"
     return MCPServerToggleResponse(
@@ -457,15 +440,6 @@ async def admin_update_server(
     if not server:
         raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
 
-    # 失效所有用户的全局缓存（系统服务器影响所有用户）
-    try:
-        from src.infra.tool.mcp_global import invalidate_all_global_cache
-
-        count = await invalidate_all_global_cache()
-        logger.info(f"[MCP API] Invalidated {count} cache entries after system server update")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
-
     return MCPServerResponse(
         name=server.name,
         transport=server.transport,
@@ -492,15 +466,6 @@ async def admin_delete_server(
     if not deleted:
         raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
 
-    # 失效所有用户的全局缓存（系统服务器影响所有用户）
-    try:
-        from src.infra.tool.mcp_global import invalidate_all_global_cache
-
-        count = await invalidate_all_global_cache()
-        logger.info(f"[MCP API] Invalidated {count} cache entries after system server deletion")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
-
     return {"message": f"System server '{name}' deleted successfully"}
 
 
@@ -515,15 +480,6 @@ async def admin_toggle_server(
 
     if not server:
         raise HTTPException(status_code=404, detail=f"System server '{name}' not found")
-
-    # 失效所有用户的全局缓存（系统服务器影响所有用户）
-    try:
-        from src.infra.tool.mcp_global import invalidate_all_global_cache
-
-        count = await invalidate_all_global_cache()
-        logger.info(f"[MCP API] Invalidated {count} cache entries after system server toggle")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
 
     status_text = "enabled" if server.enabled else "disabled"
     return MCPServerToggleResponse(
@@ -562,15 +518,6 @@ async def promote_server(
             status_code=404,
             detail=f"User server '{name}' not found or system server with same name exists",
         )
-
-    # 失效所有用户缓存（系统服务器影响所有用户）
-    try:
-        from src.infra.tool.mcp_global import invalidate_all_global_cache
-
-        count = await invalidate_all_global_cache()
-        logger.info(f"[MCP API] Invalidated {count} cache entries after server promotion")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
 
     return MCPServerMoveResponse(
         server=MCPServerResponse(
@@ -617,15 +564,6 @@ async def demote_server(
             status_code=404,
             detail=f"System server '{name}' not found or user already has server with same name",
         )
-
-    # 失效所有用户缓存（系统服务器变更影响所有用户）
-    try:
-        from src.infra.tool.mcp_global import invalidate_all_global_cache
-
-        count = await invalidate_all_global_cache()
-        logger.info(f"[MCP API] Invalidated {count} cache entries after server demotion")
-    except Exception as e:
-        logger.warning(f"[MCP API] Failed to invalidate cache: {e}")
 
     return MCPServerMoveResponse(
         server=MCPServerResponse(

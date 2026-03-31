@@ -1,4 +1,4 @@
-import { Wrench } from "lucide-react";
+import { Wrench, Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, LoadingSpinner } from "../../common";
 import type { CollapsibleStatus } from "../../common";
@@ -34,6 +34,12 @@ export function ToolCallItem({
   const { t } = useTranslation();
   const hasResult = result !== undefined;
 
+  // Parse MCP server name from tool name (format: "server_name:tool_name")
+  const colonIdx = name.indexOf(":");
+  const isMcpTool = colonIdx > 0;
+  const serverName = isMcpTool ? name.substring(0, colonIdx) : null;
+  const toolName = isMcpTool ? name.substring(colonIdx + 1) : name;
+
   const displayArgs = (() => {
     if (args.partial !== undefined) {
       try {
@@ -63,8 +69,13 @@ export function ToolCallItem({
   return (
     <CollapsiblePill
       status={status}
-      icon={<Wrench size={12} className="shrink-0 opacity-50" />}
-      label={name}
+      icon={isMcpTool ? <Globe size={12} className="shrink-0 opacity-50" /> : <Wrench size={12} className="shrink-0 opacity-50" />}
+      label={toolName}
+      suffix={serverName ? (
+        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-black/20 opacity-70 font-medium truncate max-w-[120px]">
+          {serverName}
+        </span>
+      ) : undefined}
       variant="tool"
       expandable={canExpand}
     >

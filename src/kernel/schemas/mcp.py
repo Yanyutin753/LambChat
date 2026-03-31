@@ -58,6 +58,7 @@ class SystemMCPServer(MCPServerBase):
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
     updated_by: Optional[str] = Field(None, description="Admin user ID who last updated")
+    created_by: Optional[str] = Field(None, description="Admin user ID who created the server")
 
 
 class UserMCPServer(MCPServerBase):
