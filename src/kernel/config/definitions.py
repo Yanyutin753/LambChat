@@ -823,7 +823,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Memory provider to use",
         "default": "memu",
         "depends_on": "ENABLE_MEMORY",
-        "options": ["memu", "hindsight"],
+        "options": ["memu", "hindsight", "native"],
     },
     # ============================================
     # Hindsight Memory Settings
@@ -868,5 +868,59 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "memU cloud API base URL",
         "default": "https://api.memu.so",
         "depends_on": {"key": "MEMORY_PERFORM", "value": "memu"},
+    },
+    # ============================================
+    # Native Memory Settings (MongoDB-backed, zero external deps)
+    # ============================================
+    "NATIVE_MEMORY_EMBEDDING_API_BASE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Embedding API base URL for vector search (OpenAI-compatible). Leave empty for text-only mode.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_EMBEDDING_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Embedding API key (OpenAI-compatible endpoint)",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_EMBEDDING_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Embedding model name (e.g., text-embedding-3-small)",
+        "default": "text-embedding-3-small",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_STALENESS_DAYS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Days before a memory is considered stale (shown with warning in recall results)",
+        "default": 30,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_INDEX_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.MEMORY,
+        "description": "Inject memory index into system prompt for context awareness",
+        "default": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+        "frontend_visible": True,
+    },
+    "NATIVE_MEMORY_INDEX_CACHE_TTL": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Memory index cache TTL in seconds (per-user)",
+        "default": 300,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Maximum auto-retained memories per user per day",
+        "default": 20,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
 }

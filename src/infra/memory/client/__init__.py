@@ -12,11 +12,13 @@ from src.infra.memory.client.base import (
 )
 from src.infra.memory.client.hindsight import HindsightBackend
 from src.infra.memory.client.memu import MemuBackend
+from src.infra.memory.client.native import NativeMemoryBackend
 
 __all__ = [
     "MemoryBackend",
     "HindsightBackend",
     "MemuBackend",
+    "NativeMemoryBackend",
     "create_memory_backend",
     "is_memory_enabled",
 ]

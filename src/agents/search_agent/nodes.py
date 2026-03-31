@@ -23,9 +23,8 @@ from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
 from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import (
     DEFAULT_SYSTEM_PROMPT,
-    EMPTY_MEMORY_SECTION,
-    HINDSIGHT_MEMORY_SECTION,
     SANDBOX_SYSTEM_PROMPT,
+    get_memory_guide,
 )
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
@@ -114,7 +113,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             logger.warning(f"Failed to build skills prompt: {e}")
 
     # 构建记忆系统提示
-    memory_guide = HINDSIGHT_MEMORY_SECTION if settings.ENABLE_MEMORY else EMPTY_MEMORY_SECTION
+    memory_guide = get_memory_guide(settings.MEMORY_PERFORM) if settings.ENABLE_MEMORY else ""
 
     # 过滤工具（懒加载 MCP 工具）
     filtered_tools = None

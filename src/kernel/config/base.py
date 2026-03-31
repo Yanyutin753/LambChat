@@ -228,6 +228,15 @@ class Settings(BaseSettings):
     MEMU_API_KEY: str = ""
     MEMU_BASE_URL: str = "https://api.memu.so"
 
+    # Native Memory Settings (MongoDB-backed, zero external deps)
+    NATIVE_MEMORY_EMBEDDING_API_BASE: str = ""
+    NATIVE_MEMORY_EMBEDDING_API_KEY: str = ""
+    NATIVE_MEMORY_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    NATIVE_MEMORY_STALENESS_DAYS: int = 30
+    NATIVE_MEMORY_INDEX_ENABLED: bool = True
+    NATIVE_MEMORY_INDEX_CACHE_TTL: int = 300
+    NATIVE_MEMORY_MAX_AUTO_RETAIN_PER_DAY: int = 20
+
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),
         "env_file_encoding": "utf-8",

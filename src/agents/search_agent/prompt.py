@@ -17,6 +17,16 @@ Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove)
 
 EMPTY_MEMORY_SECTION = ""
 
+
+def get_memory_guide(memory_perform: str) -> str:
+    """Build memory guide based on active backend."""
+    if memory_perform == "native":
+        from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
+
+        return NATIVE_MEMORY_GUIDE
+    return HINDSIGHT_MEMORY_SECTION
+
+
 SANDBOX_SYSTEM_PROMPT = """
 You are an intelligent assistant with tools and skills.
 

@@ -158,7 +158,7 @@ async def create_memory_backend() -> Optional[MemoryBackend]:
     Create the active memory backend based on configuration.
 
     Returns None if no backend is configured or memory is disabled via master switch.
-    Provider selection is controlled by MEMORY_PERFORM: "memu" or "hindsight".
+    Provider selection is controlled by MEMORY_PERFORM: "memu", "hindsight", or "native".
     """
     from src.kernel.config import settings
 
@@ -179,6 +179,17 @@ async def create_memory_backend() -> Optional[MemoryBackend]:
                 return backend
         except Exception as e:
             logger.warning(f"[Memory] Failed to initialize memU backend: {e}")
+
+    if perform == "native":
+        try:
+            from src.infra.memory.client.native import NativeMemoryBackend
+
+            backend = NativeMemoryBackend()
+            await backend.initialize()
+            if backend._collection is not None:
+                return backend
+        except Exception as e:
+            logger.warning(f"[Memory] Failed to initialize native backend: {e}")
 
     if perform == "hindsight":
         try:

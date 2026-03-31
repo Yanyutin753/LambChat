@@ -21,9 +21,8 @@ from src.agents.core.node_utils import (
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
 from src.agents.fast_agent.context import FastAgentContext
 from src.agents.fast_agent.prompt import (
-    EMPTY_MEMORY_SECTION,
     FAST_SYSTEM_PROMPT,
-    HINDSIGHT_MEMORY_SECTION,
+    get_memory_guide,
 )
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
@@ -99,7 +98,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             logger.warning(f"Failed to build skills prompt: {e}")
 
     # 构建记忆系统提示
-    memory_guide = HINDSIGHT_MEMORY_SECTION if settings.ENABLE_MEMORY else EMPTY_MEMORY_SECTION
+    memory_guide = get_memory_guide(settings.MEMORY_PERFORM) if settings.ENABLE_MEMORY else ""
 
     # 构建系统提示（skills/memory_guide 由 AppPromptMiddleware 在请求时注入）
     system_prompt = FAST_SYSTEM_PROMPT
