@@ -168,7 +168,8 @@ class MemoryPubSub:
 
             from src.infra.memory.client.native import NativeMemoryBackend
 
-            assert isinstance(backend, NativeMemoryBackend)
+            if not isinstance(backend, NativeMemoryBackend):
+                return
             # Invalidate the index cache for this user
             backend._index_cache.pop(user_id, None)
             logger.debug("[MemoryPubSub] Invalidated index cache for user %s", user_id)

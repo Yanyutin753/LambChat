@@ -42,11 +42,17 @@ EXCLUDED_CONTENT_PATTERNS = [
 
 HIGH_SIGNAL_PATTERNS: dict[str, list[str]] = {
     MemoryType.FEEDBACK: [
+        # Negative: corrections, rejections
         r"(don't|avoid|never)\s+(do|use|try|call)",
         r"(always|always remember to|make sure to)\s+",
         r"(i (don't|do) like|prefer not to|instead of)\b",
         r"(when|if)\s+\w+.*\s+(then|always|make sure)",
         r"(please|pl[ea]se)\s+(don't|never|avoid|stop)",
+        # Positive: confirmations — quieter but equally important
+        r"(yes\s+exactly|exactly|perfect|right\s+call|good\s+approach|that'?s?\s+right)",
+        r"(keep\s+doing|keep\s+it|this\s+is\s+(the\s+)?right|go\s+with\s+this)",
+        r"(worked\s+well|worked\s+great|looks\s+good|that'?s?\s+(the\s+)?way)",
+        r"(noted|got\s+it|understood|i\s+see|makes\s+sense)\s+[,.!]",
     ],
     MemoryType.USER: [
         r"(my|i)\s+(prefer|like|always|never|usually|typically)\b",
@@ -76,13 +82,13 @@ HIGH_SIGNAL_PATTERNS: dict[str, list[str]] = {
 NATIVE_MEMORY_GUIDE = """
 ## Cross-Session Memory
 
-Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove)
+Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove), `memory_consolidate`(cleanup)
 
 ### Memory Types
 Memories are automatically classified by type:
 - **user**: User's role, preferences, knowledge, and working style
-- **feedback**: Guidance on approach — what to avoid and what to keep doing. Include **Why:** (the reason) and **How to apply:** (when/where this kicks in)
-- **project**: Ongoing work, goals, bugs, milestones, and constraints. Convert relative dates to absolute dates.
+- **feedback**: Guidance on approach — what to avoid AND what to keep doing. Record from failure AND success: if you only save corrections, you'll drift away from approaches the user has validated and grow overly cautious. Confirmations are quieter — watch for "yes exactly", "perfect", "keep doing that", "right call". Include **Why:** (the reason) and **How to apply:** (when/where this kicks in)
+- **project**: Ongoing work, goals, bugs, milestones, and constraints. Convert relative dates to absolute dates ("yesterday" → "2026-04-01").
 - **reference**: External system pointers (Linear, Slack, docs, URLs)
 
 ### What to Remember
@@ -90,7 +96,7 @@ Memories are automatically classified by type:
 - Project context, goals, constraints, and deadlines
 - Non-obvious decisions and their rationale
 - External system URLs, identifiers, and access patterns
-- Corrections and confirmations from both failure AND success
+- Both corrections AND positive confirmations (e.g. "yes exactly, that's the right approach")
 
 ### What NOT to Remember
 - Code patterns, conventions, architecture, or file paths — read from the codebase
@@ -98,12 +104,20 @@ Memories are automatically classified by type:
 - Debugging solutions or fix recipes — the fix is in the code
 - Trivial or ephemeral task details: in-progress work, temporary state
 - Anything already documented in project files
-These exclusions apply even when the user explicitly asks to save. If they ask to save a PR list or activity summary, ask what was *surprising* or *non-obvious* — that is the part worth keeping.
+- Activity logs, PR lists, or summary recaps — even when the user asks to save these, ask what was *surprising* or *non-obvious*
+These exclusions apply **even when the user explicitly asks to save**. Extract the non-obvious kernel, not the full content.
 
 ### When to Use
 - `memory_recall`: When memories seem relevant, or the user references prior-conversation work. MUST access when user explicitly asks to check/recall/remember. Do NOT call it at the start of every conversation — only when genuinely needed.
-- `memory_retain`: Store important non-obvious information. Be selective. Check for existing memories first — update rather than duplicate.
+- `memory_retain`: Store important non-obvious information. Be selective. Check for existing memories first — **update rather than duplicate**.
 - `memory_delete`: Remove memories that are no longer accurate. Update memories that turn out to be wrong or outdated.
+- `memory_consolidate`: Run cleanup to merge duplicates and prune stale memories.
+
+### Staleness
+Memories marked as "stale" (older than 30 days) should be verified against the current state before acting on them. If a recalled memory conflicts with what you observe now, trust the current observation — and update or delete the stale memory.
+
+### Ignore Memory
+If the user says to **ignore** or **forget** something, do not reference those memories. Proceed as if they were never stored.
 
 ### Before Recommending from Memory
 A memory is a point-in-time observation. Before recommending it:

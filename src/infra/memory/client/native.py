@@ -64,6 +64,8 @@ class NativeMemoryBackend(MemoryBackend):
         self._httpx_client: Any = None  # keep ref for proper cleanup
         # In-memory cache for memory index: {user_id: (built_at, index_str)}
         self._index_cache: dict[str, tuple[float, str]] = {}
+        # Per-user consolidation dedup: prevents spawning multiple tasks
+        self._consolidation_pending: set[str] = set()
 
     @property
     def name(self) -> str:
@@ -103,6 +105,38 @@ class NativeMemoryBackend(MemoryBackend):
     # ------------------------------------------------------------------
     # Core API
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _get_memory_model():
+        """Get LLM model for memory operations.
+
+        Uses dedicated NATIVE_MEMORY_MODEL/API config if set,
+        otherwise falls back to the main LLM_MODEL.
+        """
+        model = (
+            getattr(settings, "NATIVE_MEMORY_MODEL", None)
+            or getattr(settings, "LLM_MODEL", None)
+        )
+        api_base = (
+            getattr(settings, "NATIVE_MEMORY_API_BASE", None)
+            or getattr(settings, "LLM_API_BASE", "")
+            or ""
+        )
+        api_key = (
+            getattr(settings, "NATIVE_MEMORY_API_KEY", None)
+            or getattr(settings, "LLM_API_KEY", "")
+            or ""
+        )
+        max_tokens = int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 2000))
+        from src.infra.llm.client import LLMClient
+
+        return LLMClient.get_model(
+            model=model,
+            api_base=api_base,
+            api_key=api_key,
+            temperature=0.1,
+            max_tokens=max_tokens,
+        )
 
     async def retain(
         self,
@@ -229,7 +263,7 @@ class NativeMemoryBackend(MemoryBackend):
                     "user_id": user_id,
                     "content": summary_text[:5000],
                     "summary": summary[:100],
-                    "memory_type": "project",
+                    "memory_type": "reference",
                     "context": f"session:{session_id}",
                     "tags": self._extract_tags(summary),
                     "source": "session_summary",
@@ -292,7 +326,9 @@ class NativeMemoryBackend(MemoryBackend):
 
             # On-demand consolidation: after storing new memories, check if
             # this user's memory set has grown enough to warrant cleanup.
-            asyncio.create_task(self._maybe_consolidate(user_id))
+            if user_id not in self._consolidation_pending:
+                self._consolidation_pending.add(user_id)
+                asyncio.create_task(self._maybe_consolidate(user_id))
 
     # ------------------------------------------------------------------
     # Memory consolidation (on-demand)
@@ -342,6 +378,8 @@ class NativeMemoryBackend(MemoryBackend):
             raise
         except Exception as e:
             logger.debug("[NativeMemory] _maybe_consolidate failed for %s: %s", user_id[:8], e)
+        finally:
+            self._consolidation_pending.discard(user_id)
 
     async def consolidate_memories(self, user_id: str) -> dict[str, Any]:
         """Consolidate memories: merge duplicates, update stale info, prune ephemeral.
@@ -355,9 +393,7 @@ class NativeMemoryBackend(MemoryBackend):
 
         Protected by a distributed lock to prevent concurrent consolidation.
         """
-        import uuid as _uuid
-
-        instance_id = _uuid.uuid4().hex[:8]
+        instance_id = uuid.uuid4().hex[:8]
         try:
             from src.infra.memory.distributed import (
                 acquire_consolidation_lock,
@@ -537,21 +573,11 @@ class NativeMemoryBackend(MemoryBackend):
         The LLM decides for each memory: merge with another, keep as-is, or delete.
         Returns the consolidated list (may be shorter than input), or None on failure.
         """
-        if len(memories) > 5:
-            memories = memories[:50]  # safety cap
 
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            from src.infra.llm.client import LLMClient
-
-            model = LLMClient.get_model(
-                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
-                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
-                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
-                temperature=0.1,
-                max_tokens=2000,
-            )
+            model = self._get_memory_model()
 
             # Format memories with date for LLM context (oldest first)
             items_text = "\n".join(
@@ -643,15 +669,7 @@ class NativeMemoryBackend(MemoryBackend):
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            from src.infra.llm.client import LLMClient
-
-            model = LLMClient.get_model(
-                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
-                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
-                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
-                temperature=0.1,
-                max_tokens=200,
-            )
+            model = self._get_memory_model()
 
             items_text = "\n".join(
                 f"[{i}] {m['summary']}" for i, m in enumerate(candidates)
@@ -704,7 +722,7 @@ class NativeMemoryBackend(MemoryBackend):
     async def build_memory_index(self, user_id: str) -> str:
         """
         Build lightweight memory index string for system prompt.
-        Grouped by type, capped at 10 per type, with staleness warnings.
+        Grouped by type, capped at 5 per type, with human-readable staleness.
         """
         # Check cache (5 min TTL)
         cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
@@ -732,7 +750,7 @@ class NativeMemoryBackend(MemoryBackend):
             },
             {
                 "$project": {
-                    "items": {"$slice": ["$items", 10]},
+                    "items": {"$slice": ["$items", 5]},
                 }
             },
         ]
@@ -762,8 +780,18 @@ class NativeMemoryBackend(MemoryBackend):
             lines.append(f"\n## [{mtype}]")
             for item in group["items"]:
                 age_days = (now - _ensure_aware(item["updated_at"])).days
-                staleness = f" (stale: {age_days}d old)" if age_days > staleness_days else ""
-                lines.append(f"- {item['summary']}{staleness}")
+                # Human-readable staleness like Claude Code's memoryAge()
+                if age_days == 0:
+                    age_str = ""
+                elif age_days == 1:
+                    age_str = " (yesterday)"
+                elif age_days <= 7:
+                    age_str = f" ({age_days}d ago)"
+                elif age_days > staleness_days:
+                    age_str = f" (stale: {age_days}d — verify before using)"
+                else:
+                    age_str = f" ({age_days}d ago)"
+                lines.append(f"- {item['summary']}{age_str}")
 
         lines.append("\n</memory_index>")
         result = "\n".join(lines)
@@ -1016,15 +1044,7 @@ class NativeMemoryBackend(MemoryBackend):
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            from src.infra.llm.client import LLMClient
-
-            model = LLMClient.get_model(
-                model=getattr(settings, "SESSION_TITLE_MODEL", None) or getattr(settings, "LLM_MODEL", None),
-                api_base=getattr(settings, "SESSION_TITLE_API_BASE", "") or "",
-                api_key=getattr(settings, "SESSION_TITLE_API_KEY", "") or "",
-                temperature=0.1,
-                max_tokens=500,
-            )
+            model = self._get_memory_model()
 
             # Pre-inject existing memory index for dedup guidance
             existing_index = ""
@@ -1062,7 +1082,9 @@ class NativeMemoryBackend(MemoryBackend):
                 "- Content shorter than 20 characters\n\n"
                 "TYPE rules:\n"
                 "- user: identity, role, expertise level, name, preferences (include specific details)\n"
-                "- feedback: corrections with reason, confirmed preferences, workflow instructions\n"
+                "- feedback: BOTH corrections AND positive confirmations. If the user says\n"
+                "  'yes exactly' or 'perfect keep doing that', capture what was validated and WHY.\n"
+                "  If you only save corrections, you'll drift away from validated approaches.\n"
                 "- project: specific work items with dates/deadlines/constraints\n"
                 "- reference: external system URLs, identifiers, access patterns\n\n"
                 f"{existing_hint}\n\n"
@@ -1139,7 +1161,7 @@ class NativeMemoryBackend(MemoryBackend):
         if not candidates:
             return candidates
 
-        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+        seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
         try:
             # Fetch recent summaries for this user
             recent = await self._collection.find(

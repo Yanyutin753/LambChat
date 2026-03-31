@@ -206,7 +206,8 @@ async def _build_memory_index_for_user(user_id: str) -> str:
 
         from src.infra.memory.client.native import NativeMemoryBackend
 
-        assert isinstance(backend, NativeMemoryBackend)
+        if not isinstance(backend, NativeMemoryBackend):
+            return ""
         index = await backend.build_memory_index(user_id)
         return index if index else ""
     except Exception:

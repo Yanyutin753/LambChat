@@ -29,8 +29,7 @@ _background_tasks: set[asyncio.Task] = set()
 def _get_backend_lock() -> asyncio.Lock:
     """Get or create the backend lock for the current event loop (lazy, multi-loop safe)."""
     global _backend_lock
-    if _backend_lock is None or _backend_lock.locked():
-        # Create new lock if never created or if the old loop is gone
+    if _backend_lock is None:
         _backend_lock = asyncio.Lock()
     return _backend_lock
 
@@ -175,7 +174,7 @@ def get_memory_delete_tool() -> BaseTool:
 
 def get_all_memory_tools() -> list[BaseTool]:
     """Get all unified memory tools (works with any backend)."""
-    return [memory_retain, memory_recall, memory_delete]
+    return [memory_retain, memory_recall, memory_delete, memory_consolidate]
 
 
 @tool

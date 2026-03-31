@@ -945,4 +945,33 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 300,
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
+    "NATIVE_MEMORY_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "LLM model for memory extraction, consolidation, and reranking. Leave empty to use the main LLM_MODEL.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_API_BASE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API base URL for memory LLM operations. Leave empty to use the main LLM_API_BASE.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API key for memory LLM operations. Leave empty to use the main LLM_API_KEY.",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_MAX_TOKENS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Max tokens for memory LLM responses (extraction, consolidation, reranking). Higher values produce longer summaries but cost more.",
+        "default": 2000,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
 }

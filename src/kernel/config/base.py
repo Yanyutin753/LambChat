@@ -239,6 +239,10 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_PRUNE_THRESHOLD: int = 90
     NATIVE_MEMORY_INDEX_ENABLED: bool = True
     NATIVE_MEMORY_INDEX_CACHE_TTL: int = 300
+    NATIVE_MEMORY_MODEL: str = ""
+    NATIVE_MEMORY_API_BASE: str = ""
+    NATIVE_MEMORY_API_KEY: str = ""
+    NATIVE_MEMORY_MAX_TOKENS: int = 2000
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),
