@@ -255,7 +255,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
             return result
 
         # Upload and replace base64 with URL, keeping original block structure
-        new_blocks: list[dict[str, Any]] = []
+        new_blocks: list[str | dict[str, Any]] = []
         for block in content:
             if (
                 isinstance(block, dict)
