@@ -25,6 +25,7 @@ from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     AppPromptMiddleware,
     PromptCachingMiddleware,
+    SubagentActivityMiddleware,
     ToolResultBinaryMiddleware,
     create_retry_middleware,
 )
@@ -137,6 +138,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             "middleware": [
                 *create_retry_middleware(),
                 ToolResultBinaryMiddleware(base_url=subagent_base_url),
+                SubagentActivityMiddleware(backend=backend_factory),
             ],
         }
     ]

@@ -118,6 +118,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         await context.get_tools()
         filtered_tools = context.filter_tools() or None
 
+        # 延迟加载模式：将 search_tools 注册到 ToolNode
+        # 这样 ToolNode 的 tools_by_name 里也有 search_tools，
+        # 避免 "not a valid tool" 错误
+        if context.deferred_manager is not None and filtered_tools is not None:
+            from src.infra.tool.tool_search_tool import ToolSearchTool
+
+            search_tool = ToolSearchTool(
+                manager=context.deferred_manager,
+                search_limit=settings.DEFERRED_TOOL_SEARCH_LIMIT,
+            )
+            filtered_tools.append(search_tool)
+
     # 创建内层 graph (deep agent)
     checkpointer_start = time.time()
     inner_checkpointer = await get_async_checkpointer()

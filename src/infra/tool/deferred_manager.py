@@ -133,20 +133,40 @@ class DeferredToolManager:
     def get_deferred_stubs_string(self) -> str:
         """返回可直接拼入系统提示的预格式化字符串（带脏标记缓存）。
 
-        将 stub 列表和包装文本合并为单次缓存，避免每次 LLM 调用
-        都做 list comprehension + join + f-string。
+        包含两部分：
+        1. 未发现工具列表 — Agent 需通过 search_tools 加载
+        2. 已发现工具列表 — Agent 可直接使用（schema 已注入 request.tools）
         """
         if not self.stale:
             return self._cached_stubs_string
 
+        parts: list[str] = []
+
+        # 已发现工具（直接可用）
+        if self._discovered_names:
+            discovered_lines = "\n".join(f"- {name}" for name in sorted(self._discovered_names))
+            parts.append(
+                "## MCP Tools (Loaded)\n\n"
+                "These tools are loaded and ready to use:\n\n"
+                f"{discovered_lines}\n"
+            )
+
+        # 未发现工具（需要 search_tools）
         stubs = self.get_deferred_stubs()  # 调用后 stale=False 并更新缓存
-        if not stubs:
+        if stubs:
+            lines = "\n".join(f"- {s.name}: {s.description}" for s in stubs)
+            parts.append(
+                "## MCP Tools (Deferred)\n\n"
+                "The following tools are available but not yet loaded. "
+                "Call `search_tools` to load their full parameter schemas before using them.\n\n"
+                f"{lines}\n"
+            )
+
+        if not parts:
             self._cached_stubs_string = ""
             return ""
 
-        # 只显示名称，不显示描述（与 Claude Code 对齐：A/B 测试表明描述提示无益）
-        lines = "\n".join(s.name for s in stubs)
-        result = f"\n\n## Available MCP Tools (Deferred)\n\n{lines}\n"
+        result = "\n\n".join(parts)
         self._cached_stubs_string = result
         return result
 

@@ -58,19 +58,9 @@ def get_memory_guide(memory_perform: str) -> str:
 SUBAGENT_TASK_GUIDE = """
 ## Using the `task` Tool (Subagents)
 
-When launching a subagent, include file-saving instructions when the task:
-- Involves research, analysis, comparison, or investigation
-- Requires multiple tool calls
-- Produces structured output the main agent needs to verify
-
-Skip saving for trivial one-off lookups.
-
-Required in your `description`:
-```
-IMPORTANT: Save all findings to /workspace/subagent_logs/{task_name}.md. Include: [Evidence saved to: /workspace/subagent_logs/{task_name}.md]
-```
-
-After subagent returns: If result includes `[Evidence saved to: ...]`, read that file for full context.
+Subagent activity (tool calls, results, reasoning) is **automatically logged**.
+When the subagent returns, check its response for `[Activity log saved to: ...]`.
+If the task was complex, read that file for full context beyond the summary.
 """
 
 # ---------------------------------------------------------------------------
@@ -83,14 +73,10 @@ You have access to standard tools to accomplish the objective."""
 # ---------------------------------------------------------------------------
 # 子代理系统提示词 — 详细记录版本（复杂任务，强制保存中间产物）
 # ---------------------------------------------------------------------------
-DETAILED_SUBAGENT_PROMPT = """You are a subagent completing a specific objective. You MUST save all findings to a file so the main agent can access your complete work.
+DETAILED_SUBAGENT_PROMPT = """You are a subagent completing a specific objective.
 
-Required:
-1. Create a workspace file at the start to record all findings
-2. Continuously document research, analysis, and decisions
-3. End with: `[Evidence saved to: /workspace/subagent_logs/{unique_id}.md]`
-
-The main agent reads this file path to get your full work, not just your summary."""
+Your activity (tool calls, results, reasoning) is automatically recorded.
+Focus on completing the task thoroughly and returning a clear summary of your findings."""
 
 # ---------------------------------------------------------------------------
 # 默认导出 — 子代理默认使用详细记录版本，确保中间产物不丢失

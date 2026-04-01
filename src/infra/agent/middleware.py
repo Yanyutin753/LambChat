@@ -1,4 +1,4 @@
-"""DeepAgent middleware: retry, app-level prompt injection, sandbox MCP prompt, tool binary upload, and deferred tool search."""
+"""DeepAgent middleware: retry, app-level prompt injection, sandbox MCP prompt, tool binary upload, deferred tool search, and subagent activity logging."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import base64
 import json
 import logging
 import mimetypes
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
@@ -442,21 +443,22 @@ class ToolSearchMiddleware(AgentMiddleware):
         """注入延迟工具提示和动态工具 schema"""
         from deepagents.middleware._utils import append_to_system_message
 
-        # 1. 注入延迟工具名字列表（使用 manager 的脏标记缓存）
+        # 1. 注入延迟工具名字列表 + 已发现工具状态（使用 manager 的脏标记缓存）
         prompt_section = self._deferred_manager.get_deferred_stubs_string()
         if prompt_section:
             new_system_message = append_to_system_message(request.system_message, prompt_section)
             request = request.override(system_message=new_system_message)
 
-        # 2. 收集需要注入的工具
-        extra_tools: list["BaseTool"] = [self._get_search_tool()]
-        extra_tools.extend(self._deferred_manager.get_discovered_tools())
+        # 2. 收集需要注入的已发现工具（search_tools 已在 nodes.py 注册到 ToolNode）
+        discovered = self._deferred_manager.get_discovered_tools()
+        if not discovered:
+            return await handler(request)
 
         # 3. 合并到 request.tools（去重）
         existing_names = {
             t.name if hasattr(t, "name") else t.get("name", "") for t in request.tools
         }
-        new_tools = [t for t in extra_tools if t.name not in existing_names]
+        new_tools = [t for t in discovered if t.name not in existing_names]
         if new_tools:
             combined = list(request.tools) + new_tools
             request = request.override(tools=combined)
@@ -468,8 +470,36 @@ class ToolSearchMiddleware(AgentMiddleware):
         request: Any,
         handler: Callable[[Any], Awaitable[Any]],
     ) -> Any:
-        """拦截已发现但不在 ToolNode 中的工具调用，直接执行"""
+        """拦截延迟工具和 search_tools 的调用，直接执行
+
+        处理两类工具：
+        1. search_tools — 搜索并发现延迟的工具（可能未注册在 ToolNode 中）
+        2. 已发现的延迟 MCP 工具 — 直接执行并返回 ToolMessage
+        """
         tool_name = request.tool_call.get("name", "")
+
+        # 处理 search_tools 调用（安全网：即使已注册到 ToolNode 也不影响）
+        search_tool = self._get_search_tool()
+        if tool_name == search_tool.name and request.tool is None:
+            try:
+                args = request.tool_call.get("args", {})
+                result = await search_tool.ainvoke(args)
+                content = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
+                return ToolMessage(
+                    content=content,
+                    tool_call_id=request.tool_call.get("id", ""),
+                    name=tool_name,
+                )
+            except Exception as e:
+                logger.warning(
+                    "[ToolSearchMiddleware] Error executing search_tools: %s", e, exc_info=True
+                )
+                return ToolMessage(
+                    content=f"Error executing tool {tool_name}: {e}",
+                    tool_call_id=request.tool_call.get("id", ""),
+                    name=tool_name,
+                    status="error",
+                )
 
         # 检查是否为已发现的延迟工具
         if self._deferred_manager.is_discovered(tool_name) and request.tool is None:
@@ -633,3 +663,332 @@ class PromptCachingMiddleware(AgentMiddleware):
             request = request.override(**overrides)
 
         return await handler(request)
+
+
+# ---------------------------------------------------------------------------
+# Subagent Activity Middleware — auto-log + compress subagent activity
+# ---------------------------------------------------------------------------
+
+# Approximate chars per token (same heuristic as FilesystemMiddleware)
+_CHARS_PER_TOKEN = 4
+
+# Maximum uncompressed activity log size in tokens
+_DEFAULT_ACTIVITY_TOKEN_LIMIT = 6000
+
+# Keep the most recent N entries as full text during compression
+_DEFAULT_KEEP_RECENT = 5
+
+# Maximum chars for a single tool result snippet
+_MAX_RESULT_SNIPPET = 800
+
+# Maximum chars for a single LLM text snippet
+_MAX_LLM_TEXT_SNIPPET = 600
+
+
+class SubagentActivityMiddleware(AgentMiddleware):
+    """Records all subagent activity (LLM reasoning + tool calls) to a log file.
+
+    When the log exceeds a token threshold, older entries are compressed via a
+    lightweight LLM summary.  The full log is written to the backend filesystem
+    **once** — when the subagent produces its final response.
+
+    Flow::
+
+        awrap_model_call  → capture LLM text + tool_calls decision
+        awrap_tool_call   → capture tool name, args, truncated result
+        (log exceeds threshold) → compress old entries via LLM (in-memory only)
+        awrap_model_call (final, no tool_calls) → backend.awrite() + inject log path
+    """
+
+    def __init__(
+        self,
+        *,
+        backend: Any,
+        token_limit: int = _DEFAULT_ACTIVITY_TOKEN_LIMIT,
+        keep_recent: int = _DEFAULT_KEEP_RECENT,
+    ) -> None:
+        super().__init__()
+        self._backend = backend  # BackendProtocol | BackendFactory
+        self._token_limit = token_limit
+        self._keep_recent = keep_recent
+        self._run_id = uuid.uuid4().hex[:8]
+        self._log_path = f"/workspace/subagent_logs/activity_{self._run_id}.md"
+        self._entries: list[str] = []
+        self._total_chars = 0
+        self._compressed = False
+        self._written = False
+
+    def _get_backend(self, runtime: Any) -> Any:
+        """Resolve backend instance (mirrors FilesystemMiddleware pattern)."""
+        if callable(self._backend):
+            return self._backend(runtime)
+        return self._backend
+
+    @staticmethod
+    def _truncate(text: str, limit: int) -> str:
+        if len(text) <= limit:
+            return text
+        half = limit // 2 - 3
+        return text[:half] + "\n...\n" + text[-half:]
+
+    def _timestamp(self) -> str:
+        return time.strftime("%H:%M:%S")
+
+    # ------------------------------------------------------------------
+    # Log entry builders
+    # ------------------------------------------------------------------
+
+    def _build_llm_entry(self, ai_message: AIMessage) -> str:
+        ts = self._timestamp()
+        parts: list[str] = [f"\n## [{ts}] LLM"]
+
+        # Text content
+        text = ""
+        content = ai_message.content
+        if isinstance(content, str):
+            text = content.strip()
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text += block.get("text", "")
+            text = text.strip()
+
+        if text:
+            parts.append(f"> {self._truncate(text, _MAX_LLM_TEXT_SNIPPET)}")
+
+        # Tool calls
+        tool_calls = getattr(ai_message, "tool_calls", None)
+        if tool_calls:
+            names = [tc.get("name", "?") for tc in tool_calls]
+            parts.append(f"→ Calling: {', '.join(names)}")
+
+        return "\n".join(parts) if len(parts) > 1 else ""
+
+    # Tool names where specific args hold large payloads — only record size + snippet
+    # Note: execute command is intentionally NOT here — commands are usually short
+    # and essential to understand what the subagent did.
+    _LARGE_ARG_TOOLS: dict[str, frozenset[str]] = {
+        "write_file": frozenset({"content"}),
+        "edit_file": frozenset({"old_string", "new_string"}),
+    }
+
+    def _format_args(self, name: str, args: dict) -> str:
+        """Smart args formatting for log entries.
+
+        For tools with large payload args (write_file content, edit_file old/new_string,
+        execute command), record arg size + short snippet instead of the full value.
+        """
+        if not args:
+            return ""
+
+        large_args = self._LARGE_ARG_TOOLS.get(name)
+        if large_args:
+            compact: dict[str, Any] = {}
+            for k, v in args.items():
+                if k in large_args and isinstance(v, str) and len(v) > 200:
+                    compact[k] = f"<{len(v)} chars>"
+                    compact[f"{k}_snippet"] = self._truncate(v, 200)
+                else:
+                    compact[k] = v
+            return ", ".join(f"{k}={v!r}" for k, v in compact.items())
+
+        return ", ".join(f"{k}={v!r}" for k, v in args.items())
+
+    def _build_tool_entry(self, name: str, args: dict, result_preview: str) -> str:
+        ts = self._timestamp()
+        args_str = self._format_args(name, args)
+        result_snippet = self._truncate(result_preview, _MAX_RESULT_SNIPPET)
+
+        return (
+            f"\n## [{ts}] Tool: {name}\n"
+            f"Args: {args_str}\n"
+            f"Result: {result_snippet}"
+        )
+
+    # ------------------------------------------------------------------
+    # Append + compress logic
+    # ------------------------------------------------------------------
+
+    def _append_entry(self, entry: str) -> None:
+        if not entry:
+            return
+        self._entries.append(entry)
+        self._total_chars += len(entry)
+
+    async def _check_and_compress(self, runtime: Any) -> None:
+        """Compress older entries in memory if log exceeds token limit.
+
+        No file I/O here — the compressed log is written only once at the end.
+        Guard: only compresses once per run to avoid re-compressing a summary.
+        """
+        if self._compressed:
+            return  # Already compressed once — don't re-compress the summary
+
+        estimated_tokens = self._total_chars // _CHARS_PER_TOKEN
+        if estimated_tokens <= self._token_limit:
+            return
+
+        if len(self._entries) <= self._keep_recent:
+            return  # Not enough entries to compress
+
+        # Split: compress old, keep recent
+        split_idx = len(self._entries) - self._keep_recent
+        old_entries = self._entries[:split_idx]
+        recent_entries = self._entries[split_idx:]
+
+        old_text = "\n".join(old_entries)
+
+        # Compress via LLM
+        try:
+            compressed_summary = await self._compress_with_llm(old_text)
+        except Exception:
+            logger.warning("[SubagentActivity] Compression failed, keeping raw entries")
+            return
+
+        # Rebuild entries (in-memory only)
+        self._entries = [compressed_summary, *recent_entries]
+        self._total_chars = sum(len(e) for e in self._entries)
+        self._compressed = True
+
+    async def _compress_with_llm(self, text: str) -> str:
+        """Use a lightweight LLM to compress activity entries."""
+        from langchain_core.messages import HumanMessage
+
+        from src.infra.llm.client import LLMClient
+
+        # Use the same API config but could use a cheaper model
+        llm = LLMClient.get_model(
+            api_base=settings.LLM_API_BASE,
+            api_key=settings.LLM_API_KEY,
+            model=settings.LLM_MODEL,
+            temperature=0.3,
+            max_tokens=1500,
+        )
+
+        prompt = (
+            "Compress the following subagent activity log into a concise summary.\n"
+            "Keep: key findings, decisions, file paths, important values.\n"
+            "Drop: repetitive reasoning, verbose descriptions, duplicate info.\n"
+            "Format as markdown bullet points under '## Summary of Earlier Activity'.\n\n"
+            f"{text}"
+        )
+
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        summary = response.content if isinstance(response.content, str) else str(response.content)
+        return f"\n## [COMPRESSED] Summary of Earlier Activity\n{summary.strip()}"
+
+    def _render_log(self) -> str:
+        """Render all entries into the final log markdown."""
+        header = f"# Subagent Activity Log (run: {self._run_id})\n"
+        return header + "\n".join(self._entries) + "\n"
+
+    # ------------------------------------------------------------------
+    # Middleware hooks
+    # ------------------------------------------------------------------
+
+    async def _persist_log(self, runtime: Any) -> bool:
+        """Write the activity log to backend filesystem. Returns True on success."""
+        if self._written or not self._entries:
+            return self._written
+        try:
+            backend = self._get_backend(runtime)
+            full_log = self._render_log()
+            write_result = await backend.awrite(self._log_path, full_log)
+            if write_result.error:
+                logger.warning("[SubagentActivity] Write failed: %s", write_result.error)
+                return False
+            self._written = True
+            logger.info("[SubagentActivity] Log persisted to %s (%d chars)", self._log_path, self._total_chars)
+            return True
+        except Exception:
+            logger.warning("[SubagentActivity] Backend write failed", exc_info=True)
+            return False
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        response = await handler(request)
+
+        # Extract AIMessage from response
+        messages: list = []
+        if isinstance(response, AIMessage):
+            messages = [response]
+        elif hasattr(response, "result"):
+            messages = response.result or []
+
+        if not messages or not isinstance(messages[0], AIMessage):
+            return response
+
+        ai_message = messages[0]
+
+        # Record LLM activity
+        entry = self._build_llm_entry(ai_message)
+        if entry:
+            self._append_entry(entry)
+
+        # Check for final response (no tool_calls) — persist + inject log path
+        tool_calls = getattr(ai_message, "tool_calls", None)
+        if not tool_calls:
+            # Write log to backend exactly once
+            await self._persist_log(request.runtime)
+
+            # Inject log path into AI response
+            log_ref = f"\n\n[Activity log saved to: {self._log_path}]"
+            original_text = ai_message.text or ""
+
+            new_content: str | list
+            if isinstance(ai_message.content, list):
+                new_content = [*ai_message.content, {"type": "text", "text": log_ref}]
+            else:
+                new_content = original_text + log_ref
+
+            new_ai = AIMessage(
+                content=new_content,
+                tool_calls=ai_message.tool_calls,
+                id=ai_message.id,
+                additional_kwargs=ai_message.additional_kwargs,
+                response_metadata=ai_message.response_metadata,
+            )
+
+            if hasattr(response, "result"):
+                return type(response)(result=[new_ai])
+            return new_ai  # type: ignore[return-value]
+
+        # Not final — compress in memory if needed (no file write)
+        await self._check_and_compress(request.runtime)
+        return response
+
+    async def awrap_tool_call(
+        self,
+        request: Any,
+        handler: Callable[[Any], Awaitable[Any]],
+    ) -> Any:
+        tool_name = request.tool_call.get("name", "")
+        tool_args = request.tool_call.get("args", {})
+
+        result = await handler(request)
+
+        # Extract result preview
+        result_preview = ""
+        if isinstance(result, ToolMessage):
+            content = result.content
+            if isinstance(content, str):
+                result_preview = content
+            elif isinstance(content, list):
+                texts: list[str] = []
+                for block in content:
+                    if isinstance(block, str):
+                        texts.append(block)
+                    elif isinstance(block, dict) and block.get("type") == "text":
+                        texts.append(block.get("text", ""))
+                result_preview = " ".join(texts)
+
+        entry = self._build_tool_entry(tool_name, tool_args, result_preview)
+        self._append_entry(entry)
+
+        # Compress in memory if needed (no file write)
+        await self._check_and_compress(request.runtime)
+
+        return result
