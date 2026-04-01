@@ -18,9 +18,8 @@ from src.agents.core.node_utils import (
     emit_token_usage,
     schedule_auto_retain,
 )
-from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
+from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
 from src.agents.fast_agent.context import FastAgentContext
-from src.agents.core.subagent_prompts import get_memory_guide
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (

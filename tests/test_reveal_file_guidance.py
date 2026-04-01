@@ -2,8 +2,8 @@ import os
 
 os.environ["DEBUG"] = "false"
 
-from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.core.subagent_prompts import WORKFLOW_SECTION
+from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.infra.tool.reveal_file_tool import reveal_file
 
 
