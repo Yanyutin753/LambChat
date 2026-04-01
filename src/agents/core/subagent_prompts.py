@@ -21,9 +21,16 @@ Call `write_file` first, wait for completion, then call `reveal_file` separately
 For multi-file frontend projects, use `reveal_project(project_path, name, template?)` for browser preview.
 
 ### File Transfer
-- `transfer_file(src, dst)`: move single text file between backends
-- `transfer_path(src_dir, prefix)`: batch-transfer directory files
-- Prefix `/skills/*` → skill store; others → workspace/sandbox. Text files only.
+Different storage backends are routed by path prefix:
+- `/skills/*` → skill store (MongoDB)
+- `/memories/*` → memory store (DB)
+- Other paths → sandbox workspace (Daytona/E2B)
+
+Tools:
+- `transfer_file(src, dst)` — Transfer a **single** text file between any two backends (bidirectional).
+- `transfer_path(src_dir, prefix)` — **Batch** transfer all files in a directory (bidirectional). Directory name is used as the target sub-path (e.g., `/skills/Foo/` → `/home/user/Foo/`).
+
+Text files only (no binary). Limits: single file 10MB, batch 100MB/200files.
 
 ### Clarification
 When uncertain, use `ask_human`. Never guess.

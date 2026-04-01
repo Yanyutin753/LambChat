@@ -18,9 +18,9 @@ SANDBOX_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skill
 Memory: `memory_retain`, `memory_recall`, `memory_delete`.
 
 **Rules:**
-- Remote paths DO NOT exist in sandbox filesystem
-- To use remote files in sandbox: read_file → write to `{work_dir}/` → execute
-- NEVER: `python /skills/x.py`, `cat /skills/x.md`, `cp /skills/* .`
+- Remote paths (`/skills/`, `/memories/`) DO NOT exist in sandbox filesystem
+- To move files between sandbox and remote storage, use `transfer_file` (single) or `transfer_path` (batch directory)
+- NEVER access remote paths via shell: `python /skills/x.py`, `cat /skills/x.md`, `cp /skills/* .`
 
 ## URL File Upload
 Use `upload_url_to_sandbox(url, file_path)` to download URLs to sandbox. `file_path` must be absolute (e.g., `{work_dir}/data.csv`).

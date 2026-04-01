@@ -10,9 +10,21 @@ FAST_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
 | Path | Purpose |
 |------|---------|
 | `/workspace` | Persistent files |
-| `/skills/` | Skill definitions (read-only) |
+| `/skills/` | Skill definitions (editable) |
 
-Cross-session memory: `memory_retain`, `memory_recall`, `memory_delete`."""
+Cross-session memory: `memory_retain`, `memory_recall`, `memory_delete`.
+
+## File Transfer
+Different storage backends are routed by path prefix:
+- `/skills/*` → skill store (MongoDB)
+- `/memories/*` → memory store (DB)
+- Other paths → workspace/sandbox
+
+Tools:
+- `transfer_file(src, dst)` — Transfer a **single** text file between any two backends (bidirectional).
+- `transfer_path(src_dir, prefix)` — **Batch** transfer all files in a directory (bidirectional). Directory name is used as the target sub-path.
+
+Text files only. Limits: single file 10MB, batch 100MB/200files."""
 
 FAST_SYSTEM_PROMPT = FAST_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
 

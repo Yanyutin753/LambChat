@@ -1,12 +1,17 @@
 """
 Transfer File / Transfer Path 工具
 
-在不同 backend 之间转移文本文件（sandbox、skills store、memory store 等）。
+在不同 backend 之间双向转移文本文件（sandbox、skills store、memory store 等）。
 仅支持文本文件，不支持二进制文件。
 通过 CompositeBackend 的路径前缀路由自动选择源/目标 backend：
   /skills/*  → SkillsStoreBackend (MongoDB)
   /memories/* → StoreBackend (DB)
   其他       → Sandbox (Daytona/E2B) 或 StoreBackend
+
+支持双向传输：
+  - sandbox → /skills/、/memories/ 等
+  - /skills/ → sandbox
+  - 任意两个不同 backend 之间
 
 安全措施：
 - 路径穿越防护（.. 规范化检查）
@@ -386,7 +391,7 @@ async def _list_dir_files(backend: Any, dir_path: str) -> list[str]:
 async def transfer_path(
     source_dir: Annotated[
         str,
-        "源目录路径（沙箱中的目录，如 /home/user/my-project/）。路径前缀决定源 backend。",
+        "源目录路径（如 /home/user/my-project/ 或 /skills/MySkill/）。路径前缀决定源 backend：/skills/* → 技能存储, 其他 → 沙箱。",
     ],
     target_prefix: Annotated[
         str,
@@ -395,10 +400,14 @@ async def transfer_path(
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
-    批量传输目录下所有文本文件到目标 backend
+    批量传输目录下所有文本文件到目标 backend（双向）
 
-    将沙箱（或其他源 backend）中一个目录下的所有文件递归传输到目标路径。
-    目录名自动作为目标子路径名称（如 /skills/{dir_name}/）。
+    在任意两个 backend 之间批量传输目录文件：
+    - 沙箱 → /skills/ (批量创建 skill)
+    - /skills/ → 沙箱 (将 skill 文件复制到工作区)
+    - 沙箱 ↔ /memories/ 等
+
+    目录名自动作为目标子路径名称（如 /skills/Foo/ → /home/user/Foo/）。
 
     安全限制：
     - 仅支持文本文件，不支持二进制文件
@@ -408,7 +417,8 @@ async def transfer_path(
 
     常见用途：
     - 从沙箱目录批量创建 skill（如 /home/user/my-skill/ → /skills/my-skill/）
-    - 将沙箱工作区项目文件迁移到记忆存储
+    - 将 skill 文件批量复制到沙箱工作区（如 /skills/MySkill/ → /home/user/MySkill/）
+    - 在沙箱和记忆存储之间迁移文件
 
     Args:
         source_dir: 源目录路径
@@ -435,13 +445,20 @@ async def transfer_path(
     if not target_prefix.endswith("/"):
         target_prefix += "/"
 
-    # 防止反向传输（不能从 skills 传到 skills，或从 skills 传到其他地方）
-    # transfer_path 主要用于 sandbox → skills/memories
-    if source_dir.startswith("/skills/"):
+    # 防止同源传输（不能从 skills 传到 skills）
+    if source_dir.startswith("/skills/") and target_prefix.startswith("/skills/"):
         return json.dumps(
             {
                 "success": False,
-                "error": "transfer_path does not support transferring from /skills/ (use transfer_file for individual files)",
+                "error": "source and target cannot both be /skills/ (same backend)",
+            },
+            ensure_ascii=False,
+        )
+    if source_dir.startswith("/memories/") and target_prefix.startswith("/memories/"):
+        return json.dumps(
+            {
+                "success": False,
+                "error": "source and target cannot both be /memories/ (same backend)",
             },
             ensure_ascii=False,
         )
