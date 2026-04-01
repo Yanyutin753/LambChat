@@ -37,8 +37,8 @@ _MAX_RECONNECT_DELAY = 30
 async def publish_memory_invalidation(user_id: str) -> None:
     """Publish a cache invalidation message for a user.
 
-    Called after retain, delete, auto_retain, store_session_summary, and
-    consolidate_memories so other instances drop stale cache entries.
+    Called after retain, delete, auto_retain, and consolidate_memories so
+    other instances drop stale cache entries.
     """
     try:
         redis_client = get_redis_client()

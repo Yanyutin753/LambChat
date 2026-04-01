@@ -70,7 +70,7 @@ async def memory_retain(
     content: Annotated[str, "The memory content to store (facts, observations, experiences)"],
     context: Annotated[
         Optional[str],
-        "Optional context or category for this memory (e.g., 'user_preferences', 'project_info')",
+        "Optional context or category for this memory (e.g., 'user_identity', 'project_constraint', 'feedback_rule', 'reference_link')",
     ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
@@ -79,7 +79,9 @@ async def memory_retain(
     non-temporary information is accepted. Content that is too short, looks like a
     question, resembles code/commands, or duplicates an existing recent memory will
     be rejected. Prefer storing high-signal facts like user preferences, project
-    context, feedback, or external references.
+    context, feedback, or external references. Use explicit context labels such as
+    `user_identity`, `project_constraint`, `project_status`, `feedback_rule`, or
+    `reference_link` instead of vague buckets like `user_preferences`.
     """
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -234,9 +236,8 @@ async def auto_retain_conversation(
     session_id: Optional[str] = None,
 ) -> None:
     """
-    Automatically store conversation summary as memory (fire-and-forget).
-    Dispatches to the active backend. Also stores a session summary
-    if session_id is provided and backend supports it.
+    Automatically extract durable memories from a conversation summary.
+    Dispatches to the active backend and stores only extracted long-term memories.
     """
     if not user_id or not conversation_summary:
         return
@@ -244,12 +245,7 @@ async def auto_retain_conversation(
     try:
         backend = await _get_backend()
         if backend:
-            # Extract specific memories from the turn
             await backend.auto_retain(user_id, conversation_summary, context)
-
-            # Store session summary for context survival
-            if session_id and hasattr(backend, "store_session_summary"):
-                await backend.store_session_summary(user_id, session_id, conversation_summary)
             return
 
         logger.warning("[Memory] No backend enabled, skipping auto-retain")

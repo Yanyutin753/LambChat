@@ -16,6 +16,8 @@ SANDBOX_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skill
 | Remote Storage | `/skills/` | read/write/edit_file tools |
 
 Memory: `memory_retain`, `memory_recall`, `memory_delete`.
+If a memory index appears in the system prompt, treat it as a lightweight hint list only.
+Recall full memory details before relying on a relevant item.
 
 **Rules:**
 - Remote paths (`/skills/`, `/memories/`) DO NOT exist in sandbox filesystem
@@ -47,7 +49,9 @@ DEFAULT_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skill
 | `/workspace` | Persistent files |
 | `/skills/` | Skill library (editable) |
 
-Memory: `memory_retain`, `memory_recall`, `memory_delete`."""
+Memory: `memory_retain`, `memory_recall`, `memory_delete`.
+If a memory index appears in the system prompt, treat it as a lightweight hint list only.
+Recall full memory details before relying on a relevant item."""
 
 DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
 

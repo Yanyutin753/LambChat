@@ -13,6 +13,8 @@ FAST_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
 | `/skills/` | Skill definitions (editable) |
 
 Cross-session memory: `memory_retain`, `memory_recall`, `memory_delete`.
+If a memory index appears in the system prompt, treat it as a lightweight hint list only.
+Recall full memory details before relying on a relevant item.
 
 ## File Transfer
 Different storage backends are routed by path prefix:

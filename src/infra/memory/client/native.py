@@ -112,6 +112,7 @@ class NativeMemoryBackend(MemoryBackend):
         self._ensure_collection()
         await self._create_indexes()
         self._setup_embedding_fn()
+        await self._prune_legacy_session_summaries()
 
     async def close(self) -> None:
         if self._httpx_client is not None:
@@ -124,6 +125,20 @@ class NativeMemoryBackend(MemoryBackend):
         self._embedding_fn = None
         self._store = None
         self._index_cache.clear()
+
+    async def _prune_legacy_session_summaries(self) -> None:
+        """One-time cleanup for old transcript-style session summary memories."""
+        if self._collection is None:
+            return
+        try:
+            result = await self._collection.delete_many({"source": "session_summary"})
+            deleted_count = int(getattr(result, "deleted_count", 0) or 0)
+            if deleted_count:
+                logger.info(
+                    "[NativeMemory] Pruned %d legacy session summary memories", deleted_count
+                )
+        except Exception as e:
+            logger.debug("[NativeMemory] Failed to prune legacy session summaries: %s", e)
 
     # ------------------------------------------------------------------
     # Core API
@@ -191,8 +206,8 @@ class NativeMemoryBackend(MemoryBackend):
 
         memory_type = self._classify_type(content, context)
         tags = self._extract_tags(content)
-        title = await self._llm_build_title(content)
-        summary = await self._llm_build_summary(content)
+        summary = self._build_summary(content)
+        title = self._build_summary(content, 25)
         memory_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc)
 
@@ -201,9 +216,7 @@ class NativeMemoryBackend(MemoryBackend):
             "user_id": user_id,
             "title": title,
             "summary": summary,
-            "index_label": await self._maybe_await(
-                self._llm_build_index_label(title, summary, content)
-            ),
+            "index_label": self._build_index_label(title, summary, content),
             "memory_type": memory_type,
             "context": context,
             "tags": tags,
@@ -234,19 +247,36 @@ class NativeMemoryBackend(MemoryBackend):
         max_results: int = 5,
         memory_types: Optional[list[str]] = None,
     ) -> dict[str, Any]:
-        text_results = await self._text_search(user_id, query, max_results * 2, memory_types)
+        text_results = await self._text_search(
+            user_id,
+            query,
+            max_results * 2,
+            memory_types,
+        )
 
         vector_results: list[dict] = []
         if self._embedding_fn:
             vector_results = await self._vector_search(
-                user_id, query, max_results * 2, memory_types
+                user_id,
+                query,
+                max_results * 2,
+                memory_types,
             )
 
         memories = self._rrf_merge(text_results, vector_results, max_results * 2)
+        memories = self._prioritize_sources(memories)
+
+        if not memories and self._is_context_overview_query(query):
+            memories = await self._recent_context_fallback(
+                user_id,
+                max_results * 2,
+                memory_types,
+            )
 
         # LLM re-ranking: filter for contextual relevance
         if memories and len(memories) > max_results:
             memories = await self._llm_rerank(user_id, query, memories, max_results)
+            memories = self._prioritize_sources(memories)
 
         if memories:
             memories = memories[:max_results]
@@ -276,59 +306,13 @@ class NativeMemoryBackend(MemoryBackend):
     # ------------------------------------------------------------------
 
     async def store_session_summary(self, user_id: str, session_id: str, summary: str) -> None:
-        """Store or update a session-level summary as a project-type memory.
+        """Legacy compatibility hook.
 
-        This captures the key state of a conversation so it can be recovered
-        after context compaction or in future sessions.
+        Session-level transcript summaries are intentionally no longer stored as
+        long-term memories. We only keep extracted durable memories.
         """
-        if not summary or len(summary.strip()) < 20:
-            return
-
-        summary = summary.strip()
-
-        # Upsert: replace existing summary for this session
-        existing = await self._collection.find_one(
-            {"user_id": user_id, "context": f"session:{session_id}"},
-            {"memory_id": 1},
-        )
-        now = datetime.now(timezone.utc)
-        summary_text = f"[Session {session_id[:8]}] {summary}"
-
-        if existing:
-            await self._collection.update_one(
-                {"memory_id": existing["memory_id"]},
-                {
-                    "$set": {
-                        "content": summary_text[:5000],
-                        "summary": summary[:100],
-                        "title": f"Session {session_id[:8]}",
-                        "index_label": f"Session {session_id[:8]}",
-                        "updated_at": now,
-                    }
-                },
-            )
-        else:
-            await self._collection.insert_one(
-                {
-                    "memory_id": uuid.uuid4().hex,
-                    "user_id": user_id,
-                    "content": summary_text[:5000],
-                    "summary": summary[:100],
-                    "title": f"Session {session_id[:8]}",
-                    "index_label": f"Session {session_id[:8]}",
-                    "memory_type": "reference",
-                    "context": f"session:{session_id}",
-                    "tags": self._extract_tags(summary),
-                    "source": "session_summary",
-                    "embedding": await self._maybe_embed(summary_text),
-                    "created_at": now,
-                    "updated_at": now,
-                    "accessed_at": now,
-                    "access_count": 0,
-                }
-            )
-        await self._invalidate_cache(user_id)
-        logger.debug("[NativeMemory] Stored session summary for %s", session_id[:8])
+        logger.debug("[NativeMemory] Ignoring legacy session summary write for %s", session_id[:8])
+        return None
 
     # ------------------------------------------------------------------
     # Auto-retain (smart filtering)
@@ -343,23 +327,36 @@ class NativeMemoryBackend(MemoryBackend):
         # Only use LLM-based extraction — rule-based fallback is too permissive
         memories = await self._llm_extract_memories(user_id, conversation_summary)
         if not memories:
+            logger.info("[NativeMemory] skip auto-retain: no extracted memories for %s", user_id)
             return
 
         now = datetime.now(timezone.utc)
         docs = []
         for mem in memories[:2]:
             if not self._passes_lightweight_memory_filter(mem["content"]):
+                logger.info(
+                    "[NativeMemory] skip candidate before scoring: lightweight filter rejected content=%r",
+                    str(mem.get("content", ""))[:120],
+                )
                 continue
 
             target = await self._find_existing_memory_for_update(user_id, mem)
             decision = await self._llm_score_memory_candidate(mem, existing_memory=target)
             action = str(decision.get("action", "skip")).lower()
             score = float(decision.get("score", 0.0) or 0.0)
+            reason = str(decision.get("reason", "")).strip()
             decided_type = str(decision.get("memory_type") or mem.get("memory_type") or "user")
             if decided_type in ("user", "feedback", "project", "reference"):
                 mem["memory_type"] = decided_type
 
             if action == "skip" or score < 0.35:
+                logger.info(
+                    "[NativeMemory] skip candidate after scoring: action=%s score=%.2f reason=%s summary=%r",
+                    action,
+                    score,
+                    reason or "-",
+                    str(mem.get("summary", ""))[:80],
+                )
                 continue
 
             if target is not None:
@@ -378,18 +375,24 @@ class NativeMemoryBackend(MemoryBackend):
                     )
                     continue
 
+            deduped = await self._deduplicate_against_existing(user_id, [mem])
+            if not deduped:
+                logger.info(
+                    "[NativeMemory] skip candidate after deduplication: summary=%r",
+                    str(mem.get("summary", ""))[:80],
+                )
+                continue
+
             memory_id = uuid.uuid4().hex
             doc = {
                 "memory_id": memory_id,
                 "user_id": user_id,
                 "summary": mem["summary"],
                 "title": mem.get("title", ""),
-                "index_label": await self._maybe_await(
-                    self._llm_build_index_label(
-                        mem.get("title", ""),
-                        mem["summary"],
-                        mem["content"],
-                    )
+                "index_label": self._build_index_label(
+                    mem.get("title", ""),
+                    mem["summary"],
+                    mem["content"],
                 ),
                 "memory_type": mem["memory_type"],
                 "context": context or "auto_retained",
@@ -847,7 +850,7 @@ class NativeMemoryBackend(MemoryBackend):
         staleness_days = getattr(settings, "NATIVE_MEMORY_STALENESS_DAYS", 30)
 
         pipeline = [
-            {"$match": {"user_id": user_id}},
+            {"$match": {"user_id": user_id, "source": {"$ne": "session_summary"}}},
             {"$sort": {"updated_at": -1}},
             {
                 "$group": {
@@ -947,6 +950,47 @@ class NativeMemoryBackend(MemoryBackend):
             for uid, _ in sorted_entries[:to_remove]:
                 del self._index_cache[uid]
 
+    def _prioritize_sources(self, memories: list[dict]) -> list[dict]:
+        """Prefer durable extracted memories over legacy session-summary records."""
+        source_order = {
+            "manual": 0,
+            "auto_retained": 1,
+            "consolidated": 2,
+            "session_summary": 99,
+        }
+        return sorted(
+            memories,
+            key=lambda memory: (
+                source_order.get(str(memory.get("source", "")), 50),
+                -float(memory.get("score", 0.0) or 0.0),
+            ),
+        )
+
+    def _is_context_overview_query(self, query: str) -> bool:
+        lowered = query.strip().lower()
+        overview_markers = (
+            "user preferences",
+            "project context",
+            "context overview",
+            "what should i know",
+            "memory overview",
+            "relevant memories",
+        )
+        return any(marker in lowered for marker in overview_markers)
+
+    async def _recent_context_fallback(
+        self,
+        user_id: str,
+        limit: int,
+        memory_types: Optional[list[str]],
+    ) -> list[dict]:
+        base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
+        if memory_types:
+            base["memory_type"] = {"$in": memory_types}
+        cursor = self._collection.find(base).sort("updated_at", -1).limit(limit)
+        docs = await cursor.to_list(length=limit)
+        return [self._format_memory(doc, 0.0) for doc in docs]
+
     # ------------------------------------------------------------------
     # Search implementations
     # ------------------------------------------------------------------
@@ -958,7 +1002,7 @@ class NativeMemoryBackend(MemoryBackend):
         limit: int,
         memory_types: Optional[list[str]],
     ) -> list[dict]:
-        base: dict[str, Any] = {"user_id": user_id}
+        base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
         if memory_types:
             base["memory_type"] = {"$in": memory_types}
         base["$text"] = {"$search": query}
@@ -976,10 +1020,20 @@ class NativeMemoryBackend(MemoryBackend):
         except Exception:
             # Fallback: text index might not exist yet, do keyword match
             logger.debug("[NativeMemory] Text search failed, falling back to keyword match")
-            docs = await self._keyword_fallback(user_id, query, limit, memory_types)
+            docs = await self._keyword_fallback(
+                user_id,
+                query,
+                limit,
+                memory_types,
+            )
         else:
             if not docs:
-                docs = await self._keyword_fallback(user_id, query, limit, memory_types)
+                docs = await self._keyword_fallback(
+                    user_id,
+                    query,
+                    limit,
+                    memory_types,
+                )
 
         return [self._format_memory(doc, doc.get("score", 0)) for doc in docs]
 
@@ -995,7 +1049,7 @@ class NativeMemoryBackend(MemoryBackend):
         if not words:
             return []
 
-        base: dict[str, Any] = {"user_id": user_id}
+        base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
         if memory_types:
             base["memory_type"] = {"$in": memory_types}
         base["$or"] = []
@@ -1021,6 +1075,7 @@ class NativeMemoryBackend(MemoryBackend):
 
         base: dict[str, Any] = {
             "user_id": user_id,
+            "source": {"$ne": "session_summary"},
             "embedding": {"$exists": True, "$ne": None},
         }
         if memory_types:
@@ -1124,7 +1179,7 @@ class NativeMemoryBackend(MemoryBackend):
             return []
 
         try:
-            from langchain_core.messages import HumanMessage, SystemMessage
+            from langchain_core.messages import SystemMessage
 
             model = self._get_memory_model()
 
@@ -1140,6 +1195,8 @@ class NativeMemoryBackend(MemoryBackend):
             existing_hint = ""
             if existing_index:
                 existing_hint = f"\n\nExisting memories (do NOT duplicate):\n{existing_index}"
+
+            formatted_conversation = self._format_conversation_for_extraction(conversation)
 
             prompt = (
                 "You are an EXTREMELY STRICT memory extraction filter. Your job is to decide if "
@@ -1163,7 +1220,7 @@ class NativeMemoryBackend(MemoryBackend):
                 "- Questions of any kind (who/what/why/where/when/how/多少/什么/为什么/怎么/哪个)\n"
                 "- Greetings, farewells, thanks, acknowledgments, small talk\n"
                 "- Requests for the AI to do something ('help me', 'show me', 'check', 'please')\n"
-                "- Vague self-introductions without specifics ('I am a developer', 'I like coding')\n"
+                "- Vague self-introductions without stable context ('I am a developer', 'I like coding')\n"
                 "- Meta-commentary about the conversation itself\n"
                 "- Code snippets, file paths, git commands, error traces, terminal output\n"
                 "- Anything obvious, generic, or universally true\n"
@@ -1173,9 +1230,32 @@ class NativeMemoryBackend(MemoryBackend):
                 "  unless it includes a specific deadline, constraint, or named deliverable\n"
                 "- Mild preferences without rationale ('I prefer X') — only keep if a reason is given\n"
                 "- Activity logs, summaries, or recaps — extract only the surprising/non-obvious kernel\n\n"
+                "LANGUAGE:\n"
+                "- Use the same language as the source conversation for content, summary, and title.\n"
+                "- Do not translate Chinese inputs into English.\n"
+                "- Do not translate English inputs into Chinese.\n"
+                "- If the user speaks Chinese, summary and title should also be in Chinese unless the "
+                "original fact is a fixed English name.\n\n"
+                "ROLE HANDLING:\n"
+                "- Prefer facts stated by the user.\n"
+                "- Assistant messages are usually acknowledgments, paraphrases, or boilerplate and "
+                "should not be stored as memories by themselves.\n"
+                "- Only use assistant text as supporting context when it clearly restates a durable fact "
+                "that the user already established.\n"
+                "- If the assistant says 'I remembered' or repeats the user's identity, that does not "
+                "make it a new memory.\n\n"
+                "SPECIAL CASE:\n"
+                "- If the user explicitly states their name and a stable role, responsibility, or project"
+                " anchor, you may store it as a user memory even if it is brief.\n"
+                "- Name + role is allowed when it includes at least one stable identifier such as a "
+                "project name, domain, team, expertise area, or ongoing responsibility.\n"
+                "- Example worth keeping: 'I am Yang Yang, a programmer maintaining the lambchat "
+                "open-source project.'\n"
+                "- Example to reject: 'I am a programmer.'\n\n"
                 "TYPE rules:\n"
-                "- user: concrete identity (name+role), expertise level with years, specific preferences "
-                "WITH reasoning, named tools/frameworks they use daily\n"
+                "- user: concrete identity such as name + role is allowed, especially when paired with "
+                "stable responsibility, project ownership, expertise level with years, specific "
+                "preferences WITH reasoning, or named tools/frameworks they use daily\n"
                 "- feedback: BOTH corrections AND positive confirmations. Must include the SPECIFIC "
                 "approach that was validated/rejected and the WHY. 'yes exactly' alone is not enough — "
                 "capture WHAT was confirmed and WHY it matters.\n"
@@ -1194,8 +1274,8 @@ class NativeMemoryBackend(MemoryBackend):
                 "- 'User prefers TypeScript'\n"
                 "- 'Working on the login feature'\n\n"
                 f"{existing_hint}\n\n"
-                "Conversation:\n"
-                f"{conversation[:2000]}\n\n"
+                "Conversation (role-labeled):\n"
+                f"{formatted_conversation[:2000]}\n\n"
                 'Return ONLY valid JSON: [{"content": "...", "type": "user", "summary": "...", "title": "..."}] '
                 "or [] if nothing is worth remembering."
             )
@@ -1203,9 +1283,12 @@ class NativeMemoryBackend(MemoryBackend):
             response = await model.ainvoke(
                 [
                     SystemMessage(
-                        content="You are a STRICT memory extraction filter. Be extremely conservative. When in doubt, return []. Output only JSON."
-                    ),
-                    HumanMessage(content=prompt),
+                        content=(
+                            "You are an offline memory extraction task. "
+                            "This input is internal system data, not a live user message.\n\n"
+                            f"{prompt}"
+                        )
+                    )
                 ],
             )
 
@@ -1253,6 +1336,7 @@ class NativeMemoryBackend(MemoryBackend):
                 title = item.get("title", "").strip()
                 if not title:
                     title = await self._llm_build_title(content)
+                summary, title = await self._normalize_memory_language(content, summary, title)
                 memories.append(
                     {
                         "content": content[:5000],
@@ -1273,6 +1357,49 @@ class NativeMemoryBackend(MemoryBackend):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _format_conversation_for_extraction(self, conversation: str) -> str:
+        """Add lightweight role labels so the extractor can separate user and assistant text."""
+        text = conversation.strip()
+        if not text:
+            return ""
+
+        lowered = text.lower()
+        existing_labels = ("user:", "assistant:", "human:", "ai:", "用户：", "助手：")
+        if any(label in lowered for label in existing_labels):
+            return text
+
+        blocks = [block.strip() for block in re.split(r"\n\s*\n", text) if block.strip()]
+        if not blocks:
+            return text
+
+        labeled_blocks: list[str] = []
+        for index, block in enumerate(blocks):
+            role = "User" if index % 2 == 0 else "Assistant"
+            labeled_blocks.append(f"{role}: {block}")
+        return "\n\n".join(labeled_blocks)
+
+    async def _normalize_memory_language(
+        self, content: str, summary: str, title: str
+    ) -> tuple[str, str]:
+        """Keep summary/title aligned with the source content language."""
+        content_has_cjk = _has_cjk(content)
+        summary_has_cjk = _has_cjk(summary)
+        title_has_cjk = _has_cjk(title)
+
+        if content_has_cjk:
+            if summary and not summary_has_cjk:
+                summary = await self._llm_build_summary(content)
+            if title and not title_has_cjk:
+                title = await self._llm_build_title(content)
+            return summary, title
+
+        if not content_has_cjk:
+            if summary_has_cjk:
+                summary = self._build_summary(content)
+            if title_has_cjk:
+                title = self._build_summary(content, 25)
+        return summary, title
 
     async def _deduplicate_against_existing(
         self, user_id: str, candidates: list[dict]
@@ -1581,14 +1708,10 @@ class NativeMemoryBackend(MemoryBackend):
             or candidate.get("summary")
             or existing.get("summary", ""),
             "title": composed.get("title") or candidate.get("title") or existing.get("title", ""),
-            "index_label": await self._maybe_await(
-                self._llm_build_index_label(
-                    composed.get("title") or candidate.get("title") or existing.get("title", ""),
-                    composed.get("summary")
-                    or candidate.get("summary")
-                    or existing.get("summary", ""),
-                    merged_text,
-                )
+            "index_label": self._build_index_label(
+                composed.get("title") or candidate.get("title") or existing.get("title", ""),
+                composed.get("summary") or candidate.get("summary") or existing.get("summary", ""),
+                merged_text,
             ),
             "memory_type": composed.get("memory_type")
             or candidate.get("memory_type")
@@ -1617,14 +1740,10 @@ class NativeMemoryBackend(MemoryBackend):
             or candidate.get("summary")
             or existing.get("summary", ""),
             "title": composed.get("title") or candidate.get("title") or existing.get("title", ""),
-            "index_label": await self._maybe_await(
-                self._llm_build_index_label(
-                    composed.get("title") or candidate.get("title") or existing.get("title", ""),
-                    composed.get("summary")
-                    or candidate.get("summary")
-                    or existing.get("summary", ""),
-                    content,
-                )
+            "index_label": self._build_index_label(
+                composed.get("title") or candidate.get("title") or existing.get("title", ""),
+                composed.get("summary") or candidate.get("summary") or existing.get("summary", ""),
+                content,
             ),
             "memory_type": composed.get("memory_type")
             or candidate.get("memory_type")
@@ -2007,6 +2126,13 @@ class NativeMemoryBackend(MemoryBackend):
         except Exception as e:
             logger.debug("[NativeMemory] LLM title failed, using fallback: %s", e)
         return self._build_summary(content, 25)
+
+    def _build_index_label(self, title: str, summary: str, content: str) -> str:
+        """Build a compact deterministic label for memory indexes without extra LLM calls."""
+        seed = (title or summary or content).strip()
+        if not seed:
+            return ""
+        return self._build_summary(seed, 12)
 
     async def _llm_build_index_label(self, title: str, summary: str, content: str) -> str:
         """Generate a short stable label for prompt memory indexes."""

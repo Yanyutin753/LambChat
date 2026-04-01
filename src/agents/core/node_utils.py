@@ -65,15 +65,16 @@ def schedule_auto_retain(
     if not user_input_clean or len(user_input_clean) < 2:
         return
 
-    # Combine user input + assistant output for richer context
-    parts = [user_input_clean[:500]]
+    # Preserve roles so downstream memory extraction can distinguish user facts
+    # from assistant acknowledgments/paraphrases.
+    parts = [f"User: {user_input_clean[:500]}"]
     if assistant_output and assistant_output.strip():
         # Strip standard assistant greeting boilerplate to reduce noise for LLM extraction.
         # The template "你好{name}！我是 Deep Agent，一个 AI 助手。" is repeated in every
         # conversation and contains no user-specific information worth remembering.
         cleaned_output = _strip_assistant_boilerplate(assistant_output.strip())
         if cleaned_output:
-            parts.append(cleaned_output[:500])
+            parts.append(f"Assistant: {cleaned_output[:500]}")
     conversation_summary = "\n\n".join(parts)
 
     if len(conversation_summary.strip()) < 5:

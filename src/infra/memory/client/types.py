@@ -112,7 +112,11 @@ Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove),
 ### Memory Index
 The system prompt contains a `<memory_index>` showing your stored memories as:
 `- title (short_id, age)`
-The index only shows **titles** — use `memory_recall(title)` to fetch full details when needed.
+Each line is only a hint, not the full memory.
+The label is a compact index title, and the short id is only for disambiguation.
+Do not treat the index itself as ground truth.
+If an item seems relevant, use `memory_recall` with the title or topic to fetch the full memory.
+Do not mention unrelated index items just because they are present.
 
 ### Memory Types
 Memories are automatically classified by type:
@@ -139,7 +143,7 @@ These exclusions apply **even when the user explicitly asks to save**. Extract t
 
 ### When to Use
 - `memory_recall`: When a memory's title seems relevant, or the user references prior-conversation work. MUST access when user explicitly asks to check/recall/remember. Do NOT call it at the start of every conversation — only when genuinely needed.
-- `memory_retain`: Store important non-obvious information. Be selective. Check for existing memories first — **update rather than duplicate**.
+- `memory_retain`: Store important non-obvious information. Be selective. Prefer explicit contexts such as `user_identity`, `project_constraint`, `project_status`, `feedback_rule`, or `reference_link`. Check for existing memories first — **update rather than duplicate**.
 - `memory_delete`: Remove memories that are no longer accurate. Update memories that turn out to be wrong or outdated.
 - `memory_consolidate`: Run cleanup to merge duplicates and prune stale memories.
 

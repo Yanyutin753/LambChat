@@ -12,6 +12,12 @@ interface UseSessionSyncReturn {
   handleNewSession: () => void;
 }
 
+export function shouldResetExternalNavigateFlag(
+  locationState: { externalNavigate?: boolean } | null | undefined,
+): boolean {
+  return locationState?.externalNavigate === true;
+}
+
 export function useSessionSync({
   sessionId,
   loadHistory,
@@ -98,14 +104,20 @@ export function useSessionSync({
     if (isSyncingRef.current) return;
 
     // Skip sync if this navigation was initiated externally (e.g., from toast click)
-    const externalNavigate = (
-      locationStateRef.current as { externalNavigate?: boolean }
-    )?.externalNavigate;
-    if (externalNavigate) {
-      // Clear the externalNavigate flag without triggering another navigation
-      window.history.replaceState({}, "", locationPathRef.current);
+    if (
+      shouldResetExternalNavigateFlag(
+        locationStateRef.current as { externalNavigate?: boolean } | null,
+      )
+    ) {
+      // Clear the externalNavigate flag using router navigation so the UI
+      // stays in sync with the browser history state.
+      navigate(locationPathRef.current, { replace: true, state: null });
       return;
     }
+
+    // Skip sync if we're not on a chat route (urlSessionId is undefined/null
+    // but sessionId exists - means user navigated to another page like /skills)
+    if (!urlSessionId && sessionId) return;
 
     if (sessionId && sessionId !== urlSessionId) {
       // New session created - update URL
