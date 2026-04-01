@@ -16,7 +16,6 @@ from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
     build_human_message,
     emit_token_usage,
-    schedule_auto_retain,
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
 from src.agents.fast_agent.context import FastAgentContext
@@ -246,12 +245,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     inner_state = await inner_graph.aget_state(inner_config)
     final_messages = inner_state.values.get("messages", [])
 
-    # 自动记忆存储（异步，不阻塞响应）
     session_id = state.get("session_id")
-    schedule_auto_retain(
-        user_input, event_processor.output_text, context.user_id, session_id=session_id
-    )
-
     if (
         context.deferred_manager is not None
         and session_id

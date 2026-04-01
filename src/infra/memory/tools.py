@@ -14,7 +14,7 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
-from src.infra.memory.client.base import MemoryBackend, create_memory_backend, is_memory_enabled
+from src.infra.memory.client.base import MemoryBackend, create_memory_backend
 from src.infra.memory.client.hindsight import get_user_id_from_runtime
 from src.kernel.config import settings
 
@@ -68,6 +68,14 @@ async def _get_backend() -> Optional[MemoryBackend]:
 @tool
 async def memory_retain(
     content: Annotated[str, "The memory content to store (facts, observations, experiences)"],
+    title: Annotated[
+        Optional[str],
+        "Short title for this memory (max 25 chars, e.g. 'Go expert new to React', 'prefers raw SQL')",
+    ] = None,
+    summary: Annotated[
+        Optional[str],
+        "Brief summary of this memory (max 80 chars)",
+    ] = None,
     context: Annotated[
         Optional[str],
         "Optional context or category for this memory (e.g., 'user_identity', 'project_constraint', 'feedback_rule', 'reference_link')",
@@ -95,7 +103,7 @@ async def memory_retain(
         )
 
     try:
-        result = await backend.retain(user_id, content, context)
+        result = await backend.retain(user_id, content, context, title=title, summary=summary)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
         logger.error(f"[Memory] Failed to retain memory: {e}")
@@ -224,76 +232,12 @@ async def memory_consolidate(
         return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
 
-# ============================================================================
-# Unified Auto-Retention (Background Task)
-# ============================================================================
-
-
-async def auto_retain_conversation(
-    user_id: str,
-    conversation_summary: str,
-    context: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> None:
-    """
-    Automatically extract durable memories from a conversation summary.
-    Dispatches to the active backend and stores only extracted long-term memories.
-    """
-    if not user_id or not conversation_summary:
-        return
-
-    try:
-        backend = await _get_backend()
-        if backend:
-            await backend.auto_retain(user_id, conversation_summary, context)
-            return
-
-        logger.warning("[Memory] No backend enabled, skipping auto-retain")
-    except Exception as e:
-        logger.warning(f"[Memory] Auto-retain failed (non-critical): {e}")
-
-
-def schedule_auto_retain(
-    user_id: str,
-    conversation_summary: str,
-    context: Optional[str] = None,
-    session_id: Optional[str] = None,
-) -> None:
-    """
-    Schedule auto-retention as a background task (fire-and-forget).
-    Works with any backend.
-    """
-    if not is_memory_enabled():
-        return
-
-    if not user_id or not conversation_summary:
-        return
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        logger.debug("[Memory] No running event loop, skipping auto-retain")
-        return
-
-    task = loop.create_task(
-        auto_retain_conversation(
-            user_id=user_id,
-            conversation_summary=conversation_summary,
-            context=context,
-            session_id=session_id,
-        )
-    )
-    _background_tasks.add(task)
-    task.add_done_callback(_background_task_error)
-    task.add_done_callback(_background_tasks.discard)
-
-
 def _background_task_error(task: asyncio.Task) -> None:
     """Handle exceptions from background tasks."""
     try:
         exc = task.exception()
         if exc:
-            logger.warning(f"[Memory] Background auto-retain task failed: {exc}")
+            logger.warning(f"[Memory] Background task failed: {exc}")
     except asyncio.CancelledError:
         pass
 

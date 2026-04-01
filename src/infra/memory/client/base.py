@@ -125,6 +125,8 @@ class MemoryBackend(ABC):
         user_id: str,
         content: str,
         context: Optional[str] = None,
+        title: Optional[str] = None,
+        summary: Optional[str] = None,
     ) -> dict[str, Any]:
         """Store a memory."""
         ...
@@ -148,15 +150,6 @@ class MemoryBackend(ABC):
     ) -> dict[str, Any]:
         """Delete a memory by ID."""
         ...
-
-    async def auto_retain(
-        self,
-        user_id: str,
-        conversation_summary: str,
-        context: Optional[str] = None,
-    ) -> None:
-        """Auto-retain a conversation summary (fire-and-forget)."""
-        await self.retain(user_id, conversation_summary, context or "auto_retained")
 
     async def close(self) -> None:
         """Release resources held by this backend. Default is a no-op."""

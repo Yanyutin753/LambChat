@@ -16,6 +16,8 @@ Cross-session memory: `memory_retain`, `memory_recall`, `memory_delete`.
 If a memory index appears in the system prompt, treat it as a lightweight hint list only.
 Recall full memory details before relying on a relevant item.
 
+**Proactive memory retention:** When the user shares durable facts — identity (name + role + project), concrete preferences with reasons, project details with constraints, or explicit positive/negative feedback on your approach — proactively call `memory_retain` to store it. Do NOT store greetings, questions, code, or ephemeral state.
+
 ## File Transfer
 Different storage backends are routed by path prefix:
 - `/skills/*` → skill store (MongoDB)

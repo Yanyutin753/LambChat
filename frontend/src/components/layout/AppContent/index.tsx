@@ -183,6 +183,7 @@ export function AppContent({ activeTab }: AppContentProps) {
 
   // Session sync
   const { handleSelectSession, handleNewSession } = useSessionSync({
+    activeTab,
     sessionId,
     loadHistory,
     clearMessages,

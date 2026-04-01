@@ -1,7 +1,9 @@
 import { useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
+import type { TabType } from "./types";
 
 interface UseSessionSyncOptions {
+  activeTab: TabType;
   sessionId: string | null;
   loadHistory: (sessionId: string) => Promise<void>;
   clearMessages: () => void;
@@ -19,6 +21,7 @@ export function shouldResetExternalNavigateFlag(
 }
 
 export function useSessionSync({
+  activeTab,
   sessionId,
   loadHistory,
   clearMessages,
@@ -67,6 +70,8 @@ export function useSessionSync({
 
   // Sync from URL only on initial mount
   useEffect(() => {
+    if (activeTab !== "chat") return;
+
     if (urlSessionId && !isSyncingRef.current) {
       isSyncingRef.current = true;
       loadHistory(urlSessionId).finally(() => {
@@ -78,6 +83,8 @@ export function useSessionSync({
 
   // Load session when URL changes (e.g., from toast click)
   useEffect(() => {
+    if (activeTab !== "chat") return;
+
     // Skip if sessionId is null (new session being created, handled by clearMessages)
     if (!sessionId) return;
 
@@ -101,6 +108,15 @@ export function useSessionSync({
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
   useEffect(() => {
+    if (activeTab !== "chat") {
+      if (shouldResetExternalNavigateFlag(
+        locationStateRef.current as { externalNavigate?: boolean } | null,
+      )) {
+        navigate(locationPathRef.current, { replace: true, state: null });
+      }
+      return;
+    }
+
     if (isSyncingRef.current) return;
 
     // Skip sync if this navigation was initiated externally (e.g., from toast click)

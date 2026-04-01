@@ -17,7 +17,6 @@ from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
     build_human_message,
     emit_token_usage,
-    schedule_auto_retain,
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
 from src.agents.search_agent.context import SearchAgentContext
@@ -257,13 +256,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     inner_state = await inner_graph.aget_state(inner_config)
     final_messages = inner_state.values.get("messages", [])
 
-    # 自动记忆存储（异步，不阻塞响应）
-    session_id = state.get("session_id", "")
-    schedule_auto_retain(
-        user_input, event_processor.output_text, context.user_id, session_id=session_id
-    )
-
     # 持久化已发现的延迟工具名（跨 turn 恢复，分布式安全）
+    session_id = state.get("session_id", "")
     if context.deferred_manager is not None and context.deferred_manager.discovered_count > 0:
         try:
             from src.infra.tool.deferred_manager import persist_discovered_tools

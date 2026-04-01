@@ -328,9 +328,14 @@ def create_app() -> FastAPI:
     if frontend_target and frontend_target[0] == "static":
         static_dir = frontend_target[1]
         assert isinstance(static_dir, Path)
-        # Mount entire static directory for all static files
-        app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
-        app.mount("/icons", StaticFiles(directory=str(static_dir / "icons")), name="icons")
+
+        assets_dir = static_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        icons_dir = static_dir / "icons"
+        if icons_dir.exists():
+            app.mount("/icons", StaticFiles(directory=str(icons_dir)), name="icons")
 
         # Serve other static files (manifest.json, etc.)
         @app.get("/manifest.json")
