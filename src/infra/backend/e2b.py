@@ -191,12 +191,15 @@ class E2BBackend(BaseSandbox):
     def ls_info(self, path: str) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 列出目录"""
         try:
+            from e2b import FileType
+
             entries = self._sandbox.files.list(path=path)
             result: list[FileInfo] = []
             for entry in entries:
                 info: FileInfo = {"path": entry.path}
-                if hasattr(entry, "is_dir"):
-                    info["is_dir"] = entry.is_dir
+                # E2B SDK uses entry.type (FileType.FILE/DIR), not entry.is_dir
+                if hasattr(entry, "type") and entry.type == FileType.DIR:
+                    info["is_dir"] = True
                 if hasattr(entry, "size"):
                     info["size"] = entry.size
                 result.append(info)
@@ -238,6 +241,16 @@ class E2BBackend(BaseSandbox):
             logger.error(f"E2B files.write({file_path}) failed: {e}")
             return WriteResult(path=file_path, error=error)
 
+    def _is_entry_dir(self, entry: Any) -> bool:
+        """判断 E2B 文件条目是否为目录（兼容 type 和 is_dir 两种 API）"""
+        from e2b import FileType
+
+        if hasattr(entry, "type") and entry.type == FileType.DIR:
+            return True
+        if hasattr(entry, "is_dir") and entry.is_dir:
+            return True
+        return False
+
     def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 递归搜索匹配 glob 模式的文件
 
@@ -260,15 +273,16 @@ class E2BBackend(BaseSandbox):
                 for entry in entries_list:
                     full_path = entry.path
                     name = os.path.basename(full_path)
+                    is_dir = self._is_entry_dir(entry)
                     if fnmatch.fnmatch(name, pattern):
                         info: FileInfo = {"path": full_path}
-                        if hasattr(entry, "is_dir"):
-                            info["is_dir"] = entry.is_dir
+                        if is_dir:
+                            info["is_dir"] = True
                         if hasattr(entry, "size"):
                             info["size"] = entry.size
                         result.append(info)
                     # 递归进入子目录
-                    if hasattr(entry, "is_dir") and getattr(entry, "is_dir", False):
+                    if is_dir:
                         try:
                             sub_entries = self._sandbox.files.list(path=full_path)
                             _match_glob(sub_entries, full_path, depth + 1)
