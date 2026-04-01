@@ -871,9 +871,15 @@ class NativeMemoryBackend(MemoryBackend):
                     display_title = (item.get("summary") or "")[:30]
                 short_id = (item.get("memory_id") or "")[:6]
                 if short_id:
-                    lines.append(f"- {display_title} ({short_id}, {age_str})" if age_str else f"- {display_title} ({short_id})")
+                    lines.append(
+                        f"- {display_title} ({short_id}, {age_str})"
+                        if age_str
+                        else f"- {display_title} ({short_id})"
+                    )
                 else:
-                    lines.append(f"- {display_title} ({age_str})" if age_str else f"- {display_title}")
+                    lines.append(
+                        f"- {display_title} ({age_str})" if age_str else f"- {display_title}"
+                    )
 
         lines.append("\n</memory_index>")
         result = "\n".join(lines)
@@ -1277,10 +1283,28 @@ class NativeMemoryBackend(MemoryBackend):
 
     # Patterns that indicate assistant internal monologue (should never be stored as memory)
     _ASSISTANT_MONOLOGUE_STARTS = (
-        "让我", "我来", "我来帮", "让我来", "让我检查", "让我看看", "让我搜",
-        "搜索一下", "查找一下", "我来分析", "我来搜索",
-        "正在搜索", "正在查找", "正在检查", "正在分析", "正在读取", "正在执行",
-        "我来读", "让我读", "我来查看", "好的，我来", "好的，让我",
+        "让我",
+        "我来",
+        "我来帮",
+        "让我来",
+        "让我检查",
+        "让我看看",
+        "让我搜",
+        "搜索一下",
+        "查找一下",
+        "我来分析",
+        "我来搜索",
+        "正在搜索",
+        "正在查找",
+        "正在检查",
+        "正在分析",
+        "正在读取",
+        "正在执行",
+        "我来读",
+        "让我读",
+        "我来查看",
+        "好的，我来",
+        "好的，让我",
     )
 
     @classmethod
@@ -1319,9 +1343,9 @@ class NativeMemoryBackend(MemoryBackend):
             # Chinese: split on punctuation/whitespace, then extract 2-4 char segments
             # Filter out segments containing stopwords
             chunks = []
-            current = []
+            current: list[str] = []
             for c in content:
-                if c in "，。！？、；：""''【】（）《》\t\n\r ":
+                if c in "，。！？、；：''【】（）《》\t\n\r ":
                     if current:
                         chunks.append("".join(current))
                         current = []
@@ -1399,7 +1423,9 @@ class NativeMemoryBackend(MemoryBackend):
             model = self._get_memory_model()
             response = await model.ainvoke(
                 [
-                    SystemMessage(content="Summarize in at most 80 characters. Output ONLY the summary, nothing else."),
+                    SystemMessage(
+                        content="Summarize in at most 80 characters. Output ONLY the summary, nothing else."
+                    ),
                     HumanMessage(
                         content=f"Summarize this memory in at most 80 characters (Chinese or English):\n\n{content[:500]}"
                     ),
@@ -1428,7 +1454,9 @@ class NativeMemoryBackend(MemoryBackend):
             model = self._get_memory_model()
             response = await model.ainvoke(
                 [
-                    SystemMessage(content="Generate a short title in at most 25 characters. Output ONLY the title."),
+                    SystemMessage(
+                        content="Generate a short title in at most 25 characters. Output ONLY the title."
+                    ),
                     HumanMessage(
                         content=f"Give this memory a concise title (max 25 chars, Chinese or English):\n\n{content[:300]}"
                     ),
