@@ -19,16 +19,17 @@ from langchain.agents.middleware.types import (
     ModelResponse,
     ResponseT,
 )
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from src.infra.tool.sandbox_mcp_prompt import build_sandbox_mcp_prompt
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
     from langchain.agents.middleware.types import ExtendedModelResponse
-    from langchain_core.tools import BaseTool
 
     from src.infra.tool.deferred_manager import DeferredToolManager
+
+from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 
@@ -508,4 +509,127 @@ class ToolSearchMiddleware(AgentMiddleware):
                     )
 
         # 非延迟工具，透交给原始 handler
+        return await handler(request)
+
+
+# ---------------------------------------------------------------------------
+# Prompt Caching Middleware — KV cache optimization
+# ---------------------------------------------------------------------------
+
+
+class PromptCachingMiddleware(AgentMiddleware):
+    """Re-tags cache breakpoints AFTER all user middleware has injected dynamic content.
+
+    Problem
+    -------
+    deepagents' built-in ``AnthropicPromptCachingMiddleware`` runs **before** user
+    middleware (AppPrompt, MemoryIndex, SandboxMCP, ToolSearch).  It tags the *then*
+    last system-message content block with ``cache_control``, but user middleware
+    subsequently appends more blocks (skills, memory, MCP tools, deferred stubs).
+    The original cache breakpoint ends up in the middle of the final system message,
+    so all dynamic content is re-processed every turn.
+
+    Solution
+    --------
+    This middleware runs **last** in the user middleware chain (innermost layer).
+    It walks the final system message and tools, then:
+
+    1. Moves ``cache_control`` to the **actual** last content block so the full
+       system message is one contiguous cache segment.
+    2. Re-tags the **last tool** with ``cache_control`` (important when
+       ``ToolSearchMiddleware`` has appended new tools).
+
+    Result: between consecutive turns within the same session, the entire stable
+    prefix (base prompt + workflow + skills + memory + MCP) is served from KV
+    cache — only the changed tail (e.g. deferred-tool stubs) is re-processed.
+    """
+
+    _CACHE_CONTROL = {"type": "ephemeral"}
+
+    # ---- system message ---------------------------------------------------
+
+    @staticmethod
+    def _retag_system_message(system_message: Any, cache_control: dict) -> Any:
+        """Strip stale cache_control from inner blocks and tag the final block."""
+        if system_message is None:
+            return system_message
+
+        content = getattr(system_message, "content", None)
+        if content is None:
+            return system_message
+
+        # Normalise to list-of-blocks form
+        if isinstance(content, str):
+            if not content:
+                return system_message
+            blocks: list = [{"type": "text", "text": content}]
+        elif isinstance(content, list):
+            if not content:
+                return system_message
+            blocks = list(content)
+        else:
+            return system_message
+
+        # Remove cache_control from every block except the last
+        for i, block in enumerate(blocks):
+            if isinstance(block, dict) and "cache_control" in block:
+                blocks[i] = {k: v for k, v in block.items() if k != "cache_control"}
+
+        # Tag the last block
+        last = blocks[-1]
+        base = last if isinstance(last, dict) else {"type": "text", "text": str(last)}
+        blocks[-1] = {**base, "cache_control": cache_control}
+
+        return SystemMessage(content=blocks)
+
+    # ---- tools ------------------------------------------------------------
+
+    @staticmethod
+    def _retag_tools(tools: list[Any] | None, cache_control: dict) -> list[Any] | None:
+        """Re-tag the last tool with cache_control (handles newly appended tools)."""
+        if not tools:
+            return tools
+
+        # Find and remove existing cache_control from tools
+        cleaned = []
+        last_tool_idx = -1
+        for i, tool in enumerate(tools):
+            if isinstance(tool, BaseTool):
+                last_tool_idx = i
+                extras = tool.extras or {}
+                if "cache_control" in extras:
+                    new_extras = {k: v for k, v in extras.items() if k != "cache_control"}
+                    cleaned.append(tool.model_copy(update={"extras": new_extras}))
+                    continue
+            cleaned.append(tool)
+
+        # Tag the last tool
+        if last_tool_idx >= 0:
+            tool = cleaned[last_tool_idx]
+            if isinstance(tool, BaseTool):
+                new_extras = {**(tool.extras or {}), "cache_control": cache_control}
+                cleaned[last_tool_idx] = tool.model_copy(update={"extras": new_extras})
+
+        return cleaned
+
+    # ---- main entry -------------------------------------------------------
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        overrides: dict[str, Any] = {}
+
+        new_system = self._retag_system_message(request.system_message, self._CACHE_CONTROL)
+        if new_system is not request.system_message:
+            overrides["system_message"] = new_system
+
+        new_tools = self._retag_tools(request.tools, self._CACHE_CONTROL)
+        if new_tools is not request.tools:
+            overrides["tools"] = new_tools
+
+        if overrides:
+            request = request.override(**overrides)
+
         return await handler(request)

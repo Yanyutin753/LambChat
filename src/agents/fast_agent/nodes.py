@@ -20,13 +20,12 @@ from src.agents.core.node_utils import (
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT
 from src.agents.fast_agent.context import FastAgentContext
-from src.agents.fast_agent.prompt import (
-    FAST_SYSTEM_PROMPT,
-    get_memory_guide,
-)
+from src.agents.core.subagent_prompts import get_memory_guide
+from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     AppPromptMiddleware,
+    PromptCachingMiddleware,
     ToolResultBinaryMiddleware,
     create_retry_middleware,
 )
@@ -143,7 +142,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         }
     ]
 
-    # 构建中间件栈：retry → binary upload → app prompt (skills/memory) → memory index
+    # 构建中间件栈：retry → binary upload → app prompt (skills/memory) → memory index → cache tag
     user_middleware = create_retry_middleware()
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     user_middleware.append(
@@ -158,6 +157,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
+
+    # KV cache: tag final system block + last tool AFTER all dynamic injection
+    user_middleware.append(PromptCachingMiddleware())
 
     inner_graph = create_deep_agent(
         model=llm,
