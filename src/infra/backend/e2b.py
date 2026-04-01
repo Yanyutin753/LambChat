@@ -188,17 +188,24 @@ class E2BBackend(BaseSandbox):
     # Native Filesystem API (override BaseSandbox shell-based defaults)
     # =========================================================================
 
+    def _is_entry_dir(self, entry: Any) -> bool:
+        """判断 E2B 文件条目是否为目录（兼容 type 和 is_dir 两种 API）"""
+        from e2b import FileType
+
+        if hasattr(entry, "type") and entry.type == FileType.DIR:
+            return True
+        if hasattr(entry, "is_dir") and entry.is_dir:
+            return True
+        return False
+
     def ls_info(self, path: str) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 列出目录"""
         try:
-            from e2b import FileType
-
             entries = self._sandbox.files.list(path=path)
             result: list[FileInfo] = []
             for entry in entries:
                 info: FileInfo = {"path": entry.path}
-                # E2B SDK uses entry.type (FileType.FILE/DIR), not entry.is_dir
-                if hasattr(entry, "type") and entry.type == FileType.DIR:
+                if self._is_entry_dir(entry):
                     info["is_dir"] = True
                 if hasattr(entry, "size"):
                     info["size"] = entry.size
@@ -240,16 +247,6 @@ class E2BBackend(BaseSandbox):
                 error = "file_not_found"
             logger.error(f"E2B files.write({file_path}) failed: {e}")
             return WriteResult(path=file_path, error=error)
-
-    def _is_entry_dir(self, entry: Any) -> bool:
-        """判断 E2B 文件条目是否为目录（兼容 type 和 is_dir 两种 API）"""
-        from e2b import FileType
-
-        if hasattr(entry, "type") and entry.type == FileType.DIR:
-            return True
-        if hasattr(entry, "is_dir") and entry.is_dir:
-            return True
-        return False
 
     def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 递归搜索匹配 glob 模式的文件
