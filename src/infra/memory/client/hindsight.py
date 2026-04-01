@@ -265,6 +265,8 @@ class HindsightBackend(MemoryBackend):
         user_id: str,
         content: str,
         context: Optional[str] = None,
+        title: Optional[str] = None,
+        summary: Optional[str] = None,
     ) -> dict[str, Any]:
         if not self.client:
             return {"success": False, "error": "Hindsight client not initialized"}

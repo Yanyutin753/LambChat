@@ -181,6 +181,8 @@ class MemuBackend(MemoryBackend):
         user_id: str,
         content: str,
         context: Optional[str] = None,
+        title: Optional[str] = None,
+        summary: Optional[str] = None,
     ) -> dict[str, Any]:
         import json
         import os
