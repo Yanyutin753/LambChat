@@ -484,7 +484,11 @@ class ToolSearchMiddleware(AgentMiddleware):
             try:
                 args = request.tool_call.get("args", {})
                 result = await search_tool.ainvoke(args)
-                content = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
+                content = (
+                    result
+                    if isinstance(result, str)
+                    else json.dumps(result, ensure_ascii=False, default=str)
+                )
                 return ToolMessage(
                     content=content,
                     tool_call_id=request.tool_call.get("id", ""),
@@ -799,11 +803,7 @@ class SubagentActivityMiddleware(AgentMiddleware):
         args_str = self._format_args(name, args)
         result_snippet = self._truncate(result_preview, _MAX_RESULT_SNIPPET)
 
-        return (
-            f"\n## [{ts}] Tool: {name}\n"
-            f"Args: {args_str}\n"
-            f"Result: {result_snippet}"
-        )
+        return f"\n## [{ts}] Tool: {name}\nArgs: {args_str}\nResult: {result_snippet}"
 
     # ------------------------------------------------------------------
     # Append + compress logic
@@ -898,7 +898,11 @@ class SubagentActivityMiddleware(AgentMiddleware):
                 logger.warning("[SubagentActivity] Write failed: %s", write_result.error)
                 return False
             self._written = True
-            logger.info("[SubagentActivity] Log persisted to %s (%d chars)", self._log_path, self._total_chars)
+            logger.info(
+                "[SubagentActivity] Log persisted to %s (%d chars)",
+                self._log_path,
+                self._total_chars,
+            )
             return True
         except Exception:
             logger.warning("[SubagentActivity] Backend write failed", exc_info=True)
