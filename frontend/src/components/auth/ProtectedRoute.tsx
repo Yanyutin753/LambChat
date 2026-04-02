@@ -124,8 +124,12 @@ export function ProtectedRoute({
   showToast = false,
   toastMessage = "您没有权限访问此页面",
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, hasAnyPermission, hasAllPermissions } =
-    useAuth();
+  const {
+    isAuthenticated,
+    isLoading,
+    hasAnyPermission,
+    hasAllPermissions,
+  } = useAuth();
 
   // 检查是否有访问权限
   const checkAccess = (): boolean => {

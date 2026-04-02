@@ -10,6 +10,7 @@ import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
 import { sessionApi } from "../../services/api";
 import { SessionMenu } from "./SessionMenu";
+import { shouldBlockSessionSelection } from "../../utils/sessionSelectionGuard";
 
 interface SessionItemProps {
   session: BackendSession;
@@ -226,6 +227,9 @@ export function SessionItem({
         onClick={() => {
           if (wasDraggingRef.current) {
             wasDraggingRef.current = false;
+            return;
+          }
+          if (shouldBlockSessionSelection(window.location.pathname)) {
             return;
           }
           if (!isEditing) {

@@ -50,7 +50,10 @@ export function ZipUploadModal({
   return (
     <>
       <div className="fixed inset-0" onClick={() => setShowZipModal(false)} />
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+      <div
+        data-disable-global-file-drop="true"
+        className="modal-bottom-sheet sm:modal-centered-wrapper"
+      >
         <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
           <div className="bottom-sheet-handle sm:hidden" />
           <div className="skill-modal-header">
