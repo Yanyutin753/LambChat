@@ -183,32 +183,31 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
         return last_response  # type: ignore[return-value]
 
 
-class AppPromptMiddleware(AgentMiddleware):
-    """Injects per-session dynamic content (skills, memory guide) into the system prompt tail.
+class SectionPromptMiddleware(AgentMiddleware):
+    """Append one or more deterministic prompt sections as separate system blocks.
 
-    These sections vary per user / feature-flag configuration.  By injecting them via
-    middleware instead of baking into the base prompt string, they end up at the TAIL of
-    the final system message — after deepagent's BASE_AGENT_PROMPT and all built-in
-    middleware injections — which maximises KV cache hit rates.
+    Each section becomes its own content block in the system message, enabling
+    fine-grained KV cache breakpoints.  Sections are normalized (trailing
+    whitespace stripped) at construction time and batch-appended in a single
+    pass to avoid O(n²) block-list rebuilding.
     """
 
-    def __init__(self, *, skills_prompt: str = "", memory_guide: str = "") -> None:
+    def __init__(self, *, sections: list[str] | tuple[str, ...]) -> None:
         super().__init__()
-        self._skills_prompt = skills_prompt
-        self._memory_guide = memory_guide
-        parts = [p for p in (self._memory_guide, self._skills_prompt) if p]
-        self._combined = "\n\n".join(parts).strip()
+        self._sections = tuple(_normalize_prompt_text(section) for section in sections if section.strip())
 
     async def awrap_model_call(
         self,
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
-        if not self._combined:
+        if not self._sections:
             return await handler(request)
 
-        new_system_message = _append_system_text_block(request.system_message, self._combined)
-        request = request.override(system_message=new_system_message)
+        # Batch-append all sections in one pass (avoids repeated _system_message_to_blocks)
+        blocks = _system_message_to_blocks(request.system_message)
+        blocks.extend({"type": "text", "text": section} for section in self._sections)
+        request = request.override(system_message=SystemMessage(content=blocks))
         return await handler(request)
 
 

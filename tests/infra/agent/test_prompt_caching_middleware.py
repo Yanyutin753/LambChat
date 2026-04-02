@@ -1,7 +1,7 @@
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import BaseTool
 
-from src.infra.agent.middleware import PromptCachingMiddleware
+from src.infra.agent.middleware import PromptCachingMiddleware, SectionPromptMiddleware
 from src.infra.tool.deferred_manager import DeferredToolManager
 
 
@@ -85,3 +85,24 @@ def test_deferred_prompt_string_is_stably_sorted() -> None:
     assert prompt.index("- alpha:create: alpha create") < prompt.index(
         "- zeta:lookup: zeta lookup"
     )
+
+
+async def test_section_prompt_middleware_appends_separate_blocks() -> None:
+    middleware = SectionPromptMiddleware(sections=["skills block", "memory block"])
+
+    class _Request:
+        def __init__(self) -> None:
+            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            return clone
+
+    async def _handler(request):
+        return request.system_message
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert isinstance(result.content, list)
+    assert [block["text"] for block in result.content] == ["base", "skills block", "memory block"]

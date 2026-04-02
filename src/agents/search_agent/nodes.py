@@ -23,9 +23,9 @@ from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
-    AppPromptMiddleware,
     PromptCachingMiddleware,
     SandboxMCPMiddleware,
+    SectionPromptMiddleware,
     SubagentActivityMiddleware,
     ToolResultBinaryMiddleware,
     create_retry_middleware,
@@ -165,19 +165,22 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         }
     ]
 
-    # 构建中间件栈：retry → binary upload → app prompt (skills/memory) → sandbox MCP → memory index → tool search → cache tag
+    # 构建中间件栈：retry → binary → skills → sandbox_mcp → memory_guide → memory_index → tool search → cache tag
     # Order: stable → semi-stable → dynamic → cache breakpoint
+    # memory_guide 挨着 memory_index 形成连续 memory 区域，优化 KV cache
     user_middleware = create_retry_middleware()
     user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
-    user_middleware.append(
-        AppPromptMiddleware(skills_prompt=skills_prompt, memory_guide=memory_guide)
-    )
-    # SandboxMCP: session-stable, inject before MemoryIndex
+    # Skills: session-stable
+    if skills_prompt:
+        user_middleware.append(SectionPromptMiddleware(sections=[skills_prompt]))
+    # SandboxMCP: session-stable
     if sandbox_backend:
         user_middleware.append(
             SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
         )
-    # MemoryIndex: 5-min cache, semi-stable
+    # Memory guide + index: contiguous memory region (semi-stable)
+    if memory_guide:
+        user_middleware.append(SectionPromptMiddleware(sections=[memory_guide]))
     if (
         settings.ENABLE_MEMORY
         and settings.MEMORY_PERFORM == "native"
@@ -290,7 +293,7 @@ async def _create_backend_and_prompt(
     创建 Backend 工厂函数和系统提示
 
     根据是否启用沙箱模式，返回相应的 Backend 工厂和系统提示。
-    skills 和 memory_guide 的注入由 AppPromptMiddleware 在请求时完成（KV cache 友好）。
+    skills 和 memory_guide 的注入由 SectionPromptMiddleware 在请求时完成（KV cache 友好）。
 
     Args:
         state: 状态字典
@@ -346,7 +349,7 @@ async def _create_backend_and_prompt(
 
         logger.info(f"Sandbox enabled, using sandbox backend for assistant: {assistant_id}")
 
-        # 格式化沙箱提示词，注入 work_dir（skills/memory_guide 由 AppPromptMiddleware 注入）
+        # 格式化沙箱提示词，注入 work_dir（skills/memory_guide 由 SectionPromptMiddleware 注入）
         system_prompt = SANDBOX_SYSTEM_PROMPT.replace("{work_dir}", work_dir)
 
         return (
