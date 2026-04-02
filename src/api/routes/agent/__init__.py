@@ -360,6 +360,8 @@ async def chat_stream(
                 disabled_tools=request_body.disabled_tools,
                 agent_options=agent_options,
                 base_url=base_url,
+                enabled_skills=request_body.enabled_skills,
+                enabled_mcp_tools=request_body.enabled_mcp_tools,
             ):
                 # event 格式: {"event": "xxx", "data": {...}}
                 # 确保 data 被正确序列化为 JSON

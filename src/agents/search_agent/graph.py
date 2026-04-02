@@ -141,11 +141,15 @@ class SearchAgent(BaseGraphAgent):
 
         # 创建并初始化 SearchAgentContext
         disabled_tools = kwargs.get("disabled_tools")
+        enabled_skills = kwargs.get("enabled_skills")
+        enabled_mcp_tools = kwargs.get("enabled_mcp_tools")
         context = SearchAgentContext(
             session_id=session_id,
             agent_id=self.agent_id,
             user_id=user_id,
             disabled_tools=disabled_tools,
+            enabled_skills=enabled_skills,
+            enabled_mcp_tools=enabled_mcp_tools,
         )
         await context.setup()
 
@@ -163,6 +167,8 @@ class SearchAgent(BaseGraphAgent):
                 "context": context,
                 "agent_options": agent_options,
                 "disabled_tools": disabled_tools,
+                "enabled_skills": enabled_skills,
+                "enabled_mcp_tools": enabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
             },
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,

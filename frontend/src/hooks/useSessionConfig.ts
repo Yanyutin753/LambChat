@@ -83,7 +83,7 @@ export function useSessionConfig(
   // 记录是否已经初始化（避免重复初始化）
   const initializedRef = useRef(false);
 
-  // 初始化默认配置（仅执行一次）
+  // Re-sync defaults when getter results change
   useEffect(() => {
     if (!initializedRef.current) {
       setConfig({
@@ -93,8 +93,7 @@ export function useSessionConfig(
       });
       initializedRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [options]);
 
   // Toggle skill
   const toggleSkill = useCallback((skillName: string) => {

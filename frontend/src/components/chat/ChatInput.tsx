@@ -22,7 +22,6 @@ import { AttachmentCard } from "../common/AttachmentCard";
 import { ImageViewer } from "../common";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { useFileUpload } from "../../hooks/useFileUpload";
-import type { SessionConfigState } from "../../hooks/useSessionConfig";
 import type {
   ToolState,
   ToolCategory,
@@ -211,11 +210,6 @@ interface ChatInputProps {
       | MessageAttachment[]
       | ((prev: MessageAttachment[]) => MessageAttachment[]),
   ) => void;
-  // 对话级配置（可选，用于显示当前对话的配置状态）
-  sessionConfig?: SessionConfigState;
-  onToggleSessionSkill?: (skillName: string) => void;
-  onToggleSessionMcpTool?: (toolName: string) => void;
-  onSetSessionAgentOption?: (key: string, value: boolean | string | number) => void;
 }
 
 // Agent option toggle/select button component

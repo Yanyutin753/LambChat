@@ -18,7 +18,13 @@ import { useSkills } from "../../../hooks/useSkills";
 import { useVersion } from "../../../hooks/useVersion";
 import { useProjectManager } from "../../../hooks/useProjectManager";
 import { useSessionConfig } from "../../../hooks/useSessionConfig";
-import { Permission, type AgentInfo, type Project } from "../../../types";
+import {
+  Permission,
+  type AgentInfo,
+  type Project,
+  type ToolCategory,
+  type SkillSource,
+} from "../../../types";
 import type { VersionInfo } from "../../../types";
 import type { TabType } from "./types";
 import { useDragAndDrop } from "./useDragAndDrop";
@@ -153,7 +159,6 @@ function ChatAppContent({
   const {
     tools,
     isLoading: toolsLoading,
-    enabledCount: enabledToolsCount,
     totalCount: totalToolsCount,
     toggleTool,
     toggleCategory,
@@ -166,7 +171,6 @@ function ChatAppContent({
   const {
     skills,
     isLoading: skillsLoading,
-    enabledCount: enabledSkillsCount,
     totalCount: totalSkillsCount,
     pendingSkillNames,
     isMutating: skillsMutating,
@@ -251,6 +255,7 @@ function ChatAppContent({
     toggleSkill: toggleSessionSkill,
     toggleMcpTool: toggleSessionMcpTool,
     setAgentOption: setSessionAgentOption,
+    resetToDefaults,
     restoreConfig: restoreSessionConfig,
   } = useSessionConfig({
     getDefaultSkills: getEnabledSkillNames,
@@ -262,6 +267,130 @@ function ChatAppContent({
   useEffect(() => {
     sessionConfigRef.current = sessionConfig;
   }, [sessionConfig]);
+
+  // Compute effective tools: apply session-level MCP tool overrides
+  const effectiveTools = useMemo(() => {
+    const sessionEnabled = new Set(sessionConfig.enabledMcpTools);
+    return tools.map((t) => {
+      if (t.category !== "mcp") return t;
+      if (sessionEnabled.size === 0) return t;
+      return { ...t, enabled: sessionEnabled.has(t.name) };
+    });
+  }, [tools, sessionConfig.enabledMcpTools]);
+
+  // Compute effective skills: apply session-level skill overrides
+  const effectiveSkills = useMemo(() => {
+    const sessionEnabled = new Set(sessionConfig.enabledSkills);
+    if (sessionEnabled.size === 0) return skills;
+    return skills.map((s) => ({
+      ...s,
+      enabled: sessionEnabled.has(s.name),
+    }));
+  }, [skills, sessionConfig.enabledSkills]);
+
+  // Effective toggle callbacks: toggle global state AND update session config
+  const effectiveToggleTool = useCallback(
+    (toolName: string) => {
+      toggleTool(toolName);
+      const tool = tools.find((t) => t.name === toolName);
+      if (tool?.category === "mcp") {
+        toggleSessionMcpTool(toolName);
+      }
+    },
+    [toggleTool, tools, toggleSessionMcpTool],
+  );
+
+  const effectiveToggleCategory = useCallback(
+    (category: ToolCategory, enabled: boolean) => {
+      toggleCategory(category, enabled);
+      if (category === "mcp") {
+        tools
+          .filter((t) => t.category === "mcp")
+          .forEach((t) => {
+            const desired = enabled;
+            const currentInSession = sessionConfig.enabledMcpTools.includes(t.name);
+            if (desired !== currentInSession) {
+              toggleSessionMcpTool(t.name);
+            }
+          });
+      }
+    },
+    [toggleCategory, tools, sessionConfig.enabledMcpTools, toggleSessionMcpTool],
+  );
+
+  const effectiveToggleAll = useCallback(
+    (enabled: boolean) => {
+      toggleAll(enabled);
+      // Sync MCP tools in session config
+      tools
+        .filter((t) => t.category === "mcp")
+        .forEach((t) => {
+          const currentInSession = sessionConfig.enabledMcpTools.includes(t.name);
+          if (enabled !== currentInSession) {
+            toggleSessionMcpTool(t.name);
+          }
+        });
+    },
+    [toggleAll, tools, sessionConfig.enabledMcpTools, toggleSessionMcpTool],
+  );
+
+  const effectiveToggleSkill = useCallback(
+    async (name: string): Promise<boolean> => {
+      const result = await toggleSkillWrapper(name);
+      toggleSessionSkill(name);
+      return result;
+    },
+    [toggleSkillWrapper, toggleSessionSkill],
+  );
+
+  const effectiveToggleSkillCategory = useCallback(
+    async (category: SkillSource, enabled: boolean): Promise<boolean> => {
+      const result = await toggleSkillCategory(category, enabled);
+      skills
+        .filter((s) => s.source === category)
+        .forEach((s) => {
+          const currentInSession = sessionConfig.enabledSkills.includes(s.name);
+          if (enabled !== currentInSession) {
+            toggleSessionSkill(s.name);
+          }
+        });
+      return result;
+    },
+    [toggleSkillCategory, skills, sessionConfig.enabledSkills, toggleSessionSkill],
+  );
+
+  const effectiveToggleAllSkills = useCallback(
+    async (enabled: boolean): Promise<boolean> => {
+      const result = await toggleAllSkills(enabled);
+      skills.forEach((s) => {
+        const currentInSession = sessionConfig.enabledSkills.includes(s.name);
+        if (enabled !== currentInSession) {
+          toggleSessionSkill(s.name);
+        }
+      });
+      return result;
+    },
+    [toggleAllSkills, skills, sessionConfig.enabledSkills, toggleSessionSkill],
+  );
+
+  // Effective agent option toggle: update both local state and session config
+  const effectiveToggleAgentOption = useCallback(
+    (key: string, value: boolean | string | number) => {
+      handleToggleAgentOption(key, value);
+      setSessionAgentOption(key, value);
+    },
+    [handleToggleAgentOption, setSessionAgentOption],
+  );
+
+  // Compute effective counts
+  const effectiveEnabledToolsCount = useMemo(
+    () => effectiveTools.filter((t) => t.enabled).length,
+    [effectiveTools],
+  );
+  const effectiveEnabledSkillsCount = useMemo(
+    () => effectiveSkills.filter((s) => s.enabled).length,
+    [effectiveSkills],
+  );
 
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
 
@@ -308,8 +437,13 @@ function ChatAppContent({
 
       // 使用 useSessionConfig 恢复对话级配置
       restoreSessionConfig(config);
+
+      // 恢复 agent options 到 useAgentOptions
+      if (config.agent_options) {
+        restoreAgentOptions(config.agent_options);
+      }
     },
-    [restoreSessionConfig],
+    [restoreSessionConfig, restoreAgentOptions],
   );
 
   const { handleSelectSession, handleNewSession } = useSessionSync({
@@ -319,6 +453,12 @@ function ChatAppContent({
     clearMessages,
     onConfigRestored: handleConfigRestored,
   });
+
+  // Wrapper that also resets session config on new session
+  const handleNewSessionWithReset = useCallback(() => {
+    handleNewSession();
+    resetToDefaults();
+  }, [handleNewSession, resetToDefaults]);
 
   const handleMobileClose = useCallback(() => setMobileSidebarOpen(false), [
     setMobileSidebarOpen,
@@ -331,9 +471,9 @@ function ChatAppContent({
     [handleSelectSession, setMobileSidebarOpen],
   );
   const handleNewSessionAndClose = useCallback(() => {
-    handleNewSession();
+    handleNewSessionWithReset();
     setMobileSidebarOpen(false);
-  }, [handleNewSession, setMobileSidebarOpen]);
+  }, [handleNewSessionWithReset, setMobileSidebarOpen]);
 
   return (
     <AppShell
@@ -350,7 +490,7 @@ function ChatAppContent({
       onSelectAgent={selectAgent}
       currentProjectId={currentProjectId}
       projectManager={projectManager}
-      onNewSession={handleNewSession}
+      onNewSession={handleNewSessionWithReset}
       onShowProfile={onShowProfile}
       sidebar={
         <SessionSidebar
@@ -400,26 +540,26 @@ function ChatAppContent({
           currentRunId={currentRunId}
           isLoading={isLoading}
           canSendMessage={canSendMessage}
-          tools={tools}
-          onToggleTool={toggleTool}
-          onToggleCategory={toggleCategory}
-          onToggleAll={toggleAll}
+          tools={effectiveTools}
+          onToggleTool={effectiveToggleTool}
+          onToggleCategory={effectiveToggleCategory}
+          onToggleAll={effectiveToggleAll}
           toolsLoading={toolsLoading}
-          enabledToolsCount={enabledToolsCount}
+          enabledToolsCount={effectiveEnabledToolsCount}
           totalToolsCount={totalToolsCount}
-          skills={skills}
-          onToggleSkill={toggleSkillWrapper}
-          onToggleSkillCategory={toggleSkillCategory}
-          onToggleAllSkills={toggleAllSkills}
+          skills={effectiveSkills}
+          onToggleSkill={effectiveToggleSkill}
+          onToggleSkillCategory={effectiveToggleSkillCategory}
+          onToggleAllSkills={effectiveToggleAllSkills}
           skillsLoading={skillsLoading}
           pendingSkillNames={pendingSkillNames}
           skillsMutating={skillsMutating}
-          enabledSkillsCount={enabledSkillsCount}
+          enabledSkillsCount={effectiveEnabledSkillsCount}
           totalSkillsCount={totalSkillsCount}
           enableSkills={enableSkills}
           agentOptions={currentAgentOptions}
-          agentOptionValues={agentOptionValues}
-          onToggleAgentOption={handleToggleAgentOption}
+          agentOptionValues={sessionConfig.agentOptions}
+          onToggleAgentOption={effectiveToggleAgentOption}
           approvals={approvals}
           onRespondApproval={respondToApproval}
           approvalLoading={approvalLoading}
@@ -429,10 +569,6 @@ function ChatAppContent({
           onAttachmentsChange={setPageDragAttachments}
           settings={settings || {}}
           i18n={i18n}
-          sessionConfig={sessionConfig}
-          onToggleSessionSkill={toggleSessionSkill}
-          onToggleSessionMcpTool={toggleSessionMcpTool}
-          onSetSessionAgentOption={setSessionAgentOption}
         />
       </>
     </AppShell>

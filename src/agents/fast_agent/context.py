@@ -39,11 +39,15 @@ class FastAgentContext:
         agent_id: str = "fast",
         user_id: Optional[str] = None,
         disabled_tools: Optional[List[str]] = None,
+        enabled_skills: Optional[List[str]] = None,
+        enabled_mcp_tools: Optional[List[str]] = None,
     ):
         self.session_id = session_id
         self.agent_id = agent_id
         self.user_id = user_id
         self.disabled_tools = disabled_tools
+        self.enabled_skills = enabled_skills
+        self.enabled_mcp_tools = enabled_mcp_tools
         self.mcp_manager: Optional[MCPClientManager] = None
         self._mcp_loaded: bool = False
         self.tools: List[Any] = []
@@ -56,8 +60,8 @@ class FastAgentContext:
         return self.tools
 
     def filter_tools(self) -> List[Any]:
-        """根据 disabled_tools 过滤工具"""
-        if not self.disabled_tools:
+        """根据 disabled_tools 和 enabled_mcp_tools 过滤工具"""
+        if not self.disabled_tools and self.enabled_mcp_tools is None:
             return self.tools
 
         builtin_tools = frozenset(
@@ -72,7 +76,7 @@ class FastAgentContext:
             ]
         )
 
-        disabled_set = set(self.disabled_tools)
+        disabled_set = set(self.disabled_tools or [])
         mcp_servers = set()
         exact_names = set()
 
@@ -83,6 +87,9 @@ class FastAgentContext:
                 exact_names.add(tool_name)
 
         mcp_prefixes = tuple(f"{s}:" for s in mcp_servers) if mcp_servers else ()
+
+        # Build enabled_mcp_tools lookup if provided
+        enabled_mcp_set = set(self.enabled_mcp_tools) if self.enabled_mcp_tools is not None else None
 
         filtered = []
         for tool in self.tools:
@@ -99,6 +106,18 @@ class FastAgentContext:
                 continue
             if mcp_servers and hasattr(tool, "server") and tool.server in mcp_servers:
                 continue
+
+            # Filter by enabled_mcp_tools whitelist for MCP tools
+            if enabled_mcp_set is not None and tool_name not in builtin_tools:
+                # Check if this is an MCP tool (has server attribute or contains colon)
+                is_mcp = hasattr(tool, "server") or ":" in tool_name
+                if is_mcp and tool_name not in enabled_mcp_set:
+                    # Also check server:name format
+                    server = getattr(tool, "server", None)
+                    short_name = tool_name.split(":")[-1] if ":" in tool_name else tool_name
+                    qualified = f"{server}:{short_name}" if server else tool_name
+                    if qualified not in enabled_mcp_set:
+                        continue
 
             filtered.append(tool)
 
@@ -128,6 +147,18 @@ class FastAgentContext:
             logger.info(
                 f"[FastAgentContext] Loaded {len(mcp_tools)} MCP tools: {[t.name for t in mcp_tools]}"
             )
+
+            # Filter MCP tools by enabled_mcp_tools whitelist if provided
+            if self.enabled_mcp_tools is not None:
+                enabled_set = set(self.enabled_mcp_tools)
+                mcp_tools = [
+                    t for t in mcp_tools
+                    if t.name in enabled_set
+                    or (hasattr(t, "server") and f"{t.server}:{t.name.split(':')[-1]}" in enabled_set)
+                ]
+                logger.info(
+                    f"[FastAgentContext] Filtered to {len(mcp_tools)} enabled MCP tools"
+                )
 
             if (
                 settings.ENABLE_DEFERRED_TOOL_LOADING
@@ -221,6 +252,15 @@ class FastAgentContext:
                     skill_dict["is_system"] = skill_dict.get("is_system", True)
                     if skill_dict.get("enabled", True):
                         self.skills.append(skill_dict)
+
+                # Filter skills by enabled_skills whitelist if provided
+                if self.enabled_skills is not None:
+                    enabled_set = set(self.enabled_skills)
+                    self.skills = [s for s in self.skills if s.get("name") in enabled_set]
+                    logger.info(
+                        f"[FastAgentContext] Filtered to {len(self.skills)} enabled skills"
+                    )
+
                 logger.info(
                     f"[FastAgentContext] Loaded {len(self.skills)} skills for user: {self.user_id}"
                 )
