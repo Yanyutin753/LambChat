@@ -55,19 +55,24 @@ async def publish_memory_invalidation(user_id: str) -> None:
 # ============================================================================
 
 
-async def acquire_consolidation_lock(user_id: str, instance_id: str) -> bool:
+async def acquire_consolidation_lock(user_id: str, instance_id: str) -> str:
     """Try to acquire a distributed lock for memory consolidation.
 
-    Uses Redis SETNX with TTL. Returns True if lock acquired.
+    Uses Redis SETNX with TTL.
+
+    Returns one of:
+    - "acquired": this instance owns the lock
+    - "not_acquired": another instance already owns the lock
+    - "unavailable": lock state could not be determined
     """
     try:
         redis_client = get_redis_client()
         lock_key = CONSOLIDATION_LOCK_KEY.format(user_id=user_id)
         acquired = await redis_client.set(lock_key, instance_id, nx=True, ex=CONSOLIDATION_LOCK_TTL)
-        return bool(acquired)
+        return "acquired" if acquired else "not_acquired"
     except Exception as e:
         logger.debug("[Memory] Failed to acquire consolidation lock for %s: %s", user_id, e)
-        return False
+        return "unavailable"
 
 
 async def release_consolidation_lock(user_id: str, instance_id: str) -> None:
