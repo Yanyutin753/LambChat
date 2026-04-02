@@ -1,5 +1,5 @@
 import { lazy, useEffect, useState } from "react";
-import { Routes, Route, useParams, useNavigate, useLocation } from "react-router-dom";
+import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
@@ -168,7 +168,6 @@ function AuthPageWrapper({
 // Main App Component
 function App() {
   const { t } = useTranslation();
-  const location = useLocation();
   return (
     <ThemeProvider>
       <ErrorBoundary>
@@ -199,7 +198,7 @@ function App() {
             },
           }}
         />
-        <Routes key={location.pathname}>
+        <Routes>
           <Route path="/" element={<LandingPage />} />
           {/* Auth routes */}
           <Route path="/auth/login" element={<AuthPageWrapper />} />

@@ -131,10 +131,6 @@ export function useSessionSync({
       return;
     }
 
-    // Skip sync if we're not on a chat route (urlSessionId is undefined/null
-    // but sessionId exists - means user navigated to another page like /skills)
-    if (!urlSessionId && sessionId) return;
-
     if (sessionId && sessionId !== urlSessionId) {
       // New session created - update URL
       isSyncingRef.current = true;
