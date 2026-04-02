@@ -162,14 +162,14 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         }
     ]
 
-    # 构建中间件栈：retry → binary upload → skills → memory_guide → memory_index → tool search → cache tag
+    # 构建中间件栈：retry → binary upload → skills+memory → memory_index → tool search → cache tag
     # Order: stable → semi-stable → dynamic → cache breakpoint
     user_middleware = create_retry_middleware()
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
-    if skills_prompt:
-        user_middleware.append(SectionPromptMiddleware(sections=[skills_prompt]))
-    if memory_guide:
-        user_middleware.append(SectionPromptMiddleware(sections=[memory_guide]))
+    # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
+    _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]
+    if _prompt_sections:
+        user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if (
         settings.ENABLE_MEMORY
         and settings.MEMORY_PERFORM == "native"

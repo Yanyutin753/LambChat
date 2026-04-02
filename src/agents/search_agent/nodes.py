@@ -165,22 +165,20 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         }
     ]
 
-    # 构建中间件栈：retry → binary → skills → sandbox_mcp → memory_guide → memory_index → tool search → cache tag
+    # 构建中间件栈：retry → binary → sandbox_mcp → skills+memory → memory_index → tool search → cache tag
     # Order: stable → semi-stable → dynamic → cache breakpoint
-    # memory_guide 挨着 memory_index 形成连续 memory 区域，优化 KV cache
+    # sandbox_mcp 在 skills 前使 memory_guide 紧挨 memory_index，形成连续 memory 区域
     user_middleware = create_retry_middleware()
     user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
-    # Skills: session-stable
-    if skills_prompt:
-        user_middleware.append(SectionPromptMiddleware(sections=[skills_prompt]))
-    # SandboxMCP: session-stable
+    # SandboxMCP: session-stable (30-min cache)
     if sandbox_backend:
         user_middleware.append(
             SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
         )
-    # Memory guide + index: contiguous memory region (semi-stable)
-    if memory_guide:
-        user_middleware.append(SectionPromptMiddleware(sections=[memory_guide]))
+    # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
+    _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]
+    if _prompt_sections:
+        user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if (
         settings.ENABLE_MEMORY
         and settings.MEMORY_PERFORM == "native"
