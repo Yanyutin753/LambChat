@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { SkillForm } from "../../skill/SkillForm";
 import type { SkillResponse, SkillCreate } from "../../../types";
-import { useSwipeToClose } from "../../../hooks/useSwipeToClose";
 
 interface SkillFormModalProps {
   showModal: boolean;
@@ -26,10 +25,6 @@ export function SkillFormModal({
   onFullscreenChange,
 }: SkillFormModalProps) {
   const { t } = useTranslation();
-  const swipeRef = useSwipeToClose({
-    onClose: onCancel,
-    enabled: showModal && !isFormFullscreen,
-  });
 
   if (!showModal) return null;
 
@@ -39,10 +34,7 @@ export function SkillFormModal({
         <div className="fixed inset-0" onClick={onCancel} />
       )}
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-        >
+        <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
           {!isFormFullscreen && (
             <>
               <div className="bottom-sheet-handle sm:hidden" />

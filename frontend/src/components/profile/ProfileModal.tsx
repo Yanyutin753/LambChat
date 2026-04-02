@@ -8,7 +8,6 @@ import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
 import { ProfilePreferencesTab } from "./tabs/ProfilePreferencesTab";
 import { ProfileEnvVarsTab } from "./tabs/ProfileEnvVarsTab";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface ProfileModalProps {
   showProfileModal: boolean;
@@ -38,10 +37,6 @@ export function ProfileModal({
 
   const mobileTabsRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLButtonElement>(null);
-  const swipeRef = useSwipeToClose({
-    onClose: onCloseProfileModal,
-    enabled: showProfileModal,
-  });
 
   // Auto-scroll to active tab on mobile
   useEffect(() => {
@@ -141,7 +136,6 @@ export function ProfileModal({
 
       {/* ===== Mobile: bottom sheet ===== */}
       <div
-        ref={swipeRef as React.RefObject<HTMLDivElement>}
         className="sm:hidden relative z-10 w-full bg-white dark:bg-stone-800 rounded-t-2xl shadow-2xl shadow-black/20 dark:shadow-black/50 border-x border-t border-stone-200/80 dark:border-stone-700/60 overflow-hidden max-h-[90dvh] flex flex-col animate-slide-up-sheet"
         onClick={(e) => e.stopPropagation()}
       >

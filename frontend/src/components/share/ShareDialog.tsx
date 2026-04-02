@@ -23,7 +23,6 @@ import type {
   RunSummary,
 } from "../../types";
 import { sessionApi } from "../../services/api/session";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface ShareDialogProps {
   isOpen: boolean;
@@ -50,10 +49,6 @@ export function ShareDialog({
   const [isLoadingRuns, setIsLoadingRuns] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: isOpen,
-  });
 
   const loadExistingShares = useCallback(async () => {
     setIsLoading(true);
@@ -194,10 +189,7 @@ export function ShareDialog({
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
 
       {/* Dialog - bottom sheet on mobile, centered on desktop */}
-      <div
-        ref={swipeRef as React.RefObject<HTMLDivElement>}
-        className="relative z-10 w-full sm:max-w-lg sm:mx-4 bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200"
-      >
+      <div className="relative z-10 w-full sm:max-w-lg sm:mx-4 bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 dark:border-stone-700">
           {/* Mobile drag handle */}

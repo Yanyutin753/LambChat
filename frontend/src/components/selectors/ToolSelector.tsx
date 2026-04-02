@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { Checkbox } from "../common/Checkbox";
 import type { ToolState, ToolCategory, ToolParamInfo } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface ToolSelectorProps {
   tools: ToolState[];
@@ -50,10 +49,6 @@ export function ToolSelector({
   const [expandedCategories, setExpandedCategories] = useState<
     Set<ToolCategory>
   >(new Set(["mcp"]));
-  const swipeRef = useSwipeToClose({
-    onClose: () => setIsOpen(false),
-    enabled: isOpen,
-  });
 
   // 锁定滚动
   useEffect(() => {
@@ -120,10 +115,7 @@ export function ToolSelector({
   };
 
   const ModalContent = () => (
-    <div
-      ref={swipeRef as React.RefObject<HTMLDivElement>}
-      className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] min-h-[40vh] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden"
-    >
+    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] min-h-[40vh] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
         {/* Mobile drag handle */}

@@ -36,46 +36,6 @@ from langchain_core.tools import BaseTool
 logger = logging.getLogger(__name__)
 
 
-def _normalize_prompt_text(text: str) -> str:
-    """Normalize injected prompt sections so equivalent content has the same shape."""
-    return "\n".join(line.rstrip() for line in text.strip().splitlines()).strip()
-
-
-def _system_message_to_blocks(system_message: Any) -> list[Any]:
-    """Convert a system message payload into mutable content blocks."""
-    if system_message is None:
-        return []
-
-    content = getattr(system_message, "content", None)
-    if content is None:
-        return []
-
-    if isinstance(content, str):
-        normalized = _normalize_prompt_text(content)
-        return [{"type": "text", "text": normalized}] if normalized else []
-
-    if isinstance(content, list):
-        return list(content)
-
-    return []
-
-
-def _append_system_text_block(system_message: Any, text: str) -> SystemMessage:
-    """Append a deterministic text block to the system message."""
-    normalized = _normalize_prompt_text(text)
-    blocks = _system_message_to_blocks(system_message)
-    if normalized:
-        blocks.append({"type": "text", "text": normalized})
-    return SystemMessage(content=blocks)
-
-
-def _tool_sort_key(tool: Any) -> tuple[str, str]:
-    """Stable ordering for dynamically appended tools."""
-    name = getattr(tool, "name", "") or ""
-    server = getattr(tool, "server", "") or ""
-    return (server, name)
-
-
 def _is_retryable_error(exc: Exception) -> bool:
     """Check if an exception is a transient/retryable LLM error.
 
@@ -183,33 +143,33 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
         return last_response  # type: ignore[return-value]
 
 
-class SectionPromptMiddleware(AgentMiddleware):
-    """Append one or more deterministic prompt sections as separate system blocks.
+class AppPromptMiddleware(AgentMiddleware):
+    """Injects per-session dynamic content (skills, memory guide) into the system prompt tail.
 
-    Each section becomes its own content block in the system message, enabling
-    fine-grained KV cache breakpoints.  Sections are normalized (trailing
-    whitespace stripped) at construction time and batch-appended in a single
-    pass to avoid O(n²) block-list rebuilding.
+    These sections vary per user / feature-flag configuration.  By injecting them via
+    middleware instead of baking into the base prompt string, they end up at the TAIL of
+    the final system message — after deepagent's BASE_AGENT_PROMPT and all built-in
+    middleware injections — which maximises KV cache hit rates.
     """
 
-    def __init__(self, *, sections: list[str] | tuple[str, ...]) -> None:
+    def __init__(self, *, skills_prompt: str = "", memory_guide: str = "") -> None:
         super().__init__()
-        self._sections = tuple(
-            _normalize_prompt_text(section) for section in sections if section.strip()
-        )
+        self._skills_prompt = skills_prompt
+        self._memory_guide = memory_guide
+        parts = [p for p in (self._memory_guide, self._skills_prompt) if p]
+        self._combined = "\n\n".join(parts).strip()
 
     async def awrap_model_call(
         self,
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
-        if not self._sections:
+        if not self._combined:
             return await handler(request)
+        from deepagents.middleware._utils import append_to_system_message
 
-        # Batch-append all sections in one pass (avoids repeated _system_message_to_blocks)
-        blocks = _system_message_to_blocks(request.system_message)
-        blocks.extend({"type": "text", "text": section} for section in self._sections)
-        request = request.override(system_message=SystemMessage(content=blocks))
+        new_system_message = append_to_system_message(request.system_message, self._combined)
+        request = request.override(system_message=new_system_message)
         return await handler(request)
 
 
@@ -237,7 +197,9 @@ class MemoryIndexMiddleware(AgentMiddleware):
         if not index_str:
             return await handler(request)
 
-        new_system_message = _append_system_text_block(request.system_message, index_str)
+        from deepagents.middleware._utils import append_to_system_message
+
+        new_system_message = append_to_system_message(request.system_message, index_str)
         request = request.override(system_message=new_system_message)
         return await handler(request)
 
@@ -285,9 +247,11 @@ class SandboxMCPMiddleware(AgentMiddleware):
         request: ModelRequest[ContextT],
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
+        from deepagents.middleware._utils import append_to_system_message
+
         prompt = await build_sandbox_mcp_prompt(self._backend, self._user_id)
         if prompt:
-            new_system_message = _append_system_text_block(request.system_message, prompt)
+            new_system_message = append_to_system_message(request.system_message, prompt)
             request = request.override(system_message=new_system_message)
         return await handler(request)
 
@@ -478,10 +442,12 @@ class ToolSearchMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         """注入延迟工具提示和动态工具 schema"""
+        from deepagents.middleware._utils import append_to_system_message
+
         # 1. 注入延迟工具名字列表 + 已发现工具状态（使用 manager 的脏标记缓存）
         prompt_section = self._deferred_manager.get_deferred_stubs_string()
         if prompt_section:
-            new_system_message = _append_system_text_block(request.system_message, prompt_section)
+            new_system_message = append_to_system_message(request.system_message, prompt_section)
             request = request.override(system_message=new_system_message)
 
         # 2. 注入 search_tools 本身和已发现工具，确保子代理与主代理走同一动态加载链路。
@@ -495,7 +461,7 @@ class ToolSearchMiddleware(AgentMiddleware):
             new_tools.append(search_tool)
         new_tools.extend(t for t in discovered if t.name not in existing_names)
         if new_tools:
-            combined = list(request.tools) + sorted(new_tools, key=_tool_sort_key)
+            combined = list(request.tools) + new_tools
             request = request.override(tools=combined)
 
         return await handler(request)
@@ -622,53 +588,57 @@ class PromptCachingMiddleware(AgentMiddleware):
     """
 
     _CACHE_CONTROL = {"type": "ephemeral"}
-    _MAX_CACHED_SYSTEM_BLOCKS = 4
-    _MAX_CACHED_TOOLS = 4
 
     # ---- system message ---------------------------------------------------
 
     @staticmethod
-    def _retag_system_message(
-        system_message: Any, cache_control: dict, *, max_cached_blocks: int = 4
-    ) -> Any:
+    def _retag_system_message(system_message: Any, cache_control: dict) -> Any:
         """Strip stale cache_control from inner blocks and tag the final block."""
         if system_message is None:
             return system_message
 
-        blocks = _system_message_to_blocks(system_message)
-        if not blocks:
+        content = getattr(system_message, "content", None)
+        if content is None:
             return system_message
 
-        # Remove cache_control from every block
+        # Normalise to list-of-blocks form
+        if isinstance(content, str):
+            if not content:
+                return system_message
+            blocks: list = [{"type": "text", "text": content}]
+        elif isinstance(content, list):
+            if not content:
+                return system_message
+            blocks = list(content)
+        else:
+            return system_message
+
+        # Remove cache_control from every block except the last
         for i, block in enumerate(blocks):
             if isinstance(block, dict) and "cache_control" in block:
                 blocks[i] = {k: v for k, v in block.items() if k != "cache_control"}
 
-        # Tag the last N blocks so semi-stable sections remain cacheable
-        start_idx = max(len(blocks) - max_cached_blocks, 0)
-        for i in range(start_idx, len(blocks)):
-            block = blocks[i]
-            base = block if isinstance(block, dict) else {"type": "text", "text": str(block)}
-            blocks[i] = {**base, "cache_control": cache_control}
+        # Tag the last block
+        last = blocks[-1]
+        base = last if isinstance(last, dict) else {"type": "text", "text": str(last)}
+        blocks[-1] = {**base, "cache_control": cache_control}
 
         return SystemMessage(content=blocks)
 
     # ---- tools ------------------------------------------------------------
 
     @staticmethod
-    def _retag_tools(
-        tools: list[Any] | None, cache_control: dict, *, max_cached_tools: int = 4
-    ) -> list[Any] | None:
+    def _retag_tools(tools: list[Any] | None, cache_control: dict) -> list[Any] | None:
         """Re-tag the last tool with cache_control (handles newly appended tools)."""
         if not tools:
             return tools
 
         # Find and remove existing cache_control from tools
         cleaned = []
-        tool_indices: list[int] = []
+        last_tool_idx = -1
         for i, tool in enumerate(tools):
             if isinstance(tool, BaseTool):
-                tool_indices.append(i)
+                last_tool_idx = i
                 extras = tool.extras or {}
                 if "cache_control" in extras:
                     new_extras = {k: v for k, v in extras.items() if k != "cache_control"}
@@ -676,12 +646,12 @@ class PromptCachingMiddleware(AgentMiddleware):
                     continue
             cleaned.append(tool)
 
-        # Tag the last N tools
-        for idx in tool_indices[-max_cached_tools:]:
-            tool = cleaned[idx]
+        # Tag the last tool
+        if last_tool_idx >= 0:
+            tool = cleaned[last_tool_idx]
             if isinstance(tool, BaseTool):
                 new_extras = {**(tool.extras or {}), "cache_control": cache_control}
-                cleaned[idx] = tool.model_copy(update={"extras": new_extras})
+                cleaned[last_tool_idx] = tool.model_copy(update={"extras": new_extras})
 
         return cleaned
 
@@ -694,19 +664,11 @@ class PromptCachingMiddleware(AgentMiddleware):
     ) -> ModelResponse[ResponseT]:
         overrides: dict[str, Any] = {}
 
-        new_system = self._retag_system_message(
-            request.system_message,
-            self._CACHE_CONTROL,
-            max_cached_blocks=self._MAX_CACHED_SYSTEM_BLOCKS,
-        )
+        new_system = self._retag_system_message(request.system_message, self._CACHE_CONTROL)
         if new_system is not request.system_message:
             overrides["system_message"] = new_system
 
-        new_tools = self._retag_tools(
-            request.tools,
-            self._CACHE_CONTROL,
-            max_cached_tools=self._MAX_CACHED_TOOLS,
-        )
+        new_tools = self._retag_tools(request.tools, self._CACHE_CONTROL)
         if new_tools is not request.tools:
             overrides["tools"] = new_tools
 

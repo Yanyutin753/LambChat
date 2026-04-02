@@ -29,7 +29,6 @@ import type {
   UserUpdate,
   Role,
 } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 // User avatar display component
 interface UserAvatarProps {
@@ -101,11 +100,6 @@ function UserFormModal({
   const [isActive, setIsActive] = useState(user?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
 
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
-
   const isEditing = !!user;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,10 +163,7 @@ function UserFormModal({
     <>
       <div className="fixed inset-0" onClick={onClose} />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-        >
+        <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
@@ -352,18 +343,11 @@ function DeleteConfirmModal({
   isLoading,
 }: DeleteConfirmModalProps) {
   const { t } = useTranslation();
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-        >
+        <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">

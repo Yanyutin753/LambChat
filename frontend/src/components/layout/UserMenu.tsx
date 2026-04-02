@@ -23,7 +23,6 @@ import {
   beginSessionSelectionGuard,
   clearSessionSelectionGuard,
 } from "../../utils/sessionSelectionGuard";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface UserMenuProps {
   onShowProfile: () => void;
@@ -43,10 +42,6 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
-  const swipeRef = useSwipeToClose({
-    onClose: () => setShowMenu(false),
-    enabled: showMenu && isMobile,
-  });
 
   const canReadSkills =
     hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
@@ -316,10 +311,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
               >
                 <div className="fixed inset-0 bg-black/40 animate-fade-in" />
                 <div
-                  ref={(el) => {
-                    menuRef.current = el;
-                    (swipeRef as any).current = el;
-                  }}
+                  ref={menuRef}
                   className="fixed inset-x-0 bottom-0 z-[101] rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto animate-slide-up-sheet"
                   style={{ backgroundColor: "var(--theme-bg-card)" }}
                   onClick={(e) => e.stopPropagation()}

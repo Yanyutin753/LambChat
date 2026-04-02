@@ -12,7 +12,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
 
   return (
     <>
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto">
+      <div className="flex flex-1 flex-col gap-4">
         {/* Metadata card — same structure as Normal */}
         <div className="skill-form-card rounded-3xl shadow-sm">
           <div className="space-y-4 px-4 py-4 sm:px-5">

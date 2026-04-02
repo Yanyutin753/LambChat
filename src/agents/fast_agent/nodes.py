@@ -22,8 +22,8 @@ from src.agents.fast_agent.context import FastAgentContext
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
+    AppPromptMiddleware,
     PromptCachingMiddleware,
-    SectionPromptMiddleware,
     SubagentActivityMiddleware,
     ToolResultBinaryMiddleware,
     create_retry_middleware,
@@ -98,7 +98,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 构建记忆系统提示
     memory_guide = get_memory_guide(settings.MEMORY_PERFORM) if settings.ENABLE_MEMORY else ""
 
-    # 构建系统提示（skills/memory_guide 由 SectionPromptMiddleware 在请求时注入）
+    # 构建系统提示（skills/memory_guide 由 AppPromptMiddleware 在请求时注入）
     system_prompt = FAST_SYSTEM_PROMPT
 
     # 创建 backend（无沙箱，PostgreSQL 或 MongoDB 由 store 决定）
@@ -162,14 +162,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
         }
     ]
 
-    # 构建中间件栈：retry → binary upload → skills+memory → memory_index → tool search → cache tag
-    # Order: stable → semi-stable → dynamic → cache breakpoint
+    # 构建中间件栈：retry → binary upload → app prompt (skills/memory) → memory index → tool search → cache tag
     user_middleware = create_retry_middleware()
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
-    # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
-    _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]
-    if _prompt_sections:
-        user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
+    user_middleware.append(
+        AppPromptMiddleware(skills_prompt=skills_prompt, memory_guide=memory_guide)
+    )
     if (
         settings.ENABLE_MEMORY
         and settings.MEMORY_PERFORM == "native"

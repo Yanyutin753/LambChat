@@ -6,7 +6,6 @@ import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Edit2, Plus, Trash2, X } from "lucide-react";
 import type { Project } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface ProjectMenuProps {
   project: Project;
@@ -35,11 +34,6 @@ export function ProjectMenu({
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth < 640;
-  });
-
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: isOpen && isMobile,
   });
 
   // Update isMobile on resize
@@ -103,10 +97,7 @@ export function ProjectMenu({
         />
         {/* Bottom sheet */}
         <div
-          ref={(el) => {
-            menuRef.current = el;
-            (swipeRef as any).current = el;
-          }}
+          ref={menuRef}
           className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl max-h-[70vh] overflow-y-auto"
         >
           {/* Handle bar */}

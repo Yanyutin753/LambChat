@@ -18,10 +18,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _tool_sort_key(tool: "BaseTool") -> tuple[str, str]:
-    return (getattr(tool, "server", "") or "", getattr(tool, "name", "") or "")
-
-
 @dataclass
 class DeferredToolStub:
     """延迟工具的轻量描述（用于系统提示注入）"""
@@ -67,7 +63,7 @@ class DeferredToolManager:
             else:
                 filtered.append(tool)
 
-        self._all_tools: list["BaseTool"] = sorted(filtered, key=_tool_sort_key)
+        self._all_tools: list["BaseTool"] = filtered
         self._tool_map: dict[str, "BaseTool"] = {t.name: t for t in filtered}
         # 恢复上次已发现工具（从 store 持久化的数据）
         pre_set = set(pre_discovered_names or []) & set(self._tool_map.keys())
@@ -103,7 +99,7 @@ class DeferredToolManager:
     @property
     def discovered_names(self) -> list[str]:
         """已发现工具名列表"""
-        return sorted(self._discovered_names)
+        return list(self._discovered_names)
 
     @property
     def remaining_count(self) -> int:
@@ -130,9 +126,9 @@ class DeferredToolManager:
                 )
             )
 
-        self._cached_stubs = sorted(stubs, key=lambda stub: (stub.server, stub.name))
+        self._cached_stubs = stubs
         self.stale = False
-        return self._cached_stubs
+        return stubs
 
     def get_deferred_stubs_string(self) -> str:
         """返回可直接拼入系统提示的预格式化字符串（带脏标记缓存）。
@@ -179,7 +175,7 @@ class DeferredToolManager:
 
     def get_discovered_tools(self) -> list["BaseTool"]:
         """获取已发现工具的完整 BaseTool 列表"""
-        return [self._tool_map[n] for n in sorted(self._discovered_names) if n in self._tool_map]
+        return [self._tool_map[n] for n in self._discovered_names if n in self._tool_map]
 
     def get_undiscovered_tools(self) -> list["BaseTool"]:
         """获取未发现工具的完整 BaseTool 列表（用于搜索）"""

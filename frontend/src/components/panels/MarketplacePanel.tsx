@@ -28,7 +28,6 @@ import { useSkills } from "../../hooks/useSkills";
 import { Permission } from "../../types";
 import type { SkillResponse, SkillCreate } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 export function MarketplacePanel() {
   const { t } = useTranslation();
@@ -253,11 +252,6 @@ export function MarketplacePanel() {
     setIsFormFullscreen(false);
     setShowCreateModal(false);
   };
-
-  const swipeRef = useSwipeToClose({
-    onClose: handleFormCancel,
-    enabled: (showCreateModal || !!editingSkill) && !isFormFullscreen,
-  });
 
   const hasActiveFilters = selectedTags.length > 0 || searchQuery.length > 0;
 
@@ -826,10 +820,7 @@ export function MarketplacePanel() {
             <div className="fixed inset-0" onClick={handleFormCancel} />
           )}
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div
-              ref={swipeRef as React.RefObject<HTMLDivElement>}
-              className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-            >
+            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
               {!isFormFullscreen && (
                 <>
                   <div className="bottom-sheet-handle sm:hidden" />

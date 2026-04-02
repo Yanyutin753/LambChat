@@ -20,7 +20,6 @@ import type {
   PermissionGroup,
   PermissionInfo,
 } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 // 角色表单模态框 - 底部弹出式设计
 interface RoleFormModalProps {
@@ -49,10 +48,6 @@ function RoleFormModal({
   const [maxConcurrentChats, setMaxConcurrentChats] = useState<number | "">(
     role?.limits?.max_concurrent_chats ?? "",
   );
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
   const [maxQueuedChats, setMaxQueuedChats] = useState<number | "">(
     role?.limits?.max_queued_chats ?? "",
   );
@@ -231,10 +226,7 @@ function RoleFormModal({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content"
-        >
+        <div className="modal-bottom-sheet-content">
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
@@ -536,10 +528,6 @@ function DeleteConfirmModal({
   isLoading,
 }: DeleteConfirmModalProps) {
   const { t } = useTranslation();
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
   return (
     <>
       <div className="fixed inset-0 z-40 sm:hidden" onClick={onClose} />
@@ -549,10 +537,7 @@ function DeleteConfirmModal({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content"
-        >
+        <div className="modal-bottom-sheet-content">
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">

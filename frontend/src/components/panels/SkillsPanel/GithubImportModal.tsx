@@ -2,7 +2,6 @@ import { useTranslation } from "react-i18next";
 import { X, Archive, Upload, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { Checkbox } from "../../common/Checkbox";
-import { useSwipeToClose } from "../../../hooks/useSwipeToClose";
 
 interface GitHubSkill {
   name: string;
@@ -48,10 +47,6 @@ export function GithubImportModal({
   setSelectedGithubSkills,
 }: GithubImportModalProps) {
   const { t } = useTranslation();
-  const swipeRef = useSwipeToClose({
-    onClose: () => setShowGithubModal(false),
-    enabled: showGithubModal,
-  });
 
   if (!showGithubModal) return null;
 
@@ -62,10 +57,7 @@ export function GithubImportModal({
         onClick={() => setShowGithubModal(false)}
       />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-        >
+        <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
           <div className="bottom-sheet-handle sm:hidden" />
           <div className="skill-modal-header">
             <div>
