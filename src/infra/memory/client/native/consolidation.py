@@ -8,8 +8,13 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
 from src.infra.memory.client.native.classification import extract_tags
+from src.infra.memory.client.native.content import build_content_fields, delete_memory_content
 from src.infra.memory.client.native.models import ensure_aware
-from src.infra.memory.client.native.summaries import llm_build_summary, llm_build_title
+from src.infra.memory.client.native.summaries import (
+    build_index_label,
+    llm_build_summary,
+    llm_build_title,
+)
 from src.infra.memory.client.types import MemoryType
 from src.kernel.config import settings
 
@@ -71,7 +76,9 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
                 pruned_ids.add(m["memory_id"])
 
     if pruned_ids:
-        await backend._collection.delete_many({"user_id": user_id, "memory_id": {"$in": list(pruned_ids)}})
+        await backend._collection.delete_many(
+            {"user_id": user_id, "memory_id": {"$in": list(pruned_ids)}}
+        )
 
     remaining = [m for m in all_memories if m["memory_id"] not in pruned_ids]
     auto_memories = [m for m in remaining if m.get("source") != "manual"]
@@ -85,8 +92,17 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
             consolidated = await llm_batch_consolidate(backend, batch, mtype.value)
             if consolidated is None:
                 continue
+            old_store_keys = [
+                m.get("content_store_key")
+                for m in batch
+                if m.get("content_storage_mode") == "store" and m.get("content_store_key")
+            ]
             old_ids = [m["memory_id"] for m in batch]
-            await backend._collection.delete_many({"user_id": user_id, "memory_id": {"$in": old_ids}})
+            await backend._collection.delete_many(
+                {"user_id": user_id, "memory_id": {"$in": old_ids}}
+            )
+            for store_key in old_store_keys:
+                await delete_memory_content(backend, user_id, store_key)
             if consolidated:
                 await backend._collection.insert_many(consolidated)
             reduced += len(batch) - len(consolidated)
@@ -99,14 +115,18 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
     if current_count > max_per_user:
         excess = current_count - max_per_user
         oldest_auto = (
-            backend._collection.find({"user_id": user_id, "source": {"$ne": "manual"}}, {"memory_id": 1})
+            backend._collection.find(
+                {"user_id": user_id, "source": {"$ne": "manual"}}, {"memory_id": 1}
+            )
             .sort("created_at", 1)
             .limit(excess)
         )
         oldest_docs = await oldest_auto.to_list(length=excess)
         if oldest_docs:
             cap_ids = [d["memory_id"] for d in oldest_docs]
-            result = await backend._collection.delete_many({"user_id": user_id, "memory_id": {"$in": cap_ids}})
+            result = await backend._collection.delete_many(
+                {"user_id": user_id, "memory_id": {"$in": cap_ids}}
+            )
             cap_pruned = result.deleted_count
             await backend._invalidate_cache(user_id)
 
@@ -148,7 +168,7 @@ async def llm_batch_consolidate(backend, memories: list[dict], expected_type: st
             "4. Each output memory should be ONE focused fact or observation\n"
             "5. When merging, preserve all unique details from all source memories\n"
             '6. Keep memory type as: "{type}"\n\n'
-            'Return ONLY a JSON array: [{"content": "...", "summary": "...", "title": "..."}]\n'
+            'Return ONLY a JSON array: [{{"content": "...", "summary": "...", "title": "..."}}]\n'
             "title should be max 25 chars, a short label for this memory.\n"
             "Memories to delete should simply be OMITTED from the array.\n\n"
             f"Input memories (oldest first):\n{items_text}"
@@ -187,25 +207,35 @@ async def llm_batch_consolidate(backend, memories: list[dict], expected_type: st
                 continue
             summary = item.get("summary", "") or await llm_build_summary(backend, content)
             title = item.get("title", "").strip() or await llm_build_title(backend, content)
+            memory_id = uuid.uuid4().hex
+            content_fields = await build_content_fields(
+                backend,
+                memories[0]["user_id"],
+                memory_id,
+                content,
+            )
             docs.append(
                 {
-                    "memory_id": uuid.uuid4().hex,
+                    "memory_id": memory_id,
                     "user_id": memories[0]["user_id"],
-                    "content": content[:5000],
                     "summary": summary[:100],
                     "title": title[:25],
+                    "index_label": build_index_label(title, summary, content),
                     "memory_type": expected_type,
                     "context": "consolidated",
                     "tags": extract_tags(content),
-                    "source": "auto_retained",
+                    "source": "consolidated",
                     "embedding": await backend._maybe_embed(content),
                     "created_at": now,
                     "updated_at": now,
                     "accessed_at": now,
                     "access_count": 0,
+                    **content_fields,
                 }
             )
         return docs if docs else None
     except Exception as e:
-        backend._logger.debug("[NativeMemory] Batch consolidation failed: %s", e)
+        backend_logger = getattr(backend, "_logger", None)
+        if backend_logger:
+            backend_logger.debug("[NativeMemory] Batch consolidation failed: %s", e)
         return None

@@ -49,6 +49,29 @@ async def store_get(backend, namespace: tuple[str, ...], key: str) -> Any:
     return None
 
 
+async def store_delete(backend, namespace: tuple[str, ...], key: str) -> None:
+    store = get_store(backend)
+    if store is None:
+        return
+    if hasattr(store, "adelete"):
+        await store.adelete(namespace, key)
+        return
+    if hasattr(store, "delete"):
+        await maybe_await(store.delete(namespace, key))
+        return
+    if hasattr(store, "aput"):
+        await store.aput(namespace, key, None)
+        return
+    if hasattr(store, "put"):
+        await maybe_await(store.put(namespace, key, None))
+
+
+async def delete_memory_content(backend, user_id: str, content_store_key: str | None) -> None:
+    if not content_store_key:
+        return
+    await store_delete(backend, memory_store_namespace(user_id), content_store_key)
+
+
 def inline_preview(content: str) -> str:
     max_chars = int(getattr(settings, "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS", 1200))
     if len(content) <= max_chars:
@@ -58,7 +81,9 @@ def inline_preview(content: str) -> str:
     return content[: max_chars - 3].rstrip() + "..."
 
 
-async def build_content_fields(backend, user_id: str, memory_id: str, content: str) -> dict[str, Any]:
+async def build_content_fields(
+    backend, user_id: str, memory_id: str, content: str
+) -> dict[str, Any]:
     preview = inline_preview(content)
     max_chars = int(getattr(settings, "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS", 1200))
     if len(content) <= max_chars:

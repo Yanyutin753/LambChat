@@ -158,7 +158,10 @@ class DeferredToolManager:
             parts.append(
                 "## MCP Tools (Deferred)\n\n"
                 "The following tools are available but not yet loaded. "
-                "Call `search_tools` to load their full parameter schemas before using them.\n\n"
+                "Call `search_tools` to load their full parameter schemas before using them. "
+                "`search_tools` only searches the deferred MCP tools listed in this section; "
+                "it does NOT search sandbox MCP tools. Use `mcporter` inside the sandbox to "
+                "discover those tools.\n\n"
                 f"{lines}\n"
             )
 

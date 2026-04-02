@@ -19,7 +19,15 @@ def choose_index_memories(
 ) -> list[dict[str, Any]]:
     def score(doc: dict[str, Any]) -> tuple[float, float]:
         source = str(doc.get("source", "manual"))
-        source_score = 2.0 if source == "manual" else 1.0 if source == "auto_retained" else 0.5
+        source_score = (
+            2.0
+            if source == "manual"
+            else 1.0
+            if source == "auto_retained"
+            else 0.8
+            if source == "consolidated"
+            else 0.5
+        )
         access_score = min(float(doc.get("access_count", 0) or 0), 5.0) * 0.3
         age_days = (now - ensure_aware(doc["updated_at"])).days
         freshness_score = max(0.0, 2.0 - (age_days / max(staleness_days, 1)))
@@ -61,10 +69,15 @@ async def build_memory_index(backend, user_id: str) -> str:
         "source": 1,
         "access_count": 1,
     }
-    docs = await backend._collection.find(
-        {"user_id": user_id, "source": {"$ne": "session_summary"}},
-        projection,
-    ).sort("updated_at", -1).limit(80).to_list(length=80)
+    docs = (
+        await backend._collection.find(
+            {"user_id": user_id, "source": {"$ne": "session_summary"}},
+            projection,
+        )
+        .sort("updated_at", -1)
+        .limit(80)
+        .to_list(length=80)
+    )
 
     if not docs:
         return ""
@@ -75,15 +88,17 @@ async def build_memory_index(backend, user_id: str) -> str:
         grouped.setdefault(str(doc.get("memory_type", "")), []).append(doc)
 
     type_order = {
-        MemoryType.USER: 0,
-        MemoryType.FEEDBACK: 1,
-        MemoryType.PROJECT: 2,
-        MemoryType.REFERENCE: 3,
+        MemoryType.USER.value: 0,
+        MemoryType.FEEDBACK.value: 1,
+        MemoryType.PROJECT.value: 2,
+        MemoryType.REFERENCE.value: 3,
     }
 
     lines = ["<memory_index>"]
     for mtype in sorted(grouped.keys(), key=lambda key: type_order.get(key, 99)):
-        chosen = choose_index_memories(grouped[mtype], per_type_limit=5, now=now, staleness_days=staleness_days)
+        chosen = choose_index_memories(
+            grouped[mtype], per_type_limit=5, now=now, staleness_days=staleness_days
+        )
         if not chosen:
             continue
         lines.append(f"\n## [{mtype}]")

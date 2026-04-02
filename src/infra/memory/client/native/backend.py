@@ -5,6 +5,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
@@ -13,34 +15,15 @@ from src.infra.memory.client.native.classification import (
     find_existing_memory_match,
     is_manual_memory_worthy,
 )
-from src.infra.memory.client.native.consolidation import (
-    consolidate_memories as run_consolidation,
-    do_consolidate,
-    llm_batch_consolidate,
-    split_batches,
-)
+from src.infra.memory.client.native.consolidation import consolidate_memories as run_consolidation
 from src.infra.memory.client.native.content import (
     build_content_fields,
-    get_store,
-    hydrate_formatted_memory,
-    hydrate_memory_text,
-    maybe_await,
-    memory_store_namespace,
-    store_get,
-    store_put,
+    delete_memory_content,
 )
-from src.infra.memory.client.native.indexing import build_memory_index, evict_index_cache
+from src.infra.memory.client.native.indexing import build_memory_index
 from src.infra.memory.client.native.models import COLLECTION_NAME
-from src.infra.memory.client.native.search import (
-    format_memory,
-    recall_memories,
-)
-from src.infra.memory.client.native.summaries import (
-    build_index_label,
-    build_summary,
-    llm_build_summary,
-    llm_build_title,
-)
+from src.infra.memory.client.native.search import recall_memories
+from src.infra.memory.client.native.summaries import build_index_label, build_summary
 from src.infra.storage.mongodb import get_mongo_client
 from src.kernel.config import settings
 
@@ -160,6 +143,7 @@ class NativeMemoryBackend(MemoryBackend):
         context: Optional[str] = None,
         title: Optional[str] = None,
         summary: Optional[str] = None,
+        existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
         # --- Validation (relaxed for manual retention — trust user intent) ---
         if len(content.strip()) < 5:
@@ -190,12 +174,21 @@ class NativeMemoryBackend(MemoryBackend):
                 {"summary": 1, "memory_id": 1, "memory_type": 1},
             ).to_list(length=50)
 
-        existing_match = await find_existing_memory_match(
-            fetch_recent=fetch_recent_memories,
-            user_id=user_id,
-            summary=summary,
-            memory_type=memory_type,
-        )
+        existing_match = None
+        if existing_memory_id:
+            forced_match = await self._collection.find_one(
+                {"user_id": user_id, "memory_id": existing_memory_id},
+                {"memory_id": 1, "memory_type": 1, "summary": 1, "updated_at": 1},
+            )
+            if forced_match:
+                existing_match = forced_match
+        if existing_match is None:
+            existing_match = await find_existing_memory_match(
+                fetch_recent=fetch_recent_memories,
+                user_id=user_id,
+                summary=summary,
+                memory_type=memory_type,
+            )
 
         now = datetime.now(timezone.utc)
         content_fields = await build_content_fields(
@@ -206,6 +199,10 @@ class NativeMemoryBackend(MemoryBackend):
         )
 
         if existing_match:
+            existing_doc = await self._collection.find_one(
+                {"user_id": user_id, "memory_id": existing_match["memory_id"]},
+                {"content_storage_mode": 1, "content_store_key": 1},
+            )
             await self._collection.update_one(
                 {"user_id": user_id, "memory_id": existing_match["memory_id"]},
                 {
@@ -215,11 +212,19 @@ class NativeMemoryBackend(MemoryBackend):
                         "index_label": build_index_label(title, summary, content),
                         "context": context,
                         "tags": tags,
+                        "embedding": await self._maybe_embed(content),
                         "updated_at": now,
                         **content_fields,
                     }
                 },
             )
+            if (
+                existing_doc
+                and existing_doc.get("content_storage_mode") == "store"
+                and existing_doc.get("content_store_key")
+                and existing_doc.get("content_store_key") != content_fields.get("content_store_key")
+            ):
+                await delete_memory_content(self, user_id, existing_doc.get("content_store_key"))
             await self._invalidate_cache(user_id)
             return {
                 "success": True,
@@ -273,24 +278,17 @@ class NativeMemoryBackend(MemoryBackend):
         user_id: str,
         memory_id: str,
     ) -> dict[str, Any]:
+        existing_doc = await self._collection.find_one(
+            {"user_id": user_id, "memory_id": memory_id},
+            {"content_storage_mode": 1, "content_store_key": 1},
+        )
         result = await self._collection.delete_one({"user_id": user_id, "memory_id": memory_id})
         if result.deleted_count > 0:
+            if existing_doc and existing_doc.get("content_storage_mode") == "store":
+                await delete_memory_content(self, user_id, existing_doc.get("content_store_key"))
             await self._invalidate_cache(user_id)
             return {"success": True, "message": f"Memory {memory_id} deleted"}
         return {"success": False, "error": "Memory not found"}
-
-    # ------------------------------------------------------------------
-    # Session summary (for context survival)
-    # ------------------------------------------------------------------
-
-    async def store_session_summary(self, user_id: str, session_id: str, summary: str) -> None:
-        """Legacy compatibility hook.
-
-        Session-level transcript summaries are intentionally no longer stored as
-        long-term memories. We only keep extracted durable memories.
-        """
-        logger.debug("[NativeMemory] Ignoring legacy session summary write for %s", session_id[:8])
-        return None
 
     # ------------------------------------------------------------------
     # Memory consolidation (on-demand, triggered by agent via memory_consolidate tool)
@@ -309,24 +307,81 @@ class NativeMemoryBackend(MemoryBackend):
             release_lock=release_consolidation_lock,
         )
 
-    async def _do_consolidate(self, user_id: str) -> dict[str, Any]:
-        return await do_consolidate(self, user_id)
+    async def auto_retain_from_text(self, user_id: str, text: str) -> dict[str, Any]:
+        if not text.strip():
+            return {"success": True, "stored": 0, "candidates": 0}
 
-    @staticmethod
-    def _split_batches(items: list[dict], max_size: int = 30) -> list[list[dict]]:
-        return split_batches(items, max_size)
+        try:
+            from src.infra.memory.tools import memory_retain
 
-    async def _llm_batch_consolidate(
-        self, memories: list[dict], expected_type: str
-    ) -> Optional[list[dict]]:
-        return await llm_batch_consolidate(self, memories, expected_type)
+            candidates = await self._get_auto_retain_candidates(user_id, text)
+            candidates_text = "\n".join(
+                (
+                    f"- id={item.get('memory_id')} "
+                    f"type={item.get('type')} "
+                    f"title={item.get('title', '')!r} "
+                    f"summary={item.get('summary', '')!r} "
+                    f"updated_at={item.get('created_at') or item.get('updated_at', '')}"
+                )
+                for item in candidates
+            )
+            model = self._get_memory_model().bind_tools([memory_retain])
+            response = await model.ainvoke(
+                [
+                    SystemMessage(
+                        content=(
+                            "You are a background memory-retention evaluator.\n"
+                            "You receive one user message after the main assistant response has already finished.\n"
+                            "You may see similar existing memories.\n"
+                            "If the message contains durable cross-session memory, call memory_retain.\n"
+                            "If it does not, do not call any tool.\n"
+                            "Only retain user identity, preferences with reasons, durable project context, "
+                            "explicit feedback, or lasting references. Never retain code, file paths, "
+                            "temporary worklogs, greetings, or transient status updates.\n"
+                            "If one existing memory already covers the same topic, call memory_retain with "
+                            "`existing_memory_id` set to that memory id so the system updates it instead of "
+                            "creating a duplicate.\n"
+                            "If none match closely enough, omit `existing_memory_id`."
+                        )
+                    ),
+                    HumanMessage(
+                        content=(
+                            f"User message:\n{text}\n\n"
+                            f"Similar existing memories:\n{candidates_text or '(none)'}"
+                        )
+                    ),
+                ]
+            )
+        except Exception as e:
+            self._logger.debug("[NativeMemory] Background auto-retain decision failed: %s", e)
+            return {"success": False, "stored": 0, "candidates": 0, "error": str(e)}
 
-    async def _llm_rerank(
-        self, user_id: str, query: str, candidates: list[dict], max_results: int
-    ) -> list[dict]:
-        from src.infra.memory.client.native.search import llm_rerank
+        tool_calls = getattr(response, "tool_calls", None) or []
+        stored = 0
+        for tool_call in tool_calls:
+            if tool_call.get("name") != "memory_retain":
+                continue
+            args = tool_call.get("args") or {}
+            content = str(args.get("content") or "").strip()
+            if not content:
+                continue
+            result = await self.retain(
+                user_id,
+                content,
+                context=args.get("context"),
+                title=args.get("title"),
+                summary=args.get("summary"),
+                existing_memory_id=args.get("existing_memory_id"),
+            )
+            if result.get("success"):
+                stored += 1
+        return {"success": True, "stored": stored, "candidates": len(tool_calls)}
 
-        return await llm_rerank(self, user_id, query, candidates, max_results)
+    async def _get_auto_retain_candidates(self, user_id: str, text: str) -> list[dict[str, Any]]:
+        result = await self.recall(user_id, text, max_results=5)
+        if not result.get("success"):
+            return []
+        return list(result.get("memories") or [])
 
     # ------------------------------------------------------------------
     # Memory index (for system prompt injection)
@@ -334,9 +389,6 @@ class NativeMemoryBackend(MemoryBackend):
 
     async def build_memory_index(self, user_id: str) -> str:
         return await build_memory_index(self, user_id)
-
-    def _evict_index_cache(self) -> None:
-        evict_index_cache(self._index_cache, self._INDEX_CACHE_MAX_SIZE)
 
     async def _update_access_stats(self, memory_ids: list[str]) -> None:
         await self._collection.update_many(
@@ -358,30 +410,6 @@ class NativeMemoryBackend(MemoryBackend):
         except Exception as e:
             logger.warning(f"[NativeMemory] Embedding failed: {e}")
             return None
-
-    @staticmethod
-    def _rrf_merge(
-        text_results: list[dict],
-        vector_results: list[dict],
-        max_results: int,
-        k: int = 60,
-    ) -> list[dict]:
-        scores: dict[str, dict] = {}
-
-        for rank, item in enumerate(text_results):
-            mid = item["memory_id"]
-            if mid not in scores:
-                scores[mid] = {"data": item, "rrf_score": 0.0}
-            scores[mid]["rrf_score"] += 1.0 / (k + rank + 1)
-
-        for rank, item in enumerate(vector_results):
-            mid = item["memory_id"]
-            if mid not in scores:
-                scores[mid] = {"data": item, "rrf_score": 0.0}
-            scores[mid]["rrf_score"] += 1.0 / (k + rank + 1)
-
-        merged = sorted(scores.values(), key=lambda x: x["rrf_score"], reverse=True)
-        return [entry["data"] for entry in merged[:max_results]]
 
     # ------------------------------------------------------------------
     # MongoDB setup

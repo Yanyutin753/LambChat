@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.infra.memory.client.native.backend import NativeMemoryBackend
 from src.infra.memory.client.native.classification import (
     extract_tags,
     find_existing_memory_match,
@@ -62,3 +63,64 @@ async def test_find_existing_memory_match_returns_best_existing_match():
 
     assert match is not None
     assert match["memory_id"] == "m1"
+
+
+@pytest.mark.asyncio
+async def test_retain_updates_existing_memory_and_refreshes_embedding():
+    now = datetime.now(timezone.utc)
+    seen: dict[str, object] = {}
+
+    class FakeCursor:
+        def __init__(self, docs):
+            self._docs = docs
+
+        async def to_list(self, length):
+            return self._docs[:length]
+
+    class FakeCollection:
+        def find(self, *_args, **_kwargs):
+            return FakeCursor(
+                [
+                    {
+                        "memory_id": "m1",
+                        "memory_type": "user",
+                        "summary": "Prefers raw SQL for analytics work.",
+                        "updated_at": now,
+                    }
+                ]
+            )
+
+        async def find_one(self, *_args, **_kwargs):
+            return {
+                "content_storage_mode": "inline",
+                "content_store_key": None,
+            }
+
+        async def update_one(self, query, payload):
+            seen["query"] = query
+            seen["payload"] = payload
+
+    backend = NativeMemoryBackend()
+    backend._collection = FakeCollection()
+
+    async def fake_invalidate(_user_id):
+        return None
+
+    async def fake_embed(text: str):
+        return [float(len(text))]
+
+    backend._invalidate_cache = fake_invalidate  # type: ignore[method-assign]
+    backend._maybe_embed = fake_embed  # type: ignore[method-assign]
+
+    result = await backend.retain(
+        "u1",
+        "The user now prefers DuckDB for local analytics workloads.",
+        context="user_identity",
+        title="DuckDB preference",
+        summary="Prefers raw SQL for analytics work.",
+    )
+
+    assert result["success"] is True
+    assert result["updated_existing"] is True
+    assert seen["query"] == {"user_id": "u1", "memory_id": "m1"}
+    assert seen["payload"]["$set"]["embedding"] == [58.0]

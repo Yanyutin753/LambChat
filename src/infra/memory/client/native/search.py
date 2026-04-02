@@ -8,7 +8,12 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from src.infra.memory.client.native.content import hydrate_formatted_memory
-from src.infra.memory.client.native.models import STOPWORDS, cosine_similarity, ensure_aware, has_cjk
+from src.infra.memory.client.native.models import (
+    STOPWORDS,
+    cosine_similarity,
+    ensure_aware,
+    has_cjk,
+)
 from src.kernel.config import settings
 
 
@@ -101,7 +106,9 @@ def is_context_overview_query(query: str) -> bool:
     return any(marker in lowered for marker in overview_markers)
 
 
-async def recent_context_fallback(collection, user_id: str, limit: int, memory_types: Optional[list[str]]) -> list[dict]:
+async def recent_context_fallback(
+    collection, user_id: str, limit: int, memory_types: Optional[list[str]]
+) -> list[dict]:
     base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
@@ -110,7 +117,9 @@ async def recent_context_fallback(collection, user_id: str, limit: int, memory_t
     return [format_memory(doc, 0.0) for doc in docs]
 
 
-async def text_search(collection, logger, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]) -> list[dict]:
+async def text_search(
+    collection, logger, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]
+) -> list[dict]:
     base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
@@ -133,12 +142,18 @@ async def text_search(collection, logger, user_id: str, query: str, limit: int, 
     return [format_memory(doc, doc.get("score", 0)) for doc in docs]
 
 
-async def keyword_fallback(collection, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]) -> list[dict]:
+async def keyword_fallback(
+    collection, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]
+) -> list[dict]:
     clauses = build_keyword_clauses(query)
     if not clauses:
         return []
 
-    base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}, "$or": clauses}
+    base: dict[str, Any] = {
+        "user_id": user_id,
+        "source": {"$ne": "session_summary"},
+        "$or": clauses,
+    }
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
 
@@ -146,7 +161,9 @@ async def keyword_fallback(collection, user_id: str, query: str, limit: int, mem
     return await cursor.to_list(length=limit)
 
 
-async def vector_search(backend, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]) -> list[dict]:
+async def vector_search(
+    backend, user_id: str, query: str, limit: int, memory_types: Optional[list[str]]
+) -> list[dict]:
     query_vec = await backend._maybe_embed(query)
     if not query_vec:
         return []
@@ -178,7 +195,9 @@ async def vector_search(backend, user_id: str, query: str, limit: int, memory_ty
     except Exception:
         pass
 
-    backend._logger.debug("[NativeMemory] Atlas $vectorSearch unavailable, using Python cosine fallback")
+    backend._logger.debug(
+        "[NativeMemory] Atlas $vectorSearch unavailable, using Python cosine fallback"
+    )
     projection = {
         "user_id": 1,
         "memory_id": 1,
@@ -204,7 +223,9 @@ async def vector_search(backend, user_id: str, query: str, limit: int, memory_ty
     return [format_memory(d, sim) for sim, d in scored[:limit]]
 
 
-async def llm_rerank(backend, user_id: str, query: str, candidates: list[dict], max_results: int) -> list[dict]:
+async def llm_rerank(
+    backend, user_id: str, query: str, candidates: list[dict], max_results: int
+) -> list[dict]:
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -258,7 +279,9 @@ async def llm_rerank(backend, user_id: str, query: str, candidates: list[dict], 
         return candidates[:max_results]
 
 
-def rrf_merge(text_results: list[dict], vector_results: list[dict], max_results: int, k: int = 60) -> list[dict]:
+def rrf_merge(
+    text_results: list[dict], vector_results: list[dict], max_results: int, k: int = 60
+) -> list[dict]:
     scores: dict[str, dict] = {}
 
     for rank, item in enumerate(text_results):
@@ -277,8 +300,16 @@ def rrf_merge(text_results: list[dict], vector_results: list[dict], max_results:
     return [entry["data"] for entry in merged[:max_results]]
 
 
-async def recall_memories(backend, user_id: str, query: str, max_results: int = 5, memory_types: Optional[list[str]] = None) -> dict[str, Any]:
-    text_results = await text_search(backend._collection, backend._logger, user_id, query, max_results * 2, memory_types)
+async def recall_memories(
+    backend,
+    user_id: str,
+    query: str,
+    max_results: int = 5,
+    memory_types: Optional[list[str]] = None,
+) -> dict[str, Any]:
+    text_results = await text_search(
+        backend._collection, backend._logger, user_id, query, max_results * 2, memory_types
+    )
 
     vector_results: list[dict] = []
     if backend._embedding_fn:
@@ -288,7 +319,9 @@ async def recall_memories(backend, user_id: str, query: str, max_results: int = 
     memories = prioritize_sources(memories)
 
     if not memories and is_context_overview_query(query):
-        memories = await recent_context_fallback(backend._collection, user_id, max_results * 2, memory_types)
+        memories = await recent_context_fallback(
+            backend._collection, user_id, max_results * 2, memory_types
+        )
 
     if memories and len(memories) > max_results:
         memories = await llm_rerank(backend, user_id, query, memories, max_results)

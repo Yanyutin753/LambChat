@@ -80,6 +80,10 @@ async def memory_retain(
         Optional[str],
         "Optional context or category for this memory (e.g., 'user_identity', 'project_constraint', 'feedback_rule', 'reference_link')",
     ] = None,
+    existing_memory_id: Annotated[
+        Optional[str],
+        "Optional existing memory ID to update instead of relying on fuzzy deduplication.",
+    ] = None,
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
@@ -103,7 +107,14 @@ async def memory_retain(
         )
 
     try:
-        result = await backend.retain(user_id, content, context, title=title, summary=summary)
+        result = await backend.retain(
+            user_id,
+            content,
+            context,
+            title=title,
+            summary=summary,
+            existing_memory_id=existing_memory_id,
+        )
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
         logger.error(f"[Memory] Failed to retain memory: {e}")
@@ -240,6 +251,29 @@ def _background_task_error(task: asyncio.Task) -> None:
             logger.warning(f"[Memory] Background task failed: {exc}")
     except asyncio.CancelledError:
         pass
+
+
+async def _auto_retain_user_memory(user_id: str, user_input: str) -> None:
+    if not user_id or not user_input.strip():
+        return
+    backend = await _get_backend()
+    if backend is None or backend.name != "native":
+        return
+    if hasattr(backend, "auto_retain_from_text"):
+        await backend.auto_retain_from_text(user_id, user_input)
+
+
+def schedule_auto_memory_capture(user_id: str, user_input: str) -> None:
+    """Best-effort background capture of durable user memories from latest input."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    task = loop.create_task(_auto_retain_user_memory(user_id, user_input))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_task_error)
+    task.add_done_callback(_background_tasks.discard)
 
 
 # ============================================================================

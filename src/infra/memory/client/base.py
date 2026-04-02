@@ -127,6 +127,7 @@ class MemoryBackend(ABC):
         context: Optional[str] = None,
         title: Optional[str] = None,
         summary: Optional[str] = None,
+        existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Store a memory."""
         ...

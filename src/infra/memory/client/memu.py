@@ -183,7 +183,9 @@ class MemuBackend(MemoryBackend):
         context: Optional[str] = None,
         title: Optional[str] = None,
         summary: Optional[str] = None,
+        existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
+        del title, summary, existing_memory_id
         import json
         import os
         import tempfile

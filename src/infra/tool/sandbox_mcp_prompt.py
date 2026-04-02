@@ -194,6 +194,11 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
         "MCP (Model Context Protocol) tools available in your sandbox environment, "
         "managed via `mcporter`:",
         "",
+        "Sandbox MCP tools are NOT part of `search_tools`.",
+        "Discover them with `mcporter list`.",
+        "Inspect schemas with `mcporter list --schema`.",
+        "Call them with `mcporter call server.tool ...`.",
+        "",
         "**Discovery**",
         "- `mcporter list` — list all registered servers and tools",
         "- `mcporter list --schema` — show parameter schemas for all tools "

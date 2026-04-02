@@ -249,6 +249,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # Flush any remaining buffered chunks
     await event_processor._flush_chunk_buffer()
 
+    if settings.ENABLE_MEMORY and settings.MEMORY_PERFORM == "native" and context.user_id:
+        from src.infra.memory.tools import schedule_auto_memory_capture
+
+        schedule_auto_memory_capture(context.user_id, user_input)
+
     # 发送 token 使用统计事件
     await emit_token_usage(event_processor, presenter, start_time)
 

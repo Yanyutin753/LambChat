@@ -50,6 +50,8 @@ class ToolSearchTool(BaseTool):
     description: str = (
         "Fetches full schema definitions for deferred tools so they can be called. "
         'Deferred tools appear by name in the "Available MCP Tools (Deferred)" section below. '
+        "This only applies to deferred MCP tools exposed through the main tool registry; "
+        "it does NOT search sandbox-internal MCP tools managed by `mcporter`. "
         "Until fetched, only the name is known — there is no parameter schema, so the tool cannot be invoked. "
         "This tool takes a query, matches it against the deferred tool list, and returns "
         "the matched tools' complete parameter schemas. Once a tool's schema is returned, "
