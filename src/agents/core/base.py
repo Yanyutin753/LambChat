@@ -143,7 +143,8 @@ class BaseGraphAgent(ABC):
                 self._checkpointer = MemorySaver()
 
                 # 启动后台清理任务，防止内存泄漏
-                asyncio.create_task(self._cleanup_memory_saver())
+                self._cleanup_task = asyncio.create_task(self._cleanup_memory_saver())
+                self._cleanup_task.add_done_callback(lambda t: None)  # prevent GC
 
                 logger.warning(
                     f"[Agent {self._agent_id}] Using MemorySaver with TTL cleanup (1 hour)"
@@ -182,17 +183,29 @@ class BaseGraphAgent(ABC):
 
                 for thread_id in list(storage.keys()):
                     try:
-                        # 获取最新的 checkpoint
                         checkpoints = storage.get(thread_id, {})
                         if not checkpoints:
                             to_delete.append(thread_id)
                             continue
 
                         # 检查最新 checkpoint 的时间
+                        # LangGraph 的 ts 字段是 ISO 格式字符串（如 "2024-01-01T00:00:00"），
+                        # 需要用 datetime.fromisoformat() 而非 datetime.fromtimestamp()
                         latest_checkpoint = max(checkpoints.values(), key=lambda x: getattr(x, 'ts', 0))
-                        checkpoint_time = datetime.fromtimestamp(getattr(latest_checkpoint, 'ts', 0))
+                        ts_raw = getattr(latest_checkpoint, 'ts', '0')
+                        checkpoint_time = None
+                        if isinstance(ts_raw, str):
+                            try:
+                                checkpoint_time = datetime.fromisoformat(ts_raw)
+                            except (ValueError, TypeError):
+                                pass
+                        else:
+                            try:
+                                checkpoint_time = datetime.fromtimestamp(float(ts_raw))
+                            except (TypeError, ValueError):
+                                pass
 
-                        if checkpoint_time < cutoff_time:
+                        if checkpoint_time is not None and checkpoint_time < cutoff_time:
                             to_delete.append(thread_id)
                     except Exception:
                         pass

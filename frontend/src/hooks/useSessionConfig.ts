@@ -83,7 +83,7 @@ export function useSessionConfig(
   // 记录是否已经初始化（避免重复初始化）
   const initializedRef = useRef(false);
 
-  // 当全局配置变化时，如果还没有初始化，则更新默认值
+  // 初始化默认配置（仅执行一次）
   useEffect(() => {
     if (!initializedRef.current) {
       setConfig({
@@ -93,7 +93,8 @@ export function useSessionConfig(
       });
       initializedRef.current = true;
     }
-  }, [options]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Toggle skill
   const toggleSkill = useCallback((skillName: string) => {

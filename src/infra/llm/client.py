@@ -212,11 +212,13 @@ class LLMClient:
                 if hasattr(oldest_model, 'async_client'):
                     client = oldest_model.async_client
                     if hasattr(client, 'aclose'):
-                        asyncio.create_task(client.aclose())
+                        task = asyncio.create_task(client.aclose())
+                        task.add_done_callback(lambda t: None)  # prevent GC
                 elif hasattr(oldest_model, 'client'):
                     client = oldest_model.client
                     if hasattr(client, 'aclose'):
-                        asyncio.create_task(client.aclose())
+                        task = asyncio.create_task(client.aclose())
+                        task.add_done_callback(lambda t: None)  # prevent GC
             except Exception as e:
                 logger.debug(f"Failed to close LLM client connections: {e}")
 

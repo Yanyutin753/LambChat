@@ -21,10 +21,33 @@ from src.infra.task.concurrency import register_executor
 from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
 from src.kernel.schemas.agent import AgentRequest
+from src.kernel.schemas.session import SessionUpdate
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+async def _update_session_config(
+    session_id: str,
+    run_id: str,
+    agent_id: str,
+    request: AgentRequest,
+) -> None:
+    """Update session metadata with conversation configuration."""
+    session_manager = SessionManager()
+    conversation_config = {
+        "current_run_id": run_id,
+        "agent_id": agent_id,
+        "disabled_tools": request.disabled_tools or [],
+        "agent_options": request.agent_options or {},
+        "enabled_skills": request.enabled_skills or [],
+        "enabled_mcp_tools": request.enabled_mcp_tools or [],
+    }
+    await session_manager.update_session(
+        session_id,
+        SessionUpdate(metadata=conversation_config),
+    )
 
 
 async def _execute_agent_stream(
@@ -204,22 +227,8 @@ async def chat_stream(
         }
 
         # 更新 session metadata，存储完整的对话配置（排队状态）
-        session_manager = SessionManager()
-        from src.kernel.schemas.session import SessionUpdate
-
-        # 构建对话配置
-        conversation_config = {
-            "current_run_id": run_id,
-            "agent_id": agent_id,
-            "disabled_tools": request.disabled_tools or [],
-            "agent_options": request.agent_options or {},
-            "enabled_skills": request.enabled_skills or [],
-            "enabled_mcp_tools": request.enabled_mcp_tools or [],
-        }
-
-        await session_manager.update_session(
-            session_id,
-            SessionUpdate(metadata=conversation_config)
+        await _update_session_config(
+            session_id, run_id, agent_id, request
         )
 
         return {
@@ -245,22 +254,8 @@ async def chat_stream(
     )
 
     # 更新 session metadata，存储完整的对话配置
-    session_manager = SessionManager()
-    from src.kernel.schemas.session import SessionUpdate
-
-    # 构建对话配置
-    conversation_config = {
-        "current_run_id": run_id,
-        "agent_id": agent_id,
-        "disabled_tools": request.disabled_tools or [],
-        "agent_options": request.agent_options or {},
-        "enabled_skills": request.enabled_skills or [],
-        "enabled_mcp_tools": request.enabled_mcp_tools or [],
-    }
-
-    await session_manager.update_session(
-        session_id,
-        SessionUpdate(metadata=conversation_config)
+    await _update_session_config(
+        session_id, run_id, agent_id, request
     )
 
     return {
