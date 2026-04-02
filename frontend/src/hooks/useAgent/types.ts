@@ -104,6 +104,8 @@ export interface UseAgentOptions {
   }) => void;
   onClearApprovals?: () => void;
   getEnabledTools?: () => string[];
+  getEnabledSkills?: () => string[];
+  getEnabledMcpTools?: () => string[];
   onSkillAdded?: (
     skillName: string,
     description: string,
@@ -186,10 +188,22 @@ export interface UseAgentReturn {
   clearMessages: () => void;
   selectAgent: (agentId: string) => void;
   refreshAgents: () => Promise<void>;
-  loadHistory: (targetSessionId: string, targetRunId?: string) => Promise<void>;
+  loadHistory: (
+    targetSessionId: string,
+    targetRunId?: string,
+  ) => Promise<SessionConfig | null>;
   reconnectSSE: () => Promise<void>;
   setPendingProjectId: (id: string | null) => void;
   autoExpandProjectId: string | null;
+}
+
+// Session configuration restored from metadata
+export interface SessionConfig {
+  agent_id?: string;
+  agent_options?: Record<string, boolean | string | number>;
+  disabled_tools?: string[];
+  enabled_skills?: string[];
+  enabled_mcp_tools?: string[];
 }
 
 // Backend session type (simplified)

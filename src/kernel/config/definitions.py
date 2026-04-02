@@ -131,6 +131,12 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": None,
         "nullable": True,
     },
+    "LLM_MODEL_CACHE_SIZE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.LLM,
+        "description": "LLM 模型实例缓存大小（每个实例约 10-30MB）。默认 50，支持多用户/多参数场景。设置过小会频繁创建/销毁实例，设置过大会占用更多内存。",
+        "default": 50,
+    },
     # ============================================
     # Session Settings
     # ============================================

@@ -17,6 +17,7 @@ import { useTools } from "../../../hooks/useTools";
 import { useSkills } from "../../../hooks/useSkills";
 import { useVersion } from "../../../hooks/useVersion";
 import { useProjectManager } from "../../../hooks/useProjectManager";
+import { useSessionConfig } from "../../../hooks/useSessionConfig";
 import { Permission, type AgentInfo, type Project } from "../../../types";
 import type { VersionInfo } from "../../../types";
 import type { TabType } from "./types";
@@ -158,6 +159,7 @@ function ChatAppContent({
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
+    getEnabledMcpTools,
     refreshToolsForAgent,
   } = useTools(disabledToolsVersion);
 
@@ -172,10 +174,19 @@ function ChatAppContent({
     toggleCategory: toggleSkillCategory,
     toggleAll: toggleAllSkills,
     fetchSkills,
+    getEnabledSkillNames,
   } = useSkills({ enabled: enableSkills });
 
   const projectManager = useProjectManager();
 
+  // 创建一个 ref 来存储 sessionConfig，供 useAgent 使用
+  const sessionConfigRef = useRef({
+    enabledSkills: [] as string[],
+    enabledMcpTools: [] as string[],
+    agentOptions: {} as Record<string, boolean | string | number>,
+  });
+
+  // 先初始化 useAgent 获取 agents 和 currentAgent
   const {
     messages,
     sessionId,
@@ -208,6 +219,8 @@ function ChatAppContent({
       clearApprovals();
     },
     getEnabledTools: getDisabledToolNames,
+    getEnabledSkills: () => sessionConfigRef.current.enabledSkills,
+    getEnabledMcpTools: () => sessionConfigRef.current.enabledMcpTools,
     onSkillAdded: (skillName: string, _description: string, filesCount: number) => {
       console.log(
         `[AppContent] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
@@ -224,8 +237,31 @@ function ChatAppContent({
     }
   }, [currentAgent, refreshToolsForAgent, user?.metadata]);
 
-  const { agentOptionValues, currentAgentOptions, handleToggleAgentOption } =
-    useAgentOptions(agents, currentAgent);
+  // 现在可以初始化 agentOptions
+  const {
+    agentOptionValues,
+    currentAgentOptions,
+    handleToggleAgentOption,
+    restoreAgentOptions,
+  } = useAgentOptions(agents, currentAgent);
+
+  // 对话级别的配置管理（独立于全局配置）
+  const {
+    config: sessionConfig,
+    toggleSkill: toggleSessionSkill,
+    toggleMcpTool: toggleSessionMcpTool,
+    setAgentOption: setSessionAgentOption,
+    restoreConfig: restoreSessionConfig,
+  } = useSessionConfig({
+    getDefaultSkills: getEnabledSkillNames,
+    getDefaultMcpTools: getEnabledMcpTools,
+    getDefaultAgentOptions: () => agentOptionValues,
+  });
+
+  // 同步 sessionConfig 到 ref，供 useAgent 使用
+  useEffect(() => {
+    sessionConfigRef.current = sessionConfig;
+  }, [sessionConfig]);
 
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
 
@@ -259,11 +295,29 @@ function ChatAppContent({
     }
   }, [newlyCreatedSession?.name, newlyCreatedSession?.id, sessionId]);
 
+  // 处理配置恢复
+  const handleConfigRestored = useCallback(
+    (config: {
+      agent_id?: string;
+      agent_options?: Record<string, boolean | string | number>;
+      disabled_tools?: string[];
+      enabled_skills?: string[];
+      enabled_mcp_tools?: string[];
+    }) => {
+      console.log("[AppContent] Restoring session config:", config);
+
+      // 使用 useSessionConfig 恢复对话级配置
+      restoreSessionConfig(config);
+    },
+    [restoreSessionConfig],
+  );
+
   const { handleSelectSession, handleNewSession } = useSessionSync({
     activeTab: "chat",
     sessionId,
     loadHistory,
     clearMessages,
+    onConfigRestored: handleConfigRestored,
   });
 
   const handleMobileClose = useCallback(() => setMobileSidebarOpen(false), [
@@ -375,6 +429,10 @@ function ChatAppContent({
           onAttachmentsChange={setPageDragAttachments}
           settings={settings || {}}
           i18n={i18n}
+          sessionConfig={sessionConfig}
+          onToggleSessionSkill={toggleSessionSkill}
+          onToggleSessionMcpTool={toggleSessionMcpTool}
+          onSetSessionAgentOption={setSessionAgentOption}
         />
       </>
     </AppShell>

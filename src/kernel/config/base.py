@@ -55,6 +55,7 @@ class Settings(BaseSettings):
 
     # Session Configuration (not in SETTING_DEFINITIONS)
     SESSION_MAX_MESSAGES: int = 20
+    SESSION_MAX_EVENTS_PER_TRACE: int = 10000  # 单个 trace 最多保留的事件数，防止内存爆炸
 
     # ============================================
     # All settings below get defaults from SETTING_DEFINITIONS
@@ -76,6 +77,7 @@ class Settings(BaseSettings):
     LLM_MAX_RETRIES: int = 3
     LLM_RETRY_DELAY: float = 1.0
     LLM_MAX_INPUT_TOKENS: int | None = None  # DeepAgent summarization trigger threshold
+    LLM_MODEL_CACHE_SIZE: int = 50  # 模型实例缓存大小，防止内存泄漏
 
     # MCP Settings
     ENABLE_MCP: bool = True

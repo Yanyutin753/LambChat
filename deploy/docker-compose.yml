@@ -3,6 +3,7 @@ services:
     image: redis:alpine
     container_name: lambchat-redis
     restart: always
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     volumes:
@@ -12,6 +13,7 @@ services:
     image: mongo:8.2.5
     container_name: lambchat-mongodb
     restart: always
+    command: mongod --wiredTigerCacheSizeGB 0.5
     ports:
       - "27017:27017"
     volumes:
@@ -21,6 +23,12 @@ services:
     container_name: lambchat
     image: ghcr.io/yanyutin753/lambchat:latest
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
     ports:
       - "8000:8000"
     depends_on:
@@ -37,8 +45,11 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_API_BASE=${LLM_API_BASE:-https://api.openai.com/v1}
       - LLM_MODEL=${LLM_MODEL:-anthropic/claude-3-5-sonnet-20241022}
+      - LLM_MODEL_CACHE_SIZE=${LLM_MODEL_CACHE_SIZE:-50}
+      - SESSION_MAX_EVENTS_PER_TRACE=${SESSION_MAX_EVENTS_PER_TRACE:-10000}
       - LOG_LEVEL=INFO
       - ENABLE_MESSAGE_HISTORY=true
+      - EVENT_MERGE_INTERVAL=60
     volumes:
       - lamb-data:/app/data
       - ./workspace:/app/workspace

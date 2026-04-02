@@ -18,6 +18,7 @@ import type {
   AgentOption,
   MessageAttachment,
 } from "../../../types";
+import type { SessionConfigState } from "../../../hooks/useSessionConfig";
 
 interface ChatViewProps {
   messages: Message[];
@@ -66,6 +67,11 @@ interface ChatViewProps {
     settings?: { frontend?: Array<{ key: string; value: unknown }> };
   };
   i18n: { language?: string };
+  // 对话级配置
+  sessionConfig: SessionConfigState;
+  onToggleSessionSkill: (skillName: string) => void;
+  onToggleSessionMcpTool: (toolName: string) => void;
+  onSetSessionAgentOption: (key: string, value: boolean | string | number) => void;
 }
 
 export function ChatView({
@@ -104,6 +110,10 @@ export function ChatView({
   onAttachmentsChange,
   settings,
   i18n,
+  sessionConfig,
+  onToggleSessionSkill,
+  onToggleSessionMcpTool,
+  onSetSessionAgentOption,
 }: ChatViewProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -369,6 +379,10 @@ export function ChatView({
         onToggleAgentOption={onToggleAgentOption}
         attachments={attachments}
         onAttachmentsChange={onAttachmentsChange}
+        sessionConfig={sessionConfig}
+        onToggleSessionSkill={onToggleSessionSkill}
+        onToggleSessionMcpTool={onToggleSessionMcpTool}
+        onSetSessionAgentOption={onSetSessionAgentOption}
       />
     </>
   );

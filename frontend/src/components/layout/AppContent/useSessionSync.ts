@@ -2,12 +2,14 @@ import { useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import type { TabType } from "./types";
 import { shouldBlockSessionSelection } from "../../../utils/sessionSelectionGuard";
+import type { SessionConfig } from "../../../hooks/useAgent/types";
 
 interface UseSessionSyncOptions {
   activeTab: TabType;
   sessionId: string | null;
-  loadHistory: (sessionId: string) => Promise<void>;
+  loadHistory: (sessionId: string) => Promise<SessionConfig | null>;
   clearMessages: () => void;
+  onConfigRestored?: (config: SessionConfig) => void;
 }
 
 interface UseSessionSyncReturn {
@@ -81,6 +83,7 @@ export function useSessionSync({
   sessionId,
   loadHistory,
   clearMessages,
+  onConfigRestored,
 }: UseSessionSyncOptions): UseSessionSyncReturn {
   const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
   const location = useLocation();
@@ -98,6 +101,10 @@ export function useSessionSync({
   // Ref to store loadHistory to avoid stale closure in useEffect
   const loadHistoryRef = useRef(loadHistory);
   loadHistoryRef.current = loadHistory;
+
+  // Ref to store onConfigRestored callback
+  const onConfigRestoredRef = useRef(onConfigRestored);
+  onConfigRestoredRef.current = onConfigRestored;
 
   // Use ref to store location pathname to avoid triggering on every render
   const locationPathRef = useRef(location.pathname);
@@ -131,9 +138,15 @@ export function useSessionSync({
 
     if (urlSessionId && !isSyncingRef.current) {
       isSyncingRef.current = true;
-      loadHistory(urlSessionId).finally(() => {
-        scheduleSyncReset();
-      });
+      loadHistory(urlSessionId)
+        .then((config) => {
+          if (config && onConfigRestoredRef.current) {
+            onConfigRestoredRef.current(config);
+          }
+        })
+        .finally(() => {
+          scheduleSyncReset();
+        });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
@@ -158,9 +171,16 @@ export function useSessionSync({
     }
 
     isLoadingRef.current = true;
-    loadHistoryRef.current(urlSessionId).finally(() => {
-      isLoadingRef.current = false;
-    });
+    loadHistoryRef
+      .current(urlSessionId)
+      .then((config) => {
+        if (config && onConfigRestoredRef.current) {
+          onConfigRestoredRef.current(config);
+        }
+      })
+      .finally(() => {
+        isLoadingRef.current = false;
+      });
   }, [urlSessionId, sessionId]);
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
@@ -210,7 +230,12 @@ export function useSessionSync({
       try {
         const requestId = ++selectSessionRequestIdRef.current;
         isInternalNavRef.current = true;
-        await loadHistory(selectedSessionId);
+        const config = await loadHistory(selectedSessionId);
+
+        // 恢复配置
+        if (config && onConfigRestoredRef.current) {
+          onConfigRestoredRef.current(config);
+        }
 
         const latestPathname =
           typeof window !== "undefined" ? window.location.pathname : "";

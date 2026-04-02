@@ -159,6 +159,54 @@ export function useTools(disabledToolsVersion?: string) {
     return tools.filter((t) => !t.enabled).map((t) => t.name);
   }, [tools]);
 
+  /**
+   * 获取启用的 MCP 工具列表
+   * 用于配置持久化
+   */
+  const getEnabledMcpTools = useCallback(() => {
+    return tools
+      .filter((t) => t.category === "mcp" && t.enabled)
+      .map((t) => t.name);
+  }, [tools]);
+
+  /**
+   * 恢复 MCP Tools 配置
+   * 用于从 session metadata 恢复对话的 tools 状态
+   *
+   * @param enabledToolNames - 应该启用的 MCP tool 名称列表
+   */
+  const restoreMcpToolsConfig = useCallback(
+    (enabledToolNames: string[]) => {
+      console.log("[useTools] Restoring MCP tools config:", enabledToolNames);
+
+      const enabledSet = new Set(enabledToolNames);
+
+      setTools((prev) => {
+        const updated = prev.map((t) => {
+          // 只处理 MCP 工具
+          if (t.category !== "mcp") {
+            return t;
+          }
+
+          const shouldBeEnabled = enabledSet.has(t.name);
+          if (t.enabled !== shouldBeEnabled) {
+            updateDisabledTools(t.name, shouldBeEnabled);
+            return { ...t, enabled: shouldBeEnabled };
+          }
+          return t;
+        });
+
+        const changedCount = updated.filter(
+          (t, i) => t.enabled !== prev[i].enabled,
+        ).length;
+        console.log(`[useTools] Config restored: ${changedCount} tools changed`);
+
+        return updated;
+      });
+    },
+    [updateDisabledTools],
+  );
+
   // 获取启用的工具数量
   const enabledCount = useMemo(() => tools.filter((t) => t.enabled).length, [tools]);
 
@@ -190,6 +238,8 @@ export function useTools(disabledToolsVersion?: string) {
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
+    getEnabledMcpTools,
+    restoreMcpToolsConfig,
     refreshTools: fetchTools,
     refreshToolsForAgent,
   };

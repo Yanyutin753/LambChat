@@ -203,6 +203,25 @@ async def chat_stream(
             "user_message_written": True,
         }
 
+        # 更新 session metadata，存储完整的对话配置（排队状态）
+        session_manager = SessionManager()
+        from src.kernel.schemas.session import SessionUpdate
+
+        # 构建对话配置
+        conversation_config = {
+            "current_run_id": run_id,
+            "agent_id": agent_id,
+            "disabled_tools": request.disabled_tools or [],
+            "agent_options": request.agent_options or {},
+            "enabled_skills": request.enabled_skills or [],
+            "enabled_mcp_tools": request.enabled_mcp_tools or [],
+        }
+
+        await session_manager.update_session(
+            session_id,
+            SessionUpdate(metadata=conversation_config)
+        )
+
         return {
             "session_id": session_id,
             "run_id": run_id,
@@ -223,6 +242,25 @@ async def chat_stream(
         attachments=attachments_data,
         run_id=run_id,
         project_id=request.project_id,
+    )
+
+    # 更新 session metadata，存储完整的对话配置
+    session_manager = SessionManager()
+    from src.kernel.schemas.session import SessionUpdate
+
+    # 构建对话配置
+    conversation_config = {
+        "current_run_id": run_id,
+        "agent_id": agent_id,
+        "disabled_tools": request.disabled_tools or [],
+        "agent_options": request.agent_options or {},
+        "enabled_skills": request.enabled_skills or [],
+        "enabled_mcp_tools": request.enabled_mcp_tools or [],
+    }
+
+    await session_manager.update_session(
+        session_id,
+        SessionUpdate(metadata=conversation_config)
     )
 
     return {

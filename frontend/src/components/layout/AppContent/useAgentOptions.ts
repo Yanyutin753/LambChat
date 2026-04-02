@@ -29,9 +29,18 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
     [],
   );
 
+  // 从外部恢复配置
+  const restoreAgentOptions = useCallback(
+    (options: Record<string, boolean | string | number>) => {
+      setAgentOptionValues(options);
+    },
+    [],
+  );
+
   return {
     agentOptionValues,
     currentAgentOptions,
     handleToggleAgentOption,
+    restoreAgentOptions,
   };
 }

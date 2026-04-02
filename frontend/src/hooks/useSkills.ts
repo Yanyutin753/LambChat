@@ -350,6 +350,44 @@ export function useSkills(options?: { enabled?: boolean }) {
     return skills.filter((s) => s.enabled).map((s) => s.name);
   }, [skills]);
 
+  /**
+   * 恢复 skills 配置
+   * 用于从 session metadata 恢复对话的 skills 状态
+   *
+   * @param enabledSkillNames - 应该启用的 skill 名称列表
+   */
+  const restoreSkillsConfig = useCallback(
+    async (enabledSkillNames: string[]) => {
+      console.log("[useSkills] Restoring skills config:", enabledSkillNames);
+
+      const enabledSet = new Set(enabledSkillNames);
+
+      // 批量更新：需要启用的和需要禁用的
+      const toEnable = skills
+        .filter((s) => enabledSet.has(s.name) && !s.enabled)
+        .map((s) => s.name);
+
+      const toDisable = skills
+        .filter((s) => !enabledSet.has(s.name) && s.enabled)
+        .map((s) => s.name);
+
+      // 先禁用不需要的
+      if (toDisable.length > 0) {
+        await batchToggleSkills(toDisable, false);
+      }
+
+      // 再启用需要的
+      if (toEnable.length > 0) {
+        await batchToggleSkills(toEnable, true);
+      }
+
+      console.log(
+        `[useSkills] Config restored: enabled ${toEnable.length}, disabled ${toDisable.length}`,
+      );
+    },
+    [skills, batchToggleSkills],
+  );
+
   // Get category stats
   const getCategoryStats = useCallback(() => {
     const stats: Record<SkillSource, { enabled: number; total: number }> = {
@@ -544,6 +582,7 @@ export function useSkills(options?: { enabled?: boolean }) {
     pendingSkillNames,
     isMutating,
     getEnabledSkillNames,
+    restoreSkillsConfig,
     getCategoryStats,
     enabledCount,
     totalCount,

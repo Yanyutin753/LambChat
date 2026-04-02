@@ -119,6 +119,11 @@ class LLMClient:
     _model_cache: dict[tuple, BaseChatModel] = {}
 
     @staticmethod
+    def _get_max_cache_size() -> int:
+        """获取最大缓存大小（可配置）"""
+        return getattr(settings, 'LLM_MODEL_CACHE_SIZE', 50)
+
+    @staticmethod
     def _create_model(
         provider: str,
         model_name: str,
@@ -193,6 +198,29 @@ class LLMClient:
 
         if cache_key in LLMClient._model_cache:
             return LLMClient._model_cache[cache_key]
+
+        # LRU 淘汰：如果缓存满了，删除最旧的
+        max_cache_size = LLMClient._get_max_cache_size()
+        if len(LLMClient._model_cache) >= max_cache_size:
+            # 删除第一个（最旧的）
+            oldest_key = next(iter(LLMClient._model_cache))
+            oldest_model = LLMClient._model_cache.pop(oldest_key)
+
+            # 尝试关闭 HTTP 客户端连接池，防止连接泄漏
+            try:
+                # ChatAnthropic 和 ChatOpenAI 使用 httpx.AsyncClient
+                if hasattr(oldest_model, 'async_client'):
+                    client = oldest_model.async_client
+                    if hasattr(client, 'aclose'):
+                        asyncio.create_task(client.aclose())
+                elif hasattr(oldest_model, 'client'):
+                    client = oldest_model.client
+                    if hasattr(client, 'aclose'):
+                        asyncio.create_task(client.aclose())
+            except Exception as e:
+                logger.debug(f"Failed to close LLM client connections: {e}")
+
+            logger.info(f"LLM cache full ({max_cache_size}), evicted oldest model")
 
         logger.info(f"Creating {provider} model: {model_name}")
         instance = LLMClient._create_model(
