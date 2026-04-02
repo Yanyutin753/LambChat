@@ -16,7 +16,6 @@ from typing import Any, Callable, Optional
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.types import (
-    EXCLUDED_CONTENT_PATTERNS,
     HIGH_SIGNAL_PATTERNS,
     MemoryType,
 )
