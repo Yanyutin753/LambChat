@@ -967,6 +967,28 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "is_sensitive": True,
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
+    "NATIVE_MEMORY_RERANK_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Dedicated rerank model for native memory recall. Leave empty to use local reranking.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_RERANK_API_BASE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API base URL for the native memory rerank model endpoint.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_RERANK_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API key for the native memory rerank model endpoint.",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
     "NATIVE_MEMORY_MAX_TOKENS": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.MEMORY,

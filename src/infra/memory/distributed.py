@@ -24,6 +24,8 @@ MEMORY_INVALIDATION_CHANNEL = "memory:invalidated"
 # Distributed lock keys
 CONSOLIDATION_LOCK_KEY = "memory:consolidation_lock:{user_id}"
 CONSOLIDATION_LOCK_TTL = 120  # seconds
+AUTO_CAPTURE_LOCK_KEY = "memory:auto_capture_lock:{user_id}"
+AUTO_CAPTURE_LOCK_TTL = 30  # seconds
 
 # Maximum reconnect delay (seconds)
 _MAX_RECONNECT_DELAY = 30
@@ -91,6 +93,35 @@ async def release_consolidation_lock(user_id: str, instance_id: str) -> None:
         await redis_client.eval(lua, 1, lock_key, instance_id)  # type: ignore[misc]
     except Exception as e:
         logger.debug("[Memory] Failed to release consolidation lock for %s: %s", user_id, e)
+
+
+async def acquire_auto_capture_lock(user_id: str, instance_id: str) -> str:
+    """Try to acquire a distributed lock for background auto memory capture."""
+    try:
+        redis_client = get_redis_client()
+        lock_key = AUTO_CAPTURE_LOCK_KEY.format(user_id=user_id)
+        acquired = await redis_client.set(lock_key, instance_id, nx=True, ex=AUTO_CAPTURE_LOCK_TTL)
+        return "acquired" if acquired else "not_acquired"
+    except Exception as e:
+        logger.debug("[Memory] Failed to acquire auto-capture lock for %s: %s", user_id, e)
+        return "unavailable"
+
+
+async def release_auto_capture_lock(user_id: str, instance_id: str) -> None:
+    """Release the auto-capture lock (only if we own it)."""
+    try:
+        redis_client = get_redis_client()
+        lock_key = AUTO_CAPTURE_LOCK_KEY.format(user_id=user_id)
+        lua = """
+        if redis.call("GET", KEYS[1]) == ARGV[1] then
+            return redis.call("DEL", KEYS[1])
+        else
+            return 0
+        end
+        """
+        await redis_client.eval(lua, 1, lock_key, instance_id)  # type: ignore[misc]
+    except Exception as e:
+        logger.debug("[Memory] Failed to release auto-capture lock for %s: %s", user_id, e)
 
 
 # ============================================================================

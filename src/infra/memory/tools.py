@@ -8,6 +8,7 @@ are identical regardless of which memory provider is active.
 
 import asyncio
 import json
+import uuid
 from typing import Annotated, Optional
 
 from langchain.tools import ToolRuntime, tool
@@ -25,6 +26,22 @@ _backend: Optional[MemoryBackend] = None
 _backend_lock: Optional[asyncio.Lock] = None
 _backend_lock_loop: Optional[asyncio.AbstractEventLoop] = None
 _background_tasks: set[asyncio.Task] = set()
+_auto_capture_user_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_auto_capture_lock_fns():
+    from src.infra.memory.distributed import acquire_auto_capture_lock, release_auto_capture_lock
+
+    return acquire_auto_capture_lock, release_auto_capture_lock
+
+
+def _cleanup_local_auto_capture_lock(user_id: str, lock: asyncio.Lock) -> None:
+    waiters = getattr(lock, "_waiters", None)
+    has_waiters = bool(waiters) if waiters is not None else False
+    if not lock.locked() and not has_waiters:
+        current = _auto_capture_user_locks.get(user_id)
+        if current is lock:
+            _auto_capture_user_locks.pop(user_id, None)
 
 
 def _get_backend_lock() -> asyncio.Lock:
@@ -256,11 +273,26 @@ def _background_task_error(task: asyncio.Task) -> None:
 async def _auto_retain_user_memory(user_id: str, user_input: str) -> None:
     if not user_id or not user_input.strip():
         return
-    backend = await _get_backend()
-    if backend is None or backend.name != "native":
-        return
-    if hasattr(backend, "auto_retain_from_text"):
-        await backend.auto_retain_from_text(user_id, user_input)
+    lock = _auto_capture_user_locks.get(user_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _auto_capture_user_locks[user_id] = lock
+    async with lock:
+        instance_id = uuid.uuid4().hex[:8]
+        acquire_lock, release_lock = _get_auto_capture_lock_fns()
+        lock_state = await acquire_lock(user_id, instance_id)
+        if lock_state != "acquired":
+            _cleanup_local_auto_capture_lock(user_id, lock)
+            return
+        try:
+            backend = await _get_backend()
+            if backend is None or backend.name != "native":
+                return
+            if hasattr(backend, "auto_retain_from_text"):
+                await backend.auto_retain_from_text(user_id, user_input)
+        finally:
+            await release_lock(user_id, instance_id)
+    _cleanup_local_auto_capture_lock(user_id, lock)
 
 
 def schedule_auto_memory_capture(user_id: str, user_input: str) -> None:
@@ -336,6 +368,7 @@ async def shutdown() -> None:
     _backend = None
     _backend_lock = None
     _backend_lock_loop = None
+    _auto_capture_user_locks.clear()
     if backend is not None:
         try:
             await backend.close()

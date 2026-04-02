@@ -378,7 +378,14 @@ class NativeMemoryBackend(MemoryBackend):
         return {"success": True, "stored": stored, "candidates": len(tool_calls)}
 
     async def _get_auto_retain_candidates(self, user_id: str, text: str) -> list[dict[str, Any]]:
-        result = await self.recall(user_id, text, max_results=5)
+        result = await recall_memories(
+            self,
+            user_id,
+            text,
+            max_results=5,
+            touch_access=False,
+            enable_rerank=False,
+        )
         if not result.get("success"):
             return []
         return list(result.get("memories") or [])

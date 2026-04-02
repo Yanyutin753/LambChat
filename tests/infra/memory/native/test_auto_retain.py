@@ -157,3 +157,26 @@ async def test_auto_retain_from_text_can_target_existing_memory_id():
             "m-existing",
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_auto_retain_candidates_does_not_touch_access_stats(monkeypatch):
+    from src.infra.memory.client.native import backend as backend_module
+
+    backend = NativeMemoryBackend()
+
+    async def fake_recall(*_args, **kwargs):
+        assert kwargs["touch_access"] is False
+        assert kwargs["enable_rerank"] is False
+        return {
+            "success": True,
+            "query": "duckdb",
+            "memories": [{"memory_id": "m1", "summary": "Prefers DuckDB", "type": "user"}],
+            "search_mode": "text",
+        }
+
+    monkeypatch.setattr(backend_module, "recall_memories", fake_recall)
+
+    candidates = await backend._get_auto_retain_candidates("u1", "duckdb")
+
+    assert candidates == [{"memory_id": "m1", "summary": "Prefers DuckDB", "type": "user"}]

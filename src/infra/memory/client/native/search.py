@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import json
 import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+import httpx
+
 from src.infra.memory.client.native.content import hydrate_formatted_memory
 from src.infra.memory.client.native.models import (
     STOPWORDS,
+    char_ngrams,
     cosine_similarity,
     ensure_aware,
     has_cjk,
@@ -223,60 +225,114 @@ async def vector_search(
     return [format_memory(d, sim) for sim, d in scored[:limit]]
 
 
-async def llm_rerank(
-    backend, user_id: str, query: str, candidates: list[dict], max_results: int
-) -> list[dict]:
+def _query_terms(query: str) -> set[str]:
+    normalized = query.strip().lower()
+    if not normalized:
+        return set()
+    if has_cjk(normalized):
+        return char_ngrams(normalized, 2) | char_ngrams(normalized, 3)
+    return {w for w in re.findall(r"\w+", normalized) if len(w) >= 2 and w not in STOPWORDS}
+
+
+def _field_overlap_score(query_terms: set[str], text: str) -> float:
+    if not query_terms or not text.strip():
+        return 0.0
+    lowered = text.lower()
+    if has_cjk(lowered):
+        field_terms = char_ngrams(lowered, 2) | char_ngrams(lowered, 3)
+    else:
+        field_terms = {w for w in re.findall(r"\w+", lowered) if len(w) >= 2 and w not in STOPWORDS}
+    if not field_terms:
+        return 0.0
+    overlap = len(query_terms & field_terms)
+    coverage = overlap / max(len(query_terms), 1)
+    density = overlap / max(len(field_terms), 1)
+    return coverage * 0.7 + density * 0.3
+
+
+def local_rerank(query: str, candidates: list[dict], max_results: int) -> list[dict]:
+    query_terms = _query_terms(query)
+
+    def score(candidate: dict) -> tuple[float, float, float, float]:
+        title_score = _field_overlap_score(query_terms, str(candidate.get("title", "")))
+        summary_score = _field_overlap_score(query_terms, str(candidate.get("summary", "")))
+        text_score = _field_overlap_score(query_terms, str(candidate.get("text", "")))
+        base_score = float(candidate.get("score", 0.0) or 0.0)
+        blended = base_score + title_score * 0.8 + summary_score * 0.6 + text_score * 0.3
+        return (
+            blended,
+            title_score,
+            summary_score,
+            text_score,
+        )
+
+    ranked = sorted(candidates, key=score, reverse=True)
+    return ranked[:max_results]
+
+
+async def rerank_candidates(query: str, candidates: list[dict], max_results: int) -> list[dict]:
+    rerank_model = getattr(settings, "NATIVE_MEMORY_RERANK_MODEL", "") or ""
+    api_base = getattr(settings, "NATIVE_MEMORY_RERANK_API_BASE", "") or ""
+    api_key = getattr(settings, "NATIVE_MEMORY_RERANK_API_KEY", "") or ""
+
+    if not rerank_model or not api_base or not api_key or len(candidates) <= 1:
+        return local_rerank(query, candidates, max_results)
+
+    documents = [
+        "\n".join(
+            part
+            for part in (
+                str(candidate.get("title", "")).strip(),
+                str(candidate.get("summary", "")).strip(),
+                str(candidate.get("text", "")).strip(),
+            )
+            if part
+        )
+        for candidate in candidates
+    ]
+
     try:
-        from langchain_core.messages import HumanMessage, SystemMessage
+        async with httpx.AsyncClient(
+            base_url=api_base.rstrip("/"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=httpx.Timeout(15.0),
+        ) as client:
+            response = await client.post(
+                "/v1/rerank",
+                json={
+                    "model": rerank_model,
+                    "query": query,
+                    "documents": documents,
+                    "top_n": max_results,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+    except Exception:
+        return local_rerank(query, candidates, max_results)
 
-        model = backend._get_memory_model()
+    results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(results, list):
+        return local_rerank(query, candidates, max_results)
 
-        items_text = "\n".join(f"[{i}] {m['summary']}" for i, m in enumerate(candidates))
+    ranked: list[dict] = []
+    seen: set[int] = set()
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        idx = item.get("index")
+        if not isinstance(idx, int) or idx < 0 or idx >= len(candidates) or idx in seen:
+            continue
+        candidate = dict(candidates[idx])
+        if "relevance_score" in item:
+            candidate["score"] = float(item["relevance_score"])
+        ranked.append(candidate)
+        seen.add(idx)
 
-        prompt = (
-            f"Query: {query}\n\n"
-            f"Ranked by relevance:\n{items_text}\n\n"
-            f"Return a JSON array of up to {max_results} index numbers (most relevant first). "
-            "Be strict — only include memories that are genuinely useful for this query."
-        )
-
-        response = await model.ainvoke(
-            [
-                SystemMessage(
-                    content="You rank memory relevance. Output only a JSON array of numbers, e.g. [0, 3, 1]."
-                ),
-                HumanMessage(content=prompt),
-            ],
-        )
-
-        text = response.content
-        if isinstance(text, list):
-            for item in text:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text = item.get("text", "")
-                    break
-            else:
-                return candidates[:max_results]
-        text = str(text).strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-
-        indices = json.loads(text)
-        if not isinstance(indices, list):
-            return candidates[:max_results]
-
-        ranked = []
-        for idx in indices:
-            if isinstance(idx, (int, float)) and 0 <= int(idx) < len(candidates):
-                ranked.append(candidates[int(idx)])
-        return ranked[:max_results] if ranked else candidates[:max_results]
-
-    except Exception as e:
-        backend._logger.debug("[NativeMemory] LLM rerank failed, using RRF order: %s", e)
-        return candidates[:max_results]
+    return ranked[:max_results] if ranked else local_rerank(query, candidates, max_results)
 
 
 def rrf_merge(
@@ -306,6 +362,8 @@ async def recall_memories(
     query: str,
     max_results: int = 5,
     memory_types: Optional[list[str]] = None,
+    touch_access: bool = True,
+    enable_rerank: bool = True,
 ) -> dict[str, Any]:
     text_results = await text_search(
         backend._collection, backend._logger, user_id, query, max_results * 2, memory_types
@@ -323,14 +381,15 @@ async def recall_memories(
             backend._collection, user_id, max_results * 2, memory_types
         )
 
-    if memories and len(memories) > max_results:
-        memories = await llm_rerank(backend, user_id, query, memories, max_results)
+    if enable_rerank and memories and len(memories) > max_results:
+        memories = await rerank_candidates(query, memories, max_results)
         memories = prioritize_sources(memories)
 
     if memories:
         memories = memories[:max_results]
         memories = [await hydrate_formatted_memory(backend, memory) for memory in memories]
-        await backend._update_access_stats([m["memory_id"] for m in memories])
+        if touch_access:
+            await backend._update_access_stats([m["memory_id"] for m in memories])
 
     return {
         "success": True,
