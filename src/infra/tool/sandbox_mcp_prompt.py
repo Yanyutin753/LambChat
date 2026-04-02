@@ -191,8 +191,7 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
     lines = [
         "## Sandbox MCP Tools",
         "",
-        "MCP tools available in your sandbox, managed via `mcporter`. "
-        "NOT part of `search_tools`.",
+        "MCP tools available in your sandbox, managed via `mcporter`. NOT part of `search_tools`.",
         "",
         "**Discovery**",
         "- `mcporter list` — list all servers and tools",
@@ -200,7 +199,7 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
         "",
         "**Invocation** — `mcporter call server.tool <args>`:",
         "- Named args: `mcporter call server.tool key=value` (values with spaces MUST be quoted)",
-        "- JSON payload: `mcporter call server.tool --args '{\"key\": \"value\"}'` (for complex params)",
+        '- JSON payload: `mcporter call server.tool --args \'{"key": "value"}\'` (for complex params)',
         "",
         "Do NOT use `--flag value` syntax — that passes `value` as a positional arg.",
         "",
