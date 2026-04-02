@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { uploadApi } from "../services/api";
@@ -61,17 +61,27 @@ export function useFileUpload({
   const abortMapRef = useRef<Map<string, () => void>>(new Map());
 
   // Fetch upload limits once
-  if (!limitsFetched.current) {
+  useEffect(() => {
+    if (limitsFetched.current) {
+      return;
+    }
+
     limitsFetched.current = true;
+    let isMounted = true;
+
     uploadApi
       .getConfig()
       .then((config) => {
-        if (config.uploadLimits) {
+        if (isMounted && config.uploadLimits) {
           setUploadLimits(config.uploadLimits);
         }
       })
       .catch(() => {});
-  }
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   /** Validate file size, returns true if ok */
   const validateSize = useCallback(

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFileUpload } from "../../../hooks/useFileUpload";
 import type { MessageAttachment } from "../../../types";
+import { shouldHandleGlobalFileDrop } from "./globalFileDropGuards";
 
 export function useDragAndDrop() {
   const [isPageDragging, setIsPageDragging] = useState(false);
@@ -16,8 +17,17 @@ export function useDragAndDrop() {
   const dragCounterRef = useRef(0);
 
   useEffect(() => {
+    const resetDragState = () => {
+      dragCounterRef.current = 0;
+      setIsPageDragging(false);
+    };
+
     const handleDragEnter = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) {
+        if (!shouldHandleGlobalFileDrop(e)) {
+          resetDragState();
+          return;
+        }
         e.preventDefault();
         dragCounterRef.current++;
         if (dragCounterRef.current === 1) {
@@ -28,17 +38,24 @@ export function useDragAndDrop() {
 
     const handleDragLeave = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) {
+        if (!shouldHandleGlobalFileDrop(e)) {
+          resetDragState();
+          return;
+        }
         dragCounterRef.current--;
         if (dragCounterRef.current <= 0) {
-          dragCounterRef.current = 0;
-          setIsPageDragging(false);
+          resetDragState();
         }
       }
     };
 
     const handleDrop = (e: DragEvent) => {
-      dragCounterRef.current = 0;
-      setIsPageDragging(false);
+      if (!shouldHandleGlobalFileDrop(e)) {
+        resetDragState();
+        return;
+      }
+
+      resetDragState();
 
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
@@ -52,6 +69,10 @@ export function useDragAndDrop() {
 
     const handleDragOver = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("Files")) {
+        if (!shouldHandleGlobalFileDrop(e)) {
+          resetDragState();
+          return;
+        }
         e.preventDefault();
       }
     };

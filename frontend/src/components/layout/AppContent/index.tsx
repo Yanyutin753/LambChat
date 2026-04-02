@@ -1,4 +1,11 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { SessionSidebar } from "../../panels/SessionSidebar";
@@ -10,7 +17,8 @@ import { useTools } from "../../../hooks/useTools";
 import { useSkills } from "../../../hooks/useSkills";
 import { useVersion } from "../../../hooks/useVersion";
 import { useProjectManager } from "../../../hooks/useProjectManager";
-import { Permission } from "../../../types";
+import { Permission, type AgentInfo, type Project } from "../../../types";
+import type { VersionInfo } from "../../../types";
 import type { TabType } from "./types";
 import { useDragAndDrop } from "./useDragAndDrop";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
@@ -24,20 +32,105 @@ interface AppContentProps {
   activeTab: TabType;
 }
 
-export function AppContent({ activeTab }: AppContentProps) {
+interface AppShellProps {
+  activeTab: TabType;
+  showProfileModal: boolean;
+  onCloseProfileModal: () => void;
+  versionInfo: VersionInfo | null;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setMobileSidebarOpen: (open: boolean) => void;
+  agents: AgentInfo[];
+  currentAgent: string;
+  agentsLoading: boolean;
+  onSelectAgent: (id: string) => void;
+  currentProjectId: string | null;
+  projectManager: { projects: Project[] };
+  onNewSession: () => void;
+  onShowProfile: () => void;
+  sidebar?: ReactNode;
+  children: ReactNode;
+}
+
+function AppShell({
+  activeTab,
+  showProfileModal,
+  onCloseProfileModal,
+  versionInfo,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  setMobileSidebarOpen,
+  agents,
+  currentAgent,
+  agentsLoading,
+  onSelectAgent,
+  currentProjectId,
+  projectManager,
+  onNewSession,
+  onShowProfile,
+  sidebar,
+  children,
+}: AppShellProps) {
+  return (
+    <>
+      <ProfileModal
+        showProfileModal={showProfileModal}
+        onCloseProfileModal={onCloseProfileModal}
+        versionInfo={versionInfo}
+      />
+
+      <div className="flex h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-900">
+        {sidebar}
+
+        <div className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden">
+          <Header
+            activeTab={activeTab}
+            sidebarCollapsed={sidebarCollapsed}
+            setSidebarCollapsed={setSidebarCollapsed}
+            setMobileSidebarOpen={setMobileSidebarOpen}
+            agents={agents}
+            currentAgent={currentAgent}
+            agentsLoading={agentsLoading}
+            onSelectAgent={onSelectAgent}
+            currentProjectId={currentProjectId}
+            projectManager={projectManager}
+            onNewSession={onNewSession}
+            onShowProfile={onShowProfile}
+          />
+
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ChatAppContent({
+  showProfileModal,
+  onCloseProfileModal,
+  versionInfo,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  mobileSidebarOpen,
+  setMobileSidebarOpen,
+  onShowProfile,
+}: {
+  showProfileModal: boolean;
+  onCloseProfileModal: () => void;
+  versionInfo: VersionInfo | null;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+  onShowProfile: () => void;
+}) {
   const { t, i18n } = useTranslation();
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-
   const { enableSkills, settings } = useSettingsContext();
-  const { versionInfo } = useVersion();
+  const { hasPermission, isAuthenticated, user } = useAuth();
 
-  // Page-level drag & drop
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
     useDragAndDrop();
 
-  // Approvals
   const {
     approvals,
     respondToApproval,
@@ -46,12 +139,6 @@ export function AppContent({ activeTab }: AppContentProps) {
     isLoading: approvalLoading,
   } = useApprovals({ sessionId: null });
 
-  // Auth & permissions (needed before useTools for disabledToolsVersion)
-  const { hasPermission, isAuthenticated, user } = useAuth();
-
-  // Derive a version key from disabled_tools so useTools re-fetches when they change
-  // (e.g. when user toggles a tool in MCPServerCard)
-  // Use sorted JSON string as dependency so only actual content changes trigger refetch
   const disabledToolsVersion = useMemo(
     () =>
       JSON.stringify(
@@ -62,7 +149,6 @@ export function AppContent({ activeTab }: AppContentProps) {
     [user?.metadata?.disabled_tools],
   );
 
-  // Tools
   const {
     tools,
     isLoading: toolsLoading,
@@ -75,7 +161,6 @@ export function AppContent({ activeTab }: AppContentProps) {
     refreshToolsForAgent,
   } = useTools(disabledToolsVersion);
 
-  // Skills
   const {
     skills,
     isLoading: skillsLoading,
@@ -91,7 +176,6 @@ export function AppContent({ activeTab }: AppContentProps) {
 
   const projectManager = useProjectManager();
 
-  // Agent
   const {
     messages,
     sessionId,
@@ -124,11 +208,7 @@ export function AppContent({ activeTab }: AppContentProps) {
       clearApprovals();
     },
     getEnabledTools: getDisabledToolNames,
-    onSkillAdded: (
-      skillName: string,
-      _description: string,
-      filesCount: number,
-    ) => {
+    onSkillAdded: (skillName: string, _description: string, filesCount: number) => {
       console.log(
         `[AppContent] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
       );
@@ -136,7 +216,6 @@ export function AppContent({ activeTab }: AppContentProps) {
     },
   });
 
-  // Re-fetch tools when currentAgent changes (for sandbox filtering)
   const prevAgentRef = useRef(currentAgent);
   useEffect(() => {
     if (prevAgentRef.current !== currentAgent) {
@@ -145,16 +224,13 @@ export function AppContent({ activeTab }: AppContentProps) {
     }
   }, [currentAgent, refreshToolsForAgent, user?.metadata]);
 
-  // Agent options
   const { agentOptionValues, currentAgentOptions, handleToggleAgentOption } =
     useAgentOptions(agents, currentAgent);
 
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
 
-  // WebSocket notifications
   useWebSocketNotifications({ sessionId, enabled: isAuthenticated });
 
-  // Session name
   const [sessionName, setSessionName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -162,6 +238,7 @@ export function AppContent({ activeTab }: AppContentProps) {
       setSessionName(null);
       return;
     }
+
     const fetchSessionName = async () => {
       try {
         const { sessionApi } = await import("../../../services/api");
@@ -172,6 +249,7 @@ export function AppContent({ activeTab }: AppContentProps) {
         setSessionName(null);
       }
     };
+
     fetchSessionName();
   }, [sessionId]);
 
@@ -181,49 +259,68 @@ export function AppContent({ activeTab }: AppContentProps) {
     }
   }, [newlyCreatedSession?.name, newlyCreatedSession?.id, sessionId]);
 
-  // Session sync
   const { handleSelectSession, handleNewSession } = useSessionSync({
-    activeTab,
+    activeTab: "chat",
     sessionId,
     loadHistory,
     clearMessages,
   });
 
-  // Stable callbacks to prevent child re-renders
-  const handleCloseProfileModal = useCallback(
-    () => setShowProfileModal(false),
-    [],
-  );
-  const handleShowProfile = useCallback(() => setShowProfileModal(true), []);
-  const handleMobileClose = useCallback(() => setMobileSidebarOpen(false), []);
+  const handleMobileClose = useCallback(() => setMobileSidebarOpen(false), [
+    setMobileSidebarOpen,
+  ]);
   const handleSelectSessionAndClose = useCallback(
     (id: string) => {
       handleSelectSession(id);
       setMobileSidebarOpen(false);
     },
-    [handleSelectSession],
+    [handleSelectSession, setMobileSidebarOpen],
   );
   const handleNewSessionAndClose = useCallback(() => {
     handleNewSession();
     setMobileSidebarOpen(false);
-  }, [handleNewSession]);
+  }, [handleNewSession, setMobileSidebarOpen]);
 
   return (
-    <>
-      <ProfileModal
-        showProfileModal={showProfileModal}
-        onCloseProfileModal={handleCloseProfileModal}
-        versionInfo={versionInfo}
-      />
-
-      <div className="flex h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-900">
-        {/* Drag overlay */}
+    <AppShell
+      activeTab="chat"
+      showProfileModal={showProfileModal}
+      onCloseProfileModal={onCloseProfileModal}
+      versionInfo={versionInfo}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      setMobileSidebarOpen={setMobileSidebarOpen}
+      agents={agents}
+      currentAgent={currentAgent}
+      agentsLoading={agentsLoading}
+      onSelectAgent={selectAgent}
+      currentProjectId={currentProjectId}
+      projectManager={projectManager}
+      onNewSession={handleNewSession}
+      onShowProfile={onShowProfile}
+      sidebar={
+        <SessionSidebar
+          currentSessionId={sessionId}
+          onSelectSession={handleSelectSessionAndClose}
+          onNewSession={handleNewSessionAndClose}
+          onSetPendingProjectId={setPendingProjectId}
+          autoExpandProjectId={autoExpandProjectId}
+          newSession={newlyCreatedSession}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={handleMobileClose}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapsed={setSidebarCollapsed}
+          onShowProfile={onShowProfile}
+        />
+      }
+    >
+      <>
         {isPageDragging && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-500/5 dark:bg-stone-500/10  transition-colors">
-            <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-stone-400 dark:border-stone-500 bg-white/95 dark:bg-stone-800/95 px-16 py-12 shadow-xl transition-colors">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-500/5 transition-colors dark:bg-stone-500/10">
+            <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-stone-400 bg-white/95 px-16 py-12 shadow-xl transition-colors dark:border-stone-500 dark:bg-stone-800/95">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-12 h-12 text-stone-500 dark:text-stone-400"
+                className="h-12 w-12 text-stone-500 dark:text-stone-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={1.5}
@@ -242,83 +339,127 @@ export function AppContent({ activeTab }: AppContentProps) {
           </div>
         )}
 
-        {/* Session Sidebar */}
-        {activeTab === "chat" && (
-          <SessionSidebar
-            currentSessionId={sessionId}
-            onSelectSession={handleSelectSessionAndClose}
-            onNewSession={handleNewSessionAndClose}
-            onSetPendingProjectId={setPendingProjectId}
-            autoExpandProjectId={autoExpandProjectId}
-            newSession={newlyCreatedSession}
-            mobileOpen={mobileSidebarOpen}
-            onMobileClose={handleMobileClose}
-            isCollapsed={sidebarCollapsed}
-            onToggleCollapsed={setSidebarCollapsed}
-            onShowProfile={handleShowProfile}
-          />
-        )}
+        <ChatView
+          messages={messages}
+          sessionId={sessionId}
+          sessionName={sessionName}
+          currentRunId={currentRunId}
+          isLoading={isLoading}
+          canSendMessage={canSendMessage}
+          tools={tools}
+          onToggleTool={toggleTool}
+          onToggleCategory={toggleCategory}
+          onToggleAll={toggleAll}
+          toolsLoading={toolsLoading}
+          enabledToolsCount={enabledToolsCount}
+          totalToolsCount={totalToolsCount}
+          skills={skills}
+          onToggleSkill={toggleSkillWrapper}
+          onToggleSkillCategory={toggleSkillCategory}
+          onToggleAllSkills={toggleAllSkills}
+          skillsLoading={skillsLoading}
+          pendingSkillNames={pendingSkillNames}
+          skillsMutating={skillsMutating}
+          enabledSkillsCount={enabledSkillsCount}
+          totalSkillsCount={totalSkillsCount}
+          enableSkills={enableSkills}
+          agentOptions={currentAgentOptions}
+          agentOptionValues={agentOptionValues}
+          onToggleAgentOption={handleToggleAgentOption}
+          approvals={approvals}
+          onRespondApproval={respondToApproval}
+          approvalLoading={approvalLoading}
+          onSendMessage={sendMessage}
+          onStopGeneration={stopGeneration}
+          attachments={pageDragAttachments}
+          onAttachmentsChange={setPageDragAttachments}
+          settings={settings || {}}
+          i18n={i18n}
+        />
+      </>
+    </AppShell>
+  );
+}
 
-        {/* Main Content */}
-        <div className="relative z-0 flex flex-1 flex-col min-w-0 overflow-hidden">
-          <Header
-            activeTab={activeTab}
-            sidebarCollapsed={sidebarCollapsed}
-            setSidebarCollapsed={setSidebarCollapsed}
-            setMobileSidebarOpen={setMobileSidebarOpen}
-            agents={agents}
-            currentAgent={currentAgent}
-            agentsLoading={agentsLoading}
-            onSelectAgent={selectAgent}
-            currentProjectId={currentProjectId}
-            projectManager={projectManager}
-            onNewSession={handleNewSession}
-            onShowProfile={handleShowProfile}
-          />
+function NonChatAppContent({
+  activeTab,
+  showProfileModal,
+  onCloseProfileModal,
+  versionInfo,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  setMobileSidebarOpen,
+  onShowProfile,
+}: {
+  activeTab: Exclude<TabType, "chat">;
+  showProfileModal: boolean;
+  onCloseProfileModal: () => void;
+  versionInfo: VersionInfo | null;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setMobileSidebarOpen: (open: boolean) => void;
+  onShowProfile: () => void;
+}) {
+  return (
+    <AppShell
+      activeTab={activeTab}
+      showProfileModal={showProfileModal}
+      onCloseProfileModal={onCloseProfileModal}
+      versionInfo={versionInfo}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      setMobileSidebarOpen={setMobileSidebarOpen}
+      agents={[]}
+      currentAgent=""
+      agentsLoading={false}
+      onSelectAgent={() => {}}
+      currentProjectId={null}
+      projectManager={{ projects: [] }}
+      onNewSession={() => {}}
+      onShowProfile={onShowProfile}
+    >
+      <TabContent activeTab={activeTab} />
+    </AppShell>
+  );
+}
 
-          {activeTab === "chat" ? (
-            <ChatView
-              messages={messages}
-              sessionId={sessionId}
-              sessionName={sessionName}
-              currentRunId={currentRunId}
-              isLoading={isLoading}
-              canSendMessage={canSendMessage}
-              tools={tools}
-              onToggleTool={toggleTool}
-              onToggleCategory={toggleCategory}
-              onToggleAll={toggleAll}
-              toolsLoading={toolsLoading}
-              enabledToolsCount={enabledToolsCount}
-              totalToolsCount={totalToolsCount}
-              skills={skills}
-              onToggleSkill={toggleSkillWrapper}
-              onToggleSkillCategory={toggleSkillCategory}
-              onToggleAllSkills={toggleAllSkills}
-              skillsLoading={skillsLoading}
-              pendingSkillNames={pendingSkillNames}
-              skillsMutating={skillsMutating}
-              enabledSkillsCount={enabledSkillsCount}
-              totalSkillsCount={totalSkillsCount}
-              enableSkills={enableSkills}
-              agentOptions={currentAgentOptions}
-              agentOptionValues={agentOptionValues}
-              onToggleAgentOption={handleToggleAgentOption}
-              approvals={approvals}
-              onRespondApproval={respondToApproval}
-              approvalLoading={approvalLoading}
-              onSendMessage={sendMessage}
-              onStopGeneration={stopGeneration}
-              attachments={pageDragAttachments}
-              onAttachmentsChange={setPageDragAttachments}
-              settings={settings || {}}
-              i18n={i18n}
-            />
-          ) : (
-            <TabContent activeTab={activeTab} />
-          )}
-        </div>
-      </div>
-    </>
+export function AppContent({ activeTab }: AppContentProps) {
+  const { versionInfo } = useVersion();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const handleCloseProfileModal = useCallback(
+    () => setShowProfileModal(false),
+    [],
+  );
+  const handleShowProfile = useCallback(() => setShowProfileModal(true), []);
+
+  if (activeTab === "chat") {
+    return (
+      <ChatAppContent
+        showProfileModal={showProfileModal}
+        onCloseProfileModal={handleCloseProfileModal}
+        versionInfo={versionInfo}
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+        mobileSidebarOpen={mobileSidebarOpen}
+        setMobileSidebarOpen={setMobileSidebarOpen}
+        onShowProfile={handleShowProfile}
+      />
+    );
+  }
+
+  return (
+    <NonChatAppContent
+      activeTab={activeTab}
+      showProfileModal={showProfileModal}
+      onCloseProfileModal={handleCloseProfileModal}
+      versionInfo={versionInfo}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      setMobileSidebarOpen={setMobileSidebarOpen}
+      onShowProfile={handleShowProfile}
+    />
   );
 }

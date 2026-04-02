@@ -77,6 +77,7 @@ export function SessionSidebar({
 
   // Project refs for cross-project operations
   const projectRefs = useRef<Map<string, ProjectItemHandle>>(new Map());
+  const lastAppliedNewSessionKeyRef = useRef<string | null>(null);
 
   const getProjectRef = useCallback(
     (projectId: string): ProjectItemHandle | null => {
@@ -97,6 +98,8 @@ export function SessionSidebar({
   );
 
   const projectManager = useProjectManager();
+  const { projects } = projectManager;
+  const projectCount = projects.length;
 
   // Touch drag — sessions array is now distributed, pass empty (touch drag
   // only works on uncategorized sessions in the sidebar)
@@ -182,14 +185,24 @@ export function SessionSidebar({
   // Handle new session from parent — prepend or update in the correct list
   useEffect(() => {
     if (newSession && newSession.id) {
+      const sessionKey = [
+        newSession.id,
+        newSession.updated_at,
+        newSession.name ?? "",
+      ].join(":");
+      if (lastAppliedNewSessionKeyRef.current === sessionKey) {
+        return;
+      }
+
       const projectId = newSession.metadata?.project_id as string | undefined;
       const list = projectId ? getProjectRef(projectId) : uncategorizedList;
       if (list) {
         list.prependSession(newSession);
         list.updateSession(newSession);
+        lastAppliedNewSessionKeyRef.current = sessionKey;
       }
     }
-  }, [newSession, getProjectRef, uncategorizedList]);
+  }, [newSession, getProjectRef, projectCount, uncategorizedList]);
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────
 
@@ -222,8 +235,6 @@ export function SessionSidebar({
     onSelectSession(sessionId);
     onMobileClose?.();
   };
-
-  const { projects } = projectManager;
 
   // ─── Scroll container ref ──────────────────────────────────────
 
