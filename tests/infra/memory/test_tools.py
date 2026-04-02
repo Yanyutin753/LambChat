@@ -64,7 +64,9 @@ async def test_auto_memory_capture_uses_distributed_lock(monkeypatch):
         events.append(("release", user_id))
 
     monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release))
+    monkeypatch.setattr(
+        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
 
     await memory_tools._auto_retain_user_memory("u1", "hello")
 
@@ -94,7 +96,9 @@ async def test_auto_memory_capture_skips_when_distributed_lock_not_acquired(monk
         events.append(("release", user_id))
 
     monkeypatch.setattr(memory_tools, "_get_backend", fake_get_backend)
-    monkeypatch.setattr(memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release))
+    monkeypatch.setattr(
+        memory_tools, "_get_auto_capture_lock_fns", lambda: (fake_acquire, fake_release)
+    )
 
     await memory_tools._auto_retain_user_memory("u1", "hello")
 

@@ -12,7 +12,9 @@ from src.infra.memory.client.native.summaries import build_summary
 
 
 def test_build_summary_truncates_cjk_content_cleanly():
-    content = "这是一个很长的中文句子，用来验证摘要生成逻辑在中文场景下也能正确工作，而且不会依赖空格。"
+    content = (
+        "这是一个很长的中文句子，用来验证摘要生成逻辑在中文场景下也能正确工作，而且不会依赖空格。"
+    )
 
     summary = build_summary(content, max_len=12)
 
