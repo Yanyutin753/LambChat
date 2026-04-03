@@ -160,12 +160,12 @@ export function useTools(disabledToolsVersion?: string) {
   }, [tools]);
 
   /**
-   * 获取启用的 MCP 工具列表
-   * 用于配置持久化
+   * 获取禁用的 MCP 工具列表
+   * 用于配置持久化（黑名单模式）
    */
-  const getEnabledMcpTools = useCallback(() => {
+  const getDisabledMcpTools = useCallback(() => {
     return tools
-      .filter((t) => t.category === "mcp" && t.enabled)
+      .filter((t) => t.category === "mcp" && !t.enabled)
       .map((t) => t.name);
   }, [tools]);
 

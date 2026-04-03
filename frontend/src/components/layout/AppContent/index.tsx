@@ -164,7 +164,7 @@ function ChatAppContent({
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
-    getEnabledMcpTools,
+    getDisabledMcpTools,
     refreshToolsForAgent,
   } = useTools(disabledToolsVersion);
 
@@ -179,14 +179,15 @@ function ChatAppContent({
     toggleAll: toggleAllSkills,
     fetchSkills,
     getEnabledSkillNames,
+    getDisabledSkillNames,
   } = useSkills({ enabled: enableSkills });
 
   const projectManager = useProjectManager();
 
   // 创建一个 ref 来存储 sessionConfig，供 useAgent 使用
   const sessionConfigRef = useRef({
-    enabledSkills: [] as string[],
-    enabledMcpTools: [] as string[],
+    disabledSkills: [] as string[],
+    disabledMcpTools: [] as string[],
     agentOptions: {} as Record<string, boolean | string | number>,
   });
 
@@ -223,8 +224,8 @@ function ChatAppContent({
       clearApprovals();
     },
     getEnabledTools: getDisabledToolNames,
-    getEnabledSkills: () => sessionConfigRef.current.enabledSkills,
-    getEnabledMcpTools: () => sessionConfigRef.current.enabledMcpTools,
+    getDisabledSkills: () => sessionConfigRef.current.disabledSkills,
+    getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
     onSkillAdded: (skillName: string, _description: string, filesCount: number) => {
       console.log(
         `[AppContent] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
@@ -258,8 +259,6 @@ function ChatAppContent({
     resetToDefaults,
     restoreConfig: restoreSessionConfig,
   } = useSessionConfig({
-    getDefaultSkills: getEnabledSkillNames,
-    getDefaultMcpTools: getEnabledMcpTools,
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
@@ -268,25 +267,25 @@ function ChatAppContent({
     sessionConfigRef.current = sessionConfig;
   }, [sessionConfig]);
 
-  // Compute effective tools: apply session-level MCP tool overrides
+  // Compute effective tools: apply session-level MCP tool overrides (blacklist)
   const effectiveTools = useMemo(() => {
-    const sessionEnabled = new Set(sessionConfig.enabledMcpTools);
+    const sessionDisabled = new Set(sessionConfig.disabledMcpTools);
+    if (sessionDisabled.size === 0) return tools;
     return tools.map((t) => {
       if (t.category !== "mcp") return t;
-      if (sessionEnabled.size === 0) return t;
-      return { ...t, enabled: sessionEnabled.has(t.name) };
+      return { ...t, enabled: t.enabled && !sessionDisabled.has(t.name) };
     });
-  }, [tools, sessionConfig.enabledMcpTools]);
+  }, [tools, sessionConfig.disabledMcpTools]);
 
-  // Compute effective skills: apply session-level skill overrides
+  // Compute effective skills: apply session-level skill overrides (blacklist)
   const effectiveSkills = useMemo(() => {
-    const sessionEnabled = new Set(sessionConfig.enabledSkills);
-    if (sessionEnabled.size === 0) return skills;
+    const sessionDisabled = new Set(sessionConfig.disabledSkills);
+    if (sessionDisabled.size === 0) return skills;
     return skills.map((s) => ({
       ...s,
-      enabled: sessionEnabled.has(s.name),
+      enabled: s.enabled && !sessionDisabled.has(s.name),
     }));
-  }, [skills, sessionConfig.enabledSkills]);
+  }, [skills, sessionConfig.disabledSkills]);
 
   // Effective toggle callbacks: toggle global state AND update session config
   const effectiveToggleTool = useCallback(
@@ -307,31 +306,36 @@ function ChatAppContent({
         tools
           .filter((t) => t.category === "mcp")
           .forEach((t) => {
-            const desired = enabled;
-            const currentInSession = sessionConfig.enabledMcpTools.includes(t.name);
-            if (desired !== currentInSession) {
+            const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(t.name);
+            if (enabled && isInSessionDisabled) {
+              // Want enabled, currently in disabled list → remove
+              toggleSessionMcpTool(t.name);
+            } else if (!enabled && !isInSessionDisabled) {
+              // Want disabled, not in disabled list → add
               toggleSessionMcpTool(t.name);
             }
           });
       }
     },
-    [toggleCategory, tools, sessionConfig.enabledMcpTools, toggleSessionMcpTool],
+    [toggleCategory, tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
   );
 
   const effectiveToggleAll = useCallback(
     (enabled: boolean) => {
       toggleAll(enabled);
-      // Sync MCP tools in session config
+      // Sync MCP tools in session config (disabled list)
       tools
         .filter((t) => t.category === "mcp")
         .forEach((t) => {
-          const currentInSession = sessionConfig.enabledMcpTools.includes(t.name);
-          if (enabled !== currentInSession) {
+          const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(t.name);
+          if (enabled && isInSessionDisabled) {
+            toggleSessionMcpTool(t.name);
+          } else if (!enabled && !isInSessionDisabled) {
             toggleSessionMcpTool(t.name);
           }
         });
     },
-    [toggleAll, tools, sessionConfig.enabledMcpTools, toggleSessionMcpTool],
+    [toggleAll, tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
   );
 
   const effectiveToggleSkill = useCallback(
@@ -349,28 +353,32 @@ function ChatAppContent({
       skills
         .filter((s) => s.source === category)
         .forEach((s) => {
-          const currentInSession = sessionConfig.enabledSkills.includes(s.name);
-          if (enabled !== currentInSession) {
+          const isInSessionDisabled = sessionConfig.disabledSkills.includes(s.name);
+          if (enabled && isInSessionDisabled) {
+            toggleSessionSkill(s.name);
+          } else if (!enabled && !isInSessionDisabled) {
             toggleSessionSkill(s.name);
           }
         });
       return result;
     },
-    [toggleSkillCategory, skills, sessionConfig.enabledSkills, toggleSessionSkill],
+    [toggleSkillCategory, skills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
   const effectiveToggleAllSkills = useCallback(
     async (enabled: boolean): Promise<boolean> => {
       const result = await toggleAllSkills(enabled);
       skills.forEach((s) => {
-        const currentInSession = sessionConfig.enabledSkills.includes(s.name);
-        if (enabled !== currentInSession) {
+        const isInSessionDisabled = sessionConfig.disabledSkills.includes(s.name);
+        if (enabled && isInSessionDisabled) {
+          toggleSessionSkill(s.name);
+        } else if (!enabled && !isInSessionDisabled) {
           toggleSessionSkill(s.name);
         }
       });
       return result;
     },
-    [toggleAllSkills, skills, sessionConfig.enabledSkills, toggleSessionSkill],
+    [toggleAllSkills, skills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
   // Effective agent option toggle: update both local state and session config
@@ -430,8 +438,8 @@ function ChatAppContent({
       agent_id?: string;
       agent_options?: Record<string, boolean | string | number>;
       disabled_tools?: string[];
-      enabled_skills?: string[];
-      enabled_mcp_tools?: string[];
+      disabled_skills?: string[];
+      disabled_mcp_tools?: string[];
     }) => {
       console.log("[AppContent] Restoring session config:", config);
 

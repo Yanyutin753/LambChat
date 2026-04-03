@@ -84,8 +84,8 @@ class BackgroundTaskManager:
         attachments: Optional[List[Dict[str, Any]]] = None,
         run_id: Optional[str] = None,
         project_id: Optional[str] = None,
-        enabled_skills: Optional[List[str]] = None,
-        enabled_mcp_tools: Optional[List[str]] = None,
+        disabled_skills: Optional[List[str]] = None,
+        disabled_mcp_tools: Optional[List[str]] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -133,8 +133,8 @@ class BackgroundTaskManager:
                     disabled_tools,
                     agent_options,
                     attachments,
-                    enabled_skills=enabled_skills,
-                    enabled_mcp_tools=enabled_mcp_tools,
+                    disabled_skills=disabled_skills,
+                    disabled_mcp_tools=disabled_mcp_tools,
                 )
             )
             self._tasks[run_id] = task

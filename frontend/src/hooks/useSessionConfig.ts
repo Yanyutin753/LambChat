@@ -7,24 +7,28 @@
  * 架构说明：
  * - 全局配置（/skills, /tools 路由）：用户的默认配置，影响所有新建对话
  * - 对话配置（ChatInput 选择器）：当前对话的临时配置，不影响全局
+ *
+ * 使用 blacklist（黑名单）模式：
+ * - disabled_skills: 被禁用的 skill 列表（空列表 = 全部启用）
+ * - disabled_mcp_tools: 被禁用的 MCP tool 列表（空列表 = 全部启用）
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { SessionConfig } from "./useAgent/types";
 
 export interface SessionConfigState {
-  // 当前对话启用的 skills（名称列表）
-  enabledSkills: string[];
-  // 当前对话启用的 MCP tools（名称列表）
-  enabledMcpTools: string[];
+  // 当前对话禁用的 skills（名称列表）
+  disabledSkills: string[];
+  // 当前对话禁用的 MCP tools（名称列表）
+  disabledMcpTools: string[];
   // Agent options
   agentOptions: Record<string, boolean | string | number>;
 }
 
 export interface UseSessionConfigOptions {
-  // 从全局配置获取默认值
-  getDefaultSkills: () => string[];
-  getDefaultMcpTools: () => string[];
+  // 从全局配置获取默认禁用列表
+  getDefaultDisabledSkills?: () => string[];
+  getDefaultDisabledMcpTools?: () => string[];
   getDefaultAgentOptions: () => Record<string, boolean | string | number>;
 }
 
@@ -38,8 +42,8 @@ export interface UseSessionConfigReturn {
   setAgentOption: (key: string, value: boolean | string | number) => void;
 
   // 批量操作
-  setEnabledSkills: (skills: string[]) => void;
-  setEnabledMcpTools: (tools: string[]) => void;
+  setDisabledSkills: (skills: string[]) => void;
+  setDisabledMcpTools: (tools: string[]) => void;
   setAgentOptions: (options: Record<string, boolean | string | number>) => void;
 
   // 重置为默认配置
@@ -55,28 +59,14 @@ export interface UseSessionConfigReturn {
 
 /**
  * 对话配置管理 Hook
- *
- * @example
- * ```typescript
- * const {
- *   config,
- *   toggleSkill,
- *   toggleMcpTool,
- *   restoreConfig,
- * } = useSessionConfig({
- *   getDefaultSkills: () => skills.filter(s => s.enabled).map(s => s.name),
- *   getDefaultMcpTools: () => tools.filter(t => t.category === 'mcp' && t.enabled).map(t => t.name),
- *   getDefaultAgentOptions: () => ({}),
- * });
- * ```
  */
 export function useSessionConfig(
   options: UseSessionConfigOptions
 ): UseSessionConfigReturn {
-  // 对话级别的配置状态
+  // 对话级别的配置状态（默认空列表 = 全部启用）
   const [config, setConfig] = useState<SessionConfigState>(() => ({
-    enabledSkills: options.getDefaultSkills(),
-    enabledMcpTools: options.getDefaultMcpTools(),
+    disabledSkills: options.getDefaultDisabledSkills?.() || [],
+    disabledMcpTools: options.getDefaultDisabledMcpTools?.() || [],
     agentOptions: options.getDefaultAgentOptions(),
   }));
 
@@ -87,42 +77,42 @@ export function useSessionConfig(
   useEffect(() => {
     if (!initializedRef.current) {
       setConfig({
-        enabledSkills: options.getDefaultSkills(),
-        enabledMcpTools: options.getDefaultMcpTools(),
+        disabledSkills: options.getDefaultDisabledSkills?.() || [],
+        disabledMcpTools: options.getDefaultDisabledMcpTools?.() || [],
         agentOptions: options.getDefaultAgentOptions(),
       });
       initializedRef.current = true;
     }
   }, [options]);
 
-  // Toggle skill
+  // Toggle skill (add/remove from disabled list)
   const toggleSkill = useCallback((skillName: string) => {
     setConfig((prev) => {
-      const enabled = new Set(prev.enabledSkills);
-      if (enabled.has(skillName)) {
-        enabled.delete(skillName);
+      const disabled = new Set(prev.disabledSkills);
+      if (disabled.has(skillName)) {
+        disabled.delete(skillName);
       } else {
-        enabled.add(skillName);
+        disabled.add(skillName);
       }
       return {
         ...prev,
-        enabledSkills: Array.from(enabled),
+        disabledSkills: Array.from(disabled),
       };
     });
   }, []);
 
-  // Toggle MCP tool
+  // Toggle MCP tool (add/remove from disabled list)
   const toggleMcpTool = useCallback((toolName: string) => {
     setConfig((prev) => {
-      const enabled = new Set(prev.enabledMcpTools);
-      if (enabled.has(toolName)) {
-        enabled.delete(toolName);
+      const disabled = new Set(prev.disabledMcpTools);
+      if (disabled.has(toolName)) {
+        disabled.delete(toolName);
       } else {
-        enabled.add(toolName);
+        disabled.add(toolName);
       }
       return {
         ...prev,
-        enabledMcpTools: Array.from(enabled),
+        disabledMcpTools: Array.from(disabled),
       };
     });
   }, []);
@@ -141,19 +131,19 @@ export function useSessionConfig(
     [],
   );
 
-  // Batch set enabled skills
-  const setEnabledSkills = useCallback((skills: string[]) => {
+  // Batch set disabled skills
+  const setDisabledSkills = useCallback((skills: string[]) => {
     setConfig((prev) => ({
       ...prev,
-      enabledSkills: skills,
+      disabledSkills: skills,
     }));
   }, []);
 
-  // Batch set enabled MCP tools
-  const setEnabledMcpTools = useCallback((tools: string[]) => {
+  // Batch set disabled MCP tools
+  const setDisabledMcpTools = useCallback((tools: string[]) => {
     setConfig((prev) => ({
       ...prev,
-      enabledMcpTools: tools,
+      disabledMcpTools: tools,
     }));
   }, []);
 
@@ -168,11 +158,11 @@ export function useSessionConfig(
     [],
   );
 
-  // Reset to defaults
+  // Reset to defaults (new conversation)
   const resetToDefaults = useCallback(() => {
     setConfig({
-      enabledSkills: options.getDefaultSkills(),
-      enabledMcpTools: options.getDefaultMcpTools(),
+      disabledSkills: options.getDefaultDisabledSkills?.() || [],
+      disabledMcpTools: options.getDefaultDisabledMcpTools?.() || [],
       agentOptions: options.getDefaultAgentOptions(),
     });
   }, [options]);
@@ -182,28 +172,27 @@ export function useSessionConfig(
     console.log("[useSessionConfig] Restoring config:", sessionConfig);
 
     setConfig({
-      enabledSkills: sessionConfig.enabled_skills || options.getDefaultSkills(),
-      enabledMcpTools:
-        sessionConfig.enabled_mcp_tools || options.getDefaultMcpTools(),
+      disabledSkills: sessionConfig.disabled_skills || [],
+      disabledMcpTools: sessionConfig.disabled_mcp_tools || [],
       agentOptions:
         sessionConfig.agent_options || options.getDefaultAgentOptions(),
     });
   }, [options]);
 
-  // Check if skill is enabled
+  // Check if skill is enabled (not in disabled list)
   const isSkillEnabled = useCallback(
     (skillName: string) => {
-      return config.enabledSkills.includes(skillName);
+      return !config.disabledSkills.includes(skillName);
     },
-    [config.enabledSkills],
+    [config.disabledSkills],
   );
 
-  // Check if MCP tool is enabled
+  // Check if MCP tool is enabled (not in disabled list)
   const isMcpToolEnabled = useCallback(
     (toolName: string) => {
-      return config.enabledMcpTools.includes(toolName);
+      return !config.disabledMcpTools.includes(toolName);
     },
-    [config.enabledMcpTools],
+    [config.disabledMcpTools],
   );
 
   return {
@@ -211,8 +200,8 @@ export function useSessionConfig(
     toggleSkill,
     toggleMcpTool,
     setAgentOption,
-    setEnabledSkills,
-    setEnabledMcpTools,
+    setDisabledSkills,
+    setDisabledMcpTools,
     setAgentOptions,
     resetToDefaults,
     restoreConfig,

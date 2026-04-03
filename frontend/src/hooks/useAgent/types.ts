@@ -104,8 +104,8 @@ export interface UseAgentOptions {
   }) => void;
   onClearApprovals?: () => void;
   getEnabledTools?: () => string[];
-  getEnabledSkills?: () => string[];
-  getEnabledMcpTools?: () => string[];
+  getDisabledSkills?: () => string[];
+  getDisabledMcpTools?: () => string[];
   onSkillAdded?: (
     skillName: string,
     description: string,
@@ -202,8 +202,8 @@ export interface SessionConfig {
   agent_id?: string;
   agent_options?: Record<string, boolean | string | number>;
   disabled_tools?: string[];
-  enabled_skills?: string[];
-  enabled_mcp_tools?: string[];
+  disabled_skills?: string[];
+  disabled_mcp_tools?: string[];
 }
 
 // Backend session type (simplified)

@@ -35,11 +35,11 @@ class AgentRequest(BaseModel):
     agent_options: Optional[dict[str, Any]] = Field(
         None, description="Agent options (e.g., enable_thinking)"
     )
-    enabled_skills: Optional[list[str]] = Field(
-        None, description="Enabled skills for this conversation"
+    disabled_skills: Optional[list[str]] = Field(
+        None, description="Skills to disable for this conversation"
     )
-    enabled_mcp_tools: Optional[list[str]] = Field(
-        None, description="Enabled MCP tools for this conversation"
+    disabled_mcp_tools: Optional[list[str]] = Field(
+        None, description="MCP tools to disable for this conversation"
     )
     attachments: Optional[list[AttachmentSchema]] = Field(None, description="File attachments")
     context: dict[str, Any] = Field(default_factory=dict, description="Additional context")

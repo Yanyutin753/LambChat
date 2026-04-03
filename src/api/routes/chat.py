@@ -41,8 +41,8 @@ async def _update_session_config(
         "agent_id": agent_id,
         "disabled_tools": request.disabled_tools or [],
         "agent_options": request.agent_options or {},
-        "enabled_skills": request.enabled_skills or [],
-        "enabled_mcp_tools": request.enabled_mcp_tools or [],
+        "disabled_skills": request.disabled_skills or [],
+        "disabled_mcp_tools": request.disabled_mcp_tools or [],
     }
     await session_manager.update_session(
         session_id,
@@ -59,8 +59,8 @@ async def _execute_agent_stream(
     disabled_tools: list[str] | None = None,
     agent_options: dict | None = None,
     attachments: list[dict] | None = None,
-    enabled_skills: list[str] | None = None,
-    enabled_mcp_tools: list[str] | None = None,
+    disabled_skills: list[str] | None = None,
+    disabled_mcp_tools: list[str] | None = None,
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
     from src.infra.task.manager import TaskInterruptedError
@@ -77,8 +77,8 @@ async def _execute_agent_stream(
             disabled_tools=disabled_tools,
             agent_options=agent_options,
             attachments=attachments,
-            enabled_skills=enabled_skills,
-            enabled_mcp_tools=enabled_mcp_tools,
+            disabled_skills=disabled_skills,
+            disabled_mcp_tools=disabled_mcp_tools,
         ):
             yield event
     except (asyncio.CancelledError, TaskInterruptedError):
@@ -161,8 +161,8 @@ async def chat_stream(
         "attachments": attachments_data,
         "trace_id": trace_id,
         "user_message_written": True,
-        "enabled_skills": request.enabled_skills,
-        "enabled_mcp_tools": request.enabled_mcp_tools,
+        "disabled_skills": request.disabled_skills,
+        "disabled_mcp_tools": request.disabled_mcp_tools,
     }
 
     # 检查并发限制
@@ -257,8 +257,8 @@ async def chat_stream(
         attachments=attachments_data,
         run_id=run_id,
         project_id=request.project_id,
-        enabled_skills=request.enabled_skills,
-        enabled_mcp_tools=request.enabled_mcp_tools,
+        disabled_skills=request.disabled_skills,
+        disabled_mcp_tools=request.disabled_mcp_tools,
     )
 
     # 更新 session metadata，存储完整的对话配置

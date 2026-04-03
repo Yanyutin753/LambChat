@@ -123,15 +123,15 @@ class FastAgent(BaseGraphAgent):
 
         # 创建并初始化 FastAgentContext
         disabled_tools = kwargs.get("disabled_tools")
-        enabled_skills = kwargs.get("enabled_skills")
-        enabled_mcp_tools = kwargs.get("enabled_mcp_tools")
+        disabled_skills = kwargs.get("disabled_skills")
+        disabled_mcp_tools = kwargs.get("disabled_mcp_tools")
         context = FastAgentContext(
             session_id=session_id,
             agent_id=self.agent_id,
             user_id=user_id,
             disabled_tools=disabled_tools,
-            enabled_skills=enabled_skills,
-            enabled_mcp_tools=enabled_mcp_tools,
+            disabled_skills=disabled_skills,
+            disabled_mcp_tools=disabled_mcp_tools,
         )
         await context.setup()
 
@@ -148,8 +148,8 @@ class FastAgent(BaseGraphAgent):
                 "presenter": presenter,
                 "context": context,
                 "agent_options": agent_options,
-                "enabled_skills": enabled_skills,
-                "enabled_mcp_tools": enabled_mcp_tools,
+                "disabled_skills": disabled_skills,
+                "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),
             },
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,

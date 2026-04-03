@@ -60,8 +60,8 @@ class TaskExecutor:
         attachments: Optional[List[Dict[str, Any]]] = None,
         existing_trace_id: Optional[str] = None,
         user_message_written: bool = False,
-        enabled_skills: Optional[List[str]] = None,
-        enabled_mcp_tools: Optional[List[str]] = None,
+        disabled_skills: Optional[List[str]] = None,
+        disabled_mcp_tools: Optional[List[str]] = None,
     ) -> None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -139,8 +139,8 @@ class TaskExecutor:
                 disabled_tools=disabled_tools,
                 agent_options=agent_options,
                 attachments=attachments,
-                enabled_skills=enabled_skills,
-                enabled_mcp_tools=enabled_mcp_tools,
+                disabled_skills=disabled_skills,
+                disabled_mcp_tools=disabled_mcp_tools,
             ):
                 await presenter.save_event(event)
 

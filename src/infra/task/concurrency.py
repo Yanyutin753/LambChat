@@ -322,8 +322,8 @@ class UserConcurrencyLimiter:
                 disabled_tools = task_ctx.get("disabled_tools")
                 agent_options = task_ctx.get("agent_options")
                 attachments = task_ctx.get("attachments")
-                enabled_skills = task_ctx.get("enabled_skills")
-                enabled_mcp_tools = task_ctx.get("enabled_mcp_tools")
+                disabled_skills = task_ctx.get("disabled_skills")
+                disabled_mcp_tools = task_ctx.get("disabled_mcp_tools")
             else:
                 # Legacy fallback: context in process memory (single-worker)
                 pending = task_manager.pop_pending_task(run_id)
@@ -338,8 +338,8 @@ class UserConcurrencyLimiter:
                 disabled_tools = pending.get("disabled_tools")
                 agent_options = pending.get("agent_options")
                 attachments = pending.get("attachments")
-                enabled_skills = pending.get("enabled_skills")
-                enabled_mcp_tools = pending.get("enabled_mcp_tools")
+                disabled_skills = pending.get("disabled_skills")
+                disabled_mcp_tools = pending.get("disabled_mcp_tools")
 
             # --- Create and run the background task ---
             async with task_manager._lock:
@@ -367,8 +367,8 @@ class UserConcurrencyLimiter:
                         user_message_written=task_ctx.get("user_message_written", False)
                         if task_ctx
                         else False,
-                        enabled_skills=enabled_skills,
-                        enabled_mcp_tools=enabled_mcp_tools,
+                        disabled_skills=disabled_skills,
+                        disabled_mcp_tools=disabled_mcp_tools,
                     )
                 )
                 task_manager._tasks[run_id] = task

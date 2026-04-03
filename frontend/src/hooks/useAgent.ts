@@ -292,8 +292,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               boolean | string | number
             >) || undefined,
             disabled_tools: (sessionData.metadata?.disabled_tools as string[]) || undefined,
-            enabled_skills: (sessionData.metadata?.enabled_skills as string[]) || undefined,
-            enabled_mcp_tools: (sessionData.metadata?.enabled_mcp_tools as string[]) || undefined,
+            disabled_skills: (sessionData.metadata?.disabled_skills as string[]) || undefined,
+            disabled_mcp_tools: (sessionData.metadata?.disabled_mcp_tools as string[]) || undefined,
           };
 
           // 并行发起 events、status 和 feedback 请求，减少串行等待时间
@@ -480,9 +480,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setError(null);
 
       try {
-        // 获取当前启用的 skills 和 mcp_tools
-        const enabledSkills = options?.getEnabledSkills?.() || [];
-        const enabledMcpTools = options?.getEnabledMcpTools?.() || [];
+        // 获取当前禁用的 skills 和 mcp_tools
+        const disabledSkills = options?.getDisabledSkills?.() || [];
+        const disabledMcpTools = options?.getDisabledMcpTools?.() || [];
 
         const submitData = (await sessionApi.submitChat(
           currentAgent,
@@ -491,8 +491,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           agentOptions,
           attachments,
           pendingProjectIdRef.current ?? undefined,
-          enabledSkills,
-          enabledMcpTools,
+          disabledSkills,
+          disabledMcpTools,
         )) as {
           session_id: string;
           run_id: string;
@@ -525,8 +525,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             current_run_id: newRunId,
             agent_id: currentAgent,
             agent_options: agentOptions || {},
-            enabled_skills: enabledSkills,
-            enabled_mcp_tools: enabledMcpTools,
+            disabled_skills: disabledSkills,
+            disabled_mcp_tools: disabledMcpTools,
           };
           if (projectId) {
             conversationConfig.project_id = projectId;
@@ -566,8 +566,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             current_run_id: newRunId,
             agent_id: currentAgent,
             agent_options: agentOptions || {},
-            enabled_skills: enabledSkills,
-            enabled_mcp_tools: enabledMcpTools,
+            disabled_skills: disabledSkills,
+            disabled_mcp_tools: disabledMcpTools,
           };
 
           setNewlyCreatedSession((prev) =>
