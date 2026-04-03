@@ -55,6 +55,9 @@ class SystemMCPServer(MCPServerBase):
     """System-level MCP server configuration (admin managed)"""
 
     is_system: bool = Field(True, description="Always True for system servers")
+    disabled_tools: list[str] = Field(
+        default_factory=list, description="List of tool names disabled at system level"
+    )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
     updated_by: Optional[str] = Field(None, description="Admin user ID who last updated")

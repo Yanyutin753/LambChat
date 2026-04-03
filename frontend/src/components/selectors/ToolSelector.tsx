@@ -279,6 +279,11 @@ export function ToolSelector({
                                       {tool.server}
                                     </span>
                                   )}
+                                  {tool.system_disabled && (
+                                    <span className="text-[9px] sm:text-xs px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 font-medium">
+                                      {t("tools.systemDisabled")}
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="text-xs sm:text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed text-left">
                                   {tool.description || t("tools.noDescription")}
@@ -287,6 +292,7 @@ export function ToolSelector({
                               <Checkbox
                                 checked={tool.enabled}
                                 onChange={() => onToggleTool(tool.name)}
+                                disabled={tool.system_disabled}
                               />
                             </div>
 

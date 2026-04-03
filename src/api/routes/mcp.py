@@ -486,6 +486,31 @@ async def admin_toggle_server(
     )
 
 
+@admin_router.patch("/{name}/tools/{tool_name}", response_model=MCPToolToggleResponse)
+async def admin_toggle_tool(
+    name: str,
+    tool_name: str,
+    data: MCPToolToggleRequest,
+    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+    storage: MCPStorage = Depends(get_mcp_storage),
+):
+    """
+    Toggle a tool's system-level disabled status (admin only).
+
+    This affects all users globally. When disabled=True, the tool is blocked
+    for everyone and cannot be re-enabled by individual users.
+    """
+    await storage.set_system_tool_disabled(name, tool_name, not data.enabled)
+
+    status_text = "enabled" if data.enabled else "disabled"
+    return MCPToolToggleResponse(
+        server_name=name,
+        tool_name=tool_name,
+        enabled=data.enabled,
+        message=f"Tool '{tool_name}' from server '{name}' has been {status_text} globally",
+    )
+
+
 # ==========================================
 # Server Type Conversion (Admin only)
 # ==========================================

@@ -1208,6 +1208,7 @@
     "parameters": "Parameters",
     "selectAll": "Select all",
     "selected": "{{enabled}} of {{total}} selected",
+    "systemDisabled": "System Disabled",
     "table": {
       "description": "Description",
       "name": "Name",

@@ -1208,6 +1208,7 @@
     "parameters": "参数",
     "selectAll": "全选",
     "selected": "已选择 {{enabled}}/{{total}}",
+    "systemDisabled": "系统禁用",
     "table": {
       "description": "描述",
       "name": "名称",

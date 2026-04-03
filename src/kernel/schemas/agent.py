@@ -106,6 +106,14 @@ class ToolInfo(BaseModel):
     category: str = Field(..., description="Tool category: builtin, skill, human, mcp")
     server: Optional[str] = Field(None, description="MCP server name for MCP tools")
     parameters: list[ToolParamInfo] = Field(default_factory=list, description="Tool parameters")
+    system_disabled: bool = Field(
+        default=False,
+        description="Whether this tool is disabled at the system level (admin controlled)",
+    )
+    user_disabled: bool = Field(
+        default=False,
+        description="Whether this tool is disabled by the user",
+    )
 
 
 class ToolsListResponse(BaseModel):

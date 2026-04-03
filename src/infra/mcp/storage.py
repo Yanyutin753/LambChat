@@ -582,6 +582,61 @@ class MCPStorage:
         prefs = await self.get_tool_preferences(user_id)
         return {name for name, enabled in prefs.items() if not enabled}
 
+    async def set_system_tool_disabled(
+        self, server_name: str, tool_name: str, disabled: bool
+    ) -> None:
+        """
+        Set system-level tool disabled status (admin only).
+
+        Args:
+            server_name: The MCP server name
+            tool_name: The tool name (without server prefix)
+            disabled: Whether the tool is disabled at system level
+        """
+        collection = self._get_system_collection()
+        server_doc = await collection.find_one({"name": server_name})
+        if not server_doc:
+            raise ValueError(f"System server '{server_name}' not found")
+
+        disabled_tools = server_doc.get("disabled_tools", [])
+        if disabled:
+            # Add to disabled list if not already there
+            if tool_name not in disabled_tools:
+                disabled_tools.append(tool_name)
+        else:
+            # Remove from disabled list if present
+            if tool_name in disabled_tools:
+                disabled_tools.remove(tool_name)
+
+        await collection.update_one(
+            {"name": server_name},
+            {
+                "$set": {
+                    "disabled_tools": disabled_tools,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+
+        # Invalidate all caches since system-level change affects all users
+        await self._invalidate_all_cache()
+
+    async def get_system_disabled_tools(self) -> dict[str, set[str]]:
+        """
+        Get all system-disabled tools grouped by server.
+
+        Returns:
+            Dict mapping server_name to set of disabled tool names
+        """
+        collection = self._get_system_collection()
+        result: dict[str, set[str]] = {}
+        async for doc in collection.find({}):
+            server_name = doc["name"]
+            disabled_tools = doc.get("disabled_tools", [])
+            if disabled_tools:
+                result[server_name] = set(disabled_tools)
+        return result
+
     # ==========================================
     # Combined Operations (for runtime)
     # ==========================================

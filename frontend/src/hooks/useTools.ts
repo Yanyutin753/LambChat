@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { authApi } from "../services/api";
 import { authenticatedRequest } from "../services/api/authenticatedRequest";
 import type {
   ToolInfo,
@@ -14,144 +13,109 @@ export function useTools(disabledToolsVersion?: string) {
   const [tools, setTools] = useState<ToolState[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const disabledToolsRef = useRef<Set<string>>(new Set());
-  const savingRef = useRef<boolean | "pending">(false);
   const agentIdRef = useRef<string | undefined>(undefined);
 
-  // 从 user metadata 同步 disabled_tools 到 ref
-  const syncFromMetadata = useCallback((metadata?: Record<string, unknown>) => {
-    if (metadata?.disabled_tools && Array.isArray(metadata.disabled_tools)) {
-      disabledToolsRef.current = new Set(metadata.disabled_tools as string[]);
-    }
-  }, []);
-
-  // 保存 disabled_tools 到 user metadata
-  // 使用 pending 标记：如果当前正在保存，等待完成后再保存一次
-  const saveToMetadata = useCallback(async () => {
-    if (savingRef.current) {
-      savingRef.current = "pending";
-      return;
-    }
-    savingRef.current = true;
+  // 切换 MCP 工具的启用状态（调用 MCP API）
+  const toggleMcpTool = useCallback(async (toolName: string, serverName: string, enabled: boolean) => {
     try {
-      // 循环保存：如果保存期间有新的变更进来（被标记为 pending），再保存一次
-      do {
-        savingRef.current = true;
-        await authApi.updateMetadata({
-          disabled_tools: [...disabledToolsRef.current],
-        });
-      } while ((savingRef.current as boolean | string) === "pending");
+      const baseName = toolName.includes(":") ? toolName.split(":")[1] : toolName;
+      await authenticatedRequest(
+        `${API_BASE}/mcp/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(baseName)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled }),
+        }
+      );
     } catch (err) {
-      console.error("Failed to save disabled_tools to metadata:", err);
-    } finally {
-      savingRef.current = false;
+      console.error("Failed to toggle MCP tool:", err);
+      throw err;
     }
   }, []);
 
   // 获取工具列表
-  const fetchTools = useCallback(
-    async (metadata?: Record<string, unknown>) => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // 先从 metadata 同步
-        syncFromMetadata(metadata);
+  const fetchTools = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const agentId = agentIdRef.current;
+      const queryParams = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
+      const response = await authenticatedRequest(`${API_BASE}/tools${queryParams}`, {
+        headers: { "Content-Type": "application/json" },
+      });
 
-        const agentId = agentIdRef.current;
-        const queryParams = agentId
-          ? `?agent_id=${encodeURIComponent(agentId)}`
-          : "";
-        const response = await authenticatedRequest(
-          `${API_BASE}/tools${queryParams}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch tools");
-        }
-
-        const data: ToolsListResponse = await response.json();
-        const disabledTools = disabledToolsRef.current;
-
-        // 初始化工具状态，根据持久化的禁用列表设置 enabled
-        const toolStates: ToolState[] = data.tools.map((tool: ToolInfo) => ({
-          ...tool,
-          enabled: !disabledTools.has(tool.name),
-        }));
-
-        setTools(toolStates);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch tools");
-      } finally {
-        setIsLoading(false);
+      if (!response.ok) {
+        throw new Error("Failed to fetch tools");
       }
-    },
-    [syncFromMetadata],
-  );
 
-  // 更新禁用列表并保存到 metadata
-  const updateDisabledTools = useCallback(
-    (toolName: string, enabled: boolean) => {
-      const disabledTools = disabledToolsRef.current;
-      if (enabled) {
-        disabledTools.delete(toolName);
-      } else {
-        disabledTools.add(toolName);
-      }
-      saveToMetadata();
-    },
-    [saveToMetadata],
-  );
+      const data: ToolsListResponse = await response.json();
+      const toolStates: ToolState[] = data.tools.map((tool: ToolInfo) => ({
+        ...tool,
+        // 工具启用状态：未被系统禁用且未被用户禁用
+        enabled: !tool.system_disabled && !tool.user_disabled,
+      }));
+
+      setTools(toolStates);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch tools");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // 切换单个工具
   const toggleTool = useCallback(
-    (toolName: string) => {
-      setTools((prev) =>
-        prev.map((t) => {
-          if (t.name === toolName) {
-            const newEnabled = !t.enabled;
-            updateDisabledTools(toolName, newEnabled);
-            return { ...t, enabled: newEnabled };
-          }
-          return t;
-        }),
-      );
+    async (toolName: string) => {
+      const tool = tools.find((t) => t.name === toolName);
+      if (!tool) return;
+
+      if (tool.system_disabled) {
+        console.warn("Cannot toggle system-disabled tool:", toolName);
+        return;
+      }
+
+      if (tool.category !== "mcp" || !tool.server) {
+        console.warn("Only MCP tools can be toggled:", toolName);
+        return;
+      }
+
+      try {
+        await toggleMcpTool(toolName, tool.server, !tool.enabled);
+        await fetchTools();
+      } catch (err) {
+        console.error("Failed to toggle tool:", err);
+      }
     },
-    [updateDisabledTools],
+    [tools, toggleMcpTool, fetchTools],
   );
 
   // 切换某类别的所有工具
   const toggleCategory = useCallback(
-    (category: ToolCategory, enabled: boolean) => {
-      setTools((prev) => {
-        prev.forEach((t) => {
-          if (t.category === category) {
-            updateDisabledTools(t.name, enabled);
-          }
-        });
-        return prev.map((t) =>
-          t.category === category ? { ...t, enabled } : t,
-        );
-      });
+    async (category: ToolCategory, enabled: boolean) => {
+      // 只有 MCP 工具支持切换，且不能是系统禁用的
+      const categoryTools = tools.filter(
+        (t) => t.category === category && !t.system_disabled && category === "mcp" && t.server
+      );
+      await Promise.all(
+        categoryTools.map((t) => toggleMcpTool(t.name, t.server!, enabled))
+      );
+      await fetchTools();
     },
-    [updateDisabledTools],
+    [tools, toggleMcpTool, fetchTools],
   );
 
   // 全选/取消全选
   const toggleAll = useCallback(
-    (enabled: boolean) => {
-      setTools((prev) => {
-        prev.forEach((t) => {
-          updateDisabledTools(t.name, enabled);
-        });
-        return prev.map((t) => ({ ...t, enabled }));
-      });
+    async (enabled: boolean) => {
+      const toggleableTools = tools.filter(
+        (t) => !t.system_disabled && t.category === "mcp" && t.server
+      );
+      await Promise.all(
+        toggleableTools.map((t) => toggleMcpTool(t.name, t.server!, enabled))
+      );
+      await fetchTools();
     },
-    [updateDisabledTools],
+    [tools, toggleMcpTool, fetchTools],
   );
 
   // 获取禁用的工具列表（用于 API 请求）
@@ -172,20 +136,16 @@ export function useTools(disabledToolsVersion?: string) {
   // 获取启用的工具数量
   const enabledCount = useMemo(() => tools.filter((t) => t.enabled).length, [tools]);
 
-  // 初始加载 — 从 authApi 获取当前 user metadata
-  // disabledToolsVersion 变化时重新获取（当 MCPServerCard 切换工具时触发）
+  // 初始加载
   useEffect(() => {
-    authApi
-      .getCurrentUser()
-      .then((user) => fetchTools(user.metadata))
-      .catch(() => fetchTools());
+    fetchTools();
   }, [fetchTools, disabledToolsVersion]);
 
   // Refresh tools with a specific agent ID (for sandbox filtering)
   const refreshToolsForAgent = useCallback(
-    (agentId: string, metadata?: Record<string, unknown>) => {
+    (agentId: string) => {
       agentIdRef.current = agentId;
-      return fetchTools(metadata);
+      return fetchTools();
     },
     [fetchTools],
   );
@@ -200,7 +160,7 @@ export function useTools(disabledToolsVersion?: string) {
     toggleCategory,
     toggleAll,
     getDisabledToolNames,
-    getEnabledMcpTools,
+    getDisabledMcpTools,
     refreshTools: fetchTools,
     refreshToolsForAgent,
   };

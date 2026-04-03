@@ -421,6 +421,7 @@ async def list_tools(
     if settings.ENABLE_MCP:
         try:
             from src.infra.tool.mcp_global import get_global_mcp_tools
+            from src.infra.mcp.storage import MCPStorage
 
             # 使用全局单例，避免重复初始化
             mcp_tools, manager = await get_global_mcp_tools(user.sub)
@@ -428,15 +429,12 @@ async def list_tools(
             # 获取服务器名称映射（从 manager 的 _tool_server_map 或从工具名推断）
             tool_server_map = getattr(manager, "_tool_server_map", {}) if manager else {}
 
-            # 获取用户禁用的工具列表（从 user metadata disabled_tools 字段读取）
-            from src.infra.user.storage import UserStorage
+            # 获取系统级禁用的工具列表（管理员控制）
+            mcp_storage = MCPStorage()
+            system_disabled_tools = await mcp_storage.get_system_disabled_tools()
 
-            user_storage = UserStorage()
-            db_user = await user_storage.get_by_id(user.sub)
-            disabled_tools_raw = (
-                (db_user.metadata or {}).get("disabled_tools", []) if db_user else []
-            )
-            disabled_tool_names = set(disabled_tools_raw)
+            # 获取用户禁用的工具列表（从 user_mcp_tool_preferences 读取）
+            user_disabled_tools = await mcp_storage.get_disabled_tool_names(user.sub)
 
             mcp_start_idx = len(tools)  # HUMAN tools are already in the list
 
@@ -459,10 +457,19 @@ async def list_tools(
                         server_name = candidate_server
                         raw_name = candidate_tool
 
-                # 2. 检查工具是否被用户禁用
+                # 2. 检查工具是否被系统禁用或用户禁用
                 qualified_name = f"{server_name}:{raw_name}" if server_name else tool_name
-                if qualified_name in disabled_tool_names or tool_name in disabled_tool_names:
-                    continue
+
+                # 系统禁用检查
+                is_system_disabled = False
+                if server_name and server_name in system_disabled_tools:
+                    if raw_name in system_disabled_tools[server_name]:
+                        is_system_disabled = True
+
+                # 用户禁用检查
+                is_user_disabled = (
+                    qualified_name in user_disabled_tools or tool_name in user_disabled_tools
+                )
 
                 # 提取工具描述
                 description = tool.description if hasattr(tool, "description") else ""
@@ -477,6 +484,8 @@ async def list_tools(
                         category="mcp",
                         server=server_name,
                         parameters=parameters,
+                        system_disabled=is_system_disabled,
+                        user_disabled=is_user_disabled,
                     )
                 )
 
@@ -498,17 +507,8 @@ async def list_tools(
 
             mcp_storage = MCPStorage()
 
-            # 获取用户禁用的工具列表
-            try:
-                from src.infra.user.storage import UserStorage
-
-                user_storage = UserStorage()
-                db_user = await user_storage.get_by_id(user.sub)
-                disabled_tool_names = set(
-                    (db_user.metadata or {}).get("disabled_tools", []) if db_user else []
-                )
-            except Exception:
-                disabled_tool_names = set()
+            # 获取用户禁用的工具列表（使用统一的方法）
+            user_disabled_tools = await mcp_storage.get_disabled_tool_names(user.sub)
 
             sandbox_servers = await mcp_storage.get_sandbox_servers(user.sub)
             for server in sandbox_servers:
@@ -519,8 +519,9 @@ async def list_tools(
 
                 # 使用 server_name 作为工具名，方便与 disabled_tools 匹配
                 qualified_name = f"{server_name}:sandbox_mcp"
-                if qualified_name in disabled_tool_names or server_name in disabled_tool_names:
-                    continue
+                is_user_disabled = (
+                    qualified_name in user_disabled_tools or server_name in user_disabled_tools
+                )
 
                 tools.append(
                     ToolInfo(
@@ -529,6 +530,8 @@ async def list_tools(
                         category="sandbox",
                         server=server_name,
                         parameters=[],
+                        system_disabled=False,  # Sandbox tools are user-managed, not system-disabled
+                        user_disabled=is_user_disabled,
                     )
                 )
 

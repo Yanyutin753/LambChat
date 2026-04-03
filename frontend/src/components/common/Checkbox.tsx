@@ -47,7 +47,9 @@ export function Checkbox({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onChange?.();
+    if (!disabled) {
+      onChange?.();
+    }
   };
 
   return (
