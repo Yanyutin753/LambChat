@@ -13,7 +13,6 @@ import {
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { mcpApi } from "../../services/api/mcp";
-import { authApi } from "../../services/api";
 import type { MCPServerResponse, MCPToolInfo } from "../../types";
 
 interface MCPServerCardProps {
