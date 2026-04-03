@@ -191,8 +191,10 @@ class BaseGraphAgent(ABC):
                         # 检查最新 checkpoint 的时间
                         # LangGraph 的 ts 字段是 ISO 格式字符串（如 "2024-01-01T00:00:00"），
                         # 需要用 datetime.fromisoformat() 而非 datetime.fromtimestamp()
-                        latest_checkpoint = max(checkpoints.values(), key=lambda x: getattr(x, 'ts', 0))
-                        ts_raw = getattr(latest_checkpoint, 'ts', '0')
+                        latest_checkpoint = max(
+                            checkpoints.values(), key=lambda x: getattr(x, "ts", 0)
+                        )
+                        ts_raw = getattr(latest_checkpoint, "ts", "0")
                         checkpoint_time = None
                         if isinstance(ts_raw, str):
                             try:

@@ -121,7 +121,7 @@ class LLMClient:
     @staticmethod
     def _get_max_cache_size() -> int:
         """获取最大缓存大小（可配置）"""
-        return getattr(settings, 'LLM_MODEL_CACHE_SIZE', 50)
+        return getattr(settings, "LLM_MODEL_CACHE_SIZE", 50)
 
     @staticmethod
     def _create_model(
@@ -209,14 +209,14 @@ class LLMClient:
             # 尝试关闭 HTTP 客户端连接池，防止连接泄漏
             try:
                 # ChatAnthropic 和 ChatOpenAI 使用 httpx.AsyncClient
-                if hasattr(oldest_model, 'async_client'):
+                if hasattr(oldest_model, "async_client"):
                     client = oldest_model.async_client
-                    if hasattr(client, 'aclose'):
+                    if hasattr(client, "aclose"):
                         task = asyncio.create_task(client.aclose())
                         task.add_done_callback(lambda t: None)  # prevent GC
-                elif hasattr(oldest_model, 'client'):
+                elif hasattr(oldest_model, "client"):
                     client = oldest_model.client
-                    if hasattr(client, 'aclose'):
+                    if hasattr(client, "aclose"):
                         task = asyncio.create_task(client.aclose())
                         task.add_done_callback(lambda t: None)  # prevent GC
             except Exception as e:

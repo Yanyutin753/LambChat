@@ -30,13 +30,15 @@ logger = get_logger(__name__)
 # MongoDB 批量写入配置
 _MONGO_FLUSH_INTERVAL = 1.0  # 每 1000ms 刷新一次
 _MONGO_BATCH_SIZE = 200  # 每 200 条立即刷新
-_MONGO_BUFFER_MAX = 50000  # buffer 上限，防止 MongoDB 慢/宕机时 OOM（从 100000 降低到 50000，平衡内存和数据安全）
+_MONGO_BUFFER_MAX = (
+    50000  # buffer 上限，防止 MongoDB 慢/宕机时 OOM（从 100000 降低到 50000，平衡内存和数据安全）
+)
 _TTL_SET_KEYS_MAX = 5000  # _ttl_set_keys 上限，防止内存泄漏（从 10000 降低到 5000）
 
 
 def _get_max_events_per_trace() -> int:
     """获取单个 trace 最多保留的事件数（可配置）"""
-    return getattr(settings, 'SESSION_MAX_EVENTS_PER_TRACE', 10000)
+    return getattr(settings, "SESSION_MAX_EVENTS_PER_TRACE", 10000)
 
 
 def _utc_now() -> datetime:
@@ -146,7 +148,7 @@ class DualEventWriter:
                 # 当缓冲区达到 80% 时发出警告
                 elif buffer_size >= int(_MONGO_BUFFER_MAX * 0.8):
                     logger.warning(
-                        f"MongoDB buffer at {buffer_size}/{_MONGO_BUFFER_MAX} ({buffer_size*100//_MONGO_BUFFER_MAX}%). "
+                        f"MongoDB buffer at {buffer_size}/{_MONGO_BUFFER_MAX} ({buffer_size * 100 // _MONGO_BUFFER_MAX}%). "
                         f"Consider checking MongoDB performance."
                     )
                 self._mongo_buffer.append(
@@ -215,7 +217,7 @@ class DualEventWriter:
                         "$push": {
                             "events": {
                                 "$each": events,
-                                "$slice": -max_events  # 只保留最新的 N 个事件，防止单文档过大
+                                "$slice": -max_events,  # 只保留最新的 N 个事件，防止单文档过大
                             }
                         },
                         "$inc": {"event_count": len(events)},

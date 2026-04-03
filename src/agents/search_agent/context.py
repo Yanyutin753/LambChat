@@ -76,9 +76,13 @@ class SearchAgentContext:
             if self.disabled_mcp_tools:
                 disabled_mcp_set = set(self.disabled_mcp_tools)
                 mcp_tools = [
-                    t for t in mcp_tools
+                    t
+                    for t in mcp_tools
                     if t.name not in disabled_mcp_set
-                    and not (hasattr(t, "server") and f"{t.server}:{t.name.split(':')[-1]}" in disabled_mcp_set)
+                    and not (
+                        hasattr(t, "server")
+                        and f"{t.server}:{t.name.split(':')[-1]}" in disabled_mcp_set
+                    )
                 ]
                 logger.info(
                     f"[SearchAgentContext] Filtered out {len(self.disabled_mcp_tools)} disabled MCP tools, {len(mcp_tools)} remaining"

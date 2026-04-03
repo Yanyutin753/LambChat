@@ -232,9 +232,7 @@ async def chat_stream(
         }
 
         # 更新 session metadata，存储完整的对话配置（排队状态）
-        await _update_session_config(
-            session_id, run_id, agent_id, request
-        )
+        await _update_session_config(session_id, run_id, agent_id, request)
 
         return {
             "session_id": session_id,
@@ -261,9 +259,7 @@ async def chat_stream(
     )
 
     # 更新 session metadata，存储完整的对话配置
-    await _update_session_config(
-        session_id, run_id, agent_id, request
-    )
+    await _update_session_config(session_id, run_id, agent_id, request)
 
     return {
         "session_id": session_id,
