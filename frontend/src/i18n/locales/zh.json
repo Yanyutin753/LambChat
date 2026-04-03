@@ -713,9 +713,12 @@
       "edit": "编辑",
       "enable": "启用",
       "enableTool": "启用工具",
+      "envVarsCount": "{{count}} 个环境变量",
       "headersCount": "{{count}} 个头",
       "noTools": "未发现工具",
       "system": "系统",
+      "systemDisabled": "系统禁用",
+      "toolToggleFailed": "切换工具失败",
       "tools": "工具",
       "updated": "更新于：{{date}}",
       "user": "用户"

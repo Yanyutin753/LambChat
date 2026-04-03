@@ -154,6 +154,9 @@ class MCPToolInfo(BaseModel):
     name: str = Field(..., description="Tool name")
     description: str = Field(default="", description="Tool description")
     parameters: list[dict[str, Any]] = Field(default_factory=list, description="Tool parameters")
+    system_disabled: bool = Field(
+        default=False, description="Whether this tool is disabled at system level"
+    )
 
 
 class MCPToolDiscoveryResponse(BaseModel):

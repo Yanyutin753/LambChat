@@ -93,6 +93,7 @@ export interface MCPToolInfo {
   name: string;
   description: string;
   parameters: MCPToolParamInfo[];
+  system_disabled?: boolean; // Whether this tool is disabled at system level
 }
 
 // MCP Tool Parameter Info

@@ -714,9 +714,12 @@
       "edit": "Edit",
       "enable": "Enable",
       "enableTool": "Enable tool",
+      "envVarsCount": "{{count}} env var(s)",
       "headersCount": "{{count}} header(s)",
       "noTools": "No tools found",
       "system": "System",
+      "systemDisabled": "System Disabled",
+      "toolToggleFailed": "Failed to toggle tool",
       "tools": "Tools",
       "updated": "Updated: {{date}}",
       "user": "User"

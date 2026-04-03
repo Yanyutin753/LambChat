@@ -459,6 +459,10 @@ class MCPStorage:
             if not server:
                 return [], f"Server '{server_name}' not found"
 
+            # Get system-disabled tools for this server
+            system_disabled_tools = await self.get_system_disabled_tools()
+            server_disabled_tools = system_disabled_tools.get(server_name, set())
+
             from src.infra.tool.mcp_client import MCPClientManager
 
             manager = MCPClientManager(use_database=False)
@@ -479,10 +483,15 @@ class MCPStorage:
                 tool_name = tool.name
                 if tool_name.startswith(f"{server_name}:"):
                     tool_name = tool_name[len(server_name) + 1 :]
+
+                # Check if this tool is system-disabled
+                is_system_disabled = tool_name in server_disabled_tools
+
                 tool_info: dict[str, Any] = {
                     "name": tool_name,
                     "description": getattr(tool, "description", ""),
                     "parameters": [],
+                    "system_disabled": is_system_disabled,
                 }
                 # Extract parameters if possible
                 try:
