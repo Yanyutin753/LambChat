@@ -420,8 +420,8 @@ async def list_tools(
     # 3. MCP 工具 - 使用全局单例（分布式优化）
     if settings.ENABLE_MCP:
         try:
-            from src.infra.tool.mcp_global import get_global_mcp_tools
             from src.infra.mcp.storage import MCPStorage
+            from src.infra.tool.mcp_global import get_global_mcp_tools
 
             # 使用全局单例，避免重复初始化
             mcp_tools, manager = await get_global_mcp_tools(user.sub)
