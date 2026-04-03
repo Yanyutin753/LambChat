@@ -160,9 +160,6 @@ function ChatAppContent({
     tools,
     isLoading: toolsLoading,
     totalCount: totalToolsCount,
-    toggleTool,
-    toggleCategory,
-    toggleAll,
     getDisabledToolNames,
     getDisabledMcpTools,
     refreshToolsForAgent,
@@ -174,9 +171,6 @@ function ChatAppContent({
     totalCount: totalSkillsCount,
     pendingSkillNames,
     isMutating: skillsMutating,
-    toggleSkillWrapper,
-    toggleCategory: toggleSkillCategory,
-    toggleAll: toggleAllSkills,
     fetchSkills,
     getEnabledSkillNames,
     getDisabledSkillNames,
@@ -287,24 +281,28 @@ function ChatAppContent({
     }));
   }, [skills, sessionConfig.disabledSkills]);
 
-  // Effective toggle callbacks: toggle global state AND update session config
+  // Effective toggle callbacks: only update session config (not global state)
   const effectiveToggleTool = useCallback(
     (toolName: string) => {
-      toggleTool(toolName);
       const tool = tools.find((t) => t.name === toolName);
-      if (tool?.category === "mcp") {
+      if (!tool) return;
+
+      // For MCP tools, toggle in session config
+      if (tool.category === "mcp") {
         toggleSessionMcpTool(toolName);
       }
+      // For other tools (builtin, skill, human, sandbox), we don't support session-level toggle yet
+      // They use global state only
     },
-    [toggleTool, tools, toggleSessionMcpTool],
+    [tools, toggleSessionMcpTool],
   );
 
   const effectiveToggleCategory = useCallback(
     (category: ToolCategory, enabled: boolean) => {
-      toggleCategory(category, enabled);
       if (category === "mcp") {
+        // For MCP tools, update session config
         tools
-          .filter((t) => t.category === "mcp")
+          .filter((t) => t.category === "mcp" && !t.system_disabled)
           .forEach((t) => {
             const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(t.name);
             if (enabled && isInSessionDisabled) {
@@ -316,16 +314,16 @@ function ChatAppContent({
             }
           });
       }
+      // For other categories, we don't support session-level toggle yet
     },
-    [toggleCategory, tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
+    [tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
   );
 
   const effectiveToggleAll = useCallback(
     (enabled: boolean) => {
-      toggleAll(enabled);
       // Sync MCP tools in session config (disabled list)
       tools
-        .filter((t) => t.category === "mcp")
+        .filter((t) => t.category === "mcp" && !t.system_disabled)
         .forEach((t) => {
           const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(t.name);
           if (enabled && isInSessionDisabled) {
@@ -335,21 +333,21 @@ function ChatAppContent({
           }
         });
     },
-    [toggleAll, tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
+    [tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
   );
 
   const effectiveToggleSkill = useCallback(
     async (name: string): Promise<boolean> => {
-      const result = await toggleSkillWrapper(name);
+      // Only update session config, not global state
       toggleSessionSkill(name);
-      return result;
+      return true;
     },
-    [toggleSkillWrapper, toggleSessionSkill],
+    [toggleSessionSkill],
   );
 
   const effectiveToggleSkillCategory = useCallback(
     async (category: SkillSource, enabled: boolean): Promise<boolean> => {
-      const result = await toggleSkillCategory(category, enabled);
+      // Only update session config for skills in this category
       skills
         .filter((s) => s.source === category)
         .forEach((s) => {
@@ -360,14 +358,14 @@ function ChatAppContent({
             toggleSessionSkill(s.name);
           }
         });
-      return result;
+      return true;
     },
-    [toggleSkillCategory, skills, sessionConfig.disabledSkills, toggleSessionSkill],
+    [skills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
   const effectiveToggleAllSkills = useCallback(
     async (enabled: boolean): Promise<boolean> => {
-      const result = await toggleAllSkills(enabled);
+      // Only update session config for all skills
       skills.forEach((s) => {
         const isInSessionDisabled = sessionConfig.disabledSkills.includes(s.name);
         if (enabled && isInSessionDisabled) {
@@ -376,9 +374,9 @@ function ChatAppContent({
           toggleSessionSkill(s.name);
         }
       });
-      return result;
+      return true;
     },
-    [toggleAllSkills, skills, sessionConfig.disabledSkills, toggleSessionSkill],
+    [skills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
   // Effective agent option toggle: update both local state and session config
