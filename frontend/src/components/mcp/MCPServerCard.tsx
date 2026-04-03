@@ -21,7 +21,6 @@ interface MCPServerCardProps {
   onToggle: (name: string) => void;
   onEdit: (server: MCPServerResponse) => void;
   onDelete: (name: string, isSystem: boolean) => void;
-  disabledToolNames?: Set<string>;
   onToolToggled?: () => void;
 }
 
@@ -47,7 +46,6 @@ export function MCPServerCard({
   onToggle,
   onEdit,
   onDelete,
-  disabledToolNames = new Set(),
   onToolToggled,
 }: MCPServerCardProps) {
   const { t } = useTranslation();
@@ -58,9 +56,6 @@ export function MCPServerCard({
 
   // Track pending toggle to debounce rapid clicks and avoid race conditions
   const pendingToggleRef = useRef<Promise<void> | null>(null);
-
-  // Use prop directly instead of redundant local state
-  const disabledTools = disabledToolNames;
 
   const transportLabel =
     TRANSPORT_LABELS[server.transport] || server.transport.toUpperCase();
@@ -130,9 +125,9 @@ export function MCPServerCard({
   const enabledToolCount = useMemo(
     () =>
       tools.length > 0
-        ? tools.filter((t) => !disabledTools.has(`${server.name}:${t.name}`)).length
+        ? tools.filter((t) => !t.user_disabled && !t.system_disabled).length
         : 0,
-    [tools, disabledTools, server.name],
+    [tools],
   );
 
   return (
@@ -298,31 +293,30 @@ export function MCPServerCard({
 
               {!toolsLoading &&
                 tools.map((tool) => {
-                  const qualifiedName = `${server.name}:${tool.name}`;
-                  const isDisabled = disabledTools.has(qualifiedName);
+                  const isUserDisabled = tool.user_disabled || false;
                   const isSystemDisabled = tool.system_disabled || false;
                   return (
                     <div
                       key={tool.name}
                       className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors ${
-                        isDisabled || isSystemDisabled
+                        isUserDisabled || isSystemDisabled
                           ? "opacity-50"
                           : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
                       }`}
                     >
                       <button
-                        onClick={() => handleToggleTool(tool.name, !isDisabled)}
+                        onClick={() => handleToggleTool(tool.name, isUserDisabled)}
                         className="flex-shrink-0"
                         disabled={isSystemDisabled}
                         title={
                           isSystemDisabled
                             ? t("mcp.card.systemDisabled", "System Disabled")
-                            : isDisabled
+                            : isUserDisabled
                               ? t("mcp.card.enableTool")
                               : t("mcp.card.disableTool")
                         }
                       >
-                        {isDisabled || isSystemDisabled ? (
+                        {isUserDisabled || isSystemDisabled ? (
                           <ToggleLeft
                             size={16}
                             className={

@@ -287,12 +287,10 @@ function ChatAppContent({
       const tool = tools.find((t) => t.name === toolName);
       if (!tool) return;
 
-      // For MCP tools, toggle in session config
       if (tool.category === "mcp") {
         toggleSessionMcpTool(toolName);
       }
-      // For other tools (builtin, skill, human, sandbox), we don't support session-level toggle yet
-      // They use global state only
+      // Other categories (builtin, human, sandbox) don't support session-level toggle
     },
     [tools, toggleSessionMcpTool],
   );
@@ -435,9 +433,9 @@ function ChatAppContent({
     (config: {
       agent_id?: string;
       agent_options?: Record<string, boolean | string | number>;
-      disabled_tools?: string[];
       disabled_skills?: string[];
       disabled_mcp_tools?: string[];
+      disabled_tools?: string[];
     }) => {
       console.log("[AppContent] Restoring session config:", config);
 

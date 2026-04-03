@@ -173,7 +173,9 @@ export function useSessionConfig(
 
     setConfig({
       disabledSkills: sessionConfig.disabled_skills || [],
-      disabledMcpTools: sessionConfig.disabled_mcp_tools || [],
+      // disabled_tools is a legacy field (pre-split); treat as disabled_mcp_tools if present
+      disabledMcpTools:
+        sessionConfig.disabled_mcp_tools ?? sessionConfig.disabled_tools ?? [],
       agentOptions:
         sessionConfig.agent_options || options.getDefaultAgentOptions(),
     });

@@ -39,7 +39,6 @@ async def _update_session_config(
     conversation_config = {
         "current_run_id": run_id,
         "agent_id": agent_id,
-        "disabled_tools": request.disabled_tools or [],
         "agent_options": request.agent_options or {},
         "disabled_skills": request.disabled_skills or [],
         "disabled_mcp_tools": request.disabled_mcp_tools or [],

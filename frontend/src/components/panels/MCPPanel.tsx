@@ -30,13 +30,7 @@ export function MCPPanel() {
     demoteServer,
     clearError,
   } = useMCP();
-  const { hasAnyPermission, user, refreshUser } = useAuth();
-
-  // Derive disabled tool names from user metadata (shared with ToolSelector)
-  const disabledToolNames = useMemo(() => {
-    const dt: string[] = (user?.metadata?.disabled_tools as string[]) || [];
-    return new Set(dt);
-  }, [user?.metadata?.disabled_tools]);
+  const { hasAnyPermission, refreshUser } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(
@@ -426,7 +420,6 @@ export function MCPPanel() {
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
-                disabledToolNames={disabledToolNames}
                 onToolToggled={handleToolToggled}
               />
             ))}

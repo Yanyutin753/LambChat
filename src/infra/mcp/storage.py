@@ -463,6 +463,9 @@ class MCPStorage:
             system_disabled_tools = await self.get_system_disabled_tools()
             server_disabled_tools = system_disabled_tools.get(server_name, set())
 
+            # Get user-disabled tools for this server
+            user_disabled_tool_names = await self.get_disabled_tool_names(user_id)
+
             from src.infra.tool.mcp_client import MCPClientManager
 
             manager = MCPClientManager(use_database=False)
@@ -487,11 +490,16 @@ class MCPStorage:
                 # Check if this tool is system-disabled
                 is_system_disabled = tool_name in server_disabled_tools
 
+                # Check if this tool is user-disabled (qualified name: server:tool)
+                qualified = f"{server_name}:{tool_name}"
+                is_user_disabled = qualified in user_disabled_tool_names
+
                 tool_info: dict[str, Any] = {
                     "name": tool_name,
                     "description": getattr(tool, "description", ""),
                     "parameters": [],
                     "system_disabled": is_system_disabled,
+                    "user_disabled": is_user_disabled,
                 }
                 # Extract parameters if possible
                 try:

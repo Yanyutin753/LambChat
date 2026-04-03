@@ -157,6 +157,9 @@ class MCPToolInfo(BaseModel):
     system_disabled: bool = Field(
         default=False, description="Whether this tool is disabled at system level"
     )
+    user_disabled: bool = Field(
+        default=False, description="Whether this tool is disabled by the current user"
+    )
 
 
 class MCPToolDiscoveryResponse(BaseModel):
