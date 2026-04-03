@@ -30,7 +30,7 @@ export function MCPPanel() {
     demoteServer,
     clearError,
   } = useMCP();
-  const { hasAnyPermission, refreshUser } = useAuth();
+  const { hasAnyPermission, user, refreshUser } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(

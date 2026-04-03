@@ -9,7 +9,7 @@ import type {
 
 const API_BASE = "/api";
 
-export function useTools(disabledToolsVersion?: string) {
+export function useTools() {
   const [tools, setTools] = useState<ToolState[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +139,7 @@ export function useTools(disabledToolsVersion?: string) {
   // 初始加载
   useEffect(() => {
     fetchTools();
-  }, [fetchTools, disabledToolsVersion]);
+  }, [fetchTools]);
 
   // Refresh tools with a specific agent ID (for sandbox filtering)
   const refreshToolsForAgent = useCallback(

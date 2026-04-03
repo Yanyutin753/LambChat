@@ -133,7 +133,7 @@ function ChatAppContent({
 }) {
   const { t, i18n } = useTranslation();
   const { enableSkills, settings } = useSettingsContext();
-  const { hasPermission, isAuthenticated, user } = useAuth();
+  const { hasPermission, isAuthenticated } = useAuth();
 
   const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
     useDragAndDrop();
@@ -146,24 +146,13 @@ function ChatAppContent({
     isLoading: approvalLoading,
   } = useApprovals({ sessionId: null });
 
-  const disabledToolsVersion = useMemo(
-    () =>
-      JSON.stringify(
-        ((user?.metadata?.disabled_tools as string[] | undefined) ?? [])
-          .slice()
-          .sort(),
-      ),
-    [user?.metadata?.disabled_tools],
-  );
-
   const {
     tools,
     isLoading: toolsLoading,
     totalCount: totalToolsCount,
     getDisabledToolNames,
-    getDisabledMcpTools,
     refreshToolsForAgent,
-  } = useTools(disabledToolsVersion);
+  } = useTools();
 
   const {
     skills,
@@ -172,8 +161,6 @@ function ChatAppContent({
     pendingSkillNames,
     isMutating: skillsMutating,
     fetchSkills,
-    getEnabledSkillNames,
-    getDisabledSkillNames,
   } = useSkills({ enabled: enableSkills });
 
   const projectManager = useProjectManager();
@@ -232,9 +219,9 @@ function ChatAppContent({
   useEffect(() => {
     if (prevAgentRef.current !== currentAgent) {
       prevAgentRef.current = currentAgent;
-      refreshToolsForAgent(currentAgent, user?.metadata);
+      refreshToolsForAgent(currentAgent);
     }
-  }, [currentAgent, refreshToolsForAgent, user?.metadata]);
+  }, [currentAgent, refreshToolsForAgent]);
 
   // 现在可以初始化 agentOptions
   const {

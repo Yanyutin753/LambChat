@@ -1,13 +1,14 @@
 import { createPortal } from "react-dom";
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { X, User, Bell, Settings, Braces } from "lucide-react";
+import { X, User, Bell, Settings, Braces, Wrench } from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
 import { APP_NAME } from "../../constants";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
 import { ProfilePreferencesTab } from "./tabs/ProfilePreferencesTab";
 import { ProfileEnvVarsTab } from "./tabs/ProfileEnvVarsTab";
+import { ProfileToolsTab } from "./tabs/ProfileToolsTab";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface ProfileModalProps {
@@ -24,6 +25,7 @@ const TAB_ICONS: Record<
   notification: Bell,
   preferences: Settings,
   envvars: Braces,
+  tools: Wrench,
 };
 
 export function ProfileModal({
@@ -33,7 +35,7 @@ export function ProfileModal({
 }: ProfileModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<
-    "info" | "notification" | "preferences" | "envvars"
+    "info" | "notification" | "preferences" | "envvars" | "tools"
   >("info");
 
   const mobileTabsRef = useRef<HTMLDivElement>(null);
@@ -86,6 +88,7 @@ export function ProfileModal({
     { key: "notification", label: t("profile.notifications") },
     { key: "preferences", label: t("profile.preferences") },
     { key: "envvars", label: t("envVars.title") },
+    { key: "tools", label: t("profile.toolsTab", "Tools") },
   ];
 
   const renderTabContent = () => (
@@ -94,6 +97,7 @@ export function ProfileModal({
       {activeTab === "notification" && <ProfileNotificationTab />}
       {activeTab === "preferences" && <ProfilePreferencesTab />}
       {activeTab === "envvars" && <ProfileEnvVarsTab />}
+      {activeTab === "tools" && <ProfileToolsTab />}
     </div>
   );
 
