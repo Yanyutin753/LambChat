@@ -165,9 +165,7 @@ export function useMarketplace() {
         await fetchTags();
         return true;
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to create skill",
-        );
+        setError(err instanceof Error ? err.message : "Failed to create skill");
         return false;
       } finally {
         setIsLoading(false);
@@ -178,7 +176,10 @@ export function useMarketplace() {
 
   // Update marketplace skill directly (creator only)
   const updateMarketplaceSkill = useCallback(
-    async (skillName: string, data: MarketplaceCreateRequest): Promise<boolean> => {
+    async (
+      skillName: string,
+      data: MarketplaceCreateRequest,
+    ): Promise<boolean> => {
       setIsLoading(true);
       setError(null);
       try {
@@ -186,9 +187,7 @@ export function useMarketplace() {
         await fetchSkills();
         return true;
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to update skill",
-        );
+        setError(err instanceof Error ? err.message : "Failed to update skill");
         return false;
       } finally {
         setIsLoading(false);
@@ -206,9 +205,7 @@ export function useMarketplace() {
         await fetchSkills();
         return true;
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to update skill",
-        );
+        setError(err instanceof Error ? err.message : "Failed to update skill");
         return false;
       }
     },
@@ -224,9 +221,7 @@ export function useMarketplace() {
         await fetchSkills();
         return true;
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to delete skill",
-        );
+        setError(err instanceof Error ? err.message : "Failed to delete skill");
         return false;
       }
     },
@@ -234,44 +229,41 @@ export function useMarketplace() {
   );
 
   // Load marketplace skill for editing (without local copy)
-  const loadMarketplaceSkillForEdit = useCallback(
-    async (skillName: string) => {
-      try {
-        const [filesResp, skillDetail] = await Promise.all([
-          marketplaceApi.listFiles(skillName),
-          marketplaceApi.get(skillName),
-        ]);
+  const loadMarketplaceSkillForEdit = useCallback(async (skillName: string) => {
+    try {
+      const [filesResp, skillDetail] = await Promise.all([
+        marketplaceApi.listFiles(skillName),
+        marketplaceApi.get(skillName),
+      ]);
 
-        const fileContents: Record<string, string> = {};
-        await Promise.all(
-          filesResp.files.map(async (path) => {
-            const resp = await marketplaceApi.getFile(skillName, path);
-            fileContents[path] = resp.content;
-          }),
-        );
+      const fileContents: Record<string, string> = {};
+      await Promise.all(
+        filesResp.files.map(async (path) => {
+          const resp = await marketplaceApi.getFile(skillName, path);
+          fileContents[path] = resp.content;
+        }),
+      );
 
-        return {
-          name: skillName,
-          description: skillDetail.description,
-          tags: skillDetail.tags,
-          content: fileContents["SKILL.md"] || "",
-          files: fileContents,
-          enabled: true,
-          source: "marketplace" as const,
-          file_count: filesResp.files.length,
-          installed_from: "marketplace" as const,
-          is_published: true,
-          marketplace_is_active: skillDetail.is_active,
-        };
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load marketplace skill",
-        );
-        return null;
-      }
-    },
-    [],
-  );
+      return {
+        name: skillName,
+        description: skillDetail.description,
+        tags: skillDetail.tags,
+        content: fileContents["SKILL.md"] || "",
+        files: fileContents,
+        enabled: true,
+        source: "marketplace" as const,
+        file_count: filesResp.files.length,
+        installed_from: "marketplace" as const,
+        is_published: true,
+        marketplace_is_active: skillDetail.is_active,
+      };
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load marketplace skill",
+      );
+      return null;
+    }
+  }, []);
 
   // Initial load
   useEffect(() => {

@@ -118,80 +118,95 @@ export function MCPPanel() {
     setShowModal(true);
   }, []);
 
-  const handleSave = useCallback(async (data: MCPServerCreate): Promise<boolean> => {
-    let success = false;
+  const handleSave = useCallback(
+    async (data: MCPServerCreate): Promise<boolean> => {
+      let success = false;
 
-    try {
-      if (isCreating) {
-        const result = await createServer(data, createAsSystem);
-        success = result !== null;
-        if (success) {
-          toast.success(t("mcp.createSuccess"));
-        } else {
-          toast.error(t("mcp.createFailed"));
-        }
-      } else if (editingServer) {
-        // Check if server type is changing
-        const typeChanging = changeToSystem !== editingServer.is_system;
-
-        if (typeChanging && canAdmin) {
-          // Handle type change
-          if (changeToSystem) {
-            // Promote user server to system server
-            // We need the owner's user_id - for now, use current user
-            const result = await promoteServer(
-              editingServer.name,
-              user?.id || "",
-            );
-            success = result !== null;
-            if (success) {
-              toast.success(t("mcp.promoteSuccess"));
-            } else {
-              toast.error(t("mcp.promoteFailed"));
-            }
-          } else {
-            // Demote system server to user server
-            const result = await demoteServer(
-              editingServer.name,
-              user?.id || "",
-            );
-            success = result !== null;
-            if (success) {
-              toast.success(t("mcp.demoteSuccess"));
-            } else {
-              toast.error(t("mcp.demoteFailed"));
-            }
-          }
-        } else {
-          // Normal update without type change
-          const result = await updateServer(
-            editingServer.name,
-            data,
-            editingServer.is_system,
-          );
+      try {
+        if (isCreating) {
+          const result = await createServer(data, createAsSystem);
           success = result !== null;
           if (success) {
-            toast.success(t("mcp.updateSuccess"));
+            toast.success(t("mcp.createSuccess"));
           } else {
-            toast.error(t("mcp.updateFailed"));
+            toast.error(t("mcp.createFailed"));
+          }
+        } else if (editingServer) {
+          // Check if server type is changing
+          const typeChanging = changeToSystem !== editingServer.is_system;
+
+          if (typeChanging && canAdmin) {
+            // Handle type change
+            if (changeToSystem) {
+              // Promote user server to system server
+              // We need the owner's user_id - for now, use current user
+              const result = await promoteServer(
+                editingServer.name,
+                user?.id || "",
+              );
+              success = result !== null;
+              if (success) {
+                toast.success(t("mcp.promoteSuccess"));
+              } else {
+                toast.error(t("mcp.promoteFailed"));
+              }
+            } else {
+              // Demote system server to user server
+              const result = await demoteServer(
+                editingServer.name,
+                user?.id || "",
+              );
+              success = result !== null;
+              if (success) {
+                toast.success(t("mcp.demoteSuccess"));
+              } else {
+                toast.error(t("mcp.demoteFailed"));
+              }
+            }
+          } else {
+            // Normal update without type change
+            const result = await updateServer(
+              editingServer.name,
+              data,
+              editingServer.is_system,
+            );
+            success = result !== null;
+            if (success) {
+              toast.success(t("mcp.updateSuccess"));
+            } else {
+              toast.error(t("mcp.updateFailed"));
+            }
           }
         }
+
+        if (success) {
+          setShowModal(false);
+          setEditingServer(null);
+          setIsCreating(false);
+          setCreateAsSystem(false);
+          setChangeToSystem(false);
+        }
+      } catch (error) {
+        toast.error((error as Error).message || t("mcp.operationFailed"));
+        success = false;
       }
 
-      if (success) {
-        setShowModal(false);
-        setEditingServer(null);
-        setIsCreating(false);
-        setCreateAsSystem(false);
-        setChangeToSystem(false);
-      }
-    } catch (error) {
-      toast.error((error as Error).message || t("mcp.operationFailed"));
-      success = false;
-    }
-
-    return success;
-  }, [isCreating, editingServer, createAsSystem, changeToSystem, canAdmin, createServer, updateServer, promoteServer, demoteServer, user?.id, t]);
+      return success;
+    },
+    [
+      isCreating,
+      editingServer,
+      createAsSystem,
+      changeToSystem,
+      canAdmin,
+      createServer,
+      updateServer,
+      promoteServer,
+      demoteServer,
+      user?.id,
+      t,
+    ],
+  );
 
   const handleCancel = useCallback(() => {
     setShowModal(false);
@@ -211,10 +226,13 @@ export function MCPPanel() {
     enabled: showImportModal,
   });
 
-  const handleDelete = useCallback(async (name: string, isSystem: boolean = false) => {
-    setDeleteConfirmData({ name, isSystem });
-    setIsDeleteConfirmOpen(true);
-  }, []);
+  const handleDelete = useCallback(
+    async (name: string, isSystem: boolean = false) => {
+      setDeleteConfirmData({ name, isSystem });
+      setIsDeleteConfirmOpen(true);
+    },
+    [],
+  );
 
   const confirmDelete = async () => {
     if (!deleteConfirmData) return;
@@ -234,9 +252,12 @@ export function MCPPanel() {
     setDeleteConfirmData(null);
   };
 
-  const handleToggle = useCallback(async (name: string) => {
-    await toggleServer(name);
-  }, [toggleServer]);
+  const handleToggle = useCallback(
+    async (name: string) => {
+      await toggleServer(name);
+    },
+    [toggleServer],
+  );
 
   // Stable callback for tool toggled — avoids inline arrow in .map()
   const handleToolToggled = useCallback(() => {

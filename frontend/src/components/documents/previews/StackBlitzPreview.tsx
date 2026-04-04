@@ -28,19 +28,25 @@ export default function StackBlitzPreview({
 
     // 确保 package.json 存在
     if (!normalizedFiles["package.json"]) {
-      normalizedFiles["package.json"] = JSON.stringify({
-        name: name.toLowerCase().replace(/\s+/g, "-"),
-        version: "0.0.0",
-        private: true,
-        scripts: {
-          dev: "vite",
-          build: "vite build",
-          preview: "vite preview"
-        }
-      }, null, 2);
+      normalizedFiles["package.json"] = JSON.stringify(
+        {
+          name: name.toLowerCase().replace(/\s+/g, "-"),
+          version: "0.0.0",
+          private: true,
+          scripts: {
+            dev: "vite",
+            build: "vite build",
+            preview: "vite preview",
+          },
+        },
+        null,
+        2,
+      );
     }
 
-    const normalizedEntry = entry?.startsWith("/") ? entry.slice(1) : entry || "src/main.js";
+    const normalizedEntry = entry?.startsWith("/")
+      ? entry.slice(1)
+      : entry || "src/main.js";
 
     sdk.embedProject(
       containerRef.current,
@@ -56,7 +62,7 @@ export default function StackBlitzPreview({
         height: "100%",
         hideNavigation: false,
         hideDevTools: false,
-      }
+      },
     );
   }, [name, template, files, entry]);
 

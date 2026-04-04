@@ -1,6 +1,14 @@
 import { useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { FileIcon, Image, Download, Film, Music, FileArchive, Loader2 } from "lucide-react";
+import {
+  FileIcon,
+  Image,
+  Download,
+  Film,
+  Music,
+  FileArchive,
+  Loader2,
+} from "lucide-react";
 import { getFullUrl } from "../../services/api/config";
 import { ImageViewer } from "../common";
 
@@ -46,8 +54,7 @@ function getIconColor(mime: string) {
   if (isImage(mime)) return "text-emerald-500";
   if (isVideo(mime)) return "text-purple-500";
   if (isAudio(mime)) return "text-pink-500";
-  if (mime.includes("zip") || mime.includes("tar"))
-    return "text-amber-500";
+  if (mime.includes("zip") || mime.includes("tar")) return "text-amber-500";
   return "text-[var(--theme-text-secondary)]";
 }
 
@@ -55,8 +62,7 @@ function getIconBg(mime: string) {
   if (isImage(mime)) return "bg-emerald-500/10";
   if (isVideo(mime)) return "bg-purple-500/10";
   if (isAudio(mime)) return "bg-pink-500/10";
-  if (mime.includes("zip") || mime.includes("tar"))
-    return "bg-amber-500/10";
+  if (mime.includes("zip") || mime.includes("tar")) return "bg-amber-500/10";
   return "bg-[var(--theme-bg-card)]";
 }
 
@@ -91,7 +97,9 @@ export function BinaryFilePreview({
     <div className="flex h-full min-h-[18rem] sm:min-h-[24rem] flex-col rounded-2xl bg-[var(--theme-bg)] overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-3 sm:px-4 py-2.5 border-b border-[var(--theme-border)] shrink-0">
-        <div className={`flex items-center justify-center w-9 h-9 rounded-xl ${iconBg}`}>
+        <div
+          className={`flex items-center justify-center w-9 h-9 rounded-xl ${iconBg}`}
+        >
           <Icon size={18} className={iconColor} />
         </div>
         <div className="flex-1 min-w-0">
@@ -124,8 +132,13 @@ export function BinaryFilePreview({
             {!imageLoaded && (
               <div className="absolute inset-0 flex items-center justify-center bg-[var(--theme-bg-card)]/50 rounded-lg">
                 <div className="flex flex-col items-center gap-3">
-                  <Loader2 size={28} className="animate-spin text-[var(--theme-text-secondary)]" />
-                  <span className="text-xs text-[var(--theme-text-secondary)]">Loading...</span>
+                  <Loader2
+                    size={28}
+                    className="animate-spin text-[var(--theme-text-secondary)]"
+                  />
+                  <span className="text-xs text-[var(--theme-text-secondary)]">
+                    Loading...
+                  </span>
                 </div>
               </div>
             )}
@@ -146,7 +159,9 @@ export function BinaryFilePreview({
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 size={28} className="animate-spin text-white/60" />
-                  <span className="text-xs text-white/50">Loading video...</span>
+                  <span className="text-xs text-white/50">
+                    Loading video...
+                  </span>
                 </div>
               </div>
             )}
@@ -157,7 +172,9 @@ export function BinaryFilePreview({
               autoPlay={false}
               onLoadedData={() => setVideoLoaded(true)}
               onError={() => setVideoLoaded(true)}
-              className={`w-full max-w-4xl max-h-[60vh] rounded-xl shadow-2xl ring-1 ring-white/10 transition-opacity duration-300 ${videoLoaded ? "opacity-100" : "opacity-0"}`}
+              className={`w-full max-w-4xl max-h-[60vh] rounded-xl shadow-2xl ring-1 ring-white/10 transition-opacity duration-300 ${
+                videoLoaded ? "opacity-100" : "opacity-0"
+              }`}
             >
               <track kind="captions" />
             </video>
@@ -167,7 +184,9 @@ export function BinaryFilePreview({
         {/* Audio preview */}
         {isAudio(mime_type) && (
           <div className="flex flex-col items-center justify-center gap-6 py-12 px-4 min-h-full">
-            <div className={`flex items-center justify-center w-20 h-20 rounded-2xl ${iconBg}`}>
+            <div
+              className={`flex items-center justify-center w-20 h-20 rounded-2xl ${iconBg}`}
+            >
               <Music size={36} className={iconColor} />
             </div>
             <audio src={fullUrl} controls className="w-full max-w-md" />
@@ -184,28 +203,33 @@ export function BinaryFilePreview({
         )}
 
         {/* Generic binary file (non-previewable) */}
-        {!isImage(mime_type) && !isVideo(mime_type) && !isAudio(mime_type) && !isPdf(mime_type) && (
-          <div className="flex flex-col items-center justify-center gap-4 py-12 px-4 min-h-full">
-            <div className={`flex items-center justify-center w-20 h-20 rounded-2xl ${iconBg}`}>
-              <Icon size={36} className={iconColor} />
+        {!isImage(mime_type) &&
+          !isVideo(mime_type) &&
+          !isAudio(mime_type) &&
+          !isPdf(mime_type) && (
+            <div className="flex flex-col items-center justify-center gap-4 py-12 px-4 min-h-full">
+              <div
+                className={`flex items-center justify-center w-20 h-20 rounded-2xl ${iconBg}`}
+              >
+                <Icon size={36} className={iconColor} />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-[var(--theme-text)] mb-1">
+                  {t("skills.binaryPreview.title")}
+                </p>
+                <p className="text-xs text-[var(--theme-text-secondary)] max-w-xs">
+                  {t("skills.binaryPreview.unsupportedHint")}
+                </p>
+              </div>
+              <button
+                onClick={handleDownload}
+                className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--theme-primary)] text-white text-sm font-medium hover:opacity-90 transition-all active:scale-95 cursor-pointer"
+              >
+                <Download size={16} />
+                {t("skills.binaryPreview.download")}
+              </button>
             </div>
-            <div className="text-center">
-              <p className="text-sm font-medium text-[var(--theme-text)] mb-1">
-                {t("skills.binaryPreview.title")}
-              </p>
-              <p className="text-xs text-[var(--theme-text-secondary)] max-w-xs">
-                {t("skills.binaryPreview.unsupportedHint")}
-              </p>
-            </div>
-            <button
-              onClick={handleDownload}
-              className="mt-2 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--theme-primary)] text-white text-sm font-medium hover:opacity-90 transition-all active:scale-95 cursor-pointer"
-            >
-              <Download size={16} />
-              {t("skills.binaryPreview.download")}
-            </button>
-          </div>
-        )}
+          )}
       </div>
 
       {/* ImageViewer modal */}

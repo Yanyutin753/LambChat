@@ -90,10 +90,7 @@ export function SkillFormNormal(a: SkillFormActions) {
               </label>
               <div className="skill-tag-editor rounded-2xl bg-[var(--theme-bg)] p-3 shadow-sm">
                 <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
-                  <Tag
-                    size={12}
-                    className="text-[var(--theme-primary)]"
-                  />
+                  <Tag size={12} className="text-[var(--theme-primary)]" />
                   {t("adminMarketplace.tags")}
                 </div>
                 <p className="mt-2 text-xs leading-5 text-[var(--theme-text-secondary)]/80">
@@ -224,9 +221,24 @@ export function SkillFormNormal(a: SkillFormActions) {
                 return (
                   <div className="flex h-full min-h-[18rem] sm:min-h-[24rem] items-center justify-center rounded-2xl bg-[var(--theme-bg)]">
                     <div className="flex flex-col items-center gap-3">
-                      <svg className="h-6 w-6 animate-spin text-[var(--theme-text-secondary)]" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      <svg
+                        className="h-6 w-6 animate-spin text-[var(--theme-text-secondary)]"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
                       </svg>
                       <span className="text-sm text-[var(--theme-text-secondary)]">
                         {currentPath.split("/").pop()}
@@ -256,7 +268,9 @@ export function SkillFormNormal(a: SkillFormActions) {
                 >
                   <SkillEditor
                     value={a.files[a.activeFileIndex]?.content || ""}
-                    onChange={(val) => a.updateFileContent(a.activeFileIndex, val)}
+                    onChange={(val) =>
+                      a.updateFileContent(a.activeFileIndex, val)
+                    }
                     className="flex-1 min-h-0"
                     filePath={a.files[a.activeFileIndex]?.path}
                   />
@@ -290,10 +304,24 @@ export function SkillFormNormal(a: SkillFormActions) {
           {a.isLoading ? (
             <>
               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
               </svg>
-              <span className="loading-text">{t("common.saving", "Saving...")}</span>
+              <span className="loading-text">
+                {t("common.saving", "Saving...")}
+              </span>
             </>
           ) : a.isEditing ? (
             t("skills.form.saveChanges")

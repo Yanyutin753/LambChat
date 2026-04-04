@@ -138,7 +138,10 @@ export function PublishDialog({
                     .filter(Boolean),
                 ),
               ).map((tag) => (
-                <span key={tag} className="skill-tag-chip skill-tag-chip--active">
+                <span
+                  key={tag}
+                  className="skill-tag-chip skill-tag-chip--active"
+                >
                   {tag}
                 </span>
               ))}

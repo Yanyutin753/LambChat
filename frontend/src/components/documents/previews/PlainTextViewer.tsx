@@ -21,11 +21,12 @@ const PlainTextViewer = memo(function PlainTextViewer({
 
   // Calculate line number width based on max line count
   const lineCount = lines.length;
-  const lineNumberWidth = lineCount >= 1000
-    ? "4rem"   // ~4 digits
-    : lineCount >= 100
-      ? "3rem" // ~3 digits
-      : "2rem"; // ~2 digits
+  const lineNumberWidth =
+    lineCount >= 1000
+      ? "4rem" // ~4 digits
+      : lineCount >= 100
+        ? "3rem" // ~3 digits
+        : "2rem"; // ~2 digits
 
   return (
     <div className="h-full overflow-auto bg-stone-100 dark:bg-[#282c34] p-4 sm:p-6">

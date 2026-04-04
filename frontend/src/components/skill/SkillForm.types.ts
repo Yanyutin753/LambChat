@@ -1,4 +1,8 @@
-import type { SkillResponse, SkillCreate, BinaryFileInfo } from "../../types/skill";
+import type {
+  SkillResponse,
+  SkillCreate,
+  BinaryFileInfo,
+} from "../../types/skill";
 
 export interface FileEntry {
   path: string;

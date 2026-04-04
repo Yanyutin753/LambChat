@@ -5,7 +5,6 @@ import {
   shouldResetExternalNavigateFlag,
 } from "./useSessionSync.ts";
 
-
 test("resets the external navigation flag only when present", () => {
   assert.equal(
     shouldResetExternalNavigateFlag({ externalNavigate: true }),

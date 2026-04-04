@@ -111,7 +111,10 @@ const MermaidDiagram = memo(function MermaidDiagram({
           },
         });
 
-        const { svg } = await mermaid.default.render(`mermaid-${Date.now()}`, code);
+        const { svg } = await mermaid.default.render(
+          `mermaid-${Date.now()}`,
+          code,
+        );
         setSvg(svg);
         setError(null);
       } catch (err) {

@@ -37,9 +37,7 @@ export function BatchActionBar({
             className="btn-secondary text-xs"
           >
             <ToggleLeft size={14} />
-            <span className="hidden sm:inline">
-              {t("skills.card.disable")}
-            </span>
+            <span className="hidden sm:inline">{t("skills.card.disable")}</span>
           </button>
           <button
             onClick={() => onBatchToggle(true)}
@@ -47,26 +45,17 @@ export function BatchActionBar({
             className="btn-secondary text-xs"
           >
             <ToggleRight size={14} />
-            <span className="hidden sm:inline">
-              {t("skills.card.enable")}
-            </span>
+            <span className="hidden sm:inline">{t("skills.card.enable")}</span>
           </button>
           <button
             onClick={onBatchDelete}
             disabled={batchLoading}
             className="inline-flex items-center gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 disabled:opacity-50"
           >
-            {batchLoading ? (
-              <LoadingSpinner size="sm" />
-            ) : (
-              <Trash2 size={14} />
-            )}
+            {batchLoading ? <LoadingSpinner size="sm" /> : <Trash2 size={14} />}
             <span className="hidden sm:inline">{t("common.delete")}</span>
           </button>
-          <button
-            onClick={onClearSelection}
-            className="btn-secondary text-xs"
-          >
+          <button onClick={onClearSelection} className="btn-secondary text-xs">
             <X size={14} />
             <span className="hidden sm:inline">{t("common.cancel")}</span>
           </button>

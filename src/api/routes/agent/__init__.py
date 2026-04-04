@@ -404,15 +404,11 @@ async def list_tools(
     MCP 工具会实际连接服务器获取工具列表、描述和参数。
     当传入 agent_id 时，根据该 Agent 是否支持沙箱来过滤沙箱类工具。
     """
-    # 判断当前 Agent 是否支持沙箱
-    agent_supports_sandbox = True  # 默认支持（向后兼容）
     if agent_id:
         from src.agents.core.base import _AGENT_REGISTRY
 
         agent_cls = _AGENT_REGISTRY.get(agent_id)
-        if agent_cls:
-            agent_supports_sandbox = getattr(agent_cls, "_supports_sandbox", True)
-        else:
+        if not agent_cls:
             logger.warning(
                 f"[Tools API] Unknown agent_id={agent_id}, defaulting sandbox support to True"
             )

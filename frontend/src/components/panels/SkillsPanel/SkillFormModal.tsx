@@ -56,7 +56,7 @@ export function SkillFormModal({
                 <div>
                   <h3 className="skill-modal-header__title">
                     {isCreating
-                      ? (createTitle ?? t("skills.createNew"))
+                      ? createTitle ?? t("skills.createNew")
                       : t("skills.editSkill", { name: editingSkill?.name })}
                   </h3>
                   <p className="skill-modal-header__subtitle">

@@ -10,7 +10,6 @@ import zipfile
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
-from src.kernel.config import settings
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
@@ -26,6 +25,7 @@ from src.infra.skill.types import (
     UserSkill,
 )
 from src.infra.user.storage import UserStorage
+from src.kernel.config import settings
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
@@ -449,7 +449,7 @@ async def get_skill_file(
     if binary_ref:
         from src.infra.storage.s3 import get_storage_service
 
-        storage_service = get_storage_service()
+        get_storage_service()
         file_url = f"/api/upload/file/{binary_ref.storage_key}"
         return {
             "content": content,

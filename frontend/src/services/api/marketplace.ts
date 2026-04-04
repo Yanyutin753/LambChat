@@ -112,7 +112,10 @@ export const marketplaceApi = {
   /**
    * Update marketplace skill directly (creator only)
    */
-  async updateMarketplaceSkill(skillName: string, data: MarketplaceCreateRequest) {
+  async updateMarketplaceSkill(
+    skillName: string,
+    data: MarketplaceCreateRequest,
+  ) {
     return authFetch<MarketplaceSkillResponse>(
       `${MARKETPLACE_API}/${encodeURIComponent(skillName)}`,
       {

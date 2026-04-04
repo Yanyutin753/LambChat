@@ -1,5 +1,14 @@
 import { useTranslation } from "react-i18next";
-import { Plus, FolderOpen, Check, Tag, ChevronDown, Github, Archive, X } from "lucide-react";
+import {
+  Plus,
+  FolderOpen,
+  Check,
+  Tag,
+  ChevronDown,
+  Github,
+  Archive,
+  X,
+} from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { Pagination } from "../../common/Pagination";
@@ -247,9 +256,7 @@ export function SkillsList({
                 onDelete={onDelete}
                 onExportZip={onExportZip}
                 onPublish={
-                  canPublish
-                    ? (s: SkillResponse) => onPublish?.(s)
-                    : undefined
+                  canPublish ? (s: SkillResponse) => onPublish?.(s) : undefined
                 }
                 isPublished={skill.is_published}
                 selected={selectedNames.has(skill.name)}

@@ -16,22 +16,29 @@ export function useTools() {
   const agentIdRef = useRef<string | undefined>(undefined);
 
   // 切换 MCP 工具的启用状态（调用 MCP API）
-  const toggleMcpTool = useCallback(async (toolName: string, serverName: string, enabled: boolean) => {
-    try {
-      const baseName = toolName.includes(":") ? toolName.split(":")[1] : toolName;
-      await authenticatedRequest(
-        `${API_BASE}/mcp/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(baseName)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ enabled }),
-        }
-      );
-    } catch (err) {
-      console.error("Failed to toggle MCP tool:", err);
-      throw err;
-    }
-  }, []);
+  const toggleMcpTool = useCallback(
+    async (toolName: string, serverName: string, enabled: boolean) => {
+      try {
+        const baseName = toolName.includes(":")
+          ? toolName.split(":")[1]
+          : toolName;
+        await authenticatedRequest(
+          `${API_BASE}/mcp/${encodeURIComponent(
+            serverName,
+          )}/tools/${encodeURIComponent(baseName)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled }),
+          },
+        );
+      } catch (err) {
+        console.error("Failed to toggle MCP tool:", err);
+        throw err;
+      }
+    },
+    [],
+  );
 
   // 获取工具列表
   const fetchTools = useCallback(async () => {
@@ -39,10 +46,15 @@ export function useTools() {
     setError(null);
     try {
       const agentId = agentIdRef.current;
-      const queryParams = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
-      const response = await authenticatedRequest(`${API_BASE}/tools${queryParams}`, {
-        headers: { "Content-Type": "application/json" },
-      });
+      const queryParams = agentId
+        ? `?agent_id=${encodeURIComponent(agentId)}`
+        : "";
+      const response = await authenticatedRequest(
+        `${API_BASE}/tools${queryParams}`,
+        {
+          headers: { "Content-Type": "application/json" },
+        },
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch tools");
@@ -54,7 +66,8 @@ export function useTools() {
       // - user_disabled MCP tools: user disabled per-preference (hidden from chat input)
       const activeTools = (data.tools || []).filter(
         (tool: ToolInfo) =>
-          !tool.system_disabled && !(tool.user_disabled && tool.category === "mcp"),
+          !tool.system_disabled &&
+          !(tool.user_disabled && tool.category === "mcp"),
       );
       const toolStates: ToolState[] = activeTools.map((tool: ToolInfo) => ({
         ...tool,
@@ -100,10 +113,14 @@ export function useTools() {
     async (category: ToolCategory, enabled: boolean) => {
       // 只有 MCP 工具支持切换，且不能是系统禁用的
       const categoryTools = tools.filter(
-        (t) => t.category === category && !t.system_disabled && category === "mcp" && t.server
+        (t) =>
+          t.category === category &&
+          !t.system_disabled &&
+          category === "mcp" &&
+          t.server,
       );
       await Promise.all(
-        categoryTools.map((t) => toggleMcpTool(t.name, t.server!, enabled))
+        categoryTools.map((t) => toggleMcpTool(t.name, t.server!, enabled)),
       );
       await fetchTools();
     },
@@ -114,10 +131,10 @@ export function useTools() {
   const toggleAll = useCallback(
     async (enabled: boolean) => {
       const toggleableTools = tools.filter(
-        (t) => !t.system_disabled && t.category === "mcp" && t.server
+        (t) => !t.system_disabled && t.category === "mcp" && t.server,
       );
       await Promise.all(
-        toggleableTools.map((t) => toggleMcpTool(t.name, t.server!, enabled))
+        toggleableTools.map((t) => toggleMcpTool(t.name, t.server!, enabled)),
       );
       await fetchTools();
     },
@@ -140,7 +157,10 @@ export function useTools() {
   }, [tools]);
 
   // 获取启用的工具数量
-  const enabledCount = useMemo(() => tools.filter((t) => t.enabled).length, [tools]);
+  const enabledCount = useMemo(
+    () => tools.filter((t) => t.enabled).length,
+    [tools],
+  );
 
   // 初始加载
   useEffect(() => {
@@ -153,7 +173,8 @@ export function useTools() {
       fetchTools();
     };
     window.addEventListener("mcp-tools-changed", handleMcpToolsChanged);
-    return () => window.removeEventListener("mcp-tools-changed", handleMcpToolsChanged);
+    return () =>
+      window.removeEventListener("mcp-tools-changed", handleMcpToolsChanged);
   }, [fetchTools]);
 
   // Refresh tools with a specific agent ID (for sandbox filtering)

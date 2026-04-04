@@ -145,7 +145,9 @@ export const mcpApi = {
     level: "system" | "user" = "system",
   ): Promise<MCPToolToggleResponse> {
     return authFetch<MCPToolToggleResponse>(
-      `${API_BASE}/api/mcp/${encodeURIComponent(serverName)}/tools/${encodeURIComponent(toolName)}`,
+      `${API_BASE}/api/mcp/${encodeURIComponent(
+        serverName,
+      )}/tools/${encodeURIComponent(toolName)}`,
       {
         method: "PATCH",
         body: JSON.stringify({ enabled, level }),

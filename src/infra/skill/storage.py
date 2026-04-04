@@ -16,7 +16,6 @@ from src.infra.skill.binary import (
     build_binary_ref_content,
     build_storage_key,
     guess_mime_type,
-    is_binary_file,
     parse_binary_ref,
 )
 from src.infra.skill.constants import SKILL_FILES_COLLECTION

@@ -379,7 +379,9 @@ function shouldUseTemplateEntrypoint(
   );
 }
 
-function ensureVueIndexHtml(files: Record<string, string>): Record<string, string> {
+function ensureVueIndexHtml(
+  files: Record<string, string>,
+): Record<string, string> {
   const indexHtml = files["/index.html"];
   if (!indexHtml) return files;
 
@@ -392,10 +394,7 @@ function ensureVueIndexHtml(files: Record<string, string>): Record<string, strin
   let fixed = indexHtml.replace(/id=["']root["']/gi, 'id="app"');
 
   if (!fixed.includes('id="app"')) {
-    fixed = fixed.replace(
-      /(<body[^>]*>)/i,
-      '$1\n    <div id="app"></div>'
-    );
+    fixed = fixed.replace(/(<body[^>]*>)/i, '$1\n    <div id="app"></div>');
   }
 
   return { ...files, "/index.html": fixed };

@@ -113,7 +113,10 @@ export default function ProjectPreview({
   );
 
   // 对 Vue 项目使用 StackBlitz
-  const useStackBlitz = template === "vue" || config.template === "vue" || config.template === "vue-ts";
+  const useStackBlitz =
+    template === "vue" ||
+    config.template === "vue" ||
+    config.template === "vue-ts";
 
   const sandpackInstanceKey = useMemo(
     () =>
@@ -275,27 +278,27 @@ export default function ProjectPreview({
           />
         ) : (
           <SandpackProvider
-          key={sandpackInstanceKey}
-          template={config.template}
-          customSetup={config.customSetup}
-          files={config.files}
-          theme="dark"
-          options={{
-            activeFile: config.entryFile,
-            visibleFiles: config.visibleFiles,
-            classes: {
-              "sp-wrapper": "!h-full !flex !flex-col",
-              "sp-layout": "!h-full !border-0",
-            },
-          }}
-        >
-          <CustomLayout
-            showExplorer={showExplorer}
-            showEditor={activeTab === "code"}
-            showPreview={activeTab === "preview"}
-            isFullscreen={isFullscreen}
-          />
-        </SandpackProvider>
+            key={sandpackInstanceKey}
+            template={config.template}
+            customSetup={config.customSetup}
+            files={config.files}
+            theme="dark"
+            options={{
+              activeFile: config.entryFile,
+              visibleFiles: config.visibleFiles,
+              classes: {
+                "sp-wrapper": "!h-full !flex !flex-col",
+                "sp-layout": "!h-full !border-0",
+              },
+            }}
+          >
+            <CustomLayout
+              showExplorer={showExplorer}
+              showEditor={activeTab === "code"}
+              showPreview={activeTab === "preview"}
+              isFullscreen={isFullscreen}
+            />
+          </SandpackProvider>
         )}
       </div>
     </div>

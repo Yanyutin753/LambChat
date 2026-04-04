@@ -38,7 +38,8 @@ function composeSkillResponse(
   binaryFiles?: Record<string, BinaryFileInfo>,
 ): SkillResponse {
   // Use description from API directly (extracted from SKILL.md by backend)
-  const description = detail?.description || userSkill.description || userSkill.skill_name;
+  const description =
+    detail?.description || userSkill.description || userSkill.skill_name;
 
   // If filesContent provided, use it; otherwise files will be fetched on demand
   const files = filesContent || {};
@@ -196,7 +197,9 @@ export function useSkills(options?: { enabled?: boolean }) {
               try {
                 const fileResp = await skillApi.getFile(name, filePath);
                 if (fileResp.is_binary && fileResp.url) {
-                  filesContent[filePath] = `[Binary: ${fileResp.mime_type}, ${((fileResp.size ?? 0) / 1024).toFixed(1)}KB]`;
+                  filesContent[filePath] = `[Binary: ${fileResp.mime_type}, ${(
+                    (fileResp.size ?? 0) / 1024
+                  ).toFixed(1)}KB]`;
                   binaryFiles[filePath] = {
                     url: fileResp.url,
                     mime_type: fileResp.mime_type || "application/octet-stream",
@@ -212,7 +215,12 @@ export function useSkills(options?: { enabled?: boolean }) {
           );
         }
 
-        return composeSkillResponse(userSkill, detail, filesContent, binaryFiles);
+        return composeSkillResponse(
+          userSkill,
+          detail,
+          filesContent,
+          binaryFiles,
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch skill");
         return null;

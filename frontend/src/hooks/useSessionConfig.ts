@@ -35,23 +35,38 @@ export interface UseSessionConfigOptions {
 }
 
 /** Read persisted config from localStorage, returns null if not found or invalid */
-function loadPersistedConfig(): Pick<SessionConfigState, "disabledSkills" | "disabledMcpTools"> | null {
+function loadPersistedConfig(): Pick<
+  SessionConfigState,
+  "disabledSkills" | "disabledMcpTools"
+> | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.disabledSkills) && Array.isArray(parsed.disabledMcpTools)) {
-      return { disabledSkills: parsed.disabledSkills, disabledMcpTools: parsed.disabledMcpTools };
+    if (
+      Array.isArray(parsed.disabledSkills) &&
+      Array.isArray(parsed.disabledMcpTools)
+    ) {
+      return {
+        disabledSkills: parsed.disabledSkills,
+        disabledMcpTools: parsed.disabledMcpTools,
+      };
     }
-  } catch { /* ignore corrupt data */ }
+  } catch {
+    /* ignore corrupt data */
+  }
   return null;
 }
 
 /** Persist config to localStorage */
-function persistConfig(state: Pick<SessionConfigState, "disabledSkills" | "disabledMcpTools">) {
+function persistConfig(
+  state: Pick<SessionConfigState, "disabledSkills" | "disabledMcpTools">,
+) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch { /* quota exceeded etc. */ }
+  } catch {
+    /* quota exceeded etc. */
+  }
 }
 
 export interface UseSessionConfigReturn {
@@ -83,15 +98,19 @@ export interface UseSessionConfigReturn {
  * 对话配置管理 Hook
  */
 export function useSessionConfig(
-  options: UseSessionConfigOptions
+  options: UseSessionConfigOptions,
 ): UseSessionConfigReturn {
   // 对话级别的配置状态
   // 优先从 localStorage 恢复（跨路由持久化），否则用默认值
   const [config, setConfig] = useState<SessionConfigState>(() => {
     const persisted = loadPersistedConfig();
     return {
-      disabledSkills: persisted?.disabledSkills ?? options.getDefaultDisabledSkills?.() ?? [],
-      disabledMcpTools: persisted?.disabledMcpTools ?? options.getDefaultDisabledMcpTools?.() ?? [],
+      disabledSkills:
+        persisted?.disabledSkills ?? options.getDefaultDisabledSkills?.() ?? [],
+      disabledMcpTools:
+        persisted?.disabledMcpTools ??
+        options.getDefaultDisabledMcpTools?.() ??
+        [],
       agentOptions: options.getDefaultAgentOptions(),
     };
   });
@@ -115,7 +134,10 @@ export function useSessionConfig(
 
   // Persist to localStorage whenever config changes
   useEffect(() => {
-    persistConfig({ disabledSkills: config.disabledSkills, disabledMcpTools: config.disabledMcpTools });
+    persistConfig({
+      disabledSkills: config.disabledSkills,
+      disabledMcpTools: config.disabledMcpTools,
+    });
   }, [config.disabledSkills, config.disabledMcpTools]);
 
   // Toggle skill (add/remove from disabled list)
@@ -203,20 +225,25 @@ export function useSessionConfig(
   }, [options]);
 
   // Restore config from session metadata
-  const restoreConfig = useCallback((sessionConfig: SessionConfig) => {
-    console.log("[useSessionConfig] Restoring config:", sessionConfig);
+  const restoreConfig = useCallback(
+    (sessionConfig: SessionConfig) => {
+      console.log("[useSessionConfig] Restoring config:", sessionConfig);
 
-    const restored = {
-      disabledSkills: sessionConfig.disabled_skills || [],
-      // disabled_tools is a legacy field (pre-split); treat as disabled_mcp_tools if present
-      disabledMcpTools:
-        sessionConfig.disabled_mcp_tools ?? sessionConfig.disabled_tools ?? [],
-      agentOptions:
-        sessionConfig.agent_options || options.getDefaultAgentOptions(),
-    };
-    setConfig(restored);
-    persistConfig(restored);
-  }, [options]);
+      const restored = {
+        disabledSkills: sessionConfig.disabled_skills || [],
+        // disabled_tools is a legacy field (pre-split); treat as disabled_mcp_tools if present
+        disabledMcpTools:
+          sessionConfig.disabled_mcp_tools ??
+          sessionConfig.disabled_tools ??
+          [],
+        agentOptions:
+          sessionConfig.agent_options || options.getDefaultAgentOptions(),
+      };
+      setConfig(restored);
+      persistConfig(restored);
+    },
+    [options],
+  );
 
   // Check if skill is enabled (not in disabled list)
   const isSkillEnabled = useCallback(

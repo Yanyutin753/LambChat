@@ -234,9 +234,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const renderMenuContent = () => (
     <>
       {/* Navigation */}
-      {visibleNav.length > 0 && (
-        <div>{visibleNav.map(renderNavItem)}</div>
-      )}
+      {visibleNav.length > 0 && <div>{visibleNav.map(renderNavItem)}</div>}
 
       {/* User Management */}
       {visibleUser.length > 0 && (

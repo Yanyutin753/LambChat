@@ -110,9 +110,7 @@ export function MCPServerCard({
           await mcpApi.toggleTool(server.name, toolName, newEnabled, "user");
           setTools((prev) =>
             prev.map((t) =>
-              t.name === toolName
-                ? { ...t, user_disabled: !newEnabled }
-                : t,
+              t.name === toolName ? { ...t, user_disabled: !newEnabled } : t,
             ),
           );
           onToolToggled?.();
@@ -301,7 +299,8 @@ export function MCPServerCard({
 
               {!toolsLoading &&
                 tools.map((tool) => {
-                  const isDisabled = tool.system_disabled || tool.user_disabled || false;
+                  const isDisabled =
+                    tool.system_disabled || tool.user_disabled || false;
                   return (
                     <div
                       key={tool.name}

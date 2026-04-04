@@ -69,13 +69,21 @@ export function ToolCallItem({
   return (
     <CollapsiblePill
       status={status}
-      icon={isMcpTool ? <Globe size={12} className="shrink-0 opacity-50" /> : <Wrench size={12} className="shrink-0 opacity-50" />}
+      icon={
+        isMcpTool ? (
+          <Globe size={12} className="shrink-0 opacity-50" />
+        ) : (
+          <Wrench size={12} className="shrink-0 opacity-50" />
+        )
+      }
       label={toolName}
-      suffix={serverName ? (
-        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-black/20 opacity-70 font-medium truncate max-w-[120px]">
-          {serverName}
-        </span>
-      ) : undefined}
+      suffix={
+        serverName ? (
+          <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/30 dark:bg-black/20 opacity-70 font-medium truncate max-w-[120px]">
+            {serverName}
+          </span>
+        ) : undefined
+      }
       variant="tool"
       expandable={canExpand}
     >

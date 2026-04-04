@@ -137,7 +137,9 @@ export function MarketplacePanel() {
   };
 
   const handleInstallClick = (skillName: string) => {
-    const action = installedMarketplaceNames.has(skillName) ? "update" : "install";
+    const action = installedMarketplaceNames.has(skillName)
+      ? "update"
+      : "install";
     setInstallConfirm({ isOpen: true, skillName, action });
   };
 
@@ -401,7 +403,9 @@ export function MarketplacePanel() {
         ) : (
           <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {skills.map((skill) => {
-              const isInstalled = installedMarketplaceNames.has(skill.skill_name);
+              const isInstalled = installedMarketplaceNames.has(
+                skill.skill_name,
+              );
               const hasLocalManualConflict = localManualConflicts.has(
                 skill.skill_name,
               );
@@ -553,8 +557,8 @@ export function MarketplacePanel() {
                               hasLocalManualConflict
                                 ? "btn-secondary cursor-not-allowed opacity-60"
                                 : isInstalled
-                                ? "btn-secondary"
-                                : "btn-primary shadow-sm"
+                                  ? "btn-secondary"
+                                  : "btn-primary shadow-sm"
                             }`}
                           >
                             {hasLocalManualConflict ? (

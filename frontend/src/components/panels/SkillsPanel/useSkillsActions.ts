@@ -5,7 +5,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
 import { useSkills } from "../../../hooks/useSkills";
 import { sanitizeSkillName } from "../../../utils/skillFilters";
-import { skillMatchesQuery, collectSkillTags } from "../../../utils/skillFilters";
+import {
+  skillMatchesQuery,
+  collectSkillTags,
+} from "../../../utils/skillFilters";
 import type { SkillResponse, SkillCreate } from "../../../types";
 
 interface GitHubSkill {

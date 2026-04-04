@@ -82,9 +82,7 @@ def test_deferred_prompt_string_is_stably_sorted() -> None:
     prompt = manager.get_deferred_stubs_string()
 
     assert prompt.index("- beta:list") < prompt.index("- alpha:create: alpha create")
-    assert prompt.index("- alpha:create: alpha create") < prompt.index(
-        "- zeta:lookup: zeta lookup"
-    )
+    assert prompt.index("- alpha:create: alpha create") < prompt.index("- zeta:lookup: zeta lookup")
 
 
 async def test_section_prompt_middleware_appends_separate_blocks() -> None:

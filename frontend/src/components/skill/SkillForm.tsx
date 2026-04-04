@@ -4,10 +4,7 @@ import { useTranslation } from "react-i18next";
 import { sanitizeSkillName } from "../../utils/skillFilters";
 import { normalizeTags, syncSkillMarkdownMetadata } from "./SkillForm.utils";
 import { DEFAULT_CONTENT } from "./SkillForm.types";
-import type {
-  SkillFormProps,
-  FileEntry,
-} from "./SkillForm.types";
+import type { SkillFormProps, FileEntry } from "./SkillForm.types";
 import type { BinaryFileInfo } from "../../types/skill";
 import { skillApi } from "../../services/api/skill";
 import { SkillFormFullscreen } from "./SkillFormFullscreen";
@@ -32,7 +29,9 @@ export function SkillForm({
 
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
-  const [binaryFiles, setBinaryFiles] = useState<Record<string, BinaryFileInfo>>({});
+  const [binaryFiles, setBinaryFiles] = useState<
+    Record<string, BinaryFileInfo>
+  >({});
   const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null);
 
   // Track which file indices have been loaded
@@ -56,7 +55,10 @@ export function SkillForm({
 
     if (skill?.filePaths && skill.filePaths.length > 0) {
       // Lazy mode: only paths, content loaded on demand
-      const fileEntries = skill.filePaths.map((path) => ({ path, content: "" }));
+      const fileEntries = skill.filePaths.map((path) => ({
+        path,
+        content: "",
+      }));
       fileEntries.sort((a, b) => {
         if (a.path === "SKILL.md") return -1;
         if (b.path === "SKILL.md") return 1;
@@ -107,15 +109,6 @@ export function SkillForm({
     setErrors({});
   }, [skill]);
 
-  // Auto-load SKILL.md on mount
-  useEffect(() => {
-    if (!skill?.name || !skill?.filePaths) return;
-    const skillMdIndex = files.findIndex((f) => f.path === "SKILL.md");
-    if (skillMdIndex >= 0 && !loadedIndices.current.has(skillMdIndex)) {
-      loadFileContent(skillMdIndex);
-    }
-  }, [files, skill?.name, skill?.filePaths, loadFileContent]);
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isFullscreen) toggleFullscreen(false);
@@ -155,7 +148,9 @@ export function SkillForm({
                 i === index
                   ? {
                       ...f,
-                      content: `[Binary: ${fileResp.mime_type}, ${((fileResp.size ?? 0) / 1024).toFixed(1)}KB]`,
+                      content: `[Binary: ${fileResp.mime_type}, ${(
+                        (fileResp.size ?? 0) / 1024
+                      ).toFixed(1)}KB]`,
                     }
                   : f,
               ),
@@ -186,6 +181,15 @@ export function SkillForm({
     },
     [skill?.name, files],
   );
+
+  // Auto-load SKILL.md on mount
+  useEffect(() => {
+    if (!skill?.name || !skill?.filePaths) return;
+    const skillMdIndex = files.findIndex((f) => f.path === "SKILL.md");
+    if (skillMdIndex >= 0 && !loadedIndices.current.has(skillMdIndex)) {
+      loadFileContent(skillMdIndex);
+    }
+  }, [files, skill?.name, skill?.filePaths, loadFileContent]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};

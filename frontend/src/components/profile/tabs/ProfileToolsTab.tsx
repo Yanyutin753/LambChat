@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Wrench, ToggleLeft, ToggleRight, Loader2, RefreshCw } from "lucide-react";
+import {
+  Wrench,
+  ToggleLeft,
+  ToggleRight,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { authenticatedRequest } from "../../../services/api/authenticatedRequest";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
@@ -44,13 +50,17 @@ export function ProfileToolsTab() {
       const toolKey = tool.name;
       setToggling((prev) => new Set(prev).add(toolKey));
 
-      const baseName = tool.name.includes(":") ? tool.name.split(":")[1] : tool.name;
+      const baseName = tool.name.includes(":")
+        ? tool.name.split(":")[1]
+        : tool.name;
       // Toggle: if user_disabled, re-enable; otherwise, disable
       const newEnabled = !!tool.user_disabled;
 
       try {
         const response = await authenticatedRequest(
-          `${API_BASE}/mcp/${encodeURIComponent(tool.server)}/tools/${encodeURIComponent(baseName)}`,
+          `${API_BASE}/mcp/${encodeURIComponent(
+            tool.server,
+          )}/tools/${encodeURIComponent(baseName)}`,
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -143,7 +153,10 @@ export function ProfileToolsTab() {
         </div>
       ) : groupedByServer.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-stone-400 dark:text-stone-500">
-          <Wrench size={32} className="mb-2 text-stone-300 dark:text-stone-600" />
+          <Wrench
+            size={32}
+            className="mb-2 text-stone-300 dark:text-stone-600"
+          />
           <p className="text-sm">{t("tools.noTools", "No tools available")}</p>
         </div>
       ) : (
@@ -180,7 +193,9 @@ export function ProfileToolsTab() {
                       <div
                         key={tool.name}
                         className={`flex items-center gap-2 px-3 py-2 transition-colors ${
-                          isUserDisabled ? "opacity-50" : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
+                          isUserDisabled
+                            ? "opacity-50"
+                            : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
                         }`}
                       >
                         <button
@@ -194,11 +209,20 @@ export function ProfileToolsTab() {
                           }
                         >
                           {isPending ? (
-                            <Loader2 size={16} className="animate-spin text-stone-400" />
+                            <Loader2
+                              size={16}
+                              className="animate-spin text-stone-400"
+                            />
                           ) : isUserDisabled ? (
-                            <ToggleLeft size={16} className="text-stone-400 dark:text-stone-500" />
+                            <ToggleLeft
+                              size={16}
+                              className="text-stone-400 dark:text-stone-500"
+                            />
                           ) : (
-                            <ToggleRight size={16} className="text-green-600 dark:text-green-500" />
+                            <ToggleRight
+                              size={16}
+                              className="text-green-600 dark:text-green-500"
+                            />
                           )}
                         </button>
                         <div className="flex-1 min-w-0">

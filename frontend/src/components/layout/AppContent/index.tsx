@@ -206,7 +206,11 @@ function ChatAppContent({
     getEnabledTools: getDisabledToolNames,
     getDisabledSkills: () => sessionConfigRef.current.disabledSkills,
     getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
-    onSkillAdded: (skillName: string, _description: string, filesCount: number) => {
+    onSkillAdded: (
+      skillName: string,
+      _description: string,
+      filesCount: number,
+    ) => {
       console.log(
         `[AppContent] Skill added: ${skillName} (${filesCount} files), refreshing skills list`,
       );
@@ -290,7 +294,9 @@ function ChatAppContent({
         tools
           .filter((t) => t.category === "mcp" && !t.system_disabled)
           .forEach((t) => {
-            const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(t.name);
+            const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(
+              t.name,
+            );
             if (enabled && isInSessionDisabled) {
               // Want enabled, currently in disabled list → remove
               toggleSessionMcpTool(t.name);
@@ -311,7 +317,9 @@ function ChatAppContent({
       tools
         .filter((t) => t.category === "mcp" && !t.system_disabled)
         .forEach((t) => {
-          const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(t.name);
+          const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(
+            t.name,
+          );
           if (enabled && isInSessionDisabled) {
             toggleSessionMcpTool(t.name);
           } else if (!enabled && !isInSessionDisabled) {
@@ -335,7 +343,9 @@ function ChatAppContent({
       effectiveSkills
         .filter((s) => s.source === category)
         .forEach((s) => {
-          const isInSessionDisabled = sessionConfig.disabledSkills.includes(s.name);
+          const isInSessionDisabled = sessionConfig.disabledSkills.includes(
+            s.name,
+          );
           if (enabled && isInSessionDisabled) {
             toggleSessionSkill(s.name);
           } else if (!enabled && !isInSessionDisabled) {
@@ -350,7 +360,9 @@ function ChatAppContent({
   const effectiveToggleAllSkills = useCallback(
     async (enabled: boolean): Promise<boolean> => {
       effectiveSkills.forEach((s) => {
-        const isInSessionDisabled = sessionConfig.disabledSkills.includes(s.name);
+        const isInSessionDisabled = sessionConfig.disabledSkills.includes(
+          s.name,
+        );
         if (enabled && isInSessionDisabled) {
           toggleSessionSkill(s.name);
         } else if (!enabled && !isInSessionDisabled) {
@@ -445,9 +457,10 @@ function ChatAppContent({
     resetToDefaults();
   }, [handleNewSession, resetToDefaults]);
 
-  const handleMobileClose = useCallback(() => setMobileSidebarOpen(false), [
-    setMobileSidebarOpen,
-  ]);
+  const handleMobileClose = useCallback(
+    () => setMobileSidebarOpen(false),
+    [setMobileSidebarOpen],
+  );
   const handleSelectSessionAndClose = useCallback(
     (id: string) => {
       handleSelectSession(id);

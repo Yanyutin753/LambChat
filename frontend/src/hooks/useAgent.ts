@@ -291,13 +291,18 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           // 从 metadata 提取配置信息
           const sessionConfig = {
             agent_id: (sessionData.metadata?.agent_id as string) || undefined,
-            agent_options: (sessionData.metadata?.agent_options as Record<
-              string,
-              boolean | string | number
-            >) || undefined,
-            disabled_tools: (sessionData.metadata?.disabled_tools as string[]) || undefined,
-            disabled_skills: (sessionData.metadata?.disabled_skills as string[]) || undefined,
-            disabled_mcp_tools: (sessionData.metadata?.disabled_mcp_tools as string[]) || undefined,
+            agent_options:
+              (sessionData.metadata?.agent_options as Record<
+                string,
+                boolean | string | number
+              >) || undefined,
+            disabled_tools:
+              (sessionData.metadata?.disabled_tools as string[]) || undefined,
+            disabled_skills:
+              (sessionData.metadata?.disabled_skills as string[]) || undefined,
+            disabled_mcp_tools:
+              (sessionData.metadata?.disabled_mcp_tools as string[]) ||
+              undefined,
           };
 
           // 并行发起 events、status 和 feedback 请求，减少串行等待时间
@@ -566,7 +571,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         } else if (sessionId && newRunId) {
           // 更新现有 session 的 metadata
           const conversationConfig: Record<string, unknown> = {
-            ...((newlyCreatedSession?.metadata as Record<string, unknown>) || {}),
+            ...((newlyCreatedSession?.metadata as Record<string, unknown>) ||
+              {}),
             current_run_id: newRunId,
             agent_id: currentAgent,
             agent_options: agentOptions || {},
@@ -634,7 +640,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         isSendingRef.current = false;
       }
     },
-    [sessionId, currentAgent, createSSEContext, newlyCreatedSession?.metadata, options],
+    [
+      sessionId,
+      currentAgent,
+      createSSEContext,
+      newlyCreatedSession?.metadata,
+      options,
+    ],
   );
 
   const stopGeneration = useCallback(async () => {

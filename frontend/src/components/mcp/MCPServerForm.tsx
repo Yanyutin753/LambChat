@@ -185,12 +185,10 @@ export function MCPServerForm({
     setHeaders([...headers, { id: crypto.randomUUID(), key: "", value: "" }]);
   };
 
-  const updateHeader = (
-    id: string,
-    field: "key" | "value",
-    value: string,
-  ) => {
-    setHeaders(headers.map((h) => (h.id === id ? { ...h, [field]: value } : h)));
+  const updateHeader = (id: string, field: "key" | "value", value: string) => {
+    setHeaders(
+      headers.map((h) => (h.id === id ? { ...h, [field]: value } : h)),
+    );
   };
 
   const removeHeader = (id: string) => {
@@ -361,7 +359,9 @@ export function MCPServerForm({
                   <input
                     type="text"
                     value={header.key}
-                    onChange={(e) => updateHeader(header.id, "key", e.target.value)}
+                    onChange={(e) =>
+                      updateHeader(header.id, "key", e.target.value)
+                    }
                     placeholder={t("mcp.form.headerNamePlaceholder")}
                     className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
                   />

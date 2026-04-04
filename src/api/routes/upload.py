@@ -34,8 +34,6 @@ from src.infra.logging import get_logger
 from src.infra.storage.s3 import (
     S3Config,
     S3Provider,
-    get_storage_service,
-    init_storage,
 )
 from src.infra.upload.file_record import FileRecordStorage
 from src.kernel.config import settings

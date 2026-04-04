@@ -84,7 +84,9 @@ async function fetchTextFiles(
           const fullUrl = getFullUrl(entry.url) || entry.url;
           const resp = await fetch(fullUrl);
           if (!resp.ok) {
-            console.warn(`[reveal_project] Failed to fetch ${path}: ${resp.status}`);
+            console.warn(
+              `[reveal_project] Failed to fetch ${path}: ${resp.status}`,
+            );
             return null;
           }
           const text = await resp.text();
