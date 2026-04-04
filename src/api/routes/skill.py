@@ -10,9 +10,11 @@ import zipfile
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from src.kernel.config import settings
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
+from src.infra.skill.binary import guess_mime_type, is_binary_file, parse_binary_ref
 from src.infra.skill.marketplace import MarketplaceStorage
 from src.infra.skill.storage import SkillStorage
 from src.infra.skill.types import (
@@ -37,9 +39,6 @@ def get_marketplace_storage() -> MarketplaceStorage:
     return MarketplaceStorage()
 
 
-MAX_ZIP_SIZE = 10 * 1024 * 1024  # 10MB
-
-
 def sanitize_file_path(path: str) -> str:
     """Sanitize file path to prevent path traversal."""
     parts = [p for p in path.replace("\\", "/").split("/") if p and p != ".."]
@@ -52,15 +51,20 @@ class UpdateFileRequest(BaseModel):
     content: str
 
 
-def _parse_zip_skills(zip_content: bytes) -> list[tuple[str, dict[str, str]]]:
+def _parse_zip_skills(
+    zip_content: bytes,
+) -> list[tuple[str, dict[str, str], dict[str, bytes]]]:
     """
     解析 ZIP 内容，找到所有 SKILL.md 文件，每个 SKILL.md 的上级文件夹作为一个独立 skill。
 
     Returns:
-        list of (skill_name, files_dict) tuples
+        list of (skill_name, text_files_dict, binary_files_dict) tuples
     """
-    if len(zip_content) > MAX_ZIP_SIZE:
-        raise ValueError("ZIP file too large (max 10MB)")
+    max_file_size = int(settings.FILE_UPLOAD_MAX_SIZE_DOCUMENT) * 1024 * 1024  # MB → bytes
+    if settings.S3_ENABLED:
+        max_file_size = int(settings.S3_MAX_FILE_SIZE)  # already in bytes
+    if len(zip_content) > max_file_size:
+        raise ValueError(f"ZIP file too large (max {max_file_size // (1024 * 1024)}MB)")
 
     try:
         zf = zipfile.ZipFile(io.BytesIO(zip_content))
@@ -83,8 +87,9 @@ def _parse_zip_skills(zip_content: bytes) -> list[tuple[str, dict[str, str]]]:
             if is_dir:
                 prefix = top + "/"
 
-        # 读取所有有效文件
-        all_files: dict[str, str] = {}
+        # 读取所有有效文件，区分文本和二进制
+        text_files: dict[str, str] = {}
+        binary_files: dict[str, bytes] = {}
         for name in names:
             if (
                 name.endswith("/")
@@ -98,27 +103,38 @@ def _parse_zip_skills(zip_content: bytes) -> list[tuple[str, dict[str, str]]]:
                 raw = zf.read(name)
             except Exception:
                 continue
-            try:
-                text = raw.decode("utf-8")
-            except UnicodeDecodeError:
-                continue
-            all_files[name] = text
+
+            # 检测二进制文件
+            if is_binary_file(name, raw):
+                binary_files[name] = raw
+            else:
+                try:
+                    text = raw.decode("utf-8")
+                    text_files[name] = text
+                except UnicodeDecodeError:
+                    # 即使通过了扩展名检查，UTF-8 解码失败也当二进制
+                    binary_files[name] = raw
 
         # 去掉顶层目录前缀
         if prefix:
-            all_files = {
+            text_files = {
                 k[len(prefix) :]: v
-                for k, v in all_files.items()
+                for k, v in text_files.items()
+                if k.startswith(prefix) and k[len(prefix) :]
+            }
+            binary_files = {
+                k[len(prefix) :]: v
+                for k, v in binary_files.items()
                 if k.startswith(prefix) and k[len(prefix) :]
             }
 
         # 找到所有 SKILL.md 的路径
-        skill_md_paths = [p for p in all_files.keys() if p.split("/")[-1].lower() == "skill.md"]
+        skill_md_paths = [p for p in text_files.keys() if p.split("/")[-1].lower() == "skill.md"]
 
         if not skill_md_paths:
             raise ValueError("No SKILL.md found in ZIP")
 
-        skills: list[tuple[str, dict[str, str]]] = []
+        skills: list[tuple[str, dict[str, str], dict[str, bytes]]] = []
 
         for skill_md_path in skill_md_paths:
             # SKILL.md 所在的文件夹就是 skill 的根目录
@@ -126,32 +142,42 @@ def _parse_zip_skills(zip_content: bytes) -> list[tuple[str, dict[str, str]]]:
             skill_prefix = skill_root + "/" if skill_root else ""
 
             # 收集该 skill 根目录下的所有文件（相对路径）
-            files: dict[str, str] = {}
-            for fpath, content in all_files.items():
+            skill_text_files: dict[str, str] = {}
+            for fpath, content in text_files.items():
                 if fpath.startswith(skill_prefix):
                     rel = fpath[len(skill_prefix) :]
                     if rel:
-                        files[rel] = content
+                        skill_text_files[rel] = content
 
-            # 优先使用文件夹名（路径安全），回退到 SKILL.md 的 name 字段
-            skill_md_content = files.get("SKILL.md", all_files.get(skill_md_path, ""))
+            skill_binary_files: dict[str, bytes] = {}
+            for fpath, data in binary_files.items():
+                if fpath.startswith(skill_prefix):
+                    rel = fpath[len(skill_prefix) :]
+                    if rel:
+                        skill_binary_files[rel] = data
+
+            # 优先使用 SKILL.md 的 name 字段，回退到文件夹名
+            skill_md_content = skill_text_files.get("SKILL.md", "")
             skill_name = None
-            if skill_root:
-                skill_name = skill_root
-            if not skill_name and skill_md_content:
+            if skill_md_content:
                 try:
-                    from src.infra.skill.parser import parse_skill_md, sanitize_skill_name
+                    from src.infra.skill.parser import (
+                        parse_skill_md,
+                        sanitize_skill_name,
+                    )
 
                     parsed_name, _, _ = parse_skill_md(skill_md_content)
                     if parsed_name:
                         skill_name = sanitize_skill_name(parsed_name)
                 except Exception:
                     pass
+            if not skill_name and skill_root:
+                skill_name = skill_root.split("/")[-1]
             if not skill_name:
                 skill_name = "unnamed-skill"
 
-            if files:
-                skills.append((skill_name, files))
+            if skill_text_files or skill_binary_files:
+                skills.append((skill_name, skill_text_files, skill_binary_files))
 
         if not skills:
             raise ValueError("No valid skills found in ZIP")
@@ -191,10 +217,10 @@ async def preview_zip_skills(
     existing_names = {s["skill_name"] for s in user_skills}
 
     skill_list = []
-    for skill_name, files in skills:
+    for skill_name, text_files, binary_files in skills:
         # 提取 description
         description = ""
-        skill_md_content = files.get("SKILL.md", "")
+        skill_md_content = text_files.get("SKILL.md", "")
         if skill_md_content:
             try:
                 from src.infra.skill.parser import parse_skill_md
@@ -209,8 +235,9 @@ async def preview_zip_skills(
             {
                 "name": skill_name,
                 "description": description,
-                "file_count": len(files),
-                "files": sorted(files.keys()),
+                "file_count": len(text_files) + len(binary_files),
+                "files": sorted(set(text_files.keys()) | set(binary_files.keys())),
+                "binary_files": sorted(binary_files.keys()),
                 "already_exists": skill_name in existing_names,
             }
         )
@@ -245,7 +272,7 @@ async def upload_skill_from_zip(
     # 如果指定了 skill_names，只安装选中的
     if skill_names:
         name_set = set(n.strip() for n in skill_names.split(",") if n.strip())
-        skills = [(n, f) for n, f in skills if n in name_set]
+        skills = [(n, t, b) for n, t, b in skills if n in name_set]
 
     created: list[dict] = []
     errors: list[dict] = []
@@ -254,16 +281,26 @@ async def upload_skill_from_zip(
     user_skills = await storage.list_user_skills(user.sub)
     existing_names = {s["skill_name"] for s in user_skills}
 
-    for skill_name, files in skills:
+    for skill_name, text_files, binary_files in skills:
         if skill_name in existing_names:
             errors.append({"name": skill_name, "reason": "already exists"})
             continue
 
         try:
             await storage.create_user_skill(
-                skill_name, files, user.sub, installed_from=InstalledFrom.MANUAL
+                skill_name,
+                text_files,
+                user.sub,
+                installed_from=InstalledFrom.MANUAL,
+                binary_files=binary_files if binary_files else None,
             )
-            created.append({"name": skill_name, "file_count": len(files)})
+            created.append(
+                {
+                    "name": skill_name,
+                    "file_count": len(text_files) + len(binary_files),
+                    "binary_file_count": len(binary_files),
+                }
+            )
         except Exception as e:
             errors.append({"name": skill_name, "reason": str(e)})
 
@@ -385,7 +422,7 @@ async def get_user_skill(
         published_marketplace_name=meta.published_marketplace_name if meta else None,
         created_at=file_stats.get("created_at"),
         updated_at=file_stats.get("updated_at"),
-        is_published=bool(meta.published_marketplace_name) if meta else name in published_map,
+        is_published=(bool(meta.published_marketplace_name) if meta else name in published_map),
         marketplace_is_active=published_map.get(
             (meta.published_marketplace_name if meta else None) or name, {}
         ).get("is_active", True),
@@ -399,13 +436,29 @@ async def get_skill_file(
     user: TokenPayload = Depends(require_permissions("skill:read")),
     storage: SkillStorage = Depends(get_storage),
 ):
-    """读取 Skill 的单个文件"""
+    """读取 Skill 的单个文件（文本内容或二进制文件元数据）"""
     safe_path = sanitize_file_path(path)
     if safe_path != path:
         raise HTTPException(status_code=400, detail="Invalid file path")
     content = await storage.get_skill_file(name, safe_path, user.sub)
     if content is None:
         raise HTTPException(status_code=404, detail="File not found")
+
+    # 检查是否为二进制文件引用
+    binary_ref = parse_binary_ref(content)
+    if binary_ref:
+        from src.infra.storage.s3 import get_storage_service
+
+        storage_service = get_storage_service()
+        file_url = f"/api/upload/file/{binary_ref.storage_key}"
+        return {
+            "content": content,
+            "is_binary": True,
+            "url": file_url,
+            "mime_type": binary_ref.mime_type,
+            "size": binary_ref.size,
+        }
+
     return {"content": content}
 
 
@@ -437,6 +490,63 @@ async def update_skill_file(
     await storage.invalidate_user_cache(user.sub)
 
     return {"message": "File updated"}
+
+
+@router.put("/{name}/binary-files/{path:path}")
+async def upload_skill_binary_file(
+    name: str,
+    path: str,
+    file: UploadFile,
+    user: TokenPayload = Depends(require_permissions("skill:write")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """上传二进制文件到 Skill（自动存储到 S3/本地存储）"""
+    safe_path = sanitize_file_path(path)
+    if safe_path != path:
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    # 读取文件内容
+    data = await file.read()
+    max_file_size = int(settings.FILE_UPLOAD_MAX_SIZE_DOCUMENT) * 1024 * 1024  # MB → bytes
+    if settings.S3_ENABLED:
+        max_file_size = int(settings.S3_MAX_FILE_SIZE)  # already in bytes
+    if len(data) > max_file_size:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Binary file too large (max {max_file_size // (1024 * 1024)}MB)",
+        )
+
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    # 检测 MIME 类型
+    mime_type = file.content_type or guess_mime_type(safe_path)
+
+    # 检查 skill 是否已存在
+    existing_meta = await storage.get_skill_meta(name, user.sub)
+    is_new = existing_meta is None
+
+    try:
+        binary_ref = await storage.set_skill_binary_file(
+            name, safe_path, data, user.sub, mime_type=mime_type
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload binary file: {e}")
+
+    # 新 skill 自动创建 __meta__
+    if is_new:
+        await storage.set_skill_meta(name, user.sub)
+
+    # 失效缓存
+    await storage.invalidate_user_cache(user.sub)
+
+    return {
+        "message": "Binary file uploaded",
+        "storage_key": binary_ref.storage_key,
+        "url": f"/api/upload/file/{binary_ref.storage_key}",
+        "mime_type": binary_ref.mime_type,
+        "size": binary_ref.size,
+    }
 
 
 @router.delete("/{name}/files/{path:path}")
@@ -589,11 +699,10 @@ async def batch_toggle_skills(
         # Disable: add to disabled set
         disabled |= set(body.names)
 
-    # Update user metadata
-    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
-
-    # Invalidate cache
+    # Invalidate cache first, then update metadata
+    # This ensures clients see fresh data even if metadata update fails
     await storage.invalidate_user_cache(user.sub)
+    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
 
     return {"updated": body.names, "errors": []}
 
@@ -630,11 +739,9 @@ async def toggle_user_skill(
         else:
             disabled.add(name)
 
-    # Update user metadata
-    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
-
-    # Invalidate cache
+    # Invalidate cache first, then update metadata
     await storage.invalidate_user_cache(user.sub)
+    await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
 
     is_enabled = name not in disabled
     status = "enabled" if is_enabled else "disabled"
@@ -681,20 +788,20 @@ async def publish_skill_to_marketplace(
                 detail=f"Marketplace skill name '{target_name}' is already taken",
             )
         update_data = MarketplaceSkillUpdate(
-            description=data.description
-            if data and data.description is not None
-            else default_description,
+            description=(
+                data.description if data and data.description is not None else default_description
+            ),
             tags=data.tags if data and data.tags is not None else existing.tags,
-            version=data.version if data and data.version is not None else existing.version,
+            version=(data.version if data and data.version is not None else existing.version),
             is_active=True,
         )
         await marketplace.update_marketplace_skill(target_name, update_data)
     else:
         create_data = MarketplaceSkillCreate(
             skill_name=target_name,
-            description=data.description
-            if data and data.description is not None
-            else default_description,
+            description=(
+                data.description if data and data.description is not None else default_description
+            ),
             tags=data.tags if data and data.tags is not None else default_tags,
             version=data.version if data and data.version is not None else "1.0.0",
         )

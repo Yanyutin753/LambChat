@@ -181,7 +181,7 @@ export function useSessionSync({
       .finally(() => {
         isLoadingRef.current = false;
       });
-  }, [urlSessionId, sessionId]);
+  }, [urlSessionId, sessionId, activeTab]);
 
   // Sync URL with sessionId state (when sessionId changes from internal actions)
   useEffect(() => {

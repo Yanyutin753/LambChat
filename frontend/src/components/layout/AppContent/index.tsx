@@ -157,7 +157,6 @@ function ChatAppContent({
   const {
     skills,
     isLoading: skillsLoading,
-    totalCount: totalSkillsCount,
     pendingSkillNames,
     isMutating: skillsMutating,
     fetchSkills,
@@ -258,15 +257,17 @@ function ChatAppContent({
     });
   }, [tools, sessionConfig.disabledMcpTools]);
 
-  // Compute effective skills: apply session-level skill overrides (blacklist)
+  // Compute effective skills: only show globally enabled skills, apply session blacklist
   const effectiveSkills = useMemo(() => {
+    if (skillsLoading) return skills;
     const sessionDisabled = new Set(sessionConfig.disabledSkills);
-    if (sessionDisabled.size === 0) return skills;
-    return skills.map((s) => ({
-      ...s,
-      enabled: s.enabled && !sessionDisabled.has(s.name),
-    }));
-  }, [skills, sessionConfig.disabledSkills]);
+    return skills
+      .filter((s) => s.enabled)
+      .map((s) => ({
+        ...s,
+        enabled: s.enabled && !sessionDisabled.has(s.name),
+      }));
+  }, [skills, sessionConfig.disabledSkills, skillsLoading]);
 
   // Effective toggle callbacks: only update session config (not global state)
   const effectiveToggleTool = useCallback(
@@ -323,7 +324,6 @@ function ChatAppContent({
 
   const effectiveToggleSkill = useCallback(
     async (name: string): Promise<boolean> => {
-      // Only update session config, not global state
       toggleSessionSkill(name);
       return true;
     },
@@ -332,8 +332,7 @@ function ChatAppContent({
 
   const effectiveToggleSkillCategory = useCallback(
     async (category: SkillSource, enabled: boolean): Promise<boolean> => {
-      // Only update session config for skills in this category
-      skills
+      effectiveSkills
         .filter((s) => s.source === category)
         .forEach((s) => {
           const isInSessionDisabled = sessionConfig.disabledSkills.includes(s.name);
@@ -345,13 +344,12 @@ function ChatAppContent({
         });
       return true;
     },
-    [skills, sessionConfig.disabledSkills, toggleSessionSkill],
+    [effectiveSkills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
   const effectiveToggleAllSkills = useCallback(
     async (enabled: boolean): Promise<boolean> => {
-      // Only update session config for all skills
-      skills.forEach((s) => {
+      effectiveSkills.forEach((s) => {
         const isInSessionDisabled = sessionConfig.disabledSkills.includes(s.name);
         if (enabled && isInSessionDisabled) {
           toggleSessionSkill(s.name);
@@ -361,7 +359,7 @@ function ChatAppContent({
       });
       return true;
     },
-    [skills, sessionConfig.disabledSkills, toggleSessionSkill],
+    [effectiveSkills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
   // Effective agent option toggle: update both local state and session config
@@ -377,10 +375,6 @@ function ChatAppContent({
   const effectiveEnabledToolsCount = useMemo(
     () => effectiveTools.filter((t) => t.enabled).length,
     [effectiveTools],
-  );
-  const effectiveEnabledSkillsCount = useMemo(
-    () => effectiveSkills.filter((s) => s.enabled).length,
-    [effectiveSkills],
   );
 
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
@@ -545,8 +539,8 @@ function ChatAppContent({
           skillsLoading={skillsLoading}
           pendingSkillNames={pendingSkillNames}
           skillsMutating={skillsMutating}
-          enabledSkillsCount={effectiveEnabledSkillsCount}
-          totalSkillsCount={totalSkillsCount}
+          enabledSkillsCount={effectiveSkills.length}
+          totalSkillsCount={skills.length}
           enableSkills={enableSkills}
           agentOptions={currentAgentOptions}
           agentOptionValues={sessionConfig.agentOptions}

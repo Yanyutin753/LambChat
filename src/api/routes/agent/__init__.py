@@ -111,7 +111,10 @@ SANDBOX_MCP_TOOLS = [
         category="sandbox",
         parameters=[
             ToolParamInfo(
-                name="server_name", type="string", description="服务器名称", required=True
+                name="server_name",
+                type="string",
+                description="服务器名称",
+                required=True,
             ),
             ToolParamInfo(
                 name="command",
@@ -133,7 +136,10 @@ SANDBOX_MCP_TOOLS = [
         category="sandbox",
         parameters=[
             ToolParamInfo(
-                name="server_name", type="string", description="服务器名称", required=True
+                name="server_name",
+                type="string",
+                description="服务器名称",
+                required=True,
             ),
             ToolParamInfo(
                 name="command",
@@ -155,7 +161,10 @@ SANDBOX_MCP_TOOLS = [
         category="sandbox",
         parameters=[
             ToolParamInfo(
-                name="server_name", type="string", description="服务器名称", required=True
+                name="server_name",
+                type="string",
+                description="服务器名称",
+                required=True,
             ),
         ],
     ),
@@ -408,16 +417,9 @@ async def list_tools(
                 f"[Tools API] Unknown agent_id={agent_id}, defaulting sandbox support to True"
             )
 
-    tools = []
+    tools: list[ToolInfo] = []
 
-    # 1. Human 工具
-    tools.extend(HUMAN_TOOLS)
-
-    # 2. Sandbox MCP 管理工具（仅在沙箱模式启用且当前 Agent 支持沙箱时显示）
-    if settings.ENABLE_SANDBOX and agent_supports_sandbox:
-        tools.extend(SANDBOX_MCP_TOOLS)
-
-    # 3. MCP 工具 - 使用全局单例（分布式优化）
+    # 1. MCP 工具 - 使用全局单例（分布式优化）
     if settings.ENABLE_MCP:
         try:
             from src.infra.mcp.storage import MCPStorage
@@ -432,6 +434,15 @@ async def list_tools(
             # 获取系统级禁用的工具列表（管理员控制）
             mcp_storage = MCPStorage()
             system_disabled_tools = await mcp_storage.get_system_disabled_tools()
+
+            # 获取用户服务器的 disabled_tools（创建者直接禁用）
+            user_server_disabled_tools = await mcp_storage.get_user_server_disabled_tools(user.sub)
+
+            # 合并系统级和用户服务器的禁用列表
+            all_server_disabled = {
+                **system_disabled_tools,
+                **user_server_disabled_tools,
+            }
 
             # 获取用户禁用的工具列表（从 user_mcp_tool_preferences 读取）
             user_disabled_tools = await mcp_storage.get_disabled_tool_names(user.sub)
@@ -456,14 +467,21 @@ async def list_tools(
                     else:
                         server_name = candidate_server
                         raw_name = candidate_tool
+                elif tool_server_map:
+                    # 工具名无 server 前缀时，从 tool_server_map 反查所属服务器
+                    for (srv, raw), mapped_srv in tool_server_map.items():
+                        if raw == tool_name:
+                            server_name = mapped_srv
+                            raw_name = raw
+                            break
 
                 # 2. 检查工具是否被系统禁用或用户禁用
                 qualified_name = f"{server_name}:{raw_name}" if server_name else tool_name
 
-                # 系统禁用检查
+                # 系统禁用检查（包括系统服务器和用户服务器的 disabled_tools）
                 is_system_disabled = False
-                if server_name and server_name in system_disabled_tools:
-                    if raw_name in system_disabled_tools[server_name]:
+                if server_name and server_name in all_server_disabled:
+                    if raw_name in all_server_disabled[server_name]:
                         is_system_disabled = True
 
                 # 用户禁用检查
@@ -498,48 +516,5 @@ async def list_tools(
 
         except Exception as e:
             logger.warning(f"[Tools API] Failed to get MCP tools: {e}")
-
-    # 3. Sandbox MCP 工具 — 沙箱内运行的 MCP 服务器无法从 API 层直接发现，
-    #    将每个已启用的 sandbox 服务器作为一条工具条目展示在 mcp 分类下。
-    if settings.ENABLE_SANDBOX and settings.ENABLE_MCP and agent_supports_sandbox:
-        try:
-            from src.infra.mcp.storage import MCPStorage
-
-            mcp_storage = MCPStorage()
-
-            # 获取用户禁用的工具列表（使用统一的方法）
-            user_disabled_tools = await mcp_storage.get_disabled_tool_names(user.sub)
-
-            sandbox_servers = await mcp_storage.get_sandbox_servers(user.sub)
-            for server in sandbox_servers:
-                server_name = server.get("name", "")
-                command = server.get("command", "")
-                if not server_name or not command:
-                    continue
-
-                # 使用 server_name 作为工具名，方便与 disabled_tools 匹配
-                qualified_name = f"{server_name}:sandbox_mcp"
-                is_user_disabled = (
-                    qualified_name in user_disabled_tools or server_name in user_disabled_tools
-                )
-
-                tools.append(
-                    ToolInfo(
-                        name=qualified_name,
-                        description=f"MCP server in sandbox: {command}",
-                        category="sandbox",
-                        server=server_name,
-                        parameters=[],
-                        system_disabled=False,  # Sandbox tools are user-managed, not system-disabled
-                        user_disabled=is_user_disabled,
-                    )
-                )
-
-            logger.info(
-                f"[Tools API] Added {len(sandbox_servers)} sandbox MCP entries for user {user.sub}"
-            )
-
-        except Exception as e:
-            logger.warning(f"[Tools API] Failed to get sandbox MCP servers: {e}")
 
     return ToolsListResponse(tools=tools, count=len(tools))

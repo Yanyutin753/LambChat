@@ -31,6 +31,7 @@ export function useSkillsActions() {
     isLoading,
     error,
     getSkill,
+    getFullSkill,
     createSkill,
     updateSkill,
     deleteSkill,
@@ -168,7 +169,10 @@ export function useSkillsActions() {
       if (isCreating) {
         success = await createSkill(data);
       } else if (editingSkill) {
-        const oldFiles = Object.keys(editingSkill.files);
+        // Use filePaths (lazy-load mode) when available, fallback to files keys
+        const oldFiles = editingSkill.filePaths?.length
+          ? editingSkill.filePaths
+          : Object.keys(editingSkill.files);
         const newFiles = data.files ? Object.keys(data.files) : [];
         const deletedFiles = oldFiles.filter((f) => !newFiles.includes(f));
         success = await updateSkill(editingSkill.name, {
@@ -197,7 +201,7 @@ export function useSkillsActions() {
   };
 
   const handleExportZip = async (name: string) => {
-    const fullSkill = await getSkill(name);
+    const fullSkill = await getFullSkill(name);
     if (!fullSkill) {
       toast.error(t("skills.exportFailed"));
       return;
@@ -492,7 +496,7 @@ export function useSkillsActions() {
         toast.error(t("skills.exportFailed"));
         return;
       }
-      const installedSkill = await getSkill(result.installed[0]);
+      const installedSkill = await getFullSkill(result.installed[0]);
       if (!installedSkill) {
         toast.error(t("skills.exportFailed"));
         return;

@@ -175,10 +175,18 @@ class NativeMemoryBackend(MemoryBackend):
             ).to_list(length=50)
 
         existing_match = None
+        _match_projection = {
+            "memory_id": 1,
+            "memory_type": 1,
+            "summary": 1,
+            "updated_at": 1,
+            "content_storage_mode": 1,
+            "content_store_key": 1,
+        }
         if existing_memory_id:
             forced_match = await self._collection.find_one(
                 {"user_id": user_id, "memory_id": existing_memory_id},
-                {"memory_id": 1, "memory_type": 1, "summary": 1, "updated_at": 1},
+                _match_projection,
             )
             if forced_match:
                 existing_match = forced_match
@@ -189,20 +197,23 @@ class NativeMemoryBackend(MemoryBackend):
                 summary=summary,
                 memory_type=memory_type,
             )
+            # fetch content fields for store cleanup if matched via similarity
+            if existing_match and "content_storage_mode" not in existing_match:
+                full_doc = await self._collection.find_one(
+                    {"user_id": user_id, "memory_id": existing_match["memory_id"]},
+                    {"content_storage_mode": 1, "content_store_key": 1},
+                )
+                if full_doc:
+                    existing_match.update(full_doc)
 
         now = datetime.now(timezone.utc)
-        content_fields = await build_content_fields(
-            self,
-            user_id,
-            existing_match["memory_id"] if existing_match else uuid.uuid4().hex,
-            content,
+        memory_id_for_content = existing_match["memory_id"] if existing_match else uuid.uuid4().hex
+        content_fields, embedding = await asyncio.gather(
+            build_content_fields(self, user_id, memory_id_for_content, content),
+            self._maybe_embed(content),
         )
 
         if existing_match:
-            existing_doc = await self._collection.find_one(
-                {"user_id": user_id, "memory_id": existing_match["memory_id"]},
-                {"content_storage_mode": 1, "content_store_key": 1},
-            )
             await self._collection.update_one(
                 {"user_id": user_id, "memory_id": existing_match["memory_id"]},
                 {
@@ -212,19 +223,20 @@ class NativeMemoryBackend(MemoryBackend):
                         "index_label": build_index_label(title, summary, content),
                         "context": context,
                         "tags": tags,
-                        "embedding": await self._maybe_embed(content),
+                        "embedding": embedding,
                         "updated_at": now,
                         **content_fields,
                     }
                 },
             )
             if (
-                existing_doc
-                and existing_doc.get("content_storage_mode") == "store"
-                and existing_doc.get("content_store_key")
-                and existing_doc.get("content_store_key") != content_fields.get("content_store_key")
+                existing_match
+                and existing_match.get("content_storage_mode") == "store"
+                and existing_match.get("content_store_key")
+                and existing_match.get("content_store_key")
+                != content_fields.get("content_store_key")
             ):
-                await delete_memory_content(self, user_id, existing_doc.get("content_store_key"))
+                await delete_memory_content(self, user_id, existing_match.get("content_store_key"))
             await self._invalidate_cache(user_id)
             return {
                 "success": True,
@@ -235,6 +247,10 @@ class NativeMemoryBackend(MemoryBackend):
             }
 
         memory_id = uuid.uuid4().hex
+        content_fields_new, embedding_new = await asyncio.gather(
+            build_content_fields(self, user_id, memory_id, content),
+            self._maybe_embed(content),
+        )
         doc = {
             "memory_id": memory_id,
             "user_id": user_id,
@@ -245,13 +261,13 @@ class NativeMemoryBackend(MemoryBackend):
             "context": context,
             "tags": tags,
             "source": "manual",
-            "embedding": await self._maybe_embed(content),
+            "embedding": embedding_new,
             "created_at": now,
             "updated_at": now,
             "accessed_at": now,
             "access_count": 0,
         }
-        doc.update(await build_content_fields(self, user_id, memory_id, content))
+        doc.update(content_fields_new)
 
         await self._collection.insert_one(doc)
         # Invalidate index cache (local + distributed)
@@ -397,9 +413,12 @@ class NativeMemoryBackend(MemoryBackend):
     async def build_memory_index(self, user_id: str) -> str:
         return await build_memory_index(self, user_id)
 
-    async def _update_access_stats(self, memory_ids: list[str]) -> None:
+    async def _update_access_stats(self, memory_ids: list[str], user_id: str = "") -> None:
+        query: dict[str, Any] = {"memory_id": {"$in": memory_ids}}
+        if user_id:
+            query["user_id"] = user_id
         await self._collection.update_many(
-            {"memory_id": {"$in": memory_ids}},
+            query,
             {
                 "$set": {"accessed_at": datetime.now(timezone.utc)},
                 "$inc": {"access_count": 1},
@@ -460,7 +479,6 @@ class NativeMemoryBackend(MemoryBackend):
             col.create_index(
                 [("user_id", 1), ("context", 1)],
                 name="native_mem_session_ctx_idx",
-                partialFilterExpression={"context": {"$regex": "^session:"}},
             )
         except Exception as e:
             logger.warning(f"[NativeMemory] Session context index creation skipped: {e}")

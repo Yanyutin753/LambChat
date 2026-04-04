@@ -11,6 +11,14 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
 from src.infra.logging import get_logger
+from src.infra.skill.binary import (
+    SkillBinaryRef,
+    build_binary_ref_content,
+    build_storage_key,
+    guess_mime_type,
+    is_binary_file,
+    parse_binary_ref,
+)
 from src.infra.skill.constants import SKILL_FILES_COLLECTION
 from src.infra.skill.types import InstalledFrom, SkillMeta
 from src.infra.storage.mongodb import get_mongo_client
@@ -79,7 +87,7 @@ class SkillStorage:
     async def set_skill_file(
         self, skill_name: str, file_path: str, content: str, user_id: str
     ) -> None:
-        """原子 upsert 单个文件"""
+        """原子 upsert 单个文件（文本内容）"""
         collection = self._get_files_collection()
         now = datetime.now(timezone.utc).isoformat()
         await collection.update_one(
@@ -89,6 +97,41 @@ class SkillStorage:
                 "$setOnInsert": {"created_at": now},
             },
             upsert=True,
+        )
+
+    async def set_skill_binary_file(
+        self,
+        skill_name: str,
+        file_path: str,
+        data: bytes,
+        user_id: str,
+        mime_type: Optional[str] = None,
+    ) -> SkillBinaryRef:
+        """上传二进制文件到 S3/本地存储，并在 MongoDB 存储引用。"""
+        from src.infra.storage.s3.service import get_or_init_storage
+
+        if not mime_type:
+            mime_type = guess_mime_type(file_path)
+
+        storage_key = build_storage_key(user_id, skill_name, file_path)
+        storage_service = await get_or_init_storage()
+
+        # 上传到 S3/本地存储
+        await storage_service.upload_to_key(
+            data=data,
+            key=storage_key,
+            content_type=mime_type,
+            skip_size_limit=True,  # size already validated at API layer
+        )
+
+        # 构建引用并存入 MongoDB
+        ref_content = build_binary_ref_content(storage_key, mime_type, len(data))
+        await self.set_skill_file(skill_name, file_path, ref_content, user_id)
+
+        return SkillBinaryRef(
+            storage_key=storage_key,
+            mime_type=mime_type,
+            size=len(data),
         )
 
     async def update_skill_file_cas(
@@ -122,38 +165,59 @@ class SkillStorage:
         return result.modified_count > 0
 
     async def delete_skill_file(self, skill_name: str, file_path: str, user_id: str) -> None:
-        """删除单个文件"""
+        """删除单个文件（如果是二进制引用，同时删除 S3 对象）"""
         collection = self._get_files_collection()
-        await collection.delete_one(
-            {
-                "skill_name": skill_name,
-                "user_id": user_id,
-                "file_path": file_path,
-            }
+        doc = await collection.find_one(
+            {"skill_name": skill_name, "user_id": user_id, "file_path": file_path},
         )
+        if doc:
+            # 检查是否为二进制引用，如果是则删除 S3 对象
+            binary_ref = parse_binary_ref(doc.get("content", ""))
+            if binary_ref:
+                await self._delete_s3_object(binary_ref.storage_key)
+            await collection.delete_one(
+                {"skill_name": skill_name, "user_id": user_id, "file_path": file_path},
+            )
+
+    async def _delete_s3_object(self, storage_key: str) -> None:
+        """删除 S3/本地存储中的文件"""
+        try:
+            from src.infra.storage.s3.service import get_or_init_storage
+
+            storage_service = await get_or_init_storage()
+            await storage_service.delete_file(storage_key)
+        except Exception as e:
+            logger.warning(f"Failed to delete S3 object {storage_key}: {e}")
 
     async def sync_skill_files(self, skill_name: str, files: dict[str, str], user_id: str) -> None:
-        """批量同步文件（替换所有，但保留 __meta__）"""
+        """批量同步文件（替换所有，但保留 __meta__）。支持文本和二进制引用。"""
         if not files:
             return
         collection = self._get_files_collection()
         now = datetime.now(timezone.utc).isoformat()
 
-        # 获取现有文件路径（排除 __meta__）
-        existing_paths = set()
+        # 获取现有文件路径和内容（排除 __meta__），用于检测二进制引用
+        existing_docs: dict[str, str] = {}
         async for doc in collection.find(
             {"skill_name": skill_name, "user_id": user_id, "file_path": {"$ne": "__meta__"}},
-            {"file_path": 1},
+            {"file_path": 1, "content": 1},
         ):
-            existing_paths.add(doc["file_path"])
+            existing_docs[doc["file_path"]] = doc.get("content", "")
 
+        existing_paths = set(existing_docs.keys())
         new_paths = set(files.keys())
         removed_paths = existing_paths - new_paths
 
         from pymongo import DeleteOne, UpdateOne
 
         operations: list = []
+
+        # 删除不再存在的文件（包括 S3 清理）
+        s3_keys_to_delete: list[str] = []
         for path in removed_paths:
+            binary_ref = parse_binary_ref(existing_docs.get(path, ""))
+            if binary_ref:
+                s3_keys_to_delete.append(binary_ref.storage_key)
             operations.append(
                 DeleteOne(
                     {
@@ -163,6 +227,7 @@ class SkillStorage:
                     }
                 )
             )
+
         for file_path, content in files.items():
             operations.append(
                 UpdateOne(
@@ -178,9 +243,23 @@ class SkillStorage:
         if operations:
             await collection.bulk_write(operations, ordered=True)
 
+        # 批量删除 S3 对象
+        for s3_key in s3_keys_to_delete:
+            await self._delete_s3_object(s3_key)
+
     async def delete_skill_files(self, skill_name: str, user_id: str) -> None:
-        """删除用户某个 Skill 的所有文件"""
+        """删除用户某个 Skill 的所有文件（包括 S3 二进制清理）"""
         collection = self._get_files_collection()
+
+        # 先收集所有二进制引用，清理 S3
+        async for doc in collection.find(
+            {"skill_name": skill_name, "user_id": user_id, "file_path": {"$ne": "__meta__"}},
+            {"content": 1},
+        ):
+            binary_ref = parse_binary_ref(doc.get("content", ""))
+            if binary_ref:
+                await self._delete_s3_object(binary_ref.storage_key)
+
         await collection.delete_many(
             {
                 "skill_name": skill_name,
@@ -403,8 +482,18 @@ class SkillStorage:
         )
 
     async def delete_skill_and_meta(self, skill_name: str, user_id: str) -> None:
-        """删除 Skill 所有文件（包括 __meta__）"""
+        """删除 Skill 所有文件（包括 __meta__ 和 S3 二进制文件）"""
         collection = self._get_files_collection()
+
+        # 先收集所有二进制引用，清理 S3
+        async for doc in collection.find(
+            {"skill_name": skill_name, "user_id": user_id, "file_path": {"$ne": "__meta__"}},
+            {"content": 1},
+        ):
+            binary_ref = parse_binary_ref(doc.get("content", ""))
+            if binary_ref:
+                await self._delete_s3_object(binary_ref.storage_key)
+
         await collection.delete_many({"skill_name": skill_name, "user_id": user_id})
 
     # ==========================================
@@ -442,8 +531,6 @@ class SkillStorage:
             redis_client = get_redis_client()
             cached = await redis_client.get(cache_key)
             if cached:
-                import json
-
                 return json.loads(cached)
         except Exception as e:
             logger.warning(f"[Skills Cache] Redis get failed: {e}")
@@ -492,7 +579,6 @@ class SkillStorage:
             from src.infra.storage.redis import get_redis_client
 
             redis_client = get_redis_client()
-            import json
 
             await redis_client.set(cache_key, json.dumps(result), ex=SKILLS_CACHE_TTL)
         except Exception as e:
@@ -542,9 +628,10 @@ class SkillStorage:
         user_id: str,
         installed_from: InstalledFrom = InstalledFrom.MANUAL,
         enabled: bool = True,
+        binary_files: Optional[dict[str, bytes]] = None,
     ) -> None:
         """
-        Create a complete user skill: sync files + create __meta__ + invalidate cache.
+        Create a complete user skill: sync files + upload binaries + create __meta__ + invalidate cache.
 
         This is the single entry point for all skill creation paths:
         - MarketplacePanel direct create (installed_from=MARKETPLACE)
@@ -552,13 +639,27 @@ class SkillStorage:
         - GitHub import (installed_from=MANUAL)
         - ZIP upload (installed_from=MANUAL)
 
+        Args:
+            files: 文本文件 {file_path: text_content}
+            binary_files: 二进制文件 {file_path: binary_data}，上传到 S3/local
+            user_id: 用户 ID
+            skill_name: Skill 名称
+            installed_from: 安装来源
+            enabled: 是否启用
+
         Note: The `enabled` parameter is kept for API compatibility but the actual
         enabled/disabled state is managed in user.metadata.disabled_skills.
         """
-        if not files:
+        if not files and not binary_files:
             raise ValueError("Skill must have at least one file")
 
         await self.sync_skill_files(skill_name, files, user_id)
+
+        # 上传二进制文件
+        if binary_files:
+            for file_path, data in binary_files.items():
+                await self.set_skill_binary_file(skill_name, file_path, data, user_id)
+
         await self.set_skill_meta(skill_name, user_id, installed_from=installed_from)
         await self.invalidate_user_cache(user_id)
 

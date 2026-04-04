@@ -49,10 +49,16 @@ export function useTools() {
       }
 
       const data: ToolsListResponse = await response.json();
-      const toolStates: ToolState[] = data.tools.map((tool: ToolInfo) => ({
+      // Filter out tools that should not appear in chat input:
+      // - system_disabled: creator disabled at server level (invisible to all)
+      // - user_disabled MCP tools: user disabled per-preference (hidden from chat input)
+      const activeTools = (data.tools || []).filter(
+        (tool: ToolInfo) =>
+          !tool.system_disabled && !(tool.user_disabled && tool.category === "mcp"),
+      );
+      const toolStates: ToolState[] = activeTools.map((tool: ToolInfo) => ({
         ...tool,
-        // 工具启用状态：未被系统禁用且未被用户禁用
-        enabled: !tool.system_disabled && !tool.user_disabled,
+        enabled: true,
       }));
 
       setTools(toolStates);
@@ -139,6 +145,15 @@ export function useTools() {
   // 初始加载
   useEffect(() => {
     fetchTools();
+  }, [fetchTools]);
+
+  // 监听 MCP 工具偏好变更事件（来自 ProfileToolsTab 等）
+  useEffect(() => {
+    const handleMcpToolsChanged = () => {
+      fetchTools();
+    };
+    window.addEventListener("mcp-tools-changed", handleMcpToolsChanged);
+    return () => window.removeEventListener("mcp-tools-changed", handleMcpToolsChanged);
   }, [fetchTools]);
 
   // Refresh tools with a specific agent ID (for sandbox filtering)

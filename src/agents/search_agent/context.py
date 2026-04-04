@@ -5,6 +5,11 @@ Search Agent 上下文管理 - 支持工具和 Skills
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from src.agents.core.tool_filter import (
+    filter_disabled_tools,
+    filter_mcp_tools_by_db_state,
+    get_db_disabled_mcp_tool_names,
+)
 from src.infra.logging import get_logger
 from src.infra.skill import load_skill_files
 from src.infra.tool.human_tool import get_human_tool
@@ -69,24 +74,16 @@ class SearchAgentContext:
             assert self.user_id is not None  # Already guarded above
             mcp_tools, self.mcp_manager = await get_global_mcp_tools(self.user_id)
             logger.info(
-                f"[SearchAgentContext] Loaded {len(mcp_tools)} MCP tools: {[t.name for t in mcp_tools]}"
+                f"[SearchAgentContext] Loaded {len(mcp_tools)} MCP tools (before DB filter)"
             )
 
-            # Filter MCP tools by disabled_mcp_tools blacklist if provided
-            if self.disabled_mcp_tools:
-                disabled_mcp_set = set(self.disabled_mcp_tools)
-                mcp_tools = [
-                    t
-                    for t in mcp_tools
-                    if t.name not in disabled_mcp_set
-                    and not (
-                        hasattr(t, "server")
-                        and f"{t.server}:{t.name.split(':')[-1]}" in disabled_mcp_set
-                    )
-                ]
-                logger.info(
-                    f"[SearchAgentContext] Filtered out {len(self.disabled_mcp_tools)} disabled MCP tools, {len(mcp_tools)} remaining"
-                )
+            # 过滤数据库中标记为 system_disabled / user_disabled 的工具
+            db_disabled = await get_db_disabled_mcp_tool_names(self.user_id)
+            mcp_tools = filter_mcp_tools_by_db_state(mcp_tools, db_disabled)
+            logger.info(
+                f"[SearchAgentContext] After DB filter: {len(mcp_tools)} MCP tools "
+                f"(removed {len(db_disabled)} disabled names)"
+            )
 
             # 延迟加载决策：工具总数超过阈值时延迟 MCP 工具
             if (
@@ -126,55 +123,12 @@ class SearchAgentContext:
         return self.tools
 
     def filter_tools(self) -> List[Any]:
-        """根据 disabled_tools 和 disabled_mcp_tools 过滤工具"""
-        if not self.disabled_tools and not self.disabled_mcp_tools:
-            return self.tools
-
-        builtin_tools = frozenset(
-            [
-                "ask_human",
-                "reveal_file",
-                "reveal_project",
-                "transfer_file",
-                "sandbox_mcp_add",
-                "sandbox_mcp_update",
-                "sandbox_mcp_remove",
-            ]
+        """根据 disabled_tools 和 disabled_mcp_tools 过滤工具（使用共享过滤逻辑）"""
+        filtered = filter_disabled_tools(
+            self.tools,
+            disabled_tools=self.disabled_tools,
+            disabled_mcp_tools=self.disabled_mcp_tools,
         )
-
-        # Merge all disabled names
-        disabled_set = set(self.disabled_tools or [])
-        disabled_set.update(self.disabled_mcp_tools or [])
-
-        mcp_servers = set()
-        exact_names = set()
-
-        for tool_name in disabled_set:
-            if tool_name.startswith("mcp:"):
-                mcp_servers.add(tool_name[4:])
-            else:
-                exact_names.add(tool_name)
-
-        mcp_prefixes = tuple(f"{s}:" for s in mcp_servers) if mcp_servers else ()
-
-        filtered = []
-        for tool in self.tools:
-            tool_name = getattr(tool, "name", str(tool))
-
-            if tool_name in builtin_tools:
-                filtered.append(tool)
-                continue
-
-            if tool_name in exact_names:
-                continue
-
-            if mcp_prefixes and tool_name.startswith(mcp_prefixes):
-                continue
-            if mcp_servers and hasattr(tool, "server") and tool.server in mcp_servers:
-                continue
-
-            filtered.append(tool)
-
         logger.debug(
             "[SearchAgentContext] Tool filtering: %d/%d tools enabled",
             len(filtered),

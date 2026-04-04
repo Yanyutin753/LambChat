@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -114,7 +115,26 @@ async def recent_context_fallback(
     base: dict[str, Any] = {"user_id": user_id, "source": {"$ne": "session_summary"}}
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
-    cursor = collection.find(base).sort("updated_at", -1).limit(limit)
+    cursor = (
+        collection.find(
+            base,
+            {
+                "memory_id": 1,
+                "user_id": 1,
+                "content": 1,
+                "summary": 1,
+                "title": 1,
+                "memory_type": 1,
+                "source": 1,
+                "content_storage_mode": 1,
+                "content_store_key": 1,
+                "created_at": 1,
+                "updated_at": 1,
+            },
+        )
+        .sort("updated_at", -1)
+        .limit(limit)
+    )
     docs = await cursor.to_list(length=limit)
     return [format_memory(doc, 0.0) for doc in docs]
 
@@ -159,7 +179,20 @@ async def keyword_fallback(
     if memory_types:
         base["memory_type"] = {"$in": memory_types}
 
-    cursor = collection.find(base).sort("updated_at", -1).limit(limit)
+    _projection = {
+        "memory_id": 1,
+        "user_id": 1,
+        "content": 1,
+        "summary": 1,
+        "title": 1,
+        "memory_type": 1,
+        "source": 1,
+        "content_storage_mode": 1,
+        "content_store_key": 1,
+        "created_at": 1,
+        "updated_at": 1,
+    }
+    cursor = collection.find(base, _projection).sort("updated_at", -1).limit(limit)
     return await cursor.to_list(length=limit)
 
 
@@ -204,6 +237,7 @@ async def vector_search(
         "user_id": 1,
         "memory_id": 1,
         "content": 1,
+        "title": 1,
         "content_storage_mode": 1,
         "content_store_key": 1,
         "summary": 1,
@@ -213,8 +247,9 @@ async def vector_search(
         "updated_at": 1,
         "embedding": 1,
     }
-    cursor = backend._collection.find(base, projection).limit(200)
-    docs = await cursor.to_list(length=200)
+    scan_limit = min(limit * 3, 100)
+    cursor = backend._collection.find(base, projection).sort("updated_at", -1).limit(scan_limit)
+    docs = await cursor.to_list(length=scan_limit)
     scored = []
     for d in docs:
         emb = d.get("embedding")
@@ -365,13 +400,18 @@ async def recall_memories(
     touch_access: bool = True,
     enable_rerank: bool = True,
 ) -> dict[str, Any]:
-    text_results = await text_search(
+    text_coro = text_search(
         backend._collection, backend._logger, user_id, query, max_results * 2, memory_types
     )
 
-    vector_results: list[dict] = []
     if backend._embedding_fn:
-        vector_results = await vector_search(backend, user_id, query, max_results * 2, memory_types)
+        text_results, vector_results = await asyncio.gather(
+            text_coro,
+            vector_search(backend, user_id, query, max_results * 2, memory_types),
+        )
+    else:
+        text_results = await text_coro
+        vector_results = []
 
     memories = rrf_merge(text_results, vector_results, max_results * 2)
     memories = prioritize_sources(memories)
@@ -387,9 +427,11 @@ async def recall_memories(
 
     if memories:
         memories = memories[:max_results]
-        memories = [await hydrate_formatted_memory(backend, memory) for memory in memories]
+        memories = list(
+            await asyncio.gather(*(hydrate_formatted_memory(backend, m) for m in memories))
+        )
         if touch_access:
-            await backend._update_access_stats([m["memory_id"] for m in memories])
+            await backend._update_access_stats([m["memory_id"] for m in memories], user_id)
 
     return {
         "success": True,

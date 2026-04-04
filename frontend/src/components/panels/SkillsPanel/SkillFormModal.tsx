@@ -13,6 +13,10 @@ interface SkillFormModalProps {
   onSave: (data: SkillCreate) => Promise<boolean>;
   onCancel: () => void;
   onFullscreenChange: (fullscreen: boolean) => void;
+  /** Override the title shown in create mode (default: t("skills.createNew")) */
+  createTitle?: string;
+  /** Override the subtitle shown below the title */
+  subtitle?: string;
 }
 
 export function SkillFormModal({
@@ -24,6 +28,8 @@ export function SkillFormModal({
   onSave,
   onCancel,
   onFullscreenChange,
+  createTitle,
+  subtitle,
 }: SkillFormModalProps) {
   const { t } = useTranslation();
   const swipeRef = useSwipeToClose({
@@ -50,11 +56,11 @@ export function SkillFormModal({
                 <div>
                   <h3 className="skill-modal-header__title">
                     {isCreating
-                      ? t("skills.createNew")
+                      ? (createTitle ?? t("skills.createNew"))
                       : t("skills.editSkill", { name: editingSkill?.name })}
                   </h3>
                   <p className="skill-modal-header__subtitle">
-                    {t("skills.subtitle")}
+                    {subtitle ?? t("skills.subtitle")}
                   </p>
                 </div>
                 <button onClick={onCancel} className="btn-icon">

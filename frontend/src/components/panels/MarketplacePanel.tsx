@@ -22,13 +22,12 @@ import { useNavigate } from "react-router-dom";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import { SkillForm } from "../skill/SkillForm";
+import { SkillFormModal } from "./SkillsPanel/SkillFormModal";
 import { useMarketplace } from "../../hooks/useMarketplace";
 import { useSkills } from "../../hooks/useSkills";
 import { Permission } from "../../types";
 import type { SkillResponse, SkillCreate } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 export function MarketplacePanel() {
   const { t } = useTranslation();
@@ -253,11 +252,6 @@ export function MarketplacePanel() {
     setIsFormFullscreen(false);
     setShowCreateModal(false);
   };
-
-  const swipeRef = useSwipeToClose({
-    onClose: handleFormCancel,
-    enabled: (showCreateModal || !!editingSkill) && !isFormFullscreen,
-  });
 
   const hasActiveFilters = selectedTags.length > 0 || searchQuery.length > 0;
 
@@ -820,49 +814,18 @@ export function MarketplacePanel() {
       )}
 
       {/* Create / Edit Modal */}
-      {(showCreateModal || editingSkill) && (
-        <>
-          {!isFormFullscreen && (
-            <div className="fixed inset-0" onClick={handleFormCancel} />
-          )}
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div
-              ref={swipeRef as React.RefObject<HTMLDivElement>}
-              className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-            >
-              {!isFormFullscreen && (
-                <>
-                  <div className="bottom-sheet-handle sm:hidden" />
-                  <div className="skill-modal-header">
-                    <div>
-                      <h3 className="skill-modal-header__title">
-                        {isCreating
-                          ? t("marketplace.createTitle")
-                          : t("skills.editSkill", { name: editingSkill?.name })}
-                      </h3>
-                      <p className="skill-modal-header__subtitle">
-                        {t("marketplace.createHint")}
-                      </p>
-                    </div>
-                    <button onClick={handleFormCancel} className="btn-icon">
-                      <X size={20} />
-                    </button>
-                  </div>
-                </>
-              )}
-              <div className="skill-modal-body flex min-h-0 flex-1 overflow-hidden flex-col bg-[var(--theme-bg)]/45 px-2 py-2 sm:px-4 sm:py-3">
-                <SkillForm
-                  skill={editingSkill}
-                  onSave={handleSave}
-                  onCancel={handleFormCancel}
-                  isLoading={isLoading}
-                  onFullscreenChange={setIsFormFullscreen}
-                />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      <SkillFormModal
+        showModal={showCreateModal || !!editingSkill}
+        isCreating={isCreating}
+        isFormFullscreen={isFormFullscreen}
+        editingSkill={editingSkill}
+        isLoading={isLoading}
+        onSave={handleSave}
+        onCancel={handleFormCancel}
+        onFullscreenChange={setIsFormFullscreen}
+        createTitle={t("marketplace.createTitle")}
+        subtitle={t("marketplace.createHint")}
+      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

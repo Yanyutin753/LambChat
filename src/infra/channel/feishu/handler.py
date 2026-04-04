@@ -144,7 +144,7 @@ class FeishuResponseCollector:
 
     async def _upload_image_from_uri(self, uri: str) -> str | None:
         """从 send:// URI 读取图片并上传到飞书，返回 image_key。"""
-        from src.api.routes.upload import get_or_init_storage
+        from src.infra.storage.s3.service import get_or_init_storage
 
         base_client = self.manager._find_channel(self.user_id)
         if not base_client:
@@ -235,7 +235,7 @@ class FeishuResponseCollector:
 
         直接从 S3 storage 读取文件内容，然后上传到飞书。
         """
-        from src.api.routes.upload import get_or_init_storage
+        from src.infra.storage.s3.service import get_or_init_storage
 
         if not self.files_to_reveal:
             return

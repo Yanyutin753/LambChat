@@ -326,12 +326,34 @@ async def toggle_tool(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """
-    Toggle a specific tool's enabled status for the current user.
+    Toggle a specific tool's enabled status.
 
-    This allows users to disable individual tools from an MCP server
-    while keeping the server itself enabled.
+    Two levels controlled by the `level` field:
+    - level=system (default): Server-level disable. System servers require creator.
+      Sets system_disabled — tool is invisible to ALL users everywhere.
+    - level=user: Per-user preference. Works for any server the user can see.
+      Sets user_disabled — tool hidden from chat input but visible in preferences (re-enableable).
     """
-    await storage.set_tool_preference(tool_name, name, user.sub, data.enabled)
+    if data.level == "user":
+        # User-level preference: works for any server
+        await storage.set_tool_preference(tool_name, name, user.sub, data.enabled)
+    else:
+        # System-level: only creators can toggle
+        user_server = await storage.get_user_server(name, user.sub)
+        if user_server:
+            await storage.set_user_server_tool_disabled(name, tool_name, user.sub, not data.enabled)
+        else:
+            system_server = await storage.get_system_server(name)
+            if not system_server:
+                raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+
+            is_creator = (system_server.created_by or system_server.updated_by) == user.sub
+            if not is_creator:
+                raise HTTPException(
+                    status_code=403, detail="Only the creator can toggle tools on this server"
+                )
+
+            await storage.set_system_tool_disabled(name, tool_name, not data.enabled)
 
     status_text = "enabled" if data.enabled else "disabled"
     return MCPToolToggleResponse(

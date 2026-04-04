@@ -106,7 +106,15 @@ export function MCPServerCard({
         }
 
         try {
-          await mcpApi.toggleTool(server.name, toolName, newEnabled);
+          // user level: per-user preference toggle
+          await mcpApi.toggleTool(server.name, toolName, newEnabled, "user");
+          setTools((prev) =>
+            prev.map((t) =>
+              t.name === toolName
+                ? { ...t, user_disabled: !newEnabled }
+                : t,
+            ),
+          );
           onToolToggled?.();
         } catch {
           toast.error(t("mcp.card.toolToggleFailed", "Failed to toggle tool"));
@@ -121,10 +129,11 @@ export function MCPServerCard({
     [server.name, onToolToggled, t],
   );
 
+  // Count visible (non-disabled) tools
   const enabledToolCount = useMemo(
     () =>
       tools.length > 0
-        ? tools.filter((t) => !t.user_disabled && !t.system_disabled).length
+        ? tools.filter((t) => !t.system_disabled && !t.user_disabled).length
         : 0,
     [tools],
   );
@@ -247,7 +256,7 @@ export function MCPServerCard({
         </div>
       </div>
 
-      {/* Tools Discovery Section - not shown for sandbox (tools are injected at runtime, not discoverable via MCP protocol) */}
+      {/* Tools section - system_disabled tools are hidden from individual users */}
       {server.enabled && server.transport !== "sandbox" && (
         <div className="mt-3 border-t border-stone-100 dark:border-stone-700/50 pt-2">
           <button
@@ -292,37 +301,29 @@ export function MCPServerCard({
 
               {!toolsLoading &&
                 tools.map((tool) => {
-                  const isUserDisabled = tool.user_disabled || false;
-                  const isSystemDisabled = tool.system_disabled || false;
+                  const isDisabled = tool.system_disabled || tool.user_disabled || false;
                   return (
                     <div
                       key={tool.name}
                       className={`flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors ${
-                        isUserDisabled || isSystemDisabled
+                        isDisabled
                           ? "opacity-50"
                           : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
                       }`}
                     >
                       <button
-                        onClick={() => handleToggleTool(tool.name, isUserDisabled)}
+                        onClick={() => handleToggleTool(tool.name, !isDisabled)}
                         className="flex-shrink-0"
-                        disabled={isSystemDisabled}
                         title={
-                          isSystemDisabled
-                            ? t("mcp.card.systemDisabled", "System Disabled")
-                            : isUserDisabled
-                              ? t("mcp.card.enableTool")
-                              : t("mcp.card.disableTool")
+                          isDisabled
+                            ? t("mcp.card.enableTool")
+                            : t("mcp.card.disableTool")
                         }
                       >
-                        {isUserDisabled || isSystemDisabled ? (
+                        {isDisabled ? (
                           <ToggleLeft
                             size={16}
-                            className={
-                              isSystemDisabled
-                                ? "text-red-400 dark:text-red-500"
-                                : "text-stone-400 dark:text-stone-500"
-                            }
+                            className="text-stone-400 dark:text-stone-500"
                           />
                         ) : (
                           <ToggleRight
@@ -339,11 +340,6 @@ export function MCPServerCard({
                           {tool.parameters.length > 0 && (
                             <span className="text-[9px] px-1 py-0.5 rounded bg-stone-100 dark:bg-stone-700 text-stone-400 dark:text-stone-500 tabular-nums">
                               {tool.parameters.length} params
-                            </span>
-                          )}
-                          {isSystemDisabled && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 font-medium">
-                              {t("tools.systemDisabled", "System Disabled")}
                             </span>
                           )}
                         </div>

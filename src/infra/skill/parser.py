@@ -16,14 +16,21 @@ def sanitize_skill_name(name: str) -> str:
     """将 name 转为路径安全的 skill_name。
 
     - 去掉首尾空白
+    - 不允许路径分隔符（/ \\），只取最后一段
     - 空格和非法字符替换为连字符
     - 合并连续连字符
     - 去掉首尾连字符
+    - 校验结果必须只含允许字符
     """
     name = name.strip()
+    # 不允许路径分隔符，只取最后一段（防止 skill/sub/name 这种路径式命名）
+    name = name.replace("\\", "/").rsplit("/", 1)[-1]
     name = re.sub(r"[^\w\u4e00-\u9fff\-.]", "-", name)
     name = re.sub(r"-{2,}", "-", name)
     name = name.strip("-")
+    # 最终校验：只允许安全字符
+    if not _SKILL_NAME_ALLOWED.match(name):
+        return "unnamed-skill"
     return name or "unnamed-skill"
 
 

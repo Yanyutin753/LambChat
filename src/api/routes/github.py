@@ -205,12 +205,13 @@ async def fetch_github_file(
 
 
 def _parse_skill_md(skill_md: str, fallback_name: str, fallback_source: str) -> dict[str, Any]:
-    """从 SKILL.md 内容解析技能描述，名称使用目录名/仓库名"""
+    """从 SKILL.md 内容解析技能描述，名称优先使用 frontmatter 的 name 字段"""
     from src.infra.skill.parser import sanitize_skill_name
 
-    _, description, tags = parse_skill_md(skill_md)
+    parsed_name, description, tags = parse_skill_md(skill_md)
+    name = sanitize_skill_name(parsed_name) if parsed_name else sanitize_skill_name(fallback_name)
     return {
-        "name": sanitize_skill_name(fallback_name),
+        "name": name,
         "description": description or f"Skill from {fallback_source}",
         "tags": tags,
     }
@@ -221,8 +222,10 @@ async def scan_for_skills(
     repo: str,
     branch: str,
     path: str = "",
+    _depth: int = 0,
+    max_depth: int = 3,
 ) -> list[dict[str, Any]]:
-    """扫描 GitHub 仓库查找技能"""
+    """递归扫描 GitHub 仓库查找技能"""
     skills = []
 
     try:
@@ -231,6 +234,7 @@ async def scan_for_skills(
         logger.warning(f"Failed to fetch GitHub dir {owner}/{repo}/{path}: {e}")
         return []
 
+    sub_dirs = []
     for item in contents:
         if item["type"] == "dir":
             # 检查是否是技能目录（包含 SKILL.md）
@@ -240,6 +244,9 @@ async def scan_for_skills(
                 parsed = _parse_skill_md(skill_md, item["name"], item["name"])
                 parsed["path"] = item["path"]
                 skills.append(parsed)
+            else:
+                # 没找到 SKILL.md，记录子目录稍后递归扫描
+                sub_dirs.append(item)
         elif item["type"] == "file" and item["name"] == "SKILL.md":
             # 根目录的 SKILL.md
             skill_md = await fetch_github_file(owner, repo, branch, item["path"])
@@ -247,6 +254,21 @@ async def scan_for_skills(
                 parsed = _parse_skill_md(skill_md, repo, repo)
                 parsed["path"] = ""
                 skills.append(parsed)
+
+    # 递归扫描未找到 SKILL.md 的子目录（限制深度）
+    if sub_dirs and _depth < max_depth:
+        import asyncio
+
+        sub_results = await asyncio.gather(
+            *[
+                scan_for_skills(
+                    owner, repo, branch, d["path"], _depth=_depth + 1, max_depth=max_depth
+                )
+                for d in sub_dirs
+            ]
+        )
+        for sub_skills in sub_results:
+            skills.extend(sub_skills)
 
     return skills
 

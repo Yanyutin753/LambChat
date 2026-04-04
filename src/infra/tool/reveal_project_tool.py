@@ -411,7 +411,7 @@ def _get_mime_type(filename: str) -> str:
 
 async def _get_storage():
     """获取已初始化的 storage 服务（复用 upload 模块的初始化逻辑）"""
-    from src.api.routes.upload import get_or_init_storage
+    from src.infra.storage.s3.service import get_or_init_storage
 
     return await get_or_init_storage()
 

@@ -386,7 +386,7 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
     async def _upload_block(self, block: dict) -> str | None:
         """Upload a single binary block to storage, return the access URL."""
         try:
-            from src.api.routes.upload import get_or_init_storage
+            from src.infra.storage.s3.service import get_or_init_storage
 
             storage = await get_or_init_storage()
         except Exception as e:

@@ -30,7 +30,7 @@ export function MCPPanel() {
     demoteServer,
     clearError,
   } = useMCP();
-  const { hasAnyPermission, user, refreshUser } = useAuth();
+  const { hasAnyPermission, user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(
@@ -240,8 +240,9 @@ export function MCPPanel() {
 
   // Stable callback for tool toggled — avoids inline arrow in .map()
   const handleToolToggled = useCallback(() => {
-    refreshUser();
-  }, [refreshUser]);
+    // Notify useTools hook to refresh conversation tool state
+    window.dispatchEvent(new CustomEvent("mcp-tools-changed"));
+  }, []);
 
   const handleExport = async () => {
     try {

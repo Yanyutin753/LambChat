@@ -69,6 +69,9 @@ class UserMCPServer(MCPServerBase):
 
     user_id: str = Field(..., description="Owner user ID")
     is_system: bool = Field(False, description="Always False for user servers")
+    disabled_tools: list[str] = Field(
+        default_factory=list, description="List of tool names disabled on this server"
+    )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
 
@@ -175,6 +178,10 @@ class MCPToolToggleRequest(BaseModel):
     """Request to toggle a specific tool's enabled status"""
 
     enabled: bool = Field(..., description="Whether the tool is enabled")
+    level: str = Field(
+        "system",
+        description="Toggle level: 'system' for server-level (affects all users), 'user' for per-user preference",
+    )
 
 
 class MCPToolToggleResponse(BaseModel):

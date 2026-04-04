@@ -308,6 +308,10 @@ class S3StorageService:
         """Delete a file"""
         return await self._get_backend().delete(key)
 
+    async def download_file(self, key: str) -> bytes:
+        """Download a file and return its content as bytes"""
+        return await self._get_backend().download(key)
+
     async def file_exists(self, key: str) -> bool:
         """Check if a file exists"""
         return await self._get_backend().exists(key)
@@ -402,3 +406,76 @@ async def close_storage() -> None:
     global _storage_service
     if _storage_service:
         await _storage_service.close()
+
+
+def _parse_bool(value: object) -> bool:
+    """Parse boolean value from various types."""
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ("true", "1", "yes", "on")
+    return bool(value)
+
+
+def get_s3_enabled() -> bool:
+    """Get S3 enabled status from settings"""
+    from src.kernel.config import settings
+
+    return bool(settings.S3_ENABLED)
+
+
+async def get_s3_config_from_settings() -> S3Config:
+    """Build S3Config from cached application settings."""
+    from src.kernel.config import settings
+
+    if not get_s3_enabled():
+        return settings.get_s3_config()
+
+    provider_map = {
+        "aws": S3Provider.AWS,
+        "aliyun": S3Provider.ALIYUN,
+        "tencent": S3Provider.TENCENT,
+        "minio": S3Provider.MINIO,
+        "custom": S3Provider.CUSTOM,
+        "local": S3Provider.LOCAL,
+    }
+
+    storage_path = getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads"
+
+    return S3Config(
+        provider=provider_map.get(str(settings.S3_PROVIDER).lower(), S3Provider.AWS),
+        endpoint_url=settings.S3_ENDPOINT_URL if settings.S3_ENDPOINT_URL else None,
+        access_key=str(settings.S3_ACCESS_KEY) if settings.S3_ACCESS_KEY else "",
+        secret_key=str(settings.S3_SECRET_KEY) if settings.S3_SECRET_KEY else "",
+        region=str(settings.S3_REGION) if settings.S3_REGION else "us-east-1",
+        bucket_name=str(settings.S3_BUCKET_NAME) if settings.S3_BUCKET_NAME else "",
+        custom_domain=settings.S3_CUSTOM_DOMAIN if settings.S3_CUSTOM_DOMAIN else None,
+        path_style=_parse_bool(settings.S3_PATH_STYLE),
+        public_bucket=_parse_bool(settings.S3_PUBLIC_BUCKET),
+        max_file_size=(int(settings.S3_MAX_FILE_SIZE) if settings.S3_MAX_FILE_SIZE else 10485760),
+        storage_path=storage_path,
+    )
+
+
+async def get_or_init_storage() -> S3StorageService:
+    """Initialize (if needed) and return the global storage service.
+
+    This is the single entry-point that infra-layer code should use
+    instead of importing from API routes.
+    """
+    s3_enabled = get_s3_enabled()
+    if s3_enabled:
+        config = await get_s3_config_from_settings()
+        await init_storage(config)
+    else:
+        # Auto-enable local storage when S3 is not configured
+        svc = get_storage_service()
+        if svc._backend is None:
+            from src.kernel.config import settings
+
+            storage_path = getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads"
+            config = S3Config(provider=S3Provider.LOCAL, storage_path=storage_path)
+            await init_storage(config)
+    return get_storage_service()

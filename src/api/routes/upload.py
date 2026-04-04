@@ -153,19 +153,10 @@ async def get_s3_config_from_settings() -> S3Config:
 
 
 async def get_or_init_storage():
-    """Initialize and get storage service"""
-    s3_enabled = get_s3_enabled()
-    if s3_enabled:
-        config = await get_s3_config_from_settings()
-        await init_storage(config)
-    else:
-        # Auto-enable local storage when S3 is not configured
-        storage = get_storage_service()
-        if storage._backend is None:
-            storage_path = getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads"
-            config = S3Config(provider=S3Provider.LOCAL, storage_path=storage_path)
-            await init_storage(config)
-    return get_storage_service()
+    """Initialize and get storage service (re-exported from infra layer)"""
+    from src.infra.storage.s3.service import get_or_init_storage as _get_or_init
+
+    return await _get_or_init()
 
 
 async def resolve_upload_limits(user_roles: list[str]) -> dict:

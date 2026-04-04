@@ -54,7 +54,6 @@ export type {
   SkillResponse,
   SkillsResponse,
   SkillCreate,
-  SkillUpdate,
   MarketplaceSkillResponse,
   MarketplaceCreateRequest,
   MarketplaceSkillFilesResponse,
@@ -63,11 +62,6 @@ export type {
   MarketplaceUpdateResponse,
   TagsResponse,
   PublishToMarketplaceRequest,
-  // Legacy
-  SkillMetadata,
-  SkillContent,
-  SkillListResponse,
-  SkillStats,
 } from "./skill";
 
 // ============================================

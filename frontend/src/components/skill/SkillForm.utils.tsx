@@ -1,4 +1,4 @@
-import { FileText, FileCode, File } from "lucide-react";
+import { FileText, FileCode, File, Image, Film, Music } from "lucide-react";
 import type { FileEntry, TreeNode } from "./SkillForm.types";
 
 export function getFileIcon(path: string) {
@@ -20,6 +20,33 @@ export function getFileIcon(path: string) {
     case "yaml":
     case "yml":
       return <FileCode size={14} className="text-pink-400 shrink-0" />;
+    // Images
+    case "jpg":
+    case "jpeg":
+    case "png":
+    case "gif":
+    case "webp":
+    case "bmp":
+    case "ico":
+    case "svg":
+    case "tiff":
+    case "tif":
+      return <Image size={14} className="text-emerald-500 shrink-0" />;
+    // Video
+    case "mp4":
+    case "webm":
+    case "mov":
+    case "avi":
+    case "mkv":
+      return <Film size={14} className="text-purple-500 shrink-0" />;
+    // Audio
+    case "mp3":
+    case "wav":
+    case "ogg":
+    case "aac":
+    case "flac":
+    case "m4a":
+      return <Music size={14} className="text-pink-500 shrink-0" />;
     default:
       return (
         <File

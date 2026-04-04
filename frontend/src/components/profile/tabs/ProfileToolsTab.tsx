@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Wrench, ToggleLeft, ToggleRight, Loader2, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
@@ -19,7 +19,7 @@ export function ProfileToolsTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [toggling, setToggling] = useState<Set<string>>(new Set());
 
-  const fetchTools = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await authenticatedRequest(`${API_BASE}/tools`);
@@ -34,19 +34,19 @@ export function ProfileToolsTab() {
   }, [t]);
 
   useEffect(() => {
-    fetchTools();
-  }, [fetchTools]);
+    fetchData();
+  }, [fetchData]);
 
   const handleToggleTool = useCallback(
     async (tool: ToolInfo) => {
-      if (tool.system_disabled) return;
       if (tool.category !== "mcp" || !tool.server) return;
 
       const toolKey = tool.name;
       setToggling((prev) => new Set(prev).add(toolKey));
 
       const baseName = tool.name.includes(":") ? tool.name.split(":")[1] : tool.name;
-      const newEnabled = tool.user_disabled;
+      // Toggle: if user_disabled, re-enable; otherwise, disable
+      const newEnabled = !!tool.user_disabled;
 
       try {
         const response = await authenticatedRequest(
@@ -54,16 +54,19 @@ export function ProfileToolsTab() {
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled: newEnabled }),
+            body: JSON.stringify({ enabled: newEnabled, level: "user" }),
           },
         );
         if (!response.ok) throw new Error("Failed to toggle tool");
-        // Optimistic update
+
+        // Optimistic update: toggle user_disabled state
         setTools((prev) =>
           prev.map((t) =>
             t.name === tool.name ? { ...t, user_disabled: !newEnabled } : t,
           ),
         );
+        // Notify other components to refresh
+        window.dispatchEvent(new CustomEvent("mcp-tools-changed"));
       } catch {
         toast.error(t("mcp.card.toolToggleFailed", "Failed to toggle tool"));
       } finally {
@@ -77,26 +80,35 @@ export function ProfileToolsTab() {
     [t],
   );
 
-  // Group MCP tools by server
-  const mcpTools = tools.filter((t) => t.category === "mcp" && t.server);
-  const groupedByServer: GroupedTools[] = [];
-  const serverMap = new Map<string, ToolInfo[]>();
-  for (const tool of mcpTools) {
-    const server = tool.server!;
-    if (!serverMap.has(server)) serverMap.set(server, []);
-    serverMap.get(server)!.push(tool);
-  }
-  for (const [serverName, serverTools] of serverMap) {
-    groupedByServer.push({
-      serverName,
-      tools: serverTools.sort((a, b) =>
-        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-      ),
+  // Group MCP tools by server, excluding only system_disabled (invisible everywhere)
+  // user_disabled tools are shown so users can re-enable them (per-user preference)
+  const groupedByServer = useMemo(() => {
+    const mcpTools = tools.filter((t) => {
+      if (t.category !== "mcp" || !t.server) return false;
+      // system_disabled: invisible everywhere (set by creator at server level)
+      if (t.system_disabled) return false;
+      return true;
     });
-  }
-  groupedByServer.sort((a, b) =>
-    a.serverName.toLowerCase().localeCompare(b.serverName.toLowerCase()),
-  );
+    const serverMap = new Map<string, ToolInfo[]>();
+    for (const tool of mcpTools) {
+      const server = tool.server!;
+      if (!serverMap.has(server)) serverMap.set(server, []);
+      serverMap.get(server)!.push(tool);
+    }
+    const groups: GroupedTools[] = [];
+    for (const [serverName, serverTools] of serverMap) {
+      groups.push({
+        serverName,
+        tools: serverTools.sort((a, b) =>
+          a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+        ),
+      });
+    }
+    groups.sort((a, b) =>
+      a.serverName.toLowerCase().localeCompare(b.serverName.toLowerCase()),
+    );
+    return groups;
+  }, [tools]);
 
   return (
     <div className="space-y-4">
@@ -104,11 +116,11 @@ export function ProfileToolsTab() {
         <div className="flex items-center gap-2">
           <Wrench size={15} className="text-amber-500 dark:text-amber-400" />
           <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500">
-            {t("profile.toolsPreferences", "MCP Tool Preferences")}
+            {t("profile.toolsManagement", "MCP Tools")}
           </h3>
         </div>
         <button
-          onClick={fetchTools}
+          onClick={fetchData}
           disabled={isLoading}
           className="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/60 transition-colors"
           title={t("common.refresh", "Refresh")}
@@ -119,8 +131,8 @@ export function ProfileToolsTab() {
 
       <p className="text-xs text-stone-400 dark:text-stone-500">
         {t(
-          "profile.toolsPreferencesDesc",
-          "Configure which MCP tools are enabled by default across all conversations. These settings can be overridden per conversation.",
+          "profile.toolsManagementDesc",
+          "Enable or disable tools for your MCP servers.",
         )}
       </p>
 
@@ -158,65 +170,42 @@ export function ProfileToolsTab() {
                 {/* Tool list */}
                 <div className="divide-y divide-stone-200/40 dark:divide-stone-600/30">
                   {serverTools.map((tool) => {
-                    const isSystemDisabled = tool.system_disabled || false;
-                    const isUserDisabled = tool.user_disabled || false;
-                    const isEnabled = !isUserDisabled && !isSystemDisabled;
                     const isPending = toggling.has(tool.name);
                     const baseName = tool.name.includes(":")
                       ? tool.name.split(":")[1]
                       : tool.name;
+                    const isUserDisabled = tool.user_disabled || false;
 
                     return (
                       <div
                         key={tool.name}
                         className={`flex items-center gap-2 px-3 py-2 transition-colors ${
-                          isSystemDisabled || isUserDisabled ? "opacity-50" : ""
+                          isUserDisabled ? "opacity-50" : "hover:bg-stone-50 dark:hover:bg-stone-800/50"
                         }`}
                       >
                         <button
                           onClick={() => handleToggleTool(tool)}
-                          disabled={isSystemDisabled || isPending}
-                          className="flex-shrink-0 disabled:cursor-not-allowed"
+                          disabled={isPending}
+                          className="flex-shrink-0"
                           title={
-                            isSystemDisabled
-                              ? t("mcp.card.systemDisabled", "System Disabled")
-                              : isEnabled
-                                ? t("mcp.card.disableTool", "Disable tool")
-                                : t("mcp.card.enableTool", "Enable tool")
+                            isUserDisabled
+                              ? t("mcp.card.enableTool", "Enable tool")
+                              : t("mcp.card.disableTool", "Disable tool")
                           }
                         >
                           {isPending ? (
-                            <Loader2
-                              size={16}
-                              className="animate-spin text-stone-400"
-                            />
-                          ) : isEnabled ? (
-                            <ToggleRight
-                              size={16}
-                              className="text-green-600 dark:text-green-500"
-                            />
+                            <Loader2 size={16} className="animate-spin text-stone-400" />
+                          ) : isUserDisabled ? (
+                            <ToggleLeft size={16} className="text-stone-400 dark:text-stone-500" />
                           ) : (
-                            <ToggleLeft
-                              size={16}
-                              className={
-                                isSystemDisabled
-                                  ? "text-red-400 dark:text-red-500"
-                                  : "text-stone-400 dark:text-stone-500"
-                              }
-                            />
+                            <ToggleRight size={16} className="text-green-600 dark:text-green-500" />
                           )}
                         </button>
-
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <code className="text-xs font-medium text-stone-700 dark:text-stone-200 truncate">
                               {baseName}
                             </code>
-                            {isSystemDisabled && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 font-medium">
-                                {t("tools.systemDisabled", "System Disabled")}
-                              </span>
-                            )}
                           </div>
                           {tool.description && (
                             <p className="text-[11px] text-stone-400 dark:text-stone-500 truncate mt-0.5">

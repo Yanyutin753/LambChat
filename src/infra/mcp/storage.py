@@ -459,11 +459,15 @@ class MCPStorage:
             if not server:
                 return [], f"Server '{server_name}' not found"
 
-            # Get system-disabled tools for this server
+            # Get server-level disabled tools (system servers)
             system_disabled_tools = await self.get_system_disabled_tools()
             server_disabled_tools = system_disabled_tools.get(server_name, set())
 
-            # Get user-disabled tools for this server
+            # For user servers, check the server's own disabled_tools
+            if not server.is_system and hasattr(server, "disabled_tools"):
+                server_disabled_tools = set(server.disabled_tools)
+
+            # Get user-disabled tools for this server (per-user preference)
             user_disabled_tool_names = await self.get_disabled_tool_names(user_id)
 
             from src.infra.tool.mcp_client import MCPClientManager
@@ -648,6 +652,61 @@ class MCPStorage:
         collection = self._get_system_collection()
         result: dict[str, set[str]] = {}
         async for doc in collection.find({}):
+            server_name = doc["name"]
+            disabled_tools = doc.get("disabled_tools", [])
+            if disabled_tools:
+                result[server_name] = set(disabled_tools)
+        return result
+
+    async def set_user_server_tool_disabled(
+        self, server_name: str, tool_name: str, user_id: str, disabled: bool
+    ) -> None:
+        """
+        Set tool disabled status on a user-owned MCP server.
+        This is a server-level change that affects the tool's availability.
+
+        Args:
+            server_name: The MCP server name
+            tool_name: The tool name (without server prefix)
+            user_id: The server owner's user ID
+            disabled: Whether the tool is disabled
+        """
+        collection = self._get_user_collection()
+        server_doc = await collection.find_one({"name": server_name, "user_id": user_id})
+        if not server_doc:
+            raise ValueError(f"User server '{server_name}' not found for user '{user_id}'")
+
+        disabled_tools = server_doc.get("disabled_tools", [])
+        if disabled:
+            if tool_name not in disabled_tools:
+                disabled_tools.append(tool_name)
+        else:
+            if tool_name in disabled_tools:
+                disabled_tools.remove(tool_name)
+
+        await collection.update_one(
+            {"name": server_name, "user_id": user_id},
+            {
+                "$set": {
+                    "disabled_tools": disabled_tools,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+
+        # Invalidate caches
+        await self._invalidate_user_cache(user_id)
+
+    async def get_user_server_disabled_tools(self, user_id: str) -> dict[str, set[str]]:
+        """
+        Get disabled tools for all user-owned servers.
+
+        Returns:
+            Dict mapping server_name to set of disabled tool names
+        """
+        collection = self._get_user_collection()
+        result: dict[str, set[str]] = {}
+        async for doc in collection.find({"user_id": user_id}):
             server_name = doc["name"]
             disabled_tools = doc.get("disabled_tools", [])
             if disabled_tools:
@@ -1013,6 +1072,7 @@ class MCPStorage:
             command=doc.get("command"),
             env_keys=doc.get("env_keys"),
             is_system=True,
+            disabled_tools=doc.get("disabled_tools", []),
             created_at=created_at,
             updated_at=updated_at,
             updated_by=doc.get("updated_by"),
@@ -1045,6 +1105,7 @@ class MCPStorage:
             env_keys=doc.get("env_keys"),
             user_id=doc["user_id"],
             is_system=False,
+            disabled_tools=doc.get("disabled_tools", []),
             created_at=created_at,
             updated_at=updated_at,
         )

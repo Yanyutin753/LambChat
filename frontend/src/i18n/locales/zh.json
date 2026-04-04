@@ -1110,6 +1110,11 @@
     "exportSuccess": "技能导出成功",
     "exportToJSON": "导出为 JSON",
     "exportZip": "导出 ZIP",
+    "binaryPreview": {
+      "title": "二进制文件预览",
+      "unsupportedHint": "此文件类型暂不支持在线预览，请下载后查看",
+      "download": "下载文件"
+    },
     "featureDisabled": "技能功能已禁用，请联系管理员启用。",
     "form": {
       "addFile": "添加文件",

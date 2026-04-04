@@ -1111,6 +1111,11 @@
     "exportSuccess": "Skills exported successfully",
     "exportToJSON": "Export to JSON",
     "exportZip": "Export ZIP",
+    "binaryPreview": {
+      "title": "Binary File Preview",
+      "unsupportedHint": "This file type does not support online preview. Please download to view.",
+      "download": "Download File"
+    },
     "featureDisabled": "Skills feature is disabled. Please contact administrator to enable it.",
     "form": {
       "addFile": "Add file",

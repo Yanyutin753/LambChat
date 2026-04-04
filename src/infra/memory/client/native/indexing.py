@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -38,7 +38,7 @@ def choose_index_memories(
 
 
 def evict_index_cache(index_cache: dict[str, tuple[float, str]], max_size: int) -> None:
-    now = asyncio.get_event_loop().time()
+    now = time.monotonic()
     cache_ttl = getattr(settings, "NATIVE_MEMORY_INDEX_CACHE_TTL", 300)
     expired = [uid for uid, (t, _) in index_cache.items() if (now - t) >= cache_ttl]
     for uid in expired:
@@ -55,7 +55,7 @@ async def build_memory_index(backend, user_id: str) -> str:
     cached = backend._index_cache.get(user_id)
     if cached:
         built_at, cached_str = cached
-        if (asyncio.get_event_loop().time() - built_at) < cache_ttl:
+        if (time.monotonic() - built_at) < cache_ttl:
             return cached_str
 
     staleness_days = getattr(settings, "NATIVE_MEMORY_STALENESS_DAYS", 30)
@@ -129,6 +129,6 @@ async def build_memory_index(backend, user_id: str) -> str:
 
     lines.append("\n</memory_index>")
     result = "\n".join(lines)
-    backend._index_cache[user_id] = (asyncio.get_event_loop().time(), result)
+    backend._index_cache[user_id] = (time.monotonic(), result)
     evict_index_cache(backend._index_cache, backend._INDEX_CACHE_MAX_SIZE)
     return result

@@ -130,12 +130,11 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
             cap_pruned = result.deleted_count
             await backend._invalidate_cache(user_id)
 
-    final_count = await backend._collection.count_documents({"user_id": user_id})
     return {
         "merged": reduced,
         "pruned": len(pruned_ids) + cap_pruned,
         "total_before": total_before,
-        "total_after": final_count,
+        "total_after": current_count - cap_pruned,
     }
 
 

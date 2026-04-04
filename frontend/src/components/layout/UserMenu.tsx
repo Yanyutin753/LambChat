@@ -124,7 +124,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       setShowMenu(false);
     }
     clearSessionSelectionGuard();
-  }, [location.pathname]);
+  }, [location.pathname, showMenu]);
 
   const navItems = [
     { path: "/chat", label: t("nav.chat"), icon: MessageSquare, show: true },
@@ -318,7 +318,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
                 <div
                   ref={(el) => {
                     menuRef.current = el;
-                    (swipeRef as any).current = el;
+                    swipeRef.current = el;
                   }}
                   className="fixed inset-x-0 bottom-0 z-[101] rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto animate-slide-up-sheet"
                   style={{ backgroundColor: "var(--theme-bg-card)" }}

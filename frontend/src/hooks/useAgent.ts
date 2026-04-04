@@ -89,6 +89,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Flag for reconnect from history
   const isReconnectFromHistoryRef = useRef<boolean>(false);
 
+  // Stream version to invalidate stale SSE events after clearMessages
+  const streamVersionRef = useRef(0);
+
   // Keep sessionId/runId in ref for closure access
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
@@ -114,6 +117,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       processedEventIdsRef,
       lastHistoryTimestampRef,
       activeSubagentStackRef,
+      streamVersionRef,
       setSessionId,
       setMessages,
       setConnectionStatus: (status) =>
@@ -630,7 +634,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         isSendingRef.current = false;
       }
     },
-    [sessionId, currentAgent, createSSEContext],
+    [sessionId, currentAgent, createSSEContext, newlyCreatedSession?.metadata, options],
   );
 
   const stopGeneration = useCallback(async () => {
@@ -674,6 +678,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   }, [options]);
 
   const clearMessages = useCallback(() => {
+    streamVersionRef.current += 1;
     setMessages([]);
     setSessionId(null);
     setError(null);
