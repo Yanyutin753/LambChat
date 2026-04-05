@@ -258,11 +258,18 @@ export function useSessionSync({
     [navigate, loadHistory],
   );
 
-  // Handle new session - just clear messages, URL sync is handled by useEffect
+  // Handle new session - clear messages and navigate to /chat immediately.
+  // Must navigate directly here instead of relying on the URL sync effect,
+  // because the sync effect can be blocked by isSyncingRef (e.g., within
+  // 100ms of a previous navigation). If the URL is not updated and still
+  // holds the old session ID, the URL-change loading effect will later see
+  // sessionId (new) !== urlSessionId (old) and call loadHistory with the
+  // OLD session ID — overwriting the new session's messages.
   const handleNewSession = useCallback(() => {
     isInternalNavRef.current = false;
     clearMessages();
-  }, [clearMessages]);
+    navigate("/chat", { replace: true });
+  }, [clearMessages, navigate]);
 
   return {
     handleSelectSession,
