@@ -124,7 +124,8 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       setShowMenu(false);
     }
     clearSessionSelectionGuard();
-  }, [location.pathname, showMenu]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   const navItems = [
     { path: "/chat", label: t("nav.chat"), icon: MessageSquare, show: true },
