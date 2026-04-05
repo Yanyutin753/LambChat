@@ -11,7 +11,28 @@
     "inactive": "非アクティブ",
     "tags": "タグ",
     "tagsHint": "複数のタグはカンマで区切ってください",
-    "tagsPlaceholder": "例：ppt、プレゼン、ai"
+    "tagsPlaceholder": "例：ppt、プレゼン、ai",
+    "confirmDelete": "スキル「{{name}}」を削除しますか？",
+    "confirmDeleteMessage": "このスキルをマーケットから永久に削除します。既にインストールしているユーザーはアクセスできなくなります。",
+    "createSkill": "スキルを作成",
+    "createSuccess": "スキルが正常に作成されました",
+    "createdBy": "{{who}} が作成",
+    "deleteSuccess": "スキルが正常に削除されました",
+    "description": "説明",
+    "descriptionPlaceholder": "スキルの説明を入力...",
+    "editSkill": "スキルを編集",
+    "loading": "マーケットを読み込み中...",
+    "nameRequired": "スキル名は必須です",
+    "noSkills": "マーケットにスキルがありません。最初のスキルを作成してください。",
+    "skillName": "スキル名",
+    "skillNamePlaceholder": "例：ppt-generator",
+    "subtitle": "マーケットのスキルを管理",
+    "title": "管理マーケット",
+    "updateSuccess": "スキルが正常に更新されました",
+    "uploadSuccess": "「{{name}}」のファイルが正常にアップロードされました",
+    "uploadZip": "ZIPをアップロード",
+    "version": "バージョン",
+    "zipRequired": "ZIPファイルのみ対応しています"
   },
   "agentConfig": {
     "availableAgents": "利用可能エージェント",
@@ -27,7 +48,10 @@
     "saveSuccess": "設定が正常に保存されました",
     "selectRole": "ロールを選択",
     "subtitle": "エージェントの可用性とロール割り当てを管理",
-    "title": "エージェント設定"
+    "title": "エージェント設定",
+    "currentPreference": "現在のデフォルトエージェント：{{agentName}}",
+    "defaultAgentDescription": "新しい会話のデフォルトエージェントを選択",
+    "selectAgentsForRole": "{{roleName}} ロールがアクセスできるエージェントを選択"
   },
   "agentOptions": {
     "enableThinking": {
@@ -168,7 +192,27 @@
     "user": "プロフィール"
   },
   "channel": {
-    "leaveEmpty": "現在の値を保持するには空欄のまま"
+    "leaveEmpty": "現在の値を保持するには空欄のまま",
+    "configuration": "設定",
+    "connected": "接続済み",
+    "deleteConfirm": "このチャンネル設定を削除してよろしいですか？この操作は取り消せません。",
+    "deleteError": "設定の削除に失敗しました",
+    "deleteSuccess": "設定を削除しました",
+    "description": "お気に入りのチャットプラットフォームをLambChatに接続",
+    "disconnected": "未接続",
+    "enabled": "チャンネルを有効化",
+    "fieldRequired": "{{field.title}}は必須です",
+    "loadError": "チャンネル設定の読み込みに失敗しました",
+    "loadTypesError": "利用可能なチャンネルの読み込みに失敗しました",
+    "notConfigured": "未設定",
+    "saveError": "設定の保存に失敗しました",
+    "saveSuccess": "設定を保存しました",
+    "setupGuide": "設定ガイド",
+    "testConnection": "テスト",
+    "testError": "接続テストに失敗しました",
+    "testFailed": "接続失敗",
+    "testSuccess": "接続成功",
+    "title": "チャンネル"
   },
   "chat": {
     "attachFile": "ファイルを添付",
@@ -221,7 +265,11 @@
       "toolRead": "読込",
       "toolSearch": "検索",
       "toolSuccess": "コマンド成功",
-      "toolWrite": "書込"
+      "toolWrite": "書込",
+      "complete": "完了",
+      "filePath": "ファイルパス",
+      "subagentProgress": "サブエージェントの進捗",
+      "synthesizing": "{{count}}件のサブエージェントの結果を統合中..."
     },
     "noPermission": "メッセージを送信する権限がありません",
     "noPermissionHint": "メッセージを送信する権限がありません",
@@ -293,7 +341,9 @@
     "saving": "保存中...",
     "search": "検索",
     "selectAll": "すべて選択",
-    "skip": "スキップ"
+    "skip": "スキップ",
+    "page": "{{page}}ページ",
+    "showing": "{{start}}〜{{end}}件を表示"
   },
   "documents": {
     "ascending": "昇順",
@@ -419,7 +469,14 @@
     "submitSuccess": "フィードバックが正常に送信されました",
     "subtitle": "システムへのフィードバック",
     "title": "フィードバック",
-    "totalCount": "合計"
+    "totalCount": "合計",
+    "addComment": "コメントを追加",
+    "buttonLabel": "フィードバック",
+    "commentLabel": "コメント（任意）",
+    "commentSubmitted": "コメントが送信されました",
+    "filterByRating": "評価で絞り込み",
+    "paginationInfo": "{{total}}件中{{start}}〜{{end}}件を表示",
+    "skipAndSubmit": "スキップして送信"
   },
   "feishu": {
     "appId": "App ID",
@@ -502,7 +559,13 @@
     "tooManyFiles": "一度にアップロードできるファイルは{{count}}個までです",
     "uploadFailed": "アップロードに失敗しました",
     "uploadSuccess": "アップロードに成功しました",
-    "uploading": "アップロード中..."
+    "uploading": "アップロード中...",
+    "dragDropHint": "ファイルをここにドラッグ＆ドロップ",
+    "dragDropOr": "または下のボタンをクリックして選択",
+    "selectFile": "ファイルを選択",
+    "selectType": "ファイルタイプを選択",
+    "uploadComplete": "アップロード完了",
+    "uploadError": "アップロードエラー"
   },
   "imageViewer": {
     "hint": "スクロール/ピンチでズーム · ドラッグ/スワイプで移動 · ESCで閉じる",
@@ -627,7 +690,15 @@
     "title": "スキルマーケットプレイス",
     "update": "更新",
     "updateFailed": "スキルの更新に失敗しました",
-    "viewInMySkills": "マイスキルで開く"
+    "viewInMySkills": "マイスキルで開く",
+    "confirmInstall": "スキルをインストール",
+    "confirmUpdate": "スキルを更新",
+    "installSuccess": "スキルが正常にインストールされました",
+    "localCopyDeleted": "ローカルコピーが削除されました。編集できません",
+    "localCopyNotFound": "ローカルコピーが見つかりません。先にこのスキルをインストールしてください",
+    "publishSuccess": "スキル「{{name}}」がマーケットに公開されました",
+    "republishSuccess": "スキル「{{name}}」がマーケットで更新されました",
+    "updateSuccess": "スキルが正常に更新されました"
   },
   "mcp": {
     "addFirst": "最初のMCPサーバーを追加",
@@ -648,7 +719,10 @@
       "system": "システム",
       "tools": "ツール",
       "updated": "更新：{{date}}",
-      "user": "ユーザー"
+      "user": "ユーザー",
+      "envVarsCount": "{{count}}個の環境変数",
+      "systemDisabled": "システム無効",
+      "toolToggleFailed": "ツールの切り替えに失敗しました"
     },
     "confirmDelete": "MCPサーバーを削除",
     "confirmDeleteMessage": "MCPサーバー「{{name}}」を削除しますか？この操作は取り消せません。",
@@ -737,7 +811,8 @@
     "skills": "スキル",
     "systemSettings": "システム設定",
     "userSettings": "ユーザー管理",
-    "users": "ユーザー"
+    "users": "ユーザー",
+    "adminMarketplace": "管理マーケット"
   },
   "navDesc": {
     "agents": "AIエージェントの設定と管理",
@@ -801,7 +876,15 @@
     "username": "ユーザー名",
     "usernameLengthError": "ユーザー名は3〜50文字である必要があります",
     "usernameUpdateFailed": "ユーザー名の更新に失敗しました",
-    "usernameUpdated": "ユーザー名が更新されました"
+    "usernameUpdated": "ユーザー名が更新されました",
+    "avatar": "アバター",
+    "avatarUrl": "アバターURL",
+    "defaultModel": "デフォルトモデル",
+    "defaultModelDesc": "新しい会話のデフォルトモデルを選択",
+    "toolsTab": "ツール",
+    "toolsPreferences": "MCPツール設定",
+    "toolsPreferencesDesc": "すべての会話でデフォルトで有効にするMCPツールを設定します。これらの設定は会話ごとに上書きできます。",
+    "uploadAvatar": "アバターをアップロード"
   },
   "project": {
     "code": "コード",
@@ -921,7 +1004,11 @@
     "sharedConversation": "共有された会話",
     "title": "セッションを共有",
     "userMessage": "（ユーザーメッセージ：{{message}}）",
-    "visibility": "アクセス制御"
+    "visibility": "アクセス制御",
+    "deleteConfirm": "共有を解除してよろしいですか？",
+    "noPermission": "セッションを共有する権限がありません",
+    "runNumber": "実行 {{number}}",
+    "sharedBy": "共有者"
   },
   "sidebar": {
     "addToFavorites": "お気に入りに追加",
@@ -979,7 +1066,8 @@
     "sources": {
       "${cat}": "{{cat}}",
       "github": "GitHub",
-      "manual": "手動作成"
+      "manual": "手動作成",
+      "marketplace": "マーケット"
     },
     "system": "システム",
     "title": "スキル"
@@ -999,7 +1087,8 @@
       "republish": "マーケットで更新",
       "system": "システム",
       "updated": "更新日時",
-      "user": "ユーザー"
+      "user": "ユーザー",
+      "storeName": "ストア: {{name}}"
     },
     "confirmDelete": "スキルを削除",
     "confirmDeleteMessage": "スキル「{{name}}」を削除しますか？この操作は取り消せません。",
@@ -1105,7 +1194,15 @@
     "upload": "アップロード",
     "uploadZipTitle": "スキルZIPをアップロード",
     "uploading": "アップロード中...",
-    "userSkillVisible": "ユーザースキル（自分のみに表示）"
+    "userSkillVisible": "ユーザースキル（自分のみに表示）",
+    "batchDeleteSuccess": "{{count}}件のスキルを削除しました",
+    "batchDisableSuccess": "{{count}}件のスキルを無効化しました",
+    "batchEnableSuccess": "{{count}}件のスキルを有効化しました",
+    "binaryPreview": {
+      "title": "バイナリファイルプレビュー",
+      "unsupportedHint": "このファイルタイプはオンラインプレビューに対応していません。ダウンロードして確認してください。",
+      "download": "ファイルをダウンロード"
+    }
   },
   "tools": {
     "add": "追加",
@@ -1114,7 +1211,8 @@
       "builtin": "組み込み",
       "human": "手動",
       "mcp": "MCP",
-      "skill": "スキル"
+      "skill": "スキル",
+      "sandbox": "サンドボックス"
     },
     "deselectAll": "すべて解除",
     "done": "完了",
@@ -1129,7 +1227,8 @@
       "type": "タイプ"
     },
     "title": "ツール",
-    "toolsEnabled": "件のツールが有効"
+    "toolsEnabled": "件のツールが有効",
+    "systemDisabled": "システム無効"
   },
   "users": {
     "actions": "操作",
@@ -1174,6 +1273,7 @@
       "enterPassword": "パスワードを入力してください",
       "enterUsername": "ユーザー名を入力してください",
       "passwordMinLength": "パスワードは6文字以上である必要があります"
-    }
+    },
+    "paginationInfo": "{{total}}件中{{start}}〜{{end}}件を表示"
   }
 }

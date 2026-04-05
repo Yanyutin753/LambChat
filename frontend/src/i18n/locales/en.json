@@ -854,6 +854,8 @@
     "mobileNotificationDesc": "Background notifications on mobile devices via Service Worker",
     "newPassword": "New Password",
     "newlineCtrl": "Ctrl + ↵ (Enter sends)",
+    "defaultModel": "Default Model",
+    "defaultModelDesc": "Select your default model for new conversations",
     "newlineModifier": "Newline Shortcut",
     "newlineShift": "Shift + ↵ (Enter sends)",
     "notSupported": "Not supported",

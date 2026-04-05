@@ -11,7 +11,28 @@
     "inactive": "비활성",
     "tags": "태그",
     "tagsHint": "여러 태그는 쉼표로 구분하세요",
-    "tagsPlaceholder": "예: ppt, 프레젠테이션, ai"
+    "tagsPlaceholder": "예: ppt, 프레젠테이션, ai",
+    "confirmDelete": "스킬 \"{{name}}\"을(를) 삭제하시겠습니까?",
+    "confirmDeleteMessage": "이 작업은 마켓플레이스에서 스킬을 영구적으로 삭제합니다. 이미 설치한 사용자는 접근할 수 없게 됩니다.",
+    "createSkill": "스킬 만들기",
+    "createSuccess": "스킬이 생성되었습니다",
+    "createdBy": "{{who}}이(가) 만듦",
+    "deleteSuccess": "스킬이 삭제되었습니다",
+    "description": "설명",
+    "descriptionPlaceholder": "스킬 설명을 입력하세요...",
+    "editSkill": "스킬 편집",
+    "loading": "마켓플레이스 로딩 중...",
+    "nameRequired": "스킬 이름은 필수입니다",
+    "noSkills": "마켓플레이스에 스킬이 없습니다. 첫 번째 스킬을 만들어 보세요.",
+    "skillName": "스킬 이름",
+    "skillNamePlaceholder": "예: ppt-generator",
+    "subtitle": "마켓플레이스 스킬 관리",
+    "title": "관리자 마켓플레이스",
+    "updateSuccess": "스킬이 업데이트되었습니다",
+    "uploadSuccess": "\"{{name}}\" 파일 업로드 완료",
+    "uploadZip": "ZIP 업로드",
+    "version": "버전",
+    "zipRequired": "ZIP 파일만 지원됩니다"
   },
   "agentConfig": {
     "availableAgents": "사용 가능한 에이전트",
@@ -27,7 +48,10 @@
     "saveSuccess": "구성이 성공적으로 저장되었습니다",
     "selectRole": "역할 선택",
     "subtitle": "에이전트 가용성 및 역할 할당 관리",
-    "title": "에이전트 구성"
+    "title": "에이전트 구성",
+    "currentPreference": "현재 기본 에이전트: {{agentName}}",
+    "defaultAgentDescription": "새 대화의 기본 에이전트를 선택하세요",
+    "selectAgentsForRole": "{{roleName}} 역할이 접근할 수 있는 에이전트를 선택하세요"
   },
   "agentOptions": {
     "enableThinking": {
@@ -168,7 +192,27 @@
     "user": "프로필"
   },
   "channel": {
-    "leaveEmpty": "현재 값을 유지하려면 비워두세요"
+    "leaveEmpty": "현재 값을 유지하려면 비워두세요",
+    "configuration": "설정",
+    "connected": "연결됨",
+    "deleteConfirm": "이 채널 설정을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+    "deleteError": "설정 삭제 실패",
+    "deleteSuccess": "설정이 삭제되었습니다",
+    "description": "선호하는 채팅 플랫폼을 LambChat에 연결하세요",
+    "disconnected": "연결 끊김",
+    "enabled": "채널 활성화",
+    "fieldRequired": "{{field.title}}은(는) 필수입니다",
+    "loadError": "채널 설정을 불러오지 못했습니다",
+    "loadTypesError": "사용 가능한 채널을 불러오지 못했습니다",
+    "notConfigured": "미설정",
+    "saveError": "설정 저장 실패",
+    "saveSuccess": "설정이 저장되었습니다",
+    "setupGuide": "설정 가이드",
+    "testConnection": "테스트",
+    "testError": "연결 테스트 실패",
+    "testFailed": "연결 실패",
+    "testSuccess": "연결 성공",
+    "title": "채널"
   },
   "chat": {
     "attachFile": "파일 첨부",
@@ -221,7 +265,11 @@
       "toolRead": "읽기",
       "toolSearch": "검색",
       "toolSuccess": "명령어 성공",
-      "toolWrite": "쓰기"
+      "toolWrite": "쓰기",
+      "complete": "완료",
+      "filePath": "파일 경로",
+      "subagentProgress": "하위 에이전트 진행률",
+      "synthesizing": "{{count}}개 하위 에이전트의 결과를 종합하는 중..."
     },
     "noPermission": "메시지를 보낼 권한이 없습니다",
     "noPermissionHint": "메시지를 보낼 권한이 없습니다",
@@ -293,7 +341,9 @@
     "saving": "저장 중...",
     "search": "검색",
     "selectAll": "모두 선택",
-    "skip": "건너뛰기"
+    "skip": "건너뛰기",
+    "page": "{{page}}페이지",
+    "showing": "{{start}}-{{end}} 표시 중"
   },
   "documents": {
     "ascending": "오름차순",
@@ -419,7 +469,14 @@
     "submitSuccess": "피드백이 성공적으로 제출되었습니다",
     "subtitle": "시스템에 대한 피드백",
     "title": "피드백",
-    "totalCount": "전체"
+    "totalCount": "전체",
+    "addComment": "댓글 추가",
+    "buttonLabel": "피드백",
+    "commentLabel": "댓글 (선택사항)",
+    "commentSubmitted": "댓글이 제출되었습니다",
+    "filterByRating": "평점으로 필터",
+    "paginationInfo": "{{total}}개 중 {{start}}-{{end}} 표시",
+    "skipAndSubmit": "건너뛰고 제출"
   },
   "feishu": {
     "appId": "App ID",
@@ -502,7 +559,13 @@
     "tooManyFiles": "한 번에 최대 {{count}}개의 파일을 업로드할 수 있습니다",
     "uploadFailed": "업로드 실패",
     "uploadSuccess": "업로드 성공",
-    "uploading": "업로드 중..."
+    "uploading": "업로드 중...",
+    "dragDropHint": "파일을 여기에 끌어다 놓으세요",
+    "dragDropOr": "또는 아래 버튼을 클릭하여 선택",
+    "selectFile": "파일 선택",
+    "selectType": "파일 유형 선택",
+    "uploadComplete": "업로드 완료",
+    "uploadError": "업로드 오류"
   },
   "imageViewer": {
     "hint": "스크롤/핀치로 확대 · 드래그/스와이프로 이동 · ESC로 닫기",
@@ -627,7 +690,15 @@
     "title": "스킬 마켓플레이스",
     "update": "업데이트",
     "updateFailed": "스킬 업데이트에 실패했습니다",
-    "viewInMySkills": "내 스킬에서 열기"
+    "viewInMySkills": "내 스킬에서 열기",
+    "confirmInstall": "스킬 설치",
+    "confirmUpdate": "스킬 업데이트",
+    "installSuccess": "스킬이 설치되었습니다",
+    "localCopyDeleted": "로컬 복사본이 삭제되어 편집할 수 없습니다",
+    "localCopyNotFound": "로컬 복사본을 찾을 수 없습니다. 먼저 이 스킬을 설치하세요",
+    "publishSuccess": "스킬 \"{{name}}\"이(가) 마켓플레이스에 공개되었습니다",
+    "republishSuccess": "스킬 \"{{name}}\"이(가) 마켓플레이스에서 업데이트되었습니다",
+    "updateSuccess": "스킬이 업데이트되었습니다"
   },
   "mcp": {
     "addFirst": "첫 번째 MCP 서버 추가",
@@ -648,7 +719,10 @@
       "system": "시스템",
       "tools": "도구",
       "updated": "업데이트: {{date}}",
-      "user": "사용자"
+      "user": "사용자",
+      "envVarsCount": "{{count}}개 환경 변수",
+      "systemDisabled": "시스템 비활성화",
+      "toolToggleFailed": "도구 전환 실패"
     },
     "confirmDelete": "MCP 서버 삭제",
     "confirmDeleteMessage": "MCP 서버 \"{{name}}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
@@ -737,7 +811,8 @@
     "skills": "스킬",
     "systemSettings": "시스템 설정",
     "userSettings": "사용자 관리",
-    "users": "사용자"
+    "users": "사용자",
+    "adminMarketplace": "관리자 마켓플레이스"
   },
   "navDesc": {
     "agents": "AI 에이전트 설정 및 관리",
@@ -801,7 +876,15 @@
     "username": "사용자 이름",
     "usernameLengthError": "사용자 이름은 3~50자여야 합니다",
     "usernameUpdateFailed": "사용자 이름 업데이트 실패",
-    "usernameUpdated": "사용자 이름이 업데이트되었습니다"
+    "usernameUpdated": "사용자 이름이 업데이트되었습니다",
+    "avatar": "아바타",
+    "avatarUrl": "아바타 URL",
+    "defaultModel": "기본 모델",
+    "defaultModelDesc": "새 대화에 사용할 기본 모델을 선택하세요",
+    "toolsTab": "도구",
+    "toolsPreferences": "MCP 도구 환경설정",
+    "toolsPreferencesDesc": "모든 대화에서 기본적으로 활성화할 MCP 도구를 설정합니다. 이 설정은 대화별로 재정의할 수 있습니다.",
+    "uploadAvatar": "아바타 업로드"
   },
   "project": {
     "code": "코드",
@@ -915,14 +998,17 @@
     "publicDesc": "링크를 아는 누구나 볼 수 있음",
     "readOnlyNotice": "공유된 세션입니다. 읽기만 가능합니다",
     "run": "실행",
-    "runNumber": "{{number}}번째 실행",
+    "runNumber": "실행 {{number}}",
     "selectRuns": "공유할 대화 선택",
     "session": "세션",
     "shareType": "공유 범위",
     "sharedConversation": "공유된 대화",
     "title": "세션 공유",
     "userMessage": "(사용자 메시지: {{message}})",
-    "visibility": "접근 제어"
+    "visibility": "접근 제어",
+    "deleteConfirm": "공유를 해제하시겠습니까?",
+    "noPermission": "세션을 공유할 권한이 없습니다",
+    "sharedBy": "공유자"
   },
   "sidebar": {
     "addToFavorites": "즐겨찾기에 추가",
@@ -980,7 +1066,8 @@
     "sources": {
       "${cat}": "{{cat}}",
       "github": "GitHub",
-      "manual": "수동 생성"
+      "manual": "수동 생성",
+      "marketplace": "마켓플레이스"
     },
     "system": "시스템",
     "title": "스킬"
@@ -1000,7 +1087,8 @@
       "republish": "마켓플레이스에서 업데이트",
       "system": "시스템",
       "updated": "업데이트",
-      "user": "사용자"
+      "user": "사용자",
+      "storeName": "스토어: {{name}}"
     },
     "confirmDelete": "스킬 삭제",
     "confirmDeleteMessage": "스킬 \"{{name}}\"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
@@ -1106,7 +1194,15 @@
     "upload": "업로드",
     "uploadZipTitle": "스킬 ZIP 업로드",
     "uploading": "업로드 중...",
-    "userSkillVisible": "사용자 스킬 (나에게만 표시)"
+    "userSkillVisible": "사용자 스킬 (나에게만 표시)",
+    "batchDeleteSuccess": "{{count}}개 스킬 삭제 완료",
+    "batchDisableSuccess": "{{count}}개 스킬 비활성화 완료",
+    "batchEnableSuccess": "{{count}}개 스킬 활성화 완료",
+    "binaryPreview": {
+      "title": "바이너리 파일 미리보기",
+      "unsupportedHint": "이 파일 형식은 온라인 미리보기를 지원하지 않습니다. 다운로드하여 확인하세요.",
+      "download": "파일 다운로드"
+    }
   },
   "tools": {
     "add": "추가",
@@ -1115,7 +1211,8 @@
       "builtin": "기본 제공",
       "human": "수동",
       "mcp": "MCP",
-      "skill": "스킬"
+      "skill": "스킬",
+      "sandbox": "샌드박스"
     },
     "deselectAll": "모두 해제",
     "done": "완료",
@@ -1130,7 +1227,8 @@
       "type": "유형"
     },
     "title": "도구",
-    "toolsEnabled": "개 도구 활성화됨"
+    "toolsEnabled": "개 도구 활성화됨",
+    "systemDisabled": "시스템 비활성화"
   },
   "users": {
     "actions": "작업",
@@ -1175,6 +1273,7 @@
       "enterPassword": "비밀번호를 입력해주세요",
       "enterUsername": "사용자 이름을 입력해주세요",
       "passwordMinLength": "비밀번호는 6자 이상이어야 합니다"
-    }
+    },
+    "paginationInfo": "{{total}}개 중 {{start}}-{{end}} 표시"
   }
 }

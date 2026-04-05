@@ -244,11 +244,24 @@ function ChatAppContent({
   });
 
   // Model selection state (after useSessionConfig so setSessionAgentOption is available)
-  const [currentModel, setCurrentModel] = useState<string>(defaultModel);
+  const [currentModel, setCurrentModel] = useState<string>(
+    () => localStorage.getItem("defaultModel") || defaultModel,
+  );
 
   useEffect(() => {
-    setCurrentModel(defaultModel);
+    setCurrentModel(localStorage.getItem("defaultModel") || defaultModel);
   }, [defaultModel]);
+
+  // Listen for model preference updates from ProfilePreferencesTab
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const model = (e as CustomEvent).detail as string;
+      if (model) setCurrentModel(model);
+    };
+    window.addEventListener("model-preference-updated", handler);
+    return () =>
+      window.removeEventListener("model-preference-updated", handler);
+  }, []);
 
   const handleSelectModel = useCallback(
     (modelValue: string) => {

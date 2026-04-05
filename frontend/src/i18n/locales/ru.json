@@ -7,11 +7,32 @@
     "title": "О LambChat"
   },
   "adminMarketplace": {
+    "confirmDelete": "Удалить навык \"{{name}}\"?",
+    "confirmDeleteMessage": "Это навсегда удалит навык из магазина. Пользователи, установившие его, потеряют доступ.",
+    "createSkill": "Создать навык",
+    "createSuccess": "Навык успешно создан",
+    "createdBy": "от {{who}}",
+    "deleteSuccess": "Навык успешно удалён",
+    "description": "Описание",
+    "descriptionPlaceholder": "Введите описание навыка...",
+    "editSkill": "Редактировать навык",
     "hint": "Управление навыками магазина теперь доступно напрямую на панели магазина. Вы можете активировать/деактивировать или удалять навыки там.",
     "inactive": "Неактивен",
+    "loading": "Загрузка магазина...",
+    "nameRequired": "Название навыка обязательно",
+    "noSkills": "В магазине нет навыков. Создайте первый.",
+    "skillName": "Название навыка",
+    "skillNamePlaceholder": "напр. ppt-generator",
+    "subtitle": "Управление навыками в магазине",
     "tags": "Теги",
     "tagsHint": "Разделяйте несколько тегов запятыми",
-    "tagsPlaceholder": "напр. ppt, презентация, ии"
+    "tagsPlaceholder": "напр. ppt, презентация, ии",
+    "title": "Администрирование магазина",
+    "updateSuccess": "Навык успешно обновлён",
+    "uploadSuccess": "Файлы успешно загружены для \"{{name}}\"",
+    "uploadZip": "Загрузить ZIP",
+    "version": "Версия",
+    "zipRequired": "Поддерживаются только ZIP файлы"
   },
   "agentConfig": {
     "availableAgents": "Доступные агенты",
@@ -249,7 +270,8 @@
       "toolRead": "Чтение",
       "toolSearch": "Поиск",
       "toolSuccess": "Команда выполнена",
-      "toolWrite": "Запись"
+      "toolWrite": "Запись",
+      "toolFileCount_other": "{{count}} файлов"
     },
     "noPermission": "Нет прав для отправки сообщений",
     "noPermissionHint": "У вас нет прав для отправки сообщений",
@@ -637,7 +659,9 @@
     "clearFilters": "Очистить фильтры",
     "confirmDelete": "Удалить \"{{name}}\"?",
     "confirmDeleteMessage": "Это навсегда удалит навык из магазина. Пользователи, уже установившие его, сохранят свою копию.",
+    "confirmInstall": "Установить навык",
     "confirmInstallMessage": "Вы уверены, что хотите установить этот навык?",
+    "confirmUpdate": "Обновить навык",
     "confirmUpdateMessage": "Это приведёт к повторной загрузке навыка из магазина и перезаписи ваших локальных изменений. Продолжить?",
     "createAndPublish": "Опубликовать навык",
     "createHint": "Чтобы опубликовать навык в магазине, сначала создайте его на панели навыков, затем нажмите кнопку публикации.",
@@ -648,6 +672,7 @@
     "inactive": "Неактивен",
     "install": "Установить",
     "installFailed": "Не удалось установить навык",
+    "installSuccess": "Навык успешно установлен",
     "installNameConflict": "Локальный навык с таким именем уже существует. Переименуйте или удалите его перед установкой из магазина.",
     "installed": "Установлено",
     "installing": "Установка...",
@@ -664,13 +689,18 @@
     "previewExpand": "Нажмите для предпросмотра",
     "publishedBy": "от {{username}}",
     "republish": "Опубликовать заново",
+    "republishSuccess": "Навык \"{{name}}\" обновлён в магазине",
     "searchPlaceholder": "Поиск в магазине...",
     "skillFiles": "Файлы навыка",
     "subtitle": "Открывайте и устанавливайте навыки из магазина",
     "title": "Магазин навыков",
     "update": "Обновить",
     "updateFailed": "Не удалось обновить навык",
-    "viewInMySkills": "Открыть в моих навыках"
+    "updateSuccess": "Навык успешно обновлён",
+    "viewInMySkills": "Открыть в моих навыках",
+    "localCopyDeleted": "Локальная копия удалена, редактирование недоступно",
+    "localCopyNotFound": "Локальная копия не найдена, сначала установите этот навык",
+    "publishSuccess": "Навык «{{name}}» опубликован в магазине"
   },
   "mcp": {
     "addFirst": "Добавьте первый MCP сервер",
@@ -686,9 +716,12 @@
       "edit": "Редактировать",
       "enable": "Включить",
       "enableTool": "Включить инструмент",
+      "envVarsCount": "{{count}} перем. окруж.",
       "headersCount": "{{count}} заголовок(ов)",
       "noTools": "Инструменты не найдены",
       "system": "Системный",
+      "systemDisabled": "Системный отключён",
+      "toolToggleFailed": "Не удалось переключить инструмент",
       "tools": "Инструменты",
       "updated": "Обновлено: {{date}}",
       "user": "Пользовательский"
@@ -769,6 +802,7 @@
     "userServerVisible": "Пользовательский сервер (виден только вам)"
   },
   "nav": {
+    "adminMarketplace": "Администрирование магазина",
     "agents": "Агенты",
     "channels": "Каналы",
     "chat": "Чат",
@@ -822,6 +856,8 @@
     "mobileNotificationDesc": "Фоновые уведомления на мобильных устройствах через Service Worker",
     "newPassword": "Новый пароль",
     "newlineCtrl": "Ctrl + ↵ (Enter отправляет)",
+    "defaultModel": "Модель по умолчанию",
+    "defaultModelDesc": "Выберите модель по умолчанию для новых разговоров",
     "newlineModifier": "Горячая клавиша для новой строки",
     "newlineShift": "Shift + ↵ (Enter отправляет)",
     "notSupported": "Не поддерживается",
@@ -843,6 +879,9 @@
     "theme": "Тема",
     "themeSynced": "Настройки темы сохранены",
     "title": "Профиль",
+    "toolsTab": "Инструменты",
+    "toolsPreferences": "Настройки инструментов MCP",
+    "toolsPreferencesDesc": "Настройте, какие инструменты MCP включены по умолчанию для всех разговоров. Эти настройки можно переопределить для каждого разговора.",
     "uploadAvatar": "Загрузить аватар",
     "username": "Имя пользователя",
     "usernameLengthError": "Имя пользователя должно быть от 3 до 50 символов",
@@ -1029,13 +1068,17 @@
     "sources": {
       "${cat}": "{{cat}}",
       "github": "GitHub",
-      "manual": "Ручной"
+      "manual": "Ручной",
+      "marketplace": "Магазин"
     },
     "system": "Системный",
     "title": "Навыки"
   },
   "skills": {
     "batchDeleteFailed": "Не удалось удалить некоторые навыки",
+    "batchDeleteSuccess": "{{count}} навык(ов) удалено",
+    "batchDisableSuccess": "{{count}} навык(ов) отключено",
+    "batchEnableSuccess": "{{count}} навык(ов) включено",
     "batchSelected": "выбрано",
     "batchToggleFailed": "Не удалось переключить некоторые навыки",
     "card": {
@@ -1047,6 +1090,7 @@
       "publishToMarketplace": "Опубликовать в магазине",
       "published": "Опубликовано",
       "republish": "Обновить в магазине",
+      "storeName": "Магазин: {{name}}",
       "system": "Системный",
       "updated": "Обновлено",
       "user": "Пользовательский"
@@ -1071,6 +1115,11 @@
     "exportSuccess": "Навыки успешно экспортированы",
     "exportToJSON": "Экспорт в JSON",
     "exportZip": "Экспорт ZIP",
+    "binaryPreview": {
+      "title": "Предпросмотр бинарного файла",
+      "unsupportedHint": "Этот тип файла не поддерживает онлайн-просмотр. Скачайте файл для просмотра.",
+      "download": "Скачать файл"
+    },
     "featureDisabled": "Функция навыков отключена. Обратитесь к администратору для включения.",
     "form": {
       "addFile": "Добавить файл",
@@ -1164,6 +1213,7 @@
       "builtin": "Встроенный",
       "human": "Пользователь",
       "mcp": "MCP",
+      "sandbox": "Песочница",
       "skill": "Навыки"
     },
     "deselectAll": "Снять выделение",
@@ -1173,6 +1223,7 @@
     "parameters": "Параметры",
     "selectAll": "Выделить всё",
     "selected": "Выбрано {{enabled}} из {{total}}",
+    "systemDisabled": "Системный отключён",
     "table": {
       "description": "Описание",
       "name": "Название",

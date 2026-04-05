@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Settings, ChevronDown } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useTheme } from "../../../contexts/ThemeContext";
+import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import type { AgentInfo } from "../../../types";
@@ -120,6 +121,7 @@ function SelectRow<T extends string>({
 export function ProfilePreferencesTab() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
+  const { availableModels, defaultModel } = useSettingsContext();
 
   // Dropdown open states
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -133,6 +135,11 @@ export function ProfilePreferencesTab() {
       return stored === "ctrl" ? "ctrl" : "shift";
     },
   );
+
+  // Default model preference
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return localStorage.getItem("defaultModel") || defaultModel;
+  });
 
   // Agent preference
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -184,6 +191,16 @@ export function ProfilePreferencesTab() {
     setNewlineModifier(modifier);
     localStorage.setItem(NEWLINE_MODIFIER_KEY, modifier);
     authApi.updateMetadata({ newlineModifier: modifier }).catch(() => {});
+    setOpenDropdown(null);
+  };
+
+  const handleModelChange = (modelValue: string) => {
+    setSelectedModel(modelValue);
+    localStorage.setItem("defaultModel", modelValue);
+    authApi.updateMetadata({ defaultModel: modelValue }).catch(() => {});
+    window.dispatchEvent(
+      new CustomEvent("model-preference-updated", { detail: modelValue }),
+    );
     setOpenDropdown(null);
   };
 
@@ -266,6 +283,24 @@ export function ProfilePreferencesTab() {
           loading={agentsLoading || agentsSaving}
           renderLabel={renderAgentLabel}
         />
+
+        {availableModels && availableModels.length > 0 && (
+          <SelectRow
+            label={t("profile.defaultModel")}
+            value={selectedModel}
+            options={availableModels.map((m) => ({
+              key: m.value,
+              labelKey: "",
+            }))}
+            open={openDropdown === "model"}
+            onToggle={() => toggle("model")}
+            onSelect={handleModelChange}
+            renderLabel={(val) => {
+              const m = availableModels.find((m) => m.value === val);
+              return m ? m.label : val;
+            }}
+          />
+        )}
 
         <SelectRow
           label={t("profile.newlineModifier")}
