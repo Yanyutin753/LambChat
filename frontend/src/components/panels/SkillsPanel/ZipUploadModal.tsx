@@ -54,7 +54,14 @@ export function ZipUploadModal({
 
   return (
     <>
-      <div className="fixed inset-0" onClick={() => setShowZipModal(false)} />
+      <div
+        className="fixed inset-0"
+        onClick={
+          zipUploading || zipPreviewing
+            ? undefined
+            : () => setShowZipModal(false)
+        }
+      />
       <div
         data-disable-global-file-drop="true"
         className="modal-bottom-sheet sm:modal-centered-wrapper"
@@ -73,7 +80,11 @@ export function ZipUploadModal({
                 {t("skills.subtitle")}
               </p>
             </div>
-            <button onClick={() => setShowZipModal(false)} className="btn-icon">
+            <button
+              onClick={() => setShowZipModal(false)}
+              disabled={zipUploading || zipPreviewing}
+              className="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               <X size={20} />
             </button>
           </div>
@@ -250,7 +261,7 @@ export function ZipUploadModal({
                   >
                     {zipUploading ? (
                       <>
-                        <LoadingSpinner size="sm" />
+                        <LoadingSpinner size="sm" color="text-white" />
                         {t("skills.installing")}
                       </>
                     ) : (

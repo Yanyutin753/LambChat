@@ -534,7 +534,10 @@ export function MarketplacePanel() {
                             disabled
                             className="btn-primary opacity-50 text-xs min-h-9 px-3 py-2"
                           >
-                            <Loader2Icon size={14} className="animate-spin" />
+                            <Loader2Icon
+                              size={14}
+                              className="animate-spin text-white"
+                            />
                             <span>{t("marketplace.installing")}</span>
                           </button>
                         ) : userSkillsLoading ? (
@@ -649,6 +652,7 @@ export function MarketplacePanel() {
         onConfirm={confirmInstall}
         onCancel={cancelInstall}
         variant="info"
+        loading={!!installingSkill}
       />
 
       {/* Skill Preview Modal */}

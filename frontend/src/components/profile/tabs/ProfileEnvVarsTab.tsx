@@ -180,7 +180,11 @@ export function ProfileEnvVarsTab() {
               disabled={adding || !newKey.trim() || !newValue.trim()}
               className="shrink-0 p-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {adding ? <LoadingSpinner size="xs" /> : <Plus size={14} />}
+              {adding ? (
+                <LoadingSpinner size="xs" color="text-white" />
+              ) : (
+                <Plus size={14} />
+              )}
             </button>
           </div>
         )}

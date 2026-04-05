@@ -130,6 +130,8 @@ async def build_skills_prompt(skills: list[dict]) -> str:
 {skills_list_str}
 
 **Usage:** When a task matches a skill's description, read its `SKILL.md` for step-by-step workflows. Skills may include executable scripts — use absolute paths.
-**Commands:** `ls_info("/skills/")`, `read_file`, `write_file`, `edit_file(path, old, new)`. Do NOT create directories manually.
+**Commands:** Use `ls("/skills/")`, `read_file`, `write_file`, `edit_file(path, old, new)` to access skills. Do NOT create directories manually.
+
+**IMPORTANT:** `/skills/` is a virtual path backed by a database, NOT a real filesystem directory. NEVER use shell commands (e.g., `ls -la /skills/`, `cat /skills/x.md`, `python /skills/x.py`, `cp /skills/* .`) to access skills — they will fail. Always use the `ls`, `read_file`, `write_file`, `edit_file` tools instead.
 """
     return prompt

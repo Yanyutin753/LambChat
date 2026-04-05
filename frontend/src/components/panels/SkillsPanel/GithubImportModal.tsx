@@ -59,7 +59,7 @@ export function GithubImportModal({
     <>
       <div
         className="fixed inset-0"
-        onClick={() => setShowGithubModal(false)}
+        onClick={githubInstalling ? undefined : () => setShowGithubModal(false)}
       />
       <div className="modal-bottom-sheet sm:modal-centered-wrapper">
         <div
@@ -78,7 +78,8 @@ export function GithubImportModal({
             </div>
             <button
               onClick={() => setShowGithubModal(false)}
-              className="btn-icon"
+              disabled={githubInstalling}
+              className="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <X size={20} />
             </button>
@@ -241,7 +242,7 @@ export function GithubImportModal({
                 >
                   {githubInstalling ? (
                     <>
-                      <LoadingSpinner size="sm" />
+                      <LoadingSpinner size="sm" color="text-white" />
                       {t("skills.installing")}
                     </>
                   ) : (

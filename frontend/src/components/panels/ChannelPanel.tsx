@@ -607,7 +607,11 @@ export function ChannelPanel({
                   disabled={isSaving}
                   className="btn-primary"
                 >
-                  {isSaving ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+                  {isSaving ? (
+                    <LoadingSpinner size="sm" color="text-white" />
+                  ) : (
+                    <Save size={16} />
+                  )}
                   {t("common.save")}
                 </button>
               )}

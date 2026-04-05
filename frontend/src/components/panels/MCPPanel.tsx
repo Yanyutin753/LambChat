@@ -636,7 +636,7 @@ export function MCPPanel() {
                     >
                       {isLoading ? (
                         <>
-                          <LoadingSpinner size="sm" />
+                          <LoadingSpinner size="sm" color="text-white" />
                           {t("common.importing")}
                         </>
                       ) : (

@@ -31,7 +31,9 @@ DEFAULT_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skill
 | Path | Purpose |
 |------|---------|
 | `/workspace` | Persistent files |
-| `/skills/` | Skill library (editable) |
+| `/skills/` | Skill library (editable, virtual — DB-backed) |
+
+**IMPORTANT:** `/skills/` is a virtual path backed by a database, NOT a real filesystem directory. NEVER use shell commands (e.g., `ls -la /skills/`, `cat /skills/x.md`, `python /skills/x.py`) to access skills — they will fail with "No such file or directory". Always use the `ls`, `read_file`, `write_file`, `edit_file` tools instead.
 """
 
 DEFAULT_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
