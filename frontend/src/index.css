@@ -1540,6 +1540,23 @@ select:-webkit-autofill:active {
   color: #fca5a5;
 }
 
+/* Session switching loading bar animation */
+@keyframes session-loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(200%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.session-loading-bar {
+  animation: session-loading-slide 1.4s ease-in-out infinite;
+}
+
 /* Skeleton shimmer animation */
 @keyframes shimmer {
   0% {

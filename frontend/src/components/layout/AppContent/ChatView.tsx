@@ -208,6 +208,13 @@ export function ChatView({
         ref={messagesContainerRef}
         className="relative flex-1 overflow-hidden min-h-0 pt-6"
       >
+        {/* Session switching loading bar */}
+        {isLoading && messages.length > 0 && (
+          <div className="absolute top-0 inset-x-0 z-10 h-1 overflow-hidden bg-stone-200/60 dark:bg-stone-700/40">
+            <div className="session-loading-bar h-full w-1/3 rounded-full bg-stone-400 dark:bg-stone-500" />
+          </div>
+        )}
+        {/* Initial load spinner (no previous messages) */}
         {isLoading && messages.length === 0 && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-stone-900/80 ">
             <Loading size="lg" />

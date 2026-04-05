@@ -269,9 +269,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
 
-      // Clear existing messages and approvals before loading new session
-      setMessages([]);
-      setSessionId(null);
+      // Clear approvals before loading new session (keep old messages visible until new ones are ready)
       options?.onClearApprovals?.();
 
       try {
