@@ -3,12 +3,13 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import React, { memo } from "react";
+import React, { memo, useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { CodeMirrorViewer } from "../../common/CodeMirrorViewer";
+import { ImageViewer } from "../../common";
 
 // Code block component with copy button and enhanced styling
 function CodeBlock({
@@ -106,6 +107,8 @@ export const MarkdownContent = memo(function MarkdownContent({
   content: string;
   isStreaming?: boolean;
 }) {
+  const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
+
   return (
     <span className="markdown-preview block my-1">
       <ReactMarkdown
@@ -246,18 +249,26 @@ export const MarkdownContent = memo(function MarkdownContent({
               {children}
             </td>
           ),
-          // Images
+          // Images — click to preview with ImageViewer
           img: ({ src, alt }) => (
             <img
               src={src}
               alt={alt}
-              className="max-w-full h-auto my-2 rounded-lg shadow"
+              className="max-w-full h-auto my-2 rounded-lg shadow cursor-zoom-in hover:opacity-90 transition-opacity"
+              onClick={() => src && setImageViewerSrc(src)}
             />
           ),
         }}
       >
         {content}
       </ReactMarkdown>
+
+      {/* Image preview lightbox */}
+      <ImageViewer
+        src={imageViewerSrc || ""}
+        isOpen={!!imageViewerSrc}
+        onClose={() => setImageViewerSrc(null)}
+      />
     </span>
   );
 });
