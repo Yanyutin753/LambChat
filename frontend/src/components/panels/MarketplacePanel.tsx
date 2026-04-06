@@ -263,7 +263,6 @@ export function MarketplacePanel() {
       <PanelHeader
         className="skill-panel-header"
         title={t("marketplace.title")}
-        subtitle={t("marketplace.subtitle")}
         icon={
           <ShoppingBag
             size={18}

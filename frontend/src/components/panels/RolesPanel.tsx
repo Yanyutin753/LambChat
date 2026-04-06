@@ -762,7 +762,6 @@ export function RolesPanel() {
       {/* 头部 */}
       <PanelHeader
         title={t("roles.title")}
-        subtitle={t("roles.subtitle")}
         icon={
           <Shield size={18} className="text-stone-600 dark:text-stone-400" />
         }

@@ -90,7 +90,6 @@ export function SkillsList({
       {/* Header */}
       <PanelHeader
         title={t("skills.title")}
-        subtitle={t("skills.subtitle")}
         icon={
           <FolderOpen
             size={18}

@@ -397,6 +397,18 @@ select:-webkit-autofill:active {
     padding: 0.5rem 0rem 0rem;
   }
 
+  .bottom-sheet-handle {
+    width: 2.25rem;
+    height: 0.25rem;
+    border-radius: 9999px;
+    background-color: #d6d3d1;
+    margin: 0.375rem auto 0.5rem;
+  }
+
+  .dark .bottom-sheet-handle {
+    background-color: #57534e;
+  }
+
   .modal-backdrop-mobile {
     position: fixed;
     inset: 0;

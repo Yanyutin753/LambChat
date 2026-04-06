@@ -37,6 +37,10 @@ export function PublishDialog({
         ref={swipeRef as React.RefObject<HTMLDivElement>}
         className="skill-theme-shell w-full max-w-lg rounded-t-[1.75rem] border border-[var(--skill-border)] bg-[var(--skill-surface)] shadow-[0_28px_80px_-36px_rgba(15,23,42,0.55)] sm:rounded-[1.75rem] sm:animate-scale-in max-sm:animate-slide-up-sheet"
       >
+        {/* Mobile drag handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-9 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
+        </div>
         <div className="skill-modal-header">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--skill-border)] bg-[var(--skill-accent-soft)] text-[var(--skill-accent)]">

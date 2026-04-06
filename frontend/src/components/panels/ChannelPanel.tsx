@@ -415,7 +415,6 @@ export function ChannelPanel({
         {/* Header */}
         <PanelHeader
           title={metadata.display_name}
-          subtitle={metadata.description}
           icon={getChannelIcon()}
           actions={
             <button
