@@ -142,12 +142,12 @@ function TableBlock({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="group/table relative my-3 overflow-x-auto rounded-lg shadow ring-1 ring-stone-200 dark:ring-stone-700">
-      {/* Floating toolbar — top-right, visible on hover */}
+    <div className="group/table relative my-3 rounded-lg shadow ring-1 ring-stone-200 dark:ring-stone-700">
+      {/* Floating toolbar — pinned to container top-right, outside scroll flow */}
       <div
         className={clsx(
-          "absolute top-1 right-1 z-10 flex items-center gap-0.5 px-1 py-0.5 rounded-md",
-          "bg-stone-100/90 dark:bg-stone-800/90 backdrop-blur-sm shadow-sm",
+          "absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5 px-1 py-0.5 rounded-md",
+          "bg-stone-100/90 dark:bg-stone-800/90 backdrop-blur-sm shadow-sm border border-stone-200/50 dark:border-stone-700/50",
           "opacity-0 group-hover/table:opacity-100 transition-opacity duration-150",
         )}
       >
@@ -171,12 +171,15 @@ function TableBlock({ children }: { children: React.ReactNode }) {
           <Download size={13} />
         </button>
       </div>
-      <table
-        ref={tableRef}
-        className="min-w-full divide-y divide-stone-200 dark:divide-stone-700"
-      >
-        {children}
-      </table>
+      {/* Scrollable table area — toolbar is outside this so it stays fixed */}
+      <div className="overflow-x-auto">
+        <table
+          ref={tableRef}
+          className="min-w-full divide-y divide-stone-200 dark:divide-stone-700"
+        >
+          {children}
+        </table>
+      </div>
     </div>
   );
 }
