@@ -381,6 +381,7 @@ export function FeedbackPanel() {
       {/* Header */}
       <PanelHeader
         title={t("feedback.title")}
+        subtitle={t("feedback.subtitle")}
         icon={
           <MessageSquare
             size={18}

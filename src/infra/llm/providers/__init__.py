@@ -17,6 +17,7 @@ from src.infra.llm.providers.groq import GroqProvider
 from src.infra.llm.providers.mistral import MistralProvider
 from src.infra.llm.providers.ollama import OllamaProvider
 from src.infra.llm.providers.openai import ChatOpenAIProvider
+from src.infra.llm.providers.zai import ZAIProvider
 
 __all__ = [
     "AnthropicProvider",
@@ -29,4 +30,5 @@ __all__ = [
     "MistralProvider",
     "CohereProvider",
     "OllamaProvider",
+    "ZAIProvider",
 ]

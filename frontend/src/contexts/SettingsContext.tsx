@@ -9,10 +9,12 @@ import {
 import { useSettings } from "../hooks/useSettings";
 import { modelConfigApi } from "../services/api/model_config";
 import type { SettingsResponse, ModelConfig } from "../types";
+import { resolveAvailableModelValue } from "../types/model";
 
 export interface AvailableModel {
   value: string;
   label: string;
+  description?: string;
   provider?: string;
 }
 
@@ -80,7 +82,18 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               providerResult.flat_models.map((m: ModelConfig) => ({
                 value: m.value,
                 label: m.label,
+                description: m.description,
                 provider: m.provider,
+              })),
+            );
+          } else if (allowedResult.models.length > 0) {
+            // Fallback for non-admin users (no /providers permission):
+            // still build a usable model list from allowed model IDs.
+            setAllFlatModels(
+              allowedResult.models.map((value: string) => ({
+                value,
+                label: value,
+                description: "",
               })),
             );
           }
@@ -116,11 +129,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [allFlatModels, getSettingValue, allowedModelIds]);
 
   const defaultModel = useMemo(() => {
-    return (
-      (getSettingValue("LLM_MODEL") as string) ||
-      (availableModels && availableModels.length > 0
-        ? availableModels[0].value
-        : "")
+    const configuredModel = (getSettingValue("LLM_MODEL") as string) || "";
+    return resolveAvailableModelValue(
+      configuredModel,
+      availableModels,
+      configuredModel,
     );
   }, [getSettingValue, availableModels]);
 

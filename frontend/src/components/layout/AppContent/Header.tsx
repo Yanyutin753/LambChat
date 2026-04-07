@@ -16,7 +16,9 @@ interface HeaderProps {
   projectManager: { projects: Project[] };
   onNewSession: () => void;
   onShowProfile: () => void;
-  availableModels?: { value: string; label: string }[] | null;
+  availableModels?:
+    | { value: string; label: string; description?: string }[]
+    | null;
   currentModel?: string;
   onSelectModel?: (modelValue: string) => void;
 }
@@ -141,11 +143,6 @@ export function Header({
               <span className="text-base font-bold text-stone-700 dark:text-stone-200 font-serif leading-tight">
                 {t(`nav.${activeTab}`, { defaultValue: activeTab })}
               </span>
-              {t(`navDesc.${activeTab}`, { defaultValue: "" }) && (
-                <span className="text-xs text-stone-400 dark:text-stone-500 leading-tight mt-0.5">
-                  {t(`navDesc.${activeTab}`)}
-                </span>
-              )}
             </div>
           </div>
         )}

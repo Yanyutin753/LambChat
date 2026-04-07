@@ -20,10 +20,21 @@ class ModelConfig(BaseModel):
 class ModelProviderConfig(BaseModel):
     """Provider group with its credentials and models."""
 
-    provider: str = Field(..., description="Provider name (anthropic/openai/google/minimax/zai)")
+    provider: str = Field(..., description="Provider name (anthropic/openai/google/minimax/zai[ChatGLM])")
     label: str = Field(..., description="Provider display name")
     base_url: Optional[str] = Field(None, description="API base URL override for this provider")
-    api_key: Optional[str] = Field(None, description="API key for this provider (stored encrypted)")
+    api_key: Optional[str] = Field(
+        None,
+        description="API key update for this provider. Not returned in plaintext by read APIs.",
+    )
+    has_api_key: bool = Field(
+        False,
+        description="Whether this provider currently has a stored API key configured",
+    )
+    clear_api_key: bool = Field(
+        False,
+        description="Whether to clear the stored API key for this provider during update",
+    )
     # Per-provider defaults (can be overridden per-request)
     temperature: float = Field(0.7, description="Default temperature for this provider")
     max_tokens: int = Field(4096, description="Default max tokens for this provider")
@@ -42,6 +53,13 @@ class ProviderModelConfigResponse(BaseModel):
         ..., description="All models flattened (for backwards compat)"
     )
     available_models: list[str] = Field(..., description="List of enabled model IDs")
+    legacy_migration_applied: bool = Field(
+        False, description="Whether legacy global config was auto-migrated during this request"
+    )
+    legacy_inherited_providers: list[str] = Field(
+        default_factory=list,
+        description="Providers that inherited credentials from legacy global settings",
+    )
 
 
 class ProviderModelConfigUpdate(BaseModel):

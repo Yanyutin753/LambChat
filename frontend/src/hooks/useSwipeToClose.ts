@@ -22,6 +22,16 @@ export function useSwipeToClose({
   const startTime = useRef<number>(0);
   const isDragging = useRef<boolean>(false);
   const elementRef = useRef<HTMLElement | null>(null);
+  const dragTargetRef = useRef<HTMLElement | null>(null);
+
+  const getDragTarget = useCallback(() => {
+    const element = elementRef.current;
+    if (!element) return null;
+
+    return (
+      element.closest(".modal-bottom-sheet") as HTMLElement | null
+    ) || element;
+  }, []);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (!elementRef.current) return;
@@ -33,14 +43,15 @@ export function useSwipeToClose({
     // Only handle if touch starts near the top (first 60px for drag handle area)
     if (relativeY > 60) return;
 
+    dragTargetRef.current = getDragTarget();
     startY.current = touch.clientY;
     currentY.current = touch.clientY;
     startTime.current = Date.now();
     isDragging.current = true;
-  }, []);
+  }, [getDragTarget]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!isDragging.current || !elementRef.current) return;
+    if (!isDragging.current || !dragTargetRef.current) return;
 
     const touch = e.touches[0];
     currentY.current = touch.clientY;
@@ -51,34 +62,35 @@ export function useSwipeToClose({
       // Prevent default to avoid scrolling while dragging
       e.preventDefault();
       // Apply transform to follow finger
-      elementRef.current.style.transform = `translateY(${deltaY}px)`;
-      elementRef.current.style.transition = "none";
+      dragTargetRef.current.style.transform = `translateY(${deltaY}px)`;
+      dragTargetRef.current.style.transition = "none";
     }
   }, []);
 
   const handleTouchEnd = useCallback(() => {
-    if (!isDragging.current || !elementRef.current) return;
+    if (!isDragging.current || !dragTargetRef.current) return;
 
     const deltaY = currentY.current - startY.current;
     const deltaTime = Date.now() - startTime.current;
     const velocity = deltaY / deltaTime;
 
     // Reset transform
-    elementRef.current.style.transition = "transform 0.3s ease-out";
+    dragTargetRef.current.style.transition = "transform 0.3s ease-out";
 
     // Check if should close based on distance or velocity
     if (deltaY > threshold || velocity > velocityThreshold) {
       // Animate out and close
-      elementRef.current.style.transform = `translateY(100%)`;
+      dragTargetRef.current.style.transform = `translateY(100%)`;
       setTimeout(() => {
         onClose();
       }, 300);
     } else {
       // Snap back
-      elementRef.current.style.transform = "translateY(0)";
+      dragTargetRef.current.style.transform = "translateY(0)";
     }
 
     isDragging.current = false;
+    dragTargetRef.current = null;
   }, [onClose, threshold, velocityThreshold]);
 
   // Attach/detach listeners

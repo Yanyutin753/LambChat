@@ -21,6 +21,23 @@ from src.infra.logging import get_logger
 logger = get_logger(__name__)
 
 
+UNIFIED_PROVIDER_COLOR = "#78716C"
+
+PROVIDER_BRAND_COLORS: dict[str, str] = {
+    "openai": UNIFIED_PROVIDER_COLOR,
+    "anthropic": UNIFIED_PROVIDER_COLOR,
+    "azure": UNIFIED_PROVIDER_COLOR,
+    "google": UNIFIED_PROVIDER_COLOR,
+    "groq": UNIFIED_PROVIDER_COLOR,
+    "deepseek": UNIFIED_PROVIDER_COLOR,
+    "mistral": UNIFIED_PROVIDER_COLOR,
+    "cohere": UNIFIED_PROVIDER_COLOR,
+    "ollama": UNIFIED_PROVIDER_COLOR,
+    "bedrock": UNIFIED_PROVIDER_COLOR,
+    "zai": UNIFIED_PROVIDER_COLOR,
+}
+
+
 @dataclass
 class ProviderModelInfo:
     """Information about a model supported by a provider."""
@@ -223,6 +240,7 @@ class ProviderRegistry:
             GroqProvider,
             MistralProvider,
             OllamaProvider,
+            ZAIProvider,
         )
 
         self.register_provider(AnthropicProvider)
@@ -235,6 +253,7 @@ class ProviderRegistry:
         self.register_provider(MistralProvider)
         self.register_provider(CohereProvider)
         self.register_provider(OllamaProvider)
+        self.register_provider(ZAIProvider)
 
     def register_provider(self, provider_class: Type[BaseLLMProvider]) -> None:
         """Register a provider class."""
@@ -320,6 +339,12 @@ class ProviderRegistry:
             if config and config.api_key:
                 result.append((name, provider_class.display_name or name))
         return result
+
+    def _load_config_from_env(
+        self, provider_class: Type[BaseLLMProvider]
+    ) -> Optional[ProviderConfig]:
+        """Load provider config from env for a provider class."""
+        return get_provider_config_from_env(provider_class.name)
 
 
 # ============================================

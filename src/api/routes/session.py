@@ -492,7 +492,15 @@ async def generate_session_title(
     if not message or not message.strip():
         return {"title": "新对话", "session_id": session_id}
 
-    title_model = settings.SESSION_TITLE_MODEL or settings.LLM_MODEL
+    session_metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    session_agent_options = (
+        session_metadata.get("agent_options") if isinstance(session_metadata, dict) else {}
+    )
+    session_model = (
+        session_agent_options.get("model") if isinstance(session_agent_options, dict) else None
+    )
+
+    title_model = session_model or settings.SESSION_TITLE_MODEL or settings.LLM_MODEL or None
     title_api_base = settings.SESSION_TITLE_API_BASE or settings.LLM_API_BASE
     title_api_key = settings.SESSION_TITLE_API_KEY or settings.LLM_API_KEY
     prompt_template = settings.SESSION_TITLE_PROMPT

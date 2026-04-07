@@ -357,6 +357,7 @@ export function MCPPanel() {
       {/* Header */}
       <PanelHeader
         title={t("mcp.title")}
+        subtitle={t("mcp.subtitle")}
         icon={
           <FolderOpen
             size={18}

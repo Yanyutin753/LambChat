@@ -8,6 +8,7 @@ from src.infra.llm.providers.registry import (
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
+    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings
@@ -23,7 +24,7 @@ class OllamaProvider(BaseLLMProvider):
     DEFAULT_BASE_URL = "http://localhost:11434/v1"
     ui_meta = ProviderUIMeta(
         icon="ollama",
-        color="#800000",
+        color=PROVIDER_BRAND_COLORS["ollama"],
         website="https://ollama.com",
         description="Local LLM inference - run models on your own hardware",
     )
@@ -137,5 +138,5 @@ class OllamaProvider(BaseLLMProvider):
             "api_key": self.api_key or "ollama",
             "base_url": self.base_url or self.DEFAULT_BASE_URL,
             "profile": profile,
-            "max_retries": getattr(settings, "LLM_MAX_RETRIES", 3),
+            "max_retries": kwargs.get("max_retries", getattr(settings, "LLM_MAX_RETRIES", 3)),
         }

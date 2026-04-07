@@ -28,6 +28,17 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def _models_compatible(model_a: str, model_b: str) -> bool:
+    """Compatibility match between provider-prefixed and legacy model IDs."""
+    if model_a == model_b:
+        return True
+    if "/" in model_a and "/" not in model_b:
+        return model_a.endswith(f"/{model_b}")
+    if "/" in model_b and "/" not in model_a:
+        return model_b.endswith(f"/{model_a}")
+    return False
+
+
 async def _validate_model_access(model_value: str | None, user: TokenPayload) -> None:
     """Validate that the user has permission to use the specified model."""
     if not model_value:
@@ -35,13 +46,18 @@ async def _validate_model_access(model_value: str | None, user: TokenPayload) ->
 
     from src.infra.model.config_storage import get_model_config_storage
     from src.infra.role.storage import RoleStorage
+    from src.kernel.config import settings as app_settings
 
     model_storage = get_model_config_storage()
 
-    # 检查全局启用状态（仅从 Provider 配置中获取，不再 fallback 到 LLM_AVAILABLE_MODELS）
+    # 检查全局启用状态（优先 Provider 配置，兼容旧 LLM_AVAILABLE_MODELS）
     enabled_ids = set(await model_storage.get_enabled_model_ids())
+    if not enabled_ids:
+        enabled_ids = {
+            m.get("value") for m in (app_settings.LLM_AVAILABLE_MODELS or []) if m.get("value")
+        }
 
-    if enabled_ids and model_value not in enabled_ids:
+    if enabled_ids and not any(_models_compatible(model_value, enabled) for enabled in enabled_ids):
         raise HTTPException(status_code=400, detail=f"Model '{model_value}' is not available")
 
     # 检查角色级别限制
@@ -54,7 +70,9 @@ async def _validate_model_access(model_value: str | None, user: TokenPayload) ->
             if role_models is not None:
                 has_role_config = True
                 role_allowed.update(role_models)
-        if has_role_config and model_value not in role_allowed:
+        if has_role_config and not any(
+            _models_compatible(model_value, role_model) for role_model in role_allowed
+        ):
             raise HTTPException(
                 status_code=403, detail=f"Model '{model_value}' is not allowed for your role"
             )

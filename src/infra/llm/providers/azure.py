@@ -8,6 +8,7 @@ from src.infra.llm.providers.registry import (
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
+    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings
@@ -22,7 +23,7 @@ class AzureOpenAIProvider(BaseLLMProvider):
     langchain_class_path = "langchain_openai.ChatOpenAI"
     ui_meta = ProviderUIMeta(
         icon="azure",
-        color="#0078D4",
+        color=PROVIDER_BRAND_COLORS["azure"],
         website="https://azure.microsoft.com/en-us/products/ai-services/openai-service",
         description="Microsoft Azure-hosted OpenAI models - enterprise ready",
     )
@@ -92,7 +93,7 @@ class AzureOpenAIProvider(BaseLLMProvider):
             "base_url": self.base_url,
             "api_version": self._extra.get("api_version", "2024-02-01"),
             "profile": profile,
-            "max_retries": getattr(settings, "LLM_MAX_RETRIES", 3),
+            "max_retries": kwargs.get("max_retries", getattr(settings, "LLM_MAX_RETRIES", 3)),
         }
 
         # Remove azure-specific from kwargs before passing

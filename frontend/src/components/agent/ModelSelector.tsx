@@ -83,39 +83,49 @@ const ModelItem = memo(function ModelItem({
       onClick={onSelect}
       className="w-full px-3 py-2.5 text-left hover:bg-stone-100/80 dark:hover:bg-stone-700/50 transition-colors"
     >
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-start gap-2.5">
         <ModelIconImg model={model.value} size={22} />
-        <div className="flex items-center gap-1 flex-1 min-w-0">
-          <span className="text-sm text-stone-700 dark:text-stone-200 truncate">
-            {model.label}
-          </span>
-          {model.description && (
-            <span
-              ref={iconRef}
-              className="inline-flex items-center shrink-0 cursor-pointer ml-0.5"
-              onMouseEnter={show}
-              onMouseLeave={hide}
-              onTouchStart={toggle}
-            >
-              <Info
-                size={14}
-                className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
-              />
-              {showTip && (
-                <span
-                  className="fixed z-[60] max-w-[240px] w-max rounded-lg bg-stone-700 dark:bg-stone-900 px-2.5 py-1.5 text-xs leading-relaxed text-white shadow-lg whitespace-normal"
-                  style={tipStyle}
-                  onTouchStart={(e) => e.stopPropagation()}
-                >
-                  {model.description}
-                  <span className="absolute left-1/2 -translate-x-1/2 top-full border-[5px] border-transparent border-t-stone-700 dark:border-t-stone-900" />
-                </span>
-              )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-stone-700 dark:text-stone-200 truncate">
+              {model.label}
             </span>
+            {model.description && (
+              <span
+                ref={iconRef}
+                className="inline-flex items-center shrink-0 cursor-pointer ml-0.5"
+                onMouseEnter={show}
+                onMouseLeave={hide}
+                onTouchStart={toggle}
+              >
+                <Info
+                  size={14}
+                  className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
+                />
+                {showTip && (
+                  <span
+                    className="fixed z-[60] max-w-[240px] w-max rounded-lg bg-stone-700 dark:bg-stone-900 px-2.5 py-1.5 text-xs leading-relaxed text-white shadow-lg whitespace-normal"
+                    style={tipStyle}
+                    onTouchStart={(e) => e.stopPropagation()}
+                  >
+                    {model.description}
+                    <span className="absolute left-1/2 -translate-x-1/2 top-full border-[5px] border-transparent border-t-stone-700 dark:border-t-stone-900" />
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+          {model.description && (
+            <p className="mt-0.5 text-xs leading-5 text-stone-500 dark:text-stone-400 line-clamp-2">
+              {model.description}
+            </p>
           )}
         </div>
         {isSelected && (
-          <Check size={16} className="text-stone-500 dark:text-stone-400" />
+          <Check
+            size={16}
+            className="mt-0.5 text-stone-500 dark:text-stone-400"
+          />
         )}
       </div>
     </button>
@@ -190,7 +200,7 @@ const ModelSelector = memo(function ModelSelector({
       </button>
 
       {showSelector && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+        <div className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {models.map((model) => (
             <ModelItem
               key={model.value}

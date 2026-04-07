@@ -1,5 +1,5 @@
 """
-Anthropic provider (Claude models).
+ZAI provider (ChatGLM models via Zhipu / BigModel).
 """
 
 from typing import Any, Optional
@@ -14,72 +14,55 @@ from src.infra.llm.providers.registry import (
 from src.kernel.config import settings
 
 
-class AnthropicProvider(BaseLLMProvider):
-    """Anthropic - Claude models via Anthropic API."""
+class ZAIProvider(BaseLLMProvider):
+    """ChatGLM models via Zhipu's Anthropic-compatible endpoint."""
 
-    name = "anthropic"
-    display_name = "Anthropic"
+    name = "zai"
+    display_name = "ChatGLM"
     category = "anthropic_compatible"
     langchain_class_path = "langchain_anthropic.ChatAnthropic"
     ui_meta = ProviderUIMeta(
-        icon="anthropic",
-        color=PROVIDER_BRAND_COLORS["anthropic"],
-        website="https://anthropic.com",
-        description="Claude models - best for reasoning, analysis, and creative tasks",
+        icon="zhipu",
+        color=PROVIDER_BRAND_COLORS["zai"],
+        website="https://open.bigmodel.cn",
+        description="ChatGLM models - GLM family models from Zhipu AI",
     )
 
     default_models = [
         ProviderModelInfo(
-            model_id="claude-3-5-sonnet-20241022",
-            aliases=["claude-3-5-sonnet", "claude-sonnet-4-20250514"],
+            model_id="glm-5.1",
+            aliases=["glm-5", "glm-4.5", "glm-4.5-air", "glm-4-flash"],
             supports_thinking=True,
             max_tokens=8192,
-        ),
-        ProviderModelInfo(
-            model_id="claude-3-5-haiku-20241022",
-            aliases=["claude-3-5-haiku", "claude-haiku-4-20250514"],
-            supports_thinking=False,
-            max_tokens=8192,
-        ),
-        ProviderModelInfo(
-            model_id="claude-3-opus-20240229",
-            aliases=["claude-3-opus"],
-            supports_thinking=True,
-            max_tokens=4096,
-        ),
-        ProviderModelInfo(
-            model_id="claude-3-sonnet-20240229",
-            aliases=["claude-3-sonnet"],
-            supports_thinking=True,
-            max_tokens=4096,
-        ),
-        ProviderModelInfo(
-            model_id="claude-3-haiku-20240307",
-            aliases=["claude-3-haiku"],
-            supports_thinking=False,
-            max_tokens=4096,
-        ),
+        )
     ]
+
+    DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/anthropic"
+
+    @classmethod
+    def _resolve_base_url(cls, base_url: Optional[str]) -> str:
+        """Ignore incompatible global fallbacks such as OpenAI's base URL."""
+        normalized = (base_url or "").strip()
+        if not normalized:
+            return cls.DEFAULT_BASE_URL
+
+        lowered = normalized.lower()
+        if "api.openai.com" in lowered:
+            return cls.DEFAULT_BASE_URL
+
+        return normalized
 
     def __init__(self, config: ProviderConfig):
         super().__init__(config)
 
-    @staticmethod
-    def _resolve_base_url(base_url: Optional[str]) -> Optional[str]:
-        """Ignore incompatible global fallbacks such as OpenAI's base URL."""
-        normalized = (base_url or "").strip()
-        if not normalized:
-            return None
-
-        lowered = normalized.lower()
-        if "api.openai.com" in lowered:
-            return None
-
-        return normalized
-
     @classmethod
     def matches_model(cls, model_id: str) -> bool:
-        return model_id.startswith("claude")
+        normalized = model_id.split("/", 1)[-1].lower()
+        return normalized.startswith("glm-") or normalized.startswith("chatglm")
+
+    def matches_url(self, base_url: str) -> bool:
+        parsed = (base_url or "").lower()
+        return "bigmodel.cn" in parsed or "open.bigmodel.cn" in parsed
 
     def _build_langchain_kwargs(
         self,

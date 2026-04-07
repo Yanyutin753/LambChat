@@ -51,6 +51,9 @@ export function ChannelsPage() {
       instanceId?: string;
     }>();
 
+  const translateMaybeKey = (value?: string | null) =>
+    value ? t(value, { defaultValue: value }) : "";
+
   const [channelTypes, setChannelTypes] = useState<ChannelMetadata[]>([]);
   const [instances, setInstances] = useState<
     Record<string, ChannelConfigResponse[]>
@@ -163,8 +166,10 @@ export function ChannelsPage() {
     return (
       <div className="flex h-full flex-col bg-stone-50 dark:bg-stone-950">
         <PanelHeader
-          title={metadata?.display_name || selectedChannel}
-          subtitle={metadata?.description || ""}
+          title={
+            translateMaybeKey(metadata?.display_name) || selectedChannel || ""
+          }
+          subtitle={translateMaybeKey(metadata?.description)}
           icon={
             <Radio size={18} className="text-stone-600 dark:text-stone-400" />
           }
@@ -261,7 +266,10 @@ export function ChannelsPage() {
 
   // Show channel type list
   return (
-    <div className="flex h-full flex-col bg-stone-50 dark:bg-stone-950">
+    <div
+      className="flex h-full flex-col"
+      style={{ backgroundColor: "var(--theme-bg)" }}
+    >
       {/* Header */}
       <PanelHeader
         title={t("channel.title", "Channels")}
@@ -333,7 +341,7 @@ export function ChannelsPage() {
                               "text-stone-400 dark:text-stone-500 flex-shrink-0",
                             )}
                             <h4 className="font-medium text-stone-900 dark:text-stone-100 truncate">
-                              {ct.display_name}
+                              {translateMaybeKey(ct.display_name)}
                             </h4>
                             {/* Capabilities badges */}
                             {ct.capabilities.includes("websocket") && (
@@ -365,7 +373,7 @@ export function ChannelsPage() {
                               ))}
                           </div>
                           <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
-                            {ct.description}
+                            {translateMaybeKey(ct.description)}
                           </p>
                         </div>
                       </div>

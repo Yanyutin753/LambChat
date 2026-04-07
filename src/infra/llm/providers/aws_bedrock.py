@@ -8,6 +8,7 @@ from src.infra.llm.providers.registry import (
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
+    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings
@@ -22,7 +23,7 @@ class AWSBedrockProvider(BaseLLMProvider):
     langchain_class_path = "langchain_aws.ChatBedrock"
     ui_meta = ProviderUIMeta(
         icon="aws",
-        color="#FF9900",
+        color=PROVIDER_BRAND_COLORS["bedrock"],
         website="https://aws.amazon.com/bedrock",
         description="Amazon's managed service for AI models - Claude, Llama, Mistral",
     )
@@ -128,5 +129,5 @@ class AWSBedrockProvider(BaseLLMProvider):
             # AWS Bedrock via langchain-aws uses credentials from boto3 session
             # Model_kwargs can include additional params
             "profile": profile,
-            "max_retries": getattr(settings, "LLM_MAX_RETRIES", 3),
+            "max_retries": kwargs.get("max_retries", getattr(settings, "LLM_MAX_RETRIES", 3)),
         }

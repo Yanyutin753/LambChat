@@ -57,6 +57,8 @@ const providerMap: Record<string, string> = {
   hunyuan: tencent,
   azure: azureIcon,
   bedrock: openai, // Bedrock uses various model providers, use OpenAI as generic fallback
+  zai: zhipu,
+  chatglm: zhipu,
 };
 
 // model name prefix → provider icon (fallback when no provider prefix)
@@ -107,6 +109,7 @@ const providerColors: Record<string, string> = {
   ollama: "#800000",
   minimax: "#F5A623",
   zai: "#8B5CF6",
+  chatglm: "#8B5CF6",
   meta: "#0668BD",
   qwen: "#FB6F23",
   xai: "#F97316",
@@ -148,6 +151,10 @@ const monochromeProviders = new Set([
   "azure",
   "bedrock",
 ]);
+
+export function isMonochromeProvider(provider: string): boolean {
+  return monochromeProviders.has(provider.toLowerCase());
+}
 
 export function isMonochromeIcon(model: string): boolean {
   const lower = model.toLowerCase();
@@ -192,4 +199,8 @@ function resolveIcon(model: string): string | null {
 
 export function getModelIconUrl(model: string): string | null {
   return resolveIcon(model);
+}
+
+export function getProviderIconUrl(provider: string): string | null {
+  return providerMap[provider.toLowerCase()] || null;
 }

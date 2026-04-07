@@ -17,6 +17,10 @@ from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
+_INVALID_API_KEY_PLACEHOLDERS = {
+    "your_openai_api_key_here",
+}
+
 # Cache for raw settings from database (loaded once)
 _setting_cache: dict[str, Any] = {}
 _setting_cache_lock = threading.Lock()
@@ -79,16 +83,26 @@ def _load_raw_settings():
 
 def get_api_key(key: str) -> Optional[str]:
     """Get API key with priority: database > env > settings"""
-    _load_raw_settings()
-    if key in _setting_cache and _setting_cache[key]:
-        return _setting_cache[key]
+    def _normalize(candidate: Optional[str]) -> Optional[str]:
+        if not candidate:
+            return None
+        normalized = candidate.strip()
+        if not normalized or normalized in _INVALID_API_KEY_PLACEHOLDERS:
+            return None
+        return normalized
 
-    env_value = os.environ.get(key)
+    _load_raw_settings()
+    if key in _setting_cache:
+        cached = _normalize(_setting_cache[key])
+        if cached:
+            return cached
+
+    env_value = _normalize(os.environ.get(key))
     if env_value:
         return env_value
 
     if hasattr(settings, key):
-        return getattr(settings, key)
+        return _normalize(getattr(settings, key))
 
     return None
 
@@ -100,7 +114,7 @@ def _load_provider_config_sync() -> list[dict]:
 
         storage = get_model_config_storage()
         # Use asyncio.run - this is fine because it's called in a thread
-        return asyncio.run(storage.get_provider_config())
+        return asyncio.run(storage.get_provider_config_raw())
     except Exception as e:
         logger.debug(f"Could not load provider config from MongoDB: {e}")
         return []
@@ -142,7 +156,7 @@ async def _get_provider_config_async_cached() -> list[dict]:
     from src.infra.model.config_storage import get_model_config_storage
 
     storage = get_model_config_storage()
-    _provider_config_cache = await storage.get_provider_config()
+    _provider_config_cache = await storage.get_provider_config_raw()
     return _provider_config_cache or []
 
 
@@ -167,14 +181,77 @@ def refresh_provider_config_cache() -> list[dict]:
     return _provider_config_cache or []
 
 
+def _models_compatible(model_a: str, model_b: str) -> bool:
+    """Compatibility match between provider-prefixed and legacy model IDs."""
+    if not model_a or not model_b:
+        return False
+    if model_a == model_b:
+        return True
+    if "/" in model_a and "/" not in model_b:
+        return model_a.endswith(f"/{model_b}")
+    if "/" in model_b and "/" not in model_a:
+        return model_b.endswith(f"/{model_a}")
+    return False
+
+
 def _find_provider_for_model(model_value: str) -> Optional[dict]:
     """Find the provider config for a given model value."""
     providers = _load_provider_config()
     for p in providers:
         for m in p.get("models", []):
-            if m["value"] == model_value:
+            if _models_compatible(m.get("value", ""), model_value):
                 return p
     return None
+
+
+def _find_configured_model_value(model_value: str) -> Optional[str]:
+    """Find the stored configured model value compatible with the requested one."""
+    providers = _load_provider_config()
+    for provider in providers:
+        for model in provider.get("models", []):
+            candidate = model.get("value", "")
+            if _models_compatible(candidate, model_value):
+                return candidate
+    return None
+
+
+def _get_first_configured_model_value(enabled_only: bool = True) -> Optional[str]:
+    """Return the first configured model value, preferring enabled entries."""
+    providers = _load_provider_config()
+    fallback = None
+    for provider in providers:
+        for model in provider.get("models", []):
+            value = model.get("value")
+            if not value:
+                continue
+            if fallback is None:
+                fallback = value
+            if not enabled_only or model.get("enabled", True):
+                return value
+    return fallback
+
+
+def _resolve_default_model_value() -> str:
+    """Resolve the runtime default model, preferring configured provider models."""
+    configured_default = getattr(settings, "LLM_MODEL", None) or ""
+    configured_match = (
+        _find_configured_model_value(configured_default) if configured_default else None
+    )
+    if configured_match:
+        return configured_match
+
+    first_enabled = _get_first_configured_model_value(enabled_only=True)
+    if first_enabled:
+        return first_enabled
+
+    first_configured = _get_first_configured_model_value(enabled_only=False)
+    if first_configured:
+        return first_configured
+
+    if configured_default:
+        return configured_default
+
+    return "anthropic/claude-3-5-sonnet-20241022"
 
 
 def _parse_provider(model: str) -> tuple[str, str]:
@@ -269,6 +346,7 @@ class LLMClient:
         *,
         temperature: float,
         max_tokens: Optional[int] = None,
+        max_retries: int = 3,
         api_key: Optional[str] = None,
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
@@ -286,8 +364,17 @@ class LLMClient:
         env_config = _get_provider_config_env(provider)
 
         # Merge: env config takes precedence over passed-in config
-        effective_api_key = env_config.get("api_key") or api_key
-        effective_base_url = env_config.get("base_url") or api_base
+        effective_api_key = get_api_key("LLM_API_KEY")
+        if api_key:
+            effective_api_key = api_key
+        if env_config.get("api_key"):
+            effective_api_key = env_config.get("api_key")
+        effective_base_url = (
+            env_config.get("base_url")
+            or api_base
+            or os.environ.get("LLM_API_BASE")
+            or getattr(settings, "LLM_API_BASE", None)
+        )
         effective_extra = {**(extra or {}), **(env_config.get("extra", {}))}
 
         # Get provider instance from registry
@@ -312,7 +399,7 @@ class LLMClient:
                 max_tokens=max_tokens,
                 api_key=effective_api_key or "sk-placeholder",
                 base_url=effective_base_url or None,
-                max_retries=settings.LLM_MAX_RETRIES,
+                max_retries=max_retries,
             )
 
         try:
@@ -335,7 +422,7 @@ class LLMClient:
                 max_tokens=max_tokens,
                 api_key=effective_api_key or "sk-placeholder",
                 base_url=effective_base_url or None,
-                max_retries=settings.LLM_MAX_RETRIES,
+                max_retries=max_retries,
             )
 
     @staticmethod
@@ -357,15 +444,28 @@ class LLMClient:
         3. Provider registry (matches model by provider's matches_model())
         4. Global default from LLM_MODEL or LLM_PROVIDER_DEFAULT
         """
-        model = model or "anthropic/claude-3-5-sonnet-20241022"
+        model = model or _resolve_default_model_value()
         model_name_only = model.split("/")[-1] if "/" in model else model
 
         # 尝试从 provider 配置中获取凭证 (MongoDB)
         provider_config = _find_provider_for_model(model)
+        if not provider_config:
+            # Provider config may have changed after process startup; refresh once before falling back.
+            refresh_provider_config_cache()
+            provider_config = _find_provider_for_model(model)
         if provider_config:
             # 使用 provider 配置的凭证和 provider 类型
-            effective_api_key = provider_config.get("api_key") or api_key
-            effective_base_url = provider_config.get("base_url") or api_base
+            effective_api_key = get_api_key("LLM_API_KEY")
+            if api_key:
+                effective_api_key = api_key
+            if provider_config.get("api_key"):
+                effective_api_key = provider_config.get("api_key")
+            effective_base_url = (
+                provider_config.get("base_url")
+                or api_base
+                or os.environ.get("LLM_API_BASE")
+                or getattr(settings, "LLM_API_BASE", None)
+            )
             provider = provider_config["provider"]
             # Per-provider defaults (request param overrides provider config)
             effective_temperature = (
@@ -375,8 +475,14 @@ class LLMClient:
             effective_max_retries = provider_config.get("max_retries", settings.LLM_MAX_RETRIES)
         else:
             # Fallback: 使用 Provider Registry 推断 provider
-            effective_api_key = api_key
-            effective_base_url = api_base
+            effective_api_key = get_api_key("LLM_API_KEY")
+            if api_key:
+                effective_api_key = api_key
+            effective_base_url = (
+                api_base
+                or os.environ.get("LLM_API_BASE")
+                or getattr(settings, "LLM_API_BASE", None)
+            )
             registry = _get_registry()
             provider_instance = registry.get_provider_for_model(model)
             if provider_instance:

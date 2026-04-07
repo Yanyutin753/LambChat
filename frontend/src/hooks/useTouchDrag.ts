@@ -3,6 +3,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { BackendSession } from "../services/api";
 
 interface TouchDragState {
@@ -24,6 +25,7 @@ export function useTouchDrag(
   sessions: BackendSession[],
   onDrop: (sessionId: string, projectId: string) => void,
 ): UseTouchDragReturn {
+  const { t } = useTranslation();
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(
     null,
   );
@@ -56,7 +58,7 @@ export function useTouchDrag(
       const s = sessionsRef.current.find((s) => s.id === sessionId);
       if (s) {
         const meta = s.metadata as Record<string, unknown>;
-        const title = s.name || (meta?.title as string) || "New Chat";
+        const title = s.name || (meta?.title as string) || t("sidebar.newChat");
         setDragIndicatorTitle(title);
       }
 
@@ -98,7 +100,7 @@ export function useTouchDrag(
       });
       document.addEventListener("touchend", handleDocumentTouchEnd);
     },
-    [],
+    [t],
   );
 
   return {

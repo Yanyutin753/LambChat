@@ -54,6 +54,9 @@ export function ChannelPanel({
 
   const isNewInstance = instanceId === "new";
 
+  const translateMaybeKey = (value?: string | null) =>
+    value ? t(value, { defaultValue: value }) : "";
+
   // State
   const [status, setStatus] = useState<ChannelConfigStatus | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -148,7 +151,12 @@ export function ChannelPanel({
       const value = formValues[field.name];
       if (value === undefined || value === "" || value === null) {
         if (hasExistingConfig && field.sensitive) continue;
-        toast.error(t("channel.fieldRequired", `${field.title} is required`));
+        toast.error(
+          t(
+            "channel.fieldRequired",
+            `${translateMaybeKey(field.title)} is required`,
+          ),
+        );
         return false;
       }
     }
@@ -283,11 +291,11 @@ export function ChannelPanel({
           >
             <div>
               <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
-                {field.title}
+                {translateMaybeKey(field.title)}
               </span>
               {field.description && (
                 <p className="text-xs text-stone-500 dark:text-stone-400">
-                  {field.description}
+                  {translateMaybeKey(field.description)}
                 </p>
               )}
             </div>
@@ -310,7 +318,7 @@ export function ChannelPanel({
         return (
           <div key={field.name}>
             <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-              {field.title}
+              {translateMaybeKey(field.title)}
             </label>
             <div className="relative">
               <select
@@ -320,7 +328,7 @@ export function ChannelPanel({
               >
                 {field.options?.map((opt) => (
                   <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {translateMaybeKey(opt.label)}
                   </option>
                 ))}
               </select>
@@ -336,7 +344,7 @@ export function ChannelPanel({
         return (
           <div key={field.name}>
             <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-              {field.title}{" "}
+              {translateMaybeKey(field.title)}{" "}
               {field.required && !hasExistingConfig && (
                 <span className="text-red-500">*</span>
               )}
@@ -351,7 +359,7 @@ export function ChannelPanel({
               value={String(value)}
               onChange={(e) => updateFormField(field.name, e.target.value)}
               placeholder={
-                field.placeholder ||
+                translateMaybeKey(field.placeholder) ||
                 (hasExistingConfig ? t("common.masked") : "")
               }
               className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
@@ -363,7 +371,7 @@ export function ChannelPanel({
         return (
           <div key={field.name}>
             <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-              {field.title}
+              {translateMaybeKey(field.title)}
               {field.required && (!hasExistingConfig || !field.sensitive) && (
                 <span className="text-red-500"> *</span>
               )}
@@ -372,7 +380,7 @@ export function ChannelPanel({
               type="text"
               value={String(value)}
               onChange={(e) => updateFormField(field.name, e.target.value)}
-              placeholder={field.placeholder || ""}
+              placeholder={translateMaybeKey(field.placeholder)}
               className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
             />
           </div>
@@ -414,7 +422,8 @@ export function ChannelPanel({
       <div className="flex h-full flex-col min-h-0">
         {/* Header */}
         <PanelHeader
-          title={metadata.display_name}
+          title={translateMaybeKey(metadata.display_name)}
+          subtitle={translateMaybeKey(metadata.description)}
           icon={getChannelIcon()}
           actions={
             <button

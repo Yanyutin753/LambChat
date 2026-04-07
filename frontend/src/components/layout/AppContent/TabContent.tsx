@@ -27,7 +27,7 @@ const AgentConfigPanel = lazy(() =>
   })),
 );
 const ModelConfigPanel = lazy(() =>
-  import("../../panels/ModelConfigPanel").then((m) => ({
+  import("../../panels/ModelConfigPanel/index").then((m) => ({
     default: m.ModelConfigPanel,
   })),
 );

@@ -8,6 +8,7 @@ from src.infra.llm.providers.registry import (
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
+    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings
@@ -22,7 +23,7 @@ class ChatOpenAIProvider(BaseLLMProvider):
     langchain_class_path = "langchain_openai.ChatOpenAI"
     ui_meta = ProviderUIMeta(
         icon="openai",
-        color="#10A37F",
+        color=PROVIDER_BRAND_COLORS["openai"],
         website="https://openai.com",
         description="GPT models - industry standard for general purpose",
     )
@@ -129,5 +130,5 @@ class ChatOpenAIProvider(BaseLLMProvider):
             "api_key": self.api_key or "sk-placeholder",
             "base_url": self.base_url,
             "profile": profile,
-            "max_retries": getattr(settings, "LLM_MAX_RETRIES", 3),
+            "max_retries": kwargs.get("max_retries", getattr(settings, "LLM_MAX_RETRIES", 3)),
         }

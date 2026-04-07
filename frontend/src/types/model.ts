@@ -13,6 +13,8 @@ export interface ModelProviderConfig {
   label: string;
   base_url?: string;
   api_key?: string;
+  has_api_key?: boolean;
+  clear_api_key?: boolean;
   // Per-provider defaults (can be overridden per-request)
   temperature?: number;
   max_tokens?: number;
@@ -25,6 +27,8 @@ export interface ProviderModelConfigResponse {
   providers: ModelProviderConfig[];
   flat_models: ModelConfig[];
   available_models: string[];
+  legacy_migration_applied: boolean;
+  legacy_inherited_providers: string[];
 }
 
 export interface ProviderModelConfigUpdate {
@@ -60,13 +64,15 @@ export interface ProviderMeta {
   description: string;
 }
 
+export const UNIFIED_PROVIDER_COLOR = "#78716C";
+
 // Built-in provider metadata
 export const PROVIDER_META: Record<string, ProviderMeta> = {
   anthropic: {
     name: "anthropic",
     display_name: "Anthropic",
     icon: "anthropic",
-    color: "#FF6B6B",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://anthropic.com",
     description:
       "Claude models - best for reasoning, analysis, and creative tasks",
@@ -75,7 +81,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "google",
     display_name: "Google AI",
     icon: "google",
-    color: "#4285F4",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://ai.google.dev",
     description: "Gemini models - Google's most capable AI model",
   },
@@ -83,7 +89,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "openai",
     display_name: "OpenAI",
     icon: "openai",
-    color: "#10A37F",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://openai.com",
     description: "GPT models - industry standard for general purpose",
   },
@@ -91,7 +97,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "azure",
     display_name: "Azure OpenAI",
     icon: "azure",
-    color: "#0078D4",
+    color: UNIFIED_PROVIDER_COLOR,
     website:
       "https://azure.microsoft.com/en-us/products/ai-services/openai-service",
     description: "Microsoft Azure-hosted OpenAI models - enterprise ready",
@@ -100,7 +106,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "bedrock",
     display_name: "AWS Bedrock",
     icon: "aws",
-    color: "#FF9900",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://aws.amazon.com/bedrock",
     description:
       "Amazon's managed service for AI models - Claude, Llama, Mistral",
@@ -109,7 +115,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "groq",
     display_name: "Groq",
     icon: "groq",
-    color: "#FF4B4B",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://console.groq.com",
     description: "Fast inference - Llama, Mixtral, Gemma at lightning speed",
   },
@@ -117,7 +123,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "deepseek",
     display_name: "DeepSeek",
     icon: "deepseek",
-    color: "#0055FF",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://deepseek.com",
     description: "DeepSeek V3 & Coder - powerful and cost-effective",
   },
@@ -125,7 +131,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "mistral",
     display_name: "Mistral AI",
     icon: "mistral",
-    color: "#FF6B35",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://mistral.ai",
     description: "Mistral and Mixtral - efficient open models",
   },
@@ -133,7 +139,7 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "cohere",
     display_name: "Cohere",
     icon: "cohere",
-    color: "#FF6B35",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://cohere.com",
     description: "Command R series - optimized for RAG and tool use",
   },
@@ -141,9 +147,17 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
     name: "ollama",
     display_name: "Ollama (Local)",
     icon: "ollama",
-    color: "#800000",
+    color: UNIFIED_PROVIDER_COLOR,
     website: "https://ollama.com",
     description: "Local LLM inference - run models on your own hardware",
+  },
+  zai: {
+    name: "zai",
+    display_name: "ChatGLM",
+    icon: "zhipu",
+    color: UNIFIED_PROVIDER_COLOR,
+    website: "https://open.bigmodel.cn",
+    description: "ChatGLM models - GLM family models from Zhipu AI",
   },
 };
 
@@ -151,4 +165,51 @@ export const ALL_PROVIDER_NAMES = Object.keys(PROVIDER_META);
 
 export function getProviderMeta(name: string): ProviderMeta | undefined {
   return PROVIDER_META[name];
+}
+
+export function areModelValuesCompatible(
+  modelA?: string | null,
+  modelB?: string | null,
+): boolean {
+  if (!modelA || !modelB) return false;
+  if (modelA === modelB) return true;
+  if (modelA.includes("/") && !modelB.includes("/")) {
+    return modelA.endsWith(`/${modelB}`);
+  }
+  if (modelB.includes("/") && !modelA.includes("/")) {
+    return modelB.endsWith(`/${modelA}`);
+  }
+  return false;
+}
+
+export function resolveAvailableModelValue<
+  TModel extends { value: string },
+>(
+  preferred: string | null | undefined,
+  models: readonly TModel[] | null | undefined,
+  fallback = "",
+): string {
+  const available = models ?? [];
+
+  if (available.length === 0) {
+    return preferred || fallback;
+  }
+
+  const matchValue = (candidate?: string | null) => {
+    if (!candidate) return null;
+    return (
+      available.find((model) => model.value === candidate) ||
+      available.find((model) =>
+        areModelValuesCompatible(model.value, candidate),
+      ) ||
+      null
+    );
+  };
+
+  return (
+    matchValue(preferred)?.value ||
+    matchValue(fallback)?.value ||
+    available[0]?.value ||
+    ""
+  );
 }

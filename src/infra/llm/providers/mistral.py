@@ -8,6 +8,7 @@ from src.infra.llm.providers.registry import (
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
+    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings
@@ -23,7 +24,7 @@ class MistralProvider(BaseLLMProvider):
     DEFAULT_BASE_URL = "https://api.mistral.ai/v1"
     ui_meta = ProviderUIMeta(
         icon="mistral",
-        color="#FF6B35",
+        color=PROVIDER_BRAND_COLORS["mistral"],
         website="https://mistral.ai",
         description="Mistral and Mixtral - efficient open models",
     )
@@ -101,5 +102,5 @@ class MistralProvider(BaseLLMProvider):
             "api_key": self.api_key or "INVALID_API_KEY",
             "base_url": self.base_url or self.DEFAULT_BASE_URL,
             "profile": profile,
-            "max_retries": getattr(settings, "LLM_MAX_RETRIES", 3),
+            "max_retries": kwargs.get("max_retries", getattr(settings, "LLM_MAX_RETRIES", 3)),
         }

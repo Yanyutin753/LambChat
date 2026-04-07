@@ -112,19 +112,9 @@ class NativeMemoryBackend(MemoryBackend):
         Uses dedicated NATIVE_MEMORY_MODEL/API config if set,
         otherwise falls back to the main LLM_MODEL.
         """
-        model = getattr(settings, "NATIVE_MEMORY_MODEL", None) or getattr(
-            settings, "LLM_MODEL", None
-        )
-        api_base = (
-            getattr(settings, "NATIVE_MEMORY_API_BASE", None)
-            or getattr(settings, "LLM_API_BASE", "")
-            or ""
-        )
-        api_key = (
-            getattr(settings, "NATIVE_MEMORY_API_KEY", None)
-            or getattr(settings, "LLM_API_KEY", "")
-            or ""
-        )
+        model = getattr(settings, "NATIVE_MEMORY_MODEL", None) or None
+        api_base = getattr(settings, "NATIVE_MEMORY_API_BASE", None) or None
+        api_key = getattr(settings, "NATIVE_MEMORY_API_KEY", None) or None
         max_tokens = int(getattr(settings, "NATIVE_MEMORY_MAX_TOKENS", 2000))
         from src.infra.llm.client import LLMClient
 

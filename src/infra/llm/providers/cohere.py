@@ -8,6 +8,7 @@ from src.infra.llm.providers.registry import (
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
+    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings
@@ -23,7 +24,7 @@ class CohereProvider(BaseLLMProvider):
     DEFAULT_BASE_URL = "https://api.cohere.ai/v2"
     ui_meta = ProviderUIMeta(
         icon="cohere",
-        color="#FF6B35",
+        color=PROVIDER_BRAND_COLORS["cohere"],
         website="https://cohere.com",
         description="Command R series - optimized for RAG and tool use",
     )
@@ -85,5 +86,5 @@ class CohereProvider(BaseLLMProvider):
             "api_key": self.api_key or "INVALID_API_KEY",
             "base_url": self.base_url or self.DEFAULT_BASE_URL,
             "profile": profile,
-            "max_retries": getattr(settings, "LLM_MAX_RETRIES", 3),
+            "max_retries": kwargs.get("max_retries", getattr(settings, "LLM_MAX_RETRIES", 3)),
         }

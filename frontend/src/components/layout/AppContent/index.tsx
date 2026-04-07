@@ -25,6 +25,7 @@ import {
   type SkillSource,
 } from "../../../types";
 import type { VersionInfo } from "../../../types";
+import { resolveAvailableModelValue } from "../../../types/model";
 import type { TabType } from "./types";
 import { useDragAndDrop } from "./useDragAndDrop";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
@@ -53,7 +54,9 @@ interface AppShellProps {
   sidebar?: ReactNode;
   children: ReactNode;
   // Model selection
-  availableModels?: { value: string; label: string }[] | null;
+  availableModels?:
+    | { value: string; label: string; description?: string }[]
+    | null;
   currentModel?: string;
   onSelectModel?: (modelValue: string) => void;
 }
@@ -84,7 +87,10 @@ function AppShell({
         versionInfo={versionInfo}
       />
 
-      <div className="flex h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-900">
+      <div
+        className="flex h-[100dvh] w-full overflow-hidden"
+        style={{ backgroundColor: "var(--theme-bg)" }}
+      >
         {sidebar}
 
         <div className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden">
@@ -246,7 +252,12 @@ function ChatAppContent({
 
   // Model selection state (after useSessionConfig so setSessionAgentOption is available)
   const [currentModel, setCurrentModel] = useState<string>(
-    () => localStorage.getItem("defaultModel") || defaultModel,
+    () =>
+      resolveAvailableModelValue(
+        localStorage.getItem("defaultModel"),
+        availableModels,
+        defaultModel,
+      ),
   );
 
   // Sync currentModel → sessionConfig.agentOptions.model so the UI and backend data
@@ -257,8 +268,14 @@ function ChatAppContent({
   }, [currentModel, setSessionAgentOption]);
 
   useEffect(() => {
-    setCurrentModel(localStorage.getItem("defaultModel") || defaultModel);
-  }, [defaultModel]);
+    setCurrentModel(
+      resolveAvailableModelValue(
+        localStorage.getItem("defaultModel"),
+        availableModels,
+        defaultModel,
+      ),
+    );
+  }, [availableModels, defaultModel]);
 
   // Listen for model preference updates from ProfilePreferencesTab
   useEffect(() => {

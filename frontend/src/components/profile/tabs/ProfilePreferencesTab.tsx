@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
+import { resolveAvailableModelValue } from "../../../types/model";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import type { AgentInfo } from "../../../types";
 
@@ -138,8 +139,24 @@ export function ProfilePreferencesTab() {
 
   // Default model preference
   const [selectedModel, setSelectedModel] = useState<string>(() => {
-    return localStorage.getItem("defaultModel") || defaultModel;
+    return resolveAvailableModelValue(
+      localStorage.getItem("defaultModel"),
+      availableModels,
+      defaultModel,
+    );
   });
+
+  useEffect(() => {
+    const resolvedModel = resolveAvailableModelValue(
+      localStorage.getItem("defaultModel"),
+      availableModels,
+      defaultModel,
+    );
+    setSelectedModel(resolvedModel);
+    if (resolvedModel) {
+      localStorage.setItem("defaultModel", resolvedModel);
+    }
+  }, [availableModels, defaultModel]);
 
   // Agent preference
   const [agents, setAgents] = useState<AgentInfo[]>([]);

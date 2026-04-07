@@ -8,6 +8,7 @@ from src.infra.llm.providers.registry import (
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
+    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings
@@ -22,7 +23,7 @@ class GoogleGenerativeProvider(BaseLLMProvider):
     langchain_class_path = "langchain_google_genai.ChatGoogleGenerativeAI"
     ui_meta = ProviderUIMeta(
         icon="google",
-        color="#4285F4",
+        color=PROVIDER_BRAND_COLORS["google"],
         website="https://ai.google.dev",
         description="Gemini models - Google's most capable AI model",
     )
@@ -92,5 +93,5 @@ class GoogleGenerativeProvider(BaseLLMProvider):
             "base_url": self.base_url,
             "thinking_level": thinking_level,
             "profile": profile,
-            "max_retries": getattr(settings, "LLM_MAX_RETRIES", 3),
+            "max_retries": kwargs.get("max_retries", getattr(settings, "LLM_MAX_RETRIES", 3)),
         }

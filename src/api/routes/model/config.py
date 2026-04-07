@@ -10,12 +10,15 @@ Model 配置路由
 from fastapi import APIRouter, Depends
 
 from src.api.deps import get_current_user_required, require_permissions
-from src.infra.logging import get_logger
 from src.infra.model.config_storage import get_model_config_storage
 from src.infra.role.manager import get_role_manager
 from src.infra.role.storage import RoleStorage
+from src.kernel.config import settings
 from src.kernel.schemas.model import (
+    GlobalModelConfigResponse,
     ModelConfig,
+    ModelConfigLegacy,
+    ModelConfigUpdate,
     ModelProviderConfig,
     ProviderModelConfigResponse,
     ProviderModelConfigUpdate,
@@ -28,7 +31,29 @@ from src.kernel.schemas.user import TokenPayload
 from src.kernel.types import Permission
 
 router = APIRouter()
-logger = get_logger(__name__)
+
+
+def _models_compatible(model_a: str, model_b: str) -> bool:
+    """Compatibility match between provider-prefixed and legacy model IDs."""
+    if model_a == model_b:
+        return True
+    if "/" in model_a and "/" not in model_b:
+        return model_a.endswith(f"/{model_b}")
+    if "/" in model_b and "/" not in model_a:
+        return model_b.endswith(f"/{model_a}")
+    return False
+
+
+def _legacy_to_provider_id(model_id: str, all_values: set[str]) -> str:
+    """Resolve legacy model id to provider-prefixed value if possible."""
+    if model_id in all_values:
+        return model_id
+    if "/" not in model_id:
+        suffix = f"/{model_id}"
+        for value in all_values:
+            if value.endswith(suffix):
+                return value
+    return model_id
 
 
 # ============================================
@@ -36,78 +61,14 @@ logger = get_logger(__name__)
 # ============================================
 
 
-def _build_default_provider_config() -> list[dict]:
-    """从 Provider Registry 构建默认 Provider 配置。
-
-    使用 Provider Registry 中第一个可用的 provider 作为默认配置，
-    配合环境变量中的 API Key 实现开箱即用。
-    """
-    from src.infra.llm.providers.registry import ProviderRegistry
-
-    registry = ProviderRegistry.get_instance()
-    default_provider_name = getattr(
-        __import__("src.kernel.config", fromlist=["settings"]).settings,
-        "LLM_PROVIDER_DEFAULT",
-        "anthropic",
-    )
-
-    # Use registry to get provider info
-    provider_instance = registry.get_provider(default_provider_name)
-    if not provider_instance:
-        # Fallback to anthropic
-        default_provider_name = "anthropic"
-        provider_instance = registry.get_provider(default_provider_name)
-
-    # Get first model from provider's default models
-    first_model = provider_instance.default_models[0] if provider_instance.default_models else None
-    model_value = (
-        f"{default_provider_name}/{first_model.model_id}"
-        if first_model
-        else f"{default_provider_name}/default"
-    )
-    model_name = first_model.model_id if first_model else "default"
-
-    # Get api_key from env if set directly
-    import os
-
-    api_key = os.environ.get(f"LLM_PROVIDER_{default_provider_name.upper()}_API_KEY", "")
-    base_url = os.environ.get(f"LLM_PROVIDER_{default_provider_name.upper()}_BASE_URL", "")
-
-    return [
-        {
-            "provider": default_provider_name,
-            "label": f"Default ({default_provider_name.title()})",
-            "base_url": base_url or None,
-            "api_key": api_key or None,
-            "models": [
-                {
-                    "value": model_value,
-                    "label": model_name,
-                    "description": f"Default model: {model_value}",
-                    "enabled": True,
-                }
-            ],
-        }
-    ]
-
-
 @router.get("/providers", response_model=ProviderModelConfigResponse)
 async def get_provider_model_config(
     _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
 ):
-    """获取所有 Provider 分组配置（api_key 已解密）。
-
-    如果 MongoDB 中没有配置，自动使用全局 LLM_MODEL/LLM_API_KEY/LLM_API_BASE
-    生成一个默认 Provider，确保开箱即用。
-    """
+    """获取所有 Provider 分组配置（api_key 已解密）。"""
     storage = get_model_config_storage()
 
-    providers_raw = await storage.get_provider_config()
-
-    # 数据库为空时，使用全局设置生成默认配置（不持久化到数据库）
-    if not providers_raw:
-        logger.info("No provider config found, using default from global settings")
-        providers_raw = _build_default_provider_config()
+    providers_raw, metadata = await storage.get_provider_config_with_metadata()
 
     providers = [ModelProviderConfig(**p) for p in providers_raw]
 
@@ -128,6 +89,8 @@ async def get_provider_model_config(
         providers=providers,
         flat_models=flat_models,
         available_models=enabled_ids,
+        legacy_migration_applied=metadata["legacy_migration_applied"],
+        legacy_inherited_providers=metadata["legacy_inherited_providers"],
     )
 
 
@@ -154,7 +117,7 @@ async def update_provider_model_config(
     flat_models = []
     for p in providers:
         for m in p.models:
-            flat_models.append(m)
+            flat_models.append(ModelConfig(**{**m.model_dump(), "provider": p.provider}))
 
     enabled_ids = await storage.get_enabled_model_ids()
 
@@ -162,6 +125,88 @@ async def update_provider_model_config(
         providers=providers,
         flat_models=flat_models,
         available_models=enabled_ids,
+        legacy_migration_applied=False,
+        legacy_inherited_providers=[],
+    )
+
+
+# ============================================
+# Legacy Global Config (compatibility)
+# ============================================
+
+
+@router.get("/global", response_model=GlobalModelConfigResponse)
+async def get_global_model_config(
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+):
+    """兼容旧版 API：获取全局模型配置。"""
+    storage = get_model_config_storage()
+
+    providers_raw = await storage.get_provider_config()
+    providers = [ModelProviderConfig(**p) for p in providers_raw]
+    legacy_models: list[ModelConfigLegacy] = []
+    for p in providers:
+        for m in p.models:
+            legacy_models.append(
+                ModelConfigLegacy(
+                    id=m.value,
+                    name=m.label,
+                    description=m.description,
+                    enabled=m.enabled,
+                )
+            )
+
+    return GlobalModelConfigResponse(
+        models=legacy_models,
+        available_models=[m.id for m in legacy_models if m.enabled],
+    )
+
+
+@router.put("/global", response_model=GlobalModelConfigResponse)
+async def update_global_model_config(
+    config_update: ModelConfigUpdate,
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+):
+    """兼容旧版 API：更新全局模型启用状态。"""
+    from src.infra.llm.client import refresh_provider_config_cache
+
+    storage = get_model_config_storage()
+    providers_raw = await storage.get_provider_config()
+    providers = [ModelProviderConfig(**p) for p in providers_raw]
+    all_values = {m.value for p in providers for m in p.models}
+
+    enabled_map: dict[str, bool] = {}
+    for legacy_model in config_update.models:
+        resolved = _legacy_to_provider_id(legacy_model.id, all_values)
+        enabled_map[resolved] = legacy_model.enabled
+
+    updated_providers: list[ModelProviderConfig] = []
+    for provider in providers:
+        updated_models = []
+        for model in provider.models:
+            updated_models.append(
+                model.model_copy(update={"enabled": enabled_map.get(model.value, model.enabled)})
+            )
+        updated_providers.append(provider.model_copy(update={"models": updated_models}))
+
+    await storage.set_provider_config([p.model_dump() for p in updated_providers])
+    refresh_provider_config_cache()
+
+    legacy_models: list[ModelConfigLegacy] = []
+    for p in updated_providers:
+        for m in p.models:
+            legacy_models.append(
+                ModelConfigLegacy(
+                    id=m.value,
+                    name=m.label,
+                    description=m.description,
+                    enabled=m.enabled,
+                )
+            )
+
+    return GlobalModelConfigResponse(
+        models=legacy_models,
+        available_models=[m.id for m in legacy_models if m.enabled],
     )
 
 
@@ -231,8 +276,11 @@ async def get_user_allowed_models(
     """获取当前用户可用的模型列表（基于全局配置 + 角色限制）"""
     storage = get_model_config_storage()
 
-    # 获取全局启用的模型（仅从 Provider 配置中获取）
+    # 获取全局启用的模型（优先 Provider 配置）
     enabled_ids = set(await storage.get_enabled_model_ids())
+    if not enabled_ids:
+        # Backward compat: fallback to legacy LLM_AVAILABLE_MODELS.
+        enabled_ids = {m.get("value") for m in (settings.LLM_AVAILABLE_MODELS or []) if m.get("value")}
 
     # 获取用户角色级别的限制
     allowed = set(enabled_ids)  # 从全局启用的开始
@@ -249,6 +297,10 @@ async def get_user_allowed_models(
 
         if has_role_config:
             # 角色允许 ∩ 全局启用
-            allowed = role_allowed & enabled_ids
+            allowed = {
+                model_id
+                for model_id in enabled_ids
+                if any(_models_compatible(model_id, role_model) for role_model in role_allowed)
+            }
 
     return UserAllowedModelsResponse(models=sorted(allowed))

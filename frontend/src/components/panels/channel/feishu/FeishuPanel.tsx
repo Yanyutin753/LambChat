@@ -407,6 +407,7 @@ export function FeishuPanel({
       {/* Header */}
       <PanelHeader
         title={t("feishu.title", "Feishu/Lark Channel")}
+        subtitle={t("feishu.description")}
         icon={
           <MessageSquare
             size={18}
