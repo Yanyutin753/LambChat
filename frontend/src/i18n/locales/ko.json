@@ -53,6 +53,21 @@
     "defaultAgentDescription": "새 대화의 기본 에이전트를 선택하세요",
     "selectAgentsForRole": "{{roleName}} 역할이 접근할 수 있는 에이전트를 선택하세요"
   },
+  "modelConfig": {
+    "title": "모델 설정",
+    "subtitle": "모델 가용성 및 역할 할당 관리",
+    "globalDescription": "전역적으로 사용 가능한 모델을 구성합니다. 활성화된 모델만 역할에 할당할 수 있습니다.",
+    "rolesDescription": "각 역할이 접근할 수 있는 모델을 구성합니다. 설정되지 않은 역할은 모든 전역 활성 모델에 접근할 수 있습니다.",
+    "globalTab": "전역",
+    "rolesTab": "역할 할당",
+    "selectRole": "역할 선택",
+    "selectModelsForRole": "{{roleName}} 역할이 접근할 수 있는 모델 선택",
+    "noModels": "사용 가능한 모델이 없습니다. 시스템 설정에서 LLM_AVAILABLE_MODELS를 먼저 구성하세요.",
+    "noPermission": "모델 관리 권한이 없습니다",
+    "loadFailed": "모델 설정 로드 실패",
+    "saveSuccess": "설정이 저장되었습니다",
+    "saveFailed": "설정 저장 실패"
+  },
   "agentOptions": {
     "enableThinking": {
       "description": "확장 사고 모드 활성화 (Anthropic 모델만 해당)",
@@ -806,6 +821,7 @@
   },
   "nav": {
     "agents": "에이전트",
+    "models": "모델",
     "channels": "채널",
     "chat": "채팅",
     "feedback": "피드백",
@@ -821,6 +837,7 @@
   },
   "navDesc": {
     "agents": "AI 에이전트 설정 및 관리",
+    "models": "모델 접근 권한 구성",
     "channels": "커뮤니케이션 채널 관리",
     "chat": "AI 에이전트와 대화",
     "feedback": "사용자 피드백 확인 및 관리",

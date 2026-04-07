@@ -52,6 +52,8 @@ export enum Permission {
   // Agent
   AGENT_READ = "agent:read",
   AGENT_ADMIN = "agent:admin",
+  // Model
+  MODEL_ADMIN = "model:admin",
   // Marketplace
   MARKETPLACE_READ = "marketplace:read",
   MARKETPLACE_PUBLISH = "marketplace:publish",

@@ -28,6 +28,42 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+async def _validate_model_access(model_value: str | None, user: TokenPayload) -> None:
+    """Validate that the user has permission to use the specified model."""
+    if not model_value:
+        return
+
+    from src.infra.model.config_storage import get_model_config_storage
+    from src.infra.role.storage import RoleStorage
+    from src.kernel.config import settings as app_settings
+
+    model_storage = get_model_config_storage()
+
+    # 检查全局启用状态
+    enabled_ids = set(await model_storage.get_enabled_model_ids())
+    if not enabled_ids:
+        # 无全局配置时，使用 LLM_AVAILABLE_MODELS 中的所有模型
+        enabled_ids = {m.get("value") for m in (app_settings.LLM_AVAILABLE_MODELS or [])}
+
+    if enabled_ids and model_value not in enabled_ids:
+        raise HTTPException(status_code=400, detail=f"Model '{model_value}' is not available")
+
+    # 检查角色级别限制
+    if user.roles:
+        role_storage = RoleStorage()
+        role_allowed = set()
+        has_role_config = False
+        for role in await role_storage.get_by_names(user.roles):
+            role_models = await model_storage.get_role_models(role.id)
+            if role_models is not None:
+                has_role_config = True
+                role_allowed.update(role_models)
+        if has_role_config and model_value not in role_allowed:
+            raise HTTPException(
+                status_code=403, detail=f"Model '{model_value}' is not allowed for your role"
+            )
+
+
 async def _update_session_config(
     session_id: str,
     run_id: str,
@@ -118,6 +154,10 @@ async def chat_stream(
     from src.infra.task.manager import _generate_run_id
 
     session_id = request.session_id or str(uuid.uuid4())
+
+    # 验证模型访问权限
+    model_value = (request.agent_options or {}).get("model")
+    await _validate_model_access(model_value, user)
 
     # 如果用户传入了 session_id，验证所有权
     if request.session_id:

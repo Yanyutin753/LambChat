@@ -53,6 +53,21 @@
     "subtitle": "Manage agent availability and role assignments",
     "title": "Agent Configuration"
   },
+  "modelConfig": {
+    "title": "Model Configuration",
+    "subtitle": "Manage model availability and role assignments",
+    "globalDescription": "Configure which models are available globally. Only enabled models can be assigned to roles.",
+    "rolesDescription": "Configure which models each role can access. Roles without configuration can access all globally enabled models.",
+    "globalTab": "Global",
+    "rolesTab": "Role Assignments",
+    "selectRole": "Select a role",
+    "selectModelsForRole": "Select models accessible to {{roleName}} role",
+    "noModels": "No models available. Please configure LLM_AVAILABLE_MODELS in system settings first.",
+    "noPermission": "You do not have model management permission",
+    "loadFailed": "Failed to load model configuration",
+    "saveSuccess": "Configuration saved successfully",
+    "saveFailed": "Failed to save configuration"
+  },
   "agentOptions": {
     "enableThinking": {
       "description": "Enable extended thinking mode (Anthropic models only)",
@@ -809,6 +824,7 @@
     "adminMarketplace": "Admin Marketplace",
     "agents": "Agents",
     "channels": "Channels",
+    "models": "Models",
     "chat": "Chat",
     "feedback": "Feedback",
     "marketplace": "Marketplace",
@@ -823,6 +839,7 @@
   "navDesc": {
     "agents": "Configure and manage AI agents",
     "channels": "Manage communication channels",
+    "models": "Configure model access permissions",
     "chat": "Conversations with AI agents",
     "feedback": "View and manage user feedback",
     "marketplace": "Discover and install skills",

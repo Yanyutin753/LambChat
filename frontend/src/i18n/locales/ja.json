@@ -53,6 +53,21 @@
     "defaultAgentDescription": "新しい会話のデフォルトエージェントを選択",
     "selectAgentsForRole": "{{roleName}} ロールがアクセスできるエージェントを選択"
   },
+  "modelConfig": {
+    "title": "モデル設定",
+    "subtitle": "モデルの可用性とロール割り当てを管理",
+    "globalDescription": "グローバルに利用可能なモデルを設定します。有効なモデルのみロールに割り当てできます。",
+    "rolesDescription": "各ロールがアクセスできるモデルを設定します。設定されていないロールは、すべてのグローバル有効モデルにアクセスできます。",
+    "globalTab": "グローバル",
+    "rolesTab": "ロール割り当て",
+    "selectRole": "ロールを選択",
+    "selectModelsForRole": "{{roleName}} ロールがアクセスできるモデルを選択",
+    "noModels": "利用可能なモデルがありません。システム設定で LLM_AVAILABLE_MODELS を設定してください。",
+    "noPermission": "モデル管理権限がありません",
+    "loadFailed": "モデル設定の読み込みに失敗しました",
+    "saveSuccess": "設定を保存しました",
+    "saveFailed": "設定の保存に失敗しました"
+  },
   "agentOptions": {
     "enableThinking": {
       "description": "拡張思考モードを有効にする（Anthropicモデルのみ）",
@@ -806,6 +821,7 @@
   },
   "nav": {
     "agents": "エージェント",
+    "models": "モデル",
     "channels": "チャンネル",
     "chat": "チャット",
     "feedback": "フィードバック",
@@ -821,6 +837,7 @@
   },
   "navDesc": {
     "agents": "AIエージェントの設定と管理",
+    "models": "モデルアクセス権限の設定",
     "channels": "コミュニケーションチャンネルの管理",
     "chat": "AIエージェントと会話",
     "feedback": "ユーザーフィードバックの確認と管理",

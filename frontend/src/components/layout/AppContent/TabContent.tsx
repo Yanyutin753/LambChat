@@ -26,6 +26,11 @@ const AgentConfigPanel = lazy(() =>
     default: m.AgentConfigPanel,
   })),
 );
+const ModelConfigPanel = lazy(() =>
+  import("../../panels/ModelConfigPanel").then((m) => ({
+    default: m.ModelConfigPanel,
+  })),
+);
 const MCPPanel = lazy(() =>
   import("../../panels/MCPPanel").then((m) => ({ default: m.MCPPanel })),
 );
@@ -51,6 +56,7 @@ const panelMap: Record<
   feedback: FeedbackPanel,
   channels: ChannelsPage,
   agents: AgentConfigPanel,
+  models: ModelConfigPanel,
 };
 
 function PanelLoader() {

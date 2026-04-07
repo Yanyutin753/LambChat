@@ -194,6 +194,17 @@ export type {
 export type { VersionInfo } from "./common";
 
 // ============================================
+// Model Types
+// ============================================
+export type {
+  ModelConfig,
+  GlobalModelConfigResponse,
+  RoleModelAssignment,
+  RoleModelAssignmentResponse,
+  UserAllowedModelsResponse,
+} from "./model";
+
+// ============================================
 // Project Types
 // ============================================
 

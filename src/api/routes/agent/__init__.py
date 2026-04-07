@@ -346,6 +346,12 @@ async def chat_stream(
     session_id = request_body.session_id or str(uuid.uuid4())
     user_id = user.sub  # 在闭包外部捕获
 
+    # 验证模型访问权限
+    from src.api.routes.chat import _validate_model_access
+
+    model_value = (request_body.agent_options or {}).get("model")
+    await _validate_model_access(model_value, user)
+
     # 获取 base_url（用于生成完整的文件 URL）
     # 优先 APP_BASE_URL 环境变量，fallback 到 request.base_url
     base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")

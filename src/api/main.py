@@ -39,6 +39,7 @@ from src.api.routes import (
 )
 from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
+from src.api.routes.model import config as model_config
 from src.frontend_resolution import resolve_frontend_target
 from src.infra.local_filesystem import ensure_local_filesystem_dirs
 from src.infra.logging import get_logger, setup_logging
@@ -106,6 +107,20 @@ async def lifespan(app: FastAPI):
     agent_config_storage = get_agent_config_storage()
     await agent_config_storage.ensure_indexes()
     logger.info("Agent config storage indexes initialized")
+
+    # 初始化 Model 配置存储索引
+    from src.infra.model.config_storage import get_model_config_storage
+
+    model_config_storage = get_model_config_storage()
+    await model_config_storage.ensure_indexes()
+    logger.info("Model config storage indexes initialized")
+
+    # 初始化 Model 配置存储索引
+    from src.infra.model.config_storage import get_model_config_storage
+
+    model_config_storage = get_model_config_storage()
+    await model_config_storage.ensure_indexes()
+    logger.info("Model config storage indexes initialized")
 
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager
@@ -293,6 +308,10 @@ def create_app() -> FastAPI:
     app.include_router(agent.router, prefix="/api", tags=["Agents"])
     # Agent 配置路由: /api/agent/config 全局配置和用户偏好
     app.include_router(agent_config.router, prefix="/api/agent/config", tags=["Agent Config"])
+    # Model 配置路由: /api/model/config 全局配置和角色模型权限
+    app.include_router(model_config.router, prefix="/api/model/config", tags=["Model Config"])
+    # Model 配置路由: /api/model/config 全局配置和角色模型权限
+    app.include_router(model_config.router, prefix="/api/model/config", tags=["Model Config"])
     app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
     app.include_router(user.router, prefix="/api/users", tags=["Users"])
     app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
