@@ -2,7 +2,7 @@
 Model 配置路由
 
 提供 Model 配置管理接口：
-- 全局 Model 启用/禁用配置
+- Provider 分组配置（含 per-model 凭证）
 - 角色可用的 Models 映射
 - 用户可用模型查询
 """
@@ -14,11 +14,11 @@ from src.infra.logging import get_logger
 from src.infra.model.config_storage import get_model_config_storage
 from src.infra.role.manager import get_role_manager
 from src.infra.role.storage import RoleStorage
-from src.kernel.config import settings
 from src.kernel.schemas.model import (
-    GlobalModelConfigResponse,
     ModelConfig,
-    ModelConfigUpdate,
+    ModelProviderConfig,
+    ProviderModelConfigResponse,
+    ProviderModelConfigUpdate,
     RoleModelAssignment,
     RoleModelAssignmentResponse,
     RoleModelAssignmentUpdate,
@@ -32,78 +32,142 @@ logger = get_logger(__name__)
 
 
 # ============================================
-# 管理员接口
+# Provider 配置接口
 # ============================================
 
 
-@router.get("/global", response_model=GlobalModelConfigResponse)
-async def get_global_model_config(
+def _build_default_provider_config() -> list[dict]:
+    """从 Provider Registry 构建默认 Provider 配置。
+
+    使用 Provider Registry 中第一个可用的 provider 作为默认配置，
+    配合环境变量中的 API Key 实现开箱即用。
+    """
+    from src.infra.llm.providers.registry import ProviderRegistry
+
+    registry = ProviderRegistry.get_instance()
+    default_provider_name = getattr(
+        __import__("src.kernel.config", fromlist=["settings"]).settings,
+        "LLM_PROVIDER_DEFAULT",
+        "anthropic",
+    )
+
+    # Use registry to get provider info
+    provider_instance = registry.get_provider(default_provider_name)
+    if not provider_instance:
+        # Fallback to anthropic
+        default_provider_name = "anthropic"
+        provider_instance = registry.get_provider(default_provider_name)
+
+    # Get first model from provider's default models
+    first_model = provider_instance.default_models[0] if provider_instance.default_models else None
+    model_value = (
+        f"{default_provider_name}/{first_model.model_id}"
+        if first_model
+        else f"{default_provider_name}/default"
+    )
+    model_name = first_model.model_id if first_model else "default"
+
+    # Get api_key from env if set directly
+    import os
+
+    api_key = os.environ.get(f"LLM_PROVIDER_{default_provider_name.upper()}_API_KEY", "")
+    base_url = os.environ.get(f"LLM_PROVIDER_{default_provider_name.upper()}_BASE_URL", "")
+
+    return [
+        {
+            "provider": default_provider_name,
+            "label": f"Default ({default_provider_name.title()})",
+            "base_url": base_url or None,
+            "api_key": api_key or None,
+            "models": [
+                {
+                    "value": model_value,
+                    "label": model_name,
+                    "description": f"Default model: {model_value}",
+                    "enabled": True,
+                }
+            ],
+        }
+    ]
+
+
+@router.get("/providers", response_model=ProviderModelConfigResponse)
+async def get_provider_model_config(
     _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
 ):
-    """获取全局 Model 配置"""
+    """获取所有 Provider 分组配置（api_key 已解密）。
+
+    如果 MongoDB 中没有配置，自动使用全局 LLM_MODEL/LLM_API_KEY/LLM_API_BASE
+    生成一个默认 Provider，确保开箱即用。
+    """
     storage = get_model_config_storage()
 
-    # 从 LLM_AVAILABLE_MODELS 获取模型池
-    available_models_raw = settings.LLM_AVAILABLE_MODELS or []
-    saved_configs = await storage.get_global_config()
-    saved_configs_map = {c["id"]: c for c in saved_configs}
+    providers_raw = await storage.get_provider_config()
 
-    # 合并：使用保存的配置，新发现的模型默认启用
-    model_configs = []
-    for model in available_models_raw:
-        model_id = model.get("value", "")
-        if model_id in saved_configs_map:
-            saved = saved_configs_map[model_id]
-            model_configs.append(
-                ModelConfig(
-                    id=saved["id"],
-                    name=saved.get("name", model.get("label", model_id)),
-                    description=saved.get("description", model.get("description", "")),
-                    enabled=saved.get("enabled", True),
-                )
-            )
-        else:
-            model_configs.append(
-                ModelConfig(
-                    id=model_id,
-                    name=model.get("label", model_id),
-                    description=model.get("description", ""),
-                    enabled=True,
-                )
-            )
+    # 数据库为空时，使用全局设置生成默认配置（不持久化到数据库）
+    if not providers_raw:
+        logger.info("No provider config found, using default from global settings")
+        providers_raw = _build_default_provider_config()
 
-    # 持久化新发现的模型
-    await storage.set_global_config([m.model_dump() for m in model_configs])
+    providers = [ModelProviderConfig(**p) for p in providers_raw]
 
-    return GlobalModelConfigResponse(
-        models=model_configs,
-        available_models=[m.id for m in model_configs if m.enabled],
+    # 扁平化所有模型
+    flat_models = []
+    for p in providers:
+        for m in p.models:
+            flat_models.append(ModelConfig(**{**m.model_dump(), "provider": p.provider}))
+
+    # 所有启用的模型 ID
+    enabled_ids = []
+    for p in providers:
+        for m in p.models:
+            if m.enabled:
+                enabled_ids.append(m.value)
+
+    return ProviderModelConfigResponse(
+        providers=providers,
+        flat_models=flat_models,
+        available_models=enabled_ids,
     )
 
 
-@router.put("/global", response_model=GlobalModelConfigResponse)
-async def update_global_model_config(
-    config_update: ModelConfigUpdate,
+@router.put("/providers", response_model=ProviderModelConfigResponse)
+async def update_provider_model_config(
+    config_update: ProviderModelConfigUpdate,
     _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
 ):
-    """更新全局 Model 配置"""
+    """更新 Provider 分组配置（api_key 会加密存储）"""
+    from src.infra.llm.client import refresh_provider_config_cache
+
     storage = get_model_config_storage()
 
-    # 验证 model IDs 是否在 LLM_AVAILABLE_MODELS 中
-    valid_ids = {m.get("value") for m in (settings.LLM_AVAILABLE_MODELS or [])}
-    for model in config_update.models:
-        if model.id not in valid_ids:
-            from src.kernel.exceptions import ValidationError
+    providers_data = [p.model_dump() for p in config_update.providers]
+    await storage.set_provider_config(providers_data)
 
-            raise ValidationError(f"Model '{model.id}' 不在 LLM_AVAILABLE_MODELS 中")
+    # 刷新 LLMClient 的 provider 缓存，使后续请求使用新配置
+    refresh_provider_config_cache()
 
-    models = [m.model_dump() for m in config_update.models]
-    await storage.set_global_config(models)
+    # 重新加载（解密后的数据）
+    providers_raw = await storage.get_provider_config()
+    providers = [ModelProviderConfig(**p) for p in providers_raw]
 
-    return GlobalModelConfigResponse(
-        models=config_update.models,
-        available_models=[m.id for m in config_update.models if m.enabled],
+    flat_models = []
+    for p in providers:
+        for m in p.models:
+            flat_models.append(m)
+
+    enabled_ids = await storage.get_enabled_model_ids()
+
+    return ProviderModelConfigResponse(
+        providers=providers,
+        flat_models=flat_models,
+        available_models=enabled_ids,
     )
+
+
+# ============================================
+# 角色 Models 映射
+# ============================================
 
 
 @router.get("/roles/{role_id}", response_model=RoleModelAssignment)
@@ -167,12 +231,8 @@ async def get_user_allowed_models(
     """获取当前用户可用的模型列表（基于全局配置 + 角色限制）"""
     storage = get_model_config_storage()
 
-    # 获取全局启用的模型
+    # 获取全局启用的模型（仅从 Provider 配置中获取）
     enabled_ids = set(await storage.get_enabled_model_ids())
-
-    # 如果没有全局配置，使用 LLM_AVAILABLE_MODELS 中的所有模型
-    if not enabled_ids:
-        enabled_ids = {m.get("value") for m in (settings.LLM_AVAILABLE_MODELS or [])}
 
     # 获取用户角色级别的限制
     allowed = set(enabled_ids)  # 从全局启用的开始

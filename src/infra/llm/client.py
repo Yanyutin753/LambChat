@@ -2,18 +2,15 @@
 LLM 客户端
 
 提供 LangChain 兼容的 LLM 客户端。
+支持通过 Provider Registry 动态发现和使用多种 LLM provider。
 """
 
 import asyncio
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Any, Optional
-
-from langchain_anthropic import ChatAnthropic
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
 
 from src.infra.logging import get_logger
 from src.kernel.config import settings
@@ -22,12 +19,27 @@ logger = get_logger(__name__)
 
 # Cache for raw settings from database (loaded once)
 _setting_cache: dict[str, Any] = {}
+_setting_cache_lock = threading.Lock()
 
-# 使用 Anthropic 兼容接口的 provider
-_ANTHROPIC_PROVIDERS = {"anthropic", "minimax", "zai"}
+# Cache for provider config from MongoDB
+_provider_config_cache: Optional[list[dict]] = None
+_provider_cache_lock = threading.Lock()
 
-# 使用 Google Gemini 兼容接口的 provider
-_GOOGLE_PROVIDERS = {"google", "gemini"}
+# Thread pool for async-to-sync bridge
+_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="llm_loader")
+
+# Lazy import for provider registry (avoids circular imports)
+_registry = None
+
+
+def _get_registry():
+    """Get or initialize the provider registry."""
+    global _registry
+    if _registry is None:
+        from src.infra.llm.providers.registry import ProviderRegistry
+
+        _registry = ProviderRegistry.get_instance()
+    return _registry
 
 
 def _load_raw_settings():
@@ -36,27 +48,31 @@ def _load_raw_settings():
     if _setting_cache:
         return _setting_cache
 
-    try:
-        from src.infra.settings.service import get_settings_service
-        from src.kernel.config import SENSITIVE_SETTINGS
+    with _setting_cache_lock:
+        if _setting_cache:
+            return _setting_cache
 
-        service = get_settings_service()
-        if service:
-            for key in SENSITIVE_SETTINGS:
-                try:
+        try:
+            from src.infra.settings.service import get_settings_service
+            from src.kernel.config import SENSITIVE_SETTINGS
+
+            service = get_settings_service()
+            if service:
+                for key in SENSITIVE_SETTINGS:
                     try:
-                        asyncio.get_running_loop()
-                        continue
-                    except RuntimeError:
-                        pass
+                        try:
+                            asyncio.get_running_loop()
+                            continue
+                        except RuntimeError:
+                            pass
 
-                    value = asyncio.run(service.get_raw(key))
-                    if value:
-                        _setting_cache[key] = value
-                except Exception:
-                    pass
-    except Exception as e:
-        logger.debug(f"Could not load raw settings from database: {e}")
+                        value = asyncio.run(service.get_raw(key))
+                        if value:
+                            _setting_cache[key] = value
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug(f"Could not load raw settings from database: {e}")
 
     return _setting_cache
 
@@ -77,6 +93,90 @@ def get_api_key(key: str) -> Optional[str]:
     return None
 
 
+def _load_provider_config_sync() -> list[dict]:
+    """Load provider config from MongoDB synchronously (blocking, for thread pool use)."""
+    try:
+        from src.infra.model.config_storage import get_model_config_storage
+
+        storage = get_model_config_storage()
+        # Use asyncio.run - this is fine because it's called in a thread
+        return asyncio.run(storage.get_provider_config())
+    except Exception as e:
+        logger.debug(f"Could not load provider config from MongoDB: {e}")
+        return []
+
+
+def _load_provider_config() -> list[dict]:
+    """Load provider config, trying async bridge first, then thread pool."""
+    global _provider_config_cache
+
+    # Fast path: already loaded
+    if _provider_config_cache is not None:
+        return _provider_config_cache
+
+    with _provider_cache_lock:
+        if _provider_config_cache is not None:
+            return _provider_config_cache
+
+        try:
+            asyncio.get_running_loop()
+            # In async context - use thread pool
+            future = _executor.submit(_load_provider_config_sync)
+            _provider_config_cache = future.result(timeout=5.0)
+        except RuntimeError:
+            # No running loop - use asyncio.run directly
+            _provider_config_cache = asyncio.run(_get_provider_config_async_cached())
+        except Exception as e:
+            logger.debug(f"Could not load provider config: {e}")
+            _provider_config_cache = []
+
+    return _provider_config_cache or []
+
+
+async def _get_provider_config_async_cached() -> list[dict]:
+    """Async version that properly loads and caches provider config."""
+    global _provider_config_cache
+    if _provider_config_cache is not None:
+        return _provider_config_cache
+
+    from src.infra.model.config_storage import get_model_config_storage
+
+    storage = get_model_config_storage()
+    _provider_config_cache = await storage.get_provider_config()
+    return _provider_config_cache or []
+
+
+def refresh_provider_config_cache() -> list[dict]:
+    """Force refresh the provider config cache. Called after PUT /providers."""
+    global _provider_config_cache
+
+    with _provider_cache_lock:
+        _provider_config_cache = None
+
+    try:
+        asyncio.get_running_loop()
+        # In async context - schedule refresh in thread pool
+        future = _executor.submit(_load_provider_config_sync)
+        _provider_config_cache = future.result(timeout=5.0)
+    except RuntimeError:
+        _provider_config_cache = asyncio.run(_get_provider_config_async_cached())
+    except Exception as e:
+        logger.debug(f"Could not refresh provider config: {e}")
+        _provider_config_cache = []
+
+    return _provider_config_cache or []
+
+
+def _find_provider_for_model(model_value: str) -> Optional[dict]:
+    """Find the provider config for a given model value."""
+    providers = _load_provider_config()
+    for p in providers:
+        for m in p.get("models", []):
+            if m["value"] == model_value:
+                return p
+    return None
+
+
 def _parse_provider(model: str) -> tuple[str, str]:
     """从模型标识解析 provider 和 model_name。
 
@@ -87,13 +187,43 @@ def _parse_provider(model: str) -> tuple[str, str]:
         provider, model_name = model.split("/", 1)
     else:
         model_name = model
-        if model_name.startswith("claude"):
-            provider = "anthropic"
-        elif model_name.startswith("gemini"):
-            provider = "gemini"
+        # Use provider registry to determine provider
+        registry = _get_registry()
+        provider_instance = registry.get_provider_for_model(model_name)
+        if provider_instance:
+            provider = provider_instance.config.name
         else:
-            provider = "openai"
+            provider = "openai"  # fallback
     return provider, model_name
+
+
+def _get_provider_config_env(provider_name: str) -> dict[str, Any]:
+    """Get provider config from environment variables.
+
+    Returns dict with api_key, base_url, extra settings from LLM_PROVIDER_{NAME}_* env vars.
+    """
+    prefix = f"LLM_PROVIDER_{provider_name.upper()}"
+    config = {}
+
+    api_key = os.environ.get(f"{prefix}_API_KEY", "")
+    base_url = os.environ.get(f"{prefix}_BASE_URL", "")
+    enabled = os.environ.get(f"{prefix}_ENABLED", "")
+
+    # Only include if enabled or has api_key
+    if enabled.lower() in ("true", "1", "yes") or api_key:
+        config["api_key"] = api_key or None
+        config["base_url"] = base_url or None
+
+        # Collect extra settings
+        extra = {}
+        for key, value in os.environ.items():
+            if key.startswith(f"{prefix}_EXTRA_"):
+                extra_key = key[len(f"{prefix}_EXTRA_") :].lower()
+                extra[extra_key] = value
+        if extra:
+            config["extra"] = extra
+
+    return config
 
 
 def _make_cache_key(
@@ -125,7 +255,7 @@ def _make_cache_key(
 class LLMClient:
     """LLM 客户端工厂，支持实例缓存和 fallback。"""
 
-    _model_cache: dict[tuple, BaseChatModel] = {}
+    _model_cache: dict[tuple, Any] = {}
 
     @staticmethod
     def _get_max_cache_size() -> int:
@@ -143,53 +273,70 @@ class LLMClient:
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
         profile: Optional[dict] = None,
+        extra: Optional[dict] = None,
         **kwargs: Any,
-    ) -> BaseChatModel:
-        """根据 provider 创建对应的 LangChain 模型。"""
-        api_key = api_key or settings.LLM_API_KEY
-        api_base = api_base or settings.LLM_API_BASE
+    ) -> Any:
+        """根据 provider 创建对应的 LangChain 模型。
 
-        kwargs.pop("max_retries", None)
+        使用 Provider Registry 动态发现 provider 并创建 LangChain 模型实例。
+        """
+        registry = _get_registry()
 
-        if provider in _ANTHROPIC_PROVIDERS:
-            return ChatAnthropic(
+        # Get provider config from env (provider-specific LLM_PROVIDER_* vars)
+        env_config = _get_provider_config_env(provider)
+
+        # Merge: env config takes precedence over passed-in config
+        effective_api_key = env_config.get("api_key") or api_key
+        effective_base_url = env_config.get("base_url") or api_base
+        effective_extra = {**(extra or {}), **(env_config.get("extra", {}))}
+
+        # Get provider instance from registry
+        from src.infra.llm.providers.registry import ProviderConfig
+
+        provider_config = ProviderConfig(
+            name=provider,
+            api_key=effective_api_key,
+            base_url=effective_base_url,
+            extra=effective_extra,
+        )
+
+        provider_instance = registry.get_provider(provider, provider_config)
+        if not provider_instance:
+            # Fallback to direct LangChain creation
+            logger.warning(f"Provider {provider} not found in registry, using ChatOpenAI fallback")
+            from langchain_openai import ChatOpenAI
+
+            return ChatOpenAI(
                 model_name=model_name,
                 temperature=temperature,
-                max_tokens=max_tokens,  # type: ignore[arg-type]
-                api_key=SecretStr(api_key) if api_key else None,  # type: ignore[arg-type]
-                thinking=thinking,
-                base_url=api_base or None,
-                profile=profile,
+                max_tokens=max_tokens,
+                api_key=effective_api_key or "sk-placeholder",
+                base_url=effective_base_url or None,
                 max_retries=settings.LLM_MAX_RETRIES,
-                **kwargs,
-            )
-        if provider in _GOOGLE_PROVIDERS:
-            if thinking and thinking.get("type") == "enabled":
-                thinking_level = thinking.get("level", "medium")
-            else:
-                thinking_level = None
-            return ChatGoogleGenerativeAI(
-                model=model_name,
-                temperature=temperature,
-                max_tokens=max_tokens,  # type: ignore[arg-type]
-                google_api_key=SecretStr(api_key) if api_key else None,  # type: ignore[arg-type]
-                base_url=api_base or None,
-                thinking_level=thinking_level,
-                profile=profile,
-                max_retries=settings.LLM_MAX_RETRIES,
-                **kwargs,
             )
 
-        return ChatOpenAI(
-            model=model_name,
-            temperature=temperature,
-            streaming=True,
-            api_key=api_key or "sk-placeholder",  # type: ignore[arg-type]
-            base_url=api_base or None,
-            profile=profile,
-            max_retries=settings.LLM_MAX_RETRIES,
-            **kwargs,
-        )
+        try:
+            return provider_instance.get_langchain_model(
+                model_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                thinking=thinking,
+                profile=profile,
+                **kwargs,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create model via provider {provider}: {e}")
+            # Fallback
+            from langchain_openai import ChatOpenAI
+
+            return ChatOpenAI(
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                api_key=effective_api_key or "sk-placeholder",
+                base_url=effective_base_url or None,
+                max_retries=settings.LLM_MAX_RETRIES,
+            )
 
     @staticmethod
     def get_model(
@@ -201,32 +348,62 @@ class LLMClient:
         thinking: Optional[dict] = None,
         profile: Optional[dict] = None,
         **kwargs: Any,
-    ) -> BaseChatModel:
-        """获取 LangChain 聊天模型（带缓存）。"""
-        model = model or settings.LLM_MODEL
-        provider, model_name = _parse_provider(model)
+    ) -> Any:
+        """获取 LangChain 聊天模型（带缓存）。
 
-        # 当模型没有显式 provider 前缀（无 '/'）且与默认模型不同时，
-        # 使用默认模型的 provider，确保 API 格式一致性。
-        # 例如：代理服务(one-api/litellm)统一用 OpenAI 格式，
-        # 切换到 claude-xxx 模型不应自动切换为 Anthropic 格式。
-        if "/" not in model and model != settings.LLM_MODEL:
-            default_provider, _ = _parse_provider(settings.LLM_MODEL)
-            provider = default_provider
+        Resolution order for provider:
+        1. Explicit prefix in model string (e.g., "anthropic/claude-3-5-sonnet")
+        2. MongoDB provider config (database-stored credentials)
+        3. Provider registry (matches model by provider's matches_model())
+        4. Global default from LLM_MODEL or LLM_PROVIDER_DEFAULT
+        """
+        model = model or "anthropic/claude-3-5-sonnet-20241022"
+        model_name_only = model.split("/")[-1] if "/" in model else model
 
-        if profile is None and settings.LLM_MAX_INPUT_TOKENS is not None:
-            profile = {"max_input_tokens": settings.LLM_MAX_INPUT_TOKENS}
+        # 尝试从 provider 配置中获取凭证 (MongoDB)
+        provider_config = _find_provider_for_model(model)
+        if provider_config:
+            # 使用 provider 配置的凭证和 provider 类型
+            effective_api_key = provider_config.get("api_key") or api_key
+            effective_base_url = provider_config.get("base_url") or api_base
+            provider = provider_config["provider"]
+            # Per-provider defaults (request param overrides provider config)
+            effective_temperature = (
+                temperature if temperature != 0.7 else provider_config.get("temperature", 0.7)
+            )
+            effective_max_tokens = max_tokens or provider_config.get("max_tokens", 4096)
+            effective_max_retries = provider_config.get("max_retries", settings.LLM_MAX_RETRIES)
+        else:
+            # Fallback: 使用 Provider Registry 推断 provider
+            effective_api_key = api_key
+            effective_base_url = api_base
+            registry = _get_registry()
+            provider_instance = registry.get_provider_for_model(model)
+            if provider_instance:
+                provider = provider_instance.config.name
+            else:
+                # 最终 fallback: 使用全局默认 provider
+                default_provider = getattr(settings, "LLM_PROVIDER_DEFAULT", None)
+                if default_provider:
+                    provider = default_provider
+                else:
+                    provider, _ = _parse_provider(model)
+            effective_temperature = temperature
+            effective_max_tokens = max_tokens or 4096
+            effective_max_retries = settings.LLM_MAX_RETRIES
+
+        # max_input_tokens can be set per-request or via provider config
 
         cache_key = _make_cache_key(
             provider,
-            model_name,
-            temperature,
-            max_tokens,
-            api_key,
-            api_base,
+            model_name_only,
+            effective_temperature,
+            effective_max_tokens,
+            effective_api_key,
+            effective_base_url,
             thinking,
             profile,
-            settings.LLM_MAX_RETRIES,
+            effective_max_retries,
         )
 
         if cache_key in LLMClient._model_cache:
@@ -257,16 +434,17 @@ class LLMClient:
 
             logger.info(f"LLM cache full ({max_cache_size}), evicted oldest model")
 
-        logger.info(f"Creating {provider} model: {model_name}")
+        logger.info(f"Creating {provider} model: {model_name_only}")
         instance = LLMClient._create_model(
             provider,
-            model_name,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            api_key=api_key,
-            api_base=api_base,
+            model_name_only,
+            temperature=effective_temperature,
+            max_tokens=effective_max_tokens,
+            api_key=effective_api_key,
+            api_base=effective_base_url,
             thinking=thinking,
             profile=profile,
+            max_retries=effective_max_retries,
             **kwargs,
         )
         LLMClient._model_cache[cache_key] = instance
@@ -276,7 +454,7 @@ class LLMClient:
     def get_langgraph_model(
         model: Optional[str] = None,
         **kwargs: Any,
-    ) -> BaseChatModel:
+    ) -> Any:
         """获取 LangGraph 配置的模型。"""
         return LLMClient.get_model(model=model, **kwargs)
 

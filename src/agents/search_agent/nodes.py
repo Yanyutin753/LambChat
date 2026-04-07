@@ -73,12 +73,10 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 获取附件
     attachments = state.get("attachments", [])
 
-    # 创建 LLM
+    # 创建 LLM - credentials come from provider config (MongoDB or registry)
     llm_start = time.time()
     llm = LLMClient.get_model(
-        api_base=settings.LLM_API_BASE,
-        api_key=settings.LLM_API_KEY,
-        model=selected_model or settings.LLM_MODEL,
+        model=selected_model or "anthropic/claude-3-5-sonnet-20241022",
         temperature=settings.LLM_TEMPERATURE,
         max_tokens=settings.LLM_MAX_TOKENS,
         thinking={"type": "enabled"} if enable_thinking else None,

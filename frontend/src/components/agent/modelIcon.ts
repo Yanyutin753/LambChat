@@ -22,6 +22,10 @@ import baichuan from "@lobehub/icons-static-svg/icons/baichuan-color.svg?url";
 import internlm from "@lobehub/icons-static-svg/icons/internlm-color.svg?url";
 import tencent from "@lobehub/icons-static-svg/icons/tencent-color.svg?url";
 import zeroone from "@lobehub/icons-static-svg/icons/zeroone.svg?url";
+import azureIcon from "@lobehub/icons-static-svg/icons/azure-color.svg?url";
+
+// Note: AWS icon requires separate SVG file or use text fallback
+// For now, we'll use a placeholder approach for bedrock
 
 // provider name → icon
 const providerMap: Record<string, string> = {
@@ -51,6 +55,8 @@ const providerMap: Record<string, string> = {
   alibaba: qwen,
   aliyun: qwen,
   hunyuan: tencent,
+  azure: azureIcon,
+  bedrock: openai, // Bedrock uses various model providers, use OpenAI as generic fallback
 };
 
 // model name prefix → provider icon (fallback when no provider prefix)
@@ -87,6 +93,49 @@ const modelPrefixMap: Record<string, string> = {
   zero: "zeroone",
 };
 
+// Provider colors for UI accents (Cherry-Studio style)
+const providerColors: Record<string, string> = {
+  anthropic: "#FF6B6B",
+  google: "#4285F4",
+  openai: "#10A37F",
+  azure: "#0078D4",
+  bedrock: "#FF9900",
+  groq: "#FF4B4B",
+  deepseek: "#0055FF",
+  mistral: "#FF6B35",
+  cohere: "#FF6B35",
+  ollama: "#800000",
+  minimax: "#F5A623",
+  zai: "#8B5CF6",
+  meta: "#0668BD",
+  qwen: "#FB6F23",
+  xai: "#F97316",
+  zhipu: "#00C896",
+  moonshot: "#6366F1",
+  perplexity: "#20BDF8",
+  stepfun: "#FF6B9D",
+  doubao: "#3B82F6",
+  spark: "#FF6B00",
+  yi: "#FFD000",
+  baichuan: "#A855F7",
+  internlm: "#F59E0B",
+  tencent: "#30A0FF",
+  zeroone: "#00D9A5",
+  alibaba: "#FF6B00",
+  aliyun: "#FF6B00",
+  hunyuan: "#30A0FF",
+};
+
+export function getProviderColor(provider: string): string | null {
+  return providerColors[provider.toLowerCase()] || null;
+}
+
+export function getProviderGradient(provider: string): string | null {
+  const color = getProviderColor(provider);
+  if (!color) return null;
+  return `linear-gradient(135deg, ${color}, ${color}80)`;
+}
+
 // Providers whose icons are monochrome (use currentColor, need dark-mode invert)
 const monochromeProviders = new Set([
   "openai",
@@ -96,6 +145,8 @@ const monochromeProviders = new Set([
   "yi",
   "zeroone",
   "moonshot",
+  "azure",
+  "bedrock",
 ]);
 
 export function isMonochromeIcon(model: string): boolean {

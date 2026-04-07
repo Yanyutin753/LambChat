@@ -35,15 +35,11 @@ async def _validate_model_access(model_value: str | None, user: TokenPayload) ->
 
     from src.infra.model.config_storage import get_model_config_storage
     from src.infra.role.storage import RoleStorage
-    from src.kernel.config import settings as app_settings
 
     model_storage = get_model_config_storage()
 
-    # 检查全局启用状态
+    # 检查全局启用状态（仅从 Provider 配置中获取，不再 fallback 到 LLM_AVAILABLE_MODELS）
     enabled_ids = set(await model_storage.get_enabled_model_ids())
-    if not enabled_ids:
-        # 无全局配置时，使用 LLM_AVAILABLE_MODELS 中的所有模型
-        enabled_ids = {m.get("value") for m in (app_settings.LLM_AVAILABLE_MODELS or [])}
 
     if enabled_ids and model_value not in enabled_ids:
         raise HTTPException(status_code=400, detail=f"Model '{model_value}' is not available")

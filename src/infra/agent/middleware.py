@@ -976,11 +976,8 @@ class SubagentActivityMiddleware(AgentMiddleware):
 
         from src.infra.llm.client import LLMClient
 
-        # Use the same API config but could use a cheaper model
+        # Use the default provider config (from MongoDB or registry)
         llm = LLMClient.get_model(
-            api_base=settings.LLM_API_BASE,
-            api_key=settings.LLM_API_KEY,
-            model=settings.LLM_MODEL,
             temperature=0.3,
             max_tokens=1500,
         )

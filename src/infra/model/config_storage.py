@@ -2,18 +2,22 @@
 Model 配置存储层
 
 提供 Model 配置的数据库操作：
-- 全局 Model 启用/禁用配置
+- Provider 分组配置（含 api_key 加密）
 - 角色可用的 Models 映射
 """
 
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from src.infra.mcp.encryption import decrypt_value, encrypt_value
 from src.kernel.config import settings
 
 # MongoDB 集合名称
 _COLL_MODEL_CONFIG = "model_config"
 _COLL_ROLE_MODELS = "role_models"
+
+# Provider 配置文档类型标识
+_TYPE_PROVIDERS = "providers"
 
 
 class ModelConfigStorage:
@@ -21,7 +25,7 @@ class ModelConfigStorage:
     Model 配置存储类
 
     使用 MongoDB 存储配置数据：
-    - 全局 model 配置 (collection: model_config)
+    - Provider 分组配置 (collection: model_config, type: "providers")
     - 角色-models 映射 (collection: role_models)
     """
 
@@ -44,35 +48,101 @@ class ModelConfigStorage:
         await self._get_collection(_COLL_ROLE_MODELS).create_index("role_id", unique=True)
 
     # ============================================
-    # 全局 Model 配置
+    # Provider 配置 (含加密 api_key)
     # ============================================
 
-    async def get_global_config(self) -> list[dict]:
-        """获取全局 Model 配置"""
-        doc = await self._get_collection(_COLL_MODEL_CONFIG).find_one({"type": "global"})
+    def _encrypt_provider_config(self, providers: list[dict]) -> list[dict]:
+        """对 provider 配置中的 api_key 进行加密"""
+        result = []
+        for p in providers:
+            p_copy = p.copy()
+            if p_copy.get("api_key"):
+                p_copy["api_key"] = encrypt_value({"api_key": p_copy["api_key"]})
+            else:
+                p_copy["api_key"] = None
+            # 递归加密 models 中的 api_key（如果有）
+            if "models" in p_copy:
+                p_copy["models"] = p_copy["models"]  # models 中无敏感字段
+            result.append(p_copy)
+        return result
+
+    def _decrypt_provider_config(self, providers: list[dict]) -> list[dict]:
+        """对 provider 配置中的 api_key 进行解密"""
+        result = []
+        for p in providers:
+            p_copy = p.copy()
+            if p_copy.get("api_key"):
+                decrypted = decrypt_value(p_copy["api_key"])
+                if decrypted and isinstance(decrypted, dict):
+                    p_copy["api_key"] = decrypted.get("api_key")
+                else:
+                    p_copy["api_key"] = None
+            result.append(p_copy)
+        return result
+
+    async def get_provider_config(self) -> list[dict]:
+        """获取 Provider 分组配置（api_key 已解密）。
+
+        向后兼容：自动为老数据补齐新字段的默认值。
+        """
+        doc = await self._get_collection(_COLL_MODEL_CONFIG).find_one({"type": _TYPE_PROVIDERS})
         if not doc:
             return []
-        return doc.get("models", [])
+        providers = doc.get("providers", [])
+        decrypted = self._decrypt_provider_config(providers)
 
-    async def set_global_config(self, models: list[dict]) -> list[dict]:
-        """设置全局 Model 配置"""
+        # Backward compat: fill in defaults for new fields if missing
+        for p in decrypted:
+            p.setdefault("temperature", 0.7)
+            p.setdefault("max_tokens", 4096)
+            p.setdefault("max_retries", 3)
+            p.setdefault("retry_delay", 1.0)
+
+        return decrypted
+
+    async def set_provider_config(self, providers: list[dict]) -> list[dict]:
+        """设置 Provider 分组配置（api_key 会加密存储）"""
         now = datetime.now(timezone.utc)
+        encrypted_providers = self._encrypt_provider_config(providers)
         await self._get_collection(_COLL_MODEL_CONFIG).update_one(
-            {"type": "global"},
+            {"type": _TYPE_PROVIDERS},
             {
                 "$set": {
-                    "models": models,
+                    "providers": encrypted_providers,
                     "updated_at": now.isoformat(),
                 }
             },
             upsert=True,
         )
-        return models
+        return providers  # 返回解密后的原始数据
+
+    async def get_all_model_values(self) -> list[str]:
+        """获取所有模型的 value 列表（用于权限检查）"""
+        providers = await self.get_provider_config()
+        values = []
+        for p in providers:
+            for m in p.get("models", []):
+                values.append(m["value"])
+        return values
 
     async def get_enabled_model_ids(self) -> list[str]:
         """获取全局启用的 Model ID 列表"""
-        models = await self.get_global_config()
-        return [m["id"] for m in models if m.get("enabled", True)]
+        providers = await self.get_provider_config()
+        enabled = []
+        for p in providers:
+            for m in p.get("models", []):
+                if m.get("enabled", True):
+                    enabled.append(m["value"])
+        return enabled
+
+    async def get_provider_for_model(self, model_value: str) -> Optional[dict]:
+        """根据 model value 查找其所属的 provider 配置"""
+        providers = await self.get_provider_config()
+        for p in providers:
+            for m in p.get("models", []):
+                if m["value"] == model_value:
+                    return p
+        return None
 
     # ============================================
     # 角色 Models 映射

@@ -81,62 +81,43 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # LLM Settings
     # ============================================
-    "LLM_MODEL": {
+    # NOTE: All LLM model/provider configuration is now managed via the Model Provider
+    # system (MongoDB). See /api/v1/models/providers for provider groups that include:
+    #   - api_key, base_url per provider
+    #   - model list with enabled/disabled state
+    #   - per-role model access control
+    #
+    # Global LLM settings kept only for backward compatibility and request-time defaults:
+    "LLM_PROVIDER_DEFAULT": {
         "type": SettingType.STRING,
         "category": SettingCategory.LLM,
-        "description": "LLM model identifier (e.g., anthropic/claude-3-5-sonnet)",
-        "default": "anthropic/claude-3-5-sonnet-20241022",
+        "description": "默认使用的 LLM provider (当模型没有显式前缀时)。可选: anthropic, google, openai, azure, bedrock, groq, deepseek, mistral, cohere, ollama",
+        "default": "anthropic",
     },
-    "LLM_AVAILABLE_MODELS": {
-        "type": SettingType.JSON,
-        "category": SettingCategory.LLM,
-        "description": "Available LLM models for user selection (JSON array of {value, label, description?} objects). Empty array disables model selection.",
-        "default": [],
-        "frontend_visible": True,
-    },
+    # Request-level defaults (fallback when provider config or request param not set)
     "LLM_TEMPERATURE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
-        "description": "LLM temperature for response generation (0.0-2.0)",
+        "description": "LLM temperature for response generation (0.0-2.0)，可被请求参数或 provider 配置覆盖",
         "default": 0.7,
     },
     "LLM_MAX_TOKENS": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
-        "description": "Maximum tokens in LLM response",
+        "description": "Maximum tokens in LLM response，可被请求参数或 provider 配置覆盖",
         "default": 4096,
-    },
-    "LLM_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM API key",
-        "default": "",
-        "is_sensitive": True,
-    },
-    "LLM_API_BASE": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM API base URL",
-        "default": "",
     },
     "LLM_MAX_RETRIES": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
-        "description": "LLM API 最大重试次数（用于处理 429 等错误）",
+        "description": "LLM API 最大重试次数（fallback when provider config not set）",
         "default": 3,
     },
     "LLM_RETRY_DELAY": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
-        "description": "LLM API 重试基础等待时间（秒，指数退避起始值）",
+        "description": "LLM API 重试基础等待时间（秒，指数退避起始值，fallback）",
         "default": 1.0,
-    },
-    "LLM_MAX_INPUT_TOKENS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.LLM,
-        "description": "LLM 上下文窗口大小，用于 DeepAgent 自动压缩对话（设为 None 则使用模型默认值）",
-        "default": None,
-        "nullable": True,
     },
     "LLM_MODEL_CACHE_SIZE": {
         "type": SettingType.NUMBER,

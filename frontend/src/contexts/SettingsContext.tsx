@@ -8,11 +8,12 @@ import {
 } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { modelConfigApi } from "../services/api/model_config";
-import type { SettingsResponse } from "../types";
+import type { SettingsResponse, ModelConfig } from "../types";
 
 export interface AvailableModel {
   value: string;
   label: string;
+  provider?: string;
 }
 
 interface SettingsContextValue {
@@ -61,13 +62,28 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     null,
   );
 
+  // 所有模型列表（从 providers API 获取，用于构建 availableModels）
+  const [allFlatModels, setAllFlatModels] = useState<AvailableModel[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     const fetchAllowedModels = async () => {
       try {
-        const result = await modelConfigApi.getUserAllowedModels();
+        const [allowedResult, providerResult] = await Promise.all([
+          modelConfigApi.getUserAllowedModels(),
+          modelConfigApi.getProviderConfig().catch(() => null),
+        ]);
         if (!cancelled) {
-          setAllowedModelIds(new Set(result.models));
+          setAllowedModelIds(new Set(allowedResult.models));
+          if (providerResult) {
+            setAllFlatModels(
+              providerResult.flat_models.map((m: ModelConfig) => ({
+                value: m.value,
+                label: m.label,
+                provider: m.provider,
+              })),
+            );
+          }
         }
       } catch {
         // API 失败时（如无配置），不限制模型
@@ -80,18 +96,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const availableModels = useMemo(() => {
-    const raw = getSettingValue("LLM_AVAILABLE_MODELS");
-    if (!Array.isArray(raw) || raw.length === 0) return null;
+    // 如果没有从 providers API 获取到模型，回退到 settings 中的 LLM_AVAILABLE_MODELS
+    const rawModels =
+      allFlatModels.length > 0
+        ? allFlatModels
+        : (getSettingValue("LLM_AVAILABLE_MODELS") as AvailableModel[] | null);
 
-    const allModels = raw as AvailableModel[];
+    if (!rawModels || (Array.isArray(rawModels) && rawModels.length === 0)) {
+      return null;
+    }
 
+    const models = Array.isArray(rawModels) ? rawModels : [];
     // allowedModelIds 为 null 表示未配置权限限制，显示全部模型
-    if (allowedModelIds === null) return allModels;
+    if (allowedModelIds === null) return models;
 
     // 过滤为仅允许的模型
-    const filtered = allModels.filter((m) => allowedModelIds.has(m.value));
+    const filtered = models.filter((m) => allowedModelIds.has(m.value));
     return filtered.length > 0 ? filtered : null;
-  }, [getSettingValue, allowedModelIds]);
+  }, [allFlatModels, getSettingValue, allowedModelIds]);
 
   const defaultModel = useMemo(() => {
     return (

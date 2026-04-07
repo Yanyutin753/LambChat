@@ -115,12 +115,11 @@ async def lifespan(app: FastAPI):
     await model_config_storage.ensure_indexes()
     logger.info("Model config storage indexes initialized")
 
-    # 初始化 Model 配置存储索引
-    from src.infra.model.config_storage import get_model_config_storage
+    # 预加载 Provider 配置到 LLMClient 缓存
+    from src.infra.llm.client import refresh_provider_config_cache
 
-    model_config_storage = get_model_config_storage()
-    await model_config_storage.ensure_indexes()
-    logger.info("Model config storage indexes initialized")
+    refresh_provider_config_cache()
+    logger.info("Provider config pre-loaded into LLM client cache")
 
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager
@@ -308,8 +307,6 @@ def create_app() -> FastAPI:
     app.include_router(agent.router, prefix="/api", tags=["Agents"])
     # Agent 配置路由: /api/agent/config 全局配置和用户偏好
     app.include_router(agent_config.router, prefix="/api/agent/config", tags=["Agent Config"])
-    # Model 配置路由: /api/model/config 全局配置和角色模型权限
-    app.include_router(model_config.router, prefix="/api/model/config", tags=["Model Config"])
     # Model 配置路由: /api/model/config 全局配置和角色模型权限
     app.include_router(model_config.router, prefix="/api/model/config", tags=["Model Config"])
     app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
