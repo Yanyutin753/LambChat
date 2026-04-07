@@ -96,9 +96,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const defaultModel = useMemo(() => {
     return (
       (getSettingValue("LLM_MODEL") as string) ||
-      "anthropic/claude-3-5-sonnet-20241022"
+      (availableModels && availableModels.length > 0
+        ? availableModels[0].value
+        : "")
     );
-  }, [getSettingValue]);
+  }, [getSettingValue, availableModels]);
 
   const value: SettingsContextValue = {
     settings,
