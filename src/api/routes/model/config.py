@@ -11,6 +11,7 @@ Model 配置路由
 from fastapi import APIRouter, Depends
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.infra.llm.providers.registry import ProviderRegistry
 from src.infra.logging import get_logger
 from src.infra.model.config_storage import get_model_config_storage
 from src.infra.role.manager import get_role_manager
@@ -34,6 +35,36 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def _get_available_models() -> list[dict[str, str]]:
+    """Return model metadata from legacy settings plus provider registry."""
+    models_by_id: dict[str, dict[str, str]] = {}
+
+    for model in settings.LLM_AVAILABLE_MODELS or []:
+        model_id = model.get("value")
+        if not model_id:
+            continue
+        models_by_id[model_id] = {
+            "value": model_id,
+            "label": model.get("label", model_id),
+            "description": model.get("description", ""),
+        }
+
+    registry = ProviderRegistry.get_instance()
+    for provider_name in registry.list_providers():
+        provider = registry.get_provider(provider_name)
+        if not provider:
+            continue
+        for model in provider.default_models:
+            if model.model_id not in models_by_id:
+                models_by_id[model.model_id] = {
+                    "value": model.model_id,
+                    "label": model.model_id,
+                    "description": f"{provider.display_name} model",
+                }
+
+    return list(models_by_id.values())
+
+
 # ============================================
 # Provider 配置接口
 # ============================================
@@ -46,13 +77,14 @@ async def get_providers(
     """获取所有 Provider 配置"""
     storage = get_model_config_storage()
 
-    # 从 LLM_AVAILABLE_MODELS 中提取已知 providers
-    available_models_raw = settings.LLM_AVAILABLE_MODELS or []
+    # 从可用模型池中提取已知 providers
+    available_models_raw = _get_available_models()
     known_providers: set[str] = set()
     for model in available_models_raw:
         model_id = model.get("value", "")
-        if "/" in model_id:
-            known_providers.add(model_id.split("/", 1)[0])
+        provider = ProviderRegistry.get_instance().get_provider_for_model(model_id)
+        if provider:
+            known_providers.add(provider.config.name)
 
     # 获取已保存的 provider 配置
     saved_providers = await storage.get_providers()
@@ -122,8 +154,8 @@ async def get_global_model_config(
     """获取全局 Model 配置"""
     storage = get_model_config_storage()
 
-    # 从 LLM_AVAILABLE_MODELS 获取模型池
-    available_models_raw = settings.LLM_AVAILABLE_MODELS or []
+    # 从兼容模型池获取模型列表（优先兼容旧配置，同时支持 registry）
+    available_models_raw = _get_available_models()
     saved_configs = await storage.get_global_config()
     saved_configs_map = {c["id"]: c for c in saved_configs}
 
@@ -170,13 +202,13 @@ async def update_global_model_config(
     """更新全局 Model 配置"""
     storage = get_model_config_storage()
 
-    # 验证 model IDs 是否在 LLM_AVAILABLE_MODELS 中
-    valid_ids = {m.get("value") for m in (settings.LLM_AVAILABLE_MODELS or [])}
+    # 验证 model IDs 是否在可用模型池中
+    valid_ids = {m.get("value") for m in _get_available_models()}
     for model in config_update.models:
         if model.id not in valid_ids:
             from src.kernel.exceptions import ValidationError
 
-            raise ValidationError(f"Model '{model.id}' 不在 LLM_AVAILABLE_MODELS 中")
+            raise ValidationError(f"Model '{model.id}' 不在可用模型池中")
 
     models = [m.model_dump() for m in config_update.models]
     await storage.set_global_config(models)
@@ -272,9 +304,9 @@ async def get_user_allowed_models(
     # 获取全局启用的模型
     enabled_ids = set(await storage.get_enabled_model_ids())
 
-    # 如果没有全局配置，使用 LLM_AVAILABLE_MODELS 中的所有模型
+    # 如果没有全局配置，使用兼容模型池中的所有模型
     if not enabled_ids:
-        enabled_ids = {m.get("value") for m in (settings.LLM_AVAILABLE_MODELS or [])}
+        enabled_ids = {m.get("value") for m in _get_available_models()}
 
     # 获取用户角色级别的限制
     allowed = set(enabled_ids)  # 从全局启用的开始
