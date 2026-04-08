@@ -103,6 +103,8 @@ export function ProviderEditor({
 
   const addModel = () => {
     const newModel: ModelConfig = {
+      id: "",
+      name: "",
       value: "",
       label: "",
       description: "",

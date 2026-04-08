@@ -198,6 +198,8 @@ export type { VersionInfo } from "./common";
 // ============================================
 export type {
   ModelConfig,
+  ModelProviderConfig,
+  ProviderConfigResponse,
   ProviderConfig,
   GlobalModelConfigResponse,
   RoleModelAssignment,

@@ -226,10 +226,11 @@ function RolesTab({
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {models.map((model) => {
-                      const isEnabled = currentRoleModels.includes(model.value);
+                      const modelValue = model.value || model.id || "";
+                      const isEnabled = currentRoleModels.includes(modelValue);
                       return (
                         <label
-                          key={model.value}
+                          key={modelValue}
                           className="model-config-model-option flex cursor-pointer items-center gap-3 rounded-2xl p-3"
                           style={
                             isEnabled
@@ -245,7 +246,7 @@ function RolesTab({
                         >
                           <Toggle
                             checked={isEnabled}
-                            onChange={() => toggleModel(model.value)}
+                            onChange={() => toggleModel(modelValue)}
                             color={brandColor}
                           />
                           <div className="min-w-0 flex-1">
@@ -253,7 +254,7 @@ function RolesTab({
                               className="text-sm font-medium truncate"
                               style={{ color: "var(--theme-text)" }}
                             >
-                              {model.label}
+                              {model.label || model.name || modelValue}
                             </div>
                             {model.description && (
                               <div
@@ -289,10 +290,11 @@ function RolesTab({
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {ungrouped.map((model) => {
-                    const isEnabled = currentRoleModels.includes(model.value);
+                    const modelValue = model.value || model.id || "";
+                    const isEnabled = currentRoleModels.includes(modelValue);
                     return (
                       <label
-                        key={model.value}
+                        key={modelValue}
                         className="model-config-model-option flex cursor-pointer items-center gap-3 rounded-2xl p-3"
                         style={
                           isEnabled
@@ -308,14 +310,14 @@ function RolesTab({
                       >
                         <Toggle
                           checked={isEnabled}
-                          onChange={() => toggleModel(model.value)}
+                          onChange={() => toggleModel(modelValue)}
                         />
                         <div className="min-w-0 flex-1">
                           <div
                             className="text-sm font-medium truncate"
                             style={{ color: "var(--theme-text)" }}
                           >
-                            {model.label}
+                            {model.label || model.name || modelValue}
                           </div>
                           {model.description && (
                             <div

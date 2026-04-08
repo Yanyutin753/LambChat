@@ -80,8 +80,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           if (providerResult) {
             setAllFlatModels(
               providerResult.flat_models.map((m: ModelConfig) => ({
-                value: m.value,
-                label: m.label,
+                value: m.value || m.id || "",
+                label: m.label || m.name || "",
                 description: m.description,
                 provider: m.provider,
               })),
