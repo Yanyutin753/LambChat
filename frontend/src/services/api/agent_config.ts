@@ -8,6 +8,7 @@ import type {
   GlobalAgentConfigResponse,
   RoleAgentAssignment,
   RoleAgentAssignmentResponse,
+  RoleModelAssignment,
   UserAgentPreference,
   UserAgentPreferenceResponse,
   AgentConfig,
@@ -51,6 +52,27 @@ export const agentConfigApi = {
       {
         method: "PUT",
         body: JSON.stringify({ allowed_agents: allowedAgents }),
+      },
+    );
+  },
+
+  /** 获取角色的可用 Models（需要管理员权限） */
+  async getRoleModels(roleId: string): Promise<RoleModelAssignment> {
+    return authFetch<RoleModelAssignment>(
+      `${API_BASE}/api/agent/config/roles/${roleId}/models`,
+    );
+  },
+
+  /** 设置角色的可用 Models（需要管理员权限） */
+  async updateRoleModels(
+    roleId: string,
+    allowedModels: string[],
+  ): Promise<RoleModelAssignment> {
+    return authFetch<RoleModelAssignment>(
+      `${API_BASE}/api/agent/config/roles/${roleId}/models`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ allowed_models: allowedModels }),
       },
     );
   },

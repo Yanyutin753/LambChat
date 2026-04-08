@@ -270,6 +270,7 @@ async def list_agents(
     # 获取用户角色的可用 agents 映射（使用角色ID作为key）
     role_agent_map = {}
     role_ids = []  # 用户角色ID列表
+    all_allowed_models: list[str] = []
     if user_roles:
         from src.infra.role.manager import get_role_manager
 
@@ -280,18 +281,32 @@ async def list_agents(
             role = await role_manager.get_role_by_name(role_name)
             if role:
                 role_agents = await storage.get_role_agents(role.id)
-                return role.id, role_agents, role_name
+                role_models = await storage.get_role_models(role.id)
+                return role.id, role_agents, role_models, role_name
             return None
 
         role_results = await asyncio.gather(*[_fetch_role(rn) for rn in user_roles])
+        all_allowed_models: list[str] = []
         for result in role_results:
             if result is not None:
-                rid, role_agents, role_name = result
+                rid, role_agents, role_models, role_name = result
                 role_ids.append(rid)
                 role_agent_map[rid] = role_agents
+                # 合并角色的 allowed_models（union）
+                if role_models is not None:
+                    all_allowed_models.extend(role_models)
                 logger.info(
-                    f"[Agents API] role_name={role_name}, role_id={rid}, role_agents={role_agents}"
+                    f"[Agents API] role_name={role_name}, role_id={rid}, role_agents={role_agents}, role_models={role_models}"
                 )
+
+        # 去重并保持顺序
+        seen = set()
+        unique_models = []
+        for m in all_allowed_models:
+            if m not in seen:
+                seen.add(m)
+                unique_models.append(m)
+        all_allowed_models = unique_models
 
     logger.info(f"[Agents API] final role_ids={role_ids}, role_agent_map={role_agent_map}")
 
@@ -306,6 +321,7 @@ async def list_agents(
         "agents": agents,
         "count": len(agents),
         "default_agent": default_agent,
+        "allowed_models": all_allowed_models if all_allowed_models else None,
     }
 
 

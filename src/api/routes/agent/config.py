@@ -21,6 +21,8 @@ from src.kernel.schemas.agent import (
     RoleAgentAssignment,
     RoleAgentAssignmentResponse,
     RoleAgentAssignmentUpdate,
+    RoleModelAssignment,
+    RoleModelAssignmentUpdate,
     UserAgentPreference,
     UserAgentPreferenceResponse,
     UserAgentPreferenceUpdate,
@@ -144,6 +146,60 @@ async def update_role_agents(
         role_id=role_id,
         role_name=role.name,
         allowed_agents=assignment.allowed_agents,
+    )
+
+
+# ============================================
+# 角色 Models 管理
+# ============================================
+
+
+@router.get("/roles/{role_id}/models", response_model=RoleModelAssignment)
+async def get_role_models(
+    role_id: str,
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+):
+    """获取角色的可用 Models"""
+    storage = get_agent_config_storage()
+    role_manager = get_role_manager()
+
+    role = await role_manager.get_role(role_id)
+    if not role:
+        from src.kernel.exceptions import NotFoundError
+
+        raise NotFoundError(f"角色 '{role_id}' 不存在")
+
+    allowed_models = await storage.get_role_models(role_id) or []
+
+    return RoleModelAssignment(
+        role_id=role_id,
+        role_name=role.name,
+        allowed_models=allowed_models,
+    )
+
+
+@router.put("/roles/{role_id}/models", response_model=RoleModelAssignment)
+async def update_role_models(
+    role_id: str,
+    assignment: RoleModelAssignmentUpdate,
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+):
+    """设置角色的可用 Models"""
+    storage = get_agent_config_storage()
+    role_manager = get_role_manager()
+
+    role = await role_manager.get_role(role_id)
+    if not role:
+        from src.kernel.exceptions import NotFoundError
+
+        raise NotFoundError(f"角色 '{role_id}' 不存在")
+
+    await storage.set_role_models(role_id, role.name, assignment.allowed_models)
+
+    return RoleModelAssignment(
+        role_id=role_id,
+        role_name=role.name,
+        allowed_models=assignment.allowed_models,
     )
 
 

@@ -183,6 +183,11 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "管理智能体",
         "description": "创建、修改和删除智能体配置（管理员权限）",
     },
+    # Model
+    Permission.MODEL_ADMIN.value: {
+        "label": "管理模型",
+        "description": "管理角色可用的模型分配（管理员权限）",
+    },
     # Channel - Generic
     Permission.CHANNEL_READ.value: {
         "label": "查看渠道",
@@ -312,6 +317,12 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
         "permissions": [
             Permission.AGENT_READ.value,
             Permission.AGENT_ADMIN.value,
+        ],
+    },
+    {
+        "name": "模型管理",
+        "permissions": [
+            Permission.MODEL_ADMIN.value,
         ],
     },
     {

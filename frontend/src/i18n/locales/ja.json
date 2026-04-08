@@ -51,7 +51,12 @@
     "title": "エージェント設定",
     "currentPreference": "現在のデフォルトエージェント：{{agentName}}",
     "defaultAgentDescription": "新しい会話のデフォルトエージェントを選択",
-    "selectAgentsForRole": "{{roleName}} ロールがアクセスできるエージェントを選択"
+    "selectAgentsForRole": "{{roleName}} ロールがアクセスできるエージェントを選択",
+    "selectModelsForRole": "{{roleName}} ロールが使用できるモデルを選択",
+    "modelsTab": "モデル割り当て",
+    "modelsDescription": "各ロールが使用できるモデルを設定します。未設定のロールはすべてのモデルを使用できます。",
+    "noModelsConfigured": "利用可能なモデルが設定されていません",
+    "noModelsConfiguredHint": "システム設定で LLM_AVAILABLE_MODELS を設定してください"
   },
   "agentOptions": {
     "enableThinking": {

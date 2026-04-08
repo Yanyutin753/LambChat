@@ -16,6 +16,7 @@ from src.kernel.schemas.agent import AgentConfig, UserAgentPreference
 # MongoDB 集合名称
 _COLL_AGENT_CONFIG = "agent_config"
 _COLL_ROLE_AGENTS = "role_agents"
+_COLL_ROLE_MODELS = "role_models"
 _COLL_USER_PREFERENCES = "user_agent_preferences"
 
 
@@ -46,6 +47,7 @@ class AgentConfigStorage:
         """创建必要的 MongoDB 索引"""
         await self._get_collection(_COLL_AGENT_CONFIG).create_index("type", unique=True)
         await self._get_collection(_COLL_ROLE_AGENTS).create_index("role_id", unique=True)
+        await self._get_collection(_COLL_ROLE_MODELS).create_index("role_id", unique=True)
         await self._get_collection(_COLL_USER_PREFERENCES).create_index("user_id", unique=True)
 
     # ============================================
@@ -126,6 +128,57 @@ class AgentConfigStorage:
                 "role_id": doc["role_id"],
                 "role_name": doc.get("role_name", ""),
                 "allowed_agents": doc.get("allowed_agents", []),
+            }
+            async for doc in cursor
+        ]
+
+    # ============================================
+    # 角色 Models 映射
+    # ============================================
+
+    async def get_role_models(self, role_id: str) -> Optional[list[str]]:
+        """
+        获取角色的可用 Models
+
+        Returns:
+            可用的 Model value 列表，None 表示未配置（不限制）
+        """
+        doc = await self._get_collection(_COLL_ROLE_MODELS).find_one({"role_id": role_id})
+        if not doc:
+            return None
+        return doc.get("allowed_models") or None
+
+    async def set_role_models(
+        self, role_id: str, role_name: str, model_values: list[str]
+    ) -> list[str]:
+        """设置角色的可用 Models"""
+        now = datetime.now(timezone.utc)
+        await self._get_collection(_COLL_ROLE_MODELS).update_one(
+            {"role_id": role_id},
+            {
+                "$set": {
+                    "role_name": role_name,
+                    "allowed_models": model_values,
+                    "updated_at": now.isoformat(),
+                }
+            },
+            upsert=True,
+        )
+        return model_values
+
+    async def delete_role_models(self, role_id: str) -> bool:
+        """删除角色的 Models 配置"""
+        result = await self._get_collection(_COLL_ROLE_MODELS).delete_one({"role_id": role_id})
+        return result.deleted_count > 0
+
+    async def get_all_role_models(self) -> list[dict]:
+        """获取所有角色的 Models 配置"""
+        cursor = self._get_collection(_COLL_ROLE_MODELS).find()
+        return [
+            {
+                "role_id": doc["role_id"],
+                "role_name": doc.get("role_name", ""),
+                "allowed_models": doc.get("allowed_models", []),
             }
             async for doc in cursor
         ]

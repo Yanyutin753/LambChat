@@ -27,6 +27,7 @@ export interface AgentListResponse {
   agents: AgentInfo[];
   count: number;
   default_agent?: string;
+  allowed_models?: string[] | null;
 }
 
 // Workflow event types
@@ -78,4 +79,11 @@ export interface UserAgentPreference {
 // Response for user agent preference operations
 export interface UserAgentPreferenceResponse {
   default_agent_id: string | null;
+}
+
+// Role's accessible models
+export interface RoleModelAssignment {
+  role_id: string;
+  role_name: string;
+  allowed_models: string[];
 }

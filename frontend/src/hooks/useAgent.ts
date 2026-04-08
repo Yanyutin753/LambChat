@@ -54,6 +54,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string>("");
   const [agentsLoading, setAgentsLoading] = useState(false);
+  const [allowedModels, setAllowedModels] = useState<string[] | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -160,6 +161,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       if (!response.ok) throw new Error("Failed to fetch agents");
       const data: AgentListResponse = await response.json();
       setAgents(data.agents || []);
+      setAllowedModels(data.allowed_models ?? null);
       // Use ref to check currentAgent, avoiding dependency cycle
       if (!currentAgentRef.current && data.agents?.length > 0) {
         const defaultAgentId = data.default_agent || data.agents[0]?.id || "";
@@ -209,6 +211,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
         // Update agents list
         setAgents(data.agents || []);
+        setAllowedModels(data.allowed_models ?? null);
 
         // Apply the new default agent if user doesn't have an active session
         // (i.e., no current messages means it's a good time to switch)
@@ -792,6 +795,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     agents,
     currentAgent,
     agentsLoading,
+    allowedModels,
     isReconnecting: connectionStatus === "reconnecting",
     connectionStatus,
     newlyCreatedSession,

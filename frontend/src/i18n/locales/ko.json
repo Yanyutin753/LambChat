@@ -51,7 +51,12 @@
     "title": "에이전트 구성",
     "currentPreference": "현재 기본 에이전트: {{agentName}}",
     "defaultAgentDescription": "새 대화의 기본 에이전트를 선택하세요",
-    "selectAgentsForRole": "{{roleName}} 역할이 접근할 수 있는 에이전트를 선택하세요"
+    "selectAgentsForRole": "{{roleName}} 역할이 접근할 수 있는 에이전트를 선택하세요",
+    "selectModelsForRole": "{{roleName}} 역할이 사용할 수 있는 모델을 선택하세요",
+    "modelsTab": "모델 할당",
+    "modelsDescription": "각 역할이 사용할 수 있는 모델을 설정합니다. 설정되지 않은 역할은 모든 모델을 사용할 수 있습니다.",
+    "noModelsConfigured": "사용 가능한 모델이 설정되지 않았습니다",
+    "noModelsConfiguredHint": "시스템 설정에서 LLM_AVAILABLE_MODELS를 먼저 설정하세요"
   },
   "agentOptions": {
     "enableThinking": {

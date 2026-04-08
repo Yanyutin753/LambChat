@@ -51,7 +51,12 @@
     "selectAgentsForRole": "Выберите агентов для роли {{roleName}}",
     "selectRole": "Выберите роль",
     "subtitle": "Управление доступностью агентов и назначением ролей",
-    "title": "Конфигурация агентов"
+    "title": "Конфигурация агентов",
+    "selectModelsForRole": "Выберите модели для роли {{roleName}}",
+    "modelsTab": "Назначение моделей",
+    "modelsDescription": "Настройте модели, доступные для каждой роли. Роли без настройки могут использовать все модели.",
+    "noModelsConfigured": "Доступные модели не настроены",
+    "noModelsConfiguredHint": "Сначала настройте LLM_AVAILABLE_MODELS в системных настройках"
   },
   "agentOptions": {
     "enableThinking": {

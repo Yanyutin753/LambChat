@@ -76,6 +76,7 @@ export type {
   GlobalAgentConfigResponse,
   RoleAgentAssignment,
   RoleAgentAssignmentResponse,
+  RoleModelAssignment,
   UserAgentPreference,
   UserAgentPreferenceResponse,
 } from "./agent";

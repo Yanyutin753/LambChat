@@ -177,6 +177,7 @@ function ChatAppContent({
     isLoading,
     agents,
     currentAgent,
+    allowedModels: agentAllowedModels,
     newlyCreatedSession,
     sendMessage,
     stopGeneration,
@@ -223,6 +224,13 @@ function ChatAppContent({
       refreshToolsForAgent(currentAgent);
     }
   }, [currentAgent, refreshToolsForAgent]);
+
+  // Filter models by role-based permissions
+  const filteredModels = useMemo(() => {
+    if (!availableModels) return null;
+    if (!agentAllowedModels || agentAllowedModels.length === 0) return availableModels;
+    return availableModels.filter((m) => agentAllowedModels.includes(m.value));
+  }, [availableModels, agentAllowedModels]);
 
   // 现在可以初始化 agentOptions
   const {
@@ -532,7 +540,7 @@ function ChatAppContent({
       projectManager={projectManager}
       onNewSession={handleNewSessionWithReset}
       onShowProfile={onShowProfile}
-      availableModels={availableModels}
+      availableModels={filteredModels}
       currentModel={currentModel}
       onSelectModel={handleSelectModel}
       sidebar={

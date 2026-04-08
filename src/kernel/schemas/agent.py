@@ -194,6 +194,25 @@ class RoleAgentAssignmentResponse(BaseModel):
 
 
 # ============================================
+# Role Model Schemas
+# ============================================
+
+
+class RoleModelAssignment(BaseModel):
+    """Role's accessible models."""
+
+    role_id: str = Field(..., description="Role ID")
+    role_name: str = Field(..., description="Role name")
+    allowed_models: list[str] = Field(default_factory=list, description="List of allowed model values")
+
+
+class RoleModelAssignmentUpdate(BaseModel):
+    """Update role's accessible models."""
+
+    allowed_models: list[str] = Field(..., description="List of allowed model values")
+
+
+# ============================================
 # User Agent Preference Schemas
 # ============================================
 

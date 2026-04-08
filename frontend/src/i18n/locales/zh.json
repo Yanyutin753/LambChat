@@ -49,9 +49,14 @@
     "saveFailed": "保存配置失败",
     "saveSuccess": "配置保存成功",
     "selectAgentsForRole": "选择 {{roleName}} 角色可访问的助手",
+    "selectModelsForRole": "选择 {{roleName}} 角色可使用的模型",
     "selectRole": "选择角色",
     "subtitle": "管理助手可用性和角色分配",
-    "title": "助手配置"
+    "title": "助手配置",
+    "modelsTab": "模型分配",
+    "modelsDescription": "配置每个角色可以使用的模型。未配置的角色将可以使用所有模型。",
+    "noModelsConfigured": "尚未配置可用模型",
+    "noModelsConfiguredHint": "请先在系统设置中配置 LLM_AVAILABLE_MODELS"
   },
   "agentOptions": {
     "enableThinking": {

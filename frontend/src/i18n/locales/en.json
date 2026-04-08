@@ -49,9 +49,14 @@
     "saveFailed": "Failed to save configuration",
     "saveSuccess": "Configuration saved successfully",
     "selectAgentsForRole": "Select agents accessible to {{roleName}} role",
+    "selectModelsForRole": "Select models accessible to {{roleName}} role",
     "selectRole": "Select a role",
     "subtitle": "Manage agent availability and role assignments",
-    "title": "Agent Configuration"
+    "title": "Agent Configuration",
+    "modelsTab": "Model Assignments",
+    "modelsDescription": "Configure which models each role can use. Roles without configuration can use all models.",
+    "noModelsConfigured": "No models configured",
+    "noModelsConfiguredHint": "Please configure LLM_AVAILABLE_MODELS in system settings first"
   },
   "agentOptions": {
     "enableThinking": {
