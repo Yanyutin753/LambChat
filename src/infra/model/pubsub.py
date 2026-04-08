@@ -82,9 +82,7 @@ class ModelConfigPubSub:
             from src.infra.llm.client import LLMClient
 
             cleared = LLMClient.clear_cache_by_model()
-            logger.info(
-                f"[ModelConfigPubSub] Cleared {cleared} LLM cache entries after '{action}'"
-            )
+            logger.info(f"[ModelConfigPubSub] Cleared {cleared} LLM cache entries after '{action}'")
         except Exception as e:
             logger.error(f"[ModelConfigPubSub] Error: {e}")
 
@@ -136,10 +134,12 @@ async def publish_model_config_change(action: str) -> None:
         redis_client = get_redis_client()
         await redis_client.publish(
             MODEL_CONFIG_CHANNEL,
-            json.dumps({
-                "action": action,
-                "instance_id": pubsub._instance_id,
-            }),
+            json.dumps(
+                {
+                    "action": action,
+                    "instance_id": pubsub._instance_id,
+                }
+            ),
         )
     except Exception as e:
         logger.warning(f"Failed to publish model config change: {e}")

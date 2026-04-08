@@ -239,6 +239,7 @@ async def resolve_model_credentials(model_id: str) -> tuple[Optional[str], Optio
     except Exception as e:
         # DB 不可用时静默回退到全局配置，确保 chat 不中断
         import logging
+
         logging.getLogger(__name__).warning(
             "Failed to resolve model credentials for '%s', using global: %s", model_id, e
         )
