@@ -5,17 +5,22 @@ Model 配置存储层
 - 全局 Model 启用/禁用配置
 - Provider 配置（api_key/api_base）
 - 角色可用的 Models 映射
+- LLM Provider 管理（内置 + 自定义）
 """
 
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from src.infra.logging import get_logger
 from src.kernel.config import settings
+
+logger = get_logger(__name__)
 
 # MongoDB 集合名称
 _COLL_MODEL_CONFIG = "model_config"
 _COLL_ROLE_MODELS = "role_models"
 _COLL_MODEL_PROVIDERS = "model_providers"
+_COLL_LLM_PROVIDERS = "llm_providers"
 
 
 class ModelConfigStorage:
@@ -26,6 +31,7 @@ class ModelConfigStorage:
     - 全局 model 配置 (collection: model_config)
     - Provider 配置 (collection: model_providers)
     - 角色-models 映射 (collection: role_models)
+    - LLM Provider 管理 (collection: llm_providers)
     """
 
     def __init__(self):
@@ -45,6 +51,7 @@ class ModelConfigStorage:
         """创建必要的 MongoDB 索引"""
         await self._get_collection(_COLL_MODEL_CONFIG).create_index("type", unique=True)
         await self._get_collection(_COLL_ROLE_MODELS).create_index("role_id", unique=True)
+        await self._get_collection(_COLL_LLM_PROVIDERS).create_index("name", unique=True)
 
     # ============================================
     # 全局 Model 配置
@@ -186,6 +193,182 @@ class ModelConfigStorage:
             async for doc in cursor
         ]
 
+    # ============================================
+    # LLM Provider 管理（llm_providers collection）
+    # ============================================
+
+    async def get_llm_providers(self) -> list[dict]:
+        """获取所有 LLM Providers（内置 + 自定义）"""
+        cursor = self._get_collection(_COLL_LLM_PROVIDERS).find()
+        return [doc async for doc in cursor]
+
+    async def get_llm_provider(self, name: str) -> Optional[dict]:
+        """获取指定名称的 LLM Provider"""
+        return await self._get_collection(_COLL_LLM_PROVIDERS).find_one({"name": name})
+
+    async def upsert_llm_provider(self, provider: dict) -> dict:
+        """创建或更新 LLM Provider"""
+        now = datetime.now(timezone.utc).isoformat()
+        provider["updated_at"] = now
+        await self._get_collection(_COLL_LLM_PROVIDERS).update_one(
+            {"name": provider["name"]},
+            {
+                "$set": provider,
+                "$setOnInsert": {"created_at": now},
+            },
+            upsert=True,
+        )
+        return provider
+
+    async def delete_llm_provider(self, name: str) -> bool:
+        """删除 LLM Provider。仅允许删除自定义 provider（is_builtin=False）。"""
+        result = await self._get_collection(_COLL_LLM_PROVIDERS).delete_one(
+            {"name": name, "is_builtin": False}
+        )
+        return result.deleted_count > 0
+
+    async def get_all_enabled_models(self) -> list[dict]:
+        """聚合所有启用 provider 的启用 models。"""
+        providers = await self.get_llm_providers()
+        models = []
+        for p in providers:
+            if not p.get("enabled", True):
+                continue
+            for m in p.get("models", []):
+                if m.get("enabled", True):
+                    models.append(
+                        {
+                            **m,
+                            "_provider_name": p["name"],
+                            "_provider_type": p.get("provider_type", "openai_compatible"),
+                        }
+                    )
+        return models
+
+    async def get_all_enabled_model_ids(self) -> list[str]:
+        """获取所有启用 model ID 的扁平列表。"""
+        models = await self.get_all_enabled_models()
+        return [m["id"] for m in models]
+
+    async def get_model_provider(self, model_id: str) -> Optional[dict]:
+        """根据 model_id 找到其所属 provider document。"""
+        provider_name = _extract_provider(model_id)
+        if provider_name:
+            return await self.get_llm_provider(provider_name)
+        # 尝试遍历所有 provider 查找包含此 model_id 的
+        providers = await self.get_llm_providers()
+        for p in providers:
+            for m in p.get("models", []):
+                if m.get("id") == model_id:
+                    return p
+        return None
+
+    async def seed_from_env(self) -> None:
+        """首次启动时从 LLM_AVAILABLE_MODELS 环境变量填充 llm_providers collection。
+
+        幂等操作：collection 非空时跳过。
+        """
+        count = await self._get_collection(_COLL_LLM_PROVIDERS).count_documents({})
+        if count > 0:
+            return
+
+        available_models = settings.LLM_AVAILABLE_MODELS or []
+        if not available_models:
+            return
+
+        # 按 provider 前缀分组
+        provider_groups: dict[str, list] = {}
+        for model in available_models:
+            model_id = model.get("value", "")
+            provider_name = model_id.split("/", 1)[0] if "/" in model_id else "openai"
+            provider_groups.setdefault(provider_name, []).append(model)
+
+        # 从 ProviderRegistry 获取元数据
+        from src.infra.llm.providers.registry import ProviderRegistry
+
+        registry = ProviderRegistry.get_instance()
+
+        now = datetime.now(timezone.utc).isoformat()
+        docs = []
+        for provider_name, models in provider_groups.items():
+            provider_type = "openai_compatible"
+            display_name = provider_name
+            color = "#78716C"
+
+            reg_provider = registry.get_provider(provider_name)
+            if reg_provider:
+                cat = reg_provider.category
+                if cat == "anthropic_compatible":
+                    provider_type = "anthropic_compatible"
+                elif cat == "google_compatible":
+                    provider_type = "google_compatible"
+                display_name = reg_provider.display_name or provider_name
+                ui_meta = reg_provider.get_ui_meta()
+                color = ui_meta.color or color
+
+            doc = {
+                "name": provider_name,
+                "display_name": display_name,
+                "provider_type": provider_type,
+                "enabled": True,
+                "api_key": None,
+                "api_base": None,
+                "models": [
+                    {
+                        "id": m.get("value", ""),
+                        "name": m.get("label", m.get("value", "")),
+                        "model_name": m.get("value", "").split("/", 1)[-1]
+                        if "/" in m.get("value", "")
+                        else m.get("value", ""),
+                        "description": m.get("description", ""),
+                        "enabled": True,
+                        "supports_thinking": False,
+                        "api_key": None,
+                        "api_base": None,
+                    }
+                    for m in models
+                ],
+                "is_builtin": True,
+                "builtin_provider_name": provider_name,
+                "color": color,
+                "created_at": now,
+                "updated_at": now,
+            }
+            docs.append(doc)
+
+        if docs:
+            await self._get_collection(_COLL_LLM_PROVIDERS).insert_many(docs)
+            logger.info(f"Seeded {len(docs)} LLM providers from LLM_AVAILABLE_MODELS")
+
+    async def merge_legacy_credentials(self) -> None:
+        """将旧 model_providers collection 的凭证合并到 llm_providers。"""
+        old_providers = await self.get_providers()
+        for old_p in old_providers:
+            name = old_p.get("name")
+            api_key = old_p.get("api_key")
+            api_base = old_p.get("api_base")
+            if not (api_key or api_base):
+                continue
+            await self._get_collection(_COLL_LLM_PROVIDERS).update_one(
+                {"name": name},
+                {
+                    "$set": {
+                        "api_key": api_key,
+                        "api_base": api_base,
+                    }
+                },
+            )
+            logger.info(f"Merged legacy credentials for provider '{name}'")
+
+    async def get_provider_type_map(self) -> dict[str, str]:
+        """获取所有 provider 的 {name: provider_type} 映射，用于 LLMClient 缓存。"""
+        providers = await self.get_llm_providers()
+        return {
+            p["name"]: p.get("provider_type", "openai_compatible")
+            for p in providers
+            if p.get("enabled", True)
+        }
+
 
 # 全局单例
 _model_config_storage: Optional[ModelConfigStorage] = None
@@ -207,7 +390,7 @@ def _extract_provider(model_id: str) -> str:
 
 
 async def resolve_model_credentials(model_id: str) -> tuple[Optional[str], Optional[str]]:
-    """解析模型凭证：per-model config → provider config → 全局 fallback。
+    """解析模型凭证：llm_providers → per-model config → provider config → 全局 fallback。
 
     Args:
         model_id: 模型 ID（如 "openai/gpt-4"）
@@ -218,12 +401,34 @@ async def resolve_model_credentials(model_id: str) -> tuple[Optional[str], Optio
     try:
         storage = get_model_config_storage()
 
-        # 1. 检查 per-model 配置
+        # 0. 优先从 llm_providers collection 解析
+        provider_doc = await storage.get_model_provider(model_id)
+        if provider_doc and provider_doc.get("enabled", True):
+            # 查找 per-model 覆盖
+            for m in provider_doc.get("models", []):
+                if m.get("id") == model_id:
+                    model_api_key = m.get("api_key")
+                    model_api_base = m.get("api_base")
+                    provider_api_key = provider_doc.get("api_key")
+                    provider_api_base = provider_doc.get("api_base")
+                    api_key = model_api_key or provider_api_key or settings.LLM_API_KEY
+                    api_base = model_api_base or provider_api_base or settings.LLM_API_BASE
+                    return api_key, api_base
+            # provider 找到但 model 没有精确匹配，用 provider 级凭证
+            provider_api_key = provider_doc.get("api_key")
+            provider_api_base = provider_doc.get("api_base")
+            if provider_api_key or provider_api_base:
+                return (
+                    provider_api_key or settings.LLM_API_KEY,
+                    provider_api_base or settings.LLM_API_BASE,
+                )
+
+        # 1. 检查 per-model 配置（旧 model_config collection）
         model_creds = await storage.get_model_credentials(model_id)
         model_api_key = model_creds.get("api_key")
         model_api_base = model_creds.get("api_base")
 
-        # 2. 检查 provider 配置
+        # 2. 检查 provider 配置（旧 model_providers collection）
         provider_name = _extract_provider(model_id)
         provider_api_key: Optional[str] = None
         provider_api_base: Optional[str] = None
@@ -238,9 +443,7 @@ async def resolve_model_credentials(model_id: str) -> tuple[Optional[str], Optio
         return api_key, api_base
     except Exception as e:
         # DB 不可用时静默回退到全局配置，确保 chat 不中断
-        import logging
-
-        logging.getLogger(__name__).warning(
+        logger.warning(
             "Failed to resolve model credentials for '%s', using global: %s", model_id, e
         )
         return settings.LLM_API_KEY, settings.LLM_API_BASE

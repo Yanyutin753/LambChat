@@ -23,11 +23,30 @@ logger = get_logger(__name__)
 # Cache for raw settings from database (loaded once)
 _setting_cache: dict[str, Any] = {}
 
-# 使用 Anthropic 兼容接口的 provider
-_ANTHROPIC_PROVIDERS = {"anthropic", "minimax", "zai"}
+# Provider type cache: {provider_name: provider_type}
+# Populated from llm_providers MongoDB collection, refreshed via pub/sub.
+_provider_type_cache: Optional[dict[str, str]] = None
 
-# 使用 Google Gemini 兼容接口的 provider
-_GOOGLE_PROVIDERS = {"google", "gemini"}
+# 硬编码默认值（启动阶段 DB 不可用时的 fallback）
+_ANTHROPIC_COMPATIBLE_DEFAULTS = {"anthropic", "minimax", "zai"}
+_GOOGLE_COMPATIBLE_DEFAULTS = {"google", "gemini"}
+
+
+def _get_provider_type(provider_name: str) -> str:
+    """Resolve provider_type from cache. Falls back to hardcoded defaults."""
+    if _provider_type_cache and provider_name in _provider_type_cache:
+        return _provider_type_cache[provider_name]
+    if provider_name in _ANTHROPIC_COMPATIBLE_DEFAULTS:
+        return "anthropic_compatible"
+    if provider_name in _GOOGLE_COMPATIBLE_DEFAULTS:
+        return "google_compatible"
+    return "openai_compatible"
+
+
+def refresh_provider_type_cache(provider_types: dict[str, str]) -> None:
+    """Refresh the provider type cache (called on startup and pub/sub notification)."""
+    global _provider_type_cache
+    _provider_type_cache = provider_types
 
 
 def _load_raw_settings():
@@ -151,13 +170,15 @@ class LLMClient:
         profile: Optional[dict] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
-        """根据 provider 创建对应的 LangChain 模型。"""
+        """根据 provider_type 创建对应的 LangChain 模型。"""
         api_key = api_key or settings.LLM_API_KEY
         api_base = api_base or settings.LLM_API_BASE
 
         kwargs.pop("max_retries", None)
 
-        if provider in _ANTHROPIC_PROVIDERS:
+        provider_type = _get_provider_type(provider)
+
+        if provider_type == "anthropic_compatible":
             return ChatAnthropic(
                 model_name=model_name,
                 temperature=temperature,
@@ -169,7 +190,7 @@ class LLMClient:
                 max_retries=settings.LLM_MAX_RETRIES,
                 **kwargs,
             )
-        if provider in _GOOGLE_PROVIDERS:
+        if provider_type == "google_compatible":
             if thinking and thinking.get("type") == "enabled":
                 thinking_level = thinking.get("level", "medium")
             else:
@@ -186,6 +207,7 @@ class LLMClient:
                 **kwargs,
             )
 
+        # Default: openai_compatible
         return ChatOpenAI(
             model=model_name,
             temperature=temperature,

@@ -204,6 +204,13 @@ export type {
   RoleModelAssignment,
   RoleModelAssignmentResponse,
   UserAllowedModelsResponse,
+  ProviderType,
+  LLMProviderModel,
+  LLMProvider,
+  LLMProviderCreate,
+  LLMProviderUpdate,
+  LLMProvidersResponse,
+  LLMProviderTestResponse,
 } from "./model";
 
 // ============================================

@@ -23,33 +23,55 @@ import { useTranslation } from "react-i18next";
 import { ProviderBadge } from "./ProviderBadge";
 import { ModelEditor } from "./ModelEditor";
 import type { ModelProviderConfig, ModelConfig } from "../../../../types";
-import { getProviderMeta } from "../../../../types/model";
+import {
+  getProviderMeta,
+  PROVIDER_TYPE_OPTIONS,
+} from "../../../../types/model";
+
+/** Built-in provider identifiers that are always shown in the dropdown. */
+const BUILTIN_PROVIDERS = [
+  "anthropic",
+  "google",
+  "openai",
+  "azure",
+  "bedrock",
+  "groq",
+  "deepseek",
+  "mistral",
+  "cohere",
+  "ollama",
+  "zai",
+] as const;
 
 interface ProviderEditorProps {
   provider: ModelProviderConfig;
+  providerNames?: string[];
   isLegacyInherited?: boolean;
   onUpdate: (updated: ModelProviderConfig) => void;
   onDelete: () => void;
   showDelete?: boolean;
 }
 
-const PROVIDER_OPTIONS = [
-  { value: "anthropic", label: "Anthropic" },
-  { value: "google", label: "Google Gemini" },
-  { value: "openai", label: "OpenAI" },
-  { value: "azure", label: "Azure OpenAI" },
-  { value: "bedrock", label: "AWS Bedrock" },
-  { value: "groq", label: "Groq" },
-  { value: "deepseek", label: "DeepSeek" },
-  { value: "mistral", label: "Mistral AI" },
-  { value: "cohere", label: "Cohere" },
-  { value: "ollama", label: "Ollama (Local)" },
-  { value: "minimax", label: "Minimax" },
-  { value: "zai", label: "ChatGLM" },
-];
+/** Build provider dropdown options from built-in list + any extra names from the API + "custom". */
+function buildProviderOptions(extraNames?: string[]) {
+  const seen = new Set<string>(BUILTIN_PROVIDERS);
+  if (extraNames) {
+    for (const n of extraNames) {
+      if (!seen.has(n)) seen.add(n);
+    }
+  }
+  const options: { value: string; label: string }[] = [];
+  for (const value of seen) {
+    const meta = getProviderMeta(value);
+    options.push({ value, label: meta?.display_name || value });
+  }
+  options.push({ value: "custom", label: "Custom" });
+  return options;
+}
 
 export function ProviderEditor({
   provider,
+  providerNames,
   isLegacyInherited = false,
   onUpdate,
   onDelete,
@@ -59,9 +81,13 @@ export function ProviderEditor({
   const [expanded, setExpanded] = useState(true);
   const [showApiKey, setShowApiKey] = useState(false);
   const [providerDropdownOpen, setProviderDropdownOpen] = useState(false);
+  const [providerTypeDropdownOpen, setProviderTypeDropdownOpen] = useState(false);
   const [localProvider, setLocalProvider] = useState(provider);
   const [apiKeyInput, setApiKeyInput] = useState(provider.api_key || "");
   const providerDropdownRef = useRef<HTMLDivElement | null>(null);
+  const providerTypeDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const PROVIDER_OPTIONS = buildProviderOptions(providerNames);
 
   useEffect(() => {
     setLocalProvider(provider);
@@ -87,6 +113,24 @@ export function ProviderEditor({
     };
   }, [providerDropdownOpen]);
 
+  useEffect(() => {
+    if (!providerTypeDropdownOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        providerTypeDropdownRef.current &&
+        !providerTypeDropdownRef.current.contains(event.target as Node)
+      ) {
+        setProviderTypeDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [providerTypeDropdownOpen]);
+
   const meta = getProviderMeta(localProvider.provider);
   const brandColor = meta?.color || "#78716c";
   const selectedProviderLabel =
@@ -94,6 +138,13 @@ export function ProviderEditor({
       ?.label ||
     meta?.display_name ||
     localProvider.provider;
+  const isCustomProvider = !BUILTIN_PROVIDERS.includes(
+    localProvider.provider as (typeof BUILTIN_PROVIDERS)[number],
+  );
+  const selectedProviderTypeLabel =
+    PROVIDER_TYPE_OPTIONS.find(
+      (opt) => opt.value === (localProvider.provider_type ?? "openai_compatible"),
+    )?.label ?? "OpenAI Compatible";
 
   const updateModel = (index: number, updated: ModelConfig) => {
     const newModels = [...localProvider.models];
@@ -148,6 +199,7 @@ export function ProviderEditor({
       ...localProvider,
       api_key: apiKeyInput || undefined,
       clear_api_key: localProvider.clear_api_key || false,
+      provider_type: localProvider.provider_type,
     });
   };
 
@@ -335,6 +387,62 @@ export function ProviderEditor({
                 placeholder={t("modelConfig.baseUrlPlaceholder")}
               />
             </div>
+
+            {/* Provider Type (only for custom providers) */}
+            {isCustomProvider && (
+              <div className="space-y-1.5">
+                <label
+                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--theme-text-secondary)" }}
+                >
+                  <Settings2 size={12} />
+                  {t("modelConfig.providerType")}
+                </label>
+                <div className="relative" ref={providerTypeDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setProviderTypeDropdownOpen((open) => !open)}
+                    className="model-config-input flex h-[46px] w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors"
+                    aria-haspopup="listbox"
+                    aria-expanded={providerTypeDropdownOpen}
+                  >
+                    <span className="truncate">{selectedProviderTypeLabel}</span>
+                    <ChevronDown
+                      size={18}
+                      className={`flex-shrink-0 transition-transform ${providerTypeDropdownOpen ? "rotate-180" : ""}`}
+                      style={{ color: "var(--theme-text-secondary)" }}
+                    />
+                  </button>
+
+                  {providerTypeDropdownOpen && (
+                    <div className="model-config-role-card model-config-dropdown-menu absolute z-10 mt-1.5 w-full overflow-hidden rounded-2xl shadow-lg">
+                      {PROVIDER_TYPE_OPTIONS.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            setLocalProvider({
+                              ...localProvider,
+                              provider_type: option.value,
+                            });
+                            setProviderTypeDropdownOpen(false);
+                          }}
+                          className={`model-config-role-card-option flex w-full items-center justify-between px-4 py-3 text-sm ${(localProvider.provider_type ?? "openai_compatible") === option.value ? "is-active" : ""}`}
+                        >
+                          <span className="truncate">{option.label}</span>
+                          {(localProvider.provider_type ?? "openai_compatible") === option.value && (
+                            <Check
+                              size={16}
+                              style={{ color: "var(--theme-primary)" }}
+                            />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* API Key - full width */}
             <div className="sm:col-span-2 space-y-1.5">

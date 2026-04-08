@@ -115,6 +115,17 @@ async def lifespan(app: FastAPI):
     await model_config_storage.ensure_indexes()
     logger.info("Model config storage indexes initialized")
 
+    # Seed llm_providers from LLM_AVAILABLE_MODELS (idempotent, runs once)
+    await model_config_storage.seed_from_env()
+    await model_config_storage.merge_legacy_credentials()
+
+    # Initialize provider type cache for LLMClient
+    from src.infra.llm.client import refresh_provider_type_cache
+
+    provider_types = await model_config_storage.get_provider_type_map()
+    refresh_provider_type_cache(provider_types)
+    logger.info(f"LLM provider type cache initialized ({len(provider_types)} providers)")
+
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager
 

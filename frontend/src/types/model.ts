@@ -25,6 +25,7 @@ export interface ModelProviderConfig {
   max_retries: number;
   retry_delay: number;
   models: ModelConfig[];
+  provider_type?: ProviderType;
 }
 
 export interface ProviderConfigResponse {
@@ -64,6 +65,70 @@ export interface UserAllowedModelsResponse {
 }
 
 // ============================================
+// Custom Provider Types
+// ============================================
+
+export type ProviderType = "openai_compatible" | "anthropic_compatible" | "google_compatible";
+
+export interface LLMProviderModel {
+  id: string;
+  name: string;
+  model_name: string;
+  description: string;
+  enabled: boolean;
+  supports_thinking: boolean;
+  api_key?: string | null;
+  api_base?: string | null;
+}
+
+export interface LLMProvider {
+  name: string;
+  display_name: string;
+  provider_type: ProviderType;
+  enabled: boolean;
+  api_key?: string | null;
+  api_base?: string | null;
+  models: LLMProviderModel[];
+  is_builtin: boolean;
+  builtin_provider_name?: string | null;
+  color: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface LLMProviderCreate {
+  name: string;
+  display_name: string;
+  provider_type: ProviderType;
+  api_key?: string | null;
+  api_base?: string | null;
+  enabled: boolean;
+  models: LLMProviderModel[];
+  color?: string;
+}
+
+export interface LLMProviderUpdate {
+  display_name?: string;
+  provider_type?: ProviderType;
+  api_key?: string | null;
+  api_base?: string | null;
+  enabled?: boolean;
+  models?: LLMProviderModel[];
+  color?: string;
+}
+
+export interface LLMProvidersResponse {
+  providers: LLMProvider[];
+  available_models: string[];
+}
+
+export interface LLMProviderTestResponse {
+  success: boolean;
+  error?: string | null;
+  latency_ms?: number | null;
+}
+
+// ============================================
 // Helper functions
 // ============================================
 
@@ -100,3 +165,9 @@ export function getProviderMeta(
 ): { color: string; display_name: string } | undefined {
   return PROVIDER_META[provider];
 }
+
+export const PROVIDER_TYPE_OPTIONS: { value: ProviderType; label: string }[] = [
+  { value: "openai_compatible", label: "OpenAI Compatible" },
+  { value: "anthropic_compatible", label: "Anthropic Compatible" },
+  { value: "google_compatible", label: "Google Compatible" },
+];

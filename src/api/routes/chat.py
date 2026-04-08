@@ -50,8 +50,10 @@ async def _validate_model_access(model_value: str | None, user: TokenPayload) ->
 
     model_storage = get_model_config_storage()
 
-    # 检查全局启用状态（优先 Provider 配置，兼容旧 LLM_AVAILABLE_MODELS）
-    enabled_ids = set(await model_storage.get_enabled_model_ids())
+    # 检查全局启用状态（优先 llm_providers，兼容旧 model_config + LLM_AVAILABLE_MODELS）
+    enabled_ids = set(await model_storage.get_all_enabled_model_ids())
+    if not enabled_ids:
+        enabled_ids = set(await model_storage.get_enabled_model_ids())
     if not enabled_ids:
         enabled_ids = {
             m.get("value") for m in (app_settings.LLM_AVAILABLE_MODELS or []) if m.get("value")

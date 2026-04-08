@@ -79,8 +79,15 @@ class ModelConfigPubSub:
             action = data.get("action", "unknown")
             logger.info(f"[ModelConfigPubSub] Received: {action}")
 
-            from src.infra.llm.client import LLMClient
+            from src.infra.llm.client import LLMClient, refresh_provider_type_cache
+            from src.infra.model.config_storage import get_model_config_storage
 
+            # 刷新 provider type cache
+            storage = get_model_config_storage()
+            provider_types = await storage.get_provider_type_map()
+            refresh_provider_type_cache(provider_types)
+
+            # 清除 LLM 模型缓存
             cleared = LLMClient.clear_cache_by_model()
             logger.info(f"[ModelConfigPubSub] Cleared {cleared} LLM cache entries after '{action}'")
         except Exception as e:

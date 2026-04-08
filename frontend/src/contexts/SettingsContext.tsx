@@ -85,6 +85,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             );
           }
         }
+
+        // Try to fetch richer model data from LLM providers for proper labels
+        try {
+          const providersResult = await modelConfigApi.getLLMProviders();
+          if (!cancelled && providersResult.providers.length > 0) {
+            const allModels: AvailableModel[] = [];
+            for (const p of providersResult.providers) {
+              for (const m of p.models) {
+                allModels.push({
+                  value: m.id,
+                  label: m.name || m.id,
+                  description: m.description,
+                  provider: p.name,
+                });
+              }
+            }
+            setAllFlatModels(allModels);
+          }
+        } catch {
+          // ignore - fallback to existing behavior
+        }
       } catch {
         // API 失败时（如无配置），不限制模型
       }

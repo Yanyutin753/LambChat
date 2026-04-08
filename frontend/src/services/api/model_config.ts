@@ -12,6 +12,11 @@ import type {
   ModelConfig,
   ModelProviderConfig,
   ProviderConfigResponse,
+  LLMProvider,
+  LLMProviderCreate,
+  LLMProviderUpdate,
+  LLMProvidersResponse,
+  LLMProviderTestResponse,
 } from "../../types";
 import type { ProviderConfig } from "../../types/model";
 
@@ -134,6 +139,62 @@ export const modelConfigApi = {
     });
 
     return modelConfigApi.getProviderConfig();
+  },
+
+  /** 获取所有 LLM Providers（内置 + 自定义） */
+  async getLLMProviders(): Promise<LLMProvidersResponse> {
+    return authFetch<LLMProvidersResponse>(
+      `${API_BASE}/api/model/config/llm-providers`,
+    );
+  },
+
+  /** 创建自定义 LLM Provider */
+  async createLLMProvider(
+    provider: LLMProviderCreate,
+  ): Promise<LLMProvider> {
+    return authFetch<LLMProvider>(
+      `${API_BASE}/api/model/config/llm-providers`,
+      {
+        method: "POST",
+        body: JSON.stringify(provider),
+      },
+    );
+  },
+
+  /** 更新 LLM Provider */
+  async updateLLMProvider(
+    name: string,
+    update: LLMProviderUpdate,
+  ): Promise<LLMProvider> {
+    return authFetch<LLMProvider>(
+      `${API_BASE}/api/model/config/llm-providers/${encodeURIComponent(name)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(update),
+      },
+    );
+  },
+
+  /** 删除自定义 LLM Provider */
+  async deleteLLMProvider(name: string): Promise<void> {
+    await authFetch(
+      `${API_BASE}/api/model/config/llm-providers/${encodeURIComponent(name)}`,
+      { method: "DELETE" },
+    );
+  },
+
+  /** 测试 Provider 连接 */
+  async testLLMProvider(
+    name: string,
+    modelName?: string,
+  ): Promise<LLMProviderTestResponse> {
+    return authFetch<LLMProviderTestResponse>(
+      `${API_BASE}/api/model/config/llm-providers/${encodeURIComponent(name)}/test`,
+      {
+        method: "POST",
+        body: JSON.stringify({ model_name: modelName }),
+      },
+    );
   },
 
   /** 获取当前用户可用的模型列表 */

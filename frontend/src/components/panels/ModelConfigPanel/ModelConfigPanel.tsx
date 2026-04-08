@@ -138,6 +138,7 @@ export function ModelConfigPanel() {
       max_retries: 3,
       retry_delay: 1.0,
       models: [],
+      provider_type: "openai_compatible",
     }),
     [t],
   );
