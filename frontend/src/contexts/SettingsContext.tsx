@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { modelConfigApi } from "../services/api/model_config";
-import type { SettingsResponse, ModelConfig } from "../types";
+import type { SettingsResponse } from "../types";
 import { resolveAvailableModelValue } from "../types/model";
 
 export interface AvailableModel {
@@ -71,24 +71,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     const fetchAllowedModels = async () => {
       try {
-        const [allowedResult, providerResult] = await Promise.all([
-          modelConfigApi.getUserAllowedModels(),
-          modelConfigApi.getProviderConfig().catch(() => null),
-        ]);
+        const allowedResult = await modelConfigApi.getUserAllowedModels();
         if (!cancelled) {
-          setAllowedModelIds(new Set(allowedResult.models));
-          if (providerResult) {
-            setAllFlatModels(
-              providerResult.flat_models.map((m: ModelConfig) => ({
-                value: m.value || m.id || "",
-                label: m.label || m.name || "",
-                description: m.description,
-                provider: m.provider,
-              })),
-            );
-          } else if (allowedResult.models.length > 0) {
-            // Fallback for non-admin users (no /providers permission):
-            // still build a usable model list from allowed model IDs.
+          const ids = new Set(allowedResult.models);
+          setAllowedModelIds(ids);
+          if (allowedResult.models.length > 0) {
             setAllFlatModels(
               allowedResult.models.map((value: string) => ({
                 value,
@@ -120,8 +107,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
 
     const models = Array.isArray(rawModels) ? rawModels : [];
-    // allowedModelIds 为 null 表示未配置权限限制，显示全部模型
-    if (allowedModelIds === null) return models;
+    // allowedModelIds 为 null 或空 Set 表示未配置权限限制，显示全部模型
+    if (allowedModelIds === null || allowedModelIds.size === 0) return models;
 
     // 过滤为仅允许的模型
     const filtered = models.filter((m) => allowedModelIds.has(m.value));

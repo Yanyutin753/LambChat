@@ -166,16 +166,15 @@ export const modelConfigApi = {
       }
     }
 
-    await Promise.all([
-      authFetch(`${API_BASE}/api/model/config/global`, {
-        method: "PUT",
-        body: JSON.stringify({ models: allModels }),
-      }),
-      authFetch(`${API_BASE}/api/model/config/providers`, {
-        method: "PUT",
-        body: JSON.stringify({ providers: providerConfigs }),
-      }),
-    ]);
+    // Sequential save to avoid partial state on failure
+    await authFetch(`${API_BASE}/api/model/config/global`, {
+      method: "PUT",
+      body: JSON.stringify({ models: allModels }),
+    });
+    await authFetch(`${API_BASE}/api/model/config/providers`, {
+      method: "PUT",
+      body: JSON.stringify({ providers: providerConfigs }),
+    });
 
     // Re-fetch to get the canonical state
     return modelConfigApi.getProviderConfig();
