@@ -200,7 +200,6 @@ export type {
   ModelConfig,
   ModelProviderConfig,
   ProviderConfigResponse,
-  ProviderConfig,
   GlobalModelConfigResponse,
   RoleModelAssignment,
   RoleModelAssignmentResponse,

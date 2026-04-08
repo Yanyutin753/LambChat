@@ -11,51 +11,11 @@ import type {
   UserAllowedModelsResponse,
   ModelConfig,
   ModelProviderConfig,
-  ProviderConfig,
   ProviderConfigResponse,
 } from "../../types";
+import type { ProviderConfig } from "../../types/model";
 
 export const modelConfigApi = {
-  /** 获取全局 Model 配置（需要管理员权限） */
-  async getGlobalConfig(): Promise<GlobalModelConfigResponse> {
-    return authFetch<GlobalModelConfigResponse>(
-      `${API_BASE}/api/model/config/global`,
-    );
-  },
-
-  /** 更新全局 Model 配置（需要管理员权限） */
-  async updateGlobalConfig(
-    models: ModelConfig[],
-  ): Promise<GlobalModelConfigResponse> {
-    return authFetch<GlobalModelConfigResponse>(
-      `${API_BASE}/api/model/config/global`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ models }),
-      },
-    );
-  },
-
-  /** 获取所有 Provider 配置（需要管理员权限） */
-  async getProviders(): Promise<ProviderConfig[]> {
-    return authFetch<ProviderConfig[]>(
-      `${API_BASE}/api/model/config/providers`,
-    );
-  },
-
-  /** 更新 Provider 配置（需要管理员权限） */
-  async updateProviders(
-    providers: ProviderConfig[],
-  ): Promise<ProviderConfig[]> {
-    return authFetch<ProviderConfig[]>(
-      `${API_BASE}/api/model/config/providers`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ providers }),
-      },
-    );
-  },
-
   /** 获取角色的可用 Models（需要管理员权限） */
   async getRoleModels(roleId: string): Promise<RoleModelAssignment> {
     return authFetch<RoleModelAssignment>(
@@ -77,7 +37,7 @@ export const modelConfigApi = {
     );
   },
 
-  /** 获取 Provider 配置（组合 global + providers 接口） */
+  /** 获取 Provider 配置（组合 global + providers 接口，需要管理员权限） */
   async getProviderConfig(): Promise<ProviderConfigResponse> {
     const [globalConfig, providers] = await Promise.all([
       authFetch<GlobalModelConfigResponse>(
@@ -88,7 +48,6 @@ export const modelConfigApi = {
       ),
     ]);
 
-    // Group models by provider
     const providerMap = new Map<string, ModelProviderConfig>();
     const flatModels: ModelConfig[] = [];
 
@@ -137,11 +96,10 @@ export const modelConfigApi = {
     };
   },
 
-  /** 更新 Provider 配置 */
+  /** 更新 Provider 配置（需要管理员权限） */
   async updateProviderConfig(
     newProviders: ModelProviderConfig[],
   ): Promise<ProviderConfigResponse> {
-    // Flatten provider models into global config
     const allModels: ModelConfig[] = [];
     const providerConfigs: ProviderConfig[] = [];
 
@@ -166,7 +124,6 @@ export const modelConfigApi = {
       }
     }
 
-    // Sequential save to avoid partial state on failure
     await authFetch(`${API_BASE}/api/model/config/global`, {
       method: "PUT",
       body: JSON.stringify({ models: allModels }),
@@ -176,7 +133,6 @@ export const modelConfigApi = {
       body: JSON.stringify({ providers: providerConfigs }),
     });
 
-    // Re-fetch to get the canonical state
     return modelConfigApi.getProviderConfig();
   },
 
