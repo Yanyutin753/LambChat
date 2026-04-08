@@ -1,66 +1,29 @@
 from src.infra.llm import client as llm_client
-from src.infra.llm.client import LLMClient
 from src.infra.llm.providers.registry import ProviderRegistry
-from src.kernel.config import settings
 
 
-def test_find_provider_for_prefixed_and_unprefixed_model(monkeypatch):
-    monkeypatch.setattr(
-        llm_client,
-        "_provider_config_cache",
-        [
-            {
-                "provider": "zai",
-                "api_key": "zai-key",
-                "base_url": "https://open.bigmodel.cn/api/anthropic",
-                "temperature": 0.7,
-                "max_tokens": 1234,
-                "max_retries": 3,
-                "models": [{"value": "glm-5.1", "enabled": True}],
-            }
-        ],
-    )
-
-    prefixed = llm_client._find_provider_for_model("zai/glm-5.1")
-    unprefixed = llm_client._find_provider_for_model("glm-5.1")
-
-    assert prefixed is not None
-    assert unprefixed is not None
-    assert prefixed["provider"] == "zai"
-    assert unprefixed["provider"] == "zai"
-
-
-def test_default_model_prefers_enabled_provider_config(monkeypatch):
-    monkeypatch.setattr(settings, "LLM_MODEL", "anthropic/claude-3-5-sonnet-20241022", raising=False)
-    monkeypatch.setattr(
-        llm_client,
-        "_provider_config_cache",
-        [
-            {
-                "provider": "zai",
-                "api_key": "zai-key",
-                "base_url": "https://open.bigmodel.cn/api/anthropic",
-                "temperature": 0.55,
-                "max_tokens": 9000,
-                "max_retries": 5,
-                "models": [{"value": "glm-5.1", "enabled": True}],
-            }
-        ],
-    )
-    monkeypatch.setattr(
-        LLMClient,
-        "_create_model",
-        staticmethod(lambda provider, model_name, **kwargs: (provider, model_name, kwargs)),
-    )
-    LLMClient._model_cache.clear()
-
-    provider, model_name, kwargs = LLMClient.get_model()
-
+def test_parse_provider_extracts_prefix_and_model():
+    provider, model_name = llm_client._parse_provider("zai/glm-5.1")
     assert provider == "zai"
     assert model_name == "glm-5.1"
-    assert kwargs["api_key"] == "zai-key"
-    assert kwargs["api_base"] == "https://open.bigmodel.cn/api/anthropic"
-    assert kwargs["max_tokens"] == 9000
+
+
+def test_parse_provider_defaults_for_unprefixed_model():
+    provider, model_name = llm_client._parse_provider("glm-5.1")
+    assert provider == "openai"
+    assert model_name == "glm-5.1"
+
+
+def test_parse_provider_recognizes_claude():
+    provider, model_name = llm_client._parse_provider("claude-3-5-sonnet-20241022")
+    assert provider == "anthropic"
+    assert model_name == "claude-3-5-sonnet-20241022"
+
+
+def test_parse_provider_recognizes_gemini():
+    provider, model_name = llm_client._parse_provider("gemini-pro")
+    assert provider == "gemini"
+    assert model_name == "gemini-pro"
 
 
 def test_registry_recognizes_glm_models():

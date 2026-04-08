@@ -5,10 +5,10 @@ ZAI provider (ChatGLM models via Zhipu / BigModel).
 from typing import Any, Optional
 
 from src.infra.llm.providers.registry import (
+    PROVIDER_BRAND_COLORS,
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
-    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings

@@ -5,10 +5,10 @@ Google Generative AI provider (Gemini models).
 from typing import Any, Optional
 
 from src.infra.llm.providers.registry import (
+    PROVIDER_BRAND_COLORS,
     BaseLLMProvider,
     ProviderConfig,
     ProviderModelInfo,
-    PROVIDER_BRAND_COLORS,
     ProviderUIMeta,
 )
 from src.kernel.config import settings

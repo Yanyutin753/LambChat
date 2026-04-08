@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 import pytest
 
@@ -70,7 +71,7 @@ async def test_find_existing_memory_match_returns_best_existing_match():
 @pytest.mark.asyncio
 async def test_retain_updates_existing_memory_and_refreshes_embedding():
     now = datetime.now(timezone.utc)
-    seen: dict[str, object] = {}
+    seen: dict[str, Any] = {}
 
     class FakeCursor:
         def __init__(self, docs):
