@@ -12,3 +12,6 @@ HEARTBEAT_TIMEOUT = 60  # 心跳超时阈值（秒）
 
 # Settings sync channel (distributed instances)
 SETTINGS_CHANNEL = "settings:changed"
+
+# Model config sync channel (provider credentials, model enable/disable, role permissions)
+MODEL_CONFIG_CHANNEL = "model_config:changed"

@@ -73,10 +73,18 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     # 获取附件
     attachments = state.get("attachments", [])
 
-    # 创建 LLM - credentials come from provider config (MongoDB or registry)
+    # 解析模型凭证：per-model → provider → global
+    resolved_model = selected_model or settings.LLM_MODEL
+    from src.infra.model.config_storage import resolve_model_credentials
+
+    resolved_api_key, resolved_api_base = await resolve_model_credentials(resolved_model)
+
+    # 创建 LLM
     llm_start = time.time()
     llm = LLMClient.get_model(
-        model=selected_model,
+        api_base=resolved_api_base,
+        api_key=resolved_api_key,
+        model=resolved_model,
         temperature=settings.LLM_TEMPERATURE,
         max_tokens=settings.LLM_MAX_TOKENS,
         thinking={"type": "enabled"} if enable_thinking else None,

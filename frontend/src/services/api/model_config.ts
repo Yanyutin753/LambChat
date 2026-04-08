@@ -5,26 +5,47 @@
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 import type {
-  ProviderModelConfigResponse,
+  GlobalModelConfigResponse,
   RoleModelAssignment,
   RoleModelAssignmentResponse,
   UserAllowedModelsResponse,
-  ModelProviderConfig,
+  ModelConfig,
+  ProviderConfig,
 } from "../../types";
 
 export const modelConfigApi = {
-  /** 获取 Provider 分组配置（需要管理员权限） */
-  async getProviderConfig(): Promise<ProviderModelConfigResponse> {
-    return authFetch<ProviderModelConfigResponse>(
+  /** 获取全局 Model 配置（需要管理员权限） */
+  async getGlobalConfig(): Promise<GlobalModelConfigResponse> {
+    return authFetch<GlobalModelConfigResponse>(
+      `${API_BASE}/api/model/config/global`,
+    );
+  },
+
+  /** 更新全局 Model 配置（需要管理员权限） */
+  async updateGlobalConfig(
+    models: ModelConfig[],
+  ): Promise<GlobalModelConfigResponse> {
+    return authFetch<GlobalModelConfigResponse>(
+      `${API_BASE}/api/model/config/global`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ models }),
+      },
+    );
+  },
+
+  /** 获取所有 Provider 配置（需要管理员权限） */
+  async getProviders(): Promise<ProviderConfig[]> {
+    return authFetch<ProviderConfig[]>(
       `${API_BASE}/api/model/config/providers`,
     );
   },
 
-  /** 更新 Provider 分组配置（需要管理员权限） */
-  async updateProviderConfig(
-    providers: ModelProviderConfig[],
-  ): Promise<ProviderModelConfigResponse> {
-    return authFetch<ProviderModelConfigResponse>(
+  /** 更新 Provider 配置（需要管理员权限） */
+  async updateProviders(
+    providers: ProviderConfig[],
+  ): Promise<ProviderConfig[]> {
+    return authFetch<ProviderConfig[]>(
       `${API_BASE}/api/model/config/providers`,
       {
         method: "PUT",

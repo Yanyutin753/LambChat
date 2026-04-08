@@ -115,12 +115,6 @@ async def lifespan(app: FastAPI):
     await model_config_storage.ensure_indexes()
     logger.info("Model config storage indexes initialized")
 
-    # 预加载 Provider 配置到 LLMClient 缓存
-    from src.infra.llm.client import refresh_provider_config_cache
-
-    refresh_provider_config_cache()
-    logger.info("Provider config pre-loaded into LLM client cache")
-
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager
 
@@ -138,6 +132,13 @@ async def lifespan(app: FastAPI):
     settings_pubsub = get_settings_pubsub()
     await settings_pubsub.start_listener()
     logger.info("Settings pub/sub listener started")
+
+    # 启动 Model Config pub/sub 监听器（支持分布式模型配置同步）
+    from src.infra.model.pubsub import get_model_config_pubsub
+
+    model_config_pubsub = get_model_config_pubsub()
+    await model_config_pubsub.start_listener()
+    logger.info("Model config pub/sub listener started")
 
     # 启动 Memory pub/sub 监听器（支持分布式记忆缓存失效）
     from src.infra.memory.distributed import get_memory_pubsub
@@ -205,6 +206,13 @@ async def lifespan(app: FastAPI):
         settings_pubsub = get_settings_pubsub()
         await settings_pubsub.stop_listener()
         logger.info("Settings pub/sub listener stopped")
+
+        # 停止 Model Config pub/sub 监听器
+        from src.infra.model.pubsub import get_model_config_pubsub
+
+        model_config_pubsub = get_model_config_pubsub()
+        await model_config_pubsub.stop_listener()
+        logger.info("Model config pub/sub listener stopped")
 
         # 停止 Memory pub/sub 监听器 + 关闭 memory backend
         from src.infra.memory.distributed import get_memory_pubsub

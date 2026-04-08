@@ -69,6 +69,11 @@ async def refresh_settings(key: Optional[str] = None) -> None:
     if _settings_service is None:
         return
 
+    # Invalidate LLMClient's raw settings cache so get_api_key() reloads
+    from src.infra.llm.client import clear_setting_cache
+
+    clear_setting_cache()
+
     # Settings that affect LLM model cache (used for title generation etc.)
     llm_affected_settings = {
         "SESSION_TITLE_MODEL",
@@ -77,6 +82,10 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "LLM_API_BASE",
         "LLM_API_KEY",
         "LLM_MAX_RETRIES",
+        "LLM_MODEL",
+        "LLM_TEMPERATURE",
+        "LLM_MAX_TOKENS",
+        "LLM_MODEL_CACHE_SIZE",
     }
 
     # Settings that require memory backend reinitialization

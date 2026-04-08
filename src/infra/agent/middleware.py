@@ -975,9 +975,14 @@ class SubagentActivityMiddleware(AgentMiddleware):
         from langchain_core.messages import HumanMessage
 
         from src.infra.llm.client import LLMClient
+        from src.infra.model.config_storage import resolve_model_credentials
 
-        # Use the default provider config (from MongoDB or registry)
+        # Use the same model config with credential resolution
+        resolved_api_key, resolved_api_base = await resolve_model_credentials(settings.LLM_MODEL)
         llm = LLMClient.get_model(
+            api_base=resolved_api_base,
+            api_key=resolved_api_key,
+            model=settings.LLM_MODEL,
             temperature=0.3,
             max_tokens=1500,
         )
