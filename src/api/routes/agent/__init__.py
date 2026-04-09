@@ -286,7 +286,6 @@ async def list_agents(
             return None
 
         role_results = await asyncio.gather(*[_fetch_role(rn) for rn in user_roles])
-        all_allowed_models: list[str] = []
         for result in role_results:
             if result is not None:
                 rid, role_agents, role_models, role_name = result
