@@ -97,9 +97,7 @@ class ModelStorage:
                             and not self._is_encrypted(fresh_doc["api_key"])
                         ):
                             try:
-                                encrypted = self._encrypt_api_key(
-                                    fresh_doc["api_key"]
-                                )
+                                encrypted = self._encrypt_api_key(fresh_doc["api_key"])
                                 await self._get_collection().update_one(
                                     {"id": model_id},
                                     {"$set": {"api_key": encrypted}},
