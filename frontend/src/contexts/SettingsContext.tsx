@@ -13,6 +13,7 @@ import { modelApi } from "../services/api";
 import type { SettingsResponse } from "../types";
 
 export interface AvailableModel {
+  id: string;
   value: string;
   label: string;
   description?: string;
@@ -70,6 +71,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (data.models && data.models.length > 0) {
           setDbModels(
             data.models.map((m) => ({
+              id: m.id || "",
               value: m.value,
               label: m.label,
               description: m.description,
@@ -95,7 +97,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const defaultModel = useMemo(() => {
     return availableModels && availableModels.length > 0
-      ? availableModels[0].value
+      ? availableModels[0].id
       : "";
   }, [availableModels]);
 

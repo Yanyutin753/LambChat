@@ -6,6 +6,7 @@ import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
 import type { Role } from "../../../../types";
 
 interface ModelOption {
+  id: string;
   value: string;
   label: string;
   description?: string;
@@ -90,7 +91,7 @@ export function RolesModelTab({
     if (!selectedRole) return;
     setLocalRoleModels((prev) => ({
       ...prev,
-      [selectedRole]: availableModels.map((m) => m.value),
+      [selectedRole]: availableModels.map((m) => m.id),
     }));
   };
 

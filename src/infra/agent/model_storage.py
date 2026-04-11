@@ -44,7 +44,8 @@ class ModelStorage:
 
     async def ensure_indexes(self):
         """创建必要的 MongoDB 索引"""
-        await self._get_collection().create_index("value", unique=True)
+        await self._get_collection().create_index("id", unique=True)
+        await self._get_collection().create_index("value")
         await self._get_collection().create_index("enabled")
         await self._get_collection().create_index("order")
 
@@ -236,16 +237,17 @@ class ModelStorage:
         result = await self._get_collection().delete_one({"id": model_id})
         return result.deleted_count > 0
 
-    async def exists(self, value: str) -> bool:
-        """检查模型 value 是否已存在
+    async def exists(self, value: str, *, field: str = "value") -> bool:
+        """检查模型是否已存在
 
         Args:
-            value: 模型标识符
+            value: 要查找的值
+            field: 查找字段，默认 "value"，可设为 "id"
 
         Returns:
             是否存在
         """
-        doc = await self._get_collection().find_one({"value": value})
+        doc = await self._get_collection().find_one({field: value})
         return doc is not None
 
     async def count(self, include_disabled: bool = False) -> dict[str, int]:

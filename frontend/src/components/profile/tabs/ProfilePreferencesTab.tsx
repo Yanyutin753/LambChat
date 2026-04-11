@@ -289,14 +289,14 @@ export function ProfilePreferencesTab() {
             label={t("profile.defaultModel")}
             value={selectedModel}
             options={availableModels.map((m) => ({
-              key: m.value,
+              key: m.id,
               labelKey: "",
             }))}
             open={openDropdown === "model"}
             onToggle={() => toggle("model")}
             onSelect={handleModelChange}
             renderLabel={(val) => {
-              const m = availableModels.find((m) => m.value === val);
+              const m = availableModels.find((m) => m.id === val);
               return m ? m.label : val;
             }}
           />

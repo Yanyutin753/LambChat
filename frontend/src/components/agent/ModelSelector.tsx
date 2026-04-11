@@ -34,6 +34,7 @@ function ModelIconImg({ model, size }: { model: string; size: number }) {
 }
 
 export interface ModelOption {
+  id: string;
   value: string;
   label: string;
   description?: string;
@@ -136,11 +137,11 @@ const ModelSelector = memo(function ModelSelector({
   const [showSelector, setShowSelector] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentModelInfo = models.find((m) => m.value === currentModel);
+  const currentModelInfo = models.find((m) => m.id === currentModel);
 
   const handleSelectModel = useCallback(
-    (modelValue: string) => {
-      onSelectModel(modelValue);
+    (modelId: string) => {
+      onSelectModel(modelId);
       setShowSelector(false);
     },
     [onSelectModel],
@@ -193,10 +194,10 @@ const ModelSelector = memo(function ModelSelector({
         <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {models.map((model) => (
             <ModelItem
-              key={model.value}
+              key={model.id}
               model={model}
-              isSelected={model.value === currentModel}
-              onSelect={() => handleSelectModel(model.value)}
+              isSelected={model.id === currentModel}
+              onSelect={() => handleSelectModel(model.id)}
             />
           ))}
         </div>

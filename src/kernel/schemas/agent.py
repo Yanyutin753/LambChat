@@ -203,15 +203,13 @@ class RoleModelAssignment(BaseModel):
 
     role_id: str = Field(..., description="Role ID")
     role_name: str = Field(..., description="Role name")
-    allowed_models: list[str] = Field(
-        default_factory=list, description="List of allowed model values"
-    )
+    allowed_models: list[str] = Field(default_factory=list, description="List of allowed model ids")
 
 
 class RoleModelAssignmentUpdate(BaseModel):
     """Update role's accessible models."""
 
-    allowed_models: list[str] = Field(..., description="List of allowed model values")
+    allowed_models: list[str] = Field(..., description="List of allowed model ids")
 
 
 # ============================================

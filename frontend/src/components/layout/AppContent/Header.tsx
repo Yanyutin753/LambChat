@@ -22,7 +22,7 @@ interface HeaderProps {
   projectManager: { projects: Project[] };
   onNewSession: () => void;
   onShowProfile: () => void;
-  availableModels?: { value: string; label: string }[] | null;
+  availableModels?: { id: string; value: string; label: string }[] | null;
   currentModel?: string;
   onSelectModel?: (modelValue: string) => void;
   sessionId?: string | null;

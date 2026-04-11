@@ -40,22 +40,81 @@ def clear_memory_cache() -> None:
 
 
 async def get_default_model(allowed_models: Optional[list[str]] = None) -> str:
-    """Return the first available model's value, or empty string.
+    """Return the first available model's id, or empty string.
 
     Args:
         allowed_models: If provided, only consider models in this list
-                       (role-based access control).
+                       (role-based access control, stores model ids now).
     """
     models = await get_available_models()
     if allowed_models is not None:
         allowed_set = set(allowed_models)
         for m in models:
-            if m.get("value") in allowed_set:
-                return m.get("value", "")
+            if m.get("id") in allowed_set:
+                return m.get("id", "")
         return ""
     if models:
-        return models[0].get("value", "")
+        return models[0].get("id", "")
     return ""
+
+
+async def get_model_by_id(model_id: str) -> Optional[dict[str, Any]]:
+    """Get full model config by id (including api_key).
+
+    Used by LLM client to get complete config for inference.
+    Falls through: memory cache → Redis → DB.
+    """
+    # 1. Memory cache
+    global _memory_cache
+    if _memory_cache is not None:
+        for m in _memory_cache:
+            if m.get("id") == model_id:
+                # Cache may not have api_key, fetch from DB
+                try:
+                    from src.infra.agent.model_storage import get_model_storage
+
+                    db_model = await get_model_storage().get(model_id)
+                    if db_model:
+                        full = db_model.model_dump()
+                        return full
+                except Exception:
+                    pass
+                return m
+
+    # 2. Redis cache
+    try:
+        from src.infra.storage.redis import get_redis_client
+
+        redis_client = get_redis_client()
+        cached = await redis_client.get(_MODELS_CACHE_KEY)
+        if cached:
+            model_list = json.loads(cached)
+            _memory_cache = model_list
+            for m in model_list:
+                if m.get("id") == model_id:
+                    try:
+                        from src.infra.agent.model_storage import get_model_storage
+
+                        db_model = await get_model_storage().get(model_id)
+                        if db_model:
+                            return db_model.model_dump()
+                    except Exception:
+                        pass
+                    return m
+    except Exception:
+        pass
+
+    # 3. DB
+    try:
+        from src.infra.agent.model_storage import get_model_storage
+
+        db_model = await get_model_storage().get(model_id)
+        if db_model:
+            return db_model.model_dump()
+    except Exception as e:
+        logger.error(f"[LLMModels] DB query failed for model_id {model_id}: {e}")
+
+    return None
 
 
 async def get_available_models() -> list[dict[str, Any]]:

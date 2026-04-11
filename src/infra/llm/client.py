@@ -178,19 +178,9 @@ class LLMClient:
         """获取 LangChain 聊天模型（带缓存）。
 
         Args:
-            model: Model identifier (e.g., "anthropic/claude-3-5-sonnet")
-            temperature: Sampling temperature. If use_model_config=True and model config
-                has temperature set, this parameter is ignored.
-            max_tokens: Maximum tokens to generate. If use_model_config=True and model config
-                has max_tokens set, this parameter is ignored.
-            api_key: API key for the provider. If use_model_config=True and model config
-                has api_key set, this parameter is ignored.
-            api_base: Base URL for the API. If use_model_config=True and model config
-                has api_base set, this parameter is ignored.
-            thinking: Thinking mode configuration.
-            profile: Per-model configuration (e.g., max_input_tokens).
-            use_model_config: If True, look up model config from endpoint/static list
-                and apply per-model overrides. Default True.
+            model: Model ID (UUID) or legacy model value (e.g., "anthropic/claude-3-5-sonnet").
+                   If UUID, full config is looked up by id.
+                   If not UUID format, treated as legacy value for backward compatibility.
         """
         # Only resolve default model when actually needed
         resolved_default: Optional[str] = None
@@ -200,30 +190,18 @@ class LLMClient:
 
             resolved_default = await get_default_model()
             model = resolved_default
-        provider, model_name = _parse_provider(model)
 
-        # 当模型没有显式 provider 前缀（无 '/'）且与默认模型不同时，
-        # 使用默认模型的 provider，确保 API 格式一致性。
-        # 例如：代理服务(one-api/litellm)统一用 OpenAI 格式，
-        # 切换到 claude-xxx 模型不应自动切换为 Anthropic 格式。
-        if "/" not in model:
-            from src.infra.llm.models_service import get_default_model
+        # Detect UUID vs legacy value format
+        _is_uuid = model and "-" in model and len(model) == 36
 
-            resolved_default = resolved_default or await get_default_model()
-            if resolved_default and model != resolved_default:
-                default_provider, _ = _parse_provider(resolved_default)
-                provider = default_provider
+        if _is_uuid:
+            # New path: model is a UUID, look up full config by id
+            from src.infra.llm.models_service import get_model_by_id
 
-        # Look up per-model config for overrides
-        if use_model_config:
-            from src.infra.llm.models_service import get_available_models
-
-            available_models = await get_available_models()
-            # Build dict for O(1) lookup instead of O(n) scan
-            model_map = {m.get("value"): m for m in available_models}
-            model_cfg = model_map.get(model)
+            model_cfg = await get_model_by_id(model)
             if model_cfg:
-                # Apply per-model overrides (explicit params still take priority)
+                # Extract the actual model value for provider parsing
+                model_value = model_cfg.get("value", model)
                 if not api_key and model_cfg.get("api_key"):
                     api_key = model_cfg["api_key"]
                 if not api_base and model_cfg.get("api_base"):
@@ -234,18 +212,64 @@ class LLMClient:
                     max_tokens = model_cfg["max_tokens"]
                 if profile is None and model_cfg.get("profile"):
                     profile = model_cfg["profile"]
+                provider, model_name = _parse_provider(model_value)
+            else:
+                # Fallback if id not found: treat as value
+                provider, model_name = _parse_provider(model)
+        else:
+            # Legacy path: model is a value string
+            provider, model_name = _parse_provider(model)
 
-            # Cache may not contain api_key (stripped for security).
-            # Fall back to DB for the api_key.
-            if not api_key and use_model_config:
-                try:
-                    from src.infra.agent.model_storage import get_model_storage
+            # 当模型没有显式 provider 前缀（无 '/'）且与默认模型不同时，
+            # 使用默认模型的 provider，确保 API 格式一致性。
+            if "/" not in model:
+                from src.infra.llm.models_service import get_default_model
 
-                    db_model = await get_model_storage().get_by_value(model)
-                    if db_model and db_model.api_key:
-                        api_key = db_model.api_key
-                except Exception as e:
-                    logger.debug(f"Failed to fetch api_key from DB for model {model}: {e}")
+                resolved_default = resolved_default or await get_default_model()
+                if resolved_default and model != resolved_default:
+                    # If default is UUID, look up its value to get provider
+                    if "-" in resolved_default and len(resolved_default) == 36:
+                        from src.infra.llm.models_service import get_model_by_id
+
+                        default_cfg = await get_model_by_id(resolved_default)
+                        if default_cfg:
+                            default_value = default_cfg.get("value", "")
+                            default_provider, _ = _parse_provider(default_value)
+                            provider = default_provider
+                    else:
+                        default_provider, _ = _parse_provider(resolved_default)
+                        provider = default_provider
+
+            # Look up per-model config for overrides
+            if use_model_config:
+                from src.infra.llm.models_service import get_available_models
+
+                available_models = await get_available_models()
+                # Build dict for O(1) lookup by value
+                model_map = {m.get("value"): m for m in available_models}
+                mcfg = model_map.get(model)
+                if mcfg:
+                    if not api_key and mcfg.get("api_key"):
+                        api_key = mcfg["api_key"]
+                    if not api_base and mcfg.get("api_base"):
+                        api_base = mcfg["api_base"]
+                    if mcfg.get("temperature") is not None:
+                        temperature = mcfg["temperature"]
+                    if max_tokens is None and mcfg.get("max_tokens") is not None:
+                        max_tokens = mcfg["max_tokens"]
+                    if profile is None and mcfg.get("profile"):
+                        profile = mcfg["profile"]
+
+                # Cache may not contain api_key (stripped for security).
+                if not api_key and use_model_config:
+                    try:
+                        from src.infra.agent.model_storage import get_model_storage
+
+                        db_model = await get_model_storage().get_by_value(model)
+                        if db_model and db_model.api_key:
+                            api_key = db_model.api_key
+                    except Exception as e:
+                        logger.debug(f"Failed to fetch api_key from DB for model {model}: {e}")
 
         cache_key = _make_cache_key(
             provider,

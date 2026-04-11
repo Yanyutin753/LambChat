@@ -54,7 +54,7 @@ interface AppShellProps {
   sidebar?: ReactNode;
   children: ReactNode;
   // Model selection
-  availableModels?: { value: string; label: string }[] | null;
+  availableModels?: { id: string; value: string; label: string }[] | null;
   currentModel?: string;
   onSelectModel?: (modelValue: string) => void;
   // Share
@@ -241,7 +241,7 @@ function ChatAppContent({
     if (!availableModels) return null;
     if (!agentAllowedModels || agentAllowedModels.length === 0)
       return availableModels;
-    return availableModels.filter((m) => agentAllowedModels.includes(m.value));
+    return availableModels.filter((m) => agentAllowedModels.includes(m.id));
   }, [availableModels, agentAllowedModels]);
 
   // 现在可以初始化 agentOptions
