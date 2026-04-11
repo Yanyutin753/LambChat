@@ -153,11 +153,13 @@ export function SearchDialog({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
   useEffect(() => {
     if (!isOpen) return;
-    clearTimeout(debounceTimerRef.current!);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       fetchSessions(true);
     }, 200);
-    return () => clearTimeout(debounceTimerRef.current);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
