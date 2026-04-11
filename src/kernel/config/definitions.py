@@ -81,44 +81,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # LLM Settings
     # ============================================
-    "LLM_MODEL": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM model identifier (e.g., anthropic/claude-3-5-sonnet)",
-        "default": "anthropic/claude-3-5-sonnet-20241022",
-    },
-    "LLM_AVAILABLE_MODELS": {
-        "type": SettingType.JSON,
-        "category": SettingCategory.LLM,
-        "description": "Available LLM models for user selection (JSON array of {value, label, description?} objects). Empty array disables model selection.",
-        "default": [],
-        "frontend_visible": True,
-    },
-    "LLM_TEMPERATURE": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.LLM,
-        "description": "LLM temperature for response generation (0.0-2.0)",
-        "default": 0.7,
-    },
-    "LLM_MAX_TOKENS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.LLM,
-        "description": "Maximum tokens in LLM response",
-        "default": 4096,
-    },
-    "LLM_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM API key",
-        "default": "",
-        "is_sensitive": True,
-    },
-    "LLM_API_BASE": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM API base URL",
-        "default": "",
-    },
     "LLM_MAX_RETRIES": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
@@ -130,13 +92,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.LLM,
         "description": "LLM API 重试基础等待时间（秒，指数退避起始值）",
         "default": 1.0,
-    },
-    "LLM_MAX_INPUT_TOKENS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.LLM,
-        "description": "LLM 上下文窗口大小，用于 DeepAgent 自动压缩对话（设为 None 则使用模型默认值）",
-        "default": None,
-        "nullable": True,
     },
     "LLM_MODEL_CACHE_SIZE": {
         "type": SettingType.NUMBER,
@@ -961,21 +916,21 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     "NATIVE_MEMORY_MODEL": {
         "type": SettingType.STRING,
         "category": SettingCategory.MEMORY,
-        "description": "LLM model for memory extraction, consolidation, and reranking. Leave empty to use the main LLM_MODEL.",
+        "description": "LLM model for memory extraction, consolidation, and reranking. Leave empty to use the first available model.",
         "default": "",
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
     "NATIVE_MEMORY_API_BASE": {
         "type": SettingType.STRING,
         "category": SettingCategory.MEMORY,
-        "description": "API base URL for memory LLM operations. Leave empty to use the main LLM_API_BASE.",
+        "description": "API base URL for memory LLM operations. Leave empty to use the first available model's API base.",
         "default": "",
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
     "NATIVE_MEMORY_API_KEY": {
         "type": SettingType.STRING,
         "category": SettingCategory.MEMORY,
-        "description": "API key for memory LLM operations. Leave empty to use the main LLM_API_KEY.",
+        "description": "API key for memory LLM operations. Leave empty to use the first available model's API key.",
         "default": "",
         "is_sensitive": True,
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},

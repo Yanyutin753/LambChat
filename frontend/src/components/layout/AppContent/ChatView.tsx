@@ -1,9 +1,10 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
+import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
-import { toast } from "react-hot-toast";
 import { ChatMessage } from "../../chat/ChatMessage";
 import { ChatInput } from "../../chat/ChatInput";
+import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
 import { Loading } from "../../common";
@@ -197,80 +198,87 @@ export function ChatView({
       >;
       list = langMap[currentLang] || langMap["en"];
     }
-    if (!list) return undefined;
-    const shuffled = [...list].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 4);
+    return list;
   }, [settings, i18n.language]);
+
+  const [displaySuggestions, setDisplaySuggestions] = useState(() => {
+    if (!suggestions) return undefined;
+    return [...suggestions].sort(() => Math.random() - 0.5).slice(0, 4);
+  });
+
+  const refreshSuggestions = useCallback(() => {
+    if (!suggestions) return;
+    setDisplaySuggestions(
+      [...suggestions].sort(() => Math.random() - 0.5).slice(0, 4),
+    );
+  }, [suggestions]);
+
+  // Shared ChatInput props to avoid duplication
+  const chatInputProps = {
+    onSend: onSendMessage,
+    onStop: onStopGeneration,
+    isLoading,
+    canSend: canSendMessage,
+    tools,
+    onToggleTool,
+    onToggleCategory,
+    onToggleAll,
+    toolsLoading,
+    enabledToolsCount,
+    totalToolsCount,
+    skills,
+    onToggleSkill,
+    onToggleSkillCategory,
+    onToggleAllSkills,
+    skillsLoading,
+    pendingSkillNames,
+    skillsMutating,
+    enabledSkillsCount,
+    totalSkillsCount,
+    enableSkills,
+    agentOptions,
+    agentOptionValues,
+    onToggleAgentOption,
+    agents,
+    currentAgent,
+    onSelectAgent,
+    attachments,
+    onAttachmentsChange,
+  };
 
   return (
     <>
       <main
         ref={messagesContainerRef}
-        className="relative flex-1 overflow-hidden min-h-0 pt-6"
+        className={`relative flex-1 min-h-0 pt-6 ${
+          messages.length > 0 ? "overflow-hidden" : ""
+        }`}
       >
         {/* Initial load spinner (no previous messages) */}
         {isLoading && messages.length === 0 && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 dark:bg-stone-900/80 ">
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center"
+            style={{
+              backgroundColor:
+                "color-mix(in srgb, var(--theme-bg) 80%, transparent)",
+            }}
+          >
             <Loading size="lg" />
           </div>
         )}
         {messages.length === 0 ? (
-          <div className="relative flex h-full flex-col items-center justify-center px-4 py-6 sm:py-8 welcome-grain">
-            <div className="relative flex flex-col items-center mb-8 sm:mb-10 w-full max-w-[90vw]">
-              {/* App Icon */}
-              <img
-                src="/icons/icon.svg"
-                alt="LambChat"
-                className="size-14 sm:hidden rounded-2xl shadow-sm ring-1 ring-stone-200/60 dark:ring-stone-700/40 mb-4"
-              />
-              {/* Greeting */}
-              <h1 className="max-w-[90vw] welcome-title text-3xl sm:text-4xl font-bold bg-gradient-to-r from-stone-900 via-stone-600 to-stone-900 dark:from-stone-50 dark:via-stone-200 dark:to-stone-50 bg-clip-text text-transparent font-serif tracking-tight mb-3 sm:mb-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                {greeting}
-              </h1>
-              {/* Subtitle */}
-              <p className="text-sm sm:text-base text-stone-500 dark:text-stone-400 font-medium tracking-wide">
-                ✨ {t("chat.welcomeSubtitle") ?? "How can I help you today?"}
-              </p>
-            </div>
-
-            <div className="relative w-full max-w-xl sm:max-w-2xl px-2 sm:px-4 sm:block hidden">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5">
-                {suggestions?.map((suggestion, i) => (
-                  <button
-                    key={suggestion.text}
-                    onClick={() => {
-                      if (!canSendMessage) {
-                        toast.error(t("chat.noPermissionHint"));
-                        return;
-                      }
-                      onSendMessage(suggestion.text);
-                    }}
-                    className="welcome-card group flex items-center gap-3 sm:gap-3.5 rounded-xl sm:rounded-2xl border border-stone-200/70 dark:border-stone-700/40 px-4 py-3.5 sm:px-5 sm:py-4 text-left text-sm text-stone-700 dark:text-stone-200 bg-white/60 dark:bg-stone-800/30  hover:bg-white dark:hover:bg-stone-800/60 hover:border-stone-300/80 dark:hover:border-stone-600/50 transition-all duration-300 hover:shadow-md hover:shadow-stone-200/40 dark:hover:shadow-stone-900/40 hover:-translate-y-0.5"
-                    style={{ animationDelay: `${0.4 + i * 80}ms` }}
-                  >
-                    <span className="flex items-center justify-center size-9 sm:size-10 rounded-xl bg-stone-100 dark:bg-stone-700/60 text-lg sm:text-xl shrink-0 group-hover:scale-110 group-hover:bg-stone-200/80 dark:group-hover:bg-stone-600/50 transition-all duration-300">
-                      {suggestion.icon}
-                    </span>
-                    <span className="text-[13px] sm:text-sm leading-snug text-stone-500 dark:text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 transition-colors duration-300">
-                      {suggestion.text}
-                    </span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-4 h-4 ml-auto shrink-0 text-stone-300 dark:text-stone-600 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-stone-400 dark:group-hover:text-stone-500 transition-all duration-300"
-                    >
-                      <path d="M7 5l5 5-5 5" />
-                    </svg>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <WelcomePage
+            greeting={greeting}
+            subtitle={t("chat.welcomeSubtitle") ?? "How can I help you today?"}
+            suggestionsLabel={t("chat.welcomeSuggestions") ?? "Suggestions"}
+            refreshLabel={t("chat.welcomeRefresh") ?? "Refresh"}
+            suggestions={displaySuggestions}
+            canSendMessage={canSendMessage}
+            onSendMessage={onSendMessage}
+            noPermissionHint={t("chat.noPermissionHint")}
+            chatInputProps={chatInputProps}
+            onRefreshSuggestions={refreshSuggestions}
+          />
         ) : (
           <Virtuoso
             ref={virtuosoRef}
@@ -334,58 +342,39 @@ export function ChatView({
         isLoading={approvalLoading}
       />
 
-      {messages.length === 0 && (
-        <div className="sm:hidden px-3 pb-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {suggestions?.map((suggestion) => (
+      {/* Mobile: suggestions pills above ChatInput */}
+      {messages.length === 0 && suggestions && (
+        <div className="sm:hidden px-3 pb-1 flex gap-2.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {suggestions.map((s) => (
             <button
-              key={suggestion.text}
+              key={s.text}
               onClick={() => {
                 if (!canSendMessage) {
                   toast.error(t("chat.noPermissionHint"));
                   return;
                 }
-                onSendMessage(suggestion.text);
+                onSendMessage(s.text);
               }}
-              className="shrink-0 inline-flex items-center gap-1 rounded-full border border-stone-200/70 dark:border-stone-700/40 bg-white/60 dark:bg-stone-800/30 px-3 py-1.5 text-[13px] text-stone-500 dark:text-stone-400 active:bg-stone-100 dark:active:bg-stone-700/40 transition-colors"
+              className="welcome-pill shrink-0 inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-[13px] transition-all duration-300 backdrop-blur-sm"
+              style={{
+                backgroundColor:
+                  "color-mix(in srgb, var(--theme-bg-card) 70%, transparent)",
+                borderColor:
+                  "color-mix(in srgb, var(--theme-border) 50%, transparent)",
+                color: "var(--theme-text-secondary)",
+              }}
             >
-              {suggestion.icon}
-              <span className="ml-1">{suggestion.text}</span>
+              {s.icon}
+              <span>{s.text}</span>
             </button>
           ))}
         </div>
       )}
 
-      <ChatInput
-        onSend={onSendMessage}
-        onStop={onStopGeneration}
-        isLoading={isLoading}
-        canSend={canSendMessage}
-        tools={tools}
-        onToggleTool={onToggleTool}
-        onToggleCategory={onToggleCategory}
-        onToggleAll={onToggleAll}
-        toolsLoading={toolsLoading}
-        enabledToolsCount={enabledToolsCount}
-        totalToolsCount={totalToolsCount}
-        skills={skills}
-        onToggleSkill={onToggleSkill}
-        onToggleSkillCategory={onToggleSkillCategory}
-        onToggleAllSkills={onToggleAllSkills}
-        skillsLoading={skillsLoading}
-        pendingSkillNames={pendingSkillNames}
-        skillsMutating={skillsMutating}
-        enabledSkillsCount={enabledSkillsCount}
-        totalSkillsCount={totalSkillsCount}
-        enableSkills={enableSkills}
-        agentOptions={agentOptions}
-        agentOptionValues={agentOptionValues}
-        onToggleAgentOption={onToggleAgentOption}
-        agents={agents}
-        currentAgent={currentAgent}
-        onSelectAgent={onSelectAgent}
-        attachments={attachments}
-        onAttachmentsChange={onAttachmentsChange}
-      />
+      {/* Mobile: always show ChatInput at bottom */}
+      <div className={messages.length === 0 ? "sm:hidden" : ""}>
+        <ChatInput {...chatInputProps} />
+      </div>
     </>
   );
 }

@@ -22,8 +22,13 @@ const SettingsPanel = lazy(() =>
   })),
 );
 const AgentConfigPanel = lazy(() =>
-  import("../../panels/AgentConfigPanel").then((m) => ({
+  import("../../panels/AgentPanel").then((m) => ({
     default: m.AgentConfigPanel,
+  })),
+);
+const ModelPanel = lazy(() =>
+  import("../../panels/ModelPanel").then((m) => ({
+    default: m.ModelPanel,
   })),
 );
 const MCPPanel = lazy(() =>
@@ -36,6 +41,11 @@ const FeedbackPanel = lazy(() =>
 );
 const ChannelsPage = lazy(() =>
   import("../../pages/ChannelsPage").then((m) => ({ default: m.ChannelsPage })),
+);
+const RevealedFilesPage = lazy(() =>
+  import("../../fileLibrary/RevealedFilesPanel").then((m) => ({
+    default: m.RevealedFilesPanel,
+  })),
 );
 
 const panelMap: Record<
@@ -51,6 +61,8 @@ const panelMap: Record<
   feedback: FeedbackPanel,
   channels: ChannelsPage,
   agents: AgentConfigPanel,
+  models: ModelPanel,
+  files: RevealedFilesPage,
 };
 
 function PanelLoader() {
@@ -69,9 +81,11 @@ export function TabContent({ activeTab }: { activeTab: TabType }) {
 
   return (
     <main className="flex-1 overflow-hidden">
-      <Suspense fallback={<PanelLoader />}>
-        <Panel />
-      </Suspense>
+      <div className="mx-auto max-w-3xl xl:max-w-5xl w-full h-full">
+        <Suspense fallback={<PanelLoader />}>
+          <Panel />
+        </Suspense>
+      </div>
     </main>
   );
 }

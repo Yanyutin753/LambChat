@@ -35,7 +35,7 @@ async def llm_build_summary(backend, content: str) -> str:
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        model = backend._get_memory_model()
+        model = await backend._get_memory_model()
         response = await model.ainvoke(
             [
                 SystemMessage(
@@ -69,7 +69,7 @@ async def llm_build_title(backend, content: str) -> str:
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        model = backend._get_memory_model()
+        model = await backend._get_memory_model()
         response = await model.ainvoke(
             [
                 SystemMessage(

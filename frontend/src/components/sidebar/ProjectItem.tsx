@@ -252,7 +252,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
     };
 
     return (
-      <div className="mb-0.5">
+      <div>
         {/* Project header - ChatGPT style drop target */}
         <div
           onClick={handleToggle}
@@ -262,7 +262,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
           onDrop={handleDrop}
           data-project-drop
           data-project-id={project.id}
-          className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-150 ${
+          className={`group relative flex cursor-pointer items-center gap-3 h-10 rounded-[10px] px-[9px] transition-colors ${
             isDragOver || draggingSessionId
               ? "bg-stone-200/60 dark:bg-stone-700/40 ring-1 ring-inset ring-stone-300 dark:ring-stone-600"
               : isExpanded
@@ -292,8 +292,8 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
             >
               <DynamicIcon
                 name={project.icon}
-                size={15}
-                className="text-stone-400 dark:text-stone-500 fill-current"
+                size={18}
+                className="text-stone-500 dark:text-stone-400 fill-current"
               />
             </button>
           )}
@@ -338,7 +338,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
 
         {/* Expandable content - sessions list with independent pagination */}
         {isExpanded && (
-          <div className="ml-3 mt-0.5 space-y-0.5">
+          <div className="ml-3 mt-0.5 flex flex-col gap-px">
             {isLoading ? (
               <div className="flex justify-center py-4">
                 <LoadingSpinner size="sm" />

@@ -8,6 +8,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from src.agents.core.base import get_agent_class
 from src.api.deps import get_current_user_optional, get_current_user_required
 from src.infra.logging import get_logger
 from src.infra.session.dual_writer import get_dual_writer
@@ -266,11 +267,26 @@ async def get_shared_content(
     )
 
     # 构建会话信息（只返回安全的字段）
+    agent_name = session.agent_id
+    try:
+        agent_cls = get_agent_class(session.agent_id)
+        agent_name = agent_cls._agent_name
+    except (ValueError, AttributeError):
+        pass
+
+    model = (session.metadata or {}).get("agent_options", {}).get("model")
+
     session_info = {
         "id": session.id,
         "name": session.name,
         "agent_id": session.agent_id,
+        "agent_name": agent_name,
+        "model": model,
         "created_at": session.created_at.isoformat() if session.created_at else None,
+        "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+        "task_status": session.task_status,
+        "task_error": session.task_error,
+        "completed_at": session.completed_at.isoformat() if session.completed_at else None,
     }
 
     return SharedContentResponse(

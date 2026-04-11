@@ -376,7 +376,7 @@ export function SettingsPanel() {
         />
 
         {/* Left Sidebar - Categories (hidden on mobile) */}
-        <div className="hidden w-52 flex-shrink-0 flex-col border-r border-stone-200 bg-stone-50 sm:flex dark:border-stone-800 dark:bg-stone-900">
+        <div className="hidden w-52 flex-shrink-0 flex-col border-r border-stone-200 bg-white sm:flex dark:border-stone-800 dark:bg-stone-900">
           {/* Sidebar Header */}
           <div className="flex items-center gap-2 border-b border-stone-200 px-4 py-3 dark:border-stone-800">
             <Settings

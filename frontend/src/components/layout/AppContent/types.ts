@@ -8,4 +8,6 @@ export type TabType =
   | "mcp"
   | "feedback"
   | "channels"
-  | "agents";
+  | "agents"
+  | "models"
+  | "files";

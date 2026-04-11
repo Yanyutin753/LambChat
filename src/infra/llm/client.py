@@ -30,49 +30,16 @@ _ANTHROPIC_PROVIDERS = {"anthropic", "minimax", "zai"}
 _GOOGLE_PROVIDERS = {"google", "gemini"}
 
 
-def _load_raw_settings():
-    """Load raw sensitive settings from database (sync, for startup use only)"""
-    global _setting_cache
-    if _setting_cache:
-        return _setting_cache
-
-    try:
-        from src.infra.settings.service import get_settings_service
-        from src.kernel.config import SENSITIVE_SETTINGS
-
-        service = get_settings_service()
-        if service:
-            for key in SENSITIVE_SETTINGS:
-                try:
-                    try:
-                        asyncio.get_running_loop()
-                        continue
-                    except RuntimeError:
-                        pass
-
-                    value = asyncio.run(service.get_raw(key))
-                    if value:
-                        _setting_cache[key] = value
-                except Exception:
-                    pass
-    except Exception as e:
-        logger.debug(f"Could not load raw settings from database: {e}")
-
-    return _setting_cache
-
-
 def get_api_key(key: str) -> Optional[str]:
-    """Get API key with priority: database > env > settings"""
-    _load_raw_settings()
-    if key in _setting_cache and _setting_cache[key]:
-        return _setting_cache[key]
-
+    """Get API key with priority: env > settings"""
     env_value = os.environ.get(key)
     if env_value:
         return env_value
 
     if hasattr(settings, key):
-        return getattr(settings, key)
+        val = getattr(settings, key)
+        if val:
+            return val
 
     return None
 
@@ -122,6 +89,26 @@ def _make_cache_key(
     )
 
 
+def _safe_close_client(model_instance: BaseChatModel) -> None:
+    """Safely close HTTP client with error logging."""
+    try:
+        _client = getattr(model_instance, "async_client", None) or getattr(
+            model_instance, "client", None
+        )
+        if _client and hasattr(_client, "aclose"):
+
+            def _on_close_done(t: asyncio.Task) -> None:
+                if not t.cancelled():
+                    exc = t.exception()
+                    if exc:
+                        logger.debug(f"Failed to close LLM client connections: {exc}")
+
+            task = asyncio.create_task(_client.aclose())
+            task.add_done_callback(_on_close_done)
+    except Exception as e:
+        logger.debug(f"Failed to close LLM client connections: {e}")
+
+
 class LLMClient:
     """LLM 客户端工厂，支持实例缓存和 fallback。"""
 
@@ -146,53 +133,56 @@ class LLMClient:
         **kwargs: Any,
     ) -> BaseChatModel:
         """根据 provider 创建对应的 LangChain 模型。"""
-        api_key = api_key or settings.LLM_API_KEY
-        api_base = api_base or settings.LLM_API_BASE
 
         kwargs.pop("max_retries", None)
 
         if provider in _ANTHROPIC_PROVIDERS:
-            return ChatAnthropic(
-                model_name=model_name,
-                temperature=temperature,
-                max_tokens=max_tokens,  # type: ignore[arg-type]
-                api_key=SecretStr(api_key) if api_key else None,  # type: ignore[arg-type]
-                thinking=thinking,
-                base_url=api_base or None,
-                profile=profile,
-                max_retries=settings.LLM_MAX_RETRIES,
-                **kwargs,
-            )
+            anthropic_kwargs: dict[str, Any] = {
+                "model_name": model_name,
+                "temperature": temperature,
+                "max_tokens": max_tokens,  # type: ignore[arg-type]
+                "thinking": thinking,
+                "base_url": api_base or None,
+                "max_retries": settings.LLM_MAX_RETRIES,
+            }
+            if api_key:
+                anthropic_kwargs["api_key"] = SecretStr(api_key)
+            if profile:
+                anthropic_kwargs["profile"] = profile
+            return ChatAnthropic(**anthropic_kwargs, **kwargs)
         if provider in _GOOGLE_PROVIDERS:
             if thinking and thinking.get("type") == "enabled":
                 thinking_level = thinking.get("level", "medium")
             else:
                 thinking_level = None
-            return ChatGoogleGenerativeAI(
-                model=model_name,
-                temperature=temperature,
-                max_tokens=max_tokens,  # type: ignore[arg-type]
-                google_api_key=SecretStr(api_key) if api_key else None,  # type: ignore[arg-type]
-                base_url=api_base or None,
-                thinking_level=thinking_level,
-                profile=profile,
-                max_retries=settings.LLM_MAX_RETRIES,
-                **kwargs,
-            )
+            google_kwargs: dict[str, Any] = {
+                "model": model_name,
+                "temperature": temperature,
+                "max_tokens": max_tokens,  # type: ignore[arg-type]
+                "base_url": api_base or None,
+                "thinking_level": thinking_level,
+                "max_retries": settings.LLM_MAX_RETRIES,
+            }
+            if api_key:
+                google_kwargs["google_api_key"] = SecretStr(api_key)
+            if profile:
+                google_kwargs["profile"] = profile
+            return ChatGoogleGenerativeAI(**google_kwargs, **kwargs)
 
-        return ChatOpenAI(
-            model=model_name,
-            temperature=temperature,
-            streaming=True,
-            api_key=api_key or "sk-placeholder",  # type: ignore[arg-type]
-            base_url=api_base or None,
-            profile=profile,
-            max_retries=settings.LLM_MAX_RETRIES,
-            **kwargs,
-        )
+        openai_kwargs: dict[str, Any] = {
+            "model": model_name,
+            "temperature": temperature,
+            "streaming": True,
+            "api_key": api_key or "sk-placeholder",
+            "base_url": api_base or None,
+            "max_retries": settings.LLM_MAX_RETRIES,
+        }
+        if profile:
+            openai_kwargs["profile"] = profile
+        return ChatOpenAI(**openai_kwargs, **kwargs)
 
     @staticmethod
-    def get_model(
+    async def get_model(
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
@@ -200,22 +190,76 @@ class LLMClient:
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
         profile: Optional[dict] = None,
+        use_model_config: bool = True,
         **kwargs: Any,
     ) -> BaseChatModel:
-        """获取 LangChain 聊天模型（带缓存）。"""
-        model = model or settings.LLM_MODEL
+        """获取 LangChain 聊天模型（带缓存）。
+
+        Args:
+            model: Model identifier (e.g., "anthropic/claude-3-5-sonnet")
+            temperature: Sampling temperature. If use_model_config=True and model config
+                has temperature set, this parameter is ignored.
+            max_tokens: Maximum tokens to generate. If use_model_config=True and model config
+                has max_tokens set, this parameter is ignored.
+            api_key: API key for the provider. If use_model_config=True and model config
+                has api_key set, this parameter is ignored.
+            api_base: Base URL for the API. If use_model_config=True and model config
+                has api_base set, this parameter is ignored.
+            thinking: Thinking mode configuration.
+            profile: Per-model configuration (e.g., max_input_tokens).
+            use_model_config: If True, look up model config from endpoint/static list
+                and apply per-model overrides. Default True.
+        """
+        if not model:
+            from src.infra.llm.models_service import get_default_model
+
+            model = await get_default_model()
         provider, model_name = _parse_provider(model)
 
         # 当模型没有显式 provider 前缀（无 '/'）且与默认模型不同时，
         # 使用默认模型的 provider，确保 API 格式一致性。
         # 例如：代理服务(one-api/litellm)统一用 OpenAI 格式，
         # 切换到 claude-xxx 模型不应自动切换为 Anthropic 格式。
-        if "/" not in model and model != settings.LLM_MODEL:
-            default_provider, _ = _parse_provider(settings.LLM_MODEL)
-            provider = default_provider
+        if "/" not in model:
+            from src.infra.llm.models_service import get_default_model
 
-        if profile is None and settings.LLM_MAX_INPUT_TOKENS is not None:
-            profile = {"max_input_tokens": settings.LLM_MAX_INPUT_TOKENS}
+            default_model = await get_default_model()
+            if default_model and model != default_model:
+                default_provider, _ = _parse_provider(default_model)
+                provider = default_provider
+
+        # Look up per-model config for overrides
+        if use_model_config:
+            from src.infra.llm.models_service import get_available_models
+
+            available_models = await get_available_models()
+            # Build dict for O(1) lookup instead of O(n) scan
+            model_map = {m.get("value"): m for m in available_models}
+            model_cfg = model_map.get(model)
+            if model_cfg:
+                # Apply per-model overrides (explicit params still take priority)
+                if not api_key and model_cfg.get("api_key"):
+                    api_key = model_cfg["api_key"]
+                if not api_base and model_cfg.get("api_base"):
+                    api_base = model_cfg["api_base"]
+                if model_cfg.get("temperature") is not None:
+                    temperature = model_cfg["temperature"]
+                if max_tokens is None and model_cfg.get("max_tokens") is not None:
+                    max_tokens = model_cfg["max_tokens"]
+                if profile is None and model_cfg.get("profile"):
+                    profile = model_cfg["profile"]
+
+            # Cache may not contain api_key (stripped for security).
+            # Fall back to DB for the api_key.
+            if not api_key and use_model_config:
+                try:
+                    from src.infra.agent.model_storage import get_model_storage
+
+                    db_model = await get_model_storage().get_by_value(model)
+                    if db_model and db_model.api_key:
+                        api_key = db_model.api_key
+                except Exception as e:
+                    logger.debug(f"Failed to fetch api_key from DB for model {model}: {e}")
 
         cache_key = _make_cache_key(
             provider,
@@ -240,20 +284,7 @@ class LLMClient:
             oldest_model = LLMClient._model_cache.pop(oldest_key)
 
             # 尝试关闭 HTTP 客户端连接池，防止连接泄漏
-            try:
-                # ChatAnthropic 和 ChatOpenAI 使用 httpx.AsyncClient
-                if hasattr(oldest_model, "async_client"):
-                    client = oldest_model.async_client
-                    if hasattr(client, "aclose"):
-                        task = asyncio.create_task(client.aclose())
-                        task.add_done_callback(lambda t: None)  # prevent GC
-                elif hasattr(oldest_model, "client"):
-                    client = oldest_model.client
-                    if hasattr(client, "aclose"):
-                        task = asyncio.create_task(client.aclose())
-                        task.add_done_callback(lambda t: None)  # prevent GC
-            except Exception as e:
-                logger.debug(f"Failed to close LLM client connections: {e}")
+            _safe_close_client(oldest_model)
 
             logger.info(f"LLM cache full ({max_cache_size}), evicted oldest model")
 
@@ -273,12 +304,12 @@ class LLMClient:
         return instance
 
     @staticmethod
-    def get_langgraph_model(
+    async def get_langgraph_model(
         model: Optional[str] = None,
         **kwargs: Any,
     ) -> BaseChatModel:
         """获取 LangGraph 配置的模型。"""
-        return LLMClient.get_model(model=model, **kwargs)
+        return await LLMClient.get_model(model=model, **kwargs)
 
     @staticmethod
     def clear_cache_by_model(model_pattern: Optional[str] = None) -> int:
@@ -291,18 +322,19 @@ class LLMClient:
             清除的条目数量
         """
         if model_pattern is None:
-            count = len(LLMClient._model_cache)
-            LLMClient._model_cache.clear()
-            return count
-
-        to_delete = []
-        for key in LLMClient._model_cache:
-            _, model_name, *_ = key
-            if model_pattern in model_name:
-                to_delete.append(key)
+            to_delete = list(LLMClient._model_cache.keys())
+        else:
+            to_delete = []
+            for key in LLMClient._model_cache:
+                _, model_name, *_ = key
+                if model_pattern in model_name:
+                    to_delete.append(key)
 
         for key in to_delete:
-            del LLMClient._model_cache[key]
+            evicted = LLMClient._model_cache.pop(key, None)
+            if evicted:
+                _safe_close_client(evicted)
+
         return len(to_delete)
 
 

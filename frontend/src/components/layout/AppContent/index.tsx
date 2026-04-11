@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { SessionSidebar } from "../../panels/SessionSidebar";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
@@ -56,6 +57,9 @@ interface AppShellProps {
   availableModels?: { value: string; label: string }[] | null;
   currentModel?: string;
   onSelectModel?: (modelValue: string) => void;
+  // Share
+  sessionId?: string | null;
+  sessionName?: string | null;
 }
 
 function AppShell({
@@ -75,6 +79,8 @@ function AppShell({
   availableModels,
   currentModel,
   onSelectModel,
+  sessionId,
+  sessionName,
 }: AppShellProps) {
   return (
     <>
@@ -84,7 +90,10 @@ function AppShell({
         versionInfo={versionInfo}
       />
 
-      <div className="flex h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-900">
+      <div
+        className="flex h-[100dvh] w-full overflow-hidden"
+        style={{ backgroundColor: "var(--theme-bg)" }}
+      >
         {sidebar}
 
         <div className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden">
@@ -100,6 +109,8 @@ function AppShell({
             availableModels={availableModels}
             currentModel={currentModel}
             onSelectModel={onSelectModel}
+            sessionId={sessionId}
+            sessionName={sessionName}
           />
 
           {children}
@@ -228,7 +239,8 @@ function ChatAppContent({
   // Filter models by role-based permissions
   const filteredModels = useMemo(() => {
     if (!availableModels) return null;
-    if (!agentAllowedModels || agentAllowedModels.length === 0) return availableModels;
+    if (!agentAllowedModels || agentAllowedModels.length === 0)
+      return availableModels;
     return availableModels.filter((m) => agentAllowedModels.includes(m.value));
   }, [availableModels, agentAllowedModels]);
 
@@ -279,12 +291,9 @@ function ChatAppContent({
       window.removeEventListener("model-preference-updated", handler);
   }, []);
 
-  const handleSelectModel = useCallback(
-    (modelValue: string) => {
-      setCurrentModel(modelValue);
-    },
-    [],
-  );
+  const handleSelectModel = useCallback((modelValue: string) => {
+    setCurrentModel(modelValue);
+  }, []);
 
   // 同步 sessionConfig 到 ref，供 useAgent 使用
   useEffect(() => {
@@ -543,6 +552,8 @@ function ChatAppContent({
       availableModels={filteredModels}
       currentModel={currentModel}
       onSelectModel={handleSelectModel}
+      sessionId={sessionId}
+      sessionName={sessionName}
       sidebar={
         <SessionSidebar
           currentSessionId={sessionId}
@@ -636,6 +647,7 @@ function NonChatAppContent({
   versionInfo,
   sidebarCollapsed,
   setSidebarCollapsed,
+  mobileSidebarOpen,
   setMobileSidebarOpen,
   onShowProfile,
 }: {
@@ -645,9 +657,28 @@ function NonChatAppContent({
   versionInfo: VersionInfo | null;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
+  mobileSidebarOpen: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
   onShowProfile: () => void;
 }) {
+  const navigate = useNavigate();
+
+  const handleSelectSession = useCallback(
+    (id: string) => {
+      setMobileSidebarOpen(false);
+      navigate(`/chat/${id}`);
+    },
+    [navigate, setMobileSidebarOpen],
+  );
+  const handleNewSession = useCallback(() => {
+    setMobileSidebarOpen(false);
+    navigate("/chat");
+  }, [navigate, setMobileSidebarOpen]);
+  const handleMobileClose = useCallback(
+    () => setMobileSidebarOpen(false),
+    [setMobileSidebarOpen],
+  );
+
   return (
     <AppShell
       activeTab={activeTab}
@@ -659,8 +690,20 @@ function NonChatAppContent({
       setMobileSidebarOpen={setMobileSidebarOpen}
       currentProjectId={null}
       projectManager={{ projects: [] }}
-      onNewSession={() => {}}
+      onNewSession={handleNewSession}
       onShowProfile={onShowProfile}
+      sidebar={
+        <SessionSidebar
+          currentSessionId={null}
+          onSelectSession={handleSelectSession}
+          onNewSession={handleNewSession}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={handleMobileClose}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapsed={setSidebarCollapsed}
+          onShowProfile={onShowProfile}
+        />
+      }
     >
       <TabContent activeTab={activeTab} />
     </AppShell>
@@ -702,6 +745,7 @@ export function AppContent({ activeTab }: AppContentProps) {
       versionInfo={versionInfo}
       sidebarCollapsed={sidebarCollapsed}
       setSidebarCollapsed={setSidebarCollapsed}
+      mobileSidebarOpen={mobileSidebarOpen}
       setMobileSidebarOpen={setMobileSidebarOpen}
       onShowProfile={handleShowProfile}
     />

@@ -108,9 +108,10 @@ class UserConcurrencyLimiter:
 
         try:
             role_storage = RoleStorage()
-            for role_name in roles:
-                role = await role_storage.get_by_name(role_name)
-                if role and role.limits:
+            # Single batch query instead of N individual lookups
+            user_roles = await role_storage.get_by_names(roles)
+            for role in user_roles:
+                if role.limits:
                     rc = role.limits.max_concurrent_chats
                     rq = role.limits.max_queued_chats
                     if rc is not None:

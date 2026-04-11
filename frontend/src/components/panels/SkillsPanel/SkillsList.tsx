@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import {
   Plus,
+  Package,
   FolderOpen,
   Check,
   Tag,
@@ -90,11 +91,9 @@ export function SkillsList({
       {/* Header */}
       <PanelHeader
         title={t("skills.title")}
+        subtitle={t("skills.subtitle")}
         icon={
-          <FolderOpen
-            size={18}
-            className="text-stone-600 dark:text-stone-400"
-          />
+          <Package size={20} className="text-stone-600 dark:text-stone-400" />
         }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -245,7 +244,7 @@ export function SkillsList({
             )}
           </div>
         ) : (
-          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
             {paginatedSkills.map((skill) => (
               <SkillCard
                 key={skill.name}

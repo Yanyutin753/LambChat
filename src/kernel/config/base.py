@@ -69,15 +69,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # LLM Settings
-    LLM_API_KEY: str = ""
-    LLM_API_BASE: Optional[str] = None
-    LLM_MODEL: str = "anthropic/claude-3-5-sonnet-20241022"
-    LLM_AVAILABLE_MODELS: list = []  # Available models for user selection
-    LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 4096
     LLM_MAX_RETRIES: int = 3
     LLM_RETRY_DELAY: float = 1.0
-    LLM_MAX_INPUT_TOKENS: int | None = None  # DeepAgent summarization trigger threshold
     LLM_MODEL_CACHE_SIZE: int = 50  # 模型实例缓存大小，防止内存泄漏
 
     # MCP Settings
@@ -303,12 +296,6 @@ class Settings(BaseSettings):
             os.environ["LANGSMITH_API_URL"] = self.LANGSMITH_API_URL
         if self.LANGSMITH_SAMPLE_RATE:
             os.environ["LANGSMITH_SAMPLE_RATE"] = str(self.LANGSMITH_SAMPLE_RATE)
-
-        # Sync LLM settings to os.environ (required by LangChain clients)
-        if self.LLM_API_KEY:
-            os.environ["ANTHROPIC_API_KEY"] = self.LLM_API_KEY
-        if self.LLM_API_BASE:
-            os.environ["ANTHROPIC_BASE_URL"] = self.LLM_API_BASE
 
     def get_s3_config(self) -> "S3Config":
         """Get S3 storage configuration."""

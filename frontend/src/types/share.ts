@@ -51,7 +51,13 @@ export interface SharedContentResponse {
     id: string;
     name?: string;
     agent_id: string;
+    agent_name?: string;
+    model?: string;
     created_at?: string;
+    updated_at?: string;
+    task_status?: string | null;
+    task_error?: string | null;
+    completed_at?: string | null;
   };
   events: SSEEventRecord[];
   owner: SharedContentOwner;

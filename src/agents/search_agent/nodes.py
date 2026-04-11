@@ -75,12 +75,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 创建 LLM
     llm_start = time.time()
-    llm = LLMClient.get_model(
-        api_base=settings.LLM_API_BASE,
-        api_key=settings.LLM_API_KEY,
-        model=selected_model or settings.LLM_MODEL,
-        temperature=settings.LLM_TEMPERATURE,
-        max_tokens=settings.LLM_MAX_TOKENS,
+    llm = await LLMClient.get_model(
+        model=selected_model,
         thinking={"type": "enabled"} if enable_thinking else None,
     )
     llm_init_time = time.time() - llm_start

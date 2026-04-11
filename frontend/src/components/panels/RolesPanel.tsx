@@ -762,8 +762,9 @@ export function RolesPanel() {
       {/* 头部 */}
       <PanelHeader
         title={t("roles.title")}
+        subtitle={t("roles.subtitle")}
         icon={
-          <Shield size={18} className="text-stone-600 dark:text-stone-400" />
+          <Shield size={24} className="text-stone-600 dark:text-stone-400" />
         }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -805,10 +806,10 @@ export function RolesPanel() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-stone-100 dark:bg-stone-800">
                         <Lock
                           size={14}
-                          className="text-purple-600 dark:text-purple-400"
+                          className="text-stone-600 dark:text-stone-300"
                         />
                       </div>
                       <div>

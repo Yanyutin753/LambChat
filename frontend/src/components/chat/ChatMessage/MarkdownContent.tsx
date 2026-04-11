@@ -147,7 +147,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
       <div
         className={clsx(
           "absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5 px-1 py-0.5 rounded-md",
-          "bg-stone-100/90 dark:bg-stone-800/90 backdrop-blur-sm shadow-sm border border-stone-200/50 dark:border-stone-700/50",
+          "bg-stone-100/90 dark:bg-stone-800/90 shadow-sm border border-stone-200/50 dark:border-stone-700/50",
           "opacity-0 group-hover/table:opacity-100 transition-opacity duration-150",
         )}
       >

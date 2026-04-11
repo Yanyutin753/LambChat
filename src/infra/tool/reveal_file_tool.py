@@ -33,7 +33,13 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
+from src.infra.logging.context import TraceContext
+from src.infra.revealed_file.storage import get_revealed_file_storage
+from src.infra.tool.backend_utils import (
+    get_backend_from_runtime,
+    get_base_url_from_runtime,
+    get_user_id_from_runtime,
+)
 
 logger = get_logger(__name__)
 
@@ -246,6 +252,53 @@ async def reveal_file(
             },
         }
         logger.info(f"Successfully uploaded {file_path} to S3: {upload_result.url}")
+
+        # Index write: persist record to revealed_files collection (fire-and-forget)
+        try:
+            req_ctx = TraceContext.get_request_context()
+            user_id = req_ctx.user_id or get_user_id_from_runtime(runtime)
+            session_id = req_ctx.session_id
+            trace_id = TraceContext.get().trace_id
+
+            # Look up session's project_id
+            session_project_id = None
+            if session_id:
+                try:
+                    from src.infra.storage.mongodb import get_mongo_client
+                    from src.kernel.config import settings
+
+                    mongo_client = get_mongo_client()
+                    db = mongo_client[settings.MONGODB_DB]
+                    session_doc = await db[settings.MONGODB_SESSIONS_COLLECTION].find_one(
+                        {"session_id": session_id}, {"metadata.project_id": 1}
+                    )
+                    if session_doc:
+                        session_project_id = (session_doc.get("metadata") or {}).get("project_id")
+                except Exception:
+                    pass
+
+            if user_id and trace_id:
+                storage_index = get_revealed_file_storage()
+                await storage_index.upsert_record(
+                    user_id=user_id,
+                    file_key=upload_result.key,
+                    trace_id=trace_id,
+                    data={
+                        "file_name": filename,
+                        "file_type": file_category,
+                        "mime_type": upload_result.content_type or mime_type,
+                        "file_size": upload_result.size,
+                        "url": proxy_url,
+                        "session_id": session_id,
+                        "project_id": session_project_id,
+                        "source": "reveal_file",
+                        "description": description or "",
+                        "original_path": file_path,
+                    },
+                )
+        except Exception as idx_err:
+            logger.warning(f"[reveal_file] Failed to index revealed file: {idx_err}")
+
         return json.dumps(result, ensure_ascii=False)
 
     except Exception as e:

@@ -15,6 +15,7 @@ import {
   Bot,
   User,
   ShoppingBag,
+  Cpu,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -62,6 +63,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canManageAgents = hasAnyPermission([Permission.AGENT_READ]);
+  const canManageModels = hasAnyPermission([Permission.MODEL_ADMIN]);
 
   // Reactive mobile detection
   useEffect(() => {
@@ -168,6 +170,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       label: t("nav.agents"),
       icon: Bot,
       show: canManageAgents,
+    },
+    {
+      path: "/models",
+      label: t("nav.models"),
+      icon: Cpu,
+      show: canManageModels,
     },
   ];
 

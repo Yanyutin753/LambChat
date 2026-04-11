@@ -66,7 +66,13 @@ const ExecuteItem = memo(function ExecuteItem({
               : "error"
       }
       icon={<Terminal size={12} className="shrink-0 opacity-50" />}
-      label={`${t("chat.message.toolExecute")} ${command.split(" ")[0] || ""}`}
+      label={
+        command
+          ? `${t("chat.message.toolExecute")} ${
+              command.length > 80 ? command.slice(0, 77) + "…" : command
+            }`
+          : t("chat.message.toolExecute")
+      }
       variant="tool"
       expandable={canExpand}
     >

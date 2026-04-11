@@ -13,22 +13,49 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
+    <!-- Blog serif for shared page -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Source+Sans+3:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://lambchat.com/" />
+
     <!-- Basic Info -->
-    <title>LambChat</title>
+    <title>
+      LambChat - AI Agent Platform | Multi-Model Chat & Skill Engine
+    </title>
     <meta
       name="description"
-      content="A pluggable, multi-tenant AI conversation system. Skills + MCP dual-engine driven, modular by design. SSE streaming, multi-modal document processing, JWT/RBAC auth, and GitHub-synced Skills."
+      content="LambChat is a pluggable, multi-tenant AI conversation platform. Skills + MCP dual-engine driven, supporting Claude, GPT, Gemini and more. SSE streaming, multi-modal document processing, JWT/RBAC auth, and GitHub-synced Skills."
     />
     <meta
       name="keywords"
-      content="AI, Agent, LangGraph, Chat, MCP, LLM, AI Assistant, LambChat"
+      content="AI chat, AI agent, AI assistant, LLM, MCP, Model Context Protocol, LangGraph, multi-model AI, pluggable AI, Skills engine, Claude, GPT, Gemini, SSE streaming, multi-tenant, JWT auth, RBAC, LambChat, AI conversation platform"
     />
     <meta name="author" content="LambChat" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta
       name="googlebot"
       content="index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1"
     />
+
+    <!-- Geo Tags -->
+    <meta name="geo.region" content="US" />
+    <meta name="geo.placename" content="Global" />
+    <meta name="geo.position" content="0;0" />
+    <meta name="ICBM" content="0, 0" />
+
+    <!-- Language Alternates (hreflang) -->
+    <link rel="alternate" hreflang="en" href="https://lambchat.com/?lng=en" />
+    <link rel="alternate" hreflang="zh" href="https://lambchat.com/?lng=zh" />
+    <link rel="alternate" hreflang="ja" href="https://lambchat.com/?lng=ja" />
+    <link rel="alternate" hreflang="ko" href="https://lambchat.com/?lng=ko" />
+    <link rel="alternate" hreflang="ru" href="https://lambchat.com/?lng=ru" />
+    <link rel="alternate" hreflang="x-default" href="https://lambchat.com/" />
 
     <!-- Theme Color -->
     <meta
@@ -70,27 +97,44 @@
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="LambChat - AI Agent Platform" />
-    <meta property="og:url" content="/" />
+    <meta
+      property="og:title"
+      content="LambChat - AI Agent Platform | Multi-Model Chat & Skill Engine"
+    />
+    <meta property="og:url" content="https://lambchat.com/" />
     <meta property="og:site_name" content="LambChat" />
     <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="zh_CN" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+    <meta property="og:locale:alternate" content="ko_KR" />
+    <meta property="og:locale:alternate" content="ru_RU" />
     <meta
       property="og:description"
-      content="A pluggable, multi-tenant AI conversation system. Skills + MCP dual-engine driven, modular by design. SSE streaming, multi-modal document processing, JWT/RBAC auth, and GitHub-synced Skills."
+      content="LambChat is a pluggable, multi-tenant AI conversation platform. Skills + MCP dual-engine driven, supporting Claude, GPT, Gemini and more. SSE streaming, multi-modal document processing, JWT/RBAC auth, and GitHub-synced Skills."
     />
-    <meta property="og:image" content="/icons/icon-512.png" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="512" />
+    <meta
+      property="og:image"
+      content="https://lambchat.com/icons/og-image.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="LambChat - AI Agent Platform" />
+    <meta property="og:site_type" content="website" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@lambchat" />
     <meta name="twitter:title" content="LambChat - AI Agent Platform" />
     <meta
       name="twitter:description"
-      content="A pluggable, multi-tenant AI conversation system. Skills + MCP dual-engine driven, modular by design. SSE streaming, multi-modal document processing, JWT/RBAC auth, and GitHub-synced Skills."
+      content="LambChat is a pluggable, multi-tenant AI conversation platform. Skills + MCP dual-engine driven, supporting Claude, GPT, Gemini and more."
     />
-    <meta name="twitter:image" content="/icons/icon-512.png" />
+    <meta
+      name="twitter:image"
+      content="https://lambchat.com/icons/og-image.png"
+    />
+    <meta name="twitter:image:alt" content="LambChat - AI Agent Platform" />
 
     <!-- Security -->
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -104,6 +148,50 @@
       type="image/svg+xml"
       fetchpriority="high"
     />
+
+    <!-- JSON-LD: WebApplication -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "LambChat",
+        "url": "https://lambchat.com",
+        "description": "A pluggable, multi-tenant AI conversation platform. Skills + MCP dual-engine driven, supporting Claude, GPT, Gemini and more.",
+        "applicationCategory": "ChatApplication",
+        "operatingSystem": "Web",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "description": "Open source"
+        },
+        "browserRequirements": "Requires JavaScript",
+        "softwareVersion": "1.0.0",
+        "featureList": [
+          "Multi-model AI chat (Claude, GPT, Gemini, etc.)",
+          "Skills engine with GitHub sync",
+          "Model Context Protocol (MCP) integration",
+          "SSE real-time streaming",
+          "Multi-modal document processing",
+          "JWT/RBAC authentication",
+          "Multi-tenant architecture"
+        ],
+        "screenshot": "https://lambchat.com/icons/og-image.png",
+        "inLanguage": ["en", "zh", "ja", "ko", "ru"]
+      }
+    </script>
+
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "LambChat",
+        "url": "https://lambchat.com",
+        "logo": "https://lambchat.com/icons/icon-512.png",
+        "sameAs": []
+      }
+    </script>
   </head>
 
   <body>
