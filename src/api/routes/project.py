@@ -119,6 +119,17 @@ async def delete_project(
     session_storage = SessionStorage()
     await session_storage.clear_project_id(project_id, user.sub)
 
+    # Clear project_id on all revealed files belonging to this project
+    try:
+        from src.infra.revealed_file.storage import get_revealed_file_storage
+
+        revealed_storage = get_revealed_file_storage()
+        await revealed_storage.clear_project_id(project_id)
+    except Exception as e:
+        from src.infra.logging import get_logger
+
+        get_logger(__name__).warning(f"Failed to clear revealed file project_id: {e}")
+
     # Delete the project
     success = await storage.delete(project_id, user.sub)
     if not success:

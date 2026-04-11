@@ -28,6 +28,7 @@ export function ModelPanel() {
   const canManageModels = hasPermission(Permission.MODEL_ADMIN);
   const [activeTab, setActiveTab] = useState<ModelTabType>("roles");
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 数据状态
@@ -96,6 +97,7 @@ export function ModelPanel() {
       toast.error(errorMsg);
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, [canManageModels, t]);
 
@@ -124,7 +126,7 @@ export function ModelPanel() {
     loadData();
   };
 
-  if (isLoading) {
+  if (isLoading && !hasLoaded) {
     return (
       <div className="flex h-full items-center justify-center">
         <LoadingSpinner size="lg" />

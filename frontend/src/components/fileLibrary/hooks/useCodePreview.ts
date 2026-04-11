@@ -4,8 +4,22 @@ import { getFullUrl } from "../../../services/api";
 
 const PREVIEW_MAX_LINES = 6;
 const PREVIEW_MAX_SIZE = 1024 * 1024; // 1 MB
+const CACHE_MAX_SIZE = 100;
 
 const previewCache = new Map<string, string>();
+
+function evictCacheIfNeeded() {
+  if (previewCache.size > CACHE_MAX_SIZE) {
+    // Delete oldest entries (first inserted)
+    const keysToDelete = [...previewCache.keys()].slice(
+      0,
+      previewCache.size - CACHE_MAX_SIZE,
+    );
+    for (const key of keysToDelete) {
+      previewCache.delete(key);
+    }
+  }
+}
 
 export function useCodePreview(file: RevealedFileItem): string | null {
   const [preview, setPreview] = useState<string | null>(null);
@@ -36,6 +50,7 @@ export function useCodePreview(file: RevealedFileItem): string | null {
         const lines = text.split("\n", PREVIEW_MAX_LINES + 1);
         const snippet = lines.slice(0, PREVIEW_MAX_LINES).join("\n");
         previewCache.set(cacheKey, snippet);
+        evictCacheIfNeeded();
         if (!cancelled) setPreview(snippet);
       })
       .catch(() => {});

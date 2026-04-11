@@ -5,7 +5,6 @@ LLM 客户端
 """
 
 import asyncio
-import os
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -20,28 +19,11 @@ from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
-# Cache for raw settings from database (loaded once)
-_setting_cache: dict[str, Any] = {}
-
 # 使用 Anthropic 兼容接口的 provider
 _ANTHROPIC_PROVIDERS = {"anthropic", "minimax", "zai"}
 
 # 使用 Google Gemini 兼容接口的 provider
 _GOOGLE_PROVIDERS = {"google", "gemini"}
-
-
-def get_api_key(key: str) -> Optional[str]:
-    """Get API key with priority: env > settings"""
-    env_value = os.environ.get(key)
-    if env_value:
-        return env_value
-
-    if hasattr(settings, key):
-        val = getattr(settings, key)
-        if val:
-            return val
-
-    return None
 
 
 def _parse_provider(model: str) -> tuple[str, str]:
@@ -210,10 +192,14 @@ class LLMClient:
             use_model_config: If True, look up model config from endpoint/static list
                 and apply per-model overrides. Default True.
         """
+        # Only resolve default model when actually needed
+        resolved_default: Optional[str] = None
+
         if not model:
             from src.infra.llm.models_service import get_default_model
 
-            model = await get_default_model()
+            resolved_default = await get_default_model()
+            model = resolved_default
         provider, model_name = _parse_provider(model)
 
         # 当模型没有显式 provider 前缀（无 '/'）且与默认模型不同时，
@@ -223,9 +209,9 @@ class LLMClient:
         if "/" not in model:
             from src.infra.llm.models_service import get_default_model
 
-            default_model = await get_default_model()
-            if default_model and model != default_model:
-                default_provider, _ = _parse_provider(default_model)
+            resolved_default = resolved_default or await get_default_model()
+            if resolved_default and model != resolved_default:
+                default_provider, _ = _parse_provider(resolved_default)
                 provider = default_provider
 
         # Look up per-model config for overrides

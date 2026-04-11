@@ -1,6 +1,6 @@
 """Revealed file index storage — tracks all files/projects revealed via agent tools."""
 
-import asyncio
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -8,6 +8,11 @@ from src.infra.logging import get_logger
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
+
+
+def _safe_search_pattern(text: str) -> str:
+    """Escape user input for use as MongoDB $regex pattern to prevent ReDoS."""
+    return re.escape(text)
 
 
 class RevealedFileStorage:
@@ -29,8 +34,7 @@ class RevealedFileStorage:
     async def ensure_indexes_if_needed(self):
         if not hasattr(self, "_indexes_ensured"):
             self._indexes_ensured = True
-            task = asyncio.create_task(self._ensure_indexes())
-            task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+            await self._ensure_indexes()
 
     async def _ensure_indexes(self):
         try:
@@ -74,6 +78,10 @@ class RevealedFileStorage:
         """Insert or update a revealed file record (dedup by user_id + file_key + trace_id)."""
         await self.ensure_indexes_if_needed()
         try:
+            # Separate updatable fields from insert-only fields
+            created_at = data.get("created_at", datetime.now(timezone.utc))
+            update_fields = {k: v for k, v in data.items() if k != "created_at"}
+
             await self.collection.update_one(
                 {
                     "user_id": user_id,
@@ -81,10 +89,10 @@ class RevealedFileStorage:
                     "trace_id": trace_id,
                 },
                 {
+                    "$set": update_fields,
                     "$setOnInsert": {
-                        **data,
-                        "created_at": data.get("created_at", datetime.now(timezone.utc)),
-                    }
+                        "created_at": created_at,
+                    },
                 },
                 upsert=True,
             )
@@ -100,7 +108,7 @@ class RevealedFileStorage:
             db = client[settings.MONGODB_DB]
             sessions_col = db[settings.MONGODB_SESSIONS_COLLECTION]
             docs = await sessions_col.find(
-                {"name": {"$regex": search, "$options": "i"}},
+                {"name": {"$regex": _safe_search_pattern(search), "$options": "i"}},
                 {"session_id": 1},
             ).to_list(length=50)
             return [d["session_id"] for d in docs if d.get("session_id")]
@@ -113,15 +121,16 @@ class RevealedFileStorage:
         await self.ensure_indexes_if_needed()
         from bson import ObjectId
 
-        doc = await self.collection.find_one({"_id": ObjectId(file_id), "user_id": user_id})
-        if not doc:
-            raise ValueError(f"Revealed file {file_id} not found")
-        new_val = not doc.get("is_favorite", False)
-        await self.collection.update_one(
-            {"_id": ObjectId(file_id)},
-            {"$set": {"is_favorite": new_val}},
+        # Use aggregation pipeline update for atomic toggle
+        result = await self.collection.update_one(
+            {"_id": ObjectId(file_id), "user_id": user_id},
+            [{"$set": {"is_favorite": {"$not": {"$ifNull": ["$is_favorite", False]}}}}],
         )
-        return new_val
+        if result.matched_count == 0:
+            raise ValueError(f"Revealed file {file_id} not found")
+        # Fetch the new value
+        doc = await self.collection.find_one({"_id": ObjectId(file_id)}, {"is_favorite": 1})
+        return doc.get("is_favorite", False) if doc else False
 
     async def list_files(
         self,
@@ -152,14 +161,16 @@ class RevealedFileStorage:
         if favorites_only:
             query["is_favorite"] = True
         if search:
+            safe_search = _safe_search_pattern(search)
             search_conditions: list[Dict[str, Any]] = [
-                {"file_name": {"$regex": search, "$options": "i"}},
-                {"description": {"$regex": search, "$options": "i"}},
+                {"file_name": {"$regex": safe_search, "$options": "i"}},
+                {"description": {"$regex": safe_search, "$options": "i"}},
             ]
-            # Also search by session_name (project_name)
-            matching_session_ids = await self._search_session_ids(search)
-            if matching_session_ids:
-                search_conditions.append({"session_id": {"$in": matching_session_ids}})
+            # Only search by session_name if not already filtering by session_id
+            if not session_id:
+                matching_session_ids = await self._search_session_ids(search)
+                if matching_session_ids:
+                    search_conditions.append({"session_id": {"$in": matching_session_ids}})
             query["$or"] = search_conditions
 
         sort_dir = -1 if sort_order == "desc" else 1
@@ -245,9 +256,10 @@ class RevealedFileStorage:
             query["is_favorite"] = True
 
         if search:
+            safe_search = _safe_search_pattern(search)
             search_conditions: list[Dict[str, Any]] = [
-                {"file_name": {"$regex": search, "$options": "i"}},
-                {"description": {"$regex": search, "$options": "i"}},
+                {"file_name": {"$regex": safe_search, "$options": "i"}},
+                {"description": {"$regex": safe_search, "$options": "i"}},
             ]
             matching_session_ids = await self._search_session_ids(search)
             if matching_session_ids:
@@ -350,9 +362,25 @@ class RevealedFileStorage:
         if not session_ids:
             return {"sessions": [], "total_sessions": total_sessions, "skip": skip, "limit": limit}
 
-        # Fetch all matching files for these sessions (apply same base query + session_id filter)
-        file_query = dict(query)
-        file_query["session_id"] = {"$in": session_ids}
+        # Fetch all matching files for these sessions.
+        # Build a clean file query: keep non-session_id filters from base query,
+        # then add the paginated session_ids constraint.
+        file_query: Dict[str, Any] = {"user_id": user_id, "session_id": {"$in": session_ids}}
+        if file_type:
+            file_query["file_type"] = file_type
+        if project_id == "none":
+            file_query["project_id"] = None
+        elif project_id:
+            file_query["project_id"] = project_id
+        if favorites_only:
+            file_query["is_favorite"] = True
+        # Re-apply file name/description search (but NOT session_id search to avoid conflict)
+        if search:
+            safe_search = _safe_search_pattern(search)
+            file_query["$or"] = [
+                {"file_name": {"$regex": safe_search, "$options": "i"}},
+                {"description": {"$regex": safe_search, "$options": "i"}},
+            ]
 
         file_sort_dir = -1 if sort_order == "desc" else 1
         if sort_by == "file_name":
@@ -458,6 +486,15 @@ class RevealedFileStorage:
         result = await self.collection.update_many(
             {"session_id": session_id},
             {"$set": {"project_id": project_id}},
+        )
+        return result.modified_count
+
+    async def clear_project_id(self, project_id: str) -> int:
+        """Clear project_id on all revealed files belonging to a project (e.g. on project delete)."""
+        await self.ensure_indexes_if_needed()
+        result = await self.collection.update_many(
+            {"project_id": project_id},
+            {"$set": {"project_id": None}},
         )
         return result.modified_count
 

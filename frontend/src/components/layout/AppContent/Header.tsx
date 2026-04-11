@@ -307,12 +307,14 @@ export function Header({
         </div>
       </header>
 
-      <ShareDialog
-        isOpen={shareDialogOpen}
-        onClose={() => setShareDialogOpen(false)}
-        sessionId={sessionId!}
-        sessionName={sessionName || t("sidebar.newChat")}
-      />
+      {sessionId && (
+        <ShareDialog
+          isOpen={shareDialogOpen}
+          onClose={() => setShareDialogOpen(false)}
+          sessionId={sessionId}
+          sessionName={sessionName || t("sidebar.newChat")}
+        />
+      )}
     </>
   );
 }

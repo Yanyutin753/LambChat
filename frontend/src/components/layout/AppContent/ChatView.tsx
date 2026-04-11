@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
@@ -205,6 +205,15 @@ export function ChatView({
     if (!suggestions) return undefined;
     return [...suggestions].sort(() => Math.random() - 0.5).slice(0, 4);
   });
+
+  // Sync displaySuggestions when suggestions change (language/settings update)
+  useEffect(() => {
+    if (!suggestions) {
+      setDisplaySuggestions(undefined);
+      return;
+    }
+    setDisplaySuggestions([...suggestions].sort(() => Math.random() - 0.5).slice(0, 4));
+  }, [suggestions]);
 
   const refreshSuggestions = useCallback(() => {
     if (!suggestions) return;

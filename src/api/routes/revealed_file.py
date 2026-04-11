@@ -106,4 +106,9 @@ async def toggle_revealed_file_favorite(
         new_val = await storage.toggle_favorite(user.sub, file_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        # Catch InvalidId and other BSON errors for malformed file_id
+        if "InvalidId" in type(e).__name__ or "bson" in type(e).__module__:
+            raise HTTPException(status_code=400, detail="Invalid file ID format")
+        raise
     return {"is_favorite": new_val}
