@@ -4,7 +4,6 @@
 
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
-import { getAccessToken } from "./token";
 import type { AgentListResponse } from "../../types";
 
 export const agentApi = {
@@ -30,20 +29,5 @@ export const agentApi = {
       method: "POST",
       body: JSON.stringify({ message, session_id: sessionId }),
     });
-  },
-
-  /**
-   * 获取带认证的 Stream URL（用于 EventSource）
-   */
-  getAuthenticatedStreamUrl(agentId: string, sessionId?: string) {
-    const token = getAccessToken();
-    const params = new URLSearchParams();
-    if (token) {
-      params.set("token", token);
-    }
-    if (sessionId) {
-      params.set("session_id", sessionId);
-    }
-    return `${API_BASE}/${agentId}/stream?${params.toString()}`;
   },
 };

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   MessageSquare,
@@ -15,10 +15,16 @@ import {
   Bot,
   User,
   ShoppingBag,
+  Cpu,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
+import {
+  beginSessionSelectionGuard,
+  clearSessionSelectionGuard,
+} from "../../utils/sessionSelectionGuard";
+import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface UserMenuProps {
   onShowProfile: () => void;
@@ -28,6 +34,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const { t } = useTranslation();
   const { logout, hasAnyPermission, user } = useAuth();
   const { enableSkills } = useSettingsContext();
+  const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const [imgError, setImgError] = useState(false);
@@ -36,7 +43,11 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   );
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+  const location = useLocation();
+  const swipeRef = useSwipeToClose({
+    onClose: () => setShowMenu(false),
+    enabled: showMenu && isMobile,
+  });
 
   const canReadSkills =
     hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
@@ -52,6 +63,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canManageAgents = hasAnyPermission([Permission.AGENT_READ]);
+  const canManageModels = hasAnyPermission([Permission.MODEL_ADMIN]);
 
   // Reactive mobile detection
   useEffect(() => {
@@ -109,10 +121,13 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     }
   }, [showMenu, isMobile]);
 
-  const handleNavigate = (path: string) => {
-    navigate(path);
-    setShowMenu(false);
-  };
+  useEffect(() => {
+    if (showMenu) {
+      setShowMenu(false);
+    }
+    clearSessionSelectionGuard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   const navItems = [
     { path: "/chat", label: t("nav.chat"), icon: MessageSquare, show: true },
@@ -156,6 +171,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       icon: Bot,
       show: canManageAgents,
     },
+    {
+      path: "/models",
+      label: t("nav.models"),
+      icon: Cpu,
+      show: canManageModels,
+    },
   ];
 
   const systemSettingsItems = [
@@ -182,38 +203,53 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
 
   const dividerClass = "mx-3 my-1 border-t border-[var(--theme-border)]";
 
+  const renderNavItem = (item: {
+    path: string;
+    label: string;
+    icon: React.ElementType;
+  }) => (
+    <button
+      key={item.path}
+      type="button"
+      className={`${menuItemClass} ${
+        location.pathname === item.path
+          ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)]"
+          : ""
+      }`}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (item.path !== "/chat") {
+          beginSessionSelectionGuard(item.path);
+        }
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (item.path !== "/chat") {
+          beginSessionSelectionGuard(item.path);
+        }
+        setShowMenu(false);
+        requestAnimationFrame(() => {
+          navigate(item.path);
+        });
+      }}
+    >
+      <item.icon size={16} strokeWidth={1.8} />
+      <span>{item.label}</span>
+    </button>
+  );
+
   const renderMenuContent = () => (
     <>
       {/* Navigation */}
-      {visibleNav.length > 0 && (
-        <div>
-          {visibleNav.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => handleNavigate(item.path)}
-              className={menuItemClass}
-            >
-              <item.icon size={16} strokeWidth={1.8} />
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {visibleNav.length > 0 && <div>{visibleNav.map(renderNavItem)}</div>}
 
       {/* User Management */}
       {visibleUser.length > 0 && (
         <div>
           {visibleNav.length > 0 && <div className={dividerClass} />}
-          {visibleUser.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => handleNavigate(item.path)}
-              className={menuItemClass}
-            >
-              <item.icon size={16} strokeWidth={1.8} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {visibleUser.map(renderNavItem)}
         </div>
       )}
 
@@ -223,16 +259,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
           {(visibleNav.length > 0 || visibleUser.length > 0) && (
             <div className={dividerClass} />
           )}
-          {visibleSys.map((item) => (
-            <button
-              key={item.path}
-              onClick={() => handleNavigate(item.path)}
-              className={menuItemClass}
-            >
-              <item.icon size={16} strokeWidth={1.8} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {visibleSys.map(renderNavItem)}
         </div>
       )}
 
@@ -296,7 +323,10 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
               >
                 <div className="fixed inset-0 bg-black/40 animate-fade-in" />
                 <div
-                  ref={menuRef}
+                  ref={(el) => {
+                    menuRef.current = el;
+                    swipeRef.current = el;
+                  }}
                   className="fixed inset-x-0 bottom-0 z-[101] rounded-t-2xl shadow-2xl max-h-[85vh] overflow-y-auto animate-slide-up-sheet"
                   style={{ backgroundColor: "var(--theme-bg-card)" }}
                   onClick={(e) => e.stopPropagation()}
@@ -312,19 +342,25 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
               </div>
             ) : (
               // Desktop: positioned dropdown
-              <div
-                ref={menuRef}
-                className="fixed z-[100] w-52 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
-                style={{
-                  top: `${menuPosition.top}px`,
-                  right: `${menuPosition.right}px`,
-                  backgroundColor: "var(--theme-bg-card)",
-                  borderColor: "var(--theme-border)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {renderMenuContent()}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-[99]"
+                  onClick={() => setShowMenu(false)}
+                />
+                <div
+                  ref={menuRef}
+                  className="fixed z-[100] w-52 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+                  style={{
+                    top: `${menuPosition.top}px`,
+                    right: `${menuPosition.right}px`,
+                    backgroundColor: "var(--theme-bg-card)",
+                    borderColor: "var(--theme-border)",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {renderMenuContent()}
+                </div>
+              </>
             ),
             document.body,
           )}

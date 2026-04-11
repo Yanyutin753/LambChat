@@ -146,7 +146,7 @@ export const FileUploadButton = memo(function FileUploadButton({
       <button
         type="button"
         onClick={() => setShowDropdown(!showDropdown)}
-        className="flex items-center justify-center rounded-full w-8 h-8 border border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 transition-all duration-300"
+        className="chat-tool-btn"
         title={t("fileUpload.title")}
       >
         <Paperclip size={18} />
@@ -154,7 +154,13 @@ export const FileUploadButton = memo(function FileUploadButton({
 
       {/* Dropdown menu */}
       {showDropdown && (
-        <div className="absolute bottom-full left-0 mb-2 z-50 w-52 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200/80 dark:border-stone-700/80 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div
+          className="absolute bottom-full left-0 mb-2 z-50 w-52 rounded-xl shadow-lg border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+          style={{
+            background: "var(--theme-bg-card)",
+            borderColor: "var(--theme-border)",
+          }}
+        >
           {availableCategories.map((category) => {
             const Icon = CATEGORY_ICONS[category];
             return (
@@ -162,19 +168,26 @@ export const FileUploadButton = memo(function FileUploadButton({
                 key={category}
                 type="button"
                 onClick={() => handleCategorySelect(category)}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/60 transition-colors"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] transition-colors hover:bg-[var(--theme-primary-light)] active:bg-[var(--theme-primary-light)]"
+                style={{ color: "var(--theme-text)" }}
               >
-                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-stone-100 dark:bg-stone-700">
+                <div
+                  className="flex items-center justify-center w-7 h-7 rounded-lg"
+                  style={{ background: "var(--theme-primary-light)" }}
+                >
                   <Icon
                     size={14}
-                    className="text-stone-500 dark:text-stone-400"
+                    style={{ color: "var(--theme-text-secondary)" }}
                   />
                 </div>
                 <span className="flex-1 text-left font-medium">
                   {t(`fileUpload.categories.${category}`)}
                 </span>
                 {uploadLimits && (
-                  <span className="text-[11px] tabular-nums text-stone-400 dark:text-stone-500">
+                  <span
+                    className="text-[11px] tabular-nums"
+                    style={{ color: "var(--theme-text-secondary)" }}
+                  >
                     {uploadLimits[category]}MB
                   </span>
                 )}
@@ -182,7 +195,13 @@ export const FileUploadButton = memo(function FileUploadButton({
             );
           })}
           {uploadLimits && (
-            <div className="px-3.5 py-2 border-t border-stone-100 dark:border-stone-700/60 text-[11px] text-stone-400 dark:text-stone-500">
+            <div
+              className="px-3.5 py-2 border-t text-xs"
+              style={{
+                borderColor: "var(--theme-border)",
+                color: "var(--theme-text-secondary)",
+              }}
+            >
               {t("fileUpload.maxFilesSummary", {
                 maxFiles: uploadLimits.maxFiles,
               })}

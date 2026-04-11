@@ -60,6 +60,8 @@ class TaskExecutor:
         attachments: Optional[List[Dict[str, Any]]] = None,
         existing_trace_id: Optional[str] = None,
         user_message_written: bool = False,
+        disabled_skills: Optional[List[str]] = None,
+        disabled_mcp_tools: Optional[List[str]] = None,
     ) -> None:
         """执行任务"""
         from src.infra.writer.present import Presenter, PresenterConfig
@@ -137,6 +139,8 @@ class TaskExecutor:
                 disabled_tools=disabled_tools,
                 agent_options=agent_options,
                 attachments=attachments,
+                disabled_skills=disabled_skills,
+                disabled_mcp_tools=disabled_mcp_tools,
             ):
                 await presenter.save_event(event)
 
@@ -168,6 +172,8 @@ class TaskExecutor:
             from .cancellation import TaskCancellation
 
             await TaskCancellation.clear_interrupt(run_id)
+            # 清除请求上下文，防止 contextvars 泄漏到后续任务
+            TraceContext.clear_request_context()
 
     async def _handle_cancelled_error(
         self,
@@ -352,7 +358,7 @@ class TaskExecutor:
             if message:
                 notification["data"]["message"] = message
 
-            await manager.send_to_user(user_id, notification)
+            await manager.send_to_user_with_broadcast(user_id, notification)
             logger.info(
                 f"Task notification sent: user_id={user_id}, session={session_id}, status={status.value}"
             )

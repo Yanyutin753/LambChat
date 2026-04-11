@@ -13,11 +13,8 @@ import type {
   ConnectionStatus,
   MessageAttachment,
 } from "../types";
-import {
-  sessionApi,
-  getAccessToken,
-  type BackendSession,
-} from "../services/api";
+import { sessionApi, type BackendSession } from "../services/api";
+import { authenticatedRequest } from "../services/api/authenticatedRequest";
 import { feedbackApi } from "../services/api/feedback";
 import { useAuth } from "../hooks/useAuth";
 import { Permission } from "../types/auth";
@@ -57,6 +54,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string>("");
   const [agentsLoading, setAgentsLoading] = useState(false);
+  const [allowedModels, setAllowedModels] = useState<string[] | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>("disconnected");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -92,6 +90,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   // Flag for reconnect from history
   const isReconnectFromHistoryRef = useRef<boolean>(false);
 
+  // Stream version to invalidate stale SSE events after clearMessages
+  const streamVersionRef = useRef(0);
+
   // Keep sessionId/runId in ref for closure access
   const sessionIdRef = useRef<string | null>(null);
   const currentRunIdRef = useRef<string | null>(null);
@@ -117,6 +118,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       processedEventIdsRef,
       lastHistoryTimestampRef,
       activeSubagentStackRef,
+      streamVersionRef,
       setSessionId,
       setMessages,
       setConnectionStatus: (status) =>
@@ -151,17 +153,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const fetchAgents = useCallback(async () => {
     setAgentsLoading(true);
     try {
-      const token = getAccessToken();
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      const response = await fetch(`${API_BASE}/agents`, { headers });
+      const response = await authenticatedRequest(`${API_BASE}/agents`, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       if (!response.ok) throw new Error("Failed to fetch agents");
       const data: AgentListResponse = await response.json();
       setAgents(data.agents || []);
+      setAllowedModels(data.allowed_models ?? null);
       // Use ref to check currentAgent, avoiding dependency cycle
       if (!currentAgentRef.current && data.agents?.length > 0) {
         const defaultAgentId = data.default_agent || data.agents[0]?.id || "";
@@ -201,19 +201,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       // Fetch fresh agents data
       setAgentsLoading(true);
       try {
-        const token = getAccessToken();
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-        const response = await fetch(`${API_BASE}/agents`, { headers });
+        const response = await authenticatedRequest(`${API_BASE}/agents`, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
         if (!response.ok) throw new Error("Failed to fetch agents");
         const data: AgentListResponse = await response.json();
 
         // Update agents list
         setAgents(data.agents || []);
+        setAllowedModels(data.allowed_models ?? null);
 
         // Apply the new default agent if user doesn't have an active session
         // (i.e., no current messages means it's a good time to switch)
@@ -274,9 +272,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
 
-      // Clear existing messages before loading new session
-      setMessages([]);
-      setSessionId(null);
+      // Clear approvals before loading new session (keep old messages visible until new ones are ready)
+      options?.onClearApprovals?.();
 
       try {
         const sessionData = await sessionApi.get(targetSessionId);
@@ -291,6 +288,23 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             targetRunId ||
             (sessionData.metadata?.current_run_id as string) ||
             null;
+
+          // 从 metadata 提取配置信息
+          const sessionConfig = {
+            agent_id: (sessionData.metadata?.agent_id as string) || undefined,
+            agent_options:
+              (sessionData.metadata?.agent_options as Record<
+                string,
+                boolean | string | number
+              >) || undefined,
+            disabled_tools:
+              (sessionData.metadata?.disabled_tools as string[]) || undefined,
+            disabled_skills:
+              (sessionData.metadata?.disabled_skills as string[]) || undefined,
+            disabled_mcp_tools:
+              (sessionData.metadata?.disabled_mcp_tools as string[]) ||
+              undefined,
+          };
 
           // 并行发起 events、status 和 feedback 请求，减少串行等待时间
           const eventsPromise = sessionApi.getEvents(targetSessionId);
@@ -410,6 +424,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               );
             }
           }
+
+          return sessionConfig;
         }
       } catch (err) {
         console.error("Failed to load session:", err);
@@ -418,6 +434,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         setIsLoading(false);
         isLoadingHistoryRef.current = false;
       }
+
+      return null;
     },
     [options, createSSEContext, canReadFeedback],
   );
@@ -472,21 +490,25 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setError(null);
 
       try {
-        const token = getAccessToken();
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
+        // 获取当前禁用的 skills 和 mcp_tools
+        const disabledSkills = options?.getDisabledSkills?.() || [];
+        const disabledMcpTools = options?.getDisabledMcpTools?.() || [];
+
+        // Merge session-level agent options (e.g. model) with ChatInput values
+        const fullAgentOptions = {
+          ...(options?.getAgentOptions?.()),
+          ...agentOptions,
         };
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
 
         const submitData = (await sessionApi.submitChat(
           currentAgent,
           content,
           sessionId ?? undefined,
-          agentOptions,
+          fullAgentOptions,
           attachments,
           pendingProjectIdRef.current ?? undefined,
+          disabledSkills,
+          disabledMcpTools,
         )) as {
           session_id: string;
           run_id: string;
@@ -513,13 +535,26 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         if (!sessionId && newSessionId) {
           setSessionId(newSessionId);
           const now = new Date().toISOString();
+
+          // 构建完整的对话配置
+          const conversationConfig: Record<string, unknown> = {
+            current_run_id: newRunId,
+            agent_id: currentAgent,
+            agent_options: fullAgentOptions,
+            disabled_skills: disabledSkills,
+            disabled_mcp_tools: disabledMcpTools,
+          };
+          if (projectId) {
+            conversationConfig.project_id = projectId;
+          }
+
           const newSession: BackendSession = {
             id: newSessionId,
             agent_id: currentAgent,
             created_at: now,
             updated_at: now,
             is_active: true,
-            metadata: projectId ? { project_id: projectId } : {},
+            metadata: conversationConfig,
           };
           setNewlyCreatedSession(newSession);
           setCurrentProjectId(projectId);
@@ -540,6 +575,27 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             .catch((err) => {
               console.warn("[sendMessage] Failed to generate title:", err);
             });
+        } else if (sessionId && newRunId) {
+          // 更新现有 session 的 metadata
+          const conversationConfig: Record<string, unknown> = {
+            ...((newlyCreatedSession?.metadata as Record<string, unknown>) ||
+              {}),
+            current_run_id: newRunId,
+            agent_id: currentAgent,
+            agent_options: fullAgentOptions,
+            disabled_skills: disabledSkills,
+            disabled_mcp_tools: disabledMcpTools,
+          };
+
+          setNewlyCreatedSession((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  metadata: conversationConfig,
+                  updated_at: new Date().toISOString(),
+                }
+              : null,
+          );
         }
         if (newRunId) {
           setCurrentRunId(newRunId);
@@ -591,7 +647,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         isSendingRef.current = false;
       }
     },
-    [sessionId, currentAgent, createSSEContext],
+    [
+      sessionId,
+      currentAgent,
+      createSSEContext,
+      newlyCreatedSession?.metadata,
+      options,
+    ],
   );
 
   const stopGeneration = useCallback(async () => {
@@ -635,6 +697,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   }, [options]);
 
   const clearMessages = useCallback(() => {
+    streamVersionRef.current += 1;
     setMessages([]);
     setSessionId(null);
     setError(null);
@@ -660,6 +723,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     },
     [clearMessages],
   );
+
+  // Switch agent without clearing messages (for mode toggling)
+  const switchAgent = useCallback((agentId: string) => {
+    setCurrentAgent(agentId);
+  }, []);
 
   // Reconnect function
   const handleReconnectSSE = useCallback(async () => {
@@ -727,6 +795,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     agents,
     currentAgent,
     agentsLoading,
+    allowedModels,
     isReconnecting: connectionStatus === "reconnecting",
     connectionStatus,
     newlyCreatedSession,
@@ -736,6 +805,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     stopGeneration,
     clearMessages,
     selectAgent,
+    switchAgent,
     refreshAgents: fetchAgents,
     loadHistory,
     reconnectSSE: handleReconnectSSE,

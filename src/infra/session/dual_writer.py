@@ -13,7 +13,7 @@ Dual Event Writer - 双写事件到 Redis Stream + MongoDB
 
 import asyncio
 import json
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -30,7 +30,15 @@ logger = get_logger(__name__)
 # MongoDB 批量写入配置
 _MONGO_FLUSH_INTERVAL = 1.0  # 每 1000ms 刷新一次
 _MONGO_BATCH_SIZE = 200  # 每 200 条立即刷新
-_MONGO_BUFFER_MAX = 100000  # buffer 上限，防止 MongoDB 慢/宕机时 OOM
+_MONGO_BUFFER_MAX = (
+    50000  # buffer 上限，防止 MongoDB 慢/宕机时 OOM（从 100000 降低到 50000，平衡内存和数据安全）
+)
+_TTL_SET_KEYS_MAX = 5000  # _ttl_set_keys 上限，防止内存泄漏（从 10000 降低到 5000）
+
+
+def _get_max_events_per_trace() -> int:
+    """获取单个 trace 最多保留的事件数（可配置）"""
+    return getattr(settings, "SESSION_MAX_EVENTS_PER_TRACE", 10000)
 
 
 def _utc_now() -> datetime:
@@ -53,7 +61,7 @@ class DualEventWriter:
     def __init__(self):
         self._redis = None
         self._trace = None
-        self._ttl_set_keys: set[str] = set()
+        self._ttl_set_keys: OrderedDict[str, bool] = OrderedDict()
         # MongoDB 批量写入缓冲
         # (trace_id, event_type, data, session_id, run_id, timestamp)
         self._mongo_buffer: list[tuple[str, str, dict, str, Optional[str], datetime]] = []
@@ -126,12 +134,22 @@ class DualEventWriter:
         # ---- MongoDB 写入（缓冲，使用 Event 触发） ----
         if trace_id:
             should_flush_now = False
+            buffer_size = 0
             async with self._mongo_lock:
+                buffer_size = len(self._mongo_buffer)
                 # 防止 buffer 无限增长（MongoDB 慢/宕机时丢弃最旧的事件）
-                if len(self._mongo_buffer) >= _MONGO_BUFFER_MAX:
+                if buffer_size >= _MONGO_BUFFER_MAX:
+                    dropped_count = buffer_size - (_MONGO_BUFFER_MAX // 2)
                     self._mongo_buffer = self._mongo_buffer[-(_MONGO_BUFFER_MAX // 2) :]
+                    logger.error(
+                        f"MongoDB buffer exceeded {_MONGO_BUFFER_MAX}, dropped {dropped_count} oldest entries. "
+                        f"This indicates MongoDB is slow or down. Check MongoDB health!"
+                    )
+                # 当缓冲区达到 80% 时发出警告
+                elif buffer_size >= int(_MONGO_BUFFER_MAX * 0.8):
                     logger.warning(
-                        f"MongoDB buffer exceeded {_MONGO_BUFFER_MAX}, dropped oldest entries"
+                        f"MongoDB buffer at {buffer_size}/{_MONGO_BUFFER_MAX} ({buffer_size * 100 // _MONGO_BUFFER_MAX}%). "
+                        f"Consider checking MongoDB performance."
                     )
                 self._mongo_buffer.append(
                     (trace_id, event_type, data, session_id, run_id, timestamp)
@@ -188,13 +206,20 @@ class DualEventWriter:
 
         # 构建批量操作
         operations: list[UpdateOne] = []
+        max_events = _get_max_events_per_trace()
+
         for trace_id, events in grouped.items():
             session_id, run_id = trace_context.get(trace_id, ("", None))
             operations.append(
                 UpdateOne(
                     {"trace_id": trace_id},
                     {
-                        "$push": {"events": {"$each": events}},
+                        "$push": {
+                            "events": {
+                                "$each": events,
+                                "$slice": -max_events,  # 只保留最新的 N 个事件，防止单文档过大
+                            }
+                        },
                         "$inc": {"event_count": len(events)},
                         "$set": {"updated_at": now},
                         "$setOnInsert": {
@@ -275,7 +300,10 @@ class DualEventWriter:
                 ttl = await self.redis.ttl(stream_key)
                 if ttl == -1:
                     await self.redis.expire(stream_key, settings.SSE_CACHE_TTL)
-                self._ttl_set_keys.add(stream_key)
+                self._ttl_set_keys[stream_key] = True
+                # LRU eviction
+                while len(self._ttl_set_keys) > _TTL_SET_KEYS_MAX:
+                    self._ttl_set_keys.popitem(last=False)
             return True
         except Exception as e:
             logger.warning(f"Redis xadd failed (streaming event): {e}")

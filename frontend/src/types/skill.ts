@@ -39,6 +39,17 @@ export interface UserSkillDetail {
 // Skill file content response
 export interface SkillFileResponse {
   content: string;
+  is_binary?: boolean;
+  url?: string;
+  mime_type?: string;
+  size?: number;
+}
+
+// Binary file info stored alongside content in SkillResponse
+export interface BinaryFileInfo {
+  url: string;
+  mime_type: string;
+  size: number;
 }
 
 // Skill toggle response
@@ -69,6 +80,8 @@ export interface SkillResponse {
   source: SkillSource;
   content?: string; // Main SKILL.md content
   files: Record<string, string>;
+  filePaths?: string[]; // file path list without content (for lazy loading)
+  binaryFiles?: Record<string, BinaryFileInfo>; // binary file path -> metadata
   file_count: number;
   installed_from: "manual" | "marketplace";
   published_marketplace_name?: string;
@@ -93,13 +106,6 @@ export interface SkillCreate {
   enabled?: boolean;
   files?: Record<string, string>; // For multi-file support
   source?: SkillSource; // Used by form, not sent to API
-}
-
-// Skill Update Request
-export interface SkillUpdate {
-  description?: string;
-  content?: string;
-  enabled?: boolean;
 }
 
 // ============================================
@@ -138,6 +144,10 @@ export interface MarketplaceSkillFilesResponse {
 // Marketplace skill file content response
 export interface MarketplaceSkillFileResponse {
   content: string;
+  is_binary?: boolean;
+  url?: string;
+  mime_type?: string;
+  size?: number;
 }
 
 // Marketplace install response
@@ -153,34 +163,4 @@ export type MarketplaceUpdateResponse = MarketplaceInstallResponse;
 // Tags response
 export interface TagsResponse {
   tags: string[];
-}
-
-// ============================================
-// Legacy types for backwards compatibility
-// ============================================
-
-export interface SkillMetadata {
-  name: string;
-  description: string;
-  path: string;
-  source: "user" | "project";
-  enabled: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface SkillContent {
-  metadata: SkillMetadata;
-  content: string;
-}
-
-export interface SkillListResponse {
-  skills: SkillMetadata[];
-  total: number;
-}
-
-export interface SkillStats {
-  total_skills: number;
-  enabled_skills: number;
-  disabled_skills: number;
 }

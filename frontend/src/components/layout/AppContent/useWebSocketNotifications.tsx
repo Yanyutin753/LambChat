@@ -9,10 +9,12 @@ import { sessionApi } from "../../../services/api";
 
 interface UseWebSocketNotificationsOptions {
   sessionId: string | null;
+  enabled?: boolean;
 }
 
 export function useWebSocketNotifications({
   sessionId,
+  enabled = true,
 }: UseWebSocketNotificationsOptions) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -28,7 +30,7 @@ export function useWebSocketNotifications({
 
   // WebSocket for task completion notifications
   useWebSocket({
-    enabled: true,
+    enabled,
     onTaskComplete: async (notification: {
       data: { session_id: string; status: string; message?: string };
     }) => {
@@ -42,7 +44,10 @@ export function useWebSocketNotifications({
           sessionName = session.name;
         }
       } catch (err) {
-        console.warn("[AppContent] Failed to fetch session name for notification:", err);
+        console.warn(
+          "[AppContent] Failed to fetch session name for notification:",
+          err,
+        );
       }
 
       const navigateToSession = () => {
@@ -81,11 +86,13 @@ export function useWebSocketNotifications({
       toast.custom(
         (visible) => (
           <div
-            className={`cursor-pointer px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transition-all ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
-              } ${isSuccess
+            className={`cursor-pointer px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transition-all ${
+              visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+            } ${
+              isSuccess
                 ? "bg-green-50 dark:bg-green-900/80 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700"
                 : "bg-red-50 dark:bg-red-900/80 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700"
-              }`}
+            }`}
             onClick={(e) => {
               e.stopPropagation();
               navigateToSession();
@@ -93,9 +100,15 @@ export function useWebSocketNotifications({
             }}
           >
             {isSuccess ? (
-              <Check size={18} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+              <Check
+                size={18}
+                className="text-green-600 dark:text-green-400 flex-shrink-0"
+              />
             ) : (
-              <X size={18} className="text-red-600 dark:text-red-400 flex-shrink-0" />
+              <X
+                size={18}
+                className="text-red-600 dark:text-red-400 flex-shrink-0"
+              />
             )}
             <span className="text-sm font-medium">{toastMessage}</span>
           </div>

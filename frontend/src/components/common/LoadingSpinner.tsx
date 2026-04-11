@@ -45,7 +45,10 @@ export function Loading({ text, size = "md", className = "" }: LoadingProps) {
     <div className={`flex items-center gap-2 ${className}`}>
       <LoadingSpinner size={size} />
       {text && (
-        <span className="text-sm text-stone-500 dark:text-stone-400">
+        <span
+          className="text-sm"
+          style={{ color: "var(--theme-text-secondary)" }}
+        >
           {text}
         </span>
       )}

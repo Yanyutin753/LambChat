@@ -42,3 +42,4 @@ docs/
 .env*
 *.log
 .claude/
+.workspace/

@@ -13,6 +13,7 @@
 
 import asyncio
 import os
+import shlex
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from deepagents.backends.protocol import (
@@ -50,8 +51,10 @@ class E2BBackend(BaseSandbox):
         self,
         sandbox: "E2BSandbox",
         timeout: int | None = None,
+        env_vars: dict[str, str] | None = None,
     ):
         self._sandbox = sandbox
+        self.env_vars = env_vars or {}
         self._timeout = (
             timeout or settings.E2B_TIMEOUT or int(os.environ.get("E2B_TIMEOUT", _DEFAULT_TIMEOUT))
         )
@@ -64,6 +67,13 @@ class E2BBackend(BaseSandbox):
     def work_dir(self) -> str:
         return "/home/user"
 
+    def _ensure_parent_dir(self, file_path: str) -> None:
+        """Ensure the parent directory exists before writing a file."""
+        parent = os.path.dirname(file_path)
+        if not parent:
+            return
+        self.execute(f"mkdir -p {shlex.quote(parent)}")
+
     # =========================================================================
     # Command execution
     # =========================================================================
@@ -72,10 +82,10 @@ class E2BBackend(BaseSandbox):
         effective_timeout = min(timeout or self._timeout, self._timeout)
 
         try:
-            result = self._sandbox.commands.run(
-                cmd=command,
-                timeout=effective_timeout,
-            )
+            kwargs: dict = {"cmd": command, "timeout": effective_timeout}
+            if self.env_vars:
+                kwargs["envs"] = self.env_vars
+            result = self._sandbox.commands.run(**kwargs)
             output = result.stdout or ""
             if result.stderr:
                 output = f"{output}\n{result.stderr}" if output else result.stderr
@@ -149,12 +159,15 @@ class E2BBackend(BaseSandbox):
                 on_stderr(line)
 
         try:
-            result = self._sandbox.commands.run(
-                cmd=command,
-                timeout=effective_timeout,
-                on_stdout=_on_stdout,
-                on_stderr=_on_stderr,
-            )
+            kwargs: dict = {
+                "cmd": command,
+                "timeout": effective_timeout,
+                "on_stdout": _on_stdout,
+                "on_stderr": _on_stderr,
+            }
+            if self.env_vars:
+                kwargs["envs"] = self.env_vars
+            result = self._sandbox.commands.run(**kwargs)
             output = "\n".join(stdout_parts)
             if stderr_parts:
                 output = (
@@ -183,6 +196,16 @@ class E2BBackend(BaseSandbox):
     # Native Filesystem API (override BaseSandbox shell-based defaults)
     # =========================================================================
 
+    def _is_entry_dir(self, entry: Any) -> bool:
+        """判断 E2B 文件条目是否为目录（兼容 type 和 is_dir 两种 API）"""
+        from e2b import FileType
+
+        if hasattr(entry, "type") and entry.type == FileType.DIR:
+            return True
+        if hasattr(entry, "is_dir") and entry.is_dir:
+            return True
+        return False
+
     def ls_info(self, path: str) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 列出目录"""
         try:
@@ -190,8 +213,8 @@ class E2BBackend(BaseSandbox):
             result: list[FileInfo] = []
             for entry in entries:
                 info: FileInfo = {"path": entry.path}
-                if hasattr(entry, "is_dir"):
-                    info["is_dir"] = entry.is_dir
+                if self._is_entry_dir(entry):
+                    info["is_dir"] = True
                 if hasattr(entry, "size"):
                     info["size"] = entry.size
                 result.append(info)
@@ -219,6 +242,7 @@ class E2BBackend(BaseSandbox):
     def write(self, file_path: str, content: str) -> WriteResult:
         """使用 E2B 原生 files.write() 写入文件"""
         try:
+            self._ensure_parent_dir(file_path)
             self._sandbox.files.write(path=file_path, data=content)
             return WriteResult(path=file_path)
         except Exception as e:
@@ -233,10 +257,11 @@ class E2BBackend(BaseSandbox):
             logger.error(f"E2B files.write({file_path}) failed: {e}")
             return WriteResult(path=file_path, error=error)
 
-    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+    def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
         """使用 E2B 原生 files.list() 递归搜索匹配 glob 模式的文件
 
         E2B 没有 glob API，所以用 list 递归列出后在 Python 端过滤。
+        使用 _max_depth 限制递归深度，防止深层目录结构导致长时间阻塞。
         """
         try:
             import fnmatch
@@ -245,26 +270,32 @@ class E2BBackend(BaseSandbox):
             entries = self._sandbox.files.list(path=path)
             result: list[FileInfo] = []
 
-            def _match_glob(entries_list: list[Any], current_path: str) -> None:
+            def _match_glob(entries_list: list[Any], current_path: str, depth: int) -> None:
+                if depth > _max_depth:
+                    logger.warning(
+                        f"E2B glob_info reached max depth {_max_depth} at {current_path}"
+                    )
+                    return
                 for entry in entries_list:
                     full_path = entry.path
                     name = os.path.basename(full_path)
+                    is_dir = self._is_entry_dir(entry)
                     if fnmatch.fnmatch(name, pattern):
                         info: FileInfo = {"path": full_path}
-                        if hasattr(entry, "is_dir"):
-                            info["is_dir"] = entry.is_dir
+                        if is_dir:
+                            info["is_dir"] = True
                         if hasattr(entry, "size"):
                             info["size"] = entry.size
                         result.append(info)
                     # 递归进入子目录
-                    if hasattr(entry, "is_dir") and getattr(entry, "is_dir", False):
+                    if is_dir:
                         try:
                             sub_entries = self._sandbox.files.list(path=full_path)
-                            _match_glob(sub_entries, full_path)
+                            _match_glob(sub_entries, full_path, depth + 1)
                         except Exception:
                             pass
 
-            _match_glob(entries, path)
+            _match_glob(entries, path, 0)
             return result
         except Exception as e:
             logger.warning(f"E2B glob_info({pattern}) failed: {e}, falling back to execute()")
@@ -281,6 +312,7 @@ class E2BBackend(BaseSandbox):
                 responses.append(FileUploadResponse(path=path, error="invalid_path"))
                 continue
             try:
+                self._ensure_parent_dir(path)
                 self._sandbox.files.write(path=path, data=content)
                 responses.append(FileUploadResponse(path=path, error=None))
             except Exception as e:

@@ -1,4 +1,12 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  lazy,
+  Suspense,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../common/LoadingSpinner";
@@ -13,6 +21,8 @@ import {
   Minimize2,
   Eye,
   Code2,
+  PanelRight,
+  Maximize,
 } from "lucide-react";
 import { uploadApi } from "../../services/api";
 
@@ -113,7 +123,92 @@ export default function DocumentPreview({
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [excalidrawData, setExcalidrawData] = useState<string>("");
   const [viewSource, setViewSource] = useState(false);
+  const [viewMode, setViewMode] = useState<"center" | "sidebar">("sidebar");
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    return parseInt(localStorage.getItem("sidebar-preview-width") || "45", 10);
+  });
+
+  // Persist sidebar width to CSS variable + localStorage
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--sidebar-preview-width", `${sidebarWidth}%`);
+    localStorage.setItem("sidebar-preview-width", String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  // When sidebar mode is active, signal the main layout to compress
+  useEffect(() => {
+    const root = document.documentElement;
+    if (viewMode === "sidebar") {
+      root.setAttribute("data-sidebar-preview", "open");
+    } else {
+      root.removeAttribute("data-sidebar-preview");
+    }
+    return () => root.removeAttribute("data-sidebar-preview");
+  }, [viewMode]);
+
+  // Drag resize handler — native DOM capture layer to block iframe events
+  const panelRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLDivElement>(null);
+  const isResizing = useRef(false);
+  const justResized = useRef(false);
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const panel = panelRef.current;
+      if (!panel) return;
+      isResizing.current = true;
+      const startX = e.clientX;
+      const root = document.documentElement;
+      const startWidth = parseInt(
+        root.style.getPropertyValue("--sidebar-preview-width") ||
+          String(sidebarWidth),
+        10,
+      );
+      const indicator = indicatorRef.current;
+
+      // Create raw DOM capture layer — blocks any iframe from stealing events
+      const capture = document.createElement("div");
+      capture.style.cssText =
+        "position:fixed;inset:0;z-index:999999;cursor:col-resize;";
+      document.body.appendChild(capture);
+
+      const onMove = (ev: MouseEvent) => {
+        if (!isResizing.current) return;
+        if (indicator) {
+          indicator.style.left = `${ev.clientX}px`;
+          indicator.style.display = "block";
+        }
+      };
+      const onUp = (ev: MouseEvent) => {
+        if (!isResizing.current) return;
+        isResizing.current = false;
+        if (indicator) indicator.style.display = "none";
+        capture.remove();
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        // Apply resize
+        const delta = ((startX - ev.clientX) / window.innerWidth) * 100;
+        const val = Math.round(Math.min(Math.max(startWidth + delta, 25), 75));
+        root.style.setProperty("--sidebar-preview-width", `${val}%`);
+        setSidebarWidth(val);
+        if (panel) panel.style.maxWidth = `${val}%`;
+        localStorage.setItem("sidebar-preview-width", String(val));
+        justResized.current = true;
+        setTimeout(() => {
+          justResized.current = false;
+        }, 100);
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [sidebarWidth],
+  );
 
   const fileName = path.split("/").pop() || path;
   const ext = getFileExtension(fileName);
@@ -344,6 +439,15 @@ export default function DocumentPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, content, s3Key, signedUrl, externalImageUrl]);
 
+  // Revoke blob URLs on change or unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (htmlUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(htmlUrl);
+      }
+    };
+  }, [htmlUrl]);
+
   // Handle ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -355,13 +459,15 @@ export default function DocumentPreview({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // Lock body scroll
+  // Lock body scroll in center/modal mode; sidebar mode keeps scroll enabled
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+    if (viewMode !== "sidebar") {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    }
+  }, [viewMode]);
 
   const handleCopy = async () => {
     if (data?.content) {
@@ -410,19 +516,55 @@ export default function DocumentPreview({
   const fileInfo = getFileTypeInfo(fileName);
   const Icon = fileInfo.icon;
 
+  const isSidebar = viewMode === "sidebar";
+
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex flex-col sm:items-center sm:justify-center bg-black/70"
-      onClick={onClose}
+      className={`fixed inset-0 z-[200] flex flex-col ${
+        isSidebar
+          ? "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
+          : "sm:items-center sm:justify-center bg-black/70"
+      }`}
+      onClick={() => {
+        if (!isResizing.current && !justResized.current) onClose();
+      }}
     >
+      {/* Resize indicator line — follows mouse, no reflow */}
       <div
-        className={`w-full flex flex-col bg-white dark:bg-stone-900 shadow-2xl overflow-hidden ring-1 ring-black/5 dark:ring-white/10 ${
-          isFullscreen
-            ? "h-full sm:h-full sm:max-w-none sm:rounded-none"
-            : "sm:max-w-3xl lg:max-w-4xl h-full sm:h-[80vh] sm:rounded-2xl"
+        ref={indicatorRef}
+        className="sm:block fixed top-0 bottom-0 z-[201] pointer-events-none"
+        style={{
+          display: "none",
+          left: 0,
+          width: "2px",
+          backgroundColor: "var(--theme-primary)",
+          opacity: 0.4,
+        }}
+      />
+      <div
+        ref={isSidebar ? panelRef : undefined}
+        className={`w-full flex flex-col bg-white dark:bg-stone-900 pointer-events-auto ${
+          isSidebar
+            ? "h-full sm:rounded-l-2xl relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)]"
+            : `overflow-hidden shadow-2xl ring-1 ring-black/5 dark:ring-white/10 transition-all duration-300 ease-out ${
+                isFullscreen
+                  ? "h-full sm:h-full sm:max-w-none sm:rounded-none"
+                  : "sm:max-w-3xl lg:max-w-4xl h-full sm:h-[80vh] sm:rounded-2xl"
+              }`
         }`}
+        {...(isSidebar ? { "data-sidebar-panel": "" } : {})}
+        style={isSidebar ? { maxWidth: "100%" } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Resize handle — outside overflow-hidden */}
+        {isSidebar && (
+          <div
+            className="hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
+            onMouseDown={handleResizeStart}
+          >
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full bg-transparent group-hover:bg-[var(--theme-primary)]/50 transition-colors duration-200" />
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-800 shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-900 dark:to-stone-900 whitespace-nowrap">
           {/* File Icon */}
@@ -487,6 +629,32 @@ export default function DocumentPreview({
                 )}
               </button>
             )}
+            {/* Sidebar / Center view toggle - desktop only */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setViewMode(isSidebar ? "center" : "sidebar");
+              }}
+              className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+              title={
+                isSidebar
+                  ? t("documents.centerView", "Center view")
+                  : t("documents.sidebarView", "Sidebar view")
+              }
+            >
+              {isSidebar ? (
+                <Maximize
+                  size={18}
+                  className="text-stone-500 dark:text-stone-400"
+                />
+              ) : (
+                <PanelRight
+                  size={18}
+                  className="text-stone-500 dark:text-stone-400"
+                />
+              )}
+            </button>
             {/* Fullscreen button - desktop only */}
             <button
               type="button"
@@ -494,7 +662,7 @@ export default function DocumentPreview({
                 e.stopPropagation();
                 setIsFullscreen(!isFullscreen);
               }}
-              className="hidden sm:flex items-center justify-center w-9 h-9 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
               title={
                 isFullscreen
                   ? t("documents.exitFullscreen")

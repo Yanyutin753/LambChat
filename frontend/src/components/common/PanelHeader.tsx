@@ -46,7 +46,7 @@ export function PanelHeader({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3.5">
           {icon && (
-            <div className="flex size-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-stone-100 to-stone-50 text-stone-600 shadow-sm ring-1 ring-stone-200/60 dark:from-stone-800 dark:to-stone-900 dark:text-stone-300 dark:ring-stone-700/50">
+            <div className="[&>svg]:size-5 flex size-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-stone-100 to-stone-50 text-stone-600 shadow-sm ring-1 ring-stone-200/60 dark:from-stone-800 dark:to-stone-900 dark:text-stone-300 dark:ring-stone-700/50">
               {icon}
             </div>
           )}
@@ -71,7 +71,7 @@ export function PanelHeader({
       {/* 搜索框 */}
       {onSearchChange !== undefined && (
         <div className="mt-2 flex items-center gap-2 sm:mt-3">
-          <div className="relative flex-1">
+          <div className="relative min-w-0 flex-1">
             <Search
               size={18}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"

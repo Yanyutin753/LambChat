@@ -28,9 +28,9 @@ export enum Permission {
   SETTINGS_MANAGE = "settings:manage",
   // MCP
   MCP_READ = "mcp:read",
-  MCP_WRITE_STDIO = "mcp:write_stdio",
   MCP_WRITE_SSE = "mcp:write_sse",
   MCP_WRITE_HTTP = "mcp:write_http",
+  MCP_WRITE_SANDBOX = "mcp:write_sandbox",
   MCP_DELETE = "mcp:delete",
   MCP_ADMIN = "mcp:admin",
   // File
@@ -52,10 +52,16 @@ export enum Permission {
   // Agent
   AGENT_READ = "agent:read",
   AGENT_ADMIN = "agent:admin",
+  // Model
+  MODEL_ADMIN = "model:admin",
   // Marketplace
   MARKETPLACE_READ = "marketplace:read",
   MARKETPLACE_PUBLISH = "marketplace:publish",
   MARKETPLACE_ADMIN = "marketplace:admin",
+  // Environment Variables
+  ENVVAR_READ = "envvar:read",
+  ENVVAR_WRITE = "envvar:write",
+  ENVVAR_DELETE = "envvar:delete",
 }
 
 // 用户信息

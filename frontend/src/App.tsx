@@ -92,61 +92,73 @@ function ChatPage() {
     description: "navDesc.chat",
   });
 
-  return <AppContent activeTab="chat" />;
+  return <AppContent key="chat" activeTab="chat" />;
 }
 
 // Simple page components that set the page title and render AppContent
 function SkillsPage() {
   usePageTitle("nav.skills", undefined, { description: "navDesc.skills" });
-  return <AppContent activeTab="skills" />;
+  return <AppContent key="skills" activeTab="skills" />;
 }
 
 function MarketplacePage() {
   usePageTitle("nav.marketplace", undefined, {
     description: "navDesc.marketplace",
   });
-  return <AppContent activeTab="marketplace" />;
+  return <AppContent key="marketplace" activeTab="marketplace" />;
 }
 
 function UsersPage() {
   usePageTitle("nav.users", undefined, { description: "navDesc.users" });
-  return <AppContent activeTab="users" />;
+  return <AppContent key="users" activeTab="users" />;
 }
 
 function RolesPage() {
   usePageTitle("nav.roles", undefined, { description: "navDesc.roles" });
-  return <AppContent activeTab="roles" />;
+  return <AppContent key="roles" activeTab="roles" />;
 }
 
 function SettingsPage() {
   usePageTitle("nav.settings", undefined, {
     description: "navDesc.settings",
   });
-  return <AppContent activeTab="settings" />;
+  return <AppContent key="settings" activeTab="settings" />;
 }
 
 function MCPPage() {
   usePageTitle("nav.mcp", undefined, { description: "navDesc.mcp" });
-  return <AppContent activeTab="mcp" />;
+  return <AppContent key="mcp" activeTab="mcp" />;
 }
 
 function FeedbackPage() {
   usePageTitle("nav.feedback", undefined, {
     description: "navDesc.feedback",
   });
-  return <AppContent activeTab="feedback" />;
+  return <AppContent key="feedback" activeTab="feedback" />;
 }
 
 function ChannelsPage() {
   usePageTitle("nav.channels", undefined, {
     description: "navDesc.channels",
   });
-  return <AppContent activeTab="channels" />;
+  return <AppContent key="channels" activeTab="channels" />;
 }
 
 function AgentsPage() {
   usePageTitle("nav.agents", undefined, { description: "navDesc.agents" });
-  return <AppContent activeTab="agents" />;
+  return <AppContent key="agents" activeTab="agents" />;
+}
+
+function ModelsPage() {
+  usePageTitle("nav.models", undefined, { description: "navDesc.models" });
+  return <AppContent key="models" activeTab="models" />;
+}
+
+function FilesPage() {
+  usePageTitle("fileLibrary.title", undefined, {
+    description: "fileLibrary.title",
+  });
+  return <AppContent key="files" activeTab="files" />;
 }
 
 // Auth page wrapper - redirects to /chat after successful login/register
@@ -323,6 +335,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <AgentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/models"
+            element={
+              <ProtectedRoute>
+                <ModelsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/files"
+            element={
+              <ProtectedRoute>
+                <FilesPage />
               </ProtectedRoute>
             }
           />

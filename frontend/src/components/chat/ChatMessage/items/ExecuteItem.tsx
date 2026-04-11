@@ -66,7 +66,13 @@ const ExecuteItem = memo(function ExecuteItem({
               : "error"
       }
       icon={<Terminal size={12} className="shrink-0 opacity-50" />}
-      label={`${t("chat.message.toolExecute")} ${command.split(" ")[0] || ""}`}
+      label={
+        command
+          ? `${t("chat.message.toolExecute")} ${
+              command.length > 80 ? command.slice(0, 77) + "…" : command
+            }`
+          : t("chat.message.toolExecute")
+      }
       variant="tool"
       expandable={canExpand}
     >
@@ -74,7 +80,7 @@ const ExecuteItem = memo(function ExecuteItem({
         <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-80 overflow-y-auto min-w-0">
           <div className="px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono flex items-center gap-2 flex-wrap">
             <span className="text-stone-700 dark:text-stone-200">$</span>
-            <span className="text-emerald-600 dark:text-emerald-400">
+            <span className="text-emerald-600 dark:text-emerald-400 break-all min-w-0">
               {command}
             </span>
             {timeout && (

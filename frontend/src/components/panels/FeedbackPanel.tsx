@@ -11,6 +11,7 @@ import {
   Trash2,
   AlertCircle,
   MessageSquare,
+  Star,
   TrendingUp,
   Copy,
   Check,
@@ -41,7 +42,7 @@ function StatsCard({
     <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-stone-100 dark:bg-stone-800">
-          <Icon size={18} className="text-stone-600 dark:text-stone-400" />
+          <Icon size={24} className="text-stone-600 dark:text-stone-400" />
         </div>
         <div>
           <p className="text-xs text-stone-500 dark:text-stone-400">{label}</p>
@@ -187,11 +188,10 @@ function FeedbackDetailModal({
             {/* Rating */}
             <div className="flex items-center gap-2 mb-6">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
-                  feedback.rating === "up"
-                    ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
-                    : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
-                }`}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${feedback.rating === "up"
+                  ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                  : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
+                  }`}
               >
                 {feedback.rating === "up" ? (
                   <ThumbsUp size={16} />
@@ -217,7 +217,7 @@ function FeedbackDetailModal({
                   <button
                     onClick={() => onCopy(feedback.session_id, "session")}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-                    title="Copy"
+                    title={t("documents.copy")}
                   >
                     {copiedField === "session" ? (
                       <Check size={16} />
@@ -239,7 +239,7 @@ function FeedbackDetailModal({
                   <button
                     onClick={() => onCopy(feedback.run_id, "run")}
                     className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-                    title="Copy"
+                    title={t("documents.copy")}
                   >
                     {copiedField === "run" ? (
                       <Check size={16} />
@@ -383,8 +383,8 @@ export function FeedbackPanel() {
         title={t("feedback.title")}
         subtitle={t("feedback.subtitle")}
         icon={
-          <MessageSquare
-            size={18}
+          <Star
+            size={20}
             className="text-stone-600 dark:text-stone-400"
           />
         }
@@ -502,11 +502,10 @@ export function FeedbackPanel() {
                     {/* Rating & Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
-                          feedback.rating === "up"
-                            ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
-                            : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
-                        }`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${feedback.rating === "up"
+                          ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                          : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
+                          }`}
                       >
                         {feedback.rating === "up" ? (
                           <ThumbsUp size={12} />
@@ -564,11 +563,10 @@ export function FeedbackPanel() {
 
                     {/* Rating Badge */}
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
-                        feedback.rating === "up"
-                          ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
-                          : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
-                      }`}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${feedback.rating === "up"
+                        ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
+                        : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
+                        }`}
                     >
                       {feedback.rating === "up" ? (
                         <ThumbsUp size={14} />

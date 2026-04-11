@@ -7,6 +7,7 @@ WebSocket Manager - WebSocket 连接管理器
 
 import asyncio
 import json
+import uuid
 from typing import Dict, Optional, Set
 
 from fastapi import WebSocket
@@ -34,6 +35,7 @@ class ConnectionManager:
         self._pubsub_task: Optional[asyncio.Task] = None
         self._pubsub = None
         self._running = False
+        self._instance_id = uuid.uuid4().hex
 
     async def connect(self, websocket: WebSocket, user_id: str, accept: bool = True) -> None:
         """用户连接 WebSocket
@@ -61,52 +63,6 @@ class ConnectionManager:
                 if not self._connections[user_id]:
                     del self._connections[user_id]
         logger.info(f"WebSocket disconnected: user_id={user_id}")
-
-    async def send_to_user(self, user_id: str, message: dict) -> int:
-        """
-        向指定用户发送消息
-
-        Args:
-            user_id: 用户 ID
-            message: 消息内容（dict，会被序列化为 JSON）
-
-        Returns:
-            成功发送的连接数
-        """
-        if not message:
-            return 0
-
-        json_str = json.dumps(message, ensure_ascii=False)
-        sent_count = 0
-
-        logger.info(
-            f"[WebSocket] send_to_user: user_id={user_id}, connections={list(self._connections.keys())}"
-        )
-
-        async with self._lock:
-            connections = self._connections.get(user_id, set()).copy()
-
-        logger.info(f"[WebSocket] Sending to {len(connections)} connections: {json_str}")
-
-        # 遍历副本以避免在发送时修改集合
-        disconnected = set()
-        for ws in connections:
-            try:
-                await ws.send_text(json_str)
-                sent_count += 1
-                logger.info("[WebSocket] Sent successfully to one connection")
-            except Exception as e:
-                logger.warning(f"Failed to send to WebSocket: {e}")
-                disconnected.add(ws)
-
-        # 清理断开的连接
-        if disconnected:
-            async with self._lock:
-                for ws in disconnected:
-                    if user_id in self._connections:
-                        self._connections[user_id].discard(ws)
-
-        return sent_count
 
     async def broadcast(self, message: dict) -> int:
         """
@@ -178,12 +134,7 @@ class ConnectionManager:
                     if message["type"] == "message":
                         try:
                             data = json.loads(message["data"])
-                            user_id = data.get("user_id")
-                            msg_content = data.get("message")
-
-                            if user_id and msg_content:
-                                # 只在本地发送，不再次广播（避免无限循环）
-                                await self._send_to_user_local(user_id, msg_content)
+                            await self._handle_broadcast_message(data)
                         except json.JSONDecodeError:
                             logger.warning(
                                 f"Invalid WebSocket broadcast message: {message['data']}"
@@ -234,6 +185,19 @@ class ConnectionManager:
                 pass
 
         logger.info("WebSocket pub/sub listener stopped")
+
+    async def _handle_broadcast_message(self, data: dict) -> int:
+        """Handle a WebSocket broadcast payload received from Redis."""
+        if data.get("source_instance_id") == self._instance_id:
+            return 0
+
+        user_id = data.get("user_id")
+        msg_content = data.get("message")
+        if not user_id or not msg_content:
+            return 0
+
+        # Only deliver locally here; rebroadcasting would create a loop.
+        return await self._send_to_user_local(user_id, msg_content)
 
     async def _send_to_user_local(self, user_id: str, message: dict) -> int:
         """
@@ -296,7 +260,13 @@ class ConnectionManager:
             redis_client = get_redis_client()
             await redis_client.publish(
                 WS_BROADCAST_CHANNEL,
-                json.dumps({"user_id": user_id, "message": message}),
+                json.dumps(
+                    {
+                        "user_id": user_id,
+                        "message": message,
+                        "source_instance_id": self._instance_id,
+                    }
+                ),
             )
         except Exception as e:
             logger.warning(f"Failed to broadcast WebSocket message: {e}")

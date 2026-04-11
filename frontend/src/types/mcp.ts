@@ -3,18 +3,17 @@
 // ============================================
 
 // MCP Transport Type
-export type MCPTransport = "stdio" | "sse" | "streamable_http";
+export type MCPTransport = "sse" | "streamable_http" | "sandbox";
 
 // MCP Server Base
 export interface MCPServerBase {
   name: string;
   transport: MCPTransport;
   enabled: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  command?: string;
+  env_keys?: string[];
 }
 
 // MCP Server Response (from API)
@@ -35,22 +34,20 @@ export interface MCPServerCreate {
   name: string;
   transport: MCPTransport;
   enabled?: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  command?: string;
+  env_keys?: string[];
 }
 
 // MCP Server Update Request
 export interface MCPServerUpdate {
   transport?: MCPTransport;
   enabled?: boolean;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
   url?: string;
   headers?: Record<string, string>;
+  command?: string;
+  env_keys?: string[];
 }
 
 // MCP Toggle Response
@@ -89,4 +86,38 @@ export interface MCPServerMoveResponse {
   message: string;
   from_type: string;
   to_type: string;
+}
+
+// MCP Tool Info (discovered from server)
+export interface MCPToolInfo {
+  name: string;
+  description: string;
+  parameters: MCPToolParamInfo[];
+  system_disabled?: boolean; // Whether this tool is disabled at system level
+  user_disabled?: boolean; // Whether this tool is disabled by the user
+}
+
+// MCP Tool Parameter Info
+export interface MCPToolParamInfo {
+  name: string;
+  type: string;
+  description: string;
+  required: boolean;
+  default?: unknown;
+}
+
+// MCP Tool Discovery Response
+export interface MCPToolDiscoveryResponse {
+  server_name: string;
+  tools: MCPToolInfo[];
+  count: number;
+  error?: string;
+}
+
+// MCP Tool Toggle Response
+export interface MCPToolToggleResponse {
+  server_name: string;
+  tool_name: string;
+  enabled: boolean;
+  message: string;
 }

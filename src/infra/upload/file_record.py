@@ -38,6 +38,7 @@ class FileRecordStorage:
         try:
             collection = self.collection
             await collection.create_index("hash", unique=True, background=True)
+            await collection.create_index("key", unique=True, background=True)
             await collection.create_index("uploaded_by", background=True)
         except Exception as e:
             get_logger(__name__).warning(f"Failed to create file_records indexes: {e}")
@@ -106,11 +107,42 @@ class FileRecordStorage:
             "size": size,
             "category": category,
             "uploaded_by": uploaded_by,
+            "reference_count": 0,
             "created_at": now,
+            "updated_at": now,
         }
         result = await self.collection.insert_one(doc)
         doc["id"] = str(result.inserted_id)
         return doc
+
+    async def add_references(self, keys: list[str]) -> int:
+        """Increment persisted message references for the given storage keys."""
+        unique_keys = sorted({key for key in keys if key})
+        if not unique_keys:
+            return 0
+
+        await self.ensure_indexes_if_needed()
+        result = await self.collection.update_many(
+            {"key": {"$in": unique_keys}},
+            {"$inc": {"reference_count": 1}, "$set": {"updated_at": datetime.now()}},
+        )
+        return result.modified_count
+
+    async def release_references(self, keys: list[str]) -> int:
+        """Decrement persisted message references for the given storage keys."""
+        unique_keys = sorted({key for key in keys if key})
+        if not unique_keys:
+            return 0
+
+        await self.ensure_indexes_if_needed()
+        result = await self.collection.update_many(
+            {
+                "key": {"$in": unique_keys},
+                "reference_count": {"$gt": 0},
+            },
+            {"$inc": {"reference_count": -1}, "$set": {"updated_at": datetime.now()}},
+        )
+        return result.modified_count
 
     async def delete_by_key(self, key: str) -> bool:
         """Delete a file record by storage key.

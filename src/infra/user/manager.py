@@ -165,7 +165,8 @@ class UserManager:
                 pass
 
         # Run S3 cleanup in background (non-blocking)
-        asyncio.create_task(cleanup_s3_files(user_id))
+        task = asyncio.create_task(cleanup_s3_files(user_id))
+        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
         return await self.storage.delete(user_id)
 

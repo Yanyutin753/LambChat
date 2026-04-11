@@ -158,11 +158,14 @@ async def cleanup_expired_connections() -> int:
             pooled = _connection_pool.pop(server_name, None)
             if pooled:
                 try:
-                    # MultiServerMCPClient 不支持 async context manager（__aexit__ 会抛 NotImplementedError）
-                    # 也没有 async close()，直接移除引用即可让 GC 回收
-                    del pooled.client
+                    if hasattr(pooled.client, "close"):
+                        task = asyncio.create_task(pooled.client.close())
+                        _track_background_task(task)
+                    elif hasattr(pooled.client, "__aexit__"):
+                        task = asyncio.create_task(pooled.client.__aexit__(None, None, None))  # type: ignore[func-returns-value]
+                        _track_background_task(task)
                 except Exception as e:
-                    logger.debug(f"[MCP Pool] Error cleaning up client: {e}")
+                    logger.debug(f"[MCP Pool] Error cleaning up client for {server_name}: {e}")
 
         if expired_servers:
             logger.info(f"[MCP Pool] Cleaned up {len(expired_servers)} expired connections")

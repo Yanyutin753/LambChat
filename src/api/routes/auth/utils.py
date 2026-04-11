@@ -58,19 +58,18 @@ def _get_language(request: Request) -> str:
 def _get_frontend_url(request: Request) -> str:
     """从请求中获取前端 URL
 
-    通过 X-Forwarded-Host 头自动检测前端 URL，无需手动配置。
-    - 开发环境：Vite 代理会自动设置 X-Forwarded-Host
-    - 生产环境：Nginx 等代理需配置传递 X-Forwarded-Host
+    优先使用代理透传的协议和主机信息来构造对外可见的前端 URL。
+    - 开发环境：Vite 代理会设置 X-Forwarded-Host
+    - 生产环境：Nginx 等代理至少应传递 Host / X-Forwarded-Proto
     """
-    # 检查代理转发的原始 Host（Vite 代理会设置 X-Forwarded-Host）
     forwarded_host = request.headers.get("x-forwarded-host")
-    if forwarded_host:
-        # 使用 X-Forwarded-Host 构建 URL
-        # 默认使用 https，除非是 localhost
-        scheme = (
-            "http" if "localhost" in forwarded_host or "127.0.0.1" in forwarded_host else "https"
+    host = (forwarded_host or request.headers.get("host") or "").split(",")[0].strip()
+    if host:
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+        scheme = forwarded_proto or (
+            "http" if "localhost" in host or "127.0.0.1" in host else "https"
         )
-        return f"{scheme}://{forwarded_host}"
+        return f"{scheme}://{host}"
 
     # 其次使用 Origin 请求头（适用于 AJAX 请求）
     origin = request.headers.get("origin") or request.headers.get("referer")

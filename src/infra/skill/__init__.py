@@ -5,12 +5,10 @@ Skills 管理模块 - 简化架构
 from src.infra.skill.loader import load_skill_files
 from src.infra.skill.manager import SkillManager
 from src.infra.skill.marketplace import MarketplaceStorage
-from src.infra.skill.middleware import SkillsMiddleware
 from src.infra.skill.storage import SkillStorage
 
 __all__ = [
     "SkillManager",
-    "SkillsMiddleware",
     "SkillStorage",
     "MarketplaceStorage",
     "load_skill_files",

@@ -20,7 +20,18 @@ logger = get_logger(__name__)
 # ============================================================================
 
 _loop_locals: dict[int, dict[str, Any]] = {}
-_loop_locals_lock = asyncio.Lock()
+_loop_locals_lock: Optional[asyncio.Lock] = None
+_loop_locals_lock_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+def _get_loop_locals_lock() -> asyncio.Lock:
+    """Get or create the loop-locals lock (lazy, multi-loop safe)."""
+    global _loop_locals_lock, _loop_locals_lock_loop
+    current_loop = asyncio.get_running_loop()
+    if _loop_locals_lock is None or _loop_locals_lock_loop is not current_loop:
+        _loop_locals_lock = asyncio.Lock()
+        _loop_locals_lock_loop = current_loop
+    return _loop_locals_lock
 
 
 def _get_loop_id() -> int:
@@ -34,7 +45,7 @@ def _get_loop_id() -> int:
 async def _get_loop_local(name: str, factory: Callable[[], Any]) -> Any:
     """Get or create a loop-local resource (async-safe)."""
     loop_id = _get_loop_id()
-    async with _loop_locals_lock:
+    async with _get_loop_locals_lock():
         if loop_id not in _loop_locals:
             _loop_locals[loop_id] = {}
         if name not in _loop_locals[loop_id]:
@@ -114,6 +125,9 @@ class MemoryBackend(ABC):
         user_id: str,
         content: str,
         context: Optional[str] = None,
+        title: Optional[str] = None,
+        summary: Optional[str] = None,
+        existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Store a memory."""
         ...
@@ -138,14 +152,9 @@ class MemoryBackend(ABC):
         """Delete a memory by ID."""
         ...
 
-    async def auto_retain(
-        self,
-        user_id: str,
-        conversation_summary: str,
-        context: Optional[str] = None,
-    ) -> None:
-        """Auto-retain a conversation summary (fire-and-forget)."""
-        await self.retain(user_id, conversation_summary, context or "auto_retained")
+    async def close(self) -> None:
+        """Release resources held by this backend. Default is a no-op."""
+        pass
 
 
 # ============================================================================
@@ -158,7 +167,7 @@ async def create_memory_backend() -> Optional[MemoryBackend]:
     Create the active memory backend based on configuration.
 
     Returns None if no backend is configured or memory is disabled via master switch.
-    Provider selection is controlled by MEMORY_PERFORM: "memu" or "hindsight".
+    Provider selection is controlled by MEMORY_PERFORM: "memu", "hindsight", or "native".
     """
     from src.kernel.config import settings
 
@@ -179,6 +188,17 @@ async def create_memory_backend() -> Optional[MemoryBackend]:
                 return backend
         except Exception as e:
             logger.warning(f"[Memory] Failed to initialize memU backend: {e}")
+
+    if perform == "native":
+        try:
+            from src.infra.memory.client.native import NativeMemoryBackend
+
+            backend = NativeMemoryBackend()
+            await backend.initialize()
+            if backend._collection is not None:
+                return backend
+        except Exception as e:
+            logger.warning(f"[Memory] Failed to initialize native backend: {e}")
 
     if perform == "hindsight":
         try:

@@ -59,6 +59,13 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # Application Settings
     # ============================================
+    "APP_BASE_URL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.AGENT,
+        "description": "Public base URL for file download/upload URLs (e.g. https://lambchat.com). Required when behind a reverse proxy where request.base_url is incorrect.",
+        "default": "",
+        "frontend_visible": True,
+    },
     "DEBUG": {
         "type": SettingType.BOOLEAN,
         "category": SettingCategory.AGENT,
@@ -74,37 +81,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
     # ============================================
     # LLM Settings
     # ============================================
-    "LLM_MODEL": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM model identifier (e.g., anthropic/claude-3-5-sonnet)",
-        "default": "anthropic/claude-3-5-sonnet-20241022",
-    },
-    "LLM_TEMPERATURE": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.LLM,
-        "description": "LLM temperature for response generation (0.0-2.0)",
-        "default": 0.7,
-    },
-    "LLM_MAX_TOKENS": {
-        "type": SettingType.NUMBER,
-        "category": SettingCategory.LLM,
-        "description": "Maximum tokens in LLM response",
-        "default": 4096,
-    },
-    "LLM_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM API key",
-        "default": "",
-        "is_sensitive": True,
-    },
-    "LLM_API_BASE": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.LLM,
-        "description": "LLM API base URL",
-        "default": "",
-    },
     "LLM_MAX_RETRIES": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
@@ -117,12 +93,11 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "LLM API 重试基础等待时间（秒，指数退避起始值）",
         "default": 1.0,
     },
-    "LLM_MAX_INPUT_TOKENS": {
+    "LLM_MODEL_CACHE_SIZE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.LLM,
-        "description": "LLM 上下文窗口大小，用于 DeepAgent 自动压缩对话（设为 None 则使用模型默认值）",
-        "default": None,
-        "nullable": True,
+        "description": "LLM 模型实例缓存大小（每个实例约 10-30MB）。默认 50，支持多用户/多参数场景。设置过小会频繁创建/销毁实例，设置过大会占用更多内存。",
+        "default": 50,
     },
     # ============================================
     # Session Settings
@@ -201,24 +176,9 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "type": SettingType.SELECT,
         "category": SettingCategory.SANDBOX,
         "description": "Sandbox platform to use",
-        "default": "runloop",
+        "default": "daytona",
         "depends_on": "ENABLE_SANDBOX",
-        "options": ["runloop", "daytona", "modal", "e2b"],
-    },
-    "RUNLOOP_API_KEY": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SANDBOX,
-        "description": "Runloop API Key",
-        "default": "",
-        "is_sensitive": True,
-        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "runloop"},
-    },
-    "RUNLOOP_BASE_URL": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SANDBOX,
-        "description": "Runloop API Base URL",
-        "default": "https://api.runloop.ai",
-        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "runloop"},
+        "options": ["daytona", "e2b"],
     },
     "DAYTONA_API_KEY": {
         "type": SettingType.STRING,
@@ -269,13 +229,6 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Daytona sandbox auto-delete interval in minutes after being archived",
         "default": 1440,
         "depends_on": {"key": "SANDBOX_PLATFORM", "value": "daytona"},
-    },
-    "MODAL_APP_NAME": {
-        "type": SettingType.STRING,
-        "category": SettingCategory.SANDBOX,
-        "description": "Modal App Name",
-        "default": "",
-        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "modal"},
     },
     "E2B_API_KEY": {
         "type": SettingType.STRING,
@@ -332,6 +285,28 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Enable MCP feature",
         "default": True,
         "frontend_visible": True,
+    },
+    "ENABLE_DEFERRED_TOOL_LOADING": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.TOOLS,
+        "description": "Enable deferred tool loading for MCP tools (reduces initial context size)",
+        "default": True,
+        "depends_on": "ENABLE_MCP",
+        "frontend_visible": True,
+    },
+    "DEFERRED_TOOL_THRESHOLD": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "description": "Total tool count threshold above which MCP tools are deferred (0 = always defer)",
+        "default": 20,
+        "depends_on": "ENABLE_DEFERRED_TOOL_LOADING",
+    },
+    "DEFERRED_TOOL_SEARCH_LIMIT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.TOOLS,
+        "description": "Maximum number of results returned by tool search",
+        "default": 25,
+        "depends_on": "ENABLE_DEFERRED_TOOL_LOADING",
     },
     # ============================================
     # Database Settings (MongoDB)
@@ -838,7 +813,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "Memory provider to use",
         "default": "memu",
         "depends_on": "ENABLE_MEMORY",
-        "options": ["memu", "hindsight"],
+        "options": ["memu", "hindsight", "native"],
     },
     # ============================================
     # Hindsight Memory Settings
@@ -883,5 +858,131 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "memU cloud API base URL",
         "default": "https://api.memu.so",
         "depends_on": {"key": "MEMORY_PERFORM", "value": "memu"},
+    },
+    # ============================================
+    # Native Memory Settings (MongoDB-backed, zero external deps)
+    # ============================================
+    "NATIVE_MEMORY_EMBEDDING_API_BASE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Embedding API base URL for vector search (OpenAI-compatible). Leave empty for text-only mode.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_EMBEDDING_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Embedding API key (OpenAI-compatible endpoint)",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_EMBEDDING_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Embedding model name (e.g., text-embedding-3-small)",
+        "default": "text-embedding-3-small",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_STALENESS_DAYS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Days before a memory is considered stale (shown with warning in recall results)",
+        "default": 30,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_PRUNE_THRESHOLD": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Days after which never-accessed memories are pruned during consolidation",
+        "default": 90,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_INDEX_ENABLED": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.MEMORY,
+        "description": "Inject memory index into system prompt for context awareness",
+        "default": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+        "frontend_visible": True,
+    },
+    "NATIVE_MEMORY_INDEX_CACHE_TTL": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Memory index cache TTL in seconds (per-user)",
+        "default": 300,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "LLM model for memory extraction, consolidation, and reranking. Leave empty to use the first available model.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_API_BASE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API base URL for memory LLM operations. Leave empty to use the first available model's API base.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API key for memory LLM operations. Leave empty to use the first available model's API key.",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_RERANK_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Dedicated rerank model for native memory recall. Leave empty to use local reranking.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_RERANK_API_BASE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API base URL for the native memory rerank model endpoint.",
+        "default": "",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_RERANK_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "API key for the native memory rerank model endpoint.",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_MAX_TOKENS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Max tokens for memory LLM responses (extraction, consolidation, reranking). Higher values produce longer summaries but cost more.",
+        "default": 2000,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Maximum number of characters to keep inline in MongoDB before offloading the full memory body to the store backend.",
+        "default": 1200,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_STORE_NAMESPACE": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.MEMORY,
+        "description": "Base namespace used when storing long native memory bodies in the shared store backend.",
+        "default": "memories",
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
+    "NATIVE_MEMORY_APPEND_MAX_DETAILS": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Maximum number of appended detail entries kept on project/reference memories before older detail entries are trimmed.",
+        "default": 8,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
 }

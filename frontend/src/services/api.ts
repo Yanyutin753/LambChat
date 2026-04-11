@@ -35,9 +35,19 @@ export {
 } from "./api/session";
 export { agentApi } from "./api/agent";
 export { agentConfigApi } from "./api/agent_config";
+export { modelApi } from "./api/model";
 export { skillApi } from "./api/skill";
 export { settingsApi } from "./api/settings";
 export { mcpApi } from "./api/mcp";
+export { envvarApi } from "./api/envvar";
 export { uploadApi } from "./api/upload";
 export { versionApi } from "./api/version";
 export { projectApi } from "./api/project";
+export {
+  revealedFileApi,
+  type RevealedFileItem,
+  type RevealedFileListParams,
+  type RevealedFileGroupedListParams,
+  type RevealedFileGroupedListResponse,
+  type SessionGroupItem,
+} from "./api/revealedFile";

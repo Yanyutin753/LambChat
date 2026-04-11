@@ -7,14 +7,59 @@ Backend 工具函数
 
 from typing import Any, Optional
 
-from deepagents.backends.protocol import BackendProtocol
+from deepagents.backends.protocol import SandboxBackendProtocol
 
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def get_backend_from_runtime(runtime: Any) -> Optional[BackendProtocol]:
+def get_user_id_from_runtime(runtime: Any) -> Optional[str]:
+    """从 ToolRuntime 获取 user_id。
+
+    通过 runtime.config.configurable.context.user_id 获取，
+    与 get_backend_from_runtime 同风格。
+    """
+    if runtime is not None:
+        if hasattr(runtime, "config") and runtime.config:
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                if isinstance(configurable, dict):
+                    ctx = configurable.get("context")
+                    if ctx and hasattr(ctx, "user_id"):
+                        return ctx.user_id
+    return None
+
+
+def get_base_url_from_runtime(runtime: Any) -> str:
+    """从 ToolRuntime 获取 base_url（与 get_backend_from_runtime 同风格）
+
+    优先级：runtime.config > settings.APP_BASE_URL 环境变量
+    用于确保上传/下载生成的 URL 始终带完整前缀。
+    """
+    # 1. 从 runtime.config 获取（request.base_url 传递过来的）
+    if runtime is not None:
+        if hasattr(runtime, "config") and runtime.config:
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                if isinstance(configurable, dict):
+                    base_url = configurable.get("base_url", "")
+                    if base_url:
+                        return base_url.rstrip("/")
+
+    # 2. fallback: 从环境变量 APP_BASE_URL 获取
+    from src.kernel.config import settings
+
+    env_base_url = getattr(settings, "APP_BASE_URL", "")
+    if env_base_url:
+        return env_base_url.rstrip("/")
+
+    return ""
+
+
+def get_backend_from_runtime(runtime: Any) -> Optional[SandboxBackendProtocol]:
     """从 ToolRuntime 获取 backend（分布式安全）
 
     Backend 通过 runtime.config["configurable"]["backend"] 传递

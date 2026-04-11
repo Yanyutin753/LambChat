@@ -22,7 +22,8 @@ import { useNavigate } from "react-router-dom";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import { SkillForm } from "../skill/SkillForm";
+import { BinaryFilePreview } from "../skill/BinaryFilePreview";
+import { SkillFormModal } from "./SkillsPanel/SkillFormModal";
 import { useMarketplace } from "../../hooks/useMarketplace";
 import { useSkills } from "../../hooks/useSkills";
 import { Permission } from "../../types";
@@ -56,6 +57,7 @@ export function MarketplacePanel() {
     previewFiles,
     previewLoading,
     previewFileContent,
+    previewBinaryFiles,
     previewFileLoading,
     openPreview,
     readPreviewFile,
@@ -137,7 +139,9 @@ export function MarketplacePanel() {
   };
 
   const handleInstallClick = (skillName: string) => {
-    const action = installedMarketplaceNames.has(skillName) ? "update" : "install";
+    const action = installedMarketplaceNames.has(skillName)
+      ? "update"
+      : "install";
     setInstallConfirm({ isOpen: true, skillName, action });
   };
 
@@ -277,7 +281,7 @@ export function MarketplacePanel() {
               <button
                 type="button"
                 onClick={() => setIsFilterOpen((prev) => !prev)}
-                className={`btn-secondary min-h-10 px-3 ${
+                className={`btn-secondary h-10 px-3 ${
                   selectedTags.length > 0
                     ? "border-[var(--theme-primary)] text-[var(--theme-text)]"
                     : ""
@@ -371,7 +375,7 @@ export function MarketplacePanel() {
       )}
 
       {/* Skills List */}
-      <div className="skill-content-area flex-1 overflow-y-auto bg-[var(--theme-bg)] p-4 sm:p-6">
+      <div className="skill-content-area flex-1 overflow-y-auto p-4 sm:p-6">
         {isLoading && skills.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[var(--theme-text-secondary)]">
             <LoadingSpinner size="sm" />
@@ -399,9 +403,11 @@ export function MarketplacePanel() {
             )}
           </div>
         ) : (
-          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
             {skills.map((skill) => {
-              const isInstalled = installedMarketplaceNames.has(skill.skill_name);
+              const isInstalled = installedMarketplaceNames.has(
+                skill.skill_name,
+              );
               const hasLocalManualConflict = localManualConflicts.has(
                 skill.skill_name,
               );
@@ -530,7 +536,10 @@ export function MarketplacePanel() {
                             disabled
                             className="btn-primary opacity-50 text-xs min-h-9 px-3 py-2"
                           >
-                            <Loader2Icon size={14} className="animate-spin" />
+                            <Loader2Icon
+                              size={14}
+                              className="animate-spin text-white"
+                            />
                             <span>{t("marketplace.installing")}</span>
                           </button>
                         ) : userSkillsLoading ? (
@@ -553,8 +562,8 @@ export function MarketplacePanel() {
                               hasLocalManualConflict
                                 ? "btn-secondary cursor-not-allowed opacity-60"
                                 : isInstalled
-                                ? "btn-secondary"
-                                : "btn-primary shadow-sm"
+                                  ? "btn-secondary"
+                                  : "btn-primary shadow-sm"
                             }`}
                           >
                             {hasLocalManualConflict ? (
@@ -645,14 +654,15 @@ export function MarketplacePanel() {
         onConfirm={confirmInstall}
         onCancel={cancelInstall}
         variant="info"
+        loading={!!installingSkill}
       />
 
       {/* Skill Preview Modal */}
       {previewSkill && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4">
           <div className="skill-preview-shell flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[1.5rem] border sm:max-h-[88vh] sm:max-w-4xl sm:rounded-[1.75rem] shadow-[0_-16px_48px_-16px_rgba(15,23,42,0.3)] sm:shadow-[0_32px_80px_-32px_rgba(15,23,42,0.55)]">
             {/* Modal Header */}
-            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/88 px-4 py-4 backdrop-blur sm:px-6 sm:py-5">
+            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/88 px-4 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -741,6 +751,7 @@ export function MarketplacePanel() {
                     {previewFiles.files.map((filePath) => {
                       const isOpen = Boolean(previewFileContent[filePath]);
                       const isLoadingFile = previewFileLoading === filePath;
+                      const binaryInfo = previewBinaryFiles[filePath];
 
                       return (
                         <div
@@ -792,10 +803,19 @@ export function MarketplacePanel() {
                             )}
                           </button>
                           {isOpen && (
-                            <div className="border-t /92 p-4">
-                              <pre className="max-h-72 overflow-auto rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg)] p-4 text-xs leading-6 text-[var(--theme-text)] whitespace-pre-wrap break-all font-mono">
-                                {previewFileContent[filePath]}
-                              </pre>
+                            <div className="border-t border-[var(--theme-border)]/60">
+                              {binaryInfo ? (
+                                <BinaryFilePreview
+                                  url={binaryInfo.url}
+                                  mime_type={binaryInfo.mime_type}
+                                  size={binaryInfo.size}
+                                  fileName={filePath}
+                                />
+                              ) : (
+                                <pre className="max-h-72 overflow-auto p-4 text-xs leading-6 text-[var(--theme-text)] whitespace-pre-wrap break-all font-mono">
+                                  {previewFileContent[filePath]}
+                                </pre>
+                              )}
                             </div>
                           )}
                         </div>
@@ -814,46 +834,18 @@ export function MarketplacePanel() {
       )}
 
       {/* Create / Edit Modal */}
-      {(showCreateModal || editingSkill) && (
-        <>
-          {!isFormFullscreen && (
-            <div className="fixed inset-0" onClick={handleFormCancel} />
-          )}
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
-              {!isFormFullscreen && (
-                <>
-                  <div className="bottom-sheet-handle sm:hidden" />
-                  <div className="skill-modal-header">
-                    <div>
-                      <h3 className="skill-modal-header__title">
-                        {isCreating
-                          ? t("marketplace.createTitle")
-                          : t("skills.editSkill", { name: editingSkill?.name })}
-                      </h3>
-                      <p className="skill-modal-header__subtitle">
-                        {t("marketplace.createHint")}
-                      </p>
-                    </div>
-                    <button onClick={handleFormCancel} className="btn-icon">
-                      <X size={20} />
-                    </button>
-                  </div>
-                </>
-              )}
-              <div className="skill-modal-body flex min-h-0 flex-1 overflow-hidden flex-col bg-[var(--theme-bg)]/45 px-2 py-2 sm:px-4 sm:py-3">
-                <SkillForm
-                  skill={editingSkill}
-                  onSave={handleSave}
-                  onCancel={handleFormCancel}
-                  isLoading={isLoading}
-                  onFullscreenChange={setIsFormFullscreen}
-                />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      <SkillFormModal
+        showModal={showCreateModal || !!editingSkill}
+        isCreating={isCreating}
+        isFormFullscreen={isFormFullscreen}
+        editingSkill={editingSkill}
+        isLoading={isLoading}
+        onSave={handleSave}
+        onCancel={handleFormCancel}
+        onFullscreenChange={setIsFormFullscreen}
+        createTitle={t("marketplace.createTitle")}
+        subtitle={t("marketplace.createHint")}
+      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

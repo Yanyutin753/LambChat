@@ -21,10 +21,32 @@ from src.infra.task.concurrency import register_executor
 from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
 from src.kernel.schemas.agent import AgentRequest
+from src.kernel.schemas.session import SessionUpdate
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+
+async def _update_session_config(
+    session_id: str,
+    run_id: str,
+    agent_id: str,
+    request: AgentRequest,
+) -> None:
+    """Update session metadata with conversation configuration."""
+    session_manager = SessionManager()
+    conversation_config = {
+        "current_run_id": run_id,
+        "agent_id": agent_id,
+        "agent_options": request.agent_options or {},
+        "disabled_skills": request.disabled_skills or [],
+        "disabled_mcp_tools": request.disabled_mcp_tools or [],
+    }
+    await session_manager.update_session(
+        session_id,
+        SessionUpdate(metadata=conversation_config),
+    )
 
 
 async def _execute_agent_stream(
@@ -36,6 +58,8 @@ async def _execute_agent_stream(
     disabled_tools: list[str] | None = None,
     agent_options: dict | None = None,
     attachments: list[dict] | None = None,
+    disabled_skills: list[str] | None = None,
+    disabled_mcp_tools: list[str] | None = None,
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
     from src.infra.task.manager import TaskInterruptedError
@@ -52,6 +76,8 @@ async def _execute_agent_stream(
             disabled_tools=disabled_tools,
             agent_options=agent_options,
             attachments=attachments,
+            disabled_skills=disabled_skills,
+            disabled_mcp_tools=disabled_mcp_tools,
         ):
             yield event
     except (asyncio.CancelledError, TaskInterruptedError):
@@ -134,6 +160,8 @@ async def chat_stream(
         "attachments": attachments_data,
         "trace_id": trace_id,
         "user_message_written": True,
+        "disabled_skills": request.disabled_skills,
+        "disabled_mcp_tools": request.disabled_mcp_tools,
     }
 
     # 检查并发限制
@@ -203,6 +231,9 @@ async def chat_stream(
             "user_message_written": True,
         }
 
+        # 更新 session metadata，存储完整的对话配置（排队状态）
+        await _update_session_config(session_id, run_id, agent_id, request)
+
         return {
             "session_id": session_id,
             "run_id": run_id,
@@ -223,7 +254,12 @@ async def chat_stream(
         attachments=attachments_data,
         run_id=run_id,
         project_id=request.project_id,
+        disabled_skills=request.disabled_skills,
+        disabled_mcp_tools=request.disabled_mcp_tools,
     )
+
+    # 更新 session metadata，存储完整的对话配置
+    await _update_session_config(session_id, run_id, agent_id, request)
 
     return {
         "session_id": session_id,

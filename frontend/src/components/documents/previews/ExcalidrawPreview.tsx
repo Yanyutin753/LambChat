@@ -1,4 +1,5 @@
 import { memo, useEffect, useState, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import {
   AlertCircle,
@@ -34,6 +35,7 @@ let exportToSvgFunc:
 const ExcalidrawPreview = memo(function ExcalidrawPreview({
   data,
 }: ExcalidrawPreviewProps) {
+  const { t } = useTranslation();
   const [svgContent, setSvgContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -341,7 +343,7 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
         <button
           onClick={handleZoomOut}
           className="flex items-center justify-center w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 transition-colors"
-          title="Zoom out"
+          title={t("documents.zoomOut")}
         >
           <ZoomOut size={16} />
         </button>
@@ -353,7 +355,7 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
         <button
           onClick={handleZoomIn}
           className="flex items-center justify-center w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 transition-colors"
-          title="Zoom in"
+          title={t("documents.zoomIn")}
         >
           <ZoomIn size={16} />
         </button>
@@ -361,7 +363,7 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
         <button
           onClick={handleFitToScreen}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
-          title="Fit to screen"
+          title={t("documents.fitToScreen")}
         >
           <Maximize2 size={14} />
           <span className="hidden sm:inline">Fit</span>
@@ -373,7 +375,7 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
         <button
           onClick={handleDownloadSVG}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
-          title="Download SVG"
+          title={`${t("documents.download")} SVG`}
         >
           <Download size={14} />
           <span className="hidden sm:inline">SVG</span>
@@ -382,7 +384,7 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
         <button
           onClick={handleDownloadPNG}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
-          title="Download PNG"
+          title={`${t("documents.download")} PNG`}
         >
           <Download size={14} />
           <span className="hidden sm:inline">PNG</span>

@@ -1,5 +1,13 @@
-import { useState, useEffect } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { SessionSidebar } from "../../panels/SessionSidebar";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
@@ -10,7 +18,14 @@ import { useTools } from "../../../hooks/useTools";
 import { useSkills } from "../../../hooks/useSkills";
 import { useVersion } from "../../../hooks/useVersion";
 import { useProjectManager } from "../../../hooks/useProjectManager";
-import { Permission } from "../../../types";
+import { useSessionConfig } from "../../../hooks/useSessionConfig";
+import {
+  Permission,
+  type Project,
+  type ToolCategory,
+  type SkillSource,
+} from "../../../types";
+import type { VersionInfo } from "../../../types";
 import type { TabType } from "./types";
 import { useDragAndDrop } from "./useDragAndDrop";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
@@ -24,23 +39,114 @@ interface AppContentProps {
   activeTab: TabType;
 }
 
-export function AppContent({ activeTab }: AppContentProps) {
+interface AppShellProps {
+  activeTab: TabType;
+  showProfileModal: boolean;
+  onCloseProfileModal: () => void;
+  versionInfo: VersionInfo | null;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setMobileSidebarOpen: (open: boolean) => void;
+  currentProjectId: string | null;
+  projectManager: { projects: Project[] };
+  onNewSession: () => void;
+  onShowProfile: () => void;
+  sidebar?: ReactNode;
+  children: ReactNode;
+  // Model selection
+  availableModels?: { value: string; label: string }[] | null;
+  currentModel?: string;
+  onSelectModel?: (modelValue: string) => void;
+  // Share
+  sessionId?: string | null;
+  sessionName?: string | null;
+}
+
+function AppShell({
+  activeTab,
+  showProfileModal,
+  onCloseProfileModal,
+  versionInfo,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  setMobileSidebarOpen,
+  currentProjectId,
+  projectManager,
+  onNewSession,
+  onShowProfile,
+  sidebar,
+  children,
+  availableModels,
+  currentModel,
+  onSelectModel,
+  sessionId,
+  sessionName,
+}: AppShellProps) {
+  return (
+    <>
+      <ProfileModal
+        showProfileModal={showProfileModal}
+        onCloseProfileModal={onCloseProfileModal}
+        versionInfo={versionInfo}
+      />
+
+      <div
+        className="flex h-[100dvh] w-full overflow-hidden"
+        style={{ backgroundColor: "var(--theme-bg)" }}
+      >
+        {sidebar}
+
+        <div className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden">
+          <Header
+            activeTab={activeTab}
+            sidebarCollapsed={sidebarCollapsed}
+            setSidebarCollapsed={setSidebarCollapsed}
+            setMobileSidebarOpen={setMobileSidebarOpen}
+            currentProjectId={currentProjectId}
+            projectManager={projectManager}
+            onNewSession={onNewSession}
+            onShowProfile={onShowProfile}
+            availableModels={availableModels}
+            currentModel={currentModel}
+            onSelectModel={onSelectModel}
+            sessionId={sessionId}
+            sessionName={sessionName}
+          />
+
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ChatAppContent({
+  showProfileModal,
+  onCloseProfileModal,
+  versionInfo,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  mobileSidebarOpen,
+  setMobileSidebarOpen,
+  onShowProfile,
+}: {
+  showProfileModal: boolean;
+  onCloseProfileModal: () => void;
+  versionInfo: VersionInfo | null;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+  onShowProfile: () => void;
+}) {
   const { t, i18n } = useTranslation();
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const { enableSkills, settings, availableModels, defaultModel } =
+    useSettingsContext();
+  const { hasPermission, isAuthenticated } = useAuth();
 
-  const { enableSkills, settings } = useSettingsContext();
-  const { versionInfo } = useVersion();
+  const { isPageDragging, pageDragAttachments, setPageDragAttachments } =
+    useDragAndDrop();
 
-  // Page-level drag & drop
-  const {
-    isPageDragging,
-    pageDragAttachments,
-    setPageDragAttachments,
-  } = useDragAndDrop();
-
-  // Approvals
   const {
     approvals,
     respondToApproval,
@@ -49,35 +155,32 @@ export function AppContent({ activeTab }: AppContentProps) {
     isLoading: approvalLoading,
   } = useApprovals({ sessionId: null });
 
-  // Tools
   const {
     tools,
     isLoading: toolsLoading,
-    enabledCount: enabledToolsCount,
     totalCount: totalToolsCount,
-    toggleTool,
-    toggleCategory,
-    toggleAll,
     getDisabledToolNames,
+    refreshToolsForAgent,
   } = useTools();
 
-  // Skills
   const {
     skills,
     isLoading: skillsLoading,
-    enabledCount: enabledSkillsCount,
-    totalCount: totalSkillsCount,
     pendingSkillNames,
     isMutating: skillsMutating,
-    toggleSkillWrapper,
-    toggleCategory: toggleSkillCategory,
-    toggleAll: toggleAllSkills,
     fetchSkills,
   } = useSkills({ enabled: enableSkills });
 
   const projectManager = useProjectManager();
 
-  // Agent
+  // 创建一个 ref 来存储 sessionConfig，供 useAgent 使用
+  const sessionConfigRef = useRef({
+    disabledSkills: [] as string[],
+    disabledMcpTools: [] as string[],
+    agentOptions: {} as Record<string, boolean | string | number>,
+  });
+
+  // 先初始化 useAgent 获取 agents 和 currentAgent
   const {
     messages,
     sessionId,
@@ -85,12 +188,12 @@ export function AppContent({ activeTab }: AppContentProps) {
     isLoading,
     agents,
     currentAgent,
-    agentsLoading,
+    allowedModels: agentAllowedModels,
     newlyCreatedSession,
     sendMessage,
     stopGeneration,
     clearMessages,
-    selectAgent,
+    switchAgent,
     loadHistory,
     setPendingProjectId,
     autoExpandProjectId,
@@ -110,6 +213,9 @@ export function AppContent({ activeTab }: AppContentProps) {
       clearApprovals();
     },
     getEnabledTools: getDisabledToolNames,
+    getDisabledSkills: () => sessionConfigRef.current.disabledSkills,
+    getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
+    getAgentOptions: () => sessionConfigRef.current.agentOptions,
     onSkillAdded: (
       skillName: string,
       _description: string,
@@ -122,18 +228,224 @@ export function AppContent({ activeTab }: AppContentProps) {
     },
   });
 
-  // Agent options
-  const { agentOptionValues, currentAgentOptions, handleToggleAgentOption } =
-    useAgentOptions(agents, currentAgent);
+  const prevAgentRef = useRef(currentAgent);
+  useEffect(() => {
+    if (prevAgentRef.current !== currentAgent) {
+      prevAgentRef.current = currentAgent;
+      refreshToolsForAgent(currentAgent);
+    }
+  }, [currentAgent, refreshToolsForAgent]);
 
-  // Auth & permissions
-  const { hasPermission } = useAuth();
+  // Filter models by role-based permissions
+  const filteredModels = useMemo(() => {
+    if (!availableModels) return null;
+    if (!agentAllowedModels || agentAllowedModels.length === 0)
+      return availableModels;
+    return availableModels.filter((m) => agentAllowedModels.includes(m.value));
+  }, [availableModels, agentAllowedModels]);
+
+  // 现在可以初始化 agentOptions
+  const {
+    agentOptionValues,
+    currentAgentOptions,
+    handleToggleAgentOption,
+    restoreAgentOptions,
+  } = useAgentOptions(agents, currentAgent);
+
+  // 对话级别的配置管理（独立于全局配置）
+  const {
+    config: sessionConfig,
+    toggleSkill: toggleSessionSkill,
+    toggleMcpTool: toggleSessionMcpTool,
+    setAgentOption: setSessionAgentOption,
+    resetToDefaults,
+    restoreConfig: restoreSessionConfig,
+  } = useSessionConfig({
+    getDefaultAgentOptions: () => agentOptionValues,
+  });
+
+  // Model selection state (after useSessionConfig so setSessionAgentOption is available)
+  const [currentModel, setCurrentModel] = useState<string>(
+    () => localStorage.getItem("defaultModel") || defaultModel,
+  );
+
+  // Sync currentModel → sessionConfig.agentOptions.model so the UI and backend data
+  // always agree.  Covers: init, preference change, defaultModel change, new-session
+  // reset, and session restore — all in one place.
+  useEffect(() => {
+    setSessionAgentOption("model", currentModel);
+  }, [currentModel, setSessionAgentOption]);
+
+  useEffect(() => {
+    setCurrentModel(localStorage.getItem("defaultModel") || defaultModel);
+  }, [defaultModel]);
+
+  // Listen for model preference updates from ProfilePreferencesTab
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const model = (e as CustomEvent).detail as string;
+      if (model) setCurrentModel(model);
+    };
+    window.addEventListener("model-preference-updated", handler);
+    return () =>
+      window.removeEventListener("model-preference-updated", handler);
+  }, []);
+
+  const handleSelectModel = useCallback((modelValue: string) => {
+    setCurrentModel(modelValue);
+  }, []);
+
+  // 同步 sessionConfig 到 ref，供 useAgent 使用
+  useEffect(() => {
+    sessionConfigRef.current = sessionConfig;
+  }, [sessionConfig]);
+
+  // Compute effective tools: apply session-level MCP tool overrides (blacklist)
+  const effectiveTools = useMemo(() => {
+    const sessionDisabled = new Set(sessionConfig.disabledMcpTools);
+    if (sessionDisabled.size === 0) return tools;
+    return tools.map((t) => {
+      if (t.category !== "mcp") return t;
+      return { ...t, enabled: t.enabled && !sessionDisabled.has(t.name) };
+    });
+  }, [tools, sessionConfig.disabledMcpTools]);
+
+  // Compute effective skills: only show globally enabled skills, apply session blacklist
+  const effectiveSkills = useMemo(() => {
+    if (skillsLoading) return skills;
+    const sessionDisabled = new Set(sessionConfig.disabledSkills);
+    return skills
+      .filter((s) => s.enabled)
+      .map((s) => ({
+        ...s,
+        enabled: s.enabled && !sessionDisabled.has(s.name),
+      }));
+  }, [skills, sessionConfig.disabledSkills, skillsLoading]);
+
+  // Effective toggle callbacks: only update session config (not global state)
+  const effectiveToggleTool = useCallback(
+    (toolName: string) => {
+      const tool = tools.find((t) => t.name === toolName);
+      if (!tool) return;
+
+      if (tool.category === "mcp") {
+        toggleSessionMcpTool(toolName);
+      }
+      // Other categories (builtin, human, sandbox) don't support session-level toggle
+    },
+    [tools, toggleSessionMcpTool],
+  );
+
+  const effectiveToggleCategory = useCallback(
+    (category: ToolCategory, enabled: boolean) => {
+      if (category === "mcp") {
+        // For MCP tools, update session config
+        tools
+          .filter((t) => t.category === "mcp" && !t.system_disabled)
+          .forEach((t) => {
+            const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(
+              t.name,
+            );
+            if (enabled && isInSessionDisabled) {
+              // Want enabled, currently in disabled list → remove
+              toggleSessionMcpTool(t.name);
+            } else if (!enabled && !isInSessionDisabled) {
+              // Want disabled, not in disabled list → add
+              toggleSessionMcpTool(t.name);
+            }
+          });
+      }
+      // For other categories, we don't support session-level toggle yet
+    },
+    [tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
+  );
+
+  const effectiveToggleAll = useCallback(
+    (enabled: boolean) => {
+      // Sync MCP tools in session config (disabled list)
+      tools
+        .filter((t) => t.category === "mcp" && !t.system_disabled)
+        .forEach((t) => {
+          const isInSessionDisabled = sessionConfig.disabledMcpTools.includes(
+            t.name,
+          );
+          if (enabled && isInSessionDisabled) {
+            toggleSessionMcpTool(t.name);
+          } else if (!enabled && !isInSessionDisabled) {
+            toggleSessionMcpTool(t.name);
+          }
+        });
+    },
+    [tools, sessionConfig.disabledMcpTools, toggleSessionMcpTool],
+  );
+
+  const effectiveToggleSkill = useCallback(
+    async (name: string): Promise<boolean> => {
+      toggleSessionSkill(name);
+      return true;
+    },
+    [toggleSessionSkill],
+  );
+
+  const effectiveToggleSkillCategory = useCallback(
+    async (category: SkillSource, enabled: boolean): Promise<boolean> => {
+      effectiveSkills
+        .filter((s) => s.source === category)
+        .forEach((s) => {
+          const isInSessionDisabled = sessionConfig.disabledSkills.includes(
+            s.name,
+          );
+          if (enabled && isInSessionDisabled) {
+            toggleSessionSkill(s.name);
+          } else if (!enabled && !isInSessionDisabled) {
+            toggleSessionSkill(s.name);
+          }
+        });
+      return true;
+    },
+    [effectiveSkills, sessionConfig.disabledSkills, toggleSessionSkill],
+  );
+
+  const effectiveToggleAllSkills = useCallback(
+    async (enabled: boolean): Promise<boolean> => {
+      effectiveSkills.forEach((s) => {
+        const isInSessionDisabled = sessionConfig.disabledSkills.includes(
+          s.name,
+        );
+        if (enabled && isInSessionDisabled) {
+          toggleSessionSkill(s.name);
+        } else if (!enabled && !isInSessionDisabled) {
+          toggleSessionSkill(s.name);
+        }
+      });
+      return true;
+    },
+    [effectiveSkills, sessionConfig.disabledSkills, toggleSessionSkill],
+  );
+
+  // Effective agent option toggle: update both local state and session config
+  const effectiveToggleAgentOption = useCallback(
+    (key: string, value: boolean | string | number) => {
+      handleToggleAgentOption(key, value);
+      setSessionAgentOption(key, value);
+      // Keep currentModel in sync when model is changed via agent option toggle
+      if (key === "model" && typeof value === "string") {
+        setCurrentModel(value);
+      }
+    },
+    [handleToggleAgentOption, setSessionAgentOption],
+  );
+
+  // Compute effective counts
+  const effectiveEnabledToolsCount = useMemo(
+    () => effectiveTools.filter((t) => t.enabled).length,
+    [effectiveTools],
+  );
+
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
 
-  // WebSocket notifications
-  useWebSocketNotifications({ sessionId });
+  useWebSocketNotifications({ sessionId, enabled: isAuthenticated });
 
-  // Session name
   const [sessionName, setSessionName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -141,6 +453,7 @@ export function AppContent({ activeTab }: AppContentProps) {
       setSessionName(null);
       return;
     }
+
     const fetchSessionName = async () => {
       try {
         const { sessionApi } = await import("../../../services/api");
@@ -151,6 +464,7 @@ export function AppContent({ activeTab }: AppContentProps) {
         setSessionName(null);
       }
     };
+
     fetchSessionName();
   }, [sessionId]);
 
@@ -160,28 +474,119 @@ export function AppContent({ activeTab }: AppContentProps) {
     }
   }, [newlyCreatedSession?.name, newlyCreatedSession?.id, sessionId]);
 
-  // Session sync
+  // 处理配置恢复
+  const handleConfigRestored = useCallback(
+    (config: {
+      agent_id?: string;
+      agent_options?: Record<string, boolean | string | number>;
+      disabled_skills?: string[];
+      disabled_mcp_tools?: string[];
+      disabled_tools?: string[];
+    }) => {
+      console.log("[AppContent] Restoring session config:", config);
+
+      // 使用 useSessionConfig 恢复对话级配置
+      restoreSessionConfig(config);
+
+      // 恢复 agent options 到 useAgentOptions
+      if (config.agent_options) {
+        restoreAgentOptions(config.agent_options);
+
+        // Restore model selection if present
+        if (
+          config.agent_options.model &&
+          typeof config.agent_options.model === "string"
+        ) {
+          setCurrentModel(config.agent_options.model);
+        }
+      }
+    },
+    [restoreSessionConfig, restoreAgentOptions],
+  );
+
   const { handleSelectSession, handleNewSession } = useSessionSync({
+    activeTab: "chat",
     sessionId,
     loadHistory,
     clearMessages,
+    onConfigRestored: handleConfigRestored,
   });
 
-  return (
-    <>
-      <ProfileModal
-        showProfileModal={showProfileModal}
-        onCloseProfileModal={() => setShowProfileModal(false)}
-        versionInfo={versionInfo}
-      />
+  // Wrapper that also resets session config on new session
+  const handleNewSessionWithReset = useCallback(() => {
+    handleNewSession();
+    resetToDefaults();
+    // Re-apply current model so it persists across new sessions
+    setSessionAgentOption("model", currentModel);
+  }, [handleNewSession, resetToDefaults, setSessionAgentOption, currentModel]);
 
-      <div className="flex h-[100dvh] w-full overflow-hidden bg-white dark:bg-stone-900">
-        {/* Drag overlay */}
+  const handleMobileClose = useCallback(
+    () => setMobileSidebarOpen(false),
+    [setMobileSidebarOpen],
+  );
+  const handleSelectSessionAndClose = useCallback(
+    (id: string) => {
+      handleSelectSession(id);
+      setMobileSidebarOpen(false);
+    },
+    [handleSelectSession, setMobileSidebarOpen],
+  );
+  const handleNewSessionAndClose = useCallback(() => {
+    handleNewSessionWithReset();
+    setMobileSidebarOpen(false);
+  }, [handleNewSessionWithReset, setMobileSidebarOpen]);
+
+  return (
+    <AppShell
+      activeTab="chat"
+      showProfileModal={showProfileModal}
+      onCloseProfileModal={onCloseProfileModal}
+      versionInfo={versionInfo}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      setMobileSidebarOpen={setMobileSidebarOpen}
+      currentProjectId={currentProjectId}
+      projectManager={projectManager}
+      onNewSession={handleNewSessionWithReset}
+      onShowProfile={onShowProfile}
+      availableModels={filteredModels}
+      currentModel={currentModel}
+      onSelectModel={handleSelectModel}
+      sessionId={sessionId}
+      sessionName={sessionName}
+      sidebar={
+        <SessionSidebar
+          currentSessionId={sessionId}
+          onSelectSession={handleSelectSessionAndClose}
+          onNewSession={handleNewSessionAndClose}
+          onSetPendingProjectId={setPendingProjectId}
+          autoExpandProjectId={autoExpandProjectId}
+          newSession={newlyCreatedSession}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={handleMobileClose}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapsed={setSidebarCollapsed}
+          onShowProfile={onShowProfile}
+        />
+      }
+    >
+      <>
         {isPageDragging && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-500/5 dark:bg-stone-500/10  transition-colors">
-            <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-stone-400 dark:border-stone-500 bg-white/95 dark:bg-stone-800/95 px-16 py-12 shadow-xl transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-stone-500 dark:text-stone-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-500/5 transition-colors dark:bg-stone-500/10">
+            <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-stone-400 bg-white/95 px-16 py-12 shadow-xl transition-colors dark:border-stone-500 dark:bg-stone-800/95">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-12 w-12 text-stone-500 dark:text-stone-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+                />
               </svg>
               <span className="text-lg font-medium text-stone-600 dark:text-stone-300">
                 {t("chat.dropFilesHere", "Drop files here to upload")}
@@ -190,89 +595,159 @@ export function AppContent({ activeTab }: AppContentProps) {
           </div>
         )}
 
-        {/* Session Sidebar */}
-        {activeTab === "chat" && (
-          <SessionSidebar
-            currentSessionId={sessionId}
-            onSelectSession={(id) => {
-              handleSelectSession(id);
-              setMobileSidebarOpen(false);
-            }}
-            onNewSession={() => {
-              handleNewSession();
-              setMobileSidebarOpen(false);
-            }}
-            onSetPendingProjectId={setPendingProjectId}
-            autoExpandProjectId={autoExpandProjectId}
-            newSession={newlyCreatedSession}
-            mobileOpen={mobileSidebarOpen}
-            onMobileClose={() => setMobileSidebarOpen(false)}
-            isCollapsed={sidebarCollapsed}
-            onToggleCollapsed={setSidebarCollapsed}
-            onShowProfile={() => setShowProfileModal(true)}
-          />
-        )}
+        <ChatView
+          messages={messages}
+          sessionId={sessionId}
+          sessionName={sessionName}
+          currentRunId={currentRunId}
+          isLoading={isLoading}
+          canSendMessage={canSendMessage}
+          tools={effectiveTools}
+          onToggleTool={effectiveToggleTool}
+          onToggleCategory={effectiveToggleCategory}
+          onToggleAll={effectiveToggleAll}
+          toolsLoading={toolsLoading}
+          enabledToolsCount={effectiveEnabledToolsCount}
+          totalToolsCount={totalToolsCount}
+          skills={effectiveSkills}
+          onToggleSkill={effectiveToggleSkill}
+          onToggleSkillCategory={effectiveToggleSkillCategory}
+          onToggleAllSkills={effectiveToggleAllSkills}
+          skillsLoading={skillsLoading}
+          pendingSkillNames={pendingSkillNames}
+          skillsMutating={skillsMutating}
+          enabledSkillsCount={effectiveSkills.length}
+          totalSkillsCount={skills.length}
+          enableSkills={enableSkills}
+          agentOptions={currentAgentOptions}
+          agentOptionValues={sessionConfig.agentOptions}
+          onToggleAgentOption={effectiveToggleAgentOption}
+          agents={agents}
+          currentAgent={currentAgent}
+          onSelectAgent={switchAgent}
+          approvals={approvals}
+          onRespondApproval={respondToApproval}
+          approvalLoading={approvalLoading}
+          onSendMessage={sendMessage}
+          onStopGeneration={stopGeneration}
+          attachments={pageDragAttachments}
+          onAttachmentsChange={setPageDragAttachments}
+          settings={settings || {}}
+          i18n={i18n}
+        />
+      </>
+    </AppShell>
+  );
+}
 
-        {/* Main Content */}
-        <div className="relative z-0 flex flex-1 flex-col min-w-0 overflow-hidden">
-          <Header
-            activeTab={activeTab}
-            sidebarCollapsed={sidebarCollapsed}
-            setSidebarCollapsed={setSidebarCollapsed}
-            setMobileSidebarOpen={setMobileSidebarOpen}
-            agents={agents}
-            currentAgent={currentAgent}
-            agentsLoading={agentsLoading}
-            onSelectAgent={selectAgent}
-            currentProjectId={currentProjectId}
-            projectManager={projectManager}
-            onNewSession={handleNewSession}
-            onShowProfile={() => setShowProfileModal(true)}
-          />
+function NonChatAppContent({
+  activeTab,
+  showProfileModal,
+  onCloseProfileModal,
+  versionInfo,
+  sidebarCollapsed,
+  setSidebarCollapsed,
+  mobileSidebarOpen,
+  setMobileSidebarOpen,
+  onShowProfile,
+}: {
+  activeTab: Exclude<TabType, "chat">;
+  showProfileModal: boolean;
+  onCloseProfileModal: () => void;
+  versionInfo: VersionInfo | null;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  mobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+  onShowProfile: () => void;
+}) {
+  const navigate = useNavigate();
 
-          {activeTab === "chat" ? (
-            <ChatView
-              messages={messages}
-              sessionId={sessionId}
-              sessionName={sessionName}
-              currentRunId={currentRunId}
-              isLoading={isLoading}
-              canSendMessage={canSendMessage}
-              tools={tools}
-              onToggleTool={toggleTool}
-              onToggleCategory={toggleCategory}
-              onToggleAll={toggleAll}
-              toolsLoading={toolsLoading}
-              enabledToolsCount={enabledToolsCount}
-              totalToolsCount={totalToolsCount}
-              skills={skills}
-              onToggleSkill={toggleSkillWrapper}
-              onToggleSkillCategory={toggleSkillCategory}
-              onToggleAllSkills={toggleAllSkills}
-              skillsLoading={skillsLoading}
-              pendingSkillNames={pendingSkillNames}
-              skillsMutating={skillsMutating}
-              enabledSkillsCount={enabledSkillsCount}
-              totalSkillsCount={totalSkillsCount}
-              enableSkills={enableSkills}
-              agentOptions={currentAgentOptions}
-              agentOptionValues={agentOptionValues}
-              onToggleAgentOption={handleToggleAgentOption}
-              approvals={approvals}
-              onRespondApproval={respondToApproval}
-              approvalLoading={approvalLoading}
-              onSendMessage={sendMessage}
-              onStopGeneration={stopGeneration}
-              attachments={pageDragAttachments}
-              onAttachmentsChange={setPageDragAttachments}
-              settings={settings || {}}
-              i18n={i18n}
-            />
-          ) : (
-            <TabContent activeTab={activeTab} />
-          )}
-        </div>
-      </div>
-    </>
+  const handleSelectSession = useCallback(
+    (id: string) => {
+      setMobileSidebarOpen(false);
+      navigate(`/chat/${id}`);
+    },
+    [navigate, setMobileSidebarOpen],
+  );
+  const handleNewSession = useCallback(() => {
+    setMobileSidebarOpen(false);
+    navigate("/chat");
+  }, [navigate, setMobileSidebarOpen]);
+  const handleMobileClose = useCallback(
+    () => setMobileSidebarOpen(false),
+    [setMobileSidebarOpen],
+  );
+
+  return (
+    <AppShell
+      activeTab={activeTab}
+      showProfileModal={showProfileModal}
+      onCloseProfileModal={onCloseProfileModal}
+      versionInfo={versionInfo}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      setMobileSidebarOpen={setMobileSidebarOpen}
+      currentProjectId={null}
+      projectManager={{ projects: [] }}
+      onNewSession={handleNewSession}
+      onShowProfile={onShowProfile}
+      sidebar={
+        <SessionSidebar
+          currentSessionId={null}
+          onSelectSession={handleSelectSession}
+          onNewSession={handleNewSession}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={handleMobileClose}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapsed={setSidebarCollapsed}
+          onShowProfile={onShowProfile}
+        />
+      }
+    >
+      <TabContent activeTab={activeTab} />
+    </AppShell>
+  );
+}
+
+export function AppContent({ activeTab }: AppContentProps) {
+  const { versionInfo } = useVersion();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const handleCloseProfileModal = useCallback(
+    () => setShowProfileModal(false),
+    [],
+  );
+  const handleShowProfile = useCallback(() => setShowProfileModal(true), []);
+
+  if (activeTab === "chat") {
+    return (
+      <ChatAppContent
+        showProfileModal={showProfileModal}
+        onCloseProfileModal={handleCloseProfileModal}
+        versionInfo={versionInfo}
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+        mobileSidebarOpen={mobileSidebarOpen}
+        setMobileSidebarOpen={setMobileSidebarOpen}
+        onShowProfile={handleShowProfile}
+      />
+    );
+  }
+
+  return (
+    <NonChatAppContent
+      activeTab={activeTab}
+      showProfileModal={showProfileModal}
+      onCloseProfileModal={handleCloseProfileModal}
+      versionInfo={versionInfo}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      mobileSidebarOpen={mobileSidebarOpen}
+      setMobileSidebarOpen={setMobileSidebarOpen}
+      onShowProfile={handleShowProfile}
+    />
   );
 }

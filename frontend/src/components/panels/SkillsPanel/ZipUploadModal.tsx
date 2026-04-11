@@ -3,6 +3,7 @@ import { X, Archive, UploadCloud, FileArchive, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { Checkbox } from "../../common/Checkbox";
 import type { ZipSkillPreview } from "./useSkillsActions";
+import { useSwipeToClose } from "../../../hooks/useSwipeToClose";
 
 interface ZipUploadModalProps {
   showZipModal: boolean;
@@ -42,6 +43,10 @@ export function ZipUploadModal({
   onZipUpload,
 }: ZipUploadModalProps) {
   const { t } = useTranslation();
+  const swipeRef = useSwipeToClose({
+    onClose: () => setShowZipModal(false),
+    enabled: showZipModal,
+  });
 
   if (!showZipModal) return null;
 
@@ -49,9 +54,22 @@ export function ZipUploadModal({
 
   return (
     <>
-      <div className="fixed inset-0" onClick={() => setShowZipModal(false)} />
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
+      <div
+        className="fixed inset-0"
+        onClick={
+          zipUploading || zipPreviewing
+            ? undefined
+            : () => setShowZipModal(false)
+        }
+      />
+      <div
+        data-disable-global-file-drop="true"
+        className="modal-bottom-sheet sm:modal-centered-wrapper"
+      >
+        <div
+          ref={swipeRef as React.RefObject<HTMLDivElement>}
+          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+        >
           <div className="bottom-sheet-handle sm:hidden" />
           <div className="skill-modal-header">
             <div>
@@ -62,7 +80,11 @@ export function ZipUploadModal({
                 {t("skills.subtitle")}
               </p>
             </div>
-            <button onClick={() => setShowZipModal(false)} className="btn-icon">
+            <button
+              onClick={() => setShowZipModal(false)}
+              disabled={zipUploading || zipPreviewing}
+              className="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               <X size={20} />
             </button>
           </div>
@@ -239,7 +261,7 @@ export function ZipUploadModal({
                   >
                     {zipUploading ? (
                       <>
-                        <LoadingSpinner size="sm" />
+                        <LoadingSpinner size="sm" color="text-white" />
                         {t("skills.installing")}
                       </>
                     ) : (

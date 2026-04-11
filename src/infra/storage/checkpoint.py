@@ -77,7 +77,10 @@ async def get_async_checkpointer():
     if checkpointer is not None:
         return checkpointer
 
+    # MemorySaver fallback: 使用单例避免每次请求创建新实例
     from langgraph.checkpoint.memory import MemorySaver
 
-    logger.warning("Using MemorySaver (data will be lost on restart)")
-    return MemorySaver()
+    if not hasattr(get_async_checkpointer, "_memory_saver"):
+        get_async_checkpointer._memory_saver = MemorySaver()  # type: ignore[attr-defined]
+        logger.warning("Using MemorySaver singleton (data will be lost on restart)")
+    return get_async_checkpointer._memory_saver  # type: ignore[attr-defined]

@@ -4,21 +4,23 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { Plus, ChevronDown, X, Search, FolderPlus } from "lucide-react";
+import { ChevronDown, Search, FolderPlus, FolderOpen } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { useProjectSessionList } from "../../hooks/useSession";
 import { useProjectManager } from "../../hooks/useProjectManager";
-import { APP_NAME } from "../../constants";
+import { APP_NAME, GITHUB_URL } from "../../constants";
 import { useTouchDrag } from "../../hooks/useTouchDrag";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { ProjectItem } from "../sidebar/ProjectItem";
 import type { ProjectItemHandle } from "../sidebar/ProjectItem";
 import { SessionItem } from "../sidebar/SessionItem";
 import { getSessionTitle, groupSessionsByTime } from "./sessionHelpers";
+import { SearchDialog } from "./SearchDialog";
 
 interface SessionSidebarProps {
   currentSessionId: string | null;
@@ -52,12 +54,29 @@ export function SessionSidebar({
 }: SessionSidebarProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState("");
+  const navigate = useNavigate();
+  const [searchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(false);
   const [isChatsCollapsed, setIsChatsCollapsed] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+
+  // Track mobile breakpoint to avoid ref conflicts — both sidebars render
+  // sessionListContent in the DOM, causing shared refs (scrollEl, loadMoreRef)
+  // to be called twice. The desktop element wins (last call), breaking the
+  // IntersectionObserver on mobile.
+  const [isMobile, setIsMobile] = useState(
+    () => window.matchMedia("(max-width: 639px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const handleNewSessionInProject = useCallback(
     (projectId: string) => {
@@ -73,10 +92,11 @@ export function SessionSidebar({
   // ─── Hooks ──────────────────────────────────────────────────────
 
   // Uncategorized sessions — independent pagination
-  const uncategorizedList = useProjectSessionList("none");
+  const uncategorizedList = useProjectSessionList("none", scrollEl);
 
   // Project refs for cross-project operations
   const projectRefs = useRef<Map<string, ProjectItemHandle>>(new Map());
+  const lastAppliedNewSessionKeyRef = useRef<string | null>(null);
 
   const getProjectRef = useCallback(
     (projectId: string): ProjectItemHandle | null => {
@@ -97,6 +117,8 @@ export function SessionSidebar({
   );
 
   const projectManager = useProjectManager();
+  const { projects } = projectManager;
+  const projectCount = projects.length;
 
   // Touch drag — sessions array is now distributed, pass empty (touch drag
   // only works on uncategorized sessions in the sidebar)
@@ -179,17 +201,27 @@ export function SessionSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
-  // Handle new session from parent — prepend to the correct list
+  // Handle new session from parent — prepend or update in the correct list
   useEffect(() => {
     if (newSession && newSession.id) {
+      const sessionKey = [
+        newSession.id,
+        newSession.updated_at,
+        newSession.name ?? "",
+      ].join(":");
+      if (lastAppliedNewSessionKeyRef.current === sessionKey) {
+        return;
+      }
+
       const projectId = newSession.metadata?.project_id as string | undefined;
-      if (projectId) {
-        getProjectRef(projectId)?.prependSession(newSession);
-      } else {
-        uncategorizedList.prependSession(newSession);
+      const list = projectId ? getProjectRef(projectId) : uncategorizedList;
+      if (list) {
+        list.prependSession(newSession);
+        list.updateSession(newSession);
+        lastAppliedNewSessionKeyRef.current = sessionKey;
       }
     }
-  }, [newSession, getProjectRef, uncategorizedList.prependSession]);
+  }, [newSession, getProjectRef, projectCount, uncategorizedList]);
 
   // ─── Keyboard shortcuts ──────────────────────────────────────────
 
@@ -200,11 +232,7 @@ export function SessionSidebar({
 
       if (modifier && e.key === "k") {
         e.preventDefault();
-        document
-          .querySelector<HTMLInputElement>(
-            '[data-sidebar-scroll] input[type="text"]',
-          )
-          ?.focus();
+        setIsSearchOpen(true);
       }
       if (modifier && e.key === "n") {
         e.preventDefault();
@@ -223,26 +251,20 @@ export function SessionSidebar({
     onMobileClose?.();
   };
 
-  const { projects } = projectManager;
-
-  // ─── Scroll container ref ──────────────────────────────────────
-
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
   // ─── JSX ────────────────────────────────────────────────────────
 
   const sessionListContent = (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 pt-3 pb-2 sm:px-4">
+      <div className="flex items-center justify-between px-3 pt-3 pb-1 sm:px-4">
         <div className="flex h-7 items-center gap-2">
           <img
             src="/icons/icon.svg"
             alt={APP_NAME}
-            className="size-6 rounded-full object-cover ring-1 ring-stone-200 dark:ring-stone-700"
+            className="size-6 rounded-full object-cover"
           />
           <a
-            href="https://github.com/Yanyutin753/LambChat"
+            href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-md font-semibold leading-none text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors font-serif"
@@ -255,7 +277,7 @@ export function SessionSidebar({
             setIsCollapsed(true);
             onMobileClose?.();
           }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-700 dark:hover:text-stone-300 transition-all duration-150"
+          className="flex h-7 w-7 items-center justify-center rounded-[8px] text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
           title={t("sidebar.collapseSidebar")}
         >
           <svg
@@ -274,50 +296,58 @@ export function SessionSidebar({
         </button>
       </div>
 
-      {/* New chat button */}
-      <div className="px-2 pb-2">
+      {/* Action buttons */}
+      <div className="flex flex-col gap-px px-2 py-2 space-y-1">
+        {/* New chat button */}
         <button
           onClick={onNewSession}
-          className="w-full flex items-center gap-2.5 rounded-xl border border-stone-200 dark:border-stone-700/60 bg-stone-50/80 dark:bg-stone-800/40 px-3 py-2.5 text-sm font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700/50 hover:border-stone-300 dark:hover:border-stone-600 transition-all duration-150 active:scale-[0.98]"
+          className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm font-medium text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 focus:outline-none transition-colors"
         >
-          <Plus size={16} strokeWidth={2.5} />
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            stroke-width="0.1"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            className="w-[18px] h-[18px]"
+          >
+            <path
+              d="M15.6729 3.91287C16.8918 2.69392 18.8682 2.69392 20.0871 3.91287C21.3061 5.13182 21.3061 7.10813 20.0871 8.32708L14.1499 14.2643C13.3849 15.0293 12.3925 15.5255 11.3215 15.6785L9.14142 15.9899C8.82983 16.0344 8.51546 15.9297 8.29289 15.7071C8.07033 15.4845 7.96554 15.1701 8.01005 14.8586L8.32149 12.6785C8.47449 11.6075 8.97072 10.615 9.7357 9.85006L15.6729 3.91287ZM18.6729 5.32708C18.235 4.88918 17.525 4.88918 17.0871 5.32708L11.1499 11.2643C10.6909 11.7233 10.3932 12.3187 10.3014 12.9613L10.1785 13.8215L11.0386 13.6986C11.6812 13.6068 12.2767 13.3091 12.7357 12.8501L18.6729 6.91287C19.1108 6.47497 19.1108 5.76499 18.6729 5.32708ZM11 3.99929C11.0004 4.55157 10.5531 4.99963 10.0008 5.00007C9.00227 5.00084 8.29769 5.00827 7.74651 5.06064C7.20685 5.11191 6.88488 5.20117 6.63803 5.32695C6.07354 5.61457 5.6146 6.07351 5.32698 6.63799C5.19279 6.90135 5.10062 7.24904 5.05118 7.8542C5.00078 8.47105 5 9.26336 5 10.4V13.6C5 14.7366 5.00078 15.5289 5.05118 16.1457C5.10062 16.7509 5.19279 17.0986 5.32698 17.3619C5.6146 17.9264 6.07354 18.3854 6.63803 18.673C6.90138 18.8072 7.24907 18.8993 7.85424 18.9488C8.47108 18.9992 9.26339 19 10.4 19H13.6C14.7366 19 15.5289 18.9992 16.1458 18.9488C16.7509 18.8993 17.0986 18.8072 17.362 18.673C17.9265 18.3854 18.3854 17.9264 18.673 17.3619C18.7988 17.1151 18.8881 16.7931 18.9393 16.2535C18.9917 15.7023 18.9991 14.9977 18.9999 13.9992C19.0003 13.4469 19.4484 12.9995 20.0007 13C20.553 13.0004 21.0003 13.4485 20.9999 14.0007C20.9991 14.9789 20.9932 15.7808 20.9304 16.4426C20.8664 17.116 20.7385 17.7136 20.455 18.2699C19.9757 19.2107 19.2108 19.9756 18.27 20.455C17.6777 20.7568 17.0375 20.8826 16.3086 20.9421C15.6008 21 14.7266 21 13.6428 21H10.3572C9.27339 21 8.39925 21 7.69138 20.9421C6.96253 20.8826 6.32234 20.7568 5.73005 20.455C4.78924 19.9756 4.02433 19.2107 3.54497 18.2699C3.24318 17.6776 3.11737 17.0374 3.05782 16.3086C2.99998 15.6007 2.99999 14.7266 3 13.6428V10.3572C2.99999 9.27337 2.99998 8.39922 3.05782 7.69134C3.11737 6.96249 3.24318 6.3223 3.54497 5.73001C4.02433 4.7892 4.78924 4.0243 5.73005 3.54493C6.28633 3.26149 6.88399 3.13358 7.55735 3.06961C8.21919 3.00673 9.02103 3.00083 9.99922 3.00007C10.5515 2.99964 10.9996 3.447 11 3.99929Z"
+              fill="currentColor"
+            ></path>
+          </svg>
           <span>{t("sidebar.newChat")}</span>
         </button>
-      </div>
 
-      {/* Search */}
-      <div className="px-2 pb-2">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100/60 dark:bg-stone-800/50 border border-transparent focus-within:border-stone-300 dark:focus-within:border-stone-600 transition-colors">
-          <Search
-            size={14}
-            className="flex-shrink-0 text-stone-400 dark:text-stone-500"
-          />
-          <input
-            type="text"
-            placeholder={t("common.search") + "..."}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1 min-w-0 text-sm bg-transparent text-stone-700 dark:text-stone-200 placeholder:text-sm placeholder-stone-400 dark:placeholder-stone-500 focus:outline-none"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="flex-shrink-0 p-0.5 rounded text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
-            >
-              <X size={12} />
-            </button>
-          )}
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-stone-400 dark:text-stone-500 bg-stone-200/50 dark:bg-stone-700/50 rounded">
+        {/* Search button */}
+        <button
+          onClick={() => setIsSearchOpen(true)}
+          className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 focus:outline-none transition-colors group"
+        >
+          <Search size={18} />
+          <span className="flex-1 text-left">
+            {t("sidebar.searchSessions")}
+          </span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-stone-400 dark:text-stone-500 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             ⌘K
           </kbd>
-        </div>
+        </button>
+
+        {/* File library button */}
+        <button
+          onClick={() => navigate("/files")}
+          className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 focus:outline-none transition-colors"
+        >
+          <FolderOpen size={18} />
+          <span>{t("fileLibrary.title")}</span>
+        </button>
       </div>
 
       {/* Session list */}
       <div
-        ref={scrollContainerRef}
+        ref={setScrollEl}
         data-sidebar-scroll
-        className="flex-1 overflow-y-auto px-2 scrollbar-thin relative"
+        className="flex-1 overflow-y-auto px-2 relative [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={(e) => {
           setIsScrolled(e.currentTarget.scrollTop > 100);
         }}
@@ -326,28 +356,30 @@ export function SessionSidebar({
         {isScrolled && (
           <button
             onClick={() =>
-              scrollContainerRef.current?.scrollTo({
+              scrollEl?.scrollTo({
                 top: 0,
                 behavior: "smooth",
               })
             }
-            className="absolute top-16 right-3 z-10 flex items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-md hover:bg-stone-50 dark:hover:bg-stone-700 transition-all"
-            title="Scroll to top"
+            className="absolute top-16 right-3 z-10 flex items-center justify-center w-7 h-7 rounded-full bg-white dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700/60 shadow-sm hover:bg-stone-50 dark:hover:bg-stone-700 transition-all"
+            title={t("common.scrollToTop")}
           >
             <ChevronDown size={14} className="rotate-180 text-stone-500" />
           </button>
         )}
 
-        <div className="space-y-1">
+        <div className="flex flex-col gap-px">
           {/* Project section header */}
           <div
             onClick={() => setIsProjectsCollapsed(!isProjectsCollapsed)}
-            className="px-2 py-1.5 mt-1 flex justify-between items-center text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 hover:text-stone-500 dark:hover:text-stone-400 cursor-pointer transition-colors select-none"
+            className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
           >
-            <h2>{t("sidebar.projects")}</h2>
+            <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+              {t("sidebar.projects")}
+            </span>
             <ChevronDown
-              size={12}
-              className={`transition-transform duration-200 ${
+              size={14}
+              className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
                 isProjectsCollapsed ? "-rotate-90" : ""
               }`}
             />
@@ -357,15 +389,10 @@ export function SessionSidebar({
           {!isProjectsCollapsed && (
             <button
               onClick={() => projectManager.setShowNewProjectModal(true)}
-              className="group flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 transition-all duration-150 hover:bg-stone-100 dark:hover:bg-stone-800/30"
+              className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors cursor-pointer"
             >
-              <FolderPlus
-                size={15}
-                className="flex-shrink-0 text-stone-400 dark:text-stone-500 group-hover:text-stone-500 dark:group-hover:text-stone-400 transition-colors"
-              />
-              <span className="text-sm text-stone-500 dark:text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300 transition-colors">
-                {t("sidebar.newProject")}
-              </span>
+              <FolderPlus size={18} />
+              <span>{t("sidebar.newProject")}</span>
             </button>
           )}
 
@@ -394,6 +421,7 @@ export function SessionSidebar({
                     });
                   }}
                   onUpdateIcon={projectManager.handleUpdateIcon}
+                  scrollRoot={scrollEl}
                   draggingSessionId={
                     touchDrag.touchDropTarget === favoritesProject.id
                       ? touchDrag.draggingSessionId
@@ -427,6 +455,7 @@ export function SessionSidebar({
                     });
                   }}
                   onUpdateIcon={projectManager.handleUpdateIcon}
+                  scrollRoot={scrollEl}
                   draggingSessionId={
                     touchDrag.touchDropTarget === project.id
                       ? touchDrag.draggingSessionId
@@ -439,7 +468,7 @@ export function SessionSidebar({
 
           {/* Divider */}
           {!isProjectsCollapsed && (
-            <div className="border-t border-dashed border-stone-300 dark:border-stone-600 mx-2 mt-2 mb-2 opacity-40" />
+            <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
           )}
 
           {/* Uncategorized sessions (by time) */}
@@ -461,12 +490,14 @@ export function SessionSidebar({
                 {/* Chats section header */}
                 <div
                   onClick={() => setIsChatsCollapsed(!isChatsCollapsed)}
-                  className="px-2 py-1.5 mt-1 flex justify-between items-center text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 hover:text-stone-500 dark:hover:text-stone-400 cursor-pointer transition-colors select-none"
+                  className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
                 >
-                  <h2>{t("sidebar.chats")}</h2>
+                  <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+                    {t("sidebar.chats")}
+                  </span>
                   <ChevronDown
-                    size={12}
-                    className={`transition-transform duration-200 ${
+                    size={14}
+                    className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
                       isChatsCollapsed ? "-rotate-90" : ""
                     }`}
                   />
@@ -481,10 +512,10 @@ export function SessionSidebar({
                     ) : (
                       groupedUncategorized.map((group) => (
                         <div key={group.label}>
-                          <div className="px-2 py-1.5 mt-1 text-xs font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500 select-none">
+                          <div className="px-[9px] h-7 flex items-center text-[13px] font-medium text-stone-400 dark:text-stone-500 select-none">
                             {group.label}
                           </div>
-                          <div className="space-y-0.5">
+                          <div className="flex flex-col gap-px">
                             {group.sessions
                               .filter((session) => session.id)
                               .map((session) => (
@@ -544,30 +575,29 @@ export function SessionSidebar({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-stone-100 dark:border-stone-800/80 px-2 py-1.5">
+      <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
+      <div className="px-2 pb-2">
         <div
           onClick={onShowProfile}
-          className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors cursor-pointer"
+          className="flex items-center gap-3 px-[9px] h-9 rounded-[10px] hover:bg-stone-100 dark:hover:bg-stone-800/60 transition-colors cursor-pointer"
         >
           {user?.avatar_url && !imgError ? (
             <img
               src={user.avatar_url}
               alt={user?.username || "User"}
-              className="size-7 rounded-full object-cover flex-shrink-0 ring-1 ring-stone-200 dark:ring-stone-700"
+              className="size-5 rounded-full object-cover flex-shrink-0"
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="flex size-6 items-center justify-center bg-gradient-to-br from-stone-500 to-stone-700 rounded-full">
-              <span className="text-xs font-semibold text-white">
+            <div className="flex size-5 items-center justify-center bg-gradient-to-br from-stone-500 to-stone-700 rounded-full">
+              <span className="text-[10px] font-semibold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-stone-700 dark:text-stone-200 capitalize truncate">
-              {user?.username || "User"}
-            </div>
-          </div>
+          <span className="text-sm text-stone-600 dark:text-stone-400 truncate">
+            {user?.username || "User"}
+          </span>
         </div>
       </div>
     </>
@@ -583,19 +613,19 @@ export function SessionSidebar({
         />
       )}
 
-      {/* Mobile sidebar */}
+      {/* Mobile sidebar — only render content on mobile to avoid ref conflicts */}
       <div
-        className={`rounded-r-lg fixed inset-y-0 left-0 z-[70] w-64 flex flex-col bg-white dark:bg-stone-900 sm:hidden ${
+        className={`rounded-r-lg fixed inset-y-0 left-0 z-[70] w-64 flex flex-col sm:hidden bg-[var(--theme-bg-sidebar)] ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } transition-transform duration-300 ease-in-out`}
       >
-        {sessionListContent}
+        {isMobile ? sessionListContent : <div className="flex-1" />}
       </div>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — only render content on desktop to avoid ref conflicts */}
       {!isCollapsed && (
-        <div className="hidden h-full w-64 flex-col rounded-r-lg border-r border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 sm:flex">
-          {sessionListContent}
+        <div className="hidden h-full w-64 flex-col rounded-r-lg border-r border-stone-200/60 dark:border-stone-800/60 sm:flex">
+          {!isMobile ? sessionListContent : <div className="flex-1" />}
         </div>
       )}
 
@@ -610,6 +640,18 @@ export function SessionSidebar({
         >
           {touchDrag.dragIndicatorTitle}
         </div>
+      )}
+
+      {/* Search Dialog */}
+      {isSearchOpen && (
+        <SearchDialog
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          onSelectSession={(sessionId) => {
+            selectAndClose(sessionId);
+            setIsSearchOpen(false);
+          }}
+        />
       )}
 
       {/* Delete Confirmation Dialog */}
@@ -646,7 +688,7 @@ export function SessionSidebar({
                 onChange={(e) =>
                   projectManager.setNewProjectIcon(e.target.value)
                 }
-                placeholder="Icon"
+                placeholder={t("sidebar.projectName")}
                 className="w-8 text-sm bg-transparent text-stone-500 dark:text-stone-400 placeholder-stone-400 focus:outline-none"
               />
               <div className="w-px h-5 bg-stone-300 dark:bg-stone-600" />

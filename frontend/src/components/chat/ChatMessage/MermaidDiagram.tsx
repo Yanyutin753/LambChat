@@ -402,7 +402,7 @@ export function MermaidDiagram({
                 setShowDownloadMenu(!showDownloadMenu);
               }}
               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all hover:bg-stone-300/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
-              title="Download"
+              title={t("documents.download")}
             >
               <Download
                 size={14}

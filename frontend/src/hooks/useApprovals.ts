@@ -15,7 +15,9 @@ export function useApprovals({ sessionId }: UseApprovalsOptions) {
 
   const fetchApprovals = useCallback(async () => {
     try {
-      const data = await authFetch<{ approvals?: PendingApproval[] }>(`${API_BASE}/human/pending`);
+      const data = await authFetch<{ approvals?: PendingApproval[] }>(
+        `${API_BASE}/human/pending`,
+      );
       if (data) {
         const newApprovals = data.approvals || [];
         setApprovals(newApprovals);

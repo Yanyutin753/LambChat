@@ -5,11 +5,12 @@ Agent 路由
 每个 Agent 就是一个 Graph，流式请求接入 graph 后输出 SSE 事件。
 """
 
+import asyncio
 import json
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from src.agents.core.base import AgentFactory
@@ -32,7 +33,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="read_file",
         description="读取文件内容",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="file_path", type="string", description="文件路径", required=True),
         ],
@@ -40,7 +41,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="write_file",
         description="写入文件",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="file_path", type="string", description="文件路径", required=True),
             ToolParamInfo(name="content", type="string", description="文件内容", required=True),
@@ -49,7 +50,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="edit_file",
         description="编辑文件",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="file_path", type="string", description="文件路径", required=True),
             ToolParamInfo(
@@ -64,7 +65,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="ls",
         description="列出目录内容",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="path", type="string", description="目录路径", required=False),
         ],
@@ -72,7 +73,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="glob",
         description="按模式搜索文件",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="pattern", type="string", description="glob 模式", required=True),
             ToolParamInfo(name="path", type="string", description="搜索路径", required=False),
@@ -81,7 +82,7 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="grep",
         description="在文件中搜索内容",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(
                 name="pattern",
@@ -95,9 +96,76 @@ BUILTIN_TOOLS = [
     ToolInfo(
         name="bash",
         description="执行 shell 命令",
-        category="builtin",
+        category="sandbox",
         parameters=[
             ToolParamInfo(name="command", type="string", description="要执行的命令", required=True),
+        ],
+    ),
+]
+
+# Sandbox MCP 管理工具定义
+SANDBOX_MCP_TOOLS = [
+    ToolInfo(
+        name="sandbox_mcp_add",
+        description="在沙箱中注册新的 MCP 服务器，并持久化到数据库",
+        category="sandbox",
+        parameters=[
+            ToolParamInfo(
+                name="server_name",
+                type="string",
+                description="服务器名称",
+                required=True,
+            ),
+            ToolParamInfo(
+                name="command",
+                type="string",
+                description="stdio 启动命令, 如 'npx @anthropic/mcp-server-fetch'",
+                required=True,
+            ),
+            ToolParamInfo(
+                name="env_keys",
+                type="string",
+                description="环境变量 KEY 名称，逗号分隔",
+                required=False,
+            ),
+        ],
+    ),
+    ToolInfo(
+        name="sandbox_mcp_update",
+        description="更新沙箱中 MCP 服务器的命令或环境变量，并持久化到数据库",
+        category="sandbox",
+        parameters=[
+            ToolParamInfo(
+                name="server_name",
+                type="string",
+                description="服务器名称",
+                required=True,
+            ),
+            ToolParamInfo(
+                name="command",
+                type="string",
+                description="新的 stdio 命令（省略则不变更）",
+                required=False,
+            ),
+            ToolParamInfo(
+                name="env_keys",
+                type="string",
+                description="环境变量 KEY 名称，逗号分隔（省略则不变更）",
+                required=False,
+            ),
+        ],
+    ),
+    ToolInfo(
+        name="sandbox_mcp_remove",
+        description="从沙箱中移除 MCP 服务器，并从数据库删除",
+        category="sandbox",
+        parameters=[
+            ToolParamInfo(
+                name="server_name",
+                type="string",
+                description="服务器名称",
+                required=True,
+            ),
         ],
     ),
 ]
@@ -202,20 +270,42 @@ async def list_agents(
     # 获取用户角色的可用 agents 映射（使用角色ID作为key）
     role_agent_map = {}
     role_ids = []  # 用户角色ID列表
+    all_allowed_models: list[str] = []
     if user_roles:
         from src.infra.role.manager import get_role_manager
 
         role_manager = get_role_manager()
-        for role_name in user_roles:
+
+        # 并行查询所有角色信息，避免 N+1 问题
+        async def _fetch_role(role_name: str):
             role = await role_manager.get_role_by_name(role_name)
             if role:
-                role_ids.append(role.id)
                 role_agents = await storage.get_role_agents(role.id)
-                # None = 未配置, list = 已配置(空列表表示明确禁止所有)
-                role_agent_map[role.id] = role_agents
+                role_models = await storage.get_role_models(role.id)
+                return role.id, role_agents, role_models, role_name
+            return None
+
+        role_results = await asyncio.gather(*[_fetch_role(rn) for rn in user_roles])
+        for result in role_results:
+            if result is not None:
+                rid, role_agents, role_models, role_name = result
+                role_ids.append(rid)
+                role_agent_map[rid] = role_agents
+                # 合并角色的 allowed_models（union）
+                if role_models is not None:
+                    all_allowed_models.extend(role_models)
                 logger.info(
-                    f"[Agents API] role_name={role_name}, role_id={role.id}, role_agents={role_agents}"
+                    f"[Agents API] role_name={role_name}, role_id={rid}, role_agents={role_agents}, role_models={role_models}"
                 )
+
+        # 去重并保持顺序
+        seen = set()
+        unique_models = []
+        for m in all_allowed_models:
+            if m not in seen:
+                seen.add(m)
+                unique_models.append(m)
+        all_allowed_models = unique_models
 
     logger.info(f"[Agents API] final role_ids={role_ids}, role_agent_map={role_agent_map}")
 
@@ -230,6 +320,7 @@ async def list_agents(
         "agents": agents,
         "count": len(agents),
         "default_agent": default_agent,
+        "allowed_models": all_allowed_models if all_allowed_models else None,
     }
 
 
@@ -271,8 +362,12 @@ async def chat_stream(
     user_id = user.sub  # 在闭包外部捕获
 
     # 获取 base_url（用于生成完整的文件 URL）
-    # request.base_url 返回的是 base URL（如 http://localhost:8000/），需要去掉末尾的 /
-    base_url = str(request.base_url).rstrip("/")
+    # 优先 APP_BASE_URL 环境变量，fallback 到 request.base_url
+    base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+    if not base_url:
+        base_url = str(request.base_url).rstrip("/")
+        if base_url == "http://None":
+            base_url = ""
 
     # Pass all agent_options to the agent
     agent_options = request_body.agent_options or {}
@@ -281,22 +376,30 @@ async def chat_stream(
     logger.info(f"[API] disabled_tools: {request_body.disabled_tools}")
 
     async def event_generator():
-        async for event in agent.stream(
-            request_body.message,
-            session_id,
-            user_id=user_id,
-            disabled_tools=request_body.disabled_tools,
-            agent_options=agent_options,
-            base_url=base_url,
-        ):
-            # event 格式: {"event": "xxx", "data": {...}}
-            # 确保 data 被正确序列化为 JSON
-            data_str = (
-                event["data"]
-                if isinstance(event["data"], str)
-                else json.dumps(event["data"], ensure_ascii=False)
-            )
-            yield f"event: {event['event']}\ndata: {data_str}\n\n"
+        try:
+            async for event in agent.stream(
+                request_body.message,
+                session_id,
+                user_id=user_id,
+                disabled_tools=request_body.disabled_tools,
+                agent_options=agent_options,
+                base_url=base_url,
+                disabled_skills=request_body.disabled_skills,
+                disabled_mcp_tools=request_body.disabled_mcp_tools,
+            ):
+                # event 格式: {"event": "xxx", "data": {...}}
+                # 确保 data 被正确序列化为 JSON
+                data_str = (
+                    event["data"]
+                    if isinstance(event["data"], str)
+                    else json.dumps(event["data"], ensure_ascii=False)
+                )
+                yield f"event: {event['event']}\ndata: {data_str}\n\n"
+        finally:
+            # 清理请求上下文，防止 contextvars 泄漏
+            from src.infra.logging.context import TraceContext
+
+            TraceContext.clear_request_context()
 
     return StreamingResponse(
         event_generator(),
@@ -307,37 +410,95 @@ async def chat_stream(
 @router.get("/tools", response_model=ToolsListResponse)
 async def list_tools(
     user: TokenPayload = Depends(get_current_user_required),
+    agent_id: Optional[str] = Query(None, description="当前选中的 Agent ID，用于判断是否支持沙箱"),
 ):
     """
     获取当前用户可用的所有工具列表
 
     返回 Skill 工具、Human 工具和 MCP 工具的完整列表。
     MCP 工具会实际连接服务器获取工具列表、描述和参数。
+    当传入 agent_id 时，根据该 Agent 是否支持沙箱来过滤沙箱类工具。
     """
-    tools = []
+    if agent_id:
+        from src.agents.core.base import _AGENT_REGISTRY
 
-    # 1. Human 工具
-    tools.extend(HUMAN_TOOLS)
+        agent_cls = _AGENT_REGISTRY.get(agent_id)
+        if not agent_cls:
+            logger.warning(
+                f"[Tools API] Unknown agent_id={agent_id}, defaulting sandbox support to True"
+            )
 
-    # 2. MCP 工具 - 使用全局单例（分布式优化）
+    tools: list[ToolInfo] = []
+
+    # 1. MCP 工具 - 使用全局单例（分布式优化）
     if settings.ENABLE_MCP:
         try:
+            from src.infra.mcp.storage import MCPStorage
             from src.infra.tool.mcp_global import get_global_mcp_tools
 
             # 使用全局单例，避免重复初始化
-            mcp_tools, _ = await get_global_mcp_tools(user.sub)
+            mcp_tools, manager = await get_global_mcp_tools(user.sub)
 
-            # 获取服务器名称映射（从工具名推断）
-            # MCP 工具名格式通常是 "server_name:tool_name" 或直接是 tool_name
+            # 获取服务器名称映射（从 manager 的 _tool_server_map 或从工具名推断）
+            tool_server_map = getattr(manager, "_tool_server_map", {}) if manager else {}
+
+            # 获取系统级禁用的工具列表（管理员控制）
+            mcp_storage = MCPStorage()
+            system_disabled_tools = await mcp_storage.get_system_disabled_tools()
+
+            # 获取用户服务器的 disabled_tools（创建者直接禁用）
+            user_server_disabled_tools = await mcp_storage.get_user_server_disabled_tools(user.sub)
+
+            # 合并系统级和用户服务器的禁用列表
+            all_server_disabled = {
+                **system_disabled_tools,
+                **user_server_disabled_tools,
+            }
+
+            # 获取用户禁用的工具列表（从 user_mcp_tool_preferences 读取）
+            user_disabled_tools = await mcp_storage.get_disabled_tool_names(user.sub)
+
+            mcp_start_idx = len(tools)  # HUMAN tools are already in the list
+
             for tool in mcp_tools:
                 tool_name = tool.name
                 server_name = None
 
-                # 尝试从工具名提取服务器名
+                # 1. 从 manager 的 tool_server_map 获取服务器名
+                # 工具名可能是 "server_name:tool_name" 格式
+                raw_name = tool_name
                 if ":" in tool_name:
                     parts = tool_name.split(":", 1)
-                    server_name = parts[0]
-                    # 保持原始工具名（用户选择时使用原始名）
+                    candidate_server = parts[0]
+                    candidate_tool = parts[1]
+                    # 在 map 中查找 (candidate_server, candidate_tool)
+                    if (candidate_server, candidate_tool) in tool_server_map:
+                        server_name = tool_server_map[(candidate_server, candidate_tool)]
+                        raw_name = candidate_tool
+                    else:
+                        server_name = candidate_server
+                        raw_name = candidate_tool
+                elif tool_server_map:
+                    # 工具名无 server 前缀时，从 tool_server_map 反查所属服务器
+                    for (srv, raw), mapped_srv in tool_server_map.items():
+                        if raw == tool_name:
+                            server_name = mapped_srv
+                            raw_name = raw
+                            break
+
+                # 2. 检查工具是否被系统禁用或用户禁用
+                qualified_name = f"{server_name}:{raw_name}" if server_name else tool_name
+
+                # 系统禁用检查（包括系统服务器和用户服务器的 disabled_tools）
+                is_system_disabled = False
+                if server_name and server_name in all_server_disabled:
+                    if raw_name in all_server_disabled[server_name]:
+                        is_system_disabled = True
+
+                # 用户禁用检查
+                is_user_disabled = (
+                    qualified_name in user_disabled_tools or tool_name in user_disabled_tools
+                )
 
                 # 提取工具描述
                 description = tool.description if hasattr(tool, "description") else ""
@@ -352,8 +513,13 @@ async def list_tools(
                         category="mcp",
                         server=server_name,
                         parameters=parameters,
+                        system_disabled=is_system_disabled,
+                        user_disabled=is_user_disabled,
                     )
                 )
+
+            # 按 MCP 工具名称排序（首字母排序），HUMAN 工具保持在前
+            tools[mcp_start_idx:] = sorted(tools[mcp_start_idx:], key=lambda t: t.name.lower())
 
             logger.info(
                 f"[Tools API] Got {len(mcp_tools)} MCP tools from global cache for user {user.sub}"

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, X, Download, Upload, FolderOpen, Check } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Plus, X, Download, Upload, FolderOpen, Server, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -12,6 +12,7 @@ import { useMCP } from "../../hooks/useMcp";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import type { MCPServerResponse, MCPServerCreate } from "../../types";
+import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 export function MCPPanel() {
   const { t } = useTranslation();
@@ -49,13 +50,7 @@ export function MCPPanel() {
 
   // Pagination state
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const pageSize = 20;
-
-  // Update total when servers change
-  useEffect(() => {
-    setTotal(servers.length);
-  }, [servers]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -72,7 +67,6 @@ export function MCPPanel() {
   const canRead = hasAnyPermission([Permission.MCP_READ]);
   const canWrite = hasAnyPermission([
     Permission.MCP_ADMIN,
-    Permission.MCP_WRITE_STDIO,
     Permission.MCP_WRITE_SSE,
     Permission.MCP_WRITE_HTTP,
   ]);
@@ -80,22 +74,27 @@ export function MCPPanel() {
 
   // 动态生成用户可以使用的传输类型权限
   const allowedTransports = [
-    hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_STDIO])
-      ? Permission.MCP_WRITE_STDIO
-      : null,
     hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_SSE])
       ? Permission.MCP_WRITE_SSE
       : null,
     hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_HTTP])
       ? Permission.MCP_WRITE_HTTP
       : null,
+    hasAnyPermission([Permission.MCP_ADMIN, Permission.MCP_WRITE_SANDBOX])
+      ? Permission.MCP_WRITE_SANDBOX
+      : null,
   ].filter(Boolean) as Permission[];
   // Note: canDelete permission is checked server-side
   // Client-side uses canWrite for UI actions, server validates actual permissions
 
-  const filteredServers = servers.filter((server) =>
-    server.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredServers = useMemo(
+    () =>
+      servers.filter((server) =>
+        server.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [servers, searchQuery],
   );
+  const total = filteredServers.length;
 
   // Get paginated servers
   const paginatedServers = filteredServers.slice(
@@ -103,109 +102,137 @@ export function MCPPanel() {
     page * pageSize,
   );
 
-  const handleCreate = async () => {
+  const handleCreate = useCallback(async () => {
     setIsCreating(true);
     setEditingServer(null);
     setCreateAsSystem(false);
     setChangeToSystem(false);
     setShowModal(true);
-  };
+  }, []);
 
-  const handleEdit = (server: MCPServerResponse) => {
+  const handleEdit = useCallback((server: MCPServerResponse) => {
     setEditingServer(server);
     setIsCreating(false);
     setCreateAsSystem(false);
     setChangeToSystem(server.is_system); // Initialize with current type
     setShowModal(true);
-  };
+  }, []);
 
-  const handleSave = async (data: MCPServerCreate): Promise<boolean> => {
-    let success = false;
+  const handleSave = useCallback(
+    async (data: MCPServerCreate): Promise<boolean> => {
+      let success = false;
 
-    try {
-      if (isCreating) {
-        const result = await createServer(data, createAsSystem);
-        success = result !== null;
-        if (success) {
-          toast.success(t("mcp.createSuccess"));
-        } else {
-          toast.error(t("mcp.createFailed"));
-        }
-      } else if (editingServer) {
-        // Check if server type is changing
-        const typeChanging = changeToSystem !== editingServer.is_system;
-
-        if (typeChanging && canAdmin) {
-          // Handle type change
-          if (changeToSystem) {
-            // Promote user server to system server
-            // We need the owner's user_id - for now, use current user
-            const result = await promoteServer(
-              editingServer.name,
-              user?.id || "",
-            );
-            success = result !== null;
-            if (success) {
-              toast.success(t("mcp.promoteSuccess"));
-            } else {
-              toast.error(t("mcp.promoteFailed"));
-            }
-          } else {
-            // Demote system server to user server
-            const result = await demoteServer(
-              editingServer.name,
-              user?.id || "",
-            );
-            success = result !== null;
-            if (success) {
-              toast.success(t("mcp.demoteSuccess"));
-            } else {
-              toast.error(t("mcp.demoteFailed"));
-            }
-          }
-        } else {
-          // Normal update without type change
-          const result = await updateServer(
-            editingServer.name,
-            data,
-            editingServer.is_system,
-          );
+      try {
+        if (isCreating) {
+          const result = await createServer(data, createAsSystem);
           success = result !== null;
           if (success) {
-            toast.success(t("mcp.updateSuccess"));
+            toast.success(t("mcp.createSuccess"));
           } else {
-            toast.error(t("mcp.updateFailed"));
+            toast.error(t("mcp.createFailed"));
+          }
+        } else if (editingServer) {
+          // Check if server type is changing
+          const typeChanging = changeToSystem !== editingServer.is_system;
+
+          if (typeChanging && canAdmin) {
+            // Handle type change
+            if (changeToSystem) {
+              // Promote user server to system server
+              // We need the owner's user_id - for now, use current user
+              const result = await promoteServer(
+                editingServer.name,
+                user?.id || "",
+              );
+              success = result !== null;
+              if (success) {
+                toast.success(t("mcp.promoteSuccess"));
+              } else {
+                toast.error(t("mcp.promoteFailed"));
+              }
+            } else {
+              // Demote system server to user server
+              const result = await demoteServer(
+                editingServer.name,
+                user?.id || "",
+              );
+              success = result !== null;
+              if (success) {
+                toast.success(t("mcp.demoteSuccess"));
+              } else {
+                toast.error(t("mcp.demoteFailed"));
+              }
+            }
+          } else {
+            // Normal update without type change
+            const result = await updateServer(
+              editingServer.name,
+              data,
+              editingServer.is_system,
+            );
+            success = result !== null;
+            if (success) {
+              toast.success(t("mcp.updateSuccess"));
+            } else {
+              toast.error(t("mcp.updateFailed"));
+            }
           }
         }
+
+        if (success) {
+          setShowModal(false);
+          setEditingServer(null);
+          setIsCreating(false);
+          setCreateAsSystem(false);
+          setChangeToSystem(false);
+        }
+      } catch (error) {
+        toast.error((error as Error).message || t("mcp.operationFailed"));
+        success = false;
       }
 
-      if (success) {
-        setShowModal(false);
-        setEditingServer(null);
-        setIsCreating(false);
-        setCreateAsSystem(false);
-        setChangeToSystem(false);
-      }
-    } catch (error) {
-      toast.error((error as Error).message || t("mcp.operationFailed"));
-      success = false;
-    }
+      return success;
+    },
+    [
+      isCreating,
+      editingServer,
+      createAsSystem,
+      changeToSystem,
+      canAdmin,
+      createServer,
+      updateServer,
+      promoteServer,
+      demoteServer,
+      user?.id,
+      t,
+    ],
+  );
 
-    return success;
-  };
-
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     setShowModal(false);
     setEditingServer(null);
     setIsCreating(false);
     setCreateAsSystem(false);
     setChangeToSystem(false);
-  };
+  }, []);
 
-  const handleDelete = async (name: string, isSystem: boolean = false) => {
-    setDeleteConfirmData({ name, isSystem });
-    setIsDeleteConfirmOpen(true);
-  };
+  const swipeRef = useSwipeToClose({
+    onClose: handleCancel,
+    enabled: showModal,
+  });
+
+  const swipeRefImport = useSwipeToClose({
+    onClose: () => setShowImportModal(false),
+    enabled: showImportModal,
+  });
+
+  const handleDelete = useCallback(
+    async (name: string, isSystem: boolean = false) => {
+      setDeleteConfirmData({ name, isSystem });
+      setIsDeleteConfirmOpen(true);
+    },
+    [],
+  );
 
   const confirmDelete = async () => {
     if (!deleteConfirmData) return;
@@ -225,9 +252,18 @@ export function MCPPanel() {
     setDeleteConfirmData(null);
   };
 
-  const handleToggle = async (name: string) => {
-    await toggleServer(name);
-  };
+  const handleToggle = useCallback(
+    async (name: string) => {
+      await toggleServer(name);
+    },
+    [toggleServer],
+  );
+
+  // Stable callback for tool toggled — avoids inline arrow in .map()
+  const handleToolToggled = useCallback(() => {
+    // Notify useTools hook to refresh conversation tool state
+    window.dispatchEvent(new CustomEvent("mcp-tools-changed"));
+  }, []);
 
   const handleExport = async () => {
     try {
@@ -323,8 +359,8 @@ export function MCPPanel() {
         title={t("mcp.title")}
         subtitle={t("mcp.subtitle")}
         icon={
-          <FolderOpen
-            size={18}
+          <Server
+            size={20}
             className="text-stone-600 dark:text-stone-400"
           />
         }
@@ -406,6 +442,7 @@ export function MCPPanel() {
                 onToggle={handleToggle}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onToolToggled={handleToolToggled}
               />
             ))}
           </div>
@@ -431,7 +468,10 @@ export function MCPPanel() {
           <div className="fixed inset-0 " onClick={handleCancel} />
           {/* Modal */}
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
+            <div
+              ref={swipeRef as React.RefObject<HTMLDivElement>}
+              className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+            >
               {/* Mobile drag handle */}
               <div className="bottom-sheet-handle sm:hidden" />
 
@@ -508,7 +548,10 @@ export function MCPPanel() {
             onClick={() => setShowImportModal(false)}
           />
           <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-            <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]">
+            <div
+              ref={swipeRefImport as React.RefObject<HTMLDivElement>}
+              className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+            >
               <div className="bottom-sheet-handle sm:hidden" />
               <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
                 <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
@@ -534,9 +577,8 @@ export function MCPPanel() {
                       placeholder={`{
   "mcpServers": {
     "server-name": {
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@example/server"],
+      "transport": "sse",
+      "url": "http://localhost:3000/sse",
       "enabled": true
     }
   }
@@ -594,7 +636,7 @@ export function MCPPanel() {
                     >
                       {isLoading ? (
                         <>
-                          <LoadingSpinner size="sm" />
+                          <LoadingSpinner size="sm" color="text-white" />
                           {t("common.importing")}
                         </>
                       ) : (

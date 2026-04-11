@@ -17,24 +17,41 @@ const RolesPanel = lazy(() =>
   import("../../panels/RolesPanel").then((m) => ({ default: m.RolesPanel })),
 );
 const SettingsPanel = lazy(() =>
-  import("../../panels/SettingsPanel").then((m) => ({ default: m.SettingsPanel })),
+  import("../../panels/SettingsPanel").then((m) => ({
+    default: m.SettingsPanel,
+  })),
 );
 const AgentConfigPanel = lazy(() =>
-  import("../../panels/AgentConfigPanel").then((m) => ({
+  import("../../panels/AgentPanel").then((m) => ({
     default: m.AgentConfigPanel,
+  })),
+);
+const ModelPanel = lazy(() =>
+  import("../../panels/ModelPanel").then((m) => ({
+    default: m.ModelPanel,
   })),
 );
 const MCPPanel = lazy(() =>
   import("../../panels/MCPPanel").then((m) => ({ default: m.MCPPanel })),
 );
 const FeedbackPanel = lazy(() =>
-  import("../../panels/FeedbackPanel").then((m) => ({ default: m.FeedbackPanel })),
+  import("../../panels/FeedbackPanel").then((m) => ({
+    default: m.FeedbackPanel,
+  })),
 );
 const ChannelsPage = lazy(() =>
   import("../../pages/ChannelsPage").then((m) => ({ default: m.ChannelsPage })),
 );
+const RevealedFilesPage = lazy(() =>
+  import("../../fileLibrary/RevealedFilesPanel").then((m) => ({
+    default: m.RevealedFilesPanel,
+  })),
+);
 
-const panelMap: Record<string, React.LazyExoticComponent<React.ComponentType>> = {
+const panelMap: Record<
+  string,
+  React.LazyExoticComponent<React.ComponentType>
+> = {
   skills: SkillsPanel,
   marketplace: MarketplacePanel,
   users: UsersPanel,
@@ -44,6 +61,8 @@ const panelMap: Record<string, React.LazyExoticComponent<React.ComponentType>> =
   feedback: FeedbackPanel,
   channels: ChannelsPage,
   agents: AgentConfigPanel,
+  models: ModelPanel,
+  files: RevealedFilesPage,
 };
 
 function PanelLoader() {
@@ -62,9 +81,11 @@ export function TabContent({ activeTab }: { activeTab: TabType }) {
 
   return (
     <main className="flex-1 overflow-hidden">
-      <Suspense fallback={<PanelLoader />}>
-        <Panel />
-      </Suspense>
+      <div className="mx-auto max-w-3xl xl:max-w-5xl w-full h-full">
+        <Suspense fallback={<PanelLoader />}>
+          <Panel />
+        </Suspense>
+      </div>
     </main>
   );
 }

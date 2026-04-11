@@ -8,6 +8,7 @@ import { Edit2, Trash2, FolderPlus, ChevronRight, X } from "lucide-react";
 import type { BackendSession } from "../../services/api/session";
 import type { Project } from "../../types";
 import { DynamicIcon } from "../common/DynamicIcon";
+import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface SessionMenuProps {
   session: BackendSession;
@@ -42,6 +43,11 @@ export function SessionMenu({
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth < 640;
+  });
+
+  const swipeRef = useSwipeToClose({
+    onClose,
+    enabled: isOpen && isMobile,
   });
 
   // Update isMobile on resize
@@ -134,7 +140,10 @@ export function SessionMenu({
         />
         {/* Bottom sheet */}
         <div
-          ref={menuRef}
+          ref={(el) => {
+            menuRef.current = el;
+            swipeRef.current = el;
+          }}
           className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-white dark:bg-stone-800 rounded-t-2xl shadow-xl max-h-[70vh] overflow-y-auto"
         >
           {/* Handle bar */}

@@ -84,6 +84,8 @@ class BackgroundTaskManager:
         attachments: Optional[List[Dict[str, Any]]] = None,
         run_id: Optional[str] = None,
         project_id: Optional[str] = None,
+        disabled_skills: Optional[List[str]] = None,
+        disabled_mcp_tools: Optional[List[str]] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -131,6 +133,8 @@ class BackgroundTaskManager:
                     disabled_tools,
                     agent_options,
                     attachments,
+                    disabled_skills=disabled_skills,
+                    disabled_mcp_tools=disabled_mcp_tools,
                 )
             )
             self._tasks[run_id] = task
@@ -149,6 +153,8 @@ class BackgroundTaskManager:
             del self._tasks[run_id]
         # 清理运行信息，防止内存泄漏
         run_info = self._run_info.pop(run_id, None)
+        # 清理待处理任务上下文（如果存在）
+        self._pending_tasks.pop(run_id, None)
         # 释放并发槽位
         user_id = run_info.get("user_id") if run_info else None
         if user_id:
@@ -712,6 +718,8 @@ class BackgroundTaskManager:
                     logger.warning(f"Task marked as failed (shutdown): run_id={run_id}")
 
             self._tasks.clear()
+            self._run_info.clear()
+            self._pending_tasks.clear()
             logger.info("Task manager shutdown complete")
 
 

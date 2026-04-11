@@ -2,7 +2,9 @@
  * API configuration and URL utilities
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE || "";
+const API_BASE =
+  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env
+    ?.VITE_API_BASE || "";
 export { API_BASE };
 
 /**

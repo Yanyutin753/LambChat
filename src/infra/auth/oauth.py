@@ -6,7 +6,6 @@ OAuth 认证服务
 
 import base64
 import json
-import time
 from typing import Any, Dict, Optional
 
 import httpx
@@ -23,22 +22,6 @@ logger = get_logger(__name__)
 
 # HTTP 请求超时设置（秒）
 HTTP_TIMEOUT = 10.0
-
-# State 过期时间（秒）
-STATE_EXPIRE_SECONDS = 600  # 10 minutes
-
-# State 存储（带过期时间的内存存储）
-_oauth_states: Dict[str, tuple[str, float]] = {}  # state -> (provider, expire_time)
-
-
-def _cleanup_expired_states() -> None:
-    """清理过期的 OAuth state"""
-    current_time = time.time()
-    expired_states = [
-        state for state, (_, expire_time) in _oauth_states.items() if current_time > expire_time
-    ]
-    for state in expired_states:
-        _oauth_states.pop(state, None)
 
 
 class OAuthUserInfo(BaseModel):
@@ -146,12 +129,6 @@ class OAuthService:
             logger.error(f"Failed to get OAuth client for {provider.value}")
             return None
 
-        # 存储 state 用于后续验证（带过期时间）
-        _oauth_states[state] = (provider.value, time.time() + STATE_EXPIRE_SECONDS)
-
-        # 清理过期的 state（惰性清理）
-        _cleanup_expired_states()
-
         try:
             if provider == OAuthProvider.GOOGLE:
                 url, _ = client.create_authorization_url(
@@ -180,8 +157,6 @@ class OAuthService:
                 return url
         except Exception as e:
             logger.error(f"Failed to create authorization URL for {provider.value}: {e}")
-            # 清理无效的 state
-            _oauth_states.pop(state, None)
             return None
 
         return None
@@ -201,21 +176,6 @@ class OAuthService:
         Returns:
             Token 或 None
         """
-        # 验证 state 参数（CSRF 防护）
-        stored_data = _oauth_states.pop(state, None)
-        if not stored_data:
-            logger.error(f"OAuth state 验证失败: state={state} 不存在")
-            return None
-        stored_provider, expire_time = stored_data
-        if time.time() > expire_time:
-            logger.error(f"OAuth state 验证失败: state={state} 已过期")
-            return None
-        if stored_provider != provider.value:
-            logger.error(
-                f"OAuth state 验证失败: 期望 provider={stored_provider}, 实际={provider.value}"
-            )
-            return None
-
         if not self.is_provider_enabled(provider):
             logger.warning(f"OAuth provider {provider.value} is not enabled")
             return None
@@ -452,12 +412,21 @@ class OAuthService:
                 suffix = "".join(random.choices(string.digits, k=4))
                 username = f"{base_username}_{suffix}"
 
+            # 为新用户分配默认角色（与 UserManager.register 逻辑一致）
+            existing_users = await self.storage.list_users(limit=1)
+            if not existing_users:
+                default_roles = ["admin"]
+            else:
+                default_role = settings.DEFAULT_USER_ROLE
+                default_roles = [default_role or "user"]
+
             user_data = UserCreate(
                 username=username,
                 email=user_info.email,
                 avatar_url=user_info.avatar_url,
                 oauth_provider=user_info.provider,
                 oauth_id=user_info.oauth_id,
+                roles=default_roles,
             )
 
             try:

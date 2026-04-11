@@ -8,36 +8,8 @@ from langchain_core.messages import HumanMessage
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.logging import get_logger
-from src.kernel.config import settings
 
 logger = get_logger(__name__)
-
-
-def schedule_auto_retain(
-    user_input: str,
-    assistant_output: str,
-    user_id: str | None,
-) -> None:
-    """
-    调度自动记忆存储任务（异步，不阻塞响应）。
-
-    只存储用户输入，助手回复由记忆后端自动关联。
-    统一接口自动选择 Hindsight 或 memU 后端。
-    """
-    if not settings.ENABLE_MEMORY or not user_id:
-        return
-
-    user_input_clean = user_input.strip()
-    if not user_input_clean or len(user_input_clean) < 10:
-        return
-
-    from src.infra.memory.tools import schedule_auto_retain
-
-    schedule_auto_retain(
-        user_id=user_id,
-        conversation_summary=user_input_clean[:500],
-        context="user_query",
-    )
 
 
 def build_human_message(text: str, attachments: list[dict] | None) -> HumanMessage:

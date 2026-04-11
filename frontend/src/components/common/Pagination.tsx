@@ -3,6 +3,7 @@
  */
 
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface PaginationProps {
   page: number;
@@ -17,6 +18,7 @@ export function Pagination({
   total,
   onChange,
 }: PaginationProps) {
+  const { t } = useTranslation();
   const totalPages = Math.ceil(total / pageSize);
 
   if (totalPages <= 1) return null;
@@ -38,7 +40,7 @@ export function Pagination({
           onClick={() => onChange(page - 1)}
           disabled={page === 1}
           className="pagination-btn"
-          aria-label="Previous"
+          aria-label={t("common.previous")}
         >
           <ChevronLeft size={16} />
         </button>
@@ -65,7 +67,7 @@ export function Pagination({
           onClick={() => onChange(page + 1)}
           disabled={page === totalPages}
           className="pagination-btn"
-          aria-label="Next"
+          aria-label={t("common.next")}
         >
           <ChevronRight size={16} />
         </button>

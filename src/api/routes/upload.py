@@ -20,6 +20,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from pymongo.errors import DuplicateKeyError
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.file_type import (
@@ -33,8 +34,6 @@ from src.infra.logging import get_logger
 from src.infra.storage.s3 import (
     S3Config,
     S3Provider,
-    get_storage_service,
-    init_storage,
 )
 from src.infra.upload.file_record import FileRecordStorage
 from src.kernel.config import settings
@@ -57,6 +56,62 @@ def _parse_bool(value: Any) -> bool:
 
 
 router = APIRouter()
+
+
+async def _get_live_record_by_hash(file_hash: str, storage=None) -> dict | None:
+    """Return a dedupe record only if both metadata and the backing file still exist."""
+    record = await _file_record_storage.find_by_hash(file_hash)
+    if record is None:
+        return None
+
+    storage = storage or await get_or_init_storage()
+    if await storage.file_exists(record["key"]):
+        return record
+
+    logger.warning(
+        "Found stale file record for hash %s pointing to missing key %s",
+        file_hash,
+        record["key"],
+    )
+    await _file_record_storage.delete_by_hash(file_hash)
+    return None
+
+
+def _get_base_url(request: Request) -> str:
+    """获取 base_url，优先 APP_BASE_URL 环境变量，fallback 到 request.base_url"""
+    app_base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+    if app_base_url:
+        return app_base_url
+    base_url = str(request.base_url).rstrip("/")
+    if base_url == "http://None":
+        return ""
+    return base_url
+
+
+def _build_upload_response(
+    request: Request,
+    *,
+    key: str,
+    name: str,
+    file_type: str,
+    mime_type: str,
+    size: int,
+    exists: bool = False,
+) -> dict:
+    """Build a normalized upload response payload."""
+    base_url = _get_base_url(request)
+    proxy_url = f"{base_url}/api/upload/file/{key}"
+    payload = {
+        "key": key,
+        "url": proxy_url,
+        "name": name,
+        "type": file_type,
+        "mime_type": mime_type,
+        "size": size,
+    }
+    if exists:
+        payload["exists"] = True
+    return payload
 
 
 def get_s3_enabled() -> bool:
@@ -96,18 +151,10 @@ async def get_s3_config_from_settings() -> S3Config:
 
 
 async def get_or_init_storage():
-    """Initialize and get storage service"""
-    s3_enabled = get_s3_enabled()
-    if s3_enabled:
-        config = await get_s3_config_from_settings()
-        await init_storage(config)
-    else:
-        # Auto-enable local storage when S3 is not configured
-        storage = get_storage_service()
-        if storage._backend is None:
-            config = S3Config(provider=S3Provider.LOCAL, storage_path="./uploads")
-            await init_storage(config)
-    return get_storage_service()
+    """Initialize and get storage service (re-exported from infra layer)"""
+    from src.infra.storage.s3.service import get_or_init_storage as _get_or_init
+
+    return await _get_or_init()
 
 
 async def resolve_upload_limits(user_roles: list[str]) -> dict:
@@ -163,15 +210,19 @@ class FileCheckRequest(BaseModel):
 
 @router.post("/check")
 async def check_file_exists(
+    request: Request,
     body: FileCheckRequest,
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> dict:
-    record = await _file_record_storage.find_by_hash(body.hash)
+    storage = await get_or_init_storage()
+    record = await _get_live_record_by_hash(body.hash, storage)
     if record is None:
         return {"exists": False}
+    base_url = _get_base_url(request)
     return {
         "exists": True,
         "key": record["key"],
+        "url": f"{base_url}/api/upload/file/{record['key']}",
         "name": record["name"],
         "type": record["category"],
         "mime_type": record["mime_type"],
@@ -262,19 +313,17 @@ async def upload_file(
         file_hash = hashlib.sha256(file_data).hexdigest()
 
         # Check if hash already exists (race condition guard)
-        existing = await _file_record_storage.find_by_hash(file_hash)
+        existing = await _get_live_record_by_hash(file_hash, storage)
         if existing:
-            base_url = str(request.base_url).rstrip("/")
-            proxy_url = f"{base_url}/api/upload/file/{existing['key']}"
-            return {
-                "key": existing["key"],
-                "url": proxy_url,
-                "name": existing["name"],
-                "type": existing["category"],
-                "mime_type": existing["mime_type"],
-                "size": existing["size"],
-                "exists": True,
-            }
+            return _build_upload_response(
+                request,
+                key=existing["key"],
+                name=existing["name"],
+                file_type=existing["category"],
+                mime_type=existing["mime_type"],
+                size=existing["size"],
+                exists=True,
+            )
 
         # Upload with short key organized by category and user
         short_id = uuid.uuid4().hex[:16]
@@ -303,17 +352,39 @@ async def upload_file(
             uploaded_by=current_user.sub,
         )
 
-        base_url = str(request.base_url).rstrip("/")
-        proxy_url = f"{base_url}/api/upload/file/{storage_key}"
+        return _build_upload_response(
+            request,
+            key=storage_key,
+            name=file.filename or "unknown",
+            file_type=category.value,
+            mime_type=file.content_type or "application/octet-stream",
+            size=len(file_data),
+        )
+    except DuplicateKeyError:
+        logger.info("Duplicate upload detected for hash %s, reusing existing file", file_hash)
 
-        return {
-            "key": storage_key,
-            "url": proxy_url,
-            "name": file.filename,
-            "type": category.value,
-            "mime_type": file.content_type,
-            "size": len(file_data),
-        }
+        existing = await _get_live_record_by_hash(file_hash, storage)
+        if existing:
+            try:
+                await storage.delete_file(storage_key)
+            except Exception as cleanup_error:
+                logger.warning(
+                    "Failed to delete duplicate uploaded object %s after dedupe race: %s",
+                    storage_key,
+                    cleanup_error,
+                )
+
+            return _build_upload_response(
+                request,
+                key=existing["key"],
+                name=existing["name"],
+                file_type=existing["category"],
+                mime_type=existing["mime_type"],
+                size=existing["size"],
+                exists=True,
+            )
+
+        raise HTTPException(status_code=500, detail="Upload failed: duplicate record conflict")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
@@ -467,6 +538,20 @@ async def delete_file(
     """
     storage = await get_or_init_storage()
 
+    record = await _file_record_storage.find_by_key(key)
+    if record is not None:
+        if record.get("reference_count", 0) <= 0:
+            await storage.delete_file(key)
+            await _file_record_storage.delete_by_key(key)
+            logger.info("Deleted unreferenced file %s", key)
+            return {"deleted": True, "key": key, "status": "deleted"}
+
+        logger.info(
+            "Preserving tracked file %s during delete request to avoid breaking deduplicated references",
+            key,
+        )
+        return {"deleted": False, "key": key, "status": "preserved"}
+
     # Async delete - return immediately, delete in background
     async def background_delete():
         try:
@@ -477,7 +562,8 @@ async def delete_file(
             logger.error(f"Background delete failed for key {key}: {e}")
 
     # Create task and return immediately (non-blocking)
-    asyncio.create_task(background_delete())
+    task = asyncio.create_task(background_delete())
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
     return {"deleted": True, "key": key, "status": "deleting"}
 
 
@@ -550,7 +636,8 @@ class SignedUrlResponse(BaseModel):
     dependencies=[Depends(require_permissions("file:upload"))],
 )
 async def get_signed_urls(
-    request: SignedUrlRequest,
+    body: SignedUrlRequest,
+    req: Request,
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> SignedUrlResponse:
     """
@@ -566,22 +653,18 @@ async def get_signed_urls(
     Returns:
         List of signed URLs for each requested key
     """
-    if not get_s3_enabled():
-        raise HTTPException(
-            status_code=503,
-            detail="File storage is not enabled. Please configure S3 settings.",
-        )
-
     storage = await get_or_init_storage()
+
+    base_url = _get_base_url(req)
 
     # Local storage: return proxy URLs directly
     if storage.is_local:
         urls = []
-        for key in request.keys:
+        for key in body.keys:
             try:
                 exists = await storage.file_exists(key)
                 if exists:
-                    urls.append(SignedUrlItem(key=key, url=f"/api/upload/file/{key}"))
+                    urls.append(SignedUrlItem(key=key, url=f"{base_url}/api/upload/file/{key}"))
                 else:
                     urls.append(SignedUrlItem(key=key, error="File not found"))
             except Exception as e:
@@ -592,7 +675,7 @@ async def get_signed_urls(
     if storage._config.public_bucket:
         # Public bucket - return direct URLs instead
         urls = []
-        for key in request.keys:
+        for key in body.keys:
             try:
                 url = await storage.get_file_url(key)
                 urls.append(SignedUrlItem(key=key, url=url))
@@ -602,15 +685,15 @@ async def get_signed_urls(
 
     # Private bucket - generate presigned URLs
     urls = []
-    for key in request.keys:
+    for key in body.keys:
         try:
-            url = await storage.get_presigned_url(key, request.expires)
+            url = await storage.get_presigned_url(key, body.expires)
             urls.append(SignedUrlItem(key=key, url=url))
         except Exception as e:
             logger.warning(f"Failed to generate signed URL for {key}: {e}")
             urls.append(SignedUrlItem(key=key, error=str(e)))
 
-    return SignedUrlResponse(urls=urls, expires_in=request.expires)
+    return SignedUrlResponse(urls=urls, expires_in=body.expires)
 
 
 @router.get(
@@ -620,6 +703,7 @@ async def get_signed_urls(
 )
 async def get_single_signed_url(
     key: str,
+    request: Request,
     expires: int = 3600,
     current_user: TokenPayload = Depends(get_current_user_required),
 ) -> SignedUrlItem:
@@ -636,12 +720,6 @@ async def get_single_signed_url(
     Returns:
         Signed URL for the requested key
     """
-    if not get_s3_enabled():
-        raise HTTPException(
-            status_code=503,
-            detail="File storage is not enabled. Please configure S3 settings.",
-        )
-
     # Validate expires range
     if expires < 60 or expires > 86400:
         raise HTTPException(
@@ -651,12 +729,14 @@ async def get_single_signed_url(
 
     storage = await get_or_init_storage()
 
+    base_url = _get_base_url(request)
+
     try:
         if storage.is_local:
             exists = await storage.file_exists(key)
             if not exists:
                 return SignedUrlItem(key=key, error="File not found")
-            return SignedUrlItem(key=key, url=f"/api/upload/file/{key}")
+            return SignedUrlItem(key=key, url=f"{base_url}/api/upload/file/{key}")
         # If bucket is public, return direct URL
         if storage._config.public_bucket:
             url = await storage.get_file_url(key)
@@ -688,7 +768,7 @@ async def get_file_proxy(
 
     storage = await get_or_init_storage()
 
-    base_url = str(request.base_url).rstrip("/")
+    base_url = _get_base_url(request)
     proxy_url = f"{base_url}/api/upload/file/{key}"
 
     # Local storage: serve file directly with FileResponse (native Range/sendfile support)
@@ -696,19 +776,22 @@ async def get_file_proxy(
         if direct:
             return JSONResponse({"url": proxy_url})
         try:
-            file_path = await storage.get_file_path(key)
+            file_path = storage.get_file_path(key)
             if not file_path.exists():
                 raise HTTPException(status_code=404, detail="File not found")
 
-            import mimetypes
-
-            content_type, _ = mimetypes.guess_type(key)
-            if not content_type:
-                content_type = "application/octet-stream"
-
-            # Try to get original filename from file records
+            # Try to get original filename and content type from file records
             record = await _file_record_storage.find_by_key(key)
             filename_for_disposition = record["name"] if record else None
+            content_type = record["mime_type"] if record and record.get("mime_type") else None
+
+            # Fallback to guessing from filename if not in record
+            if not content_type:
+                import mimetypes
+
+                content_type, _ = mimetypes.guess_type(key)
+                if not content_type:
+                    content_type = "application/octet-stream"
 
             return FileResponse(
                 path=str(file_path),

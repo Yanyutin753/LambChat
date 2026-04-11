@@ -104,6 +104,9 @@ export interface UseAgentOptions {
   }) => void;
   onClearApprovals?: () => void;
   getEnabledTools?: () => string[];
+  getDisabledSkills?: () => string[];
+  getDisabledMcpTools?: () => string[];
+  getAgentOptions?: () => Record<string, boolean | string | number>;
   onSkillAdded?: (
     skillName: string,
     description: string,
@@ -172,6 +175,7 @@ export interface UseAgentReturn {
   agents: AgentInfo[];
   currentAgent: string;
   agentsLoading: boolean;
+  allowedModels: string[] | null;
   isReconnecting: boolean;
   connectionStatus: ConnectionStatus;
   newlyCreatedSession: BackendSession | null;
@@ -185,11 +189,24 @@ export interface UseAgentReturn {
   stopGeneration: () => Promise<void>;
   clearMessages: () => void;
   selectAgent: (agentId: string) => void;
+  switchAgent: (agentId: string) => void;
   refreshAgents: () => Promise<void>;
-  loadHistory: (targetSessionId: string, targetRunId?: string) => Promise<void>;
+  loadHistory: (
+    targetSessionId: string,
+    targetRunId?: string,
+  ) => Promise<SessionConfig | null>;
   reconnectSSE: () => Promise<void>;
   setPendingProjectId: (id: string | null) => void;
   autoExpandProjectId: string | null;
+}
+
+// Session configuration restored from metadata
+export interface SessionConfig {
+  agent_id?: string;
+  agent_options?: Record<string, boolean | string | number>;
+  disabled_tools?: string[];
+  disabled_skills?: string[];
+  disabled_mcp_tools?: string[];
 }
 
 // Backend session type (simplified)

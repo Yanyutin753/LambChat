@@ -55,6 +55,7 @@ class MCPStorage:
         self._system_collection: Optional["AsyncIOMotorCollection"] = None
         self._user_collection: Optional["AsyncIOMotorCollection"] = None
         self._preferences_collection: Optional["AsyncIOMotorCollection"] = None
+        self._tool_preferences_collection: Optional["AsyncIOMotorCollection"] = None
 
     async def _invalidate_user_cache(self, user_id: str) -> None:
         """Invalidate MCP tools cache for a specific user"""
@@ -94,6 +95,14 @@ class MCPStorage:
             self._preferences_collection = db["user_mcp_preferences"]
         return self._preferences_collection
 
+    def _get_tool_preferences_collection(self) -> "AsyncIOMotorCollection":
+        """Get user MCP tool preferences collection lazily"""
+        if self._tool_preferences_collection is None:
+            self._client = get_mongo_client()
+            db = self._client[settings.MONGODB_DB]
+            self._tool_preferences_collection = db["user_mcp_tool_preferences"]
+        return self._tool_preferences_collection
+
     # ==========================================
     # System MCP Servers (Admin)
     # ==========================================
@@ -125,15 +134,15 @@ class MCPStorage:
             "name": server.name,
             "transport": server.transport.value,
             "enabled": server.enabled,
-            "command": server.command,
-            "args": server.args,
-            "env": server.env,
             "url": server.url,
             "headers": server.headers,
+            "command": server.command,
+            "env_keys": server.env_keys,
             "is_system": True,
             "created_at": now,
             "updated_at": now,
             "updated_by": admin_user_id,
+            "created_by": admin_user_id,
         }
 
         # 加密敏感字段
@@ -165,18 +174,16 @@ class MCPStorage:
             update_data["transport"] = updates.transport.value
         if updates.enabled is not None:
             update_data["enabled"] = updates.enabled
-        if updates.command is not None:
-            update_data["command"] = updates.command
-        if updates.args is not None:
-            update_data["args"] = updates.args
-        if updates.env is not None:
-            update_data["env"] = encrypt_value(updates.env) if updates.env else updates.env
         if updates.url is not None:
             update_data["url"] = updates.url
         if updates.headers is not None:
             update_data["headers"] = (
                 encrypt_value(updates.headers) if updates.headers else updates.headers
             )
+        if updates.command is not None:
+            update_data["command"] = updates.command
+        if updates.env_keys is not None:
+            update_data["env_keys"] = updates.env_keys
 
         await collection.update_one({"name": name}, {"$set": update_data})
 
@@ -226,11 +233,10 @@ class MCPStorage:
             "name": server.name,
             "transport": server.transport.value,
             "enabled": server.enabled,
-            "command": server.command,
-            "args": server.args,
-            "env": server.env,
             "url": server.url,
             "headers": server.headers,
+            "command": server.command,
+            "env_keys": server.env_keys,
             "user_id": user_id,
             "is_system": False,
             "created_at": now,
@@ -263,18 +269,16 @@ class MCPStorage:
             update_data["transport"] = updates.transport.value
         if updates.enabled is not None:
             update_data["enabled"] = updates.enabled
-        if updates.command is not None:
-            update_data["command"] = updates.command
-        if updates.args is not None:
-            update_data["args"] = updates.args
-        if updates.env is not None:
-            update_data["env"] = encrypt_value(updates.env) if updates.env else updates.env
         if updates.url is not None:
             update_data["url"] = updates.url
         if updates.headers is not None:
             update_data["headers"] = (
                 encrypt_value(updates.headers) if updates.headers else updates.headers
             )
+        if updates.command is not None:
+            update_data["command"] = updates.command
+        if updates.env_keys is not None:
+            update_data["env_keys"] = updates.env_keys
 
         await collection.update_one({"name": name, "user_id": user_id}, {"$set": update_data})
 
@@ -325,16 +329,16 @@ class MCPStorage:
             "name": user_server.name,
             "transport": user_server.transport.value,
             "enabled": user_server.enabled,
-            "command": user_server.command,
-            "args": user_server.args,
-            "env": user_server.env,
             "url": user_server.url,
             "headers": user_server.headers,
+            "command": user_server.command,
+            "env_keys": user_server.env_keys,
             "is_system": True,
             "created_at": user_server.created_at or now,
             "updated_at": now,
             "updated_by": admin_user_id,
             "promoted_from_user": user_id,  # Track origin
+            "created_by": user_id,  # Original creator
         }
         # 加密敏感字段
         doc = encrypt_server_secrets(doc)
@@ -376,11 +380,10 @@ class MCPStorage:
             "name": system_server.name,
             "transport": system_server.transport.value,
             "enabled": system_server.enabled,
-            "command": system_server.command,
-            "args": system_server.args,
-            "env": system_server.env,
             "url": system_server.url,
             "headers": system_server.headers,
+            "command": system_server.command,
+            "env_keys": system_server.env_keys,
             "user_id": target_user_id,
             "is_system": False,
             "created_at": system_server.created_at or now,
@@ -433,8 +436,320 @@ class MCPStorage:
         await self._invalidate_user_cache(user_id)
 
     # ==========================================
+    # Tool Discovery & Tool-level Preferences
+    # ==========================================
+
+    async def discover_server_tools(
+        self, server_name: str, user_id: str
+    ) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """
+        Discover tools available from a specific MCP server.
+
+        Connects to the server and lists its tools without caching.
+        Returns (tools_list, error_message).
+        """
+        manager = None
+        try:
+            # Find the server config (user or system)
+            server: UserMCPServer | SystemMCPServer | None = await self.get_user_server(
+                server_name, user_id
+            )
+            if not server:
+                server = await self.get_system_server(server_name)
+            if not server:
+                return [], f"Server '{server_name}' not found"
+
+            # Get server-level disabled tools (system servers)
+            system_disabled_tools = await self.get_system_disabled_tools()
+            server_disabled_tools = system_disabled_tools.get(server_name, set())
+
+            # For user servers, check the server's own disabled_tools
+            if not server.is_system and hasattr(server, "disabled_tools"):
+                server_disabled_tools = set(server.disabled_tools)
+
+            # Get user-disabled tools for this server (per-user preference)
+            user_disabled_tool_names = await self.get_disabled_tool_names(user_id)
+
+            from src.infra.tool.mcp_client import MCPClientManager
+
+            manager = MCPClientManager(use_database=False)
+
+            # Build config for just this one server
+            config_dict = self._server_to_config_dict_static(server)
+            config = {"mcpServers": {server_name: config_dict}}
+
+            # Bypass initialize() which tries to load from file/database,
+            # directly use _initialize_with_config with our custom config
+            await manager._initialize_with_config(config)
+            tools = manager._tools
+
+            result = []
+            for tool in tools:
+                # langchain-mcp-adapters may prefix with "server_name:"
+                # Strip it so the frontend can construct the qualified name itself
+                tool_name = tool.name
+                if tool_name.startswith(f"{server_name}:"):
+                    tool_name = tool_name[len(server_name) + 1 :]
+
+                # Check if this tool is system-disabled
+                is_system_disabled = tool_name in server_disabled_tools
+
+                # Check if this tool is user-disabled (qualified name: server:tool)
+                qualified = f"{server_name}:{tool_name}"
+                is_user_disabled = qualified in user_disabled_tool_names
+
+                tool_info: dict[str, Any] = {
+                    "name": tool_name,
+                    "description": getattr(tool, "description", ""),
+                    "parameters": [],
+                    "system_disabled": is_system_disabled,
+                    "user_disabled": is_user_disabled,
+                }
+                # Extract parameters if possible
+                try:
+                    if hasattr(tool, "args_schema") and tool.args_schema:
+                        if isinstance(tool.args_schema, dict):
+                            schema = tool.args_schema
+                        else:
+                            schema = tool.args_schema.schema()
+                        properties = schema.get("properties", {})
+                        required = set(schema.get("required", []))
+                        for param_name, param_info in properties.items():
+                            if isinstance(param_info, dict):
+                                tool_info["parameters"].append(
+                                    {
+                                        "name": param_name,
+                                        "type": param_info.get("type", "string"),
+                                        "description": param_info.get("description", ""),
+                                        "required": param_name in required,
+                                        "default": param_info.get("default"),
+                                    }
+                                )
+                except Exception:
+                    pass
+                result.append(tool_info)
+
+            return result, None
+
+        except Exception as e:
+            logger.error(f"[MCP] Failed to discover tools for server '{server_name}': {e}")
+            return [], str(e)
+        finally:
+            if manager:
+                await manager.close()
+
+    def _server_to_config_dict_static(self, server) -> dict[str, Any]:
+        """Convert a server object to config dict (static method style)"""
+        result = {"transport": server.transport.value}
+        if server.url:
+            result["url"] = server.url
+        if server.headers:
+            result["headers"] = server.headers
+        if server.command:
+            result["command"] = server.command
+        if server.env_keys:
+            result["env_keys"] = server.env_keys
+        return result
+
+    async def get_tool_preferences(self, user_id: str) -> dict[str, bool]:
+        """
+        Get user's tool-level preferences.
+
+        Returns a dict mapping fully qualified tool name (server_name:tool_name or tool_name)
+        to enabled status. Only disabled tools are stored, so missing keys mean enabled.
+        """
+        collection = self._get_tool_preferences_collection()
+        preferences: dict[str, bool] = {}
+        async for doc in collection.find({"user_id": user_id}):
+            tool_key = doc["tool_name"]
+            enabled = doc.get("enabled", True)
+            if not enabled:
+                preferences[tool_key] = False
+        return preferences
+
+    async def set_tool_preference(
+        self, tool_name: str, server_name: str, user_id: str, enabled: bool
+    ) -> None:
+        """
+        Set user's preference for a specific MCP tool.
+
+        Args:
+            tool_name: The tool name (without server prefix)
+            server_name: The MCP server name
+            user_id: The user's ID
+            enabled: Whether the tool is enabled
+        """
+        collection = self._get_tool_preferences_collection()
+        # Use a composite key: server_name:tool_name for uniqueness
+        qualified_name = f"{server_name}:{tool_name}"
+        await collection.update_one(
+            {"tool_name": qualified_name, "user_id": user_id},
+            {
+                "$set": {
+                    "tool_name": qualified_name,
+                    "server_name": server_name,
+                    "tool_base_name": tool_name,
+                    "enabled": enabled,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+            upsert=True,
+        )
+        # Invalidate MCP tools cache for this user
+        await self._invalidate_user_cache(user_id)
+
+    async def get_disabled_tool_names(self, user_id: str) -> set[str]:
+        """Get set of fully qualified tool names that are disabled by the user."""
+        prefs = await self.get_tool_preferences(user_id)
+        return {name for name, enabled in prefs.items() if not enabled}
+
+    async def set_system_tool_disabled(
+        self, server_name: str, tool_name: str, disabled: bool
+    ) -> None:
+        """
+        Set system-level tool disabled status (admin only).
+
+        Args:
+            server_name: The MCP server name
+            tool_name: The tool name (without server prefix)
+            disabled: Whether the tool is disabled at system level
+        """
+        collection = self._get_system_collection()
+        server_doc = await collection.find_one({"name": server_name})
+        if not server_doc:
+            raise ValueError(f"System server '{server_name}' not found")
+
+        disabled_tools = server_doc.get("disabled_tools", [])
+        if disabled:
+            # Add to disabled list if not already there
+            if tool_name not in disabled_tools:
+                disabled_tools.append(tool_name)
+        else:
+            # Remove from disabled list if present
+            if tool_name in disabled_tools:
+                disabled_tools.remove(tool_name)
+
+        await collection.update_one(
+            {"name": server_name},
+            {
+                "$set": {
+                    "disabled_tools": disabled_tools,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+
+        # Invalidate all caches since system-level change affects all users
+        await self._invalidate_all_cache()
+
+    async def get_system_disabled_tools(self) -> dict[str, set[str]]:
+        """
+        Get all system-disabled tools grouped by server.
+
+        Returns:
+            Dict mapping server_name to set of disabled tool names
+        """
+        collection = self._get_system_collection()
+        result: dict[str, set[str]] = {}
+        async for doc in collection.find({}):
+            server_name = doc["name"]
+            disabled_tools = doc.get("disabled_tools", [])
+            if disabled_tools:
+                result[server_name] = set(disabled_tools)
+        return result
+
+    async def set_user_server_tool_disabled(
+        self, server_name: str, tool_name: str, user_id: str, disabled: bool
+    ) -> None:
+        """
+        Set tool disabled status on a user-owned MCP server.
+        This is a server-level change that affects the tool's availability.
+
+        Args:
+            server_name: The MCP server name
+            tool_name: The tool name (without server prefix)
+            user_id: The server owner's user ID
+            disabled: Whether the tool is disabled
+        """
+        collection = self._get_user_collection()
+        server_doc = await collection.find_one({"name": server_name, "user_id": user_id})
+        if not server_doc:
+            raise ValueError(f"User server '{server_name}' not found for user '{user_id}'")
+
+        disabled_tools = server_doc.get("disabled_tools", [])
+        if disabled:
+            if tool_name not in disabled_tools:
+                disabled_tools.append(tool_name)
+        else:
+            if tool_name in disabled_tools:
+                disabled_tools.remove(tool_name)
+
+        await collection.update_one(
+            {"name": server_name, "user_id": user_id},
+            {
+                "$set": {
+                    "disabled_tools": disabled_tools,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            },
+        )
+
+        # Invalidate caches
+        await self._invalidate_user_cache(user_id)
+
+    async def get_user_server_disabled_tools(self, user_id: str) -> dict[str, set[str]]:
+        """
+        Get disabled tools for all user-owned servers.
+
+        Returns:
+            Dict mapping server_name to set of disabled tool names
+        """
+        collection = self._get_user_collection()
+        result: dict[str, set[str]] = {}
+        async for doc in collection.find({"user_id": user_id}):
+            server_name = doc["name"]
+            disabled_tools = doc.get("disabled_tools", [])
+            if disabled_tools:
+                result[server_name] = set(disabled_tools)
+        return result
+
+    # ==========================================
     # Combined Operations (for runtime)
     # ==========================================
+
+    async def get_sandbox_servers(self, user_id: str) -> list[dict[str, Any]]:
+        """Get all enabled sandbox-transport MCP servers for a user (system + user).
+
+        Used during sandbox rebuild to re-register mcporter configs.
+        Returns list of config dicts with name, command, env_keys.
+        """
+        servers = []
+
+        # System sandbox servers
+        system_collection = self._get_system_collection()
+        async for doc in system_collection.find({"transport": "sandbox", "enabled": True}):
+            servers.append(
+                {
+                    "name": doc.get("name", ""),
+                    "command": doc.get("command", ""),
+                    "env_keys": doc.get("env_keys", []),
+                }
+            )
+
+        # User sandbox servers
+        user_collection = self._get_user_collection()
+        async for doc in user_collection.find(
+            {"user_id": user_id, "transport": "sandbox", "enabled": True}
+        ):
+            servers.append(
+                {
+                    "name": doc.get("name", ""),
+                    "command": doc.get("command", ""),
+                    "env_keys": doc.get("env_keys", []),
+                }
+            )
+
+        return servers
 
     async def get_effective_config(self, user_id: str) -> dict[str, Any]:
         """
@@ -483,13 +798,14 @@ class MCPStorage:
     async def get_visible_servers(
         self,
         user_id: str,
-        is_admin: bool = False,  # noqa: ARG002
+        is_admin: bool = False,
     ) -> list[MCPServerResponse]:
         """
         Get all MCP servers visible to a user.
 
         Returns system servers (with user preferences applied) + user's own servers.
-        Masks sensitive fields in responses.
+        For system servers, only the creator (created_by) can see sensitive fields
+        (url, headers, command, env_keys) and edit the server.
         """
         servers = []
 
@@ -504,7 +820,14 @@ class MCPStorage:
             if server_name in user_preferences:
                 doc = copy.deepcopy(doc)
                 doc["enabled"] = user_preferences[server_name]
-            server = self._doc_to_response(doc, is_system=True, can_edit=True)
+            # Only the creator (created_by) can see sensitive fields
+            # Admins can always edit system servers; non-admins cannot
+            is_creator = doc.get("created_by", doc.get("updated_by")) == user_id
+            can_edit = is_admin or is_creator
+            hide_sensitive = not (is_admin or is_creator)
+            server = self._doc_to_response(
+                doc, is_system=True, can_edit=can_edit, hide_sensitive=hide_sensitive
+            )
             servers.append(server)
 
         # Get user servers
@@ -563,7 +886,8 @@ class MCPStorage:
             # Return updated server response with user's preference applied
             response_doc = copy.deepcopy(system_doc)
             response_doc["enabled"] = new_enabled
-            return self._doc_to_response(response_doc, is_system=True, can_edit=True)
+            is_creator = response_doc.get("created_by", response_doc.get("updated_by")) == user_id
+            return self._doc_to_response(response_doc, is_system=True, can_edit=is_creator)
 
         return None
 
@@ -621,12 +945,10 @@ class MCPStorage:
                 # Auto-detect transport if not specified (studio format compatibility)
                 transport_str = config.get("transport")
                 if not transport_str:
-                    if config.get("command"):
-                        transport_str = "stdio"
-                    elif config.get("url"):
+                    if config.get("url"):
                         transport_str = "streamable_http"
                     else:
-                        transport_str = "stdio"
+                        transport_str = "sse"
                 try:
                     transport = MCPTransport(transport_str)
                 except ValueError:
@@ -638,11 +960,10 @@ class MCPStorage:
                     name=name,
                     transport=transport,
                     enabled=config.get("enabled", True),
-                    command=config.get("command"),
-                    args=config.get("args"),
-                    env=config.get("env"),
                     url=config.get("url"),
                     headers=config.get("headers"),
+                    command=config.get("command"),
+                    env_keys=config.get("env_keys"),
                 )
 
                 # Check if exists
@@ -664,11 +985,10 @@ class MCPStorage:
                             MCPServerUpdate(
                                 transport=transport,
                                 enabled=server.enabled,
-                                command=server.command,
-                                args=server.args,
-                                env=server.env,
                                 url=server.url,
                                 headers=server.headers,
+                                command=server.command,
+                                env_keys=server.env_keys,
                             ),
                             user_id,
                         )
@@ -681,11 +1001,10 @@ class MCPStorage:
                             MCPServerUpdate(
                                 transport=transport,
                                 enabled=server.enabled,
-                                command=server.command,
-                                args=server.args,
-                                env=server.env,
                                 url=server.url,
                                 headers=server.headers,
+                                command=server.command,
+                                env_keys=server.env_keys,
                             ),
                             user_id,
                         )
@@ -743,17 +1062,21 @@ class MCPStorage:
 
         return SystemMCPServer(
             name=doc["name"],
-            transport=MCPTransport(doc.get("transport", "stdio")),
+            transport=MCPTransport._value2member_map_.get(
+                doc.get("transport", "streamable_http"),
+                MCPTransport.STREAMABLE_HTTP,
+            ),
             enabled=doc.get("enabled", True),
-            command=doc.get("command"),
-            args=doc.get("args"),
-            env=doc.get("env"),
             url=doc.get("url"),
             headers=doc.get("headers"),
+            command=doc.get("command"),
+            env_keys=doc.get("env_keys"),
             is_system=True,
+            disabled_tools=doc.get("disabled_tools", []),
             created_at=created_at,
             updated_at=updated_at,
             updated_by=doc.get("updated_by"),
+            created_by=doc.get("created_by"),
         )
 
     def _doc_to_user_server(self, doc: dict[str, Any]) -> UserMCPServer:
@@ -771,31 +1094,51 @@ class MCPStorage:
 
         return UserMCPServer(
             name=doc["name"],
-            transport=MCPTransport(doc.get("transport", "stdio")),
+            transport=MCPTransport._value2member_map_.get(
+                doc.get("transport", "streamable_http"),
+                MCPTransport.STREAMABLE_HTTP,
+            ),
             enabled=doc.get("enabled", True),
-            command=doc.get("command"),
-            args=doc.get("args"),
-            env=doc.get("env"),
             url=doc.get("url"),
             headers=doc.get("headers"),
+            command=doc.get("command"),
+            env_keys=doc.get("env_keys"),
             user_id=doc["user_id"],
             is_system=False,
+            disabled_tools=doc.get("disabled_tools", []),
             created_at=created_at,
             updated_at=updated_at,
         )
 
     def _doc_to_response(
-        self, doc: dict[str, Any], is_system: bool, can_edit: bool
+        self,
+        doc: dict[str, Any],
+        is_system: bool,
+        can_edit: bool,
+        hide_sensitive: bool = False,
     ) -> MCPServerResponse:
-        """Convert MongoDB document to MCPServerResponse with masked sensitive fields"""
+        """Convert MongoDB document to MCPServerResponse with masked sensitive fields.
+
+        Args:
+            doc: MongoDB document.
+            is_system: Whether this is a system-level server.
+            can_edit: Whether the requesting user can edit this server.
+            hide_sensitive: If True, omit url/headers/command/env_keys from the
+                response entirely (used when non-admins view system servers).
+        """
         # Deep copy to avoid modifying original
         doc_copy = copy.deepcopy(doc)
 
         # 解密敏感字段
         doc_copy = decrypt_server_secrets(doc_copy)
 
-        # Mask sensitive fields (after decrypt, mask for display)
-        doc_copy = self._mask_sensitive_fields(doc_copy)
+        if hide_sensitive:
+            # Non-admin viewing a system server: strip all connection details
+            for field in ("url", "headers", "command", "env_keys", "env"):
+                doc_copy.pop(field, None)
+        else:
+            # Mask sensitive fields (after decrypt, mask for display)
+            doc_copy = self._mask_sensitive_fields(doc_copy)
 
         # Convert datetime to ISO string if needed
         created_at = doc_copy.get("created_at")
@@ -808,13 +1151,15 @@ class MCPStorage:
 
         return MCPServerResponse(
             name=doc_copy["name"],
-            transport=MCPTransport(doc_copy.get("transport", "stdio")),
+            transport=MCPTransport._value2member_map_.get(
+                doc_copy.get("transport", "streamable_http"),
+                MCPTransport.STREAMABLE_HTTP,
+            ),
             enabled=doc_copy.get("enabled", True),
-            command=doc_copy.get("command"),
-            args=doc_copy.get("args"),
-            env=doc_copy.get("env"),
             url=doc_copy.get("url"),
             headers=doc_copy.get("headers"),
+            command=doc_copy.get("command"),
+            env_keys=doc_copy.get("env_keys"),
             is_system=is_system,
             can_edit=can_edit,
             created_at=created_at,
@@ -826,21 +1171,18 @@ class MCPStorage:
         # 先解密敏感字段
         doc = decrypt_server_secrets(doc)
 
-        transport = doc.get("transport", "stdio")
+        transport = doc.get("transport", "streamable_http")
         result = {"transport": transport}
 
-        if transport == "stdio":
-            if doc.get("command"):
-                result["command"] = doc["command"]
-            if doc.get("args"):
-                result["args"] = doc["args"]
-            if doc.get("env"):
-                result["env"] = doc["env"]
-        else:  # sse or streamable_http
-            if doc.get("url"):
-                result["url"] = doc["url"]
-            if doc.get("headers"):
-                result["headers"] = doc["headers"]
+        if doc.get("url"):
+            result["url"] = doc["url"]
+        if doc.get("headers"):
+            result["headers"] = doc["headers"]
+        # Sandbox transport fields
+        if doc.get("command"):
+            result["command"] = doc["command"]
+        if doc.get("env_keys"):
+            result["env_keys"] = doc["env_keys"]
 
         return result
 

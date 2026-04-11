@@ -4,7 +4,12 @@
  */
 
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import { getAccessToken, sessionApi } from "../../services/api";
+import { sessionApi } from "../../services/api";
+import {
+  getValidAccessToken,
+  redirectToLogin,
+  refreshAccessToken,
+} from "../../services/api/tokenManager";
 import type { EventType, StreamEvent } from "./types";
 import { handleStreamEvent, type EventHandlerContext } from "./eventHandlers";
 import { clearAllLoadingStates } from "./messageParts";
@@ -54,6 +59,7 @@ export async function connectToSSE(
   targetRunId: string,
   messageId: string,
   ctx: SSEConnectionContext,
+  hasRetried = false,
 ): Promise<void> {
   const {
     abortControllerRef,
@@ -75,7 +81,7 @@ export async function connectToSSE(
   }
   abortControllerRef.current = new AbortController();
 
-  const token = getAccessToken();
+  const token = await getValidAccessToken();
   const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -96,6 +102,23 @@ export async function connectToSSE(
         signal: abortControllerRef.current.signal,
         openWhenHidden: true,
         onopen: async (response) => {
+          if (response.status === 401) {
+            if (hasRetried) {
+              redirectToLogin();
+              throw new Error("SSE unauthorized after token refresh");
+            }
+            await refreshAccessToken();
+            abortControllerRef.current?.abort();
+            isConnectingRef.current = false;
+            await connectToSSE(
+              targetSessionId,
+              targetRunId,
+              messageId,
+              ctx,
+              true,
+            );
+            return;
+          }
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }

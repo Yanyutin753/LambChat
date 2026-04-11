@@ -7,16 +7,22 @@ Fast Agent 上下文管理 - 无沙箱，支持工具和 Skills
 import uuid
 from typing import TYPE_CHECKING, Any, List, Optional
 
+from src.agents.core.tool_filter import (
+    filter_disabled_tools,
+    filter_mcp_tools_by_db_state,
+    get_db_disabled_mcp_tool_names,
+)
 from src.infra.logging import get_logger
 from src.infra.skill.manager import SkillManager
 from src.infra.tool.human_tool import get_human_tool
 from src.infra.tool.mcp_global import get_global_mcp_tools
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
 from src.infra.tool.reveal_project_tool import get_reveal_project_tool
-from src.infra.tool.transfer_file_tool import get_transfer_file_tool
+from src.infra.tool.transfer_file_tool import get_transfer_file_tool, get_transfer_path_tool
 from src.kernel.config import settings
 
 if TYPE_CHECKING:
+    from src.infra.tool.deferred_manager import DeferredToolManager
     from src.infra.tool.mcp_client import MCPClientManager
 
 logger = get_logger(__name__)
@@ -38,15 +44,20 @@ class FastAgentContext:
         agent_id: str = "fast",
         user_id: Optional[str] = None,
         disabled_tools: Optional[List[str]] = None,
+        disabled_skills: Optional[List[str]] = None,
+        disabled_mcp_tools: Optional[List[str]] = None,
     ):
         self.session_id = session_id
         self.agent_id = agent_id
         self.user_id = user_id
         self.disabled_tools = disabled_tools
+        self.disabled_skills = disabled_skills
+        self.disabled_mcp_tools = disabled_mcp_tools
         self.mcp_manager: Optional[MCPClientManager] = None
         self._mcp_loaded: bool = False
         self.tools: List[Any] = []
         self.skills: List[dict] = []
+        self.deferred_manager: Optional["DeferredToolManager"] = None
 
     async def get_tools(self) -> List[Any]:
         """获取所有工具（懒加载 MCP 工具）"""
@@ -54,42 +65,12 @@ class FastAgentContext:
         return self.tools
 
     def filter_tools(self) -> List[Any]:
-        """根据 disabled_tools 过滤工具"""
-        if not self.disabled_tools:
-            return self.tools
-
-        builtin_tools = frozenset(["ask_human", "reveal_file", "reveal_project", "transfer_file"])
-
-        disabled_set = set(self.disabled_tools)
-        mcp_servers = set()
-        exact_names = set()
-
-        for tool_name in disabled_set:
-            if tool_name.startswith("mcp:"):
-                mcp_servers.add(tool_name[4:])
-            else:
-                exact_names.add(tool_name)
-
-        mcp_prefixes = tuple(f"{s}:" for s in mcp_servers) if mcp_servers else ()
-
-        filtered = []
-        for tool in self.tools:
-            tool_name = getattr(tool, "name", str(tool))
-
-            if tool_name in builtin_tools:
-                filtered.append(tool)
-                continue
-
-            if tool_name in exact_names:
-                continue
-
-            if mcp_prefixes and tool_name.startswith(mcp_prefixes):
-                continue
-            if mcp_servers and hasattr(tool, "server") and tool.server in mcp_servers:
-                continue
-
-            filtered.append(tool)
-
+        """根据 disabled_tools 和 disabled_mcp_tools 过滤工具（使用共享过滤逻辑）"""
+        filtered = filter_disabled_tools(
+            self.tools,
+            disabled_tools=self.disabled_tools,
+            disabled_mcp_tools=self.disabled_mcp_tools,
+        )
         logger.debug(
             "[FastAgentContext] Tool filtering: %d/%d tools enabled",
             len(filtered),
@@ -113,10 +94,41 @@ class FastAgentContext:
             # 使用全局缓存，避免重复初始化
             assert self.user_id is not None  # Already guarded above
             mcp_tools, self.mcp_manager = await get_global_mcp_tools(self.user_id)
+            logger.info(f"[FastAgentContext] Loaded {len(mcp_tools)} MCP tools (before DB filter)")
+
+            # 过滤数据库中标记为 system_disabled / user_disabled 的工具
+            db_disabled = await get_db_disabled_mcp_tool_names(self.user_id)
+            mcp_tools = filter_mcp_tools_by_db_state(mcp_tools, db_disabled)
             logger.info(
-                f"[FastAgentContext] Loaded {len(mcp_tools)} MCP tools: {[t.name for t in mcp_tools]}"
+                f"[FastAgentContext] After DB filter: {len(mcp_tools)} MCP tools "
+                f"(removed {len(db_disabled)} disabled names)"
             )
-            self.tools.extend(mcp_tools)
+
+            if (
+                settings.ENABLE_DEFERRED_TOOL_LOADING
+                and mcp_tools
+                and (len(self.tools) + len(mcp_tools)) > settings.DEFERRED_TOOL_THRESHOLD
+            ):
+                from src.infra.tool.deferred_manager import (
+                    DeferredToolManager,
+                    restore_discovered_tools,
+                )
+
+                pre_discovered = await restore_discovered_tools(self.session_id)
+
+                self.deferred_manager = DeferredToolManager(
+                    all_deferred_tools=mcp_tools,
+                    session_id=self.session_id,
+                    disabled_tools=self.disabled_tools,
+                    pre_discovered_names=pre_discovered,
+                )
+                logger.info(
+                    f"[FastAgentContext] Deferred {len(mcp_tools)} MCP tools "
+                    f"(builtin={len(self.tools)}, threshold={settings.DEFERRED_TOOL_THRESHOLD}, "
+                    f"pre_restored={len(pre_discovered)})"
+                )
+            else:
+                self.tools.extend(mcp_tools)
         except Exception as e:
             logger.error(f"[FastAgentContext] Failed to load MCP tools: {e}", exc_info=True)
 
@@ -143,6 +155,10 @@ class FastAgentContext:
         self.tools.append(transfer_file_tool)
         logger.info("[FastAgentContext] Added transfer_file tool")
 
+        transfer_path_tool = get_transfer_path_tool()
+        self.tools.append(transfer_path_tool)
+        logger.info("[FastAgentContext] Added transfer_path tool")
+
         # Memory 工具（统一接口，自动选择 Hindsight 或 memU 后端）
         if settings.ENABLE_MEMORY:
             try:
@@ -159,6 +175,13 @@ class FastAgentContext:
         # MCP 工具延迟加载（不在 setup 时初始化）
         logger.info("[FastAgentContext] MCP tools will be lazy loaded on first use")
 
+        # 沙箱 MCP 管理工具
+        if settings.ENABLE_SANDBOX:
+            from src.infra.tool.sandbox_mcp_tool import get_sandbox_mcp_tools
+
+            self.tools.extend(get_sandbox_mcp_tools())
+            logger.info("[FastAgentContext] Added sandbox_mcp tools (sandbox mode)")
+
         # 加载技能（使用与 Search Agent 相同的方式，保持一致）
         if settings.ENABLE_SKILLS and self.user_id:
             try:
@@ -173,6 +196,15 @@ class FastAgentContext:
                     skill_dict["is_system"] = skill_dict.get("is_system", True)
                     if skill_dict.get("enabled", True):
                         self.skills.append(skill_dict)
+
+                # Filter skills by disabled_skills blacklist if provided
+                if self.disabled_skills:
+                    disabled_set = set(self.disabled_skills)
+                    self.skills = [s for s in self.skills if s.get("name") not in disabled_set]
+                    logger.info(
+                        f"[FastAgentContext] Filtered out {len(self.disabled_skills)} disabled skills, {len(self.skills)} remaining"
+                    )
+
                 logger.info(
                     f"[FastAgentContext] Loaded {len(self.skills)} skills for user: {self.user_id}"
                 )

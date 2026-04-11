@@ -105,6 +105,9 @@ EXTRA_PIP_PACKAGES = [
     # ========== 实用工具 ==========
     "python-dotenv",
     "orjson",
+    # ========== 视频配音 ==========
+    "moviepy",
+    "pydub",
 ]
 
 # ============== 系统依赖 ==============
@@ -118,6 +121,8 @@ SYSTEM_PACKAGES = [
     "fonts-noto-cjk",
     "fonts-wqy-zenhei",
     "fonts-wqy-microhei",
+    # 视频处理
+    "ffmpeg",
     # PDF 相关
     "poppler-utils",
     "pandoc",
@@ -152,7 +157,7 @@ SYSTEM_PACKAGES = [
 # ============== 资源配额 ==============
 # Hobby 免费计划限制: 8 vCPU, 8GB RAM, 10GB disk
 CPU_COUNT = 2
-MEMORY_MB = 2048
+MEMORY_MB = 2024
 # ======================================
 
 
@@ -187,6 +192,16 @@ def main():
 
     # 安装 Playwright Chromium 浏览器
     template = template.run_cmd("playwright install chromium --with-deps")
+
+    # 安装 Bun + mcporter（用于沙箱内 MCP 服务器管理）
+    template = template.run_cmd("curl -fsSL https://bun.sh/install | bash")
+    template = template.run_cmd("~/.bun/bin/bun install -g mcporter")
+    template = template.run_cmd("mkdir -p ~/.mcporter")
+
+    # 安装 Node.js / npx（sandbox MCP 常用 npx 启动 stdio 服务器）
+    template = template.run_cmd(
+        "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash - && sudo apt-get install -y nodejs && sudo rm -rf /var/lib/apt/lists/*"
+    )
 
     print("\nBuilding template (this may take a few minutes)...\n")
 

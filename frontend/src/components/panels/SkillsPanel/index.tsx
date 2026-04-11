@@ -76,8 +76,7 @@ export function SkillsPanel() {
                 actions.setPublishConfirm({
                   isOpen: true,
                   localSkillName: s.name,
-                  marketplaceSkillName:
-                    s.published_marketplace_name || s.name,
+                  marketplaceSkillName: s.published_marketplace_name || s.name,
                   description: s.description || "",
                   tagsInput: s.tags?.join(", ") || "",
                   isPublished: s.is_published,

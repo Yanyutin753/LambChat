@@ -9,10 +9,10 @@ import asyncio
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from src.infra.agent import AgentEventProcessor
@@ -90,7 +90,7 @@ class BaseGraphAgent(ABC):
         self.recursion_limit = recursion_limit or settings.SESSION_MAX_RUNS_PER_SESSION
         self.enable_checkpointer = enable_checkpointer
         self._graph: Any = None
-        self._checkpointer: MemorySaver | None = None
+        self._checkpointer: Any = None
         self._initialized = False
         self._stream_tasks: Dict[str, asyncio.Task] = {}  # run_id -> Task
 
@@ -132,9 +132,25 @@ class BaseGraphAgent(ABC):
         if self._initialized:
             return
 
-        # 创建 checkpointer
+        # 创建 checkpointer（优先 MongoDB，fallback 到 MemorySaver）
         if self.enable_checkpointer:
-            self._checkpointer = MemorySaver()
+            from src.infra.storage.checkpoint import get_mongo_checkpointer
+
+            self._checkpointer = get_mongo_checkpointer()
+            if self._checkpointer is None:
+                from langgraph.checkpoint.memory import MemorySaver
+
+                self._checkpointer = MemorySaver()
+
+                # 启动后台清理任务，防止内存泄漏
+                self._cleanup_task = asyncio.create_task(self._cleanup_memory_saver())
+                self._cleanup_task.add_done_callback(lambda t: None)  # prevent GC
+
+                logger.warning(
+                    f"[Agent {self._agent_id}] Using MemorySaver with TTL cleanup (1 hour)"
+                )
+            else:
+                logger.info(f"[Agent {self._agent_id}] Using MongoDB checkpointer")
 
         # 构建 graph
         builder = GraphBuilder(self.state_class)
@@ -145,6 +161,74 @@ class BaseGraphAgent(ABC):
         )
 
         self._initialized = True
+
+    async def _cleanup_memory_saver(self) -> None:
+        """定期清理 MemorySaver 中的旧数据，防止内存泄漏"""
+        from langgraph.checkpoint.memory import MemorySaver
+
+        while True:
+            try:
+                await asyncio.sleep(3600)  # 每小时清理一次
+
+                if not isinstance(self._checkpointer, MemorySaver):
+                    break
+
+                storage = self._checkpointer.storage
+                if not storage:
+                    continue
+
+                # 清理 1 小时前的 checkpoint
+                cutoff_time = datetime.now() - timedelta(hours=1)
+                to_delete = []
+
+                for thread_id in list(storage.keys()):
+                    try:
+                        checkpoints = storage.get(thread_id, {})
+                        if not checkpoints:
+                            to_delete.append(thread_id)
+                            continue
+
+                        # 检查最新 checkpoint 的时间
+                        # LangGraph 的 ts 字段是 ISO 格式字符串（如 "2024-01-01T00:00:00"），
+                        # 需要用 datetime.fromisoformat() 而非 datetime.fromtimestamp()
+                        latest_checkpoint = max(
+                            checkpoints.values(), key=lambda x: getattr(x, "ts", 0)
+                        )
+                        ts_raw = getattr(latest_checkpoint, "ts", "0")
+                        checkpoint_time = None
+                        if isinstance(ts_raw, str):
+                            try:
+                                checkpoint_time = datetime.fromisoformat(ts_raw)
+                            except (ValueError, TypeError):
+                                pass
+                        else:
+                            try:
+                                checkpoint_time = datetime.fromtimestamp(float(ts_raw))
+                            except (TypeError, ValueError):
+                                pass
+
+                        if checkpoint_time is not None and checkpoint_time < cutoff_time:
+                            to_delete.append(thread_id)
+                    except Exception:
+                        pass
+
+                # 删除旧的 checkpoint
+                for thread_id in to_delete:
+                    try:
+                        del storage[thread_id]
+                    except Exception:
+                        pass
+
+                if to_delete:
+                    logger.info(
+                        f"[Agent {self._agent_id}] Cleaned {len(to_delete)} old checkpoints "
+                        f"(total remaining: {len(storage)})"
+                    )
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[Agent {self._agent_id}] Failed to cleanup MemorySaver: {e}")
 
     async def close(self, run_id: Optional[str] = None) -> None:
         """
@@ -270,8 +354,8 @@ class BaseGraphAgent(ABC):
                 TaskInterruptedError,
             )
 
-            # 使用队列来传递事件
-            event_queue: asyncio.Queue = asyncio.Queue()
+            # 使用队列来传递事件（限制大小防止消费者慢时内存无限增长）
+            event_queue: asyncio.Queue = asyncio.Queue(maxsize=500)
             stream_error = None
             stream_done = False
 
@@ -309,7 +393,7 @@ class BaseGraphAgent(ABC):
             interrupt_check_interval = 1.0
 
             # 创建事件处理器
-            event_processor = AgentEventProcessor(presenter)
+            event_processor = AgentEventProcessor(presenter, base_url=kwargs.get("base_url", ""))
 
             try:
                 while True:
@@ -347,20 +431,26 @@ class BaseGraphAgent(ABC):
                         await stream_task
                     except (asyncio.CancelledError, TaskInterruptedError):
                         pass
+                # 清理 event_processor 内存
+                event_processor.clear()
 
         except asyncio.CancelledError:
             # 任务被取消，yield 队列中剩余的事件（由 manager.py 保存）
-            while not event_queue.empty():
-                try:
-                    item_type, item_data = event_queue.get_nowait()
-                    if item_type == "event" and item_data:
-                        # 使用 AgentEventProcessor 处理剩余事件
-                        try:
-                            await event_processor.process_event(item_data)
-                        except Exception:
-                            pass
-                except asyncio.QueueEmpty:
-                    break
+            try:
+                while not event_queue.empty():
+                    try:
+                        item_type, item_data = event_queue.get_nowait()
+                        if item_type == "event" and item_data:
+                            # 使用 AgentEventProcessor 处理剩余事件
+                            try:
+                                await event_processor.process_event(item_data)
+                            except Exception:
+                                pass
+                    except asyncio.QueueEmpty:
+                        break
+            finally:
+                # 确保清理 event_processor 内存
+                event_processor.clear()
             raise
 
         # 其他异常（TaskInterruptedError, Exception）直接抛给 manager.py 处理
@@ -537,6 +627,7 @@ class AgentFactory:
                 or getattr(agent_cls, "_description", ""),
                 "version": getattr(agent_cls, "_version", "0.1.0"),
                 "sort_order": getattr(agent_cls, "_sort_order", 100),
+                "supports_sandbox": getattr(agent_cls, "_supports_sandbox", False),
                 "options": getattr(agent_cls, "_options", {}),
             }
             for aid, agent_cls in _AGENT_REGISTRY.items()

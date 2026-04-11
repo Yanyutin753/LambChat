@@ -54,7 +54,6 @@ export type {
   SkillResponse,
   SkillsResponse,
   SkillCreate,
-  SkillUpdate,
   MarketplaceSkillResponse,
   MarketplaceCreateRequest,
   MarketplaceSkillFilesResponse,
@@ -63,11 +62,6 @@ export type {
   MarketplaceUpdateResponse,
   TagsResponse,
   PublishToMarketplaceRequest,
-  // Legacy
-  SkillMetadata,
-  SkillContent,
-  SkillListResponse,
-  SkillStats,
 } from "./skill";
 
 // ============================================
@@ -82,6 +76,7 @@ export type {
   GlobalAgentConfigResponse,
   RoleAgentAssignment,
   RoleAgentAssignmentResponse,
+  RoleModelAssignment,
   UserAgentPreference,
   UserAgentPreferenceResponse,
 } from "./agent";
@@ -138,6 +133,10 @@ export type {
   MCPExportResponse,
   MCPServerMoveRequest,
   MCPServerMoveResponse,
+  MCPToolInfo,
+  MCPToolParamInfo,
+  MCPToolDiscoveryResponse,
+  MCPToolToggleResponse,
 } from "./mcp";
 
 // ============================================

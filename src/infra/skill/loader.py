@@ -7,6 +7,7 @@ Skills 加载模块
 from typing import Any, Dict, List, Optional, TypedDict
 
 from src.infra.logging import get_logger
+from src.infra.skill.binary import parse_binary_ref
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
@@ -74,6 +75,9 @@ async def load_skill_files(user_id: Optional[str]) -> SkillLoadResult:
                 # 如果有多个文件（新格式）
                 if skill_files:
                     for file_name, file_content in skill_files.items():
+                        # 跳过二进制文件引用（它们存储在 S3，不适合作为文本加载）
+                        if parse_binary_ref(file_content):
+                            continue
                         file_path = f"/{skill_name}/{file_name}"
                         result["files"][file_path] = create_file_data(file_content)
                 # 否则只有主内容（旧格式兼容）
@@ -117,11 +121,7 @@ async def build_skills_prompt(skills: list[dict]) -> str:
     skills_list_str = "\n".join(skills_lines)
 
     # Build full prompt matching SkillsMiddleware.SKILLS_SYSTEM_PROMPT format
-    prompt = f"""
-
-## Skills System
-
-You have access to a skills library that provides specialized capabilities and domain knowledge.
+    prompt = f"""## Skills System
 
 **Skills Location**: `/skills/`
 
@@ -129,32 +129,9 @@ You have access to a skills library that provides specialized capabilities and d
 
 {skills_list_str}
 
-**How to Use Skills (Progressive Disclosure):**
+**Usage:** When a task matches a skill's description, read its `SKILL.md` for step-by-step workflows. Skills may include executable scripts — use absolute paths.
+**Commands:** Use `ls("/skills/")`, `read_file`, `write_file`, `edit_file(path, old, new)` to access skills. Do NOT create directories manually.
 
-Skills follow a **progressive disclosure** pattern - you see their name and description above, but only read full instructions when needed:
-
-1. **Recognize when a skill applies**: Check if the user's task matches a skill's description
-2. **Read the skill's full instructions**: Use the path shown in the skill list above
-3. **Follow the skill's instructions**: SKILL.md contains step-by-step workflows, best practices, and examples
-4. **Access supporting files**: Skills may include helper scripts, configs, or reference docs - use absolute paths
-
-**When to Use Skills:**
-- User's request matches a skill's domain (e.g., "research X" -> web-research skill)
-- You need specialized knowledge or structured workflows
-- A skill provides proven patterns for complex tasks
-
-**Executing Skill Scripts:**
-Skills may contain Python scripts or other executable files. Always use absolute paths from the skill list.
-
-**Example Workflow:**
-
-User: "Can you research the latest developments in quantum computing?"
-
-1. Check available skills -> See "web-research" skill with its path
-2. Read the skill using the path shown
-3. Follow the skill's research workflow (search -> organize -> synthesize)
-4. Use any helper scripts with absolute paths
-
-Remember: Skills make you more capable and consistent. When in doubt, check if a skill exists for the task!
+**IMPORTANT:** `/skills/` is a virtual path backed by a database, NOT a real filesystem directory. NEVER use shell commands (e.g., `ls -la /skills/`, `cat /skills/x.md`, `python /skills/x.py`, `cp /skills/* .`) to access skills — they will fail. Always use the `ls`, `read_file`, `write_file`, `edit_file` tools instead.
 """
     return prompt

@@ -18,6 +18,13 @@ export function DynamicIcon({
         📁
       </span>
     );
+  if (name === "Star") {
+    return (
+      <span className={className} style={{ fontSize: size }}>
+        ⭐
+      </span>
+    );
+  }
   // Check if it's an emoji (non-ASCII character, or no ASCII letters)
   const isEmoji = !/^[a-zA-Z]+$/.test(name);
   if (isEmoji) {

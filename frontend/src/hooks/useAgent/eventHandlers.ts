@@ -28,6 +28,7 @@ export interface EventHandlerContext {
   processedEventIdsRef: React.MutableRefObject<Set<string>>;
   lastHistoryTimestampRef: React.MutableRefObject<Date | null>;
   activeSubagentStackRef: React.MutableRefObject<SubagentStackItem[]>;
+  streamVersionRef: React.MutableRefObject<number>;
   setSessionId: (id: string) => void;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   setConnectionStatus: (status: string) => void;
@@ -75,6 +76,18 @@ export function handleStreamEvent(
 
   ctx.processedEventIdsRef.current.add(eventId);
 
+  // Cap the dedup set to prevent unbounded memory growth during long streams.
+  // Safe to clear: event dedup is only needed within a single streaming session,
+  // and the set is fully cleared on loadHistory/sendMessage/clearMessages.
+  if (ctx.processedEventIdsRef.current.size > 10_000) {
+    ctx.processedEventIdsRef.current.clear();
+  }
+
+  // Capture stream version at event processing time to detect stale events.
+  // If clearMessages() was called while SSE events were still in-flight,
+  // the version will have been incremented and these stale events should be dropped.
+  const streamVersion = ctx.streamVersionRef.current;
+
   const eventType = event.event;
   let data: EventData = {};
   try {
@@ -88,7 +101,11 @@ export function handleStreamEvent(
   // Events handled entirely by side effects (no message transformation)
   switch (eventType) {
     case "metadata": {
-      if (data.session_id && !ctx.sessionIdRef.current) {
+      if (
+        data.session_id &&
+        !ctx.sessionIdRef.current &&
+        ctx.streamVersionRef.current === streamVersion
+      ) {
         ctx.setSessionId(data.session_id);
       }
       return;
@@ -137,7 +154,7 @@ export function handleStreamEvent(
 
     case "skills:changed": {
       if (ctx.options?.onSkillAdded) {
-        const action = data.action as string || "updated";
+        const action = (data.action as string) || "updated";
         const description =
           action === "created"
             ? i18n.t("chat.skillCreated")
@@ -150,6 +167,11 @@ export function handleStreamEvent(
       }
       return;
     }
+  }
+
+  // Drop stale events if clearMessages() was called mid-stream
+  if (ctx.streamVersionRef.current !== streamVersion) {
+    return;
   }
 
   // Only process known message-transforming event types

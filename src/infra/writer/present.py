@@ -25,11 +25,25 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
 
 from src.infra.logging import get_logger
+from src.infra.upload.file_record import FileRecordStorage
 
 if TYPE_CHECKING:
     from src.infra.session.dual_writer import DualEventWriter
 
 logger = get_logger(__name__)
+
+
+def _extract_attachment_keys(attachments: Optional[List[Dict[str, Any]]]) -> list[str]:
+    """Extract unique storage keys from attachment payloads."""
+    if not attachments:
+        return []
+    return sorted(
+        {
+            str(attachment.get("key", "")).strip()
+            for attachment in attachments
+            if attachment.get("key")
+        }
+    )
 
 
 def _get_timestamp() -> str:
@@ -731,6 +745,12 @@ class Presenter:
         """输出用户消息并保存"""
         event = self.present_user_message(content, attachments)
         await self.save_event(event)
+        attachment_keys = _extract_attachment_keys(attachments)
+        if attachment_keys:
+            try:
+                await FileRecordStorage().add_references(attachment_keys)
+            except Exception as e:
+                logger.warning("Failed to track attachment references for user message: %s", e)
         return event
 
     async def emit_skills_changed(

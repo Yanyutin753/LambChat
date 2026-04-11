@@ -20,6 +20,7 @@ import type {
   PermissionGroup,
   PermissionInfo,
 } from "../../types";
+import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 // 角色表单模态框 - 底部弹出式设计
 interface RoleFormModalProps {
@@ -48,6 +49,10 @@ function RoleFormModal({
   const [maxConcurrentChats, setMaxConcurrentChats] = useState<number | "">(
     role?.limits?.max_concurrent_chats ?? "",
   );
+  const swipeRef = useSwipeToClose({
+    onClose,
+    enabled: true,
+  });
   const [maxQueuedChats, setMaxQueuedChats] = useState<number | "">(
     role?.limits?.max_queued_chats ?? "",
   );
@@ -226,7 +231,10 @@ function RoleFormModal({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div className="modal-bottom-sheet-content">
+        <div
+          ref={swipeRef as React.RefObject<HTMLDivElement>}
+          className="modal-bottom-sheet-content"
+        >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
@@ -528,6 +536,10 @@ function DeleteConfirmModal({
   isLoading,
 }: DeleteConfirmModalProps) {
   const { t } = useTranslation();
+  const swipeRef = useSwipeToClose({
+    onClose,
+    enabled: true,
+  });
   return (
     <>
       <div className="fixed inset-0 z-40 sm:hidden" onClick={onClose} />
@@ -537,7 +549,10 @@ function DeleteConfirmModal({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div className="modal-bottom-sheet-content">
+        <div
+          ref={swipeRef as React.RefObject<HTMLDivElement>}
+          className="modal-bottom-sheet-content"
+        >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
           <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
@@ -749,7 +764,7 @@ export function RolesPanel() {
         title={t("roles.title")}
         subtitle={t("roles.subtitle")}
         icon={
-          <Shield size={18} className="text-stone-600 dark:text-stone-400" />
+          <Shield size={24} className="text-stone-600 dark:text-stone-400" />
         }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -791,10 +806,10 @@ export function RolesPanel() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-stone-100 dark:bg-stone-800">
                         <Lock
                           size={14}
-                          className="text-purple-600 dark:text-purple-400"
+                          className="text-stone-600 dark:text-stone-300"
                         />
                       </div>
                       <div>

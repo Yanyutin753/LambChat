@@ -21,12 +21,14 @@ from src.api.routes import (
     auth,
     channels,
     chat,
+    envvar,
     feedback,
     github,
     health,
     human,
     mcp,
     project,
+    revealed_file,
     role,
     session,
     share,
@@ -38,7 +40,9 @@ from src.api.routes import (
 )
 from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
+from src.api.routes.agent import model as agent_model
 from src.frontend_resolution import resolve_frontend_target
+from src.infra.local_filesystem import ensure_local_filesystem_dirs
 from src.infra.logging import get_logger, setup_logging
 from src.kernel.config import initialize_settings, settings
 
@@ -55,11 +59,14 @@ async def lifespan(app: FastAPI):
     setup_logging()
 
     # 初始化默认角色（更新系统角色权限）
-    from src.infra.role.storage import RoleStorage
+    try:
+        from src.infra.role.storage import RoleStorage
 
-    role_storage = RoleStorage()
-    await role_storage.init_default_roles()
-    logger.info("Default roles initialized")
+        role_storage = RoleStorage()
+        await role_storage.init_default_roles()
+        logger.info("Default roles initialized")
+    except Exception as e:
+        logger.error("Failed to initialize default roles: %s", e)
 
     # 配置 uvicorn 访问日志格式，与项目日志完全统一
     import logging
@@ -86,6 +93,9 @@ async def lifespan(app: FastAPI):
     await initialize_settings()
     logger.info("Settings initialized from database")
 
+    # 初始化本地文件系统目录（使用数据库覆盖后的最终配置）
+    ensure_local_filesystem_dirs(settings)
+
     # 发现并注册所有 Agent
     from src.agents import discover_agents
 
@@ -94,10 +104,16 @@ async def lifespan(app: FastAPI):
 
     # 初始化 Agent 配置存储索引
     from src.infra.agent.config_storage import get_agent_config_storage
+    from src.infra.agent.model_storage import get_model_storage
 
     agent_config_storage = get_agent_config_storage()
     await agent_config_storage.ensure_indexes()
     logger.info("Agent config storage indexes initialized")
+
+    # 初始化 Model 配置存储索引（确保 value 唯一索引防止并发创建重复模型）
+    model_storage = get_model_storage()
+    await model_storage.ensure_indexes()
+    logger.info("Model storage indexes initialized")
 
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager
@@ -110,6 +126,36 @@ async def lifespan(app: FastAPI):
     await task_manager.start_pubsub_listener()
     logger.info("Task pub/sub listener started")
 
+    # 启动 Settings pub/sub 监听器（支持分布式设置同步）
+    from src.infra.settings.pubsub import get_settings_pubsub
+
+    settings_pubsub = get_settings_pubsub()
+    await settings_pubsub.start_listener()
+    logger.info("Settings pub/sub listener started")
+
+    # 启动 ModelConfig pub/sub 监听器（支持分布式模型配置同步）
+    from src.infra.llm.pubsub import get_model_config_pubsub
+
+    model_config_pubsub = get_model_config_pubsub()
+    await model_config_pubsub.start_listener()
+    logger.info("ModelConfig pub/sub listener started")
+
+    # 预加载模型列表到内存缓存（确保 async 上下文中也能拿到 API key）
+    try:
+        from src.infra.llm.models_service import refresh_models
+
+        await refresh_models()
+        logger.info("Models preloaded into memory cache")
+    except Exception as e:
+        logger.warning(f"Failed to preload models: {e}")
+
+    # 启动 Memory pub/sub 监听器（支持分布式记忆缓存失效）
+    from src.infra.memory.distributed import get_memory_pubsub
+
+    memory_pubsub = get_memory_pubsub()
+    await memory_pubsub.start_listener()
+    logger.info("Memory pub/sub listener started")
+
     # 初始化内置 skills
     from src.infra.skill import init_skill_indexes
 
@@ -121,6 +167,13 @@ async def lifespan(app: FastAPI):
     trace_storage = get_trace_storage()
     await trace_storage.ensure_indexes_if_needed()
     logger.info("TraceStorage initialized")
+
+    # 初始化 RevealedFile 索引
+    from src.infra.revealed_file.storage import get_revealed_file_storage
+
+    revealed_storage = get_revealed_file_storage()
+    await revealed_storage.ensure_indexes_if_needed()
+    logger.info("RevealedFileStorage indexes initialized")
 
     # Start Feishu channels in background (don't block app startup)
     async def _start_feishu():
@@ -162,6 +215,29 @@ async def lifespan(app: FastAPI):
         # 先停止 pub/sub 监听器，再关闭任务
         await task_manager.stop_pubsub_listener()
         logger.info("Task pub/sub listener stopped")
+
+        # 停止 Settings pub/sub 监听器
+        from src.infra.settings.pubsub import get_settings_pubsub
+
+        settings_pubsub = get_settings_pubsub()
+        await settings_pubsub.stop_listener()
+        logger.info("Settings pub/sub listener stopped")
+
+        # 停止 ModelConfig pub/sub 监听器
+        from src.infra.llm.pubsub import get_model_config_pubsub
+
+        model_config_pubsub = get_model_config_pubsub()
+        await model_config_pubsub.stop_listener()
+        logger.info("ModelConfig pub/sub listener stopped")
+
+        # 停止 Memory pub/sub 监听器 + 关闭 memory backend
+        from src.infra.memory.distributed import get_memory_pubsub
+        from src.infra.memory.tools import shutdown as memory_shutdown
+
+        memory_pubsub = get_memory_pubsub()
+        await memory_pubsub.stop_listener()
+        await memory_shutdown()
+        logger.info("Memory pub/sub listener stopped, backend closed")
 
         await task_manager.shutdown()
         logger.info("Background tasks marked as failed")
@@ -255,6 +331,8 @@ def create_app() -> FastAPI:
     app.include_router(agent.router, prefix="/api", tags=["Agents"])
     # Agent 配置路由: /api/agent/config 全局配置和用户偏好
     app.include_router(agent_config.router, prefix="/api/agent/config", tags=["Agent Config"])
+    # Model 配置路由: /api/agent/models CRUD
+    app.include_router(agent_model.router, prefix="/api/agent/models", tags=["Models"])
     app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
     app.include_router(user.router, prefix="/api/users", tags=["Users"])
     app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
@@ -272,7 +350,9 @@ def create_app() -> FastAPI:
     app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
     app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])
     app.include_router(mcp.admin_router, prefix="/api/admin/mcp", tags=["MCP Admin"])
+    app.include_router(envvar.router, prefix="/api/env-vars", tags=["Environment Variables"])
     app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
+    app.include_router(revealed_file.router, prefix="/api/files", tags=["Files"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
     # Generic channel configuration
@@ -289,9 +369,14 @@ def create_app() -> FastAPI:
     if frontend_target and frontend_target[0] == "static":
         static_dir = frontend_target[1]
         assert isinstance(static_dir, Path)
-        # Mount entire static directory for all static files
-        app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
-        app.mount("/icons", StaticFiles(directory=str(static_dir / "icons")), name="icons")
+
+        assets_dir = static_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        icons_dir = static_dir / "icons"
+        if icons_dir.exists():
+            app.mount("/icons", StaticFiles(directory=str(icons_dir)), name="icons")
 
         # Serve other static files (manifest.json, etc.)
         @app.get("/manifest.json")

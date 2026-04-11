@@ -197,6 +197,7 @@ class MCPClientManager:
         self._use_database = use_database
         self._client: Optional[MultiServerMCPClient] = None
         self._tools: list[BaseTool] = []
+        self._tool_server_map: dict[tuple[str, str], str] = {}
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -302,53 +303,12 @@ class MCPClientManager:
         """将服务器对象转换为配置字典"""
         result = {"transport": server.transport.value}
 
-        if server.transport.value == "stdio":
-            if server.command:
-                result["command"] = server.command
-            if server.args:
-                result["args"] = server.args
-            if server.env:
-                result["env"] = server.env
-        else:  # sse or streamable_http
-            if server.url:
-                result["url"] = server.url
-            if server.headers:
-                result["headers"] = server.headers
+        if server.url:
+            result["url"] = server.url
+        if server.headers:
+            result["headers"] = server.headers
 
         return result
-
-    def _convert_stdio_command_for_platform(
-        self, command: str, args: list[str]
-    ) -> tuple[str, list[str], bool]:
-        """
-        转换 stdio 命令以适应当前平台
-
-        Windows 配置（如 'cmd /c npx'）在 Linux 上需要转换为 'npx'
-
-        Returns:
-            tuple[str, list[str], bool]: (command, args, is_valid)
-        """
-        import shutil
-        import sys
-
-        # 只在 Linux 上处理 Windows 命令
-        if sys.platform != "win32" and command == "cmd":
-            # 找到实际命令（跳过 /c）
-            real_args = [a for a in args if a != "/c"]
-            if real_args:
-                new_command = real_args[0]
-                new_args = real_args[1:]
-                logger.info(
-                    f"Converted Windows command 'cmd {args}' to '{new_command} {new_args}' for Linux"
-                )
-                command, args = new_command, new_args
-
-        # 检查命令是否存在
-        if not shutil.which(command):
-            logger.warning(f"MCP stdio command '{command}' not found in PATH, skipping this server")
-            return command, args, False
-
-        return command, args, True
 
     async def _initialize_with_config(self, config: dict) -> None:
         """使用配置初始化 MCP 客户端"""
@@ -384,28 +344,9 @@ class MCPClientManager:
         # Use dict[str, Any] to allow flexible key-value pairs for different transport types
         server_configs: dict[str, dict[str, Any]] = {}
         for server_name, server_config in mcp_servers.items():
-            transport = server_config.get("transport", "stdio")
+            transport = server_config.get("transport", "streamable_http")
 
-            if transport == "stdio":
-                # stdio 传输：通过命令行启动
-                command = server_config.get("command")
-                args = server_config.get("args", [])
-
-                # 转换命令以适应当前平台，并检查命令是否存在
-                command, args, is_valid = self._convert_stdio_command_for_platform(command, args)
-                if not is_valid:
-                    logger.warning(f"Skipping MCP server '{server_name}': command not found")
-                    continue
-
-                server_configs[server_name] = {
-                    "command": command,
-                    "args": args,
-                    "transport": "stdio",
-                }
-                # 添加环境变量
-                if server_config.get("env"):
-                    server_configs[server_name]["env"] = server_config["env"]
-            elif transport in ("sse", "streamable_http"):
+            if transport in ("sse", "streamable_http"):
                 # HTTP 传输：SSE 或 streamable HTTP
                 server_configs[server_name] = {
                     "url": server_config.get("url"),
@@ -414,6 +355,11 @@ class MCPClientManager:
                 # 添加 headers（如 Authorization）
                 if server_config.get("headers"):
                     server_configs[server_name]["headers"] = server_config["headers"]
+            else:
+                logger.debug(
+                    f"Skipping MCP server '{server_name}': unsupported transport '{transport}'"
+                )
+                continue
 
         # 创建 MultiServerMCPClient
         client = MultiServerMCPClient(server_configs)  # type: ignore[arg-type]
@@ -455,6 +401,8 @@ class MCPClientManager:
         # 处理结果
         all_tools: list[BaseTool] = []
         failed_servers: list[str] = []
+        # Track which server each tool belongs to: (server_name, raw_tool_name) -> server_name
+        self._tool_server_map.clear()
 
         for server_name, result in results:
             if isinstance(result, Exception):
@@ -470,6 +418,14 @@ class MCPClientManager:
                         f"[MCP] Failed to load tools from server '{server_name}': {result}"
                     )
             else:
+                for tool in result:
+                    # Map (server_name, raw_tool_name) to avoid conflicts when
+                    # multiple servers expose tools with the same name
+                    raw_name = tool.name
+                    # langchain-mcp-adapters may prefix with "server_name:"
+                    if raw_name.startswith(f"{server_name}:"):
+                        raw_name = raw_name[len(server_name) + 1 :]
+                    self._tool_server_map[(server_name, raw_name)] = server_name
                 all_tools.extend(result)
                 logger.info(f"[MCP] Loaded {len(result)} tools from server '{server_name}'")
 
@@ -578,6 +534,7 @@ class MCPClientManager:
         # MultiServerMCPClient 的连接会在对象销毁时自动清理
         self._client = None
         self._tools.clear()
+        self._tool_server_map.clear()
         self._initialized = False
 
 

@@ -9,7 +9,10 @@ export async function exportProjectZip(
 
   // 添加文本文件
   for (const [path, content] of Object.entries(files)) {
-    zip.file(path, content);
+    const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+    if (normalizedPath) {
+      zip.file(normalizedPath, content);
+    }
   }
 
   // 添加二进制文件（从 OSS URL 拉取）
@@ -20,7 +23,10 @@ export async function exportProjectZip(
           const resp = await fetch(url);
           if (!resp.ok) return;
           const buffer = await resp.arrayBuffer();
-          zip.file(path, buffer);
+          const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+          if (normalizedPath) {
+            zip.file(normalizedPath, buffer);
+          }
         } catch {
           // 跳过下载失败的二进制文件
         }

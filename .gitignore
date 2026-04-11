@@ -59,6 +59,9 @@ htmlcov/
 frontend/node_modules/
 mcp.json
 
+# DeepAgent workspace
+workspace/
+
 # Documentation
 docs/deepagents
 .omc/
@@ -70,3 +73,6 @@ node_modules/
 docs/superpowers/
 .worktrees/
 docs/
+frontend/src/components/common/DynamicIcon.tsx
+.codex
+claude-code

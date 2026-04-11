@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 
@@ -10,6 +11,7 @@ interface PdfPreviewProps {
 }
 
 const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
+  const { t } = useTranslation();
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.0);
@@ -37,7 +39,7 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
             onClick={goToPrevPage}
             disabled={pageNumber <= 1}
             className="p-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-600 dark:text-stone-400"
-            title="Previous page"
+            title={t("documents.previousPage")}
           >
             <ChevronLeft size={18} />
           </button>
@@ -48,7 +50,7 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
             onClick={goToNextPage}
             disabled={pageNumber >= numPages}
             className="p-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-600 dark:text-stone-400"
-            title="Next page"
+            title={t("documents.nextPage")}
           >
             <ChevronRight size={18} />
           </button>
@@ -60,7 +62,7 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
             onClick={zoomOut}
             disabled={scale <= 0.5}
             className="p-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-600 dark:text-stone-400"
-            title="Zoom out"
+            title={t("documents.zoomOut")}
           >
             <ZoomOut size={18} />
           </button>
@@ -71,7 +73,7 @@ const PdfPreview = memo(function PdfPreview({ url }: PdfPreviewProps) {
             onClick={zoomIn}
             disabled={scale >= 3}
             className="p-1.5 rounded hover:bg-stone-100 dark:hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed text-stone-600 dark:text-stone-400"
-            title="Zoom in"
+            title={t("documents.zoomIn")}
           >
             <ZoomIn size={18} />
           </button>

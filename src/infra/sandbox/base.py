@@ -1,7 +1,7 @@
 """
 Sandbox 工厂和配置
 
-统一管理 Runloop、Daytona、Modal 三个 Sandbox 平台。
+统一管理 Daytona、E2B 两个 Sandbox 平台。
 直接使用 langchain-{platform} 库提供的实现。
 """
 
@@ -29,17 +29,8 @@ logger = get_logger(__name__)
 class SandboxConfig:
     """Sandbox 配置基类"""
 
-    platform: str  # "runloop" | "daytona" | "modal"
+    platform: str  # "daytona" | "e2b"
     ttl_seconds: int = 1800
-
-
-@dataclass
-class RunloopConfig(SandboxConfig):
-    """Runloop 配置"""
-
-    platform: str = field(default="runloop", init=False)
-    api_key: str = ""
-    base_url: str = "https://api.runloop.ai"
 
 
 @dataclass
@@ -49,15 +40,6 @@ class DaytonaConfig(SandboxConfig):
     platform: str = field(default="daytona", init=False)
     api_key: str = ""
     server_url: str = ""
-
-
-@dataclass
-class ModalConfig(SandboxConfig):
-    """Modal 配置"""
-
-    platform: str = field(default="modal", init=False)
-    app_name: str = ""
-    api_key: str = ""  # Modal 通常使用环境变量
 
 
 @dataclass
@@ -89,43 +71,6 @@ class SandboxFactory:
     _sandbox_registry: dict[str, tuple["SandboxBackendProtocol", Any]] = {}
     # 追踪 run_id 到 sandbox_id 的映射（用于取消时关闭特定沙箱）
     _run_id_to_sandbox: dict[str, str] = {}
-
-    @classmethod
-    def create_runloop(
-        cls,
-        api_key: str,
-        ttl_seconds: int = 1800,
-    ) -> "SandboxBackendProtocol":
-        """
-        创建 Runloop Sandbox
-
-        Args:
-            api_key: Runloop API Key
-            ttl_seconds: 生命周期（秒）
-
-        Returns:
-            RunloopSandbox 实例
-        """
-        try:
-            from langchain_runloop import RunloopSandbox
-            from runloop_api_client import RunloopSDK
-
-            client = RunloopSDK(bearer_token=api_key)
-            # Runloop API 使用 lifetime_minutes 参数
-            lifetime_minutes = ttl_seconds // 60
-            devbox = client.devbox.create(lifetime_minutes=lifetime_minutes)  # type: ignore[call-arg]
-            backend = RunloopSandbox(devbox=devbox)
-
-            # 注册以便追踪和关闭
-            sandbox_id = devbox.id
-            cls._sandbox_registry[sandbox_id] = (backend, devbox)
-            logger.info(f"Created Runloop sandbox: {sandbox_id}, TTL={lifetime_minutes}min")
-
-            return backend
-        except ImportError as e:
-            raise ImportError(
-                "Please install langchain-runloop: pip install langchain-runloop"
-            ) from e
 
     @classmethod
     def create_daytona(
@@ -172,43 +117,6 @@ class SandboxFactory:
             return backend
         except ImportError as e:
             raise ImportError("Please install daytona-sdk: pip install daytona-sdk") from e
-
-    @classmethod
-    def create_modal(
-        cls,
-        app_name: str,
-        ttl_seconds: int = 1800,
-    ) -> "SandboxBackendProtocol":
-        """
-        创建 Modal Sandbox
-
-        Args:
-            app_name: Modal App 名称
-            ttl_seconds: 生命周期（秒）- Modal 会自动处理
-
-        Returns:
-            ModalSandbox 实例
-        """
-        try:
-            import modal
-            from langchain_modal import ModalSandbox
-
-            app = modal.App.lookup(app_name)
-            # Modal sandbox 有内置的 timeout
-            modal_sandbox = modal.Sandbox.create(
-                app=app,
-                timeout=ttl_seconds,  # Modal 使用 timeout 参数
-            )
-            backend = ModalSandbox(sandbox=modal_sandbox)
-
-            # 注册以便追踪和关闭
-            sandbox_id = modal_sandbox.object_id
-            cls._sandbox_registry[sandbox_id] = (backend, modal_sandbox)
-            logger.info(f"Created Modal sandbox: {sandbox_id}, timeout={ttl_seconds}s")
-
-            return backend
-        except ImportError as e:
-            raise ImportError("Please install langchain-modal: pip install langchain-modal") from e
 
     @classmethod
     def create_e2b(
@@ -293,15 +201,9 @@ class SandboxFactory:
                 # 根据模块名判断类型并关闭
                 module_name = type(provider_obj).__module__
 
-                if "runloop" in module_name:
-                    # Runloop: devbox.shutdown()
-                    provider_obj.shutdown()
-                elif "daytona" in module_name:
+                if "daytona" in module_name:
                     # Daytona: sandbox.delete()
                     provider_obj.delete()
-                elif "modal" in module_name:
-                    # Modal: sandbox.terminate()
-                    provider_obj.terminate()
                 elif "e2b" in module_name:
                     # E2B: sandbox.kill()
                     provider_obj.kill()
@@ -416,26 +318,12 @@ class SandboxFactory:
         Returns:
             Sandbox 实例
         """
-        if config.platform == "runloop":
-            if not isinstance(config, RunloopConfig):
-                raise ValueError("Invalid config type for runloop platform")
-            return cls.create_runloop(
-                api_key=config.api_key,
-                ttl_seconds=config.ttl_seconds,
-            )
-        elif config.platform == "daytona":
+        if config.platform == "daytona":
             if not isinstance(config, DaytonaConfig):
                 raise ValueError("Invalid config type for daytona platform")
             return cls.create_daytona(
                 api_key=config.api_key,
                 server_url=config.server_url,
-                ttl_seconds=config.ttl_seconds,
-            )
-        elif config.platform == "modal":
-            if not isinstance(config, ModalConfig):
-                raise ValueError("Invalid config type for modal platform")
-            return cls.create_modal(
-                app_name=config.app_name,
                 ttl_seconds=config.ttl_seconds,
             )
         elif config.platform == "e2b":
@@ -461,22 +349,10 @@ def get_sandbox_config_from_settings() -> SandboxConfig:
     """从配置创建 Sandbox 配置对象"""
     platform = settings.SANDBOX_PLATFORM.lower()
 
-    if platform == "runloop":
-        return RunloopConfig(
-            api_key=getattr(settings, "RUNLOOP_API_KEY", ""),
-            base_url=getattr(settings, "RUNLOOP_BASE_URL", "https://api.runloop.ai"),
-            ttl_seconds=getattr(settings, "SANDBOX_TTL_SECONDS", 3600),
-        )
-    elif platform == "daytona":
+    if platform == "daytona":
         return DaytonaConfig(
             api_key=getattr(settings, "DAYTONA_API_KEY", ""),
             server_url=getattr(settings, "DAYTONA_SERVER_URL", ""),
-            ttl_seconds=getattr(settings, "SANDBOX_TTL_SECONDS", 3600),
-        )
-    elif platform == "modal":
-        return ModalConfig(
-            app_name=getattr(settings, "MODAL_APP_NAME", ""),
-            api_key=getattr(settings, "MODAL_API_KEY", ""),
             ttl_seconds=getattr(settings, "SANDBOX_TTL_SECONDS", 3600),
         )
     elif platform == "e2b":

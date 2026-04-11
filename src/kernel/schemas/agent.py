@@ -35,6 +35,12 @@ class AgentRequest(BaseModel):
     agent_options: Optional[dict[str, Any]] = Field(
         None, description="Agent options (e.g., enable_thinking)"
     )
+    disabled_skills: Optional[list[str]] = Field(
+        None, description="Skills to disable for this conversation"
+    )
+    disabled_mcp_tools: Optional[list[str]] = Field(
+        None, description="MCP tools to disable for this conversation"
+    )
     attachments: Optional[list[AttachmentSchema]] = Field(None, description="File attachments")
     context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
     project_id: Optional[str] = Field(None, description="Project ID to assign to new session")
@@ -100,6 +106,14 @@ class ToolInfo(BaseModel):
     category: str = Field(..., description="Tool category: builtin, skill, human, mcp")
     server: Optional[str] = Field(None, description="MCP server name for MCP tools")
     parameters: list[ToolParamInfo] = Field(default_factory=list, description="Tool parameters")
+    system_disabled: bool = Field(
+        default=False,
+        description="Whether this tool is disabled at the system level (admin controlled)",
+    )
+    user_disabled: bool = Field(
+        default=False,
+        description="Whether this tool is disabled by the user",
+    )
 
 
 class ToolsListResponse(BaseModel):
@@ -177,6 +191,27 @@ class RoleAgentAssignmentResponse(BaseModel):
     role_id: str = Field(..., description="Role ID")
     role_name: str = Field(..., description="Role name")
     allowed_agents: list[str] = Field(default_factory=list, description="List of allowed agent IDs")
+
+
+# ============================================
+# Role Model Schemas
+# ============================================
+
+
+class RoleModelAssignment(BaseModel):
+    """Role's accessible models."""
+
+    role_id: str = Field(..., description="Role ID")
+    role_name: str = Field(..., description="Role name")
+    allowed_models: list[str] = Field(
+        default_factory=list, description="List of allowed model values"
+    )
+
+
+class RoleModelAssignmentUpdate(BaseModel):
+    """Update role's accessible models."""
+
+    allowed_models: list[str] = Field(..., description="List of allowed model values")
 
 
 # ============================================

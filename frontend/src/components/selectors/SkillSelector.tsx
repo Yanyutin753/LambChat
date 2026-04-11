@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -15,6 +16,7 @@ import {
 import { Checkbox } from "../common/Checkbox";
 import type { SkillResponse, SkillSource } from "../../types";
 import { collectSkillTags, skillMatchesQuery } from "../../utils/skillFilters";
+import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface SkillSelectorProps {
   skills: SkillResponse[];
@@ -58,6 +60,10 @@ export function SkillSelector({
   >(new Set(["marketplace", "manual"]));
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const swipeRef = useSwipeToClose({
+    onClose: () => setIsOpen(false),
+    enabled: isOpen,
+  });
 
   // 锁定滚动
   useEffect(() => {
@@ -157,20 +163,27 @@ export function SkillSelector({
   };
 
   const ModalContent = () => (
-    <div className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden">
+    <div
+      ref={swipeRef as React.RefObject<HTMLDivElement>}
+      className="sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] min-h-[40vh] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden"
+      style={{ background: "var(--theme-bg-card)" }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
+      <div
+        className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b"
+        style={{ borderColor: "var(--theme-border)" }}
+      >
         {/* Mobile drag handle */}
         <div className="absolute left-1/2 -translate-x-1/2 top-2 w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600 sm:hidden" />
         <div className="flex items-center gap-3 mt-2 sm:mt-0">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-stone-100 to-stone-200 dark:from-amber-500/20 dark:to-orange-500/20 flex items-center justify-center">
+          <div className="size-9 sm:size-10 rounded-xl bg-gradient-to-br from-stone-100 to-stone-200 dark:from-amber-500/20 dark:to-orange-500/20 flex items-center justify-center">
             <Sparkles
               size={16}
               className="text-stone-500 dark:text-amber-400 sm:w-[18px] sm:h-[18px]"
             />
           </div>
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100">
+            <h2 className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("skillSelector.title")}
             </h2>
             <p className="text-xs sm:text-xs text-stone-500 dark:text-stone-400">
@@ -349,7 +362,7 @@ export function SkillSelector({
                 {/* Skills List */}
                 {isExpanded && (
                   <div className="animate-[fade-in_150ms_ease-out]">
-                    <div className="px-1.5 sm:px-2 pb-2 pt-1 space-y-0.5">
+                    <div className="px-1 sm:px-2 pb-2 pt-1 space-y-0.5">
                       {categorySkills.map((skill: SkillResponse) => (
                         <div key={skill.name} className="group">
                           {/* Skill Row */}
@@ -358,8 +371,8 @@ export function SkillSelector({
                             disabled={isMutating}
                             className={`flex w-full items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-2 sm:py-2 rounded-lg transition-all duration-200 disabled:cursor-not-allowed ${
                               skill.enabled
-                                ? "bg-[var(--theme-primary)]/[0.06] dark:bg-[var(--theme-primary)]/[0.08]"
-                                : "hover:bg-white dark:hover:bg-stone-700/50 active:bg-stone-100 dark:active:bg-stone-600/50"
+                                ? "hover:bg-stone-50 dark:hover:bg-stone-700/30 active:bg-stone-100/80 dark:active:bg-stone-600/40"
+                                : "bg-[var(--theme-primary)]/[0.06] dark:bg-[var(--theme-primary)]/[0.08] hover:bg-[var(--theme-primary)]/[0.12] dark:hover:bg-[var(--theme-primary)]/[0.14] active:bg-[var(--theme-primary)]/[0.18] dark:active:bg-[var(--theme-primary)]/[0.20]"
                             } ${
                               pendingSet.has(skill.name) || isMutating
                                 ? "opacity-70"
@@ -378,8 +391,8 @@ export function SkillSelector({
                                 <span
                                   className={`text-[12px] sm:text-[13px] font-medium truncate ${
                                     skill.enabled
-                                      ? "text-[var(--theme-primary)] dark:text-[var(--theme-primary)]"
-                                      : "text-stone-700 dark:text-stone-200"
+                                      ? "text-stone-700 dark:text-stone-200"
+                                      : "text-[var(--theme-primary)] dark:text-[var(--theme-primary)]"
                                   }`}
                                 >
                                   {skill.name}
@@ -393,6 +406,13 @@ export function SkillSelector({
                             <Checkbox
                               checked={skill.enabled}
                               pending={pendingSet.has(skill.name)}
+                              onChange={async () => {
+                                if (isMutating) {
+                                  return;
+                                }
+                                const ok = await onToggleSkill(skill.name);
+                                showSingleToggleToast(!skill.enabled, ok);
+                              }}
                             />
                           </button>
                         </div>
@@ -446,7 +466,7 @@ export function SkillSelector({
           e.preventDefault();
           setIsOpen(true);
         }}
-        className="flex items-center justify-center rounded-full p-2 border border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-amber-300 transition-all duration-300"
+        className="chat-tool-btn"
         title={`${enabledCount}/${totalCount} ${t(
           "skillSelector.skillsEnabled",
         )}`}
@@ -455,26 +475,28 @@ export function SkillSelector({
       </button>
 
       {/* Modal */}
-      {isOpen && (
-        <>
-          {/* Backdrop - hidden on mobile */}
-          <div
-            className="hidden sm:block fixed inset-0 z-50 bg-black/50 animate-fade-in"
-            onClick={() => setIsOpen(false)}
-          />
+      {isOpen &&
+        createPortal(
+          <>
+            {/* Backdrop - hidden on mobile */}
+            <div
+              className="hidden sm:block fixed inset-0 z-50 bg-black/50 animate-fade-in"
+              onClick={() => setIsOpen(false)}
+            />
 
-          {/* Mobile backdrop - darker */}
-          <div
-            className="sm:hidden fixed inset-0 z-50 bg-black/60 animate-fade-in"
-            onClick={() => setIsOpen(false)}
-          />
+            {/* Mobile backdrop - darker */}
+            <div
+              className="sm:hidden fixed inset-0 z-50 bg-black/60 animate-fade-in"
+              onClick={() => setIsOpen(false)}
+            />
 
-          {/* Modal Content - Desktop: centered, Mobile: bottom sheet */}
-          <div className="fixed z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in">
-            <ModalContent />
-          </div>
-        </>
-      )}
+            {/* Modal Content - Desktop: centered, Mobile: bottom sheet */}
+            <div className="fixed z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in">
+              <ModalContent />
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Maximize2, X, Plus, Tag } from "lucide-react";
 import { Toggle } from "./Toggle";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
+import { BinaryFilePreview } from "./BinaryFilePreview";
 import { normalizeTags } from "./SkillForm.utils";
 import type { SkillFormActions } from "./SkillForm.types";
 
@@ -59,7 +60,7 @@ export function SkillFormNormal(a: SkillFormActions) {
                 <p className="text-xs text-red-500">{a.errors.name}</p>
               )}
               {a.isEditing && !a.errors.name && (
-                <p className="text-[11px] text-stone-400 dark:text-stone-500">
+                <p className="text-xs text-stone-400 dark:text-stone-500">
                   {t("skills.form.nameCannotChange")}
                 </p>
               )}
@@ -89,10 +90,7 @@ export function SkillFormNormal(a: SkillFormActions) {
               </label>
               <div className="skill-tag-editor rounded-2xl bg-[var(--theme-bg)] p-3 shadow-sm">
                 <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]/80">
-                  <Tag
-                    size={12}
-                    className="text-[var(--theme-primary)]"
-                  />
+                  <Tag size={12} className="text-[var(--theme-primary)]" />
                   {t("adminMarketplace.tags")}
                 </div>
                 <p className="mt-2 text-xs leading-5 text-[var(--theme-text-secondary)]/80">
@@ -212,22 +210,73 @@ export function SkillFormNormal(a: SkillFormActions) {
             </div>
           </div>
 
-          {/* Editor */}
+          {/* Editor / Binary Preview */}
           <div className="flex-1 min-h-0 p-3 sm:p-4">
-            <div
-              className={`flex h-full min-h-[18rem] sm:min-h-[24rem] flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg)] transition-colors duration-150 ${
-                a.errors.content
-                  ? "ring-1 ring-red-300 dark:ring-red-700"
-                  : ""
-              } skill-editor-shell`}
-            >
-              <SkillEditor
-                value={a.files[a.activeFileIndex]?.content || ""}
-                onChange={(val) => a.updateFileContent(a.activeFileIndex, val)}
-                className="flex-1 min-h-0"
-                filePath={a.files[a.activeFileIndex]?.path}
-              />
-            </div>
+            {(() => {
+              const currentPath = a.files[a.activeFileIndex]?.path || "";
+              const binaryInfo = a.binaryFiles?.[currentPath];
+
+              // Loading state
+              if (a.loadingFilePath === currentPath) {
+                return (
+                  <div className="flex h-full min-h-[18rem] sm:min-h-[24rem] items-center justify-center rounded-2xl bg-[var(--theme-bg)]">
+                    <div className="flex flex-col items-center gap-3">
+                      <svg
+                        className="h-6 w-6 animate-spin text-[var(--theme-text-secondary)]"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
+                      </svg>
+                      <span className="text-sm text-[var(--theme-text-secondary)]">
+                        {currentPath.split("/").pop()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (binaryInfo) {
+                return (
+                  <BinaryFilePreview
+                    url={binaryInfo.url}
+                    mime_type={binaryInfo.mime_type}
+                    size={binaryInfo.size}
+                    fileName={currentPath.split("/").pop() || currentPath}
+                  />
+                );
+              }
+              return (
+                <div
+                  className={`flex h-full min-h-[18rem] sm:min-h-[24rem] flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg)] transition-colors duration-150 ${
+                    a.errors.content
+                      ? "ring-1 ring-red-300 dark:ring-red-700"
+                      : ""
+                  } skill-editor-shell`}
+                >
+                  <SkillEditor
+                    value={a.files[a.activeFileIndex]?.content || ""}
+                    onChange={(val) =>
+                      a.updateFileContent(a.activeFileIndex, val)
+                    }
+                    className="flex-1 min-h-0"
+                    filePath={a.files[a.activeFileIndex]?.path}
+                  />
+                </div>
+              );
+            })()}
             {(a.errors.content || a.errors.files) && (
               <p className="mt-2 text-xs text-red-500">
                 {a.errors.content || a.errors.files}
@@ -255,10 +304,24 @@ export function SkillFormNormal(a: SkillFormActions) {
           {a.isLoading ? (
             <>
               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
               </svg>
-              <span className="loading-text">{t("common.saving", "Saving...")}</span>
+              <span className="loading-text">
+                {t("common.saving", "Saving...")}
+              </span>
             </>
           ) : a.isEditing ? (
             t("skills.form.saveChanges")

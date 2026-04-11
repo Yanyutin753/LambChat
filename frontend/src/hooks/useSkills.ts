@@ -16,6 +16,7 @@ import type {
   UserSkillDetail,
   SkillCreate,
   PublishToMarketplaceRequest,
+  BinaryFileInfo,
 } from "../types/skill";
 
 // Map installed_from to SkillSource
@@ -34,9 +35,11 @@ function composeSkillResponse(
   userSkill: UserSkill,
   detail?: UserSkillDetail,
   filesContent?: Record<string, string>,
+  binaryFiles?: Record<string, BinaryFileInfo>,
 ): SkillResponse {
   // Use description from API directly (extracted from SKILL.md by backend)
-  const description = detail?.description || userSkill.description || userSkill.skill_name;
+  const description =
+    detail?.description || userSkill.description || userSkill.skill_name;
 
   // If filesContent provided, use it; otherwise files will be fetched on demand
   const files = filesContent || {};
@@ -52,6 +55,7 @@ function composeSkillResponse(
     source: mapInstalledToSource(userSkill.installed_from),
     content: files["SKILL.md"] || "",
     files,
+    binaryFiles: binaryFiles || {},
     file_count: userSkill.file_count,
     installed_from: userSkill.installed_from,
     published_marketplace_name: userSkill.published_marketplace_name,
@@ -67,6 +71,13 @@ export function useSkills(options?: { enabled?: boolean }) {
   const [skills, setSkills] = useState<SkillResponse[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Per-operation loading states for better UX
+  const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // 跟踪正在 toggle 中的 skill，防止 fetchSkills 覆盖乐观更新
   const pendingTogglesRef = useRef<Map<string, boolean>>(new Map());
@@ -103,27 +114,100 @@ export function useSkills(options?: { enabled?: boolean }) {
     }
   }, [enabled]);
 
-  // Fetch single skill with full details
+  // Fetch single skill — metadata + file paths only (lazy: content loaded on demand)
   const getSkill = useCallback(
     async (name: string): Promise<SkillResponse | null> => {
       try {
-        const [userSkill, detail] = await Promise.all([
-          skillApi
-            .list()
-            .then((list) => list.find((s) => s.skill_name === name)),
-          skillApi.get(name),
-        ]);
+        // Use cached skills list first, then fetch detail
+        const cached = skills.find((s) => s.name === name);
+        const detail = await skillApi.get(name);
 
-        if (!userSkill) return null;
+        // Build UserSkill from cached list or fetch it
+        let userSkill: UserSkill | null = null;
+        if (cached) {
+          userSkill = {
+            skill_name: cached.name,
+            description: cached.description,
+            tags: cached.tags,
+            files: cached.filePaths || [],
+            enabled: cached.enabled,
+            file_count: cached.file_count,
+            installed_from: cached.installed_from,
+            published_marketplace_name: cached.published_marketplace_name,
+            created_at: cached.created_at,
+            updated_at: cached.updated_at,
+            is_published: cached.is_published,
+            marketplace_is_active: cached.marketplace_is_active,
+          };
+        } else {
+          // Fallback: fetch list to find the skill
+          const list = await skillApi.list();
+          const found = list.find((s) => s.skill_name === name);
+          if (!found) return null;
+          userSkill = found;
+        }
 
-        // Fetch all files content
+        const resp = composeSkillResponse(userSkill, detail);
+        resp.filePaths = detail.files || [];
+        return resp;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch skill");
+        return null;
+      }
+    },
+    [skills],
+  );
+
+  // Fetch single skill with ALL file contents (for export etc.)
+  const getFullSkill = useCallback(
+    async (name: string): Promise<SkillResponse | null> => {
+      try {
+        // Use cached skills list first
+        const cached = skills.find((s) => s.name === name);
+        const detail = await skillApi.get(name);
+
+        let userSkill: UserSkill | null = null;
+        if (cached) {
+          userSkill = {
+            skill_name: cached.name,
+            description: cached.description,
+            tags: cached.tags,
+            files: cached.filePaths || [],
+            enabled: cached.enabled,
+            file_count: cached.file_count,
+            installed_from: cached.installed_from,
+            published_marketplace_name: cached.published_marketplace_name,
+            created_at: cached.created_at,
+            updated_at: cached.updated_at,
+            is_published: cached.is_published,
+            marketplace_is_active: cached.marketplace_is_active,
+          };
+        } else {
+          const list = await skillApi.list();
+          const found = list.find((s) => s.skill_name === name);
+          if (!found) return null;
+          userSkill = found;
+        }
+
         const filesContent: Record<string, string> = {};
+        const binaryFiles: Record<string, BinaryFileInfo> = {};
         if (detail.files) {
           await Promise.all(
             detail.files.map(async (filePath) => {
               try {
                 const fileResp = await skillApi.getFile(name, filePath);
-                filesContent[filePath] = fileResp.content;
+                if (fileResp.is_binary && fileResp.url) {
+                  filesContent[filePath] = `[Binary: ${fileResp.mime_type}, ${(
+                    (fileResp.size ?? 0) / 1024
+                  ).toFixed(1)}KB]`;
+                  binaryFiles[filePath] = {
+                    url: fileResp.url,
+                    mime_type: fileResp.mime_type || "application/octet-stream",
+                    size: fileResp.size || 0,
+                  };
+                } else {
+                  filesContent[filePath] = fileResp.content;
+                }
               } catch {
                 // File might not be readable
               }
@@ -131,19 +215,24 @@ export function useSkills(options?: { enabled?: boolean }) {
           );
         }
 
-        return composeSkillResponse(userSkill, detail, filesContent);
+        return composeSkillResponse(
+          userSkill,
+          detail,
+          filesContent,
+          binaryFiles,
+        );
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch skill");
         return null;
       }
     },
-    [],
+    [skills],
   );
 
   // Create skill
   const createSkill = useCallback(
     async (data: SkillCreate): Promise<boolean> => {
-      setIsLoading(true);
+      setIsCreating(true);
       setError(null);
       try {
         await skillApi.create(data);
@@ -153,7 +242,7 @@ export function useSkills(options?: { enabled?: boolean }) {
         setError(err instanceof Error ? err.message : "Failed to create skill");
         return false;
       } finally {
-        setIsLoading(false);
+        setIsCreating(false);
       }
     },
     [fetchSkills],
@@ -171,7 +260,7 @@ export function useSkills(options?: { enabled?: boolean }) {
         deletedFiles?: string[];
       },
     ): Promise<boolean> => {
-      setIsLoading(true);
+      setIsUpdating(true);
       setError(null);
       try {
         await skillApi.update(name, updates);
@@ -181,7 +270,7 @@ export function useSkills(options?: { enabled?: boolean }) {
         setError(err instanceof Error ? err.message : "Failed to update skill");
         return false;
       } finally {
-        setIsLoading(false);
+        setIsUpdating(false);
       }
     },
     [fetchSkills],
@@ -190,7 +279,7 @@ export function useSkills(options?: { enabled?: boolean }) {
   // Delete skill
   const deleteSkill = useCallback(
     async (name: string): Promise<boolean> => {
-      setIsLoading(true);
+      setIsDeleting(true);
       setError(null);
       try {
         await skillApi.delete(name);
@@ -200,7 +289,7 @@ export function useSkills(options?: { enabled?: boolean }) {
         setError(err instanceof Error ? err.message : "Failed to delete skill");
         return false;
       } finally {
-        setIsLoading(false);
+        setIsDeleting(false);
       }
     },
     [fetchSkills],
@@ -309,14 +398,6 @@ export function useSkills(options?: { enabled?: boolean }) {
     [fetchSkills],
   );
 
-  // Toggle skill wrapper (for compatibility)
-  const toggleSkillWrapper = useCallback(
-    async (name: string): Promise<boolean> => {
-      return await toggleSkill(name);
-    },
-    [toggleSkill],
-  );
-
   // Toggle category (not applicable in new architecture - just toggle all)
   const toggleCategory = useCallback(
     async (_category: SkillSource, enabled: boolean): Promise<boolean> => {
@@ -379,7 +460,7 @@ export function useSkills(options?: { enabled?: boolean }) {
       created: Array<{ name: string; file_count: number }>;
       errors: Array<{ name: string; reason: string }>;
     } | null> => {
-      setIsLoading(true);
+      setIsUploading(true);
       setError(null);
       try {
         const result = await skillApi.uploadZip(file, skillNames);
@@ -389,7 +470,7 @@ export function useSkills(options?: { enabled?: boolean }) {
         setError(err instanceof Error ? err.message : "Failed to upload skill");
         return null;
       } finally {
-        setIsLoading(false);
+        setIsUploading(false);
       }
     },
     [fetchSkills],
@@ -498,7 +579,7 @@ export function useSkills(options?: { enabled?: boolean }) {
       name: string,
       data?: PublishToMarketplaceRequest,
     ): Promise<boolean> => {
-      setIsLoading(true);
+      setIsPublishing(true);
       setError(null);
       try {
         await skillApi.publishToMarketplace(name, data);
@@ -510,7 +591,7 @@ export function useSkills(options?: { enabled?: boolean }) {
         );
         return false;
       } finally {
-        setIsLoading(false);
+        setIsPublishing(false);
       }
     },
     [fetchSkills],
@@ -527,13 +608,13 @@ export function useSkills(options?: { enabled?: boolean }) {
     error,
     fetchSkills,
     getSkill,
+    getFullSkill,
     createSkill,
     updateSkill,
     deleteSkill,
     batchDeleteSkills,
     batchToggleSkills,
     toggleSkill,
-    toggleSkillWrapper,
     toggleCategory,
     toggleAll,
     uploadSkill,
@@ -543,6 +624,11 @@ export function useSkills(options?: { enabled?: boolean }) {
     publishToMarketplace,
     pendingSkillNames,
     isMutating,
+    isCreating,
+    isUpdating,
+    isDeleting,
+    isUploading,
+    isPublishing,
     getEnabledSkillNames,
     getCategoryStats,
     enabledCount,

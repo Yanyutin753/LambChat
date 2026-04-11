@@ -1,4 +1,8 @@
-import type { SkillResponse, SkillCreate } from "../../types";
+import type {
+  SkillResponse,
+  SkillCreate,
+  BinaryFileInfo,
+} from "../../types/skill";
 
 export interface FileEntry {
   path: string;
@@ -30,6 +34,8 @@ export interface SkillFormActions {
   isLoading: boolean;
   files: FileEntry[];
   activeFileIndex: number;
+  binaryFiles: Record<string, BinaryFileInfo>;
+  loadingFilePath: string | null; // kept for backwards compat in form views
   setName: (v: string) => void;
   setDescription: (v: string) => void;
   setEnabled: (v: boolean) => void;
@@ -40,6 +46,7 @@ export interface SkillFormActions {
   removeFile: (i: number) => void;
   addFile: () => void;
   removeTag: (tag: string) => void;
+  loadFileContent: (index: number) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
   toggleFullscreen: (fs: boolean) => void;

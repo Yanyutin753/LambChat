@@ -25,6 +25,7 @@ interface UseProjectSessionListReturn {
 
 export function useProjectSessionList(
   projectId: string,
+  scrollRoot?: Element | null,
 ): UseProjectSessionListReturn {
   const [sessions, setSessions] = useState<BackendSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +34,10 @@ export function useProjectSessionList(
   const [skip, setSkip] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const { ref: loadMoreRef, inView } = useInView({ threshold: 0.1 });
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0.1,
+    root: scrollRoot ?? undefined,
+  });
 
   const fetchSessions = async (reset = false) => {
     const targetSkip = reset ? 0 : skip;

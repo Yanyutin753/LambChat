@@ -4,6 +4,7 @@
     "@types/turndown": "^5.0.6"
   },
   "dependencies": {
+    "@lobehub/icons": "^5.2.0",
     "react-simple-code-editor": "^0.14.1",
     "turndown": "^7.2.2"
   }

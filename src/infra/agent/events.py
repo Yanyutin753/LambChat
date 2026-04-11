@@ -63,6 +63,7 @@ class AgentEventProcessor:
         "total_cache_read_tokens",
         "_debug_enabled",
         "_presenter_emit",
+        "_base_url",
         # Chunk batching state
         "_chunk_buffer",
         "_chunk_buffer_key",
@@ -71,9 +72,14 @@ class AgentEventProcessor:
     # Batch config: flush after this many characters accumulated
     _CHUNK_FLUSH_SIZE = 200
 
-    def __init__(self, presenter: Presenter):
+    def __init__(self, presenter: Presenter, base_url: str = ""):
         self.presenter = presenter
         self.checkpoint_to_agent: dict[str, tuple[str, str]] = {}
+        if not base_url:
+            from src.kernel.config import settings
+
+            base_url = getattr(settings, "APP_BASE_URL", "").rstrip("/")
+        self._base_url = base_url
         self.thinking_ids: dict[str | None, str | None] = {}
         # 使用 StringIO 避免 O(n²) 字符串拼接
         self._output_buffer = StringIO()
@@ -87,6 +93,13 @@ class AgentEventProcessor:
         # Chunk batching: (buffered_text, depth, agent_id, text_id)
         self._chunk_buffer = ""
         self._chunk_buffer_key: tuple[int, str | None, str | None] | None = None
+
+    def clear(self) -> None:
+        """释放本次 session 持有的内存（session 结束后调用）"""
+        self._output_buffer.close()
+        self._output_buffer = StringIO()
+        self.checkpoint_to_agent.clear()
+        self.thinking_ids.clear()
 
     @property
     def output_text(self) -> str:
@@ -251,6 +264,10 @@ class AgentEventProcessor:
             )
         else:
             current_depth = 1
+
+        # 清理可能残留的孤儿条目（防止同名 checkpoint_ns 重复）
+        if checkpoint_ns in self.checkpoint_to_agent:
+            logger.debug("Overwriting existing checkpoint_to_agent entry: %s", checkpoint_ns[:60])
 
         # 记录映射
         self.checkpoint_to_agent[checkpoint_ns] = (instance_id, subagent_type)
@@ -558,7 +575,7 @@ class AgentEventProcessor:
             return
 
         try:
-            from src.api.routes.upload import get_or_init_storage
+            from src.infra.storage.s3.service import get_or_init_storage
 
             storage = await get_or_init_storage()
         except Exception as e:
@@ -586,7 +603,11 @@ class AgentEventProcessor:
                     content_type=mime_type,
                 )
 
-                proxy_url = f"/api/upload/file/{upload_result.key}"
+                proxy_url = (
+                    f"{self._base_url}/api/upload/file/{upload_result.key}"
+                    if self._base_url
+                    else f"/api/upload/file/{upload_result.key}"
+                )
                 block.pop("base64", None)
                 block["url"] = proxy_url
                 logger.info(
@@ -623,6 +644,9 @@ class AgentEventProcessor:
 
         # 1. 非 dict/list/str 对象: Command (.update) 或 BaseMessage (.content/.artifact)
         if not isinstance(out, (dict, list, str)):
+            # MCP content_and_artifact tools return (content, artifact) tuple
+            if isinstance(out, tuple) and len(out) >= 1:
+                return AgentEventProcessor._extract_tool_output(out[0])
             update = getattr(out, "update", None)
             if isinstance(update, dict):
                 messages = update.get("messages")

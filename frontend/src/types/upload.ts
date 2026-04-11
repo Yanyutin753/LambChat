@@ -54,6 +54,7 @@ export interface UploadResult {
 export interface FileCheckResult {
   exists: boolean;
   key?: string;
+  url?: string;
   name?: string;
   type?: FileCategory;
   mimeType?: string;

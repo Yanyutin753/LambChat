@@ -105,7 +105,7 @@ export function VerifyEmail() {
               <div className="auth-accent-icon mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
                 <LoadingSpinner className="h-8 w-8" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl font-serif">
                 {t("auth.verifyingEmail")}
               </h1>
               <p className="text-stone-600 dark:text-stone-400">
@@ -129,7 +129,7 @@ export function VerifyEmail() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
                 <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl font-serif">
                 {t("auth.verifyEmailSuccessTitle")}
               </h1>
               <p className="text-stone-600 dark:text-stone-400">
@@ -162,7 +162,7 @@ export function VerifyEmail() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
                 <XCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
               </div>
-              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
+              <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl font-serif">
                 {t("auth.verifyEmailFailed")}
               </h1>
               <p className="text-stone-600 dark:text-stone-400">
@@ -213,7 +213,7 @@ export function VerifyEmail() {
             <div className="auth-accent-icon mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
               <Mail className="h-8 w-8" />
             </div>
-            <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl">
+            <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl font-serif">
               {t("auth.verifyEmail")}
             </h1>
             <p className="text-stone-600 dark:text-stone-400">

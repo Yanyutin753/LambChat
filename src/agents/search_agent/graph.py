@@ -57,6 +57,7 @@ class SearchAgent(BaseGraphAgent):
     _description_key = "agents.search.description"
     _version = "1.0.0"
     _sort_order = 1  # 排序权重，数值越小越靠前
+    _supports_sandbox = True  # 支持沙箱环境
     # Agent 选项配置（供前端渲染）
     _options = {
         "enable_thinking": {
@@ -140,11 +141,15 @@ class SearchAgent(BaseGraphAgent):
 
         # 创建并初始化 SearchAgentContext
         disabled_tools = kwargs.get("disabled_tools")
+        disabled_skills = kwargs.get("disabled_skills")
+        disabled_mcp_tools = kwargs.get("disabled_mcp_tools")
         context = SearchAgentContext(
             session_id=session_id,
             agent_id=self.agent_id,
             user_id=user_id,
             disabled_tools=disabled_tools,
+            disabled_skills=disabled_skills,
+            disabled_mcp_tools=disabled_mcp_tools,
         )
         await context.setup()
 
@@ -162,6 +167,8 @@ class SearchAgent(BaseGraphAgent):
                 "context": context,
                 "agent_options": agent_options,
                 "disabled_tools": disabled_tools,
+                "disabled_skills": disabled_skills,
+                "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
             },
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,

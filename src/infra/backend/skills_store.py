@@ -27,6 +27,7 @@ from deepagents.backends.protocol import (
 )
 
 from src.infra.logging import get_logger
+from src.infra.skill.binary import is_binary_file, parse_binary_ref
 from src.infra.skill.storage import SkillStorage
 
 if TYPE_CHECKING:
@@ -271,6 +272,19 @@ class SkillsStoreBackend(BackendProtocol):
                     return f"Error: File '{file_name}' not found in skill '{skill_name}'"
                 # file exists in paths but get_skill_file returned None — should not happen
                 return f"Error: File '{file_name}' not found in skill '{skill_name}'"
+
+            # 检查是否为二进制文件引用
+            binary_ref = parse_binary_ref(content)
+            if binary_ref:
+                file_url = f"/api/upload/file/{binary_ref.storage_key}"
+                return (
+                    f"[Binary file: {file_name}]\n"
+                    f"- MIME type: {binary_ref.mime_type}\n"
+                    f"- Size: {binary_ref.size} bytes\n"
+                    f"- URL: {file_url}\n"
+                    f"\nThis is a binary file stored in object storage. "
+                    f"Access it via the URL above."
+                )
 
             return self._format_content_with_line_numbers(content, offset, limit)
 
@@ -633,7 +647,7 @@ class SkillsStoreBackend(BackendProtocol):
         return _run_async(self.adownload_files(paths))
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        """批量读取文件（异步）"""
+        """批量读取文件（异步，支持二进制文件下载）"""
         storage = await self._get_storage()
 
         # 按 skill_name 分组，减少 MongoDB 查询次数
@@ -680,10 +694,32 @@ class SkillsStoreBackend(BackendProtocol):
                     continue
 
                 content = files[file_name]
-                content_bytes = content.encode("utf-8") if isinstance(content, str) else content
-                results.append(
-                    FileDownloadResponse(path=original_path, content=content_bytes, error=None)
-                )
+
+                # 检查是否为二进制文件引用
+                binary_ref = parse_binary_ref(content)
+                if binary_ref:
+                    # 从 S3/local 存储下载实际二进制数据
+                    try:
+                        from src.infra.storage.s3.service import get_or_init_storage
+
+                        storage_service = await get_or_init_storage()
+                        data = await storage_service.download_file(binary_ref.storage_key)
+                        results.append(
+                            FileDownloadResponse(path=original_path, content=data, error=None)
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to download binary {binary_ref.storage_key}: {e}")
+                        results.append(
+                            FileDownloadResponse(
+                                path=original_path, content=None, error="file_not_found"
+                            )
+                        )
+                else:
+                    # 文本文件
+                    content_bytes = content.encode("utf-8") if isinstance(content, str) else content
+                    results.append(
+                        FileDownloadResponse(path=original_path, content=content_bytes, error=None)
+                    )
 
         return results
 
@@ -692,16 +728,47 @@ class SkillsStoreBackend(BackendProtocol):
         return _run_async(self.aupload_files(files))
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        """批量写入文件（异步）"""
+        """批量写入文件（异步，支持二进制）"""
         results = []
         for path, content in files:
-            content_str = content.decode("utf-8") if isinstance(content, bytes) else content
-            result = await self.awrite(path, content_str)
-            if result.error:
-                # 使用 permission_denied 表示一般性错误
-                results.append(FileUploadResponse(path=path, error="permission_denied"))
+            # 检测是否为二进制文件
+            if isinstance(content, bytes) and is_binary_file(path, content):
+                # 二进制文件：上传到 S3，存储引用
+                normalized_path = self._normalize_path(path)
+                parsed = self._parse_skill_path(normalized_path)
+                if not parsed:
+                    results.append(FileUploadResponse(path=path, error="invalid_path"))
+                    continue
+
+                skill_name, file_name = parsed
+                if not SKILL_NAME_PATTERN.match(skill_name):
+                    results.append(FileUploadResponse(path=path, error="invalid_path"))
+                    continue
+
+                storage = await self._get_storage()
+                try:
+                    from src.infra.skill.binary import guess_mime_type
+
+                    await storage.set_skill_binary_file(
+                        skill_name,
+                        file_name,
+                        content,
+                        self._user_id,
+                        mime_type=guess_mime_type(file_name),
+                    )
+                    await storage.invalidate_user_cache(self._user_id)
+                    results.append(FileUploadResponse(path=path, error=None))
+                except Exception as e:
+                    logger.error(f"Failed to upload binary {path}: {e}")
+                    results.append(FileUploadResponse(path=path, error="permission_denied"))
             else:
-                results.append(FileUploadResponse(path=path, error=None))
+                # 文本文件：直接写入 MongoDB
+                content_str = content.decode("utf-8") if isinstance(content, bytes) else content
+                result = await self.awrite(path, content_str)
+                if result.error:
+                    results.append(FileUploadResponse(path=path, error="permission_denied"))
+                else:
+                    results.append(FileUploadResponse(path=path, error=None))
 
         return results
 

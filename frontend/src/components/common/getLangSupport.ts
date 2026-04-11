@@ -16,9 +16,7 @@ export function getLangSupport(
 ): Extension | undefined {
   // Prefer explicit language name from code blocks
   const lang = language?.toLowerCase() || "";
-  const ext = filePath
-    ? filePath.split(".").pop()?.toLowerCase() ?? ""
-    : "";
+  const ext = filePath ? filePath.split(".").pop()?.toLowerCase() ?? "" : "";
 
   // Map language names from markdown fences (e.g. ```typescript, ```py)
   const langMap: Record<string, () => Extension> = {

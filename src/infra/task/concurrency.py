@@ -108,9 +108,10 @@ class UserConcurrencyLimiter:
 
         try:
             role_storage = RoleStorage()
-            for role_name in roles:
-                role = await role_storage.get_by_name(role_name)
-                if role and role.limits:
+            # Single batch query instead of N individual lookups
+            user_roles = await role_storage.get_by_names(roles)
+            for role in user_roles:
+                if role.limits:
                     rc = role.limits.max_concurrent_chats
                     rq = role.limits.max_queued_chats
                     if rc is not None:
@@ -322,6 +323,8 @@ class UserConcurrencyLimiter:
                 disabled_tools = task_ctx.get("disabled_tools")
                 agent_options = task_ctx.get("agent_options")
                 attachments = task_ctx.get("attachments")
+                disabled_skills = task_ctx.get("disabled_skills")
+                disabled_mcp_tools = task_ctx.get("disabled_mcp_tools")
             else:
                 # Legacy fallback: context in process memory (single-worker)
                 pending = task_manager.pop_pending_task(run_id)
@@ -336,6 +339,8 @@ class UserConcurrencyLimiter:
                 disabled_tools = pending.get("disabled_tools")
                 agent_options = pending.get("agent_options")
                 attachments = pending.get("attachments")
+                disabled_skills = pending.get("disabled_skills")
+                disabled_mcp_tools = pending.get("disabled_mcp_tools")
 
             # --- Create and run the background task ---
             async with task_manager._lock:
@@ -363,6 +368,8 @@ class UserConcurrencyLimiter:
                         user_message_written=task_ctx.get("user_message_written", False)
                         if task_ctx
                         else False,
+                        disabled_skills=disabled_skills,
+                        disabled_mcp_tools=disabled_mcp_tools,
                     )
                 )
                 task_manager._tasks[run_id] = task

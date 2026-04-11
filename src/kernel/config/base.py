@@ -55,6 +55,7 @@ class Settings(BaseSettings):
 
     # Session Configuration (not in SETTING_DEFINITIONS)
     SESSION_MAX_MESSAGES: int = 20
+    SESSION_MAX_EVENTS_PER_TRACE: int = 10000  # 单个 trace 最多保留的事件数，防止内存爆炸
 
     # ============================================
     # All settings below get defaults from SETTING_DEFINITIONS
@@ -64,20 +65,19 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    APP_BASE_URL: str = ""  # e.g. https://lambchat.example.com — 用于生成文件 URL 的固定前缀
     LOG_LEVEL: str = "INFO"
 
     # LLM Settings
-    LLM_API_KEY: str = ""
-    LLM_API_BASE: Optional[str] = None
-    LLM_MODEL: str = "anthropic/claude-3-5-sonnet-20241022"
-    LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 4096
     LLM_MAX_RETRIES: int = 3
     LLM_RETRY_DELAY: float = 1.0
-    LLM_MAX_INPUT_TOKENS: int | None = None  # DeepAgent summarization trigger threshold
+    LLM_MODEL_CACHE_SIZE: int = 50  # 模型实例缓存大小，防止内存泄漏
 
     # MCP Settings
     ENABLE_MCP: bool = True
+    ENABLE_DEFERRED_TOOL_LOADING: bool = True
+    DEFERRED_TOOL_THRESHOLD: int = 20
+    DEFERRED_TOOL_SEARCH_LIMIT: int = 25
     MCP_ENCRYPTION_SALT: Optional[str] = None  # 默认随机生成，确保加密一致性
 
     # Session Settings
@@ -118,9 +118,7 @@ class Settings(BaseSettings):
 
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
-    SANDBOX_PLATFORM: str = "runloop"
-    RUNLOOP_API_KEY: str = ""
-    RUNLOOP_BASE_URL: str = "https://api.runloop.ai"
+    SANDBOX_PLATFORM: str = "daytona"
     DAYTONA_API_KEY: str = ""
     DAYTONA_SERVER_URL: str = ""
     DAYTONA_TIMEOUT: int = 180
@@ -128,7 +126,6 @@ class Settings(BaseSettings):
     DAYTONA_AUTO_STOP_INTERVAL: int = 5
     DAYTONA_AUTO_ARCHIVE_INTERVAL: int = 5
     DAYTONA_AUTO_DELETE_INTERVAL: int = 1440
-    MODAL_APP_NAME: str = ""
 
     # E2B Settings
     E2B_API_KEY: str = ""
@@ -230,6 +227,25 @@ class Settings(BaseSettings):
     MEMU_API_KEY: str = ""
     MEMU_BASE_URL: str = "https://api.memu.so"
 
+    # Native Memory Settings (MongoDB-backed, zero external deps)
+    NATIVE_MEMORY_EMBEDDING_API_BASE: str = ""
+    NATIVE_MEMORY_EMBEDDING_API_KEY: str = ""
+    NATIVE_MEMORY_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    NATIVE_MEMORY_STALENESS_DAYS: int = 30
+    NATIVE_MEMORY_PRUNE_THRESHOLD: int = 90
+    NATIVE_MEMORY_INDEX_ENABLED: bool = True
+    NATIVE_MEMORY_INDEX_CACHE_TTL: int = 300
+    NATIVE_MEMORY_MODEL: str = ""
+    NATIVE_MEMORY_API_BASE: str = ""
+    NATIVE_MEMORY_API_KEY: str = ""
+    NATIVE_MEMORY_RERANK_MODEL: str = ""
+    NATIVE_MEMORY_RERANK_API_BASE: str = ""
+    NATIVE_MEMORY_RERANK_API_KEY: str = ""
+    NATIVE_MEMORY_MAX_TOKENS: int = 2000
+    NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS: int = 1200
+    NATIVE_MEMORY_STORE_NAMESPACE: str = "memories"
+    NATIVE_MEMORY_APPEND_MAX_DETAILS: int = 8
+
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),
         "env_file_encoding": "utf-8",
@@ -280,12 +296,6 @@ class Settings(BaseSettings):
             os.environ["LANGSMITH_API_URL"] = self.LANGSMITH_API_URL
         if self.LANGSMITH_SAMPLE_RATE:
             os.environ["LANGSMITH_SAMPLE_RATE"] = str(self.LANGSMITH_SAMPLE_RATE)
-
-        # Sync LLM settings to os.environ (required by LangChain clients)
-        if self.LLM_API_KEY:
-            os.environ["ANTHROPIC_API_KEY"] = self.LLM_API_KEY
-        if self.LLM_API_BASE:
-            os.environ["ANTHROPIC_BASE_URL"] = self.LLM_API_BASE
 
     def get_s3_config(self) -> "S3Config":
         """Get S3 storage configuration."""

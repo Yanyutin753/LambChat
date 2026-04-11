@@ -2,15 +2,18 @@
 S3 Storage Service - high-level interface for storage operations.
 
 Supports multiple providers through configuration, with automatic backend selection.
+Includes retry mechanism for transient upload failures.
 """
 
 from __future__ import annotations
 
 import asyncio
+import random
 import re
 import uuid
+from collections.abc import Awaitable
 from datetime import datetime, timezone
-from typing import BinaryIO, Optional
+from typing import BinaryIO, Callable, Optional, TypeVar
 
 from src.infra.logging import get_logger
 from src.infra.storage.s3.backends import (
@@ -22,6 +25,13 @@ from src.infra.storage.s3.base import S3StorageBackend
 from src.infra.storage.s3.types import S3Config, S3Provider, UploadResult
 
 logger = get_logger(__name__)
+
+T = TypeVar("T")
+
+# Retry configuration
+UPLOAD_MAX_RETRIES = 3
+UPLOAD_RETRY_BACKOFF_BASE = 2  # seconds, exponential backoff base
+UPLOAD_RETRY_BACKOFF_JITTER = 1  # seconds, random jitter
 
 
 class S3StorageService:
@@ -58,6 +68,70 @@ class S3StorageService:
         """Whether the storage backend is local filesystem."""
         return self._config.provider == S3Provider.LOCAL
 
+    @staticmethod
+    async def _retry_async(
+        func: Callable[..., "Awaitable[T]"],
+        max_retries: int = UPLOAD_MAX_RETRIES,
+        label: str = "operation",
+    ) -> T:
+        """
+        Execute an async function with exponential backoff retry on transient errors.
+
+        Retries on network/timeout errors; does NOT retry on validation errors.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                return await func()
+            except (ConnectionError, TimeoutError, OSError) as e:
+                last_exc = e
+                if attempt < max_retries:
+                    backoff = UPLOAD_RETRY_BACKOFF_BASE**attempt + random.uniform(
+                        0, UPLOAD_RETRY_BACKOFF_JITTER
+                    )
+                    logger.warning(
+                        f"Upload {label} failed (attempt {attempt}/{max_retries}), "
+                        f"retrying in {backoff:.1f}s: {e}"
+                    )
+                    await asyncio.sleep(backoff)
+                else:
+                    logger.error(f"Upload {label} failed after {max_retries} attempts: {e}")
+            except Exception as e:
+                # Non-transient errors (e.g. auth, validation) — raise immediately
+                if "oss2" in type(e).__module__ or "minio" in type(e).__module__:
+                    # Check if it's a server/network error from the SDK
+                    err_lower = str(e).lower()
+                    if any(
+                        kw in err_lower
+                        for kw in (
+                            "connection",
+                            "timeout",
+                            "timed out",
+                            "network",
+                            "temporary",
+                            "service unavailable",
+                            "internal server error",
+                            "503",
+                            "500",
+                            "502",
+                        )
+                    ):
+                        last_exc = e
+                        if attempt < max_retries:
+                            backoff = UPLOAD_RETRY_BACKOFF_BASE**attempt + random.uniform(
+                                0, UPLOAD_RETRY_BACKOFF_JITTER
+                            )
+                            logger.warning(
+                                f"Upload {label} failed (attempt {attempt}/{max_retries}), "
+                                f"retrying in {backoff:.1f}s: {e}"
+                            )
+                            await asyncio.sleep(backoff)
+                            continue
+                        logger.error(f"Upload {label} failed after {max_retries} attempts: {e}")
+                raise
+
+        raise last_exc  # type: ignore[misc]
+
     def _get_backend(self) -> S3StorageBackend:
         """Get or create the storage backend"""
         if self._backend is None:
@@ -89,7 +163,7 @@ class S3StorageService:
         *,
         skip_size_limit: bool = False,
     ) -> UploadResult:
-        """Upload a file to storage."""
+        """Upload a file to storage with retry on transient failures."""
         # Check file size via current position
         if not skip_size_limit:
             current_pos = file.tell()
@@ -109,7 +183,10 @@ class S3StorageService:
         key = f"{folder}/{timestamp}_{unique_suffix}_{safe_filename}"
 
         backend = self._get_backend()
-        return await backend.upload(file, key, content_type, metadata)
+        return await self._retry_async(
+            lambda: backend.upload(file, key, content_type, metadata),
+            label=f"file://{key}",
+        )
 
     async def upload_bytes(
         self,
@@ -121,7 +198,7 @@ class S3StorageService:
         *,
         skip_size_limit: bool = False,
     ) -> UploadResult:
-        """Upload bytes to storage."""
+        """Upload bytes to storage with retry on transient failures."""
         if not skip_size_limit and len(data) > self._config.internal_max_upload_size:
             max_mb = self._config.internal_max_upload_size / (1024 * 1024)
             raise ValueError(
@@ -154,12 +231,18 @@ class S3StorageService:
             )
 
         backend = self._get_backend()
-        result = await backend.upload_bytes(data, key, content_type, metadata)
+        result = await self._retry_async(
+            lambda: backend.upload_bytes(data, key, content_type, metadata),
+            label=f"bytes://{key}",
+        )
 
         if not self._config.public_bucket and "?" not in result.url:
             max_expires = 7 * 24 * 3600
             expires = min(self._config.presigned_url_expires, max_expires)
-            result.url = await backend.get_presigned_url(key, expires)
+            result.url = await self._retry_async(
+                lambda: backend.get_presigned_url(key, expires),
+                label=f"presign://{key}",
+            )
 
         return result
 
@@ -224,6 +307,10 @@ class S3StorageService:
     async def delete_file(self, key: str) -> bool:
         """Delete a file"""
         return await self._get_backend().delete(key)
+
+    async def download_file(self, key: str) -> bytes:
+        """Download a file and return its content as bytes"""
+        return await self._get_backend().download(key)
 
     async def file_exists(self, key: str) -> bool:
         """Check if a file exists"""
@@ -319,3 +406,76 @@ async def close_storage() -> None:
     global _storage_service
     if _storage_service:
         await _storage_service.close()
+
+
+def _parse_bool(value: object) -> bool:
+    """Parse boolean value from various types."""
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in ("true", "1", "yes", "on")
+    return bool(value)
+
+
+def get_s3_enabled() -> bool:
+    """Get S3 enabled status from settings"""
+    from src.kernel.config import settings
+
+    return bool(settings.S3_ENABLED)
+
+
+async def get_s3_config_from_settings() -> S3Config:
+    """Build S3Config from cached application settings."""
+    from src.kernel.config import settings
+
+    if not get_s3_enabled():
+        return settings.get_s3_config()
+
+    provider_map = {
+        "aws": S3Provider.AWS,
+        "aliyun": S3Provider.ALIYUN,
+        "tencent": S3Provider.TENCENT,
+        "minio": S3Provider.MINIO,
+        "custom": S3Provider.CUSTOM,
+        "local": S3Provider.LOCAL,
+    }
+
+    storage_path = getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads"
+
+    return S3Config(
+        provider=provider_map.get(str(settings.S3_PROVIDER).lower(), S3Provider.AWS),
+        endpoint_url=settings.S3_ENDPOINT_URL if settings.S3_ENDPOINT_URL else None,
+        access_key=str(settings.S3_ACCESS_KEY) if settings.S3_ACCESS_KEY else "",
+        secret_key=str(settings.S3_SECRET_KEY) if settings.S3_SECRET_KEY else "",
+        region=str(settings.S3_REGION) if settings.S3_REGION else "us-east-1",
+        bucket_name=str(settings.S3_BUCKET_NAME) if settings.S3_BUCKET_NAME else "",
+        custom_domain=settings.S3_CUSTOM_DOMAIN if settings.S3_CUSTOM_DOMAIN else None,
+        path_style=_parse_bool(settings.S3_PATH_STYLE),
+        public_bucket=_parse_bool(settings.S3_PUBLIC_BUCKET),
+        max_file_size=(int(settings.S3_MAX_FILE_SIZE) if settings.S3_MAX_FILE_SIZE else 10485760),
+        storage_path=storage_path,
+    )
+
+
+async def get_or_init_storage() -> S3StorageService:
+    """Initialize (if needed) and return the global storage service.
+
+    This is the single entry-point that infra-layer code should use
+    instead of importing from API routes.
+    """
+    s3_enabled = get_s3_enabled()
+    if s3_enabled:
+        config = await get_s3_config_from_settings()
+        await init_storage(config)
+    else:
+        # Auto-enable local storage when S3 is not configured
+        svc = get_storage_service()
+        if svc._backend is None:
+            from src.kernel.config import settings
+
+            storage_path = getattr(settings, "LOCAL_STORAGE_PATH", "./uploads") or "./uploads"
+            config = S3Config(provider=S3Provider.LOCAL, storage_path=storage_path)
+            await init_storage(config)
+    return get_storage_service()

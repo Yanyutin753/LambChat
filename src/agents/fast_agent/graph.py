@@ -51,6 +51,7 @@ class FastAgent(BaseGraphAgent):
     _description_key = "agents.fast.description"
     _version = "1.0.0"
     _sort_order = 2  # 排序权重，数值越小越靠前
+    _supports_sandbox = False  # 不支持沙箱环境
 
     _options = {
         "enable_thinking": {
@@ -122,11 +123,15 @@ class FastAgent(BaseGraphAgent):
 
         # 创建并初始化 FastAgentContext
         disabled_tools = kwargs.get("disabled_tools")
+        disabled_skills = kwargs.get("disabled_skills")
+        disabled_mcp_tools = kwargs.get("disabled_mcp_tools")
         context = FastAgentContext(
             session_id=session_id,
             agent_id=self.agent_id,
             user_id=user_id,
             disabled_tools=disabled_tools,
+            disabled_skills=disabled_skills,
+            disabled_mcp_tools=disabled_mcp_tools,
         )
         await context.setup()
 
@@ -143,6 +148,8 @@ class FastAgent(BaseGraphAgent):
                 "presenter": presenter,
                 "context": context,
                 "agent_options": agent_options,
+                "disabled_skills": disabled_skills,
+                "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),
             },
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,

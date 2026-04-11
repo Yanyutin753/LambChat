@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { PackageX, Sparkles, Tag } from "lucide-react";
+import { useSwipeToClose } from "../../../hooks/useSwipeToClose";
 
 interface PublishConfirm {
   isOpen: boolean;
@@ -23,12 +24,23 @@ export function PublishDialog({
   onConfirm,
 }: PublishDialogProps) {
   const { t } = useTranslation();
+  const swipeRef = useSwipeToClose({
+    onClose: () => setPublishConfirm(null),
+    enabled: !!publishConfirm,
+  });
 
   if (!publishConfirm) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-0 sm:items-center sm:p-4 animate-fade-in">
-      <div className="skill-theme-shell w-full max-w-lg rounded-t-[1.75rem] border border-[var(--skill-border)] bg-[var(--skill-surface)] shadow-[0_28px_80px_-36px_rgba(15,23,42,0.55)] sm:rounded-[1.75rem] sm:animate-scale-in max-sm:animate-slide-up-sheet">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4 animate-fade-in">
+      <div
+        ref={swipeRef as React.RefObject<HTMLDivElement>}
+        className="skill-theme-shell w-full max-w-lg rounded-t-[1.75rem] border border-[var(--skill-border)] bg-[var(--skill-surface)] shadow-[0_28px_80px_-36px_rgba(15,23,42,0.55)] sm:rounded-[1.75rem] sm:animate-scale-in max-sm:animate-slide-up-sheet"
+      >
+        {/* Mobile drag handle */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div className="w-9 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
+        </div>
         <div className="skill-modal-header">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--skill-border)] bg-[var(--skill-accent-soft)] text-[var(--skill-accent)]">
@@ -130,7 +142,10 @@ export function PublishDialog({
                     .filter(Boolean),
                 ),
               ).map((tag) => (
-                <span key={tag} className="skill-tag-chip skill-tag-chip--active">
+                <span
+                  key={tag}
+                  className="skill-tag-chip skill-tag-chip--active"
+                >
                   {tag}
                 </span>
               ))}

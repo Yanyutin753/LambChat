@@ -232,9 +232,12 @@ class AskHumanTool(BaseTool):
                 if isinstance(field_type, str):
                     field_type = FieldType(field_type)
 
+                # 兼容 LLM 可能使用 "id" 而不是 "name" 的情况
+                field_name = field.get("name") or field.get("id", "")
+
                 form_field = FormField(
-                    name=field.get("name", ""),
-                    label=field.get("label", field.get("name", "")),
+                    name=field_name,
+                    label=field.get("label", field_name),
                     type=field_type,
                     placeholder=field.get("placeholder"),
                     default=field.get("default", self._get_type_default(field_type)),

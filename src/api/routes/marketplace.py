@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
+from src.infra.skill.binary import parse_binary_ref
 from src.infra.skill.marketplace import MarketplaceStorage
 from src.infra.skill.storage import SkillStorage
 from src.infra.skill.types import (
@@ -205,6 +206,19 @@ async def get_marketplace_file(
     content = await marketplace.get_marketplace_file(name, safe_path)
     if content is None:
         raise HTTPException(status_code=404, detail="File not found")
+
+    # 检查是否为二进制文件引用
+    binary_ref = parse_binary_ref(content)
+    if binary_ref:
+        file_url = f"/api/upload/file/{binary_ref.storage_key}"
+        return {
+            "content": content,
+            "is_binary": True,
+            "url": file_url,
+            "mime_type": binary_ref.mime_type,
+            "size": binary_ref.size,
+        }
+
     return {"content": content}
 
 

@@ -74,9 +74,15 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "SESSION_TITLE_MODEL",
         "SESSION_TITLE_API_BASE",
         "SESSION_TITLE_API_KEY",
-        "LLM_API_BASE",
-        "LLM_API_KEY",
         "LLM_MAX_RETRIES",
+    }
+
+    # Settings that require memory backend reinitialization
+    memory_affected_settings = {
+        "ENABLE_MEMORY",
+        "MEMORY_PERFORM",
+        "NATIVE_MEMORY_EMBEDDING_API_BASE",
+        "NATIVE_MEMORY_EMBEDDING_API_KEY",
     }
 
     if key:
@@ -94,10 +100,17 @@ async def refresh_settings(key: Optional[str] = None) -> None:
                 logger.info(
                     f"[Settings] Cleared {cleared} LLM model cache entries after setting '{key}' changed"
                 )
+            # Reset memory backend if this setting affects it
+            if key in memory_affected_settings:
+                from src.infra.memory.tools import schedule_backend_reset
+
+                schedule_backend_reset()
+                logger.info(f"[Settings] Memory backend reset after setting '{key}' changed")
     else:
         # Refresh all settings
         all_settings = await _settings_service.get_all(admin_mode=True, mask_sensitive=False)
         any_llm_setting_changed = False
+        any_memory_setting_changed = False
         for items in all_settings.values():
             for item in items:
                 # Only update if value is not None AND not an empty string
@@ -106,6 +119,8 @@ async def refresh_settings(key: Optional[str] = None) -> None:
                     setattr(settings, item.key, item.value)
                     if item.key in llm_affected_settings:
                         any_llm_setting_changed = True
+                    if item.key in memory_affected_settings:
+                        any_memory_setting_changed = True
 
         # Clear LLM model cache if any affected setting changed
         if any_llm_setting_changed:
@@ -115,3 +130,10 @@ async def refresh_settings(key: Optional[str] = None) -> None:
             logger.info(
                 f"[Settings] Cleared {cleared} LLM model cache entries after settings refresh"
             )
+
+        # Reset memory backend if any affected setting changed
+        if any_memory_setting_changed:
+            from src.infra.memory.tools import schedule_backend_reset
+
+            schedule_backend_reset()
+            logger.info("[Settings] Memory backend reset after settings refresh")

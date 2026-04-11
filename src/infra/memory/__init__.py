@@ -25,12 +25,10 @@ from src.infra.memory.client.memu import (
     get_memu_client,
 )
 from src.infra.memory.tools import (
-    auto_retain_conversation,
     get_all_memory_tools,
     get_memory_delete_tool,
     get_memory_recall_tool,
     get_memory_retain_tool,
-    schedule_auto_retain,
 )
 
 __all__ = [
@@ -39,8 +37,6 @@ __all__ = [
     "get_memory_retain_tool",
     "get_memory_recall_tool",
     "get_memory_delete_tool",
-    "auto_retain_conversation",
-    "schedule_auto_retain",
     # Backend factory
     "create_memory_backend",
     "is_memory_enabled",

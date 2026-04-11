@@ -1,5 +1,15 @@
 import { useTranslation } from "react-i18next";
-import { Plus, FolderOpen, Check, Tag, ChevronDown, Github, Archive, X } from "lucide-react";
+import {
+  Plus,
+  Package,
+  FolderOpen,
+  Check,
+  Tag,
+  ChevronDown,
+  Github,
+  Archive,
+  X,
+} from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { Pagination } from "../../common/Pagination";
@@ -83,10 +93,7 @@ export function SkillsList({
         title={t("skills.title")}
         subtitle={t("skills.subtitle")}
         icon={
-          <FolderOpen
-            size={18}
-            className="text-stone-600 dark:text-stone-400"
-          />
+          <Package size={20} className="text-stone-600 dark:text-stone-400" />
         }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -97,7 +104,7 @@ export function SkillsList({
               <button
                 type="button"
                 onClick={() => setIsFilterOpen((prev) => !prev)}
-                className={`btn-secondary min-h-10 px-3 ${
+                className={`btn-secondary h-10 px-3 ${
                   selectedTags.length > 0
                     ? "border-[var(--theme-primary)] text-[var(--theme-text)]"
                     : ""
@@ -237,7 +244,7 @@ export function SkillsList({
             )}
           </div>
         ) : (
-          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
             {paginatedSkills.map((skill) => (
               <SkillCard
                 key={skill.name}
@@ -247,9 +254,7 @@ export function SkillsList({
                 onDelete={onDelete}
                 onExportZip={onExportZip}
                 onPublish={
-                  canPublish
-                    ? (s: SkillResponse) => onPublish?.(s)
-                    : undefined
+                  canPublish ? (s: SkillResponse) => onPublish?.(s) : undefined
                 }
                 isPublished={skill.is_published}
                 selected={selectedNames.has(skill.name)}

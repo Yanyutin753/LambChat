@@ -59,8 +59,8 @@ export function LanguageToggle() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
-        title={t("settings.title")}
-        aria-label={t("settings.title")}
+        title={t("common.language")}
+        aria-label={t("common.language")}
         aria-expanded={isOpen}
         aria-haspopup="true"
       >

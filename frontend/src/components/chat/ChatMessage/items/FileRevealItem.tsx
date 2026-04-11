@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { clsx } from "clsx";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -135,6 +135,14 @@ export function FileRevealItem({
   const isImage = fileInfo.category === "image";
   const isVideo = fileInfo.category === "video";
   const canPreview = isImage || isVideo;
+
+  // Auto-open sidebar preview on desktop when file is ready
+  useEffect(() => {
+    if (!success || !filePath || isImage || showPreview) return;
+    if (window.innerWidth >= 640) {
+      setShowPreview(true);
+    }
+  }, [success, filePath]);
 
   if (isPending) {
     return (

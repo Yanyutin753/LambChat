@@ -15,6 +15,7 @@ import TurndownService from "turndown";
 import { useTranslation } from "react-i18next";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
+import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { FileUploadButton } from "./FileUploadButton";
 import { uploadApi, getFullUrl } from "../../services/api";
 import DocumentPreview from "../documents/DocumentPreview";
@@ -168,7 +169,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Settings,
 };
 
-interface ChatInputProps {
+export interface ChatInputProps {
   onSend: (
     message: string,
     options?: Record<string, boolean | string | number>,
@@ -203,6 +204,10 @@ interface ChatInputProps {
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
+  // Agent mode selector
+  agents?: { id: string; name: string; description: string }[];
+  currentAgent?: string;
+  onSelectAgent?: (id: string) => void;
   // External attachments (for page-level drag and drop)
   attachments?: MessageAttachment[];
   onAttachmentsChange?: (
@@ -264,9 +269,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
         type="button"
         onClick={() => onChange(!value)}
         className={`flex items-center justify-center rounded-full p-2 border transition-all duration-300 ${
-          isActive
-            ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-            : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+          isActive ? "chat-tool-btn-active" : "chat-tool-btn"
         }`}
         title={description}
       >
@@ -287,8 +290,8 @@ const AgentOptionButton = memo(function AgentOptionButton({
           onClick={() => setShowDropdown(!showDropdown)}
           className={`flex items-center gap-1 rounded-full px-2 py-1.5 border text-sm transition-all duration-300 ${
             showDropdown || value !== option.default
-              ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-              : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+              ? "chat-tool-btn-active"
+              : "chat-tool-btn"
           }`}
           title={description}
         >
@@ -298,7 +301,13 @@ const AgentOptionButton = memo(function AgentOptionButton({
         </button>
 
         {showDropdown && (
-          <div className="absolute bottom-full left-0 mb-1 z-50 min-w-[120px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden">
+          <div
+            className="absolute bottom-full left-0 mb-1 z-50 min-w-[120px] rounded-lg shadow-lg border overflow-hidden"
+            style={{
+              background: "var(--theme-bg-card)",
+              borderColor: "var(--theme-border)",
+            }}
+          >
             {option.options.map((opt) => (
               <button
                 key={String(opt.value)}
@@ -308,10 +317,13 @@ const AgentOptionButton = memo(function AgentOptionButton({
                   setShowDropdown(false);
                 }}
                 className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                  value === opt.value
-                    ? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-                    : "hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300"
+                  value === opt.value ? "chat-tool-btn-active" : ""
                 }`}
+                style={
+                  value === opt.value
+                    ? undefined
+                    : { color: "var(--theme-text)" }
+                }
               >
                 {opt.label}
               </button>
@@ -330,9 +342,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
         onChange(value === option.default ? !option.default : option.default)
       }
       className={`flex items-center justify-center rounded-full p-2 border transition-all duration-300 ${
-        value !== option.default
-          ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-          : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+        value !== option.default ? "chat-tool-btn-active" : "chat-tool-btn"
       }`}
       title={description}
     >
@@ -341,6 +351,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
   );
 });
 
+// Agent mode modal selector
 export const ChatInput = memo(function ChatInput({
   onSend,
   onStop,
@@ -369,6 +380,10 @@ export const ChatInput = memo(function ChatInput({
   agentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
+  // Agent mode selector
+  agents = [],
+  currentAgent,
+  onSelectAgent,
   attachments: externalAttachments,
   onAttachmentsChange: externalOnAttachmentsChange,
 }: ChatInputProps) {
@@ -459,9 +474,18 @@ export const ChatInput = memo(function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    const newlineModifier = localStorage.getItem("newlineModifier") || "shift";
+
+    if (e.key === "Enter") {
+      const needsModifier = newlineModifier === "ctrl" ? e.ctrlKey : e.shiftKey;
+
+      if (needsModifier) {
+        // Modifier held: allow default newline behavior
+        return;
+      }
+
+      // No modifier: send (or show stop confirm if loading)
       e.preventDefault();
-      // 如果正在加载，按 Enter 应该停止而不是发送
       if (isLoading) {
         setStopConfirmOpen(true);
       } else {
@@ -500,18 +524,28 @@ export const ChatInput = memo(function ChatInput({
   };
 
   return (
-    <div className="px-3 sm:px-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:bg-stone-900">
+    <div
+      className="px-3 sm:px-4 pb-3 sm:pb-4"
+      style={{ backgroundColor: "var(--theme-bg)" }}
+    >
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* ChatGPT-style container */}
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`chat-input-container flex flex-col relative w-full rounded-2xl px-1 bg-white dark:bg-stone-800 border transition-all duration-300 ${
-            isDraggingOver
-              ? "border-stone-400 dark:border-stone-500 border-2 border-dashed shadow-lg shadow-stone-200/50 dark:shadow-stone-900/50"
-              : "border-stone-200/70 dark:border-stone-700/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.2)]"
+          className={`chat-input-container flex flex-col relative w-full rounded-2xl sm:rounded-3xl px-1 border transition-all duration-300 ${
+            isDraggingOver ? "border-dashed shadow-lg border-2" : ""
           }`}
+          style={{
+            backgroundColor: "var(--theme-bg-card)",
+            borderColor: isDraggingOver
+              ? "var(--theme-primary)"
+              : "var(--theme-border)",
+            boxShadow: isDraggingOver
+              ? undefined
+              : "0 2px 12px rgba(0,0,0,0.06)",
+          }}
         >
           {/* Attachment preview - top area (ChatGPT style) */}
           {attachments.length > 0 && (
@@ -569,7 +603,8 @@ export const ChatInput = memo(function ChatInput({
                 canSend ? t("chat.placeholder") : t("chat.noPermission")
               }
               disabled={disabled || !canSend}
-              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-2 px-1 resize-none text-[15px] text-stone-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+              className="bg-transparent outline-none flex-1 pt-2.5 px-1 resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[52px]"
+              style={{ color: "var(--theme-text)" }}
               rows={1}
             />
           </div>
@@ -612,6 +647,12 @@ export const ChatInput = memo(function ChatInput({
                       totalCount={totalSkillsCount}
                     />
                   )}
+                {/* Agent mode selector */}
+                <AgentModeSelector
+                  agents={agents}
+                  currentAgent={currentAgent || ""}
+                  onSelectAgent={onSelectAgent}
+                />
                 {/* Agent options - Multiple options support */}
                 {agentOptions &&
                   onToggleAgentOption &&
@@ -635,7 +676,11 @@ export const ChatInput = memo(function ChatInput({
             <div className="self-end flex space-x-1.5 flex-shrink-0">
               {!canSend ? (
                 <div
-                  className="flex items-center justify-center rounded-full p-2 bg-stone-100 text-stone-400 dark:bg-stone-700 dark:text-stone-500"
+                  className="flex items-center justify-center rounded-full p-2"
+                  style={{
+                    backgroundColor: "var(--theme-primary-light)",
+                    color: "var(--theme-text-secondary)",
+                  }}
                   title={t("chat.noPermission")}
                 >
                   <Lock size={18} />
@@ -648,7 +693,14 @@ export const ChatInput = memo(function ChatInput({
                     e.stopPropagation();
                     setStopConfirmOpen(true);
                   }}
-                  className="flex items-center justify-center rounded-full p-2 bg-stone-800 dark:bg-stone-500 text-white dark:text-stone-100 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
+                  className="flex items-center justify-center rounded-full p-2 transition-all duration-300 hover:scale-105 active:scale-95"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
+                    border:
+                      "1px solid color-mix(in srgb, var(--theme-primary) 40%, transparent)",
+                    color: "var(--theme-primary)",
+                  }}
                   title={t("chat.stop")}
                 >
                   <Square size={16} fill="currentColor" />
@@ -657,11 +709,20 @@ export const ChatInput = memo(function ChatInput({
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className={`flex items-center justify-center rounded-full p-2 transition-all duration-200 ${
-                    canSubmit
-                      ? "bg-stone-800 dark:bg-stone-500 text-white dark:text-stone-100 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
-                      : "bg-stone-100 text-stone-400 dark:bg-stone-700 dark:text-stone-500"
+                  className={`flex items-center justify-center rounded-full p-2 transition-all duration-300 ${
+                    canSubmit ? "hover:scale-105 active:scale-95" : ""
                   }`}
+                  style={{
+                    backgroundColor: canSubmit
+                      ? "color-mix(in srgb, var(--theme-primary) 10%, transparent)"
+                      : "var(--theme-primary-light)",
+                    border: canSubmit
+                      ? "1px solid color-mix(in srgb, var(--theme-primary) 40%, transparent)"
+                      : "1px solid var(--theme-border)",
+                    color: canSubmit
+                      ? "var(--theme-primary)"
+                      : "var(--theme-text-secondary)",
+                  }}
                   title={
                     hasUploadingAttachment
                       ? t("chat.waitingForUpload", "请等待文件上传完成")
@@ -675,6 +736,18 @@ export const ChatInput = memo(function ChatInput({
           </div>
         </div>
       </form>
+
+      {/* Keyboard shortcut hint — desktop only */}
+      <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-2 px-2 justify-center">
+        <span
+          className="text-xs"
+          style={{ color: "var(--theme-text-secondary)" }}
+        >
+          {localStorage.getItem("newlineModifier") === "ctrl"
+            ? t("chat.sendHintCtrl")
+            : t("chat.sendHintShift")}
+        </span>
+      </div>
 
       {/* 文件预览弹窗 */}
       {previewAttachment && (
@@ -712,7 +785,16 @@ export const ChatInput = memo(function ChatInput({
           setStopConfirmOpen(false);
           onStop();
           toast.custom(() => (
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 text-sm font-medium">
+            <div
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+              style={{
+                background:
+                  "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
+                border:
+                  "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
+                color: "var(--theme-primary)",
+              }}
+            >
               <Ban size={16} className="shrink-0" />
               <span>{t("chat.status.cancelled")}</span>
             </div>

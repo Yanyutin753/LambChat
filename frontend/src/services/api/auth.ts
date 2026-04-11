@@ -12,8 +12,8 @@ import type {
 } from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
-import { setTokens, clearTokens, getRefreshToken } from "./token";
-import i18n from "../../i18n";
+import { setTokens, clearTokens } from "./token";
+import { refreshTokens } from "./tokenManager";
 
 export const authApi = {
   /**
@@ -72,28 +72,12 @@ export const authApi = {
    * 刷新 token
    */
   async refreshToken(): Promise<TokenResponse> {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) {
-      throw new Error("No refresh token available");
-    }
-
-    const response = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept-Language": i18n.language || "en",
-      },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Token refresh failed");
-    }
-
-    const tokenResponse = (await response.json()) as TokenResponse;
-    setTokens(tokenResponse.access_token, tokenResponse.refresh_token);
-
-    return tokenResponse;
+    const { access_token, refresh_token } = await refreshTokens();
+    return {
+      access_token,
+      refresh_token,
+      token_type: "bearer",
+    };
   },
 
   /**
@@ -118,34 +102,6 @@ export const authApi = {
     return authFetch<PermissionsResponse>(`${API_BASE}/api/auth/permissions`, {
       skipAuth: true,
     });
-  },
-
-  /**
-   * 修改密码
-   */
-  async changePassword(
-    oldPassword: string,
-    newPassword: string,
-    turnstileToken?: string,
-  ): Promise<{ message: string }> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (turnstileToken) {
-      headers["X-Turnstile-Token"] = turnstileToken;
-    }
-
-    return authFetch<{ message: string }>(
-      `${API_BASE}/api/auth/change-password`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          old_password: oldPassword,
-          new_password: newPassword,
-        }),
-        headers,
-      },
-    );
   },
 
   /**
@@ -287,6 +243,25 @@ export const authApi = {
         method: "POST",
         skipAuth: true,
         body: JSON.stringify({ email }),
+      },
+    );
+  },
+
+  /**
+   * 修改密码
+   */
+  async changePassword(
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    return authFetch<{ message: string }>(
+      `${API_BASE}/api/auth/change-password`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          old_password: oldPassword,
+          new_password: newPassword,
+        }),
       },
     );
   },
