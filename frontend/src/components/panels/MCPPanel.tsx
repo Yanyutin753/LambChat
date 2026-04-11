@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, X, Download, Upload, FolderOpen, Check } from "lucide-react";
+import { Plus, X, Download, Upload, FolderOpen, Server, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -357,9 +357,10 @@ export function MCPPanel() {
       {/* Header */}
       <PanelHeader
         title={t("mcp.title")}
+        subtitle={t("mcp.subtitle")}
         icon={
-          <FolderOpen
-            size={18}
+          <Server
+            size={20}
             className="text-stone-600 dark:text-stone-400"
           />
         }

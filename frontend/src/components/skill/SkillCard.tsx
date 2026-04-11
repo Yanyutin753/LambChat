@@ -79,7 +79,7 @@ export function SkillCard({
             size="lg"
             checked={selected}
             onChange={() => onSelect(skill.name)}
-            className="shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100"
+            className="shadow-sm opacity-0 group-hover:opacity-100"
           />
         </div>
       )}

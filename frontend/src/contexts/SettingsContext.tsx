@@ -1,10 +1,21 @@
-import { createContext, useContext, ReactNode, useMemo } from "react";
+import {
+  createContext,
+  useContext,
+  ReactNode,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import { useSettings } from "../hooks/useSettings";
+import { useAuth } from "../hooks/useAuth";
+import { modelApi } from "../services/api";
 import type { SettingsResponse } from "../types";
 
 export interface AvailableModel {
   value: string;
   label: string;
+  description?: string;
 }
 
 interface SettingsContextValue {
@@ -39,7 +50,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     error,
     savingKeys,
     getBooleanSetting,
-    getSettingValue,
     updateSetting,
     resetSetting,
     resetAllSettings,
@@ -48,22 +58,46 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     importSettings,
   } = useSettings();
 
-  const availableModels = useMemo(() => {
-    const raw = getSettingValue("LLM_AVAILABLE_MODELS");
-    if (Array.isArray(raw) && raw.length > 0) {
-      return raw as AvailableModel[];
+  const { isAuthenticated } = useAuth();
+
+  // 从 DB 的 model_configs 读取可用模型
+  const [dbModels, setDbModels] = useState<AvailableModel[] | null>(null);
+
+  const fetchModels = useCallback(() => {
+    modelApi
+      .listAvailable()
+      .then((data) => {
+        if (data.models && data.models.length > 0) {
+          setDbModels(
+            data.models.map((m) => ({
+              value: m.value,
+              label: m.label,
+              description: m.description,
+            })),
+          );
+        } else {
+          setDbModels(null);
+        }
+      })
+      .catch(() => setDbModels(null));
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchModels();
     }
-    return null; // null = model selection disabled
-  }, [getSettingValue]);
+  }, [isAuthenticated, fetchModels]);
+
+  // 从 DB 读取模型
+  const availableModels = useMemo(() => {
+    return dbModels;
+  }, [dbModels]);
 
   const defaultModel = useMemo(() => {
-    return (
-      (getSettingValue("LLM_MODEL") as string) ||
-      (availableModels && availableModels.length > 0
-        ? availableModels[0].value
-        : "")
-    );
-  }, [getSettingValue, availableModels]);
+    return availableModels && availableModels.length > 0
+      ? availableModels[0].value
+      : "";
+  }, [availableModels]);
 
   const value: SettingsContextValue = {
     settings,

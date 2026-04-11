@@ -20,7 +20,7 @@ export function BatchActionBar({
   const { t } = useTranslation();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-stone-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm dark:border-stone-800 dark:bg-stone-900/95 sm:left-auto sm:right-auto sm:mx-auto sm:max-w-3xl sm:rounded-t-2xl">
+    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-stone-200 bg-white/95 px-4 py-3 shadow-lg dark:border-stone-800 dark:bg-stone-900/95 sm:left-auto sm:right-auto sm:mx-auto sm:max-w-3xl sm:rounded-t-2xl">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm text-[var(--theme-text)]">
           <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--theme-primary)] px-1.5 text-[11px] font-bold text-white">

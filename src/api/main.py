@@ -28,6 +28,7 @@ from src.api.routes import (
     human,
     mcp,
     project,
+    revealed_file,
     role,
     session,
     share,
@@ -39,6 +40,7 @@ from src.api.routes import (
 )
 from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
+from src.api.routes.agent import model as agent_model
 from src.frontend_resolution import resolve_frontend_target
 from src.infra.local_filesystem import ensure_local_filesystem_dirs
 from src.infra.logging import get_logger, setup_logging
@@ -102,10 +104,16 @@ async def lifespan(app: FastAPI):
 
     # 初始化 Agent 配置存储索引
     from src.infra.agent.config_storage import get_agent_config_storage
+    from src.infra.agent.model_storage import get_model_storage
 
     agent_config_storage = get_agent_config_storage()
     await agent_config_storage.ensure_indexes()
     logger.info("Agent config storage indexes initialized")
+
+    # 初始化 Model 配置存储索引（确保 value 唯一索引防止并发创建重复模型）
+    model_storage = get_model_storage()
+    await model_storage.ensure_indexes()
+    logger.info("Model storage indexes initialized")
 
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager
@@ -125,6 +133,22 @@ async def lifespan(app: FastAPI):
     await settings_pubsub.start_listener()
     logger.info("Settings pub/sub listener started")
 
+    # 启动 ModelConfig pub/sub 监听器（支持分布式模型配置同步）
+    from src.infra.llm.pubsub import get_model_config_pubsub
+
+    model_config_pubsub = get_model_config_pubsub()
+    await model_config_pubsub.start_listener()
+    logger.info("ModelConfig pub/sub listener started")
+
+    # 预加载模型列表到内存缓存（确保 async 上下文中也能拿到 API key）
+    try:
+        from src.infra.llm.models_service import refresh_models
+
+        await refresh_models()
+        logger.info("Models preloaded into memory cache")
+    except Exception as e:
+        logger.warning(f"Failed to preload models: {e}")
+
     # 启动 Memory pub/sub 监听器（支持分布式记忆缓存失效）
     from src.infra.memory.distributed import get_memory_pubsub
 
@@ -143,6 +167,13 @@ async def lifespan(app: FastAPI):
     trace_storage = get_trace_storage()
     await trace_storage.ensure_indexes_if_needed()
     logger.info("TraceStorage initialized")
+
+    # 初始化 RevealedFile 索引
+    from src.infra.revealed_file.storage import get_revealed_file_storage
+
+    revealed_storage = get_revealed_file_storage()
+    await revealed_storage.ensure_indexes_if_needed()
+    logger.info("RevealedFileStorage indexes initialized")
 
     # Start Feishu channels in background (don't block app startup)
     async def _start_feishu():
@@ -191,6 +222,13 @@ async def lifespan(app: FastAPI):
         settings_pubsub = get_settings_pubsub()
         await settings_pubsub.stop_listener()
         logger.info("Settings pub/sub listener stopped")
+
+        # 停止 ModelConfig pub/sub 监听器
+        from src.infra.llm.pubsub import get_model_config_pubsub
+
+        model_config_pubsub = get_model_config_pubsub()
+        await model_config_pubsub.stop_listener()
+        logger.info("ModelConfig pub/sub listener stopped")
 
         # 停止 Memory pub/sub 监听器 + 关闭 memory backend
         from src.infra.memory.distributed import get_memory_pubsub
@@ -293,6 +331,8 @@ def create_app() -> FastAPI:
     app.include_router(agent.router, prefix="/api", tags=["Agents"])
     # Agent 配置路由: /api/agent/config 全局配置和用户偏好
     app.include_router(agent_config.router, prefix="/api/agent/config", tags=["Agent Config"])
+    # Model 配置路由: /api/agent/models CRUD
+    app.include_router(agent_model.router, prefix="/api/agent/models", tags=["Models"])
     app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
     app.include_router(user.router, prefix="/api/users", tags=["Users"])
     app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
@@ -312,6 +352,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp.admin_router, prefix="/api/admin/mcp", tags=["MCP Admin"])
     app.include_router(envvar.router, prefix="/api/env-vars", tags=["Environment Variables"])
     app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
+    app.include_router(revealed_file.router, prefix="/api/files", tags=["Files"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
     # Generic channel configuration

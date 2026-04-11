@@ -42,9 +42,6 @@ services:
       - PORT=8000
       - REDIS_URL=redis://redis:6379/0
       - MONGODB_URL=mongodb://mongodb:27017
-      - LLM_API_KEY=${LLM_API_KEY:-}
-      - LLM_API_BASE=${LLM_API_BASE:-https://api.openai.com/v1}
-      - LLM_MODEL=${LLM_MODEL:-anthropic/claude-3-5-sonnet-20241022}
       - LLM_MODEL_CACHE_SIZE=${LLM_MODEL_CACHE_SIZE:-50}
       - SESSION_MAX_EVENTS_PER_TRACE=${SESSION_MAX_EVENTS_PER_TRACE:-10000}
       - LOG_LEVEL=INFO

@@ -237,9 +237,9 @@ export function SessionItem({
           }
         }}
         style={isDragging ? { touchAction: "none" } : undefined}
-        className={`group relative flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 transition-all duration-150 ${
+        className={`group relative flex cursor-pointer items-center gap-3 h-10 rounded-[10px] px-[9px] transition-colors ${
           isActive
-            ? "bg-stone-200/70 dark:bg-stone-700/40"
+            ? "bg-stone-100 dark:bg-stone-800/60"
             : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
         } ${isDragging || isDraggingTouch ? "opacity-50 scale-95" : ""}`}
       >

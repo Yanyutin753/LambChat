@@ -9,14 +9,13 @@ import {
   Zap,
   Settings,
   ChevronDown,
-  Check,
-  Bot,
   type LucideIcon,
 } from "lucide-react";
 import TurndownService from "turndown";
 import { useTranslation } from "react-i18next";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
+import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { FileUploadButton } from "./FileUploadButton";
 import { uploadApi, getFullUrl } from "../../services/api";
 import DocumentPreview from "../documents/DocumentPreview";
@@ -170,7 +169,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Settings,
 };
 
-interface ChatInputProps {
+export interface ChatInputProps {
   onSend: (
     message: string,
     options?: Record<string, boolean | string | number>,
@@ -270,9 +269,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
         type="button"
         onClick={() => onChange(!value)}
         className={`flex items-center justify-center rounded-full p-2 border transition-all duration-300 ${
-          isActive
-            ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-            : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+          isActive ? "chat-tool-btn-active" : "chat-tool-btn"
         }`}
         title={description}
       >
@@ -293,8 +290,8 @@ const AgentOptionButton = memo(function AgentOptionButton({
           onClick={() => setShowDropdown(!showDropdown)}
           className={`flex items-center gap-1 rounded-full px-2 py-1.5 border text-sm transition-all duration-300 ${
             showDropdown || value !== option.default
-              ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-              : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+              ? "chat-tool-btn-active"
+              : "chat-tool-btn"
           }`}
           title={description}
         >
@@ -304,7 +301,13 @@ const AgentOptionButton = memo(function AgentOptionButton({
         </button>
 
         {showDropdown && (
-          <div className="absolute bottom-full left-0 mb-1 z-50 min-w-[120px] rounded-lg bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden">
+          <div
+            className="absolute bottom-full left-0 mb-1 z-50 min-w-[120px] rounded-lg shadow-lg border overflow-hidden"
+            style={{
+              background: "var(--theme-bg-card)",
+              borderColor: "var(--theme-border)",
+            }}
+          >
             {option.options.map((opt) => (
               <button
                 key={String(opt.value)}
@@ -314,10 +317,13 @@ const AgentOptionButton = memo(function AgentOptionButton({
                   setShowDropdown(false);
                 }}
                 className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                  value === opt.value
-                    ? "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-                    : "hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300"
+                  value === opt.value ? "chat-tool-btn-active" : ""
                 }`}
+                style={
+                  value === opt.value
+                    ? undefined
+                    : { color: "var(--theme-text)" }
+                }
               >
                 {opt.label}
               </button>
@@ -336,9 +342,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
         onChange(value === option.default ? !option.default : option.default)
       }
       className={`flex items-center justify-center rounded-full p-2 border transition-all duration-300 ${
-        value !== option.default
-          ? "border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-          : "border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300"
+        value !== option.default ? "chat-tool-btn-active" : "chat-tool-btn"
       }`}
       title={description}
     >
@@ -348,144 +352,6 @@ const AgentOptionButton = memo(function AgentOptionButton({
 });
 
 // Agent mode modal selector
-interface AgentModeSelectorProps {
-  agents: { id: string; name: string; description: string }[];
-  currentAgent: string;
-  onSelectAgent?: (id: string) => void;
-}
-
-function AgentModeSelector({
-  agents,
-  currentAgent,
-  onSelectAgent,
-}: AgentModeSelectorProps) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-
-  const current = agents.find((a) => a.id === currentAgent);
-
-  // 锁定滚动
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
-
-  if (agents.length <= 1 || !onSelectAgent) return null;
-
-  return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          setOpen(true);
-        }}
-        className="flex items-center justify-center rounded-full p-2 border transition-all duration-300 border-stone-200 dark:border-stone-700 bg-transparent hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-amber-300"
-        title={current ? t(current.name) : ""}
-      >
-        <Bot size={18} />
-      </button>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 animate-fade-in flex items-end sm:items-center sm:justify-center sm:p-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="bg-white dark:bg-stone-800 sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-auto sm:min-w-[320px] max-h-[60vh] flex flex-col overflow-hidden animate-slide-up sm:animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-700">
-              <div className="absolute left-1/2 -translate-x-1/2 top-2 w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600 sm:hidden" />
-              <div className="flex items-center gap-3 mt-2 sm:mt-0">
-                <div className="size-9 sm:size-10 rounded-xl bg-gradient-to-br from-stone-100 to-stone-200 dark:from-stone-700/60 dark:to-stone-600/40 flex items-center justify-center">
-                  <Bot
-                    size={16}
-                    className="text-stone-500 dark:text-amber-400 sm:w-[18px] sm:h-[18px]"
-                  />
-                </div>
-                <div>
-                  <h2 className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100 font-serif font-serif">
-                    {t("agent.selectMode", "选择模式")}
-                  </h2>
-                  <p className="text-xs text-stone-500 dark:text-stone-400">
-                    {t("agent.selectModeDesc", "切换智能体模式")}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Agent list */}
-            <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-1 mb-2">
-              {agents.map((agent) => (
-                <button
-                  key={agent.id}
-                  type="button"
-                  onClick={() => {
-                    onSelectAgent(agent.id);
-                    setOpen(false);
-                  }}
-                  className={`w-full px-3 sm:px-4 py-3 sm:py-3.5 text-left rounded-xl transition-all duration-200 flex items-center gap-3 ${
-                    agent.id === currentAgent
-                      ? "bg-stone-100 dark:bg-stone-700/40 border border-stone-200 dark:border-stone-600/50"
-                      : "hover:bg-stone-50 dark:hover:bg-stone-700/30 border border-transparent"
-                  }`}
-                >
-                  <div
-                    className={`size-9 sm:size-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      agent.id === currentAgent
-                        ? "bg-stone-200 dark:bg-stone-600/60"
-                        : "bg-stone-100 dark:bg-stone-700/60"
-                    }`}
-                  >
-                    <Bot
-                      size={18}
-                      className={
-                        agent.id === currentAgent
-                          ? "text-stone-700 dark:text-amber-400"
-                          : "text-stone-500 dark:text-stone-400"
-                      }
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className={`text-sm font-medium truncate font-serif ${
-                        agent.id === currentAgent
-                          ? "text-stone-800 dark:text-amber-400"
-                          : "text-stone-700 dark:text-stone-200"
-                      }`}
-                    >
-                      {t(agent.name)}
-                    </div>
-                    {agent.description && (
-                      <div className="text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5">
-                        {t(agent.description)}
-                      </div>
-                    )}
-                  </div>
-                  {agent.id === currentAgent && (
-                    <Check
-                      size={18}
-                      className="flex-shrink-0 text-stone-500 dark:text-amber-400"
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export const ChatInput = memo(function ChatInput({
   onSend,
   onStop,
@@ -658,18 +524,28 @@ export const ChatInput = memo(function ChatInput({
   };
 
   return (
-    <div className="px-3 sm:px-4 pb-2 sm:pb-1 dark:bg-stone-900">
+    <div
+      className="px-3 sm:px-4 pb-3 sm:pb-4"
+      style={{ backgroundColor: "var(--theme-bg)" }}
+    >
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
         {/* ChatGPT-style container */}
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`chat-input-container flex flex-col relative w-full rounded-2xl px-1 bg-white dark:bg-stone-800 border transition-all duration-300 ${
-            isDraggingOver
-              ? "border-stone-400 dark:border-stone-500 border-2 border-dashed shadow-lg shadow-stone-200/50 dark:shadow-stone-900/50"
-              : "border-stone-200/70 dark:border-stone-700/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.2)]"
+          className={`chat-input-container flex flex-col relative w-full rounded-2xl sm:rounded-3xl px-1 border transition-all duration-300 ${
+            isDraggingOver ? "border-dashed shadow-lg border-2" : ""
           }`}
+          style={{
+            backgroundColor: "var(--theme-bg-card)",
+            borderColor: isDraggingOver
+              ? "var(--theme-primary)"
+              : "var(--theme-border)",
+            boxShadow: isDraggingOver
+              ? undefined
+              : "0 2px 12px rgba(0,0,0,0.06)",
+          }}
         >
           {/* Attachment preview - top area (ChatGPT style) */}
           {attachments.length > 0 && (
@@ -727,7 +603,8 @@ export const ChatInput = memo(function ChatInput({
                 canSend ? t("chat.placeholder") : t("chat.noPermission")
               }
               disabled={disabled || !canSend}
-              className="bg-transparent dark:text-stone-100 outline-none flex-1 pt-2 px-1 resize-none text-[15px] text-stone-900 placeholder-stone-400 dark:placeholder-stone-500 disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+              className="bg-transparent outline-none flex-1 pt-2.5 px-1 resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[52px]"
+              style={{ color: "var(--theme-text)" }}
               rows={1}
             />
           </div>
@@ -799,7 +676,11 @@ export const ChatInput = memo(function ChatInput({
             <div className="self-end flex space-x-1.5 flex-shrink-0">
               {!canSend ? (
                 <div
-                  className="flex items-center justify-center rounded-full p-2 bg-stone-100 text-stone-400 dark:bg-stone-700 dark:text-stone-500"
+                  className="flex items-center justify-center rounded-full p-2"
+                  style={{
+                    backgroundColor: "var(--theme-primary-light)",
+                    color: "var(--theme-text-secondary)",
+                  }}
                   title={t("chat.noPermission")}
                 >
                   <Lock size={18} />
@@ -812,7 +693,14 @@ export const ChatInput = memo(function ChatInput({
                     e.stopPropagation();
                     setStopConfirmOpen(true);
                   }}
-                  className="flex items-center justify-center rounded-full p-2 bg-stone-800 dark:bg-stone-500 text-white dark:text-stone-100 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
+                  className="flex items-center justify-center rounded-full p-2 transition-all duration-300 hover:scale-105 active:scale-95"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
+                    border:
+                      "1px solid color-mix(in srgb, var(--theme-primary) 40%, transparent)",
+                    color: "var(--theme-primary)",
+                  }}
                   title={t("chat.stop")}
                 >
                   <Square size={16} fill="currentColor" />
@@ -821,11 +709,20 @@ export const ChatInput = memo(function ChatInput({
                 <button
                   type="submit"
                   disabled={!canSubmit}
-                  className={`flex items-center justify-center rounded-full p-2 transition-all duration-200 ${
-                    canSubmit
-                      ? "bg-stone-800 dark:bg-stone-500 text-white dark:text-stone-100 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
-                      : "bg-stone-100 text-stone-400 dark:bg-stone-700 dark:text-stone-500"
+                  className={`flex items-center justify-center rounded-full p-2 transition-all duration-300 ${
+                    canSubmit ? "hover:scale-105 active:scale-95" : ""
                   }`}
+                  style={{
+                    backgroundColor: canSubmit
+                      ? "color-mix(in srgb, var(--theme-primary) 10%, transparent)"
+                      : "var(--theme-primary-light)",
+                    border: canSubmit
+                      ? "1px solid color-mix(in srgb, var(--theme-primary) 40%, transparent)"
+                      : "1px solid var(--theme-border)",
+                    color: canSubmit
+                      ? "var(--theme-primary)"
+                      : "var(--theme-text-secondary)",
+                  }}
                   title={
                     hasUploadingAttachment
                       ? t("chat.waitingForUpload", "请等待文件上传完成")
@@ -841,8 +738,11 @@ export const ChatInput = memo(function ChatInput({
       </form>
 
       {/* Keyboard shortcut hint — desktop only */}
-      <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-1 px-2 justify-center">
-        <span className="text-xs text-stone-400 dark:text-stone-500">
+      <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-2 px-2 justify-center">
+        <span
+          className="text-xs"
+          style={{ color: "var(--theme-text-secondary)" }}
+        >
           {localStorage.getItem("newlineModifier") === "ctrl"
             ? t("chat.sendHintCtrl")
             : t("chat.sendHintShift")}
@@ -885,7 +785,16 @@ export const ChatInput = memo(function ChatInput({
           setStopConfirmOpen(false);
           onStop();
           toast.custom(() => (
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/60 text-amber-700 dark:text-amber-400 text-sm font-medium">
+            <div
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+              style={{
+                background:
+                  "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
+                border:
+                  "1px solid color-mix(in srgb, var(--theme-primary) 20%, transparent)",
+                color: "var(--theme-primary)",
+              }}
+            >
               <Ban size={16} className="shrink-0" />
               <span>{t("chat.status.cancelled")}</span>
             </div>

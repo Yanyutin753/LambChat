@@ -127,6 +127,16 @@ class SessionManager:
     async def delete_session(self, session_id: str) -> bool:
         """删除会话（同时删除关联的 traces）"""
         await self.clear_session_messages(session_id)
+        # Clean up revealed file index
+        try:
+            from src.infra.revealed_file.storage import get_revealed_file_storage
+
+            revealed_storage = get_revealed_file_storage()
+            deleted = await revealed_storage.delete_by_session(session_id)
+            if deleted:
+                logger.info(f"Deleted {deleted} revealed file records for session {session_id}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup revealed files for session {session_id}: {e}")
         # 再删除 session
         return await self.storage.delete(session_id)
 

@@ -146,7 +146,7 @@ async def llm_batch_consolidate(backend, memories: list[dict], expected_type: st
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        model = backend._get_memory_model()
+        model = await backend._get_memory_model()
         items_text = "\n".join(
             f"[{i + 1}] ({m.get('created_at', '').strftime('%Y-%m-%d') if isinstance(m.get('created_at'), datetime) else 'unknown'}) {m['content']}"
             for i, m in enumerate(memories)

@@ -492,14 +492,14 @@ async def generate_session_title(
     if not message or not message.strip():
         return {"title": "新对话", "session_id": session_id}
 
-    title_model = settings.SESSION_TITLE_MODEL or settings.LLM_MODEL
-    title_api_base = settings.SESSION_TITLE_API_BASE or settings.LLM_API_BASE
-    title_api_key = settings.SESSION_TITLE_API_KEY or settings.LLM_API_KEY
+    title_model = settings.SESSION_TITLE_MODEL
+    title_api_base = settings.SESSION_TITLE_API_BASE or None
+    title_api_key = settings.SESSION_TITLE_API_KEY or None
     prompt_template = settings.SESSION_TITLE_PROMPT
 
     # 使用 LLM 生成标题
     try:
-        model = LLMClient.get_model(
+        model = await LLMClient.get_model(
             model=title_model,
             api_base=title_api_base,
             api_key=title_api_key,
@@ -588,5 +588,14 @@ async def move_session(
     updated_session = await storage.move_to_project(session_id, user.sub, project_id)
     if not updated_session:
         raise HTTPException(status_code=500, detail="移动失败")
+
+    # Sync revealed files' project_id
+    try:
+        from src.infra.revealed_file.storage import get_revealed_file_storage
+
+        revealed_storage = get_revealed_file_storage()
+        await revealed_storage.update_project_id_by_session(session_id, project_id)
+    except Exception as e:
+        logger.warning(f"Failed to sync revealed files project_id: {e}")
 
     return {"status": "moved", "session": updated_session}

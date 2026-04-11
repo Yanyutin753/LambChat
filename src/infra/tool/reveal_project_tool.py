@@ -35,7 +35,13 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
-from src.infra.tool.backend_utils import get_backend_from_runtime, get_base_url_from_runtime
+from src.infra.logging.context import TraceContext
+from src.infra.revealed_file.storage import get_revealed_file_storage
+from src.infra.tool.backend_utils import (
+    get_backend_from_runtime,
+    get_base_url_from_runtime,
+    get_user_id_from_runtime,
+)
 
 logger = get_logger(__name__)
 
@@ -844,6 +850,62 @@ async def reveal_project(
             result["read_failed_files"] = failed_reads[:20]
 
         logger.info(f"Revealed project {project_name} with {len(files_manifest)} files (v2)")
+
+        # --- Fire-and-forget index write to revealed_files collection ---
+        try:
+            ctx = TraceContext.get_request_context()
+            user_id = ctx.user_id or get_user_id_from_runtime(runtime) or ""
+            session_id = ctx.session_id or ""
+            trace_id = TraceContext.get().trace_id or ""
+
+            # Look up session's project_id
+            session_project_id = None
+            if session_id:
+                try:
+                    from src.infra.storage.mongodb import get_mongo_client
+                    from src.kernel.config import settings
+
+                    mongo_client = get_mongo_client()
+                    db = mongo_client[settings.MONGODB_DB]
+                    session_doc = await db[settings.MONGODB_SESSIONS_COLLECTION].find_one(
+                        {"session_id": session_id}, {"metadata.project_id": 1}
+                    )
+                    if session_doc:
+                        session_project_id = (session_doc.get("metadata") or {}).get("project_id")
+                except Exception:
+                    pass
+
+            project_meta = {
+                "template": detected_template,
+                "entry": result.get("entry"),
+                "file_count": len(files_manifest),
+                "files": {
+                    k: {"url": v.get("url"), "size": v.get("size")}
+                    for k, v in files_manifest.items()
+                },
+            }
+
+            await get_revealed_file_storage().upsert_record(
+                user_id=user_id,
+                file_key=folder_name,
+                trace_id=trace_id,
+                data={
+                    "file_name": project_name,
+                    "file_type": "project",
+                    "mime_type": None,
+                    "file_size": 0,
+                    "url": None,
+                    "session_id": session_id,
+                    "project_id": session_project_id,
+                    "source": "reveal_project",
+                    "description": description or "",
+                    "original_path": project_path,
+                    "project_meta": project_meta,
+                },
+            )
+        except Exception as e:
+            logger.warning(f"Failed to index revealed project {project_name}: {e}")
+
         return json.dumps(result, ensure_ascii=False)
 
     except Exception as e:

@@ -149,6 +149,18 @@ function AgentsPage() {
   return <AppContent key="agents" activeTab="agents" />;
 }
 
+function ModelsPage() {
+  usePageTitle("nav.models", undefined, { description: "navDesc.models" });
+  return <AppContent key="models" activeTab="models" />;
+}
+
+function FilesPage() {
+  usePageTitle("fileLibrary.title", undefined, {
+    description: "fileLibrary.title",
+  });
+  return <AppContent key="files" activeTab="files" />;
+}
+
 // Auth page wrapper - redirects to /chat after successful login/register
 function AuthPageWrapper({
   initialMode,
@@ -323,6 +335,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <AgentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/models"
+            element={
+              <ProtectedRoute>
+                <ModelsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/files"
+            element={
+              <ProtectedRoute>
+                <FilesPage />
               </ProtectedRoute>
             }
           />

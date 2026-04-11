@@ -977,10 +977,7 @@ class SubagentActivityMiddleware(AgentMiddleware):
         from src.infra.llm.client import LLMClient
 
         # Use the same API config but could use a cheaper model
-        llm = LLMClient.get_model(
-            api_base=settings.LLM_API_BASE,
-            api_key=settings.LLM_API_KEY,
-            model=settings.LLM_MODEL,
+        llm = await LLMClient.get_model(
             temperature=0.3,
             max_tokens=1500,
         )

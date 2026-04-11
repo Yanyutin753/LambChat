@@ -68,6 +68,22 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
+  // Listen for external theme changes (e.g. from auth login restoring backend preferences)
+  useEffect(() => {
+    const handleExternalThemeChange = (e: Event) => {
+      const newTheme = (e as CustomEvent<string>).detail;
+      if (newTheme === "light" || newTheme === "dark") {
+        setThemeState(newTheme);
+      }
+    };
+    window.addEventListener("theme:external-change", handleExternalThemeChange);
+    return () =>
+      window.removeEventListener(
+        "theme:external-change",
+        handleExternalThemeChange,
+      );
+  }, []);
+
   const toggleTheme = () => {
     setThemeState((prev) => (prev === "light" ? "dark" : "light"));
   };

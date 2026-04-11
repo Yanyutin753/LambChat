@@ -265,6 +265,7 @@ export function MarketplacePanel() {
       <PanelHeader
         className="skill-panel-header"
         title={t("marketplace.title")}
+        subtitle={t("marketplace.subtitle")}
         icon={
           <ShoppingBag
             size={18}
@@ -374,7 +375,7 @@ export function MarketplacePanel() {
       )}
 
       {/* Skills List */}
-      <div className="skill-content-area flex-1 overflow-y-auto bg-[var(--theme-bg)] p-4 sm:p-6">
+      <div className="skill-content-area flex-1 overflow-y-auto p-4 sm:p-6">
         {isLoading && skills.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[var(--theme-text-secondary)]">
             <LoadingSpinner size="sm" />
@@ -402,7 +403,7 @@ export function MarketplacePanel() {
             )}
           </div>
         ) : (
-          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
             {skills.map((skill) => {
               const isInstalled = installedMarketplaceNames.has(
                 skill.skill_name,
@@ -658,10 +659,10 @@ export function MarketplacePanel() {
 
       {/* Skill Preview Modal */}
       {previewSkill && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4">
           <div className="skill-preview-shell flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[1.5rem] border sm:max-h-[88vh] sm:max-w-4xl sm:rounded-[1.75rem] shadow-[0_-16px_48px_-16px_rgba(15,23,42,0.3)] sm:shadow-[0_32px_80px_-32px_rgba(15,23,42,0.55)]">
             {/* Modal Header */}
-            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/88 px-4 py-4 backdrop-blur sm:px-6 sm:py-5">
+            <div className="border-b border-[var(--theme-border)] bg-[var(--theme-bg)]/88 px-4 py-4 sm:px-6 sm:py-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">

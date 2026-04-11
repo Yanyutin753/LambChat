@@ -59,3 +59,25 @@ export interface SettingResetResponse {
   message: string;
   reset_count: number;
 }
+
+// ============================================
+// Model Types
+// ============================================
+
+export interface ModelProfile {
+  max_input_tokens?: number;
+}
+
+export interface AvailableModelConfig {
+  value: string;
+  label: string;
+  description?: string;
+  api_key?: string;
+  api_base?: string;
+  temperature?: number;
+  max_tokens?: number;
+  profile?: ModelProfile;
+}
+
+// Backward compatibility alias
+export type AvailableModel = AvailableModelConfig;

@@ -161,12 +161,12 @@ export function ChannelsPage() {
     const channelInstances = instances[selectedChannel] || [];
 
     return (
-      <div className="flex h-full flex-col bg-stone-50 dark:bg-stone-950">
+      <div className="flex h-full flex-col">
         <PanelHeader
           title={metadata?.display_name || selectedChannel}
           subtitle={metadata?.description || ""}
           icon={
-            <Radio size={18} className="text-stone-600 dark:text-stone-400" />
+            <Radio size={24} className="text-[var(--theme-text-secondary)]" />
           }
           actions={
             canWrite && (
@@ -181,10 +181,10 @@ export function ChannelsPage() {
           }
         />
 
-        <div className="flex-1 overflow-y-auto px-2 py-4 sm:px-4 lg:px-6">
+        <div className="flex-1 overflow-y-auto py-4">
           {channelInstances.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <p className="text-sm text-stone-500 dark:text-stone-400">
+              <p className="text-sm text-[var(--theme-text-secondary)]">
                 {t("channel.noInstances", "No instances configured")}
               </p>
               {canWrite && (
@@ -218,7 +218,7 @@ export function ChannelsPage() {
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-stone-900 dark:text-stone-100">
+                          <h4 className="font-medium text-[var(--theme-text)]">
                             {instance.name}
                           </h4>
                           {status?.enabled &&
@@ -232,12 +232,12 @@ export function ChannelsPage() {
                               </span>
                             ))}
                           {!status?.enabled && (
-                            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500 dark:bg-stone-800 dark:text-stone-500">
+                            <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs text-[var(--theme-text-secondary)]">
                               Disabled
                             </span>
                           )}
                         </div>
-                        <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+                        <p className="mt-1 text-sm text-[var(--theme-text-secondary)]">
                           {t("channel.createdAt", "Created")}:{" "}
                           {instance.created_at
                             ? new Date(instance.created_at).toLocaleDateString()
@@ -246,7 +246,7 @@ export function ChannelsPage() {
                       </div>
                       <MoreVertical
                         size={18}
-                        className="text-stone-400 dark:text-stone-500"
+                        className="text-[var(--theme-text-secondary)]"
                       />
                     </div>
                   </div>
@@ -261,7 +261,7 @@ export function ChannelsPage() {
 
   // Show channel type list
   return (
-    <div className="flex h-full flex-col bg-stone-50 dark:bg-stone-950">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <PanelHeader
         title={t("channel.title", "Channels")}
@@ -270,20 +270,20 @@ export function ChannelsPage() {
           `Connect your favorite chat platforms to ${APP_NAME}`,
         )}
         icon={
-          <Radio size={18} className="text-stone-600 dark:text-stone-400" />
+          <Radio size={24} className="text-[var(--theme-text-secondary)]" />
         }
       />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-2 py-4 sm:px-4 lg:px-6">
+      <div className="flex-1 overflow-y-auto py-4">
         {isLoading ? (
           <div className="flex h-64 items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <div className="relative">
-                <div className="absolute inset-0 animate-ping rounded-full bg-stone-400/20" />
-                <Loader2 className="relative h-10 w-10 animate-spin text-stone-600 dark:text-stone-400" />
+                <div className="absolute inset-0 animate-ping rounded-full bg-[var(--theme-primary)]/20" />
+                <Loader2 className="relative h-10 w-10 animate-spin text-[var(--theme-text-secondary)]" />
               </div>
-              <p className="text-sm text-stone-500 dark:text-stone-400">
+              <p className="text-sm text-[var(--theme-text-secondary)]">
                 {t("common.loading", "Loading...")}
               </p>
             </div>
@@ -293,15 +293,15 @@ export function ChannelsPage() {
             {channelTypes.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center xl:py-20 2xl:py-24">
                 <div className="relative">
-                  <div className="absolute inset-0 rounded-full bg-stone-300/20 blur-xl dark:bg-stone-600/20" />
-                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-stone-100 to-stone-200 dark:from-stone-800 dark:to-stone-700">
-                    <Radio className="h-10 w-10 text-stone-400 dark:text-stone-500" />
+                  <div className="absolute inset-0 rounded-full bg-[var(--theme-primary)]/20" />
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[var(--theme-primary-light)]">
+                    <Radio className="h-10 w-10 text-[var(--theme-text-secondary)]" />
                   </div>
                 </div>
-                <h3 className="mt-6 text-xl font-semibold text-stone-900 dark:text-stone-100">
+                <h3 className="mt-6 text-xl font-semibold text-[var(--theme-text)]">
                   {t("channel.noChannels", "No channels available")}
                 </h3>
-                <p className="mt-2 max-w-md text-sm text-stone-500 dark:text-stone-400">
+                <p className="mt-2 max-w-md text-sm text-[var(--theme-text-secondary)]">
                   {t(
                     "channel.noChannelsDesc",
                     "Check back later for available integrations",
@@ -330,14 +330,14 @@ export function ChannelsPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             {getChannelIcon(
                               ct.icon,
-                              "text-stone-400 dark:text-stone-500 flex-shrink-0",
+                              "text-[var(--theme-text-secondary)] flex-shrink-0",
                             )}
-                            <h4 className="font-medium text-stone-900 dark:text-stone-100 truncate">
+                            <h4 className="font-medium text-[var(--theme-text)] truncate">
                               {ct.display_name}
                             </h4>
                             {/* Capabilities badges */}
                             {ct.capabilities.includes("websocket") && (
-                              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-300">
+                              <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs font-medium text-[var(--theme-text-secondary)]">
                                 WS
                               </span>
                             )}
@@ -364,7 +364,7 @@ export function ChannelsPage() {
                                 </span>
                               ))}
                           </div>
-                          <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
+                          <p className="mt-2 text-sm text-[var(--theme-text-secondary)]">
                             {ct.description}
                           </p>
                         </div>

@@ -74,8 +74,6 @@ async def refresh_settings(key: Optional[str] = None) -> None:
         "SESSION_TITLE_MODEL",
         "SESSION_TITLE_API_BASE",
         "SESSION_TITLE_API_KEY",
-        "LLM_API_BASE",
-        "LLM_API_KEY",
         "LLM_MAX_RETRIES",
     }
 

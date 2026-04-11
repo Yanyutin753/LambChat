@@ -146,7 +146,10 @@ class AgentConfigStorage:
         doc = await self._get_collection(_COLL_ROLE_MODELS).find_one({"role_id": role_id})
         if not doc:
             return None
-        return doc.get("allowed_models") or None
+        allowed_models = doc.get("allowed_models")
+        if allowed_models is None:
+            return None
+        return allowed_models
 
     async def set_role_models(
         self, role_id: str, role_name: str, model_values: list[str]
@@ -182,6 +185,35 @@ class AgentConfigStorage:
             }
             async for doc in cursor
         ]
+
+    async def remove_model_from_all_roles(self, model_value: str) -> int:
+        """从所有角色的 allowed_models 中移除指定模型（单次批量操作）。
+
+        Returns:
+            受影响的文档数量
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        result = await self._get_collection(_COLL_ROLE_MODELS).update_many(
+            {"allowed_models": model_value},
+            {
+                "$pull": {"allowed_models": model_value},
+                "$set": {"updated_at": now},
+            },
+        )
+        return result.modified_count
+
+    async def clear_all_role_models(self) -> int:
+        """清空所有角色的 allowed_models（单次批量操作）。
+
+        Returns:
+            受影响的文档数量
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        result = await self._get_collection(_COLL_ROLE_MODELS).update_many(
+            {"allowed_models.0": {"$exists": True}},
+            {"$set": {"allowed_models": [], "updated_at": now}},
+        )
+        return result.modified_count
 
     # ============================================
     # 用户默认 Agent

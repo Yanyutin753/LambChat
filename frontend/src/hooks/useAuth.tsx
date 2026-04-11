@@ -35,11 +35,10 @@ function applyUserMetadata(metadata?: { language?: string; theme?: string }) {
 
   if (metadata.theme) {
     localStorage.setItem("lamb-agent-theme", metadata.theme);
-    if (metadata.theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    // Notify ThemeContext to update React state + DOM in sync
+    window.dispatchEvent(
+      new CustomEvent("theme:external-change", { detail: metadata.theme }),
+    );
   }
 }
 

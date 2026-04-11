@@ -415,6 +415,7 @@ export function ChannelPanel({
         {/* Header */}
         <PanelHeader
           title={metadata.display_name}
+          subtitle={t("channel.description")}
           icon={getChannelIcon()}
           actions={
             <button
@@ -429,7 +430,7 @@ export function ChannelPanel({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-          <div className="mx-auto max-w-2xl sm:max-w-5xl space-y-4">
+          <div className="space-y-4">
             {/* Status Card */}
             {hasExistingConfig && status && (
               <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
@@ -593,7 +594,7 @@ export function ChannelPanel({
                 <button
                   onClick={handleDeleteClick}
                   disabled={!hasExistingConfig}
-                  className="btn-secondary !text-red-600 hover:!bg-red-50 disabled:opacity-50 dark:hover:!bg-red-900/20"
+                  className="btn-danger"
                 >
                   <Trash2 size={16} />
                   {t("common.delete")}

@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { Bot, Copy, Info, Sparkles } from "lucide-react";
+import { Copy, Info, Sparkles } from "lucide-react";
 import type {
   Message,
   MessagePart,
@@ -241,14 +241,22 @@ export function ChatMessage({
         <div className="min-w-0 min-h-0">
           {/* Header: Avatar + Role label + Stop button */}
           <div className="mb-3 flex items-center gap-2">
-            <div className="flex size-6 sm:size-7 shrink-0 items-center justify-center rounded-full bg-stone-100 text-amber-400 dark:bg-stone-800 dark:text-amber-400">
-              <Bot size={15} />
-            </div>
-            <span className="text-base sm:text-lg font-semibold text-stone-800 dark:text-stone-100 tracking-tight font-serif">
+            <img
+              src="/icons/icon.svg"
+              alt="Assistant"
+              className="size-6 sm:size-7 shrink-0 rounded-full"
+            />
+            <span
+              className="text-base sm:text-lg font-semibold tracking-tight font-serif"
+              style={{ color: "var(--theme-text)" }}
+            >
               {t("chat.message.assistant")}
             </span>
             {message.timestamp && (
-              <span className="text-xs text-stone-400 dark:text-stone-500 ml-2 mt-0.5 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <span
+                className="text-xs ml-2 mt-0.5 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                style={{ color: "var(--theme-text-secondary)" }}
+              >
                 {new Date(message.timestamp).toLocaleString([], {
                   year: "numeric",
                   month: "2-digit",
@@ -284,7 +292,10 @@ export function ChatMessage({
               )}
               {message.toolCalls && message.toolCalls.length > 0 && (
                 <div className="mt-4 space-y-2">
-                  <div className="text-xs font-medium text-stone-400 uppercase tracking-wide mb-2 dark:text-stone-500">
+                  <div
+                    className="text-xs font-medium uppercase tracking-wide mb-2"
+                    style={{ color: "var(--theme-text-secondary)" }}
+                  >
                     {t("chat.message.toolCalls")} ({message.toolCalls.length})
                   </div>
                   {message.toolCalls.map((call: ToolCall, index: number) => {

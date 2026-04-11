@@ -15,6 +15,7 @@ import {
   X,
   AlertCircle,
   Download,
+  PanelRight,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
@@ -31,6 +32,7 @@ interface ProjectPreviewProps {
   showTabs?: boolean;
   showFileExplorer?: boolean;
   isFullscreen?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 // 自定义布局组件
@@ -47,10 +49,7 @@ function CustomLayout({
 }) {
   return (
     <SandpackLayout
-      className={clsx(
-        "!h-full",
-        isFullscreen ? "!min-h-[calc(100vh-120px)]" : "!min-h-[400px]",
-      )}
+      className={clsx("!h-full", isFullscreen ? "!min-h-0" : "!min-h-[400px]")}
     >
       {showExplorer && (
         <SandpackFileExplorer
@@ -101,6 +100,7 @@ export default function ProjectPreview({
   showTabs = true,
   showFileExplorer = false,
   isFullscreen: externalFullscreen,
+  onToggleSidebar,
 }: ProjectPreviewProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
@@ -144,7 +144,7 @@ export default function ProjectPreview({
       className={clsx(
         "flex flex-col bg-white dark:bg-stone-900 overflow-hidden",
         isFullscreen
-          ? "fixed inset-0 z-[300]"
+          ? "h-full w-full"
           : "h-full min-h-[300px] sm:min-h-[500px] rounded-xl border border-stone-200 dark:border-stone-700",
       )}
     >
@@ -256,6 +256,16 @@ export default function ProjectPreview({
                 title={t("common.close")}
               >
                 <X size={14} className="sm:w-4 sm:h-4" />
+              </button>
+            )}
+
+            {onToggleSidebar && (
+              <button
+                onClick={onToggleSidebar}
+                className="hidden sm:flex items-center justify-center w-7 h-7 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                title={t("documents.sidebarView", "侧边栏")}
+              >
+                <PanelRight size={14} />
               </button>
             )}
           </div>
