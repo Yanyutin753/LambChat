@@ -232,6 +232,7 @@ function RoleFormModal({
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
@@ -548,6 +549,7 @@ function DeleteConfirmModal({
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}

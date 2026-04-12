@@ -53,6 +53,22 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/static/",
     )
 
+    @staticmethod
+    def _is_browser_page_request(request: Request) -> bool:
+        """
+        Allow unauthenticated browser navigations for SPA routes.
+
+        API/XHR requests usually send ``Accept: application/json`` or ``*/*``,
+        while full page navigations include ``text/html``. This keeps backend
+        APIs protected and lets the frontend router handle routes like
+        ``/models`` after the request reaches the SPA fallback.
+        """
+        if request.method not in {"GET", "HEAD"}:
+            return False
+
+        accept = request.headers.get("accept", "")
+        return "text/html" in accept.lower()
+
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
@@ -68,6 +84,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         for prefix in self.PUBLIC_PREFIXES:
             if path.startswith(prefix):
                 return await call_next(request)
+
+        # Let browser page navigations reach the SPA fallback / redirect route.
+        if self._is_browser_page_request(request):
+            return await call_next(request)
 
         # All other paths require an Authorization header
         auth_header = request.headers.get("Authorization")
