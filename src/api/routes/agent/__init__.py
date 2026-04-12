@@ -320,7 +320,7 @@ async def list_agents(
         "agents": agents,
         "count": len(agents),
         "default_agent": default_agent,
-        "allowed_models": all_allowed_models if all_allowed_models else None,
+        "allowed_model_ids": all_allowed_models if all_allowed_models else None,
     }
 
 

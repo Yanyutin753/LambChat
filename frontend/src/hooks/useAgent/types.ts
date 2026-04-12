@@ -175,7 +175,7 @@ export interface UseAgentReturn {
   agents: AgentInfo[];
   currentAgent: string;
   agentsLoading: boolean;
-  allowedModels: string[] | null;
+  allowedModelIds: string[] | null;
   isReconnecting: boolean;
   connectionStatus: ConnectionStatus;
   newlyCreatedSession: BackendSession | null;

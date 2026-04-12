@@ -237,7 +237,7 @@ function RoleFormModal({
         >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+          <div className="flex items-center justify-between glass-divider px-6 py-4">
             <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {isEditing ? t("roles.editRole") : t("roles.createRole")}
             </h2>
@@ -274,7 +274,7 @@ function RoleFormModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isSystem}
-                className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 disabled:bg-stone-100 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20 dark:disabled:bg-stone-700"
+                className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none disabled:bg-stone-100 dark:text-stone-100 dark:placeholder:text-stone-500 dark:disabled:bg-stone-700"
                 placeholder={t("roles.roleNamePlaceholder")}
               />
             </div>
@@ -288,7 +288,7 @@ function RoleFormModal({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={2}
-                className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20"
+                className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none dark:text-stone-100 dark:placeholder:text-stone-500"
                 placeholder={t("roles.descriptionPlaceholder")}
               />
             </div>
@@ -307,7 +307,7 @@ function RoleFormModal({
                     e.target.value === "" ? "" : Number(e.target.value),
                   )
                 }
-                className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20"
+                className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
                 placeholder={t("roles.maxChannelsPlaceholder")}
               />
               <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
@@ -334,7 +334,7 @@ function RoleFormModal({
                         e.target.value === "" ? "" : Number(e.target.value),
                       )
                     }
-                    className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20"
+                    className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
                     placeholder="5"
                   />
                 </div>
@@ -351,7 +351,7 @@ function RoleFormModal({
                         e.target.value === "" ? "" : Number(e.target.value),
                       )
                     }
-                    className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20"
+                    className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
                     placeholder="10"
                   />
                 </div>
@@ -430,7 +430,7 @@ function RoleFormModal({
                             e.target.value === "" ? "" : Number(e.target.value),
                           )
                         }
-                        className="w-full rounded-lg border border-stone-200 bg-white px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder:text-stone-500 dark:focus:border-stone-500 dark:focus:ring-stone-500/20"
+                        className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
                         placeholder={t("roles.maxChannelsPlaceholder")}
                       />
                     </div>
@@ -444,7 +444,7 @@ function RoleFormModal({
               <label className="mb-2 block text-sm font-medium text-stone-700 dark:text-stone-300">
                 {t("roles.permissions")}
               </label>
-              <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4 mb-2 dark:border-stone-700 dark:bg-stone-800/50">
+              <div className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-4 mb-2">
                 {permissionGroups.map((group) => (
                   <div key={group.name} className="space-y-2">
                     {/* 组标题 */}
@@ -486,7 +486,7 @@ function RoleFormModal({
                             {permissionLabels[permission.value] ||
                               permission.label}
                           </span>
-                          <code className="rounded bg-stone-200 px-1 text-xs text-stone-500 dark:bg-stone-700 dark:text-stone-400">
+                          <code className="rounded bg-[var(--glass-bg-subtle)] px-1 text-xs text-stone-500 dark:text-stone-400">
                             {permission.value}
                           </code>
                         </label>
@@ -555,7 +555,7 @@ function DeleteConfirmModal({
         >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+          <div className="flex items-center justify-between glass-divider px-6 py-4">
             <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("roles.confirmDelete")}
             </h2>
@@ -758,7 +758,7 @@ export function RolesPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col min-h-0">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       {/* 头部 */}
       <PanelHeader
         title={t("roles.title")}
@@ -806,7 +806,7 @@ export function RolesPanel() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-stone-100 dark:bg-stone-800">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--glass-bg-subtle)]">
                         <Lock
                           size={14}
                           className="text-stone-600 dark:text-stone-300"
@@ -818,7 +818,7 @@ export function RolesPanel() {
                             {role.name}
                           </h3>
                           {role.is_system && (
-                            <span className="rounded bg-stone-100 px-1.5 py-0.5 text-xs text-stone-500 dark:bg-stone-700 dark:text-stone-400">
+                            <span className="rounded bg-[var(--glass-bg-subtle)] px-1.5 py-0.5 text-xs text-stone-500 dark:text-stone-400">
                               {t("roles.systemRole")}
                             </span>
                           )}
@@ -836,7 +836,7 @@ export function RolesPanel() {
                       {role.permissions.map((permission) => (
                         <span
                           key={permission}
-                          className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600 dark:bg-stone-700 dark:text-stone-300"
+                          className="rounded-full bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-xs text-stone-600 dark:text-stone-300"
                         >
                           {permissionLabels[permission] || permission}
                         </span>
@@ -886,7 +886,7 @@ export function RolesPanel() {
 
       {/* Pagination */}
       {total > pageSize && (
-        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-4">
+        <div className="glass-divider px-3 py-3 sm:px-4">
           <Pagination
             page={page}
             pageSize={pageSize}

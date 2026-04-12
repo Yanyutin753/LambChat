@@ -269,7 +269,10 @@ select:-webkit-autofill:active {
   border: 1px solid var(--theme-border);
   background: transparent;
   color: var(--theme-text-secondary);
-  transition: all 0.3s;
+  transition:
+    border-color 0.3s,
+    background-color 0.3s,
+    color 0.3s;
 }
 .chat-tool-btn:hover {
   border-color: color-mix(in srgb, #fbbf24 40%, transparent);
@@ -301,7 +304,9 @@ select:-webkit-autofill:active {
 }
 .agent-modal-item {
   border: 1px solid transparent;
-  transition: all 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
 }
 .agent-modal-item:hover {
   background: color-mix(in srgb, var(--theme-bg) 50%, var(--theme-bg-card));
@@ -391,12 +396,12 @@ select:-webkit-autofill:active {
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
-/* Panel header - sticky with subtle background */
+/* Panel header - sticky, blends with background */
 .panel-header {
   position: sticky;
   top: 0;
   z-index: 10;
-  background-color: color-mix(in srgb, var(--theme-bg) 95%, transparent);
+  background-color: transparent;
   border-bottom: 1px solid var(--theme-border);
   padding: 0.75rem 1rem;
 }
@@ -590,7 +595,9 @@ select:-webkit-autofill:active {
   font-size: 0.875rem;
   font-weight: 500;
   color: #dc2626;
-  transition: all 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .btn-danger:hover {
@@ -668,7 +675,9 @@ select:-webkit-autofill:active {
   height: 2rem;
   border-radius: 0.375rem;
   color: #78716c;
-  transition: all 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
   flex-shrink: 0;
 }
 
@@ -700,7 +709,9 @@ select:-webkit-autofill:active {
   border-radius: 0.375rem;
   font-size: 0.8125rem;
   color: #78716c;
-  transition: all 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
   flex-shrink: 0;
 }
 
@@ -777,18 +788,6 @@ select:-webkit-autofill:active {
 
 .skill-content-area {
   background: var(--theme-bg);
-}
-
-.skill-panel-header {
-  background-color: rgb(255 255 255 / 0.95);
-  border-bottom: 1px solid var(--theme-border);
-  box-shadow: none;
-}
-
-.skill-panel-header .panel-search {
-  border-color: var(--theme-border);
-  background: var(--theme-bg-card);
-  box-shadow: none;
 }
 
 .skill-panel-header .panel-search:focus {
@@ -1043,16 +1042,8 @@ select:-webkit-autofill:active {
   );
 }
 
-.dark .skill-panel-header {
-  background-color: rgb(28 25 23 / 0.9);
-  border-bottom-color: var(--theme-border);
-  box-shadow: none;
-}
-
 .dark .skill-panel-header .panel-search {
-  border-color: var(--theme-border);
-  background: #292524;
-  box-shadow: none;
+  background: var(--theme-bg-card);
 }
 
 .skill-empty-state {
@@ -1725,8 +1716,6 @@ select:-webkit-autofill:active {
 
 .glass-input {
   background: color-mix(in srgb, white 68%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--glass-border);
   border-radius: 0.625rem;
   transition:
@@ -1798,9 +1787,7 @@ select:-webkit-autofill:active {
 }
 
 .glass-tab-bar {
-  background: var(--glass-bg-subtle);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: transparent;
   border-bottom: 1px solid var(--glass-border);
 }
 
@@ -1835,8 +1822,6 @@ select:-webkit-autofill:active {
   border-radius: 9999px;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg-subtle);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   padding: 0.125rem 0.5rem;
   font-size: 0.6875rem;
   font-weight: 600;
@@ -1912,6 +1897,262 @@ select:-webkit-autofill:active {
 }
 
 /* ===== End Polished Glass ===== */
+
+/* ═══════════════════════════════════════════
+   Marketplace Card Styles — Refined Editorial
+   ═══════════════════════════════════════════ */
+
+/* Staggered entrance */
+@keyframes mp-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.mp-card {
+  animation: mp-card-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.3s ease;
+}
+
+.mp-card:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 12px 32px -8px rgb(0 0 0 / 0.1),
+    0 4px 12px -4px rgb(0 0 0 / 0.05);
+}
+
+.dark .mp-card:hover {
+  box-shadow:
+    0 12px 32px -8px rgb(0 0 0 / 0.4),
+    0 4px 12px -4px rgb(0 0 0 / 0.25);
+}
+
+/* Banner shimmer on hover */
+.mp-card__banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 60%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.mp-card:hover .mp-card__banner::after {
+  transform: translateX(100%);
+}
+
+/* Icon ring */
+.mp-card__icon-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--theme-border);
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 60%,
+    var(--theme-bg-card)
+  );
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.mp-card:hover .mp-card__icon-ring {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 28%,
+    var(--theme-border)
+  );
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+}
+
+/* Status pill on banner */
+.mp-card__status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border-radius: 9999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.mp-card__status-pill--installed {
+  background: rgba(255, 255, 255, 0.85);
+  color: #166534;
+}
+
+.dark .mp-card__status-pill--installed {
+  background: rgba(0, 0, 0, 0.45);
+  color: #86efac;
+}
+
+.mp-card__status-pill--inactive {
+  background: rgba(255, 255, 255, 0.65);
+  color: #78716c;
+}
+
+.dark .mp-card__status-pill--inactive {
+  background: rgba(0, 0, 0, 0.35);
+  color: #a8a29e;
+}
+
+/* Category tag */
+.mp-card__category-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+/* Mini tag chips */
+.mp-card__mini-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg);
+  color: var(--theme-text-secondary);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+  cursor: pointer;
+}
+
+.mp-card__mini-tag:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 28%,
+    var(--theme-border)
+  );
+  color: var(--theme-text);
+  background: var(--theme-primary-light);
+}
+
+.mp-card__mini-tag--active {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 22%,
+    var(--theme-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 68%,
+    var(--theme-bg-card)
+  );
+  color: var(--theme-text);
+}
+
+/* Action buttons — all share same base shape */
+.mp-card__action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg);
+  color: var(--theme-text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.mp-card__action-btn:hover {
+  background: var(--theme-primary-light);
+  color: var(--theme-text);
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 28%,
+    var(--theme-border)
+  );
+}
+
+.mp-card__action-btn--primary {
+  background: var(--theme-primary);
+  border-color: var(--theme-primary);
+  color: white;
+}
+
+.mp-card__action-btn--primary:hover {
+  background: var(--theme-primary-hover);
+  border-color: var(--theme-primary-hover);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px
+    color-mix(in srgb, var(--theme-primary) 24%, transparent);
+}
+
+.dark .mp-card__action-btn--primary {
+  color: #1c1917;
+}
+
+.mp-card__action-btn--update {
+  background: var(--theme-bg-card);
+  color: var(--theme-primary);
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 28%,
+    var(--theme-border)
+  );
+}
+
+.mp-card__action-btn--update:hover {
+  background: var(--theme-primary-light);
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 38%,
+    var(--theme-border)
+  );
+  transform: scale(1.05);
+}
+
+.mp-card__action-btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mp-card__action-btn--disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.mp-card__action-btn--loading {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* ═══════════════════════════════════════════
+   End Marketplace Card Styles
+   ═══════════════════════════════════════════ */
 
 /* Skeleton shimmer animation */
 @keyframes shimmer {
@@ -2005,7 +2246,7 @@ html.allow-scroll #root {
 }
 
 /* ═══════════════════════════════════════════
-   Welcome Page Styles — ChatGPT-inspired Clean
+   Welcome Page Styles — Ambient Refinement
    ═══════════════════════════════════════════ */
 
 /* Welcome root */
@@ -2018,53 +2259,107 @@ html.allow-scroll #root {
   display: none;
 }
 
-/* Staggered entrance */
-@keyframes welcome-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.welcome-greeting {
-  animation: welcome-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.welcome-subtitle {
-  animation: welcome-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.06s both;
-}
-
-.welcome-input {
-  animation: welcome-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
-}
-
+/* ── Content layers ── */
+.welcome-greeting,
+.welcome-subtitle,
+.welcome-input,
 .welcome-suggestions {
-  animation: welcome-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both;
+  position: relative;
+  z-index: 1;
 }
 
-/* Suggestion cards — clean flat style */
+/* ── Icon subtle pulse ── */
+.welcome-icon {
+  animation: welcome-icon-pulse 3s ease-in-out infinite;
+}
+
+@keyframes welcome-icon-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+/* ── Refresh button ── */
+.welcome-refresh-btn {
+  border-radius: 0.5rem;
+}
+.welcome-refresh-btn:hover {
+  background-color: var(--theme-primary-light) !important;
+  color: var(--theme-text) !important;
+}
+
+/* ── Suggestion cards — clean elevated style ── */
 .welcome-card {
   transition:
     background-color 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+/* Hover shimmer overlay */
+.welcome-card-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in srgb, var(--theme-primary) 4%, transparent) 50%,
+    transparent 60%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.45s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.welcome-card:hover .welcome-card-shimmer {
+  transform: translateX(100%);
 }
 
 .welcome-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 16%,
+    var(--theme-border)
+  );
   background-color: var(--theme-bg) !important;
-  border-color: color-mix(in srgb, var(--theme-text) 12%, var(--theme-border));
+  box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--theme-text) 3%, transparent);
+}
+
+.dark .welcome-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 20%,
+    var(--theme-border)
+  );
+  box-shadow: 0 1px 6px -1px color-mix(in srgb, var(--theme-primary) 8%, transparent);
 }
 
 .welcome-card:active {
-  background-color: color-mix(
-    in srgb,
-    var(--theme-primary-light) 60%,
-    var(--theme-bg)
-  ) !important;
+  transform: scale(0.98);
   transition-duration: 0.08s;
+}
+
+/* ── Mobile suggestion pills ── */
+.welcome-pill {
+  border-color: var(--theme-border);
+}
+.welcome-pill:active {
+  transform: scale(0.97);
+  transition-duration: 0.08s;
+}
+.welcome-pill:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 25%,
+    var(--theme-border)
+  );
+  color: var(--theme-text);
 }
 
 /* ═══════════════════════════════════════════
@@ -2151,7 +2446,7 @@ html.dark .blog-float-dot {
   height: 6px;
   border: 1px solid rgba(120, 113, 108, 0.3);
   transform: rotate(45deg);
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 html.dark .blog-ornament-diamond {
   border-color: rgba(168, 162, 158, 0.25);
@@ -2177,7 +2472,7 @@ html.dark .blog-ornament-diamond {
 /* (using original Tailwind inline styles + landing-nav-pill below) */
 
 .landing-nav-pill {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 .landing-nav-pill:hover {
@@ -2228,12 +2523,16 @@ html.dark .blog-btn-primary::after {
 }
 
 .blog-btn-ghost {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ── Feature Card ── */
 .blog-feature-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.02),
     0 0 0 0 rgba(0, 0, 0, 0);
@@ -2253,7 +2552,10 @@ html.dark .blog-feature-card:hover {
 
 /* ── Screenshot Card ── */
 .blog-screenshot-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
   border: 1px solid rgba(231, 229, 228, 0.4);
 }
@@ -2272,7 +2574,10 @@ html.dark .blog-screenshot-card:hover {
 
 /* ── Architecture Card ── */
 .blog-arch-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02);
   border: 1px solid rgba(231, 229, 228, 0.4);
 }
@@ -2291,7 +2596,10 @@ html.dark .blog-arch-card:hover {
 
 /* ── Stat Card ── */
 .blog-stat-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.015);
 }
 .blog-stat-card:hover {
@@ -2309,7 +2617,9 @@ html.dark .blog-stat-card:hover {
 
 /* ── Tech Pill ── */
 .blog-tech-pill {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .blog-tech-pill:hover {
   transform: translateY(-1px);
@@ -2381,7 +2691,9 @@ html.dark .blog-stat-card:hover {
   }
 }
 .landing-scroll-btn {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

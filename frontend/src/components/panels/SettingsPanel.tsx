@@ -365,7 +365,7 @@ export function SettingsPanel() {
 
   return (
     <>
-      <div className="flex h-full flex-col sm:flex-row">
+      <div className="glass-shell flex h-full flex-col sm:flex-row">
         {/* Hidden file input for import */}
         <input
           ref={fileInputRef}
@@ -376,20 +376,24 @@ export function SettingsPanel() {
         />
 
         {/* Left Sidebar - Categories (hidden on mobile) */}
-        <div className="hidden w-52 flex-shrink-0 flex-col border-r border-stone-200 bg-white sm:flex dark:border-stone-800 dark:bg-stone-900">
+        <div className="hidden w-56 flex-shrink-0 flex-col border-r border-[var(--glass-border)] sm:flex">
           {/* Sidebar Header */}
-          <div className="flex items-center gap-2 border-b border-stone-200 px-4 py-3 dark:border-stone-800">
-            <Settings
-              size={18}
-              className="text-stone-500 dark:text-stone-400"
-            />
-            <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-              {t("settings.title")}
-            </h2>
+          <div className="flex items-center gap-2.5 px-5 py-4">
+            <div className="[&>svg]:size-[18px] flex size-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-stone-100 to-stone-50 text-stone-600 shadow-sm ring-1 ring-stone-200/60 dark:from-stone-800 dark:to-stone-900 dark:text-stone-300 dark:ring-stone-700/50">
+              <Settings size={18} />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 font-serif">
+                {t("settings.title")}
+              </h2>
+              <p className="text-[11px] text-stone-400 dark:text-stone-500">
+                {t("settings.modelConfigDescription", "管理应用配置")}
+              </p>
+            </div>
           </div>
 
           {/* Category List */}
-          <nav className="flex-1 overflow-y-auto px-2 py-1.5">
+          <nav className="flex-1 overflow-y-auto px-3 py-2">
             {CATEGORY_ORDER.map((category) => {
               const count = settings?.settings[category]?.length ?? 0;
               const isActive = activeCategory === category;
@@ -397,21 +401,25 @@ export function SettingsPanel() {
                 <button
                   key={category}
                   onClick={() => setActiveCategory(category)}
-                  className={`w-full rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors ${
+                  className={`w-full rounded-lg px-3 py-2 text-left text-[13px] transition-all duration-150 ${
                     isActive
-                      ? "bg-stone-200 font-semibold text-stone-900 dark:bg-stone-800 dark:text-stone-100"
-                      : "font-medium text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
+                      ? "bg-[var(--glass-bg)] font-semibold text-stone-900 dark:text-stone-100 shadow-sm"
+                      : "font-medium text-stone-500 hover:bg-[var(--glass-bg-subtle)] dark:text-stone-400"
                   }`}
                 >
-                  {CATEGORY_LABELS[category]}
-                  <span className="ml-1.5 text-[11px] opacity-50">{count}</span>
+                  <span className="flex items-center justify-between">
+                    {CATEGORY_LABELS[category]}
+                    <span className="ml-2 text-[11px] tabular-nums opacity-40">
+                      {count}
+                    </span>
+                  </span>
                 </button>
               );
             })}
           </nav>
 
           {/* Bottom actions */}
-          <div className="flex gap-1.5 border-t border-stone-200 px-2 py-2 dark:border-stone-800">
+          <div className="flex gap-1.5 border-t border-[var(--glass-border)] px-3 py-2.5">
             <button
               onClick={() => setShowAbout(true)}
               className="btn-secondary flex flex-1 items-center justify-center gap-1 py-1.5 text-xs"
@@ -435,7 +443,7 @@ export function SettingsPanel() {
         {/* Right Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Header with Category Dropdown (mobile) and Search */}
-          <div className="flex-shrink-0 border-b border-stone-200 bg-white p-3 dark:border-stone-700 dark:bg-stone-900">
+          <div className="flex-shrink-0 border-b border-[var(--glass-border)] p-3 sm:p-4">
             {/* Mobile Category Selector */}
             <div className="mb-2 sm:hidden">
               <div className="relative">
@@ -444,7 +452,7 @@ export function SettingsPanel() {
                   onChange={(e) =>
                     setActiveCategory(e.target.value as SettingCategory)
                   }
-                  className="w-full appearance-none rounded-lg border border-stone-200 bg-stone-50 py-2 pl-3 pr-8 text-sm font-medium text-stone-900 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500"
+                  className="w-full appearance-none rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] py-2 pl-3 pr-8 text-sm font-medium text-stone-900 focus:outline-none dark:text-stone-100"
                 >
                   {CATEGORY_ORDER.map((category) => (
                     <option key={category} value={category}>
@@ -472,7 +480,7 @@ export function SettingsPanel() {
                   placeholder={t("settings.searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500 dark:focus:border-amber-500"
+                  className="panel-search h-10"
                 />
               </div>
               {canManage && (
@@ -480,22 +488,22 @@ export function SettingsPanel() {
                   <button
                     onClick={handleExport}
                     disabled={!settings}
-                    className="flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
+                    className="btn-secondary flex items-center gap-1.5 px-3 h-10"
                     title={t("settings.exportSettings")}
                   >
-                    <Download size={18} />
-                    <span className="hidden sm:inline">
+                    <Download size={16} />
+                    <span className="hidden sm:inline text-sm">
                       {t("common.export")}
                     </span>
                   </button>
                   <button
                     onClick={handleImportClick}
                     disabled={!settings || isImporting}
-                    className="flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
+                    className="btn-secondary flex items-center gap-1.5 px-3 h-10"
                     title={t("settings.importSettings")}
                   >
-                    <Upload size={18} />
-                    <span className="hidden sm:inline">
+                    <Upload size={16} />
+                    <span className="hidden sm:inline text-sm">
                       {isImporting ? t("common.importing") : t("common.import")}
                     </span>
                   </button>
@@ -508,7 +516,7 @@ export function SettingsPanel() {
               <button
                 onClick={handleResetAll}
                 disabled={isLoading}
-                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:hidden dark:border-red-900/50 dark:bg-stone-900 dark:text-red-400 dark:hover:bg-red-900/20"
+                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg border border-red-200 bg-[var(--glass-bg-subtle)] px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 sm:hidden dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
               >
                 <RotateCcw size={12} />
                 {t("common.resetAll")}
@@ -533,7 +541,10 @@ export function SettingsPanel() {
           <div className="flex-1 overflow-y-auto p-3 sm:p-6">
             {isLoading && !settings ? (
               <div className="flex h-full items-center justify-center text-stone-400 dark:text-stone-500">
-                {t("settings.loading")}
+                <div className="flex flex-col items-center gap-2">
+                  <Settings size={32} className="opacity-30" />
+                  <p className="text-sm">{t("settings.loading")}</p>
+                </div>
               </div>
             ) : filteredSettings.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-stone-400 dark:text-stone-500">
@@ -560,13 +571,13 @@ export function SettingsPanel() {
                   return (
                     <div
                       key={setting.key}
-                      className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900"
+                      className="glass-card rounded-xl p-4"
                     >
                       {/* Key and Type */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <code className="rounded-md bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-900 break-all dark:bg-stone-800 dark:text-stone-100">
+                            <code className="rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-xs font-medium text-stone-900 break-all dark:text-stone-100">
                               {setting.key}
                             </code>
                             <span
@@ -599,7 +610,7 @@ export function SettingsPanel() {
                                 )
                               }
                               disabled={!canManage}
-                              className="w-full appearance-none rounded-lg border border-stone-300 bg-white py-2 pl-3 pr-9 text-sm text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                              className="w-full appearance-none rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] py-2 pl-3 pr-9 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                             >
                               {setting.key === "DEFAULT_AGENT" ? (
                                 agents.map((agent) => (
@@ -644,7 +655,7 @@ export function SettingsPanel() {
                             }
                             disabled={!canManage}
                             rows={8}
-                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                            className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                           />
                         )}
                         {isJson && (
@@ -659,7 +670,7 @@ export function SettingsPanel() {
                             }
                             disabled={!canManage}
                             rows={20}
-                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 font-mono text-xs text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                            className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-xs text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:text-stone-100"
                           />
                         )}
                         {!isSelect && setting.type !== "text" && !isJson && (
@@ -674,7 +685,7 @@ export function SettingsPanel() {
                               )
                             }
                             disabled={!canManage}
-                            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                            className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                           />
                         )}
                       </div>
@@ -728,7 +739,7 @@ export function SettingsPanel() {
 
                       {/* Read-only notice */}
                       {!canManage && (
-                        <div className="mt-2 rounded-lg bg-stone-50 px-3 py-1.5 text-xs text-stone-400 dark:bg-stone-800 dark:text-stone-500">
+                        <div className="mt-2 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-1.5 text-xs text-stone-400 dark:text-stone-500">
                           {t("settings.readOnlyNotice")}
                         </div>
                       )}

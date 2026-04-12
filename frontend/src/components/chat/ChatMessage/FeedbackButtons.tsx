@@ -33,6 +33,7 @@ export function FeedbackButtons({
   const [submittedFeedback, setSubmittedFeedback] =
     useState<RatingValue | null>(externalFeedback || null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   // Sync with external feedback (e.g., from history)
   useEffect(() => {
@@ -46,6 +47,18 @@ export function FeedbackButtons({
     if (showCommentInput && textareaRef.current) {
       textareaRef.current.focus();
     }
+  }, [showCommentInput]);
+
+  // Close comment popup when clicking outside
+  useEffect(() => {
+    if (!showCommentInput) return;
+    const handleClick = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        handleCancel();
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, [showCommentInput]);
 
   // User clicks thumbs up/down - show comment input first
@@ -173,6 +186,7 @@ export function FeedbackButtons({
       {/* Comment input popup - ChatGPT style */}
       {showCommentInput && (
         <div
+          ref={popupRef}
           className="absolute bottom-full left-0 z-50 mb-2 inline-block w-72 min-w-0 max-w-md rounded-xl border border-stone-200 bg-white p-4 shadow-xl dark:border-stone-700 dark:bg-stone-900"
           onKeyDown={handleKeyDown}
         >

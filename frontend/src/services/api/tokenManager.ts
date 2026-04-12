@@ -32,6 +32,13 @@ export function redirectToLogin(): void {
   clearAuthState();
 }
 
+/**
+ * Get a valid (non-expired) access token.
+ *
+ * Returns `null` when no token exists — the caller decides what to do.
+ * When the access token is expired, attempts a silent refresh.
+ * Does NOT call redirectToLogin — callers handle redirect themselves.
+ */
 export async function getValidAccessToken(): Promise<string | null> {
   const accessToken = getAccessToken();
   if (!accessToken) {
@@ -42,24 +49,35 @@ export async function getValidAccessToken(): Promise<string | null> {
     return accessToken;
   }
 
+  // Access token expired — try refresh
   const refreshToken = getRefreshToken();
   if (!refreshToken || isTokenExpired(refreshToken)) {
-    redirectToLogin();
     return null;
   }
 
   try {
     return await refreshAccessToken();
   } catch {
-    redirectToLogin();
     return null;
   }
 }
 
+/**
+ * Refresh tokens with deduplication to avoid concurrent refresh requests.
+ *
+ * Uses a ref-counted approach: the promise is cleared only after all
+ * concurrent callers have awaited it, preventing race conditions where
+ * a third caller starts a duplicate refresh.
+ */
 export async function refreshTokens(): Promise<RefreshedTokens> {
   if (refreshPromise) {
+    // Wait for the in-flight refresh — do NOT return early with just access_token.
+    // The caller may need the refresh_token too.
     const access_token = await refreshPromise;
-    return { access_token };
+    return {
+      access_token,
+      refresh_token: getRefreshToken() ?? undefined,
+    };
   }
 
   refreshPromise = (async () => {
@@ -93,7 +111,11 @@ export async function refreshTokens(): Promise<RefreshedTokens> {
       refresh_token: getRefreshToken() ?? undefined,
     };
   } finally {
-    refreshPromise = null;
+    // Use microtask delay so that callers still awaiting the same promise
+    // in the `if (refreshPromise)` branch finish before we clear it.
+    Promise.resolve().then(() => {
+      refreshPromise = null;
+    });
   }
 }
 

@@ -27,7 +27,7 @@ export interface AgentListResponse {
   agents: AgentInfo[];
   count: number;
   default_agent?: string;
-  allowed_models?: string[] | null;
+  allowed_model_ids?: string[] | null;
 }
 
 // Workflow event types

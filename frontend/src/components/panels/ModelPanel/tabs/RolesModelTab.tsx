@@ -3,13 +3,9 @@ import { Cpu, Save, Globe, List } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
+import { ModelIconImg } from "../../../agent/modelIcon.tsx";
+import type { ModelOption } from "../../../../services/api/model";
 import type { Role } from "../../../../types";
-
-interface ModelOption {
-  value: string;
-  label: string;
-  description?: string;
-}
 
 interface RolesModelTabProps {
   roles: Role[];
@@ -72,17 +68,17 @@ export function RolesModelTab({
     : [];
   const isAllModels = currentRoleModels.length === 0;
 
-  const toggleModel = (modelValue: string) => {
+  const toggleModel = (modelId: string) => {
     if (!selectedRole) return;
     setLocalRoleModels((prev) => {
       const current = prev[selectedRole] || [];
-      if (current.includes(modelValue)) {
+      if (current.includes(modelId)) {
         return {
           ...prev,
-          [selectedRole]: current.filter((v) => v !== modelValue),
+          [selectedRole]: current.filter((v) => v !== modelId),
         };
       }
-      return { ...prev, [selectedRole]: [...current, modelValue] };
+      return { ...prev, [selectedRole]: [...current, modelId] };
     });
   };
 
@@ -90,7 +86,7 @@ export function RolesModelTab({
     if (!selectedRole) return;
     setLocalRoleModels((prev) => ({
       ...prev,
-      [selectedRole]: availableModels.map((m) => m.value),
+      [selectedRole]: availableModels.map((m) => m.id),
     }));
   };
 
@@ -179,10 +175,10 @@ export function RolesModelTab({
 
             <div className="px-2.5 sm:px-3 pb-2.5 sm:pb-3 space-y-1">
               {availableModels.map((model) => {
-                const isSelected = currentRoleModels.includes(model.value);
+                const isSelected = currentRoleModels.includes(model.id);
                 return (
                   <label
-                    key={model.value}
+                    key={model.id}
                     className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 sm:py-3 sm:gap-3.5 transition-all duration-200 ${
                       isSelected
                         ? "glass-card"
@@ -192,8 +188,13 @@ export function RolesModelTab({
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => toggleModel(model.value)}
+                      onChange={() => toggleModel(model.id)}
                       className="h-4 w-4 rounded border-stone-300 text-stone-600 focus:ring-stone-500"
+                    />
+                    <ModelIconImg
+                      model={model.value}
+                      provider={model.provider}
+                      size={20}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">

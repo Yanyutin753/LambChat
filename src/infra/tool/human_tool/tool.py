@@ -146,6 +146,7 @@ class AskHumanTool(BaseTool):
         ctx = TraceContext.get_request_context()
         session_id = self.session_id or ctx.session_id
         run_id = ctx.run_id
+        user_id = ctx.user_id
 
         # 构建审批类型和字段列表
         approval_type = "form"
@@ -159,6 +160,7 @@ class AskHumanTool(BaseTool):
             approval_type=approval_type,
             fields=field_dicts,
             session_id=session_id or None,
+            user_id=user_id,
         )
 
         # 通过 SSE 流发送 approval_required 事件

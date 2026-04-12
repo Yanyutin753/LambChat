@@ -156,7 +156,7 @@ export function AgentConfigPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col min-h-0">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       {/* 头部 */}
       <PanelHeader
         title={t("agentConfig.title")}
@@ -186,7 +186,7 @@ export function AgentConfigPanel() {
 
       {/* Tab 切换 */}
       {canManageAgents && (
-        <div className="flex border-b border-stone-200/80 dark:border-stone-800/80 px-2">
+        <div className="flex glass-divider px-2">
           <button
             onClick={() => setActiveTab("global")}
             className={`px-4 py-3.5 text-sm font-medium transition-all relative ${
@@ -245,9 +245,9 @@ export function AgentConfigPanel() {
               {availableAgents.map((agent) => (
                 <div
                   key={agent.id}
-                  className="flex items-center gap-3.5 rounded-xl border border-stone-200/60 bg-white/70 p-4 transition-all duration-200 hover:border-stone-300/80 hover:bg-white/90 hover:shadow-md dark:border-stone-700/40 dark:bg-stone-800/40 dark:hover:border-stone-600/60 dark:hover:bg-stone-800/70"
+                  className="flex items-center gap-3.5 glass-card rounded-xl p-4 transition-all duration-200 hover:shadow-[var(--glass-shadow-hover)]"
                 >
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-stone-100 to-stone-200/80 dark:from-stone-700/80 dark:to-stone-800/60 ring-1 ring-stone-200/50 dark:ring-stone-700/50 shadow-sm">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--glass-bg-subtle)] ring-1 ring-[var(--glass-border)] shadow-sm">
                     <Bot
                       size={20}
                       className="text-stone-600 dark:text-stone-400"

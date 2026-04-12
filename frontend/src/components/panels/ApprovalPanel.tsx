@@ -38,7 +38,7 @@ function FormFieldRenderer({
   disabled: boolean;
 }) {
   const baseInputClasses =
-    "w-full rounded-xl border bg-white pl-4 pr-10 py-2.5 text-sm text-stone-900 placeholder-stone-400 transition-all duration-200 focus:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-200 disabled:opacity-50 dark:bg-stone-700 dark:text-stone-100 dark:placeholder-stone-500 dark:border-stone-600 dark:focus:border-stone-500 dark:focus:ring-stone-500/20";
+    "glass-input w-full rounded-xl pl-4 pr-10 py-2.5 text-sm text-stone-900 placeholder-stone-400 transition-all duration-200 focus:outline-none disabled:opacity-50 dark:text-stone-100 dark:placeholder-stone-500";
 
   switch (field.type) {
     case "text":
@@ -139,7 +139,7 @@ function FormFieldRenderer({
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isSelected
                     ? "bg-black text-white dark:bg-white dark:text-black"
-                    : "border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600"
+                    : "border border-stone-200 bg-[var(--theme-bg-card)] text-stone-700 hover:bg-[var(--glass-bg-subtle)] dark:text-stone-300"
                 } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 {option}
@@ -287,14 +287,14 @@ export function ApprovalPanel({
               <button
                 onClick={goToPrev}
                 disabled={currentIndex === 0}
-                className="p-1.5 rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-stone-600 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600"
+                className="p-1.5 rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] text-stone-600 hover:bg-[var(--glass-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed dark:text-stone-300"
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={goToNext}
                 disabled={currentIndex === approvals.length - 1}
-                className="p-1.5 rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed dark:border-stone-600 dark:bg-stone-700 dark:text-stone-300 dark:hover:bg-stone-600"
+                className="p-1.5 rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] text-stone-600 hover:bg-[var(--glass-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed dark:text-stone-300"
               >
                 <ChevronRight size={16} />
               </button>
@@ -302,12 +302,9 @@ export function ApprovalPanel({
           </div>
         )}
 
-        <div
-          className="overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 shadow-sm transition-all duration-200 dark:border-stone-700 dark:bg-stone-800"
-          key={currentApproval.id}
-        >
+        <div className="glass-card rounded-2xl" key={currentApproval.id}>
           {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-stone-100 dark:border-stone-700">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--glass-border)]">
             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
               <AlertCircle
                 size={12}
@@ -330,7 +327,7 @@ export function ApprovalPanel({
 
           {/* Form fields */}
           {currentApproval.fields.length > 0 && (
-            <div className="px-4 py-3 sm:px-5 space-y-4 border-t border-stone-100 dark:border-stone-700">
+            <div className="px-4 py-3 sm:px-5 space-y-4 border-t border-[var(--glass-border)]">
               {currentApproval.fields.map((field) => (
                 <div key={field.name} className="space-y-1.5">
                   {field.type !== "checkbox" && (
@@ -353,7 +350,7 @@ export function ApprovalPanel({
           )}
 
           {/* Actions */}
-          <div className="px-4 py-3 sm:px-5 bg-stone-100/50 dark:bg-stone-800/50">
+          <div className="px-4 py-3 sm:px-5 bg-[var(--glass-bg-subtle)]">
             <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
               <button
                 onClick={handleSubmit}
@@ -366,7 +363,7 @@ export function ApprovalPanel({
               <button
                 onClick={handleCancel}
                 disabled={isLoading}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 shadow-sm transition-all hover:bg-stone-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:border-stone-600 dark:bg-transparent dark:text-stone-200 dark:hover:bg-stone-700"
+                className="btn-secondary px-4 py-2.5 flex flex-1 items-center justify-center gap-2 rounded-xl text-sm font-medium transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <X size={18} />
                 <span>{t("approvals.cancel")}</span>

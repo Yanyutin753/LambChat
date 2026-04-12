@@ -54,9 +54,17 @@ interface AppShellProps {
   sidebar?: ReactNode;
   children: ReactNode;
   // Model selection
-  availableModels?: { value: string; label: string }[] | null;
-  currentModel?: string;
-  onSelectModel?: (modelValue: string) => void;
+  availableModels?:
+    | {
+        id: string;
+        value: string;
+        provider?: string;
+        label: string;
+        description?: string;
+      }[]
+    | null;
+  currentModelId?: string;
+  onSelectModel?: (modelId: string, modelValue: string) => void;
   // Share
   sessionId?: string | null;
   sessionName?: string | null;
@@ -77,7 +85,7 @@ function AppShell({
   sidebar,
   children,
   availableModels,
-  currentModel,
+  currentModelId,
   onSelectModel,
   sessionId,
   sessionName,
@@ -107,7 +115,7 @@ function AppShell({
             onNewSession={onNewSession}
             onShowProfile={onShowProfile}
             availableModels={availableModels}
-            currentModel={currentModel}
+            currentModelId={currentModelId}
             onSelectModel={onSelectModel}
             sessionId={sessionId}
             sessionName={sessionName}
@@ -188,7 +196,7 @@ function ChatAppContent({
     isLoading,
     agents,
     currentAgent,
-    allowedModels: agentAllowedModels,
+    allowedModelIds: agentAllowedModelIds,
     newlyCreatedSession,
     sendMessage,
     stopGeneration,
@@ -236,13 +244,13 @@ function ChatAppContent({
     }
   }, [currentAgent, refreshToolsForAgent]);
 
-  // Filter models by role-based permissions
+  // Filter models by role-based permissions (now uses model IDs)
   const filteredModels = useMemo(() => {
     if (!availableModels) return null;
-    if (!agentAllowedModels || agentAllowedModels.length === 0)
+    if (!agentAllowedModelIds || agentAllowedModelIds.length === 0)
       return availableModels;
-    return availableModels.filter((m) => agentAllowedModels.includes(m.value));
-  }, [availableModels, agentAllowedModels]);
+    return availableModels.filter((m) => agentAllowedModelIds.includes(m.id));
+  }, [availableModels, agentAllowedModelIds]);
 
   // 现在可以初始化 agentOptions
   const {
@@ -264,36 +272,72 @@ function ChatAppContent({
     getDefaultAgentOptions: () => agentOptionValues,
   });
 
-  // Model selection state (after useSessionConfig so setSessionAgentOption is available)
-  const [currentModel, setCurrentModel] = useState<string>(
+  // Model selection state: track both model ID (for selector) and value (for backend)
+  const [currentModelId, setCurrentModelId] = useState<string>(() => {
+    return localStorage.getItem("defaultModelId") || "";
+  });
+  const [currentModelValue, setCurrentModelValue] = useState<string>(
     () => localStorage.getItem("defaultModel") || defaultModel,
   );
 
-  // Sync currentModel → sessionConfig.agentOptions.model so the UI and backend data
+  // Resolve currentModelId from availableModels if not set
+  useEffect(() => {
+    if (!currentModelId && availableModels && availableModels.length > 0) {
+      const stored = localStorage.getItem("defaultModelId") || "";
+      const match = stored
+        ? availableModels.find((m) => m.id === stored)
+        : availableModels[0];
+      if (match) {
+        setCurrentModelId(match.id);
+        setCurrentModelValue(match.value);
+      }
+    }
+  }, [availableModels, currentModelId]);
+
+  // Sync currentModel → sessionConfig.agentOptions so the UI and backend data
   // always agree.  Covers: init, preference change, defaultModel change, new-session
   // reset, and session restore — all in one place.
   useEffect(() => {
-    setSessionAgentOption("model", currentModel);
-  }, [currentModel, setSessionAgentOption]);
+    if (currentModelValue) {
+      setSessionAgentOption("model", currentModelValue);
+    }
+    if (currentModelId) {
+      setSessionAgentOption("model_id", currentModelId);
+    }
+  }, [currentModelValue, currentModelId, setSessionAgentOption]);
 
   useEffect(() => {
-    setCurrentModel(localStorage.getItem("defaultModel") || defaultModel);
+    const storedValue = localStorage.getItem("defaultModel") || defaultModel;
+    const storedId = localStorage.getItem("defaultModelId") || "";
+    setCurrentModelValue(storedValue);
+    if (storedId) setCurrentModelId(storedId);
   }, [defaultModel]);
 
   // Listen for model preference updates from ProfilePreferencesTab
   useEffect(() => {
     const handler = (e: Event) => {
-      const model = (e as CustomEvent).detail as string;
-      if (model) setCurrentModel(model);
+      const detail = (e as CustomEvent).detail;
+      if (typeof detail === "string") {
+        // Legacy event: just a model value string
+        setCurrentModelValue(detail);
+      } else if (detail && typeof detail === "object") {
+        // New event: { modelId, modelValue }
+        if (detail.modelId) setCurrentModelId(detail.modelId);
+        if (detail.modelValue) setCurrentModelValue(detail.modelValue);
+      }
     };
     window.addEventListener("model-preference-updated", handler);
     return () =>
       window.removeEventListener("model-preference-updated", handler);
   }, []);
 
-  const handleSelectModel = useCallback((modelValue: string) => {
-    setCurrentModel(modelValue);
-  }, []);
+  const handleSelectModel = useCallback(
+    (modelId: string, modelValue: string) => {
+      setCurrentModelId(modelId);
+      setCurrentModelValue(modelValue);
+    },
+    [],
+  );
 
   // 同步 sessionConfig 到 ref，供 useAgent 使用
   useEffect(() => {
@@ -428,9 +472,12 @@ function ChatAppContent({
     (key: string, value: boolean | string | number) => {
       handleToggleAgentOption(key, value);
       setSessionAgentOption(key, value);
-      // Keep currentModel in sync when model is changed via agent option toggle
+      // Keep model state in sync when changed via agent option toggle
       if (key === "model" && typeof value === "string") {
-        setCurrentModel(value);
+        setCurrentModelValue(value);
+      }
+      if (key === "model_id" && typeof value === "string") {
+        setCurrentModelId(value);
       }
     },
     [handleToggleAgentOption, setSessionAgentOption],
@@ -494,10 +541,16 @@ function ChatAppContent({
 
         // Restore model selection if present
         if (
+          config.agent_options.model_id &&
+          typeof config.agent_options.model_id === "string"
+        ) {
+          setCurrentModelId(config.agent_options.model_id);
+        }
+        if (
           config.agent_options.model &&
           typeof config.agent_options.model === "string"
         ) {
-          setCurrentModel(config.agent_options.model);
+          setCurrentModelValue(config.agent_options.model);
         }
       }
     },
@@ -517,8 +570,15 @@ function ChatAppContent({
     handleNewSession();
     resetToDefaults();
     // Re-apply current model so it persists across new sessions
-    setSessionAgentOption("model", currentModel);
-  }, [handleNewSession, resetToDefaults, setSessionAgentOption, currentModel]);
+    if (currentModelValue) setSessionAgentOption("model", currentModelValue);
+    if (currentModelId) setSessionAgentOption("model_id", currentModelId);
+  }, [
+    handleNewSession,
+    resetToDefaults,
+    setSessionAgentOption,
+    currentModelValue,
+    currentModelId,
+  ]);
 
   const handleMobileClose = useCallback(
     () => setMobileSidebarOpen(false),
@@ -550,7 +610,7 @@ function ChatAppContent({
       onNewSession={handleNewSessionWithReset}
       onShowProfile={onShowProfile}
       availableModels={filteredModels}
-      currentModel={currentModel}
+      currentModelId={currentModelId}
       onSelectModel={handleSelectModel}
       sessionId={sessionId}
       sessionName={sessionName}

@@ -21,6 +21,10 @@ class ModelConfig(BaseModel):
 
     id: Optional[str] = Field(None, description="Model ID (auto-generated if not provided)")
     value: str = Field(..., description="Model identifier (e.g., anthropic/claude-3-5-sonnet)")
+    provider: Optional[str] = Field(
+        None,
+        description="Explicit LLM provider (e.g. openai/anthropic/google/deepseek). Auto-detected from value if not set.",
+    )
     label: str = Field(..., description="Display name for the model")
     description: Optional[str] = Field(None, description="Model description")
     api_key: Optional[str] = Field(None, description="Per-model API key override")
@@ -38,6 +42,10 @@ class ModelConfigCreate(BaseModel):
     """Create a new model configuration."""
 
     value: str = Field(..., description="Model identifier (e.g., anthropic/claude-3-5-sonnet)")
+    provider: Optional[str] = Field(
+        None,
+        description="Explicit LLM provider (e.g. openai/anthropic/google/deepseek). Auto-detected from value if not set.",
+    )
     label: str = Field(..., description="Display name for the model")
     description: Optional[str] = Field(None, description="Model description")
     api_key: Optional[str] = Field(None, description="Per-model API key override")
@@ -52,6 +60,7 @@ class ModelConfigCreate(BaseModel):
 class ModelConfigUpdate(BaseModel):
     """Update an existing model configuration."""
 
+    provider: Optional[str] = Field(None, description="Explicit LLM provider override")
     label: Optional[str] = Field(None, description="Display name for the model")
     description: Optional[str] = Field(None, description="Model description")
     api_key: Optional[str] = Field(None, description="Per-model API key override")

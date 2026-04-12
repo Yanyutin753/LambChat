@@ -1,5 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Plus, X, Download, Upload, FolderOpen, Server, Check } from "lucide-react";
+import {
+  Plus,
+  X,
+  Download,
+  Upload,
+  FolderOpen,
+  Server,
+  Check,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -353,16 +361,13 @@ export function MCPPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col min-h-0">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       {/* Header */}
       <PanelHeader
         title={t("mcp.title")}
         subtitle={t("mcp.subtitle")}
         icon={
-          <Server
-            size={20}
-            className="text-stone-600 dark:text-stone-400"
-          />
+          <Server size={20} className="text-stone-600 dark:text-stone-400" />
         }
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -451,7 +456,7 @@ export function MCPPanel() {
 
       {/* Pagination */}
       {total > pageSize && (
-        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-4">
+        <div className="glass-divider px-3 py-3 sm:px-4">
           <Pagination
             page={page}
             pageSize={pageSize}
@@ -476,7 +481,7 @@ export function MCPPanel() {
               <div className="bottom-sheet-handle sm:hidden" />
 
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+              <div className="flex items-center justify-between glass-divider px-6 py-4">
                 <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {isCreating
                     ? t("mcp.addNew")
@@ -553,7 +558,7 @@ export function MCPPanel() {
               className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
             >
               <div className="bottom-sheet-handle sm:hidden" />
-              <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+              <div className="flex items-center justify-between glass-divider px-6 py-4">
                 <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
                   {t("mcp.importServers")}
                 </h3>
@@ -567,7 +572,7 @@ export function MCPPanel() {
               <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2">
                 <div className="space-y-4">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                    <label className="mb-1.5 block text-sm font-medium text-stone-600 dark:text-stone-300">
                       {t("mcp.jsonConfig")}
                     </label>
                     <textarea
@@ -583,7 +588,7 @@ export function MCPPanel() {
     }
   }
 }`}
-                      className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 font-mono text-sm text-stone-900 placeholder-stone-400 focus:border-stone-400 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                      className="glass-input w-full rounded-xl px-3 py-2 font-mono text-sm text-stone-900 placeholder-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                     />
                   </div>
 
@@ -597,7 +602,7 @@ export function MCPPanel() {
                     />
                     <label
                       htmlFor="overwrite"
-                      className="text-sm text-stone-700 dark:text-stone-300"
+                      className="text-sm text-stone-600 dark:text-stone-300"
                     >
                       {t("mcp.overwriteExisting")}
                     </label>

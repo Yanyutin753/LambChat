@@ -48,6 +48,8 @@ const providerMap: Record<string, string> = {
   internlm,
   tencent,
   zeroone,
+  gemini,
+  zai: zhipu,
   alibaba: qwen,
   aliyun: qwen,
   hunyuan: tencent,
@@ -98,12 +100,13 @@ const monochromeProviders = new Set([
   "moonshot",
 ]);
 
-export function isMonochromeIcon(model: string): boolean {
+export function isMonochromeIcon(model: string, provider?: string): boolean {
+  if (provider && monochromeProviders.has(provider)) return true;
   const lower = model.toLowerCase();
   const slashIdx = lower.indexOf("/");
   if (slashIdx !== -1) {
-    const provider = lower.slice(0, slashIdx);
-    if (monochromeProviders.has(provider)) return true;
+    const p = lower.slice(0, slashIdx);
+    if (monochromeProviders.has(p)) return true;
   }
   for (const [prefix, slug] of Object.entries(modelPrefixMap)) {
     if (
@@ -139,6 +142,10 @@ function resolveIcon(model: string): string | null {
   return null;
 }
 
-export function getModelIconUrl(model: string): string | null {
+export function getModelIconUrl(
+  model: string,
+  provider?: string,
+): string | null {
+  if (provider && providerMap[provider]) return providerMap[provider];
   return resolveIcon(model);
 }

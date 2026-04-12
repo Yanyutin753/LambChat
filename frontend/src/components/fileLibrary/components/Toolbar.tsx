@@ -320,14 +320,14 @@ export function Toolbar({
             <div className="group flex items-center gap-2.5 h-9 w-[160px] md:w-[200px] rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 px-3 pl-9 relative focus-within:border-stone-400 dark:focus-within:border-stone-500 focus-within:bg-white dark:focus-within:bg-stone-800/60 transition-all duration-150">
               <Search
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-300 dark:text-stone-600 pointer-events-none"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500 pointer-events-none"
               />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={t("fileLibrary.searchPlaceholder")}
-                className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-stone-700 dark:text-stone-300 placeholder:text-stone-300 dark:placeholder:text-stone-600 focus:outline-none"
+                className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-stone-700 dark:text-stone-300 placeholder:text-stone-500 dark:placeholder:text-stone-400 focus:outline-none"
               />
               {search && (
                 <button

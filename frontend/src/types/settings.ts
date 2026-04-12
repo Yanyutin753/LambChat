@@ -70,6 +70,7 @@ export interface ModelProfile {
 
 export interface AvailableModelConfig {
   value: string;
+  provider?: string;
   label: string;
   description?: string;
   api_key?: string;

@@ -251,7 +251,7 @@ async def get_session_events(
         types_list,
         run_id=run_id,
         exclude_run_id=exclude_run_id,
-        completed_only=True,
+        completed_only=False,
     )
 
     # 获取 session 的 current_run_id 用于响应

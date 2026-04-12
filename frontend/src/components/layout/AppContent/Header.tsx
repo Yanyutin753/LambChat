@@ -22,9 +22,17 @@ interface HeaderProps {
   projectManager: { projects: Project[] };
   onNewSession: () => void;
   onShowProfile: () => void;
-  availableModels?: { value: string; label: string }[] | null;
-  currentModel?: string;
-  onSelectModel?: (modelValue: string) => void;
+  availableModels?:
+    | {
+        id: string;
+        value: string;
+        provider?: string;
+        label: string;
+        description?: string;
+      }[]
+    | null;
+  currentModelId?: string;
+  onSelectModel?: (modelId: string, modelValue: string) => void;
   sessionId?: string | null;
   sessionName?: string | null;
 }
@@ -39,7 +47,7 @@ export function Header({
   onNewSession,
   onShowProfile,
   availableModels,
-  currentModel,
+  currentModelId,
   onSelectModel,
   sessionId,
   sessionName,
@@ -133,7 +141,7 @@ export function Header({
                 onSelectModel && (
                   <ModelSelector
                     models={availableModels}
-                    currentModel={currentModel || ""}
+                    currentModelId={currentModelId || ""}
                     onSelectModel={onSelectModel}
                   />
                 )}

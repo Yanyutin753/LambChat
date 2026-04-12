@@ -102,7 +102,7 @@ async def create_model(
         if "duplicate key" in str(e).lower():
             from src.kernel.exceptions import ValidationError
 
-            raise ValidationError(f"Model with value '{model_create.value}' already exists")
+            raise ValidationError(f"Model with id '{model.id}' already exists")
         raise
 
     logger.info(f"[Model] Created model: {created.value} (id={created.id})")
@@ -113,6 +113,23 @@ async def create_model(
     await invalidate_cache()
 
     return ModelResponse(model=mask_api_key(created), message="Model created successfully")
+
+
+@router.get("/providers/list")
+async def list_providers():
+    """列出所有支持的 LLM 供应商（从 PROVIDER_REGISTRY 生成）。"""
+    from src.infra.llm.client import PROVIDER_REGISTRY
+
+    providers = []
+    for slug, (protocol, prefixes) in PROVIDER_REGISTRY.items():
+        providers.append(
+            {
+                "value": slug,
+                "protocol": protocol,
+                "prefixes": prefixes,
+            }
+        )
+    return providers
 
 
 @router.put("/reorder", response_model=ModelListResponse)
@@ -197,13 +214,13 @@ async def delete_model(
 
     logger.info(f"[Model] Deleted model: {model_value} (id={model_id})")
 
-    # 同步清理所有角色中关联的该模型（单次批量操作）
+    # 同步清理所有角色中关联的该模型（按 model_id 移除）
     from src.infra.agent.config_storage import get_agent_config_storage
 
     agent_storage = get_agent_config_storage()
-    affected = await agent_storage.remove_model_from_all_roles(model_value)
+    affected = await agent_storage.remove_model_from_all_roles(model_id)
     if affected:
-        logger.info(f"[Model] Removed deleted model '{model_value}' from {affected} role(s)")
+        logger.info(f"[Model] Removed deleted model '{model_id}' from {affected} role(s)")
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache
@@ -247,13 +264,8 @@ async def import_models(
     """批量导入模型（upsert）"""
     storage = get_model_storage()
 
-    imported = []
-    for model_create in models:
-        model = ModelConfig(**model_create.model_dump())
-        created, is_new = await storage.upsert_by_value(model)
-        action = "created" if is_new else "updated"
-        logger.debug(f"[Model] {action.capitalize()} model: {created.value}")
-        imported.append(created)
+    config_models = [ModelConfig(**m.model_dump()) for m in models]
+    imported = await storage.bulk_upsert_by_value(config_models)
 
     logger.info(f"[Model] Imported {len(imported)} models")
 
@@ -265,6 +277,84 @@ async def import_models(
     counts = await storage.count()
     return ModelListResponse(
         models=[mask_api_key(m) for m in imported],
+        count=counts["total"],
+        enabled_count=counts["enabled"],
+    )
+
+
+@router.post("/batch-create", response_model=ModelListResponse, status_code=201)
+async def batch_create_models(
+    body: dict = Body(...),
+    _: TokenPayload = Depends(require_permissions(Permission.MODEL_ADMIN.value)),
+):
+    """批量创建模型（共享 api_base、api_key 等配置）
+
+    Body:
+        {
+            "shared": { "api_base": "...", "api_key": "...", ... },
+            "models": [{ "value": "...", "label": "..." }, ...]
+        }
+    """
+    from src.kernel.schemas.model import ModelProfile
+
+    shared = body.get("shared", {})
+    models = body.get("models", [])
+
+    if not models or not isinstance(models, list):
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="models must be a non-empty list")
+
+    # Validate provider if provided
+    raw_provider = shared.get("provider")
+    provider = None
+    if raw_provider:
+        if not isinstance(raw_provider, str) or not raw_provider.strip():
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid provider '{raw_provider}'. Must be a non-empty string.",
+            )
+        provider = raw_provider.strip()
+
+    storage = get_model_storage()
+
+    # Build profile from shared config
+    profile = None
+    if shared.get("max_input_tokens"):
+        profile = ModelProfile(max_input_tokens=int(shared["max_input_tokens"]))
+
+    created_models = []
+    try:
+        for item in models:
+            if not item.get("value") or not item.get("label"):
+                continue
+            model = ModelConfig(
+                value=item["value"],
+                label=item["label"],
+                provider=provider,
+                api_key=shared.get("api_key") or None,
+                api_base=shared.get("api_base") or None,
+                temperature=shared.get("temperature"),
+                max_tokens=shared.get("max_tokens"),
+                profile=profile,
+                enabled=True,
+            )
+            created = await storage.create(model)
+            created_models.append(created)
+            logger.debug(f"[Model] Batch created model: {created.value}")
+    finally:
+        # Always invalidate cache, even on partial failure
+        from src.infra.llm.models_service import invalidate_cache
+
+        await invalidate_cache()
+
+    logger.info(f"[Model] Batch created {len(created_models)} models")
+
+    counts = await storage.count()
+    return ModelListResponse(
+        models=[mask_api_key(m) for m in created_models],
         count=counts["total"],
         enabled_count=counts["enabled"],
     )
