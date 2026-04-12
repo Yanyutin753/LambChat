@@ -120,7 +120,6 @@ const ModelSelector = memo(function ModelSelector({
   const currentModelInfo = models.find((m) => m.id === currentModelId);
 
   const isDefault = (() => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     void defaultTick; // re-read localStorage on tick change
     return localStorage.getItem("defaultModelId") === currentModelId;
   })();
@@ -136,7 +135,7 @@ const ModelSelector = memo(function ModelSelector({
     );
     setDefaultTick((t) => t + 1);
     toast.success(t("profile.defaultModelSet"));
-  }, [currentModelId, currentModelInfo]);
+  }, [currentModelId, currentModelInfo, t]);
 
   // Re-render when default model changes externally (e.g. from profile)
   useEffect(() => {
