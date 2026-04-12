@@ -142,7 +142,7 @@ export function FileRevealItem({
     if (window.innerWidth >= 640) {
       setShowPreview(true);
     }
-  }, [success, filePath]);
+  }, [success, filePath, isImage, showPreview]);
 
   if (isPending) {
     return (

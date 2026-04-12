@@ -140,7 +140,7 @@ export function ProfilePreferencesTab() {
   const [selectedModelId, setSelectedModelId] = useState<string>(() => {
     return localStorage.getItem("defaultModelId") || "";
   });
-  const [_selectedModelValue, setSelectedModelValue] = useState<string>(() => {
+  const [, setSelectedModelValue] = useState<string>(() => {
     return localStorage.getItem("defaultModel") || defaultModel;
   });
 
@@ -204,7 +204,9 @@ export function ProfilePreferencesTab() {
     setSelectedModelValue(modelValue);
     localStorage.setItem("defaultModelId", modelId);
     localStorage.setItem("defaultModel", modelValue);
-    authApi.updateMetadata({ defaultModel: modelValue, defaultModelId: modelId }).catch(() => {});
+    authApi
+      .updateMetadata({ defaultModel: modelValue, defaultModelId: modelId })
+      .catch(() => {});
     window.dispatchEvent(
       new CustomEvent("model-preference-updated", {
         detail: { modelId, modelValue },

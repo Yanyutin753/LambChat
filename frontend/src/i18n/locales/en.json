@@ -1190,6 +1190,8 @@
     "run": "Run",
     "runNumber": "Run {{number}}",
     "selectRuns": "Select conversations to share",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
     "session": "Session",
     "shareType": "Share Scope",
     "sharedBy": "Shared by",

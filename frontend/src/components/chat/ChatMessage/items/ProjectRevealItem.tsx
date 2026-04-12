@@ -328,7 +328,7 @@ export function ProjectRevealItem({
     if (window.innerWidth >= 640) {
       setShowFullPreview(true);
     }
-  }, [success, sandpackFiles]);
+  }, [success, sandpackFiles, showFullPreview]);
 
   // Escape key to close fullscreen preview
   useEffect(() => {
@@ -345,7 +345,7 @@ export function ProjectRevealItem({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showFullPreview, viewMode]);
+  }, [showFullPreview, viewMode, t]);
 
   if (isPending) {
     return (

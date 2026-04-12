@@ -2523,12 +2523,16 @@ html.dark .blog-btn-primary::after {
 }
 
 .blog-btn-ghost {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ── Feature Card ── */
 .blog-feature-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.02),
     0 0 0 0 rgba(0, 0, 0, 0);
@@ -2548,7 +2552,10 @@ html.dark .blog-feature-card:hover {
 
 /* ── Screenshot Card ── */
 .blog-screenshot-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
   border: 1px solid rgba(231, 229, 228, 0.4);
 }
@@ -2567,7 +2574,10 @@ html.dark .blog-screenshot-card:hover {
 
 /* ── Architecture Card ── */
 .blog-arch-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02);
   border: 1px solid rgba(231, 229, 228, 0.4);
 }
@@ -2586,7 +2596,10 @@ html.dark .blog-arch-card:hover {
 
 /* ── Stat Card ── */
 .blog-stat-card {
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.015);
 }
 .blog-stat-card:hover {
@@ -2604,7 +2617,9 @@ html.dark .blog-stat-card:hover {
 
 /* ── Tech Pill ── */
 .blog-tech-pill {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .blog-tech-pill:hover {
   transform: translateY(-1px);
@@ -2676,7 +2691,9 @@ html.dark .blog-stat-card:hover {
   }
 }
 .landing-scroll-btn {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

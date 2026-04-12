@@ -350,7 +350,7 @@ export function SharedPage() {
         "LambChat is a pluggable, multi-tenant AI conversation platform. Skills + MCP dual-engine driven, supporting Claude, GPT, Gemini and more.",
       );
     };
-  }, [data, messages.length, t]);
+  }, [data, messages, t]);
 
   // Loading state
   if (isLoading) {

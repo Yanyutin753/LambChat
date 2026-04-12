@@ -1170,6 +1170,8 @@
     "run": "실행",
     "runNumber": "실행 {{number}}",
     "selectRuns": "공유할 대화 선택",
+    "selectAll": "모두 선택",
+    "deselectAll": "모두 해제",
     "session": "세션",
     "shareType": "공유 범위",
     "sharedBy": "공유자",

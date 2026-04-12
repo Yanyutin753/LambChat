@@ -1191,6 +1191,8 @@
     "run": "轮",
     "runNumber": "第 {{number}} 轮",
     "selectRuns": "选择要分享的对话轮次",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
     "session": "会话",
     "shareType": "分享范围",
     "sharedBy": "分享者",

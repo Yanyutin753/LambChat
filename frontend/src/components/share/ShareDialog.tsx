@@ -256,9 +256,28 @@ export function ShareDialog({
           {/* Run selection for partial share */}
           {shareType === "partial" && (
             <div className="space-y-2">
-              <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("share.selectRuns")}
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                  {t("share.selectRuns")}
+                </label>
+                {!isLoadingRuns && runs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedRunIds(
+                        selectedRunIds.length === runs.length
+                          ? []
+                          : runs.map((r) => r.run_id),
+                      )
+                    }
+                    className="text-xs text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+                  >
+                    {selectedRunIds.length === runs.length
+                      ? t("share.deselectAll")
+                      : t("share.selectAll")}
+                  </button>
+                )}
+              </div>
               {isLoadingRuns ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 size={20} className="animate-spin text-stone-400" />

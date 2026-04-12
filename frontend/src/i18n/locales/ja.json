@@ -1170,6 +1170,8 @@
     "run": "実行",
     "runNumber": "実行 {{number}}",
     "selectRuns": "共有する会話を選択",
+    "selectAll": "すべて選択",
+    "deselectAll": "すべて解除",
     "session": "セッション",
     "shareType": "共有範囲",
     "sharedBy": "共有者",
