@@ -37,12 +37,11 @@ RUN pip install --no-cache-dir uv
 # Copy dependency files
 COPY pyproject.toml uv.lock* README.md ./
 
-# Ensure lockfile is writable (COPY may preserve restrictive permissions)
-RUN if [ -f uv.lock ]; then chmod u+w uv.lock; fi
-
 # Create venv and install dependencies (skip project itself and dev deps)
 RUN uv venv /opt/app-venv && \
-    uv sync --frozen --no-dev --no-install-project --python /opt/app-venv/bin/python
+    uv export --frozen --no-dev -o requirements.txt && \
+    uv pip install --python /opt/app-venv/bin/python -r requirements.txt && \
+    rm requirements.txt
 
 # Copy source code
 COPY src/ ./src/
