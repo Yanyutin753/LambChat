@@ -102,7 +102,7 @@ async def create_model(
         if "duplicate key" in str(e).lower():
             from src.kernel.exceptions import ValidationError
 
-            raise ValidationError(f"Model with value '{model_create.value}' already exists")
+            raise ValidationError(f"Model with id '{model.id}' already exists")
         raise
 
     logger.info(f"[Model] Created model: {created.value} (id={created.id})")
@@ -197,13 +197,13 @@ async def delete_model(
 
     logger.info(f"[Model] Deleted model: {model_value} (id={model_id})")
 
-    # 同步清理所有角色中关联的该模型（单次批量操作）
+    # 同步清理所有角色中关联的该模型（按 model_id 移除）
     from src.infra.agent.config_storage import get_agent_config_storage
 
     agent_storage = get_agent_config_storage()
-    affected = await agent_storage.remove_model_from_all_roles(model_value)
+    affected = await agent_storage.remove_model_from_all_roles(model_id)
     if affected:
-        logger.info(f"[Model] Removed deleted model '{model_value}' from {affected} role(s)")
+        logger.info(f"[Model] Removed deleted model '{model_id}' from {affected} role(s)")
 
     # 使 models_service 缓存失效
     from src.infra.llm.models_service import invalidate_cache

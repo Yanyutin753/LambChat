@@ -44,17 +44,37 @@ async def get_default_model(allowed_models: Optional[list[str]] = None) -> str:
 
     Args:
         allowed_models: If provided, only consider models in this list
-                       (role-based access control).
+                       (can be model values or model IDs).
     """
     models = await get_available_models()
     if allowed_models is not None:
         allowed_set = set(allowed_models)
         for m in models:
-            if m.get("value") in allowed_set:
+            # 支持按 value 或 id 匹配
+            if m.get("value") in allowed_set or m.get("id") in allowed_set:
                 return m.get("value", "")
         return ""
     if models:
         return models[0].get("value", "")
+    return ""
+
+
+async def get_default_model_id(allowed_models: Optional[list[str]] = None) -> str:
+    """Return the first available model's ID, or empty string.
+
+    Args:
+        allowed_models: If provided, only consider models in this list
+                       (model IDs).
+    """
+    models = await get_available_models()
+    if allowed_models is not None:
+        allowed_set = set(allowed_models)
+        for m in models:
+            if m.get("id") in allowed_set or m.get("value") in allowed_set:
+                return m.get("id", "")
+        return ""
+    if models:
+        return models[0].get("id", "")
     return ""
 
 

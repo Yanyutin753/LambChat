@@ -44,7 +44,9 @@ class ModelStorage:
 
     async def ensure_indexes(self):
         """创建必要的 MongoDB 索引"""
-        await self._get_collection().create_index("value", unique=True)
+        await self._get_collection().create_index("id", unique=True)
+        # value 不再唯一：同一模型可来自不同渠道（如直连 OpenAI、Azure、代理服务等）
+        await self._get_collection().create_index("value")
         await self._get_collection().create_index("enabled")
         await self._get_collection().create_index("order")
 

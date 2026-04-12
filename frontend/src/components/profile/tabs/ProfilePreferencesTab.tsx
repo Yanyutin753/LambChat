@@ -137,7 +137,10 @@ export function ProfilePreferencesTab() {
   );
 
   // Default model preference
-  const [selectedModel, setSelectedModel] = useState<string>(() => {
+  const [selectedModelId, setSelectedModelId] = useState<string>(() => {
+    return localStorage.getItem("defaultModelId") || "";
+  });
+  const [_selectedModelValue, setSelectedModelValue] = useState<string>(() => {
     return localStorage.getItem("defaultModel") || defaultModel;
   });
 
@@ -194,12 +197,18 @@ export function ProfilePreferencesTab() {
     setOpenDropdown(null);
   };
 
-  const handleModelChange = (modelValue: string) => {
-    setSelectedModel(modelValue);
+  const handleModelChange = (modelId: string) => {
+    const model = availableModels?.find((m) => m.id === modelId);
+    const modelValue = model?.value || "";
+    setSelectedModelId(modelId);
+    setSelectedModelValue(modelValue);
+    localStorage.setItem("defaultModelId", modelId);
     localStorage.setItem("defaultModel", modelValue);
-    authApi.updateMetadata({ defaultModel: modelValue }).catch(() => {});
+    authApi.updateMetadata({ defaultModel: modelValue, defaultModelId: modelId }).catch(() => {});
     window.dispatchEvent(
-      new CustomEvent("model-preference-updated", { detail: modelValue }),
+      new CustomEvent("model-preference-updated", {
+        detail: { modelId, modelValue },
+      }),
     );
     setOpenDropdown(null);
   };
@@ -287,17 +296,17 @@ export function ProfilePreferencesTab() {
         {availableModels && availableModels.length > 0 && (
           <SelectRow
             label={t("profile.defaultModel")}
-            value={selectedModel}
+            value={selectedModelId}
             options={availableModels.map((m) => ({
-              key: m.value,
+              key: m.id,
               labelKey: "",
             }))}
             open={openDropdown === "model"}
             onToggle={() => toggle("model")}
             onSelect={handleModelChange}
-            renderLabel={(val) => {
-              const m = availableModels.find((m) => m.value === val);
-              return m ? m.label : val;
+            renderLabel={(id) => {
+              const m = availableModels.find((m) => m.id === id);
+              return m ? m.label : id;
             }}
           />
         )}

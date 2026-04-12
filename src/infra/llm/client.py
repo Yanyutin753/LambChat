@@ -166,6 +166,7 @@ class LLMClient:
     @staticmethod
     async def get_model(
         model: Optional[str] = None,
+        model_id: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
         api_key: Optional[str] = None,
@@ -179,6 +180,9 @@ class LLMClient:
 
         Args:
             model: Model identifier (e.g., "anthropic/claude-3-5-sonnet")
+            model_id: Model config ID (UUID). When provided, looks up the model
+                config directly by ID, which resolves to a specific channel/provider.
+                This takes priority over the `model` parameter.
             temperature: Sampling temperature. If use_model_config=True and model config
                 has temperature set, this parameter is ignored.
             max_tokens: Maximum tokens to generate. If use_model_config=True and model config
@@ -192,6 +196,31 @@ class LLMClient:
             use_model_config: If True, look up model config from endpoint/static list
                 and apply per-model overrides. Default True.
         """
+        # ── model_id 优先：直接从 DB 按 ID 查找完整配置 ──
+        if model_id:
+            try:
+                from src.infra.agent.model_storage import get_model_storage
+
+                db_model = await get_model_storage().get(model_id)
+                if db_model:
+                    model = db_model.value
+                    # 直接从 DB 配置获取所有覆盖参数
+                    if not api_key and db_model.api_key:
+                        api_key = db_model.api_key
+                    if not api_base and db_model.api_base:
+                        api_base = db_model.api_base
+                    if db_model.temperature is not None:
+                        temperature = db_model.temperature
+                    if max_tokens is None and db_model.max_tokens is not None:
+                        max_tokens = db_model.max_tokens
+                    if profile is None and db_model.profile:
+                        profile = db_model.profile.model_dump() if hasattr(db_model.profile, "model_dump") else db_model.profile
+                    # 已从 DB 获取完整配置，跳过缓存查找
+                    use_model_config = False
+                    logger.debug(f"[LLMClient] Resolved model_id={model_id} -> value={model}")
+            except Exception as e:
+                logger.warning(f"[LLMClient] Failed to resolve model_id={model_id}: {e}")
+
         # Only resolve default model when actually needed
         resolved_default: Optional[str] = None
 

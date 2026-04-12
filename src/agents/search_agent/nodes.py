@@ -68,6 +68,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     agent_options = configurable.get("agent_options") or {}
     enable_thinking = agent_options.get("enable_thinking", False)
     selected_model = agent_options.get("model")  # Per-request model override
+    model_id = agent_options.get("model_id")  # Model config ID for specific channel/provider
     logger.info(f"agent_options: {agent_options}")
 
     # 获取附件
@@ -77,6 +78,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     llm_start = time.time()
     llm = await LLMClient.get_model(
         model=selected_model,
+        model_id=model_id,
         thinking={"type": "enabled"} if enable_thinking else None,
     )
     llm_init_time = time.time() - llm_start

@@ -34,6 +34,7 @@ function ModelIconImg({ model, size }: { model: string; size: number }) {
 }
 
 export interface ModelOption {
+  id: string;
   value: string;
   label: string;
   description?: string;
@@ -124,23 +125,23 @@ const ModelItem = memo(function ModelItem({
 
 interface ModelSelectorProps {
   models: ModelOption[];
-  currentModel: string;
-  onSelectModel: (modelValue: string) => void;
+  currentModelId: string;
+  onSelectModel: (modelId: string, modelValue: string) => void;
 }
 
 const ModelSelector = memo(function ModelSelector({
   models,
-  currentModel,
+  currentModelId,
   onSelectModel,
 }: ModelSelectorProps) {
   const [showSelector, setShowSelector] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentModelInfo = models.find((m) => m.value === currentModel);
+  const currentModelInfo = models.find((m) => m.id === currentModelId);
 
   const handleSelectModel = useCallback(
-    (modelValue: string) => {
-      onSelectModel(modelValue);
+    (modelId: string, modelValue: string) => {
+      onSelectModel(modelId, modelValue);
       setShowSelector(false);
     },
     [onSelectModel],
@@ -179,7 +180,7 @@ const ModelSelector = memo(function ModelSelector({
         className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
       >
         <span className="text-base font-semibold text-stone-600 dark:text-stone-300">
-          {currentModelInfo?.label || currentModel}
+          {currentModelInfo?.label || currentModelId}
         </span>
         <ChevronDown
           size={16}
@@ -193,10 +194,10 @@ const ModelSelector = memo(function ModelSelector({
         <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {models.map((model) => (
             <ModelItem
-              key={model.value}
+              key={model.id}
               model={model}
-              isSelected={model.value === currentModel}
-              onSelect={() => handleSelectModel(model.value)}
+              isSelected={model.id === currentModelId}
+              onSelect={() => handleSelectModel(model.id, model.value)}
             />
           ))}
         </div>
