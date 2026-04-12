@@ -433,7 +433,10 @@ export function SharedPage() {
   return (
     <div className="flex flex-col bg-[#faf9f7] dark:bg-[#0f0e0d] min-h-dvh font-sans">
       {/* Top bar — matching landing page Navbar style */}
-      <header className="fixed top-0 inset-x-0 z-50 bg-white/80 dark:bg-stone-950/80 border-b border-stone-100/60 dark:border-stone-800/40">
+      <header
+        data-yields-sidebar
+        className="fixed top-0 inset-x-0 z-50 bg-white/80 dark:bg-stone-950/80 border-b border-stone-100/60 dark:border-stone-800/40"
+      >
         {/* Scroll progress bar */}
         <div
           className="absolute bottom-0 left-0 h-[2px] landing-progress-bar"

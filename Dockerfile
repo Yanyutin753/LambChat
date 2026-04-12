@@ -37,8 +37,9 @@ RUN pip install --no-cache-dir uv
 # Copy dependency files
 COPY pyproject.toml uv.lock* README.md ./
 
-# Install dependencies directly (no venv)
-RUN uv sync --frozen --no-dev --no-cache
+# Create venv and install dependencies (skip project itself and dev deps)
+RUN uv venv /opt/app-venv && \
+    /opt/app-venv/bin/uv sync --frozen --no-dev --no-install-project
 
 # Copy source code
 COPY src/ ./src/
@@ -51,11 +52,13 @@ COPY --from=frontend-builder /app/frontend/dist ./static
 RUN groupadd -r app && useradd -r -g app app && \
     mkdir -p /home/app/.cache && \
     chown -R app:app /home/app && \
-    chown -R app:app /app
+    chown -R app:app /opt/app-venv
 
 # Switch to non-root user
 USER app
 
+ENV PATH="/opt/app-venv/bin:$PATH"
+
 EXPOSE 8080
 
-CMD ["uv", "run", "python", "main.py"]
+CMD ["python", "main.py"]

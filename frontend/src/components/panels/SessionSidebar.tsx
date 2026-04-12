@@ -267,7 +267,7 @@ export function SessionSidebar({
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xl font-bold leading-none text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors font-serif"
+            className="text-lg font-bold leading-none text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors font-serif"
           >
             {APP_NAME}
           </a>

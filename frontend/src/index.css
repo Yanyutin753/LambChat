@@ -10,6 +10,13 @@
   html[data-sidebar-preview="open"] #root {
     max-width: calc(100% - var(--sidebar-preview-width, 45%)) !important;
   }
+  /* Fixed/absolute elements inside #root must also yield space for the sidebar panel */
+  html[data-sidebar-preview="open"] #root [data-yields-sidebar] {
+    right: var(--sidebar-preview-width, 45%) !important;
+  }
+  [data-yields-sidebar] {
+    transition: right 300ms ease-out;
+  }
   /* Sidebar panel uses percentage width on desktop */
   [data-sidebar-panel] {
     width: var(--sidebar-preview-width, 45%) !important;
