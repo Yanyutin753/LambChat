@@ -29,6 +29,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/auth/permissions",
         "/manifest.json",
         "/api/version",
+        "/robots.txt",
+        "/sitemap.xml",
     }
 
     # 不需要认证的路径前缀
@@ -37,6 +39,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/upload/file/",
         "/assets/",
         "/icons/",
+        "/images/",
+        "/shared/",
+        "/auth/",
         "/favicon",
         "/static/",
     )
