@@ -525,7 +525,7 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div
-      className="px-3 sm:px-4 pb-3 sm:pb-4"
+      className="px-3 sm:px-4 pb-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
@@ -738,7 +738,7 @@ export const ChatInput = memo(function ChatInput({
       </form>
 
       {/* Keyboard shortcut hint — desktop only */}
-      <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-2 px-2 justify-center">
+      <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-3 px-2 justify-center">
         <span
           className="text-xs"
           style={{ color: "var(--theme-text-secondary)" }}

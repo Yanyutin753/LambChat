@@ -37,7 +37,13 @@ export function ModelPanel() {
     {},
   );
   const [availableModels, setAvailableModels] = useState<
-    { id: string; value: string; label: string; description?: string }[]
+    {
+      id: string;
+      value: string;
+      provider?: string;
+      label: string;
+      description?: string;
+    }[]
   >([]);
   const [dbModels, setDbModels] = useState<ModelConfig[]>([]);
 
@@ -67,6 +73,7 @@ export function ModelPanel() {
             modelData.models.map((m: ModelConfig) => ({
               id: m.id || "",
               value: m.value,
+              provider: m.provider,
               label: m.label,
               description: m.description,
             })),

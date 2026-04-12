@@ -117,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setToken(validToken);
 
-      // 尝试获取用户信息
+      // 尝试获取用户信息（带重试）
       try {
         const currentUser = await authApi.getCurrentUser();
         setUser(currentUser);
@@ -130,11 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ),
           );
         }
-      } catch {
-        // 获取用户信息失败，清除登录状态
-        authApi.logout();
-        setToken(null);
-        setUser(null);
+      } catch (err) {
+        // Only treat 401 as auth failure — network errors / server restarts
+        // should NOT clear auth state during development.
+        // authFetch already handles 401 by calling redirectToLogin internally,
+        // so this catch only fires for non-401 errors.
+        console.warn("[useAuth] Failed to fetch current user:", err);
       }
 
       setIsLoading(false);

@@ -175,7 +175,7 @@ function UserFormModal({
         >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+          <div className="flex items-center justify-between glass-divider px-6 py-4">
             <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {isEditing ? t("users.editUser") : t("users.createUser")}
             </h2>
@@ -207,7 +207,7 @@ function UserFormModal({
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full rounded-xl border border-stone-300 py-2 pl-10 pr-4 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                    className="glass-input w-full rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-stone-100"
                     placeholder={t("users.usernamePlaceholder")}
                   />
                 </div>
@@ -226,7 +226,7 @@ function UserFormModal({
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl border border-stone-300 py-2 pl-10 pr-4 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                    className="glass-input w-full rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-stone-100"
                     placeholder={t("users.emailPlaceholder")}
                   />
                 </div>
@@ -245,7 +245,7 @@ function UserFormModal({
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-xl border border-stone-300 py-2 pl-10 pr-4 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                    className="glass-input w-full rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-stone-100"
                     placeholder={
                       isEditing
                         ? t("users.passwordPlaceholderEdit")
@@ -261,7 +261,7 @@ function UserFormModal({
                   {t("users.roles")}
                 </label>
                 <div className="relative">
-                  <div className="max-h-32 overflow-y-auto rounded-xl border border-stone-300 py-2 pl-5 pr-4 dark:border-stone-700 dark:bg-stone-800">
+                  <div className="max-h-32 overflow-y-auto rounded-xl border border-[var(--glass-border)] bg-[var(--theme-bg-card)] py-2 pl-5 pr-4">
                     {roles.length === 0 ? (
                       <p className="text-sm text-stone-500 dark:text-stone-400">
                         {t("users.noRolesAvailable")}
@@ -283,7 +283,7 @@ function UserFormModal({
                               {role.name}
                             </span>
                             {role.is_system && (
-                              <span className="rounded bg-stone-100 px-1.5 py-0.5 text-xs text-stone-500 dark:bg-stone-700 dark:text-stone-400">
+                              <span className="rounded bg-[var(--glass-bg-subtle)] px-1.5 py-0.5 text-xs text-stone-500 dark:text-stone-400">
                                 {t("users.system")}
                               </span>
                             )}
@@ -366,7 +366,7 @@ function DeleteConfirmModal({
         >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 dark:border-stone-800">
+          <div className="flex items-center justify-between glass-divider px-6 py-4">
             <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
               {t("users.confirmDelete")}
             </h2>
@@ -543,7 +543,7 @@ export function UsersPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col min-h-0">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       {/* 头部 */}
       <PanelHeader
         title={t("users.title")}
@@ -589,9 +589,9 @@ export function UsersPanel() {
         ) : (
           <>
             {/* Desktop table view */}
-            <div className="hidden overflow-hidden rounded-xl border border-stone-200 bg-white dark:border-stone-700 dark:bg-stone-900 sm:block">
-              <table className="min-w-full divide-y divide-stone-200 dark:divide-stone-700">
-                <thead className="bg-stone-50 dark:bg-stone-800">
+            <div className="hidden overflow-hidden glass-card rounded-xl sm:block">
+              <table className="min-w-full divide-y divide-[var(--glass-border)]">
+                <thead className="bg-[var(--glass-bg-subtle)]">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500 dark:text-stone-400">
                       {t("users.user")}
@@ -615,11 +615,11 @@ export function UsersPanel() {
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-200 dark:divide-stone-700">
+                <tbody className="divide-y divide-[var(--glass-border)]">
                   {users.map((user) => (
                     <tr
                       key={user.id}
-                      className="hover:bg-stone-50 dark:hover:bg-stone-800"
+                      className="hover:bg-[var(--glass-bg-subtle)]"
                     >
                       <td className="whitespace-nowrap px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -769,7 +769,7 @@ export function UsersPanel() {
 
       {/* Pagination */}
       {total > pageSize && (
-        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-6">
+        <div className="glass-divider px-3 py-3 sm:px-6">
           <Pagination
             page={page}
             pageSize={pageSize}

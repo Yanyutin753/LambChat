@@ -324,7 +324,7 @@ async def session_stream(
 
         except Exception as e:
             logger.error(f"[SSE] Generator error: {e}")
-            yield f'event: error\ndata: {{"error": "{e}"}}\n\n'
+            yield 'event: error\ndata: {"error": "An internal error occurred"}\n\n'
 
     return StreamingResponse(
         event_generator(),

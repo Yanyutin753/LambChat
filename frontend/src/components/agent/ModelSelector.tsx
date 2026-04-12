@@ -1,44 +1,7 @@
 import { memo, useState, useCallback, useEffect, useRef } from "react";
 import { ChevronDown, Check, Info } from "lucide-react";
-import { getModelIconUrl, isMonochromeIcon } from "./modelIcon";
-
-function ModelIconImg({ model, size }: { model: string; size: number }) {
-  const url = getModelIconUrl(model);
-  const mono = isMonochromeIcon(model);
-  if (!url) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-full bg-stone-200 dark:bg-stone-600"
-        style={{ width: size, height: size }}
-      >
-        <span className="text-xs font-bold text-stone-600 dark:text-stone-200">
-          {model.charAt(0).toUpperCase()}
-        </span>
-      </div>
-    );
-  }
-  return (
-    <div
-      className="flex items-center justify-center rounded-full bg-white dark:bg-stone-600"
-      style={{ width: size, height: size }}
-    >
-      <img
-        src={url}
-        alt={model}
-        width={size * 0.7}
-        height={size * 0.7}
-        className={mono ? "dark:invert" : ""}
-      />
-    </div>
-  );
-}
-
-export interface ModelOption {
-  id: string;
-  value: string;
-  label: string;
-  description?: string;
-}
+import { ModelIconImg } from "./modelIcon.tsx";
+import type { ModelOption } from "../../services/api/model";
 
 interface ModelItemProps {
   model: ModelOption;
@@ -69,6 +32,18 @@ const ModelItem = memo(function ModelItem({
     setShowTip((v) => !v);
   }, []);
 
+  // Close tooltip when clicking outside
+  useEffect(() => {
+    if (!showTip) return;
+    const handleClick = (e: MouseEvent) => {
+      if (iconRef.current && !iconRef.current.contains(e.target as Node)) {
+        setShowTip(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showTip]);
+
   const tipStyle = (() => {
     if (!showTip || !iconRef.current) return undefined;
     const rect = iconRef.current.getBoundingClientRect();
@@ -85,7 +60,7 @@ const ModelItem = memo(function ModelItem({
       className="w-full px-3 py-2.5 text-left hover:bg-stone-100/80 dark:hover:bg-stone-700/50 transition-colors"
     >
       <div className="flex items-center gap-2.5">
-        <ModelIconImg model={model.value} size={22} />
+        <ModelIconImg model={model.value} provider={model.provider} size={22} />
         <div className="flex items-center gap-1 flex-1 min-w-0">
           <span className="text-sm text-stone-700 dark:text-stone-200 truncate">
             {model.label}
@@ -179,7 +154,7 @@ const ModelSelector = memo(function ModelSelector({
         onClick={toggleSelector}
         className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
       >
-        <span className="text-base font-semibold text-stone-600 dark:text-stone-300">
+        <span className="text-base font-semibold text-stone-600 dark:text-stone-300 max-w-[200px] truncate">
           {currentModelInfo?.label || currentModelId}
         </span>
         <ChevronDown
@@ -191,15 +166,17 @@ const ModelSelector = memo(function ModelSelector({
       </button>
 
       {showSelector && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
-          {models.map((model) => (
-            <ModelItem
-              key={model.id}
-              model={model}
-              isSelected={model.id === currentModelId}
-              onSelect={() => handleSelectModel(model.id, model.value)}
-            />
-          ))}
+        <div className="absolute left-0 top-full z-50 mt-2 w-72 max-h-80 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
+          <div className="overflow-y-auto overscroll-contain max-h-full">
+            {models.map((model) => (
+              <ModelItem
+                key={model.id}
+                model={model}
+                isSelected={model.id === currentModelId}
+                onSelect={() => handleSelectModel(model.id, model.value)}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

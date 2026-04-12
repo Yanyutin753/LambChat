@@ -3,8 +3,9 @@
  */
 
 import i18n from "i18next";
-import { getAccessToken, getRefreshToken } from "./token";
+import { getRefreshToken } from "./token";
 import {
+  getValidAccessToken,
   redirectToLogin,
   refreshAccessToken,
   clearAuthState,
@@ -21,7 +22,7 @@ interface FetchOptions extends RequestInit {
 
 /**
  * 带认证的 fetch 封装
- * 自动添加 Authorization header
+ * 自动添加 Authorization header（使用 getValidAccessToken 主动刷新过期 token）
  * 处理 401 响应
  */
 export async function authFetch<T>(
@@ -43,12 +44,14 @@ export async function authFetch<T>(
     ...headers,
   };
 
-  // Always send token if available (even with skipAuth)
-  // skipAuth only controls error handling, not token inclusion
-  const token = getAccessToken();
-  if (token) {
-    (finalHeaders as Record<string, string>)["Authorization"] =
-      `Bearer ${token}`;
+  // Use getValidAccessToken to proactively refresh expired tokens,
+  // avoiding unnecessary 401 round-trips.
+  if (!skipAuth) {
+    const token = await getValidAccessToken();
+    if (token) {
+      (finalHeaders as Record<string, string>)["Authorization"] =
+        `Bearer ${token}`;
+    }
   }
 
   const response = await fetch(url, {

@@ -147,6 +147,7 @@ class PendingApproval(BaseModel):
     fields: List[dict] = []  # 表单字段列表
     status: str = "pending"
     session_id: Optional[str] = None
+    user_id: Optional[str] = None
     created_at: Optional[datetime] = None
 
 
@@ -217,11 +218,15 @@ class ApprovalStorage:
         result = await self.collection.delete_one({"_id": approval_id})
         return result.deleted_count > 0
 
-    async def list_pending(self, session_id: Optional[str] = None) -> List[PendingApproval]:
+    async def list_pending(
+        self, session_id: Optional[str] = None, user_id: Optional[str] = None
+    ) -> List[PendingApproval]:
         """获取待处理审批列表"""
         query = {"status": "pending", "expires_at": {"$gt": datetime.now()}}
         if session_id:
             query["session_id"] = session_id
+        if user_id:
+            query["user_id"] = user_id
 
         cursor = self.collection.find(query).sort("created_at", -1)
         approvals = []

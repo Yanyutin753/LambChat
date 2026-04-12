@@ -5,7 +5,7 @@ Core authentication routes (register, login, refresh, me, permissions)
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from src.api.deps import get_current_user_required
-from src.infra.auth.jwt import create_access_token, decode_token
+from src.infra.auth.jwt import create_access_token, create_refresh_token, decode_token
 from src.infra.auth.turnstile import get_turnstile_service
 from src.infra.logging import get_logger
 from src.infra.user.manager import UserManager
@@ -171,7 +171,7 @@ async def refresh_token(request: Request):
                 detail="无效的令牌内容",
             )
 
-        # 获取用户信息以获取角色和权限
+        # 获取用户信息以验证用户仍然存在
         manager = UserManager()
         user = await manager.get_user(user_id)
         if not user:
@@ -180,26 +180,16 @@ async def refresh_token(request: Request):
                 detail="用户不存在",
             )
 
-        # 获取角色和权限
-        from src.infra.role.storage import RoleStorage
-
-        role_storage = RoleStorage()
-        roles = []
-        permissions = set()
-
-        for role_name in user.roles:
-            role = await role_storage.get_by_name(role_name)
-            if role:
-                roles.append(role.name)
-                for perm in role.permissions:
-                    permissions.add(perm.value)
-
-        # 生成新的 access token（用户信息从 API 动态获取）
+        # 生成新的 access token 和 refresh token（轮换 refresh token）
         access_token = create_access_token(user_id=user_id)
+        new_refresh_token = create_refresh_token(
+            user_id=user_id,
+            username=username or user.username,
+        )
 
         return Token(
             access_token=access_token,
-            refresh_token=token,  # 保持原来的 refresh token
+            refresh_token=new_refresh_token,
             expires_in=settings.ACCESS_TOKEN_EXPIRE_HOURS * 3600,
         )
     except HTTPException:

@@ -403,7 +403,7 @@ export function FeishuPanel({
   }
 
   return (
-    <div className="flex h-full flex-col min-h-0">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       {/* Header */}
       <PanelHeader
         title={t("feishu.title", "Feishu/Lark Channel")}
@@ -430,7 +430,7 @@ export function FeishuPanel({
         <div className="space-y-4">
           {/* Status Card */}
           {hasExistingConfig && status && (
-            <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+            <div className="glass-card rounded-xl p-4 ">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {status.connected ? (
@@ -487,14 +487,14 @@ export function FeishuPanel({
           )}
 
           {/* Configuration Form */}
-          <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+          <div className="glass-card rounded-xl p-4 ">
             <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
               {t("feishu.configuration", "Configuration")}
             </h3>
 
             <div className="space-y-4">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800">
+              <div className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
                 <div>
                   <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
                     {t("feishu.enabled", "Enable Feishu Bot")}
@@ -510,7 +510,7 @@ export function FeishuPanel({
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                    className={`inline-block h-4 w-4 rounded-full bg-[var(--theme-bg-card)] shadow-sm transition-transform ${
                       enabled ? "translate-x-4" : "translate-x-0.5"
                     }`}
                   />
@@ -532,7 +532,7 @@ export function FeishuPanel({
                       "feishu.instanceNamePlaceholder",
                       "My Feishu Bot",
                     )}
-                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                    className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
               )}
@@ -554,7 +554,7 @@ export function FeishuPanel({
                     value={appId}
                     onChange={(e) => setAppId(e.target.value)}
                     placeholder={t("feishu.appIdPlaceholder", "cli_xxxxxxxxxx")}
-                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                    className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
 
@@ -579,7 +579,7 @@ export function FeishuPanel({
                         ? t("feishu.passwordMask", "••••••••••••")
                         : ""
                     }
-                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                    className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
               </div>
@@ -602,7 +602,7 @@ export function FeishuPanel({
                     type="text"
                     value={encryptKey}
                     onChange={(e) => setEncryptKey(e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                    className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
 
@@ -615,7 +615,7 @@ export function FeishuPanel({
                     type="text"
                     value={verificationToken}
                     onChange={(e) => setVerificationToken(e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                    className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                   />
                 </div>
               </div>
@@ -637,8 +637,8 @@ export function FeishuPanel({
                       onClick={() => setUseCustomEmoji(!useCustomEmoji)}
                       className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                         useCustomEmoji
-                          ? "bg-stone-900 text-stone-100 dark:bg-stone-100 dark:text-stone-900"
-                          : "bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700"
+                          ? "bg-[var(--glass-bg)] text-stone-100 dark:bg-stone-100 dark:text-stone-900"
+                          : "bg-[var(--glass-bg-subtle)] text-stone-600 hover:bg-stone-200 dark:text-stone-400 dark:hover:bg-stone-700"
                       }`}
                     >
                       <Sparkles size={12} />
@@ -656,7 +656,7 @@ export function FeishuPanel({
                           "feishu.customEmojiPlaceholder",
                           "Enter emoji or text (e.g., 🎯 or DONE)",
                         )}
-                        className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                        className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                       />
                       <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
                         {t(
@@ -674,8 +674,8 @@ export function FeishuPanel({
                           onClick={() => setReactEmoji(emoji.value)}
                           className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 transition-all ${
                             reactEmoji === emoji.value
-                              ? "border-stone-400 bg-stone-100 dark:border-stone-500 dark:bg-stone-800"
-                              : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
+                              ? "border-[var(--glass-border-hover)] bg-[var(--glass-bg-subtle)]"
+                              : "border-[var(--glass-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
                           }`}
                         >
                           <span className="text-base">{emoji.emoji}</span>
@@ -699,11 +699,11 @@ export function FeishuPanel({
                       onClick={() => setGroupPolicy("mention")}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
                         groupPolicy === "mention"
-                          ? "border-stone-400 bg-stone-50 dark:border-stone-500 dark:bg-stone-800"
-                          : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
+                          ? "border-[var(--glass-border-hover)] bg-[var(--glass-bg-subtle)]"
+                          : "border-[var(--glass-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
                       }`}
                     >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-stone-100 text-sm dark:bg-stone-700">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--glass-bg-subtle)] text-sm">
                         @
                       </div>
                       <div>
@@ -723,11 +723,11 @@ export function FeishuPanel({
                       onClick={() => setGroupPolicy("open")}
                       className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
                         groupPolicy === "open"
-                          ? "border-stone-400 bg-stone-50 dark:border-stone-500 dark:bg-stone-800"
-                          : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
+                          ? "border-[var(--glass-border-hover)] bg-[var(--glass-bg-subtle)]"
+                          : "border-[var(--glass-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
                       }`}
                     >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-stone-100 text-sm dark:bg-stone-700">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--glass-bg-subtle)] text-sm">
                         💬
                       </div>
                       <div>
@@ -749,12 +749,12 @@ export function FeishuPanel({
           </div>
 
           {/* Agent Selector */}
-          <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-800">
+          <div className="glass-card rounded-xl p-4">
             <ChannelAgentSelect value={agentId} onChange={setAgentId} />
           </div>
 
           {/* Help Card */}
-          <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
+          <div className="glass-card-subtle rounded-xl p-4">
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-stone-900 dark:text-stone-100">

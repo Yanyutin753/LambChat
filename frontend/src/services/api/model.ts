@@ -13,9 +13,22 @@ export interface ModelProfile {
   max_input_tokens?: number;
 }
 
+/** LLM API provider type (dynamic, from backend PROVIDER_REGISTRY) */
+export type ProviderType = string;
+
+/** Shared model option used in selectors and role config */
+export interface ModelOption {
+  id: string;
+  value: string;
+  provider?: string;
+  label: string;
+  description?: string;
+}
+
 export interface ModelConfig {
   id?: string;
   value: string;
+  provider?: ProviderType;
   label: string;
   description?: string;
   api_key?: string;
@@ -31,6 +44,7 @@ export interface ModelConfig {
 
 export interface ModelConfigCreate {
   value: string;
+  provider?: ProviderType;
   label: string;
   description?: string;
   api_key?: string;
@@ -43,6 +57,7 @@ export interface ModelConfigCreate {
 }
 
 export interface ModelConfigUpdate {
+  provider?: ProviderType;
   label?: string;
   description?: string;
   api_key?: string;
@@ -144,10 +159,31 @@ export const modelApi = {
     });
   },
 
+  /** 批量创建模型（共享配置） */
+  async batchCreate(
+    shared: Record<string, unknown>,
+    models: { value: string; label: string; description?: string }[],
+  ): Promise<ModelListResponse> {
+    return authFetch<ModelListResponse>(
+      `${API_BASE}/api/agent/models/batch-create`,
+      {
+        method: "POST",
+        body: JSON.stringify({ shared, models }),
+      },
+    );
+  },
+
   /** 删除所有模型 */
   async deleteAll(): Promise<void> {
     return authFetch<void>(`${API_BASE}/api/agent/models/`, {
       method: "DELETE",
     });
+  },
+
+  /** 列出所有支持的 LLM 供应商 */
+  async listProviders(): Promise<
+    { value: string; protocol: string; prefixes: string[] }[]
+  > {
+    return authFetch(`${API_BASE}/api/agent/models/providers/list`);
   },
 };

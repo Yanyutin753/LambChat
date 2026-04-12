@@ -3,6 +3,7 @@
 """
 
 from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
@@ -11,9 +12,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
     认证中间件
 
     验证请求中的 JWT token。
+    Note: Most routes use route-level Depends(get_current_user_required) for auth.
+    This middleware provides an additional layer for paths that may not have
+    route-level guards.
     """
 
-    # 不需要认证的路径
+    # 不需要认证的路径（精确匹配）
     PUBLIC_PATHS = {
         "/",
         "/health",
@@ -22,23 +26,39 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/auth/register",
         "/docs",
         "/openapi.json",
+        "/api/auth/permissions",
     }
 
+    # 不需要认证的路径前缀
+    PUBLIC_PREFIXES = (
+        "/api/auth/oauth/",
+        "/assets/",
+        "/favicon",
+        "/static/",
+    )
+
     async def dispatch(self, request: Request, call_next):
-        # 检查是否是公开路径
-        if request.url.path in self.PUBLIC_PATHS:
+        path = request.url.path
+
+        # CORS preflight — always pass
+        if request.method == "OPTIONS":
             return await call_next(request)
 
-        # 检查是否以公开路径前缀开头
-        for path in self.PUBLIC_PATHS:
-            if request.url.path.startswith(path):
+        # Exact match on public paths
+        if path in self.PUBLIC_PATHS:
+            return await call_next(request)
+
+        # Prefix match for known public prefixes
+        for prefix in self.PUBLIC_PREFIXES:
+            if path.startswith(prefix):
                 return await call_next(request)
 
-        # 获取 Authorization 头
+        # All other paths require an Authorization header
         auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            # 对于 OPTIONS 请求，直接放行
-            if request.method == "OPTIONS":
-                return await call_next(request)
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Not authenticated"},
+            )
 
         return await call_next(request)

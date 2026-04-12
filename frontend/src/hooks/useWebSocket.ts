@@ -2,7 +2,6 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import {
   getValidAccessToken,
   refreshAccessToken,
-  redirectToLogin,
 } from "../services/api/tokenManager";
 import { getRefreshToken } from "../services/api";
 
@@ -168,7 +167,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
                   connect();
                 }
               } catch {
-                redirectToLogin();
+                // Don't redirect here — let authFetch / useAuth handle it.
+                // A silent redirect from WebSocket background reconnection
+                // is jarring; the user will get redirected on their next
+                // intentional API call.
+                console.warn(
+                  "[WebSocket] Token refresh failed, will retry later",
+                );
+                authFailureCountRef.current++;
               }
             })();
             return;

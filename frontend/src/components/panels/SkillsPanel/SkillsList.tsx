@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Plus,
@@ -82,6 +83,19 @@ export function SkillsList({
   onZipClick,
 }: SkillsListProps) {
   const { t } = useTranslation();
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Close filter dropdown when clicking outside
+  useEffect(() => {
+    if (!isFilterOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isFilterOpen, setIsFilterOpen]);
 
   const hasActiveFilters =
     searchQuery.trim().length > 0 || selectedTags.length > 0;
@@ -100,7 +114,7 @@ export function SkillsList({
         searchPlaceholder={t("skills.searchPlaceholder")}
         searchAccessory={
           availableTags.length > 0 ? (
-            <div className="relative shrink-0">
+            <div className="relative shrink-0" ref={filterRef}>
               <button
                 type="button"
                 onClick={() => setIsFilterOpen((prev) => !prev)}
@@ -268,7 +282,7 @@ export function SkillsList({
 
       {/* Pagination */}
       {total > pageSize && (
-        <div className="border-t border-stone-200 px-3 py-3 dark:border-stone-800 sm:px-4">
+        <div className="glass-divider px-3 py-3 sm:px-4">
           <Pagination
             page={page}
             pageSize={pageSize}

@@ -279,7 +279,7 @@ export function ChannelPanel({
         return (
           <div
             key={field.name}
-            className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800"
+            className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5"
           >
             <div>
               <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
@@ -298,7 +298,7 @@ export function ChannelPanel({
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                className={`inline-block h-4 w-4 rounded-full bg-[var(--theme-bg-card)] shadow-sm transition-transform ${
                   value ? "translate-x-4" : "translate-x-0.5"
                 }`}
               />
@@ -316,7 +316,7 @@ export function ChannelPanel({
               <select
                 value={String(value)}
                 onChange={(e) => updateFormField(field.name, e.target.value)}
-                className="w-full appearance-none rounded-lg border border-stone-200 bg-white pl-3 pr-9 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100"
+                className="w-full appearance-none rounded-lg glass-input pl-3 pr-9 py-2 text-sm text-stone-900 focus:border-stone-500 focus:outline-none dark:text-stone-100"
               >
                 {field.options?.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -354,7 +354,7 @@ export function ChannelPanel({
                 field.placeholder ||
                 (hasExistingConfig ? t("common.masked") : "")
               }
-              className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+              className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
             />
           </div>
         );
@@ -373,7 +373,7 @@ export function ChannelPanel({
               value={String(value)}
               onChange={(e) => updateFormField(field.name, e.target.value)}
               placeholder={field.placeholder || ""}
-              className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+              className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
             />
           </div>
         );
@@ -411,7 +411,7 @@ export function ChannelPanel({
 
   return (
     <>
-      <div className="flex h-full flex-col min-h-0">
+      <div className="glass-shell flex h-full flex-col min-h-0">
         {/* Header */}
         <PanelHeader
           title={metadata.display_name}
@@ -433,7 +433,7 @@ export function ChannelPanel({
           <div className="space-y-4">
             {/* Status Card */}
             {hasExistingConfig && status && (
-              <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+              <div className="glass-card rounded-xl p-4 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     {status.connected ? (
@@ -493,7 +493,7 @@ export function ChannelPanel({
             )}
 
             {/* Configuration Card */}
-            <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 ">
+            <div className="glass-card rounded-xl p-4 ">
               <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
                 {t("channel.configuration", "Configuration")}
               </h3>
@@ -514,14 +514,14 @@ export function ChannelPanel({
                         "channel.instanceNamePlaceholder",
                         "e.g., My Work Bot",
                       )}
-                      className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:placeholder-stone-500"
+                      className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
                     />
                   </div>
                 )}
 
                 {/* Instance Name Display - show for existing instances */}
                 {!isNewInstance && hasExistingConfig && (
-                  <div className="rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800">
+                  <div className="rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
                     <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t("channel.instanceName", "Instance Name")}
                     </span>
@@ -532,7 +532,7 @@ export function ChannelPanel({
                 )}
 
                 {/* Enable Toggle */}
-                <div className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2.5 dark:bg-stone-800">
+                <div className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
                   <div>
                     <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
                       {t("channel.enabled", "Enable Channel")}
@@ -553,7 +553,7 @@ export function ChannelPanel({
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                      className={`inline-block h-4 w-4 rounded-full bg-[var(--theme-bg-card)] shadow-sm transition-transform ${
                         enabled ? "translate-x-4" : "translate-x-0.5"
                       }`}
                     />
@@ -570,7 +570,7 @@ export function ChannelPanel({
 
             {/* Help Card */}
             {metadata.setup_guide.length > 0 && (
-              <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-800/50">
+              <div className="glass-card-subtle rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">

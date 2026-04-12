@@ -212,7 +212,9 @@ export function ChatView({
       setDisplaySuggestions(undefined);
       return;
     }
-    setDisplaySuggestions([...suggestions].sort(() => Math.random() - 0.5).slice(0, 4));
+    setDisplaySuggestions(
+      [...suggestions].sort(() => Math.random() - 0.5).slice(0, 4),
+    );
   }, [suggestions]);
 
   const refreshSuggestions = useCallback(() => {
@@ -364,12 +366,11 @@ export function ChatView({
                 }
                 onSendMessage(s.text);
               }}
-              className="welcome-pill shrink-0 inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-[13px] transition-all duration-300 backdrop-blur-sm"
+              className="welcome-pill shrink-0 inline-flex items-center gap-2 rounded-full border pl-3 pr-4 py-2 text-[13px] text-left transition-all duration-300 backdrop-blur-sm"
               style={{
                 backgroundColor:
-                  "color-mix(in srgb, var(--theme-bg-card) 70%, transparent)",
-                borderColor:
-                  "color-mix(in srgb, var(--theme-border) 50%, transparent)",
+                  "color-mix(in srgb, var(--theme-bg-card) 85%, transparent)",
+                borderColor: "var(--theme-border)",
                 color: "var(--theme-text-secondary)",
               }}
             >

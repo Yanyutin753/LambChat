@@ -79,6 +79,8 @@ class ModelConfigPubSub:
                     logger.error(f"ModelConfig pub/sub listener error: {e}")
                     if not self._running:
                         break
+                    # Clean up old pubsub connection before reconnecting
+                    await self._cleanup()
                     # Auto-reconnect with exponential backoff
                     logger.info(f"ModelConfig pub/sub reconnecting in {delay}s...")
                     await asyncio.sleep(delay)
@@ -102,9 +104,10 @@ class ModelConfigPubSub:
 
             # Clear the LLM client cache and model caches (no re-publish to avoid bouncing)
             from src.infra.llm.client import LLMClient
-            from src.infra.llm.models_service import invalidate_cache
+            from src.infra.llm.models_service import clear_api_key_cache, invalidate_cache
 
             await invalidate_cache(publish=False)
+            clear_api_key_cache()
             count = LLMClient.clear_cache_by_model()
             logger.info(
                 f"[ModelConfigPubSub] Cleared {count} LLM cache entries (local invalidation)"

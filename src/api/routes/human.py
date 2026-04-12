@@ -27,6 +27,7 @@ from src.infra.storage.mongodb import (
     notify_approval_response,
     wait_for_response_distributed,
 )
+from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
 
@@ -86,6 +87,7 @@ async def create_approval(
     approval_type: str = "form",
     fields: Optional[List[dict]] = None,
     session_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> PendingApproval:
     """
     创建审批请求 (供 Agent 调用)
@@ -95,6 +97,7 @@ async def create_approval(
         approval_type: 类型 (form, confirm)
         fields: 表单字段列表
         session_id: 关联的会话 ID
+        user_id: 关联的用户 ID
 
     Returns:
         PendingApproval 对象
@@ -107,6 +110,7 @@ async def create_approval(
         fields=fields or [],
         status="pending",
         session_id=session_id,
+        user_id=user_id,
         created_at=datetime.now(),
     )
 
@@ -203,15 +207,17 @@ def _cleanup_stale_events(max_age: float = 3600) -> int:
 # ============================================================================
 
 
-@router.get("/pending", dependencies=[Depends(require_permissions("chat:write"))])
-async def get_pending_approvals():
+@router.get("/pending")
+async def get_pending_approvals(
+    user: TokenPayload = Depends(require_permissions("chat:write")),
+):
     """
     获取待处理的审批列表
 
-    前端轮询此接口获取待审批的请求。
+    前端轮询此接口获取待审批的请求。只返回当前用户的审批。
     """
     _cleanup_stale_events()
-    pending = await _approval_storage.list_pending()
+    pending = await _approval_storage.list_pending(user_id=user.sub)
     return {"approvals": [a.model_dump() for a in pending], "count": len(pending)}
 
 

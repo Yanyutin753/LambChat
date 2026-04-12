@@ -4,9 +4,9 @@ LLM Models Service - Model fetching utilities with distributed caching.
 Three-tier cache: memory → Redis → DB.
 Supports distributed deployments with pub/sub invalidation.
 
-IMPORTANT: API keys are NOT stored in the cache for security.
-At inference time, LLMClient.get_model() does a direct DB lookup
-for api_key when needed.
+API keys are cached in-process only (not in Redis) for security.
+This eliminates the per-request DB fallback while keeping keys out of
+shared caches.
 """
 
 from __future__ import annotations
@@ -26,6 +26,9 @@ _MODELS_CACHE_TTL = 300  # 5 minutes default TTL
 # In-memory cache (per-process)
 _memory_cache: Optional[list[dict[str, Any]]] = None
 
+# In-process api_key cache (per-process, not shared via Redis)
+_api_key_cache: dict[str, str] = {}
+
 
 def set_memory_cache(models: list[dict[str, Any]]) -> None:
     """Update the in-memory cache directly."""
@@ -37,6 +40,21 @@ def clear_memory_cache() -> None:
     """Clear the in-memory cache only (sync, no I/O)."""
     global _memory_cache
     _memory_cache = None
+
+
+def clear_api_key_cache() -> None:
+    """Clear the in-process api_key cache (sync, no I/O)."""
+    _api_key_cache.clear()
+
+
+def get_cached_api_key(model_value: str) -> Optional[str]:
+    """Get api_key from the in-process cache."""
+    return _api_key_cache.get(model_value)
+
+
+def set_cached_api_key(model_value: str, api_key: str) -> None:
+    """Store api_key in the in-process cache."""
+    _api_key_cache[model_value] = api_key
 
 
 async def get_default_model(allowed_models: Optional[list[str]] = None) -> str:
@@ -107,18 +125,35 @@ async def get_available_models() -> list[dict[str, Any]]:
 def _strip_api_keys(model_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Remove api_key from model dicts before caching.
 
-    API keys are sensitive and should not be stored in Redis or process memory.
-    They are fetched on-demand from DB at inference time.
+    Returns new dicts to avoid mutating the caller's data.
     """
-    for m in model_list:
-        m["api_key"] = None
-    return model_list
+    return [{**m, "api_key": None} for m in model_list]
 
 
-async def _fetch_from_db() -> list[dict[str, Any]]:
-    """Query DB, write results into memory + Redis caches."""
+async def _write_to_caches(model_list: list[dict[str, Any]]) -> None:
+    """Write model list to memory and Redis caches (api_keys stripped)."""
     global _memory_cache
 
+    stripped = _strip_api_keys(model_list)
+    _memory_cache = stripped
+
+    try:
+        from src.infra.storage.redis import get_redis_client
+
+        redis_client = get_redis_client()
+        ttl = getattr(settings, "LLM_MODELS_CACHE_TTL", _MODELS_CACHE_TTL)
+        await redis_client.set(_MODELS_CACHE_KEY, json.dumps(stripped), ex=ttl)
+        logger.debug(f"[LLMModels] Cached {len(stripped)} models (TTL={ttl}s)")
+    except Exception as e:
+        logger.debug(f"[LLMModels] Redis write failed: {e}")
+
+
+async def _fetch_from_db(*, raise_on_error: bool = True) -> list[dict[str, Any]]:
+    """Query DB, write results into memory + Redis caches.
+
+    Args:
+        raise_on_error: If True, re-raise exceptions. If False, return [].
+    """
     try:
         from src.infra.agent.model_storage import get_model_storage
 
@@ -128,24 +163,21 @@ async def _fetch_from_db() -> list[dict[str, Any]]:
             return []
 
         model_list = [m.model_dump() for m in models]
-        _strip_api_keys(model_list)
-        _memory_cache = model_list
 
-        try:
-            from src.infra.storage.redis import get_redis_client
+        # Populate in-process api_key cache from DB results
+        for m, raw in zip(models, model_list):
+            if m.api_key:
+                _api_key_cache[m.value] = m.api_key
 
-            redis_client = get_redis_client()
-            ttl = getattr(settings, "LLM_MODELS_CACHE_TTL", _MODELS_CACHE_TTL)
-            await redis_client.set(_MODELS_CACHE_KEY, json.dumps(model_list), ex=ttl)
-            logger.debug(f"[LLMModels] Cached {len(model_list)} models in Redis (TTL={ttl}s)")
-        except Exception as e:
-            logger.debug(f"[LLMModels] Redis write failed: {e}")
-
-        return model_list
+        await _write_to_caches(model_list)
+        return _strip_api_keys(model_list)
     except Exception as e:
-        logger.error(f"[LLMModels] DB query failed: {e}")
-        # Re-raise to caller so it doesn't silently use stale data
-        raise
+        msg = f"[LLMModels] DB query failed: {e}"
+        if raise_on_error:
+            logger.error(msg)
+            raise
+        logger.debug(msg)
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +194,7 @@ async def invalidate_cache(*, publish: bool = True) -> None:
                  infinite cross-instance bouncing.
     """
     clear_memory_cache()
+    clear_api_key_cache()
 
     try:
         from src.infra.storage.redis import get_redis_client
@@ -183,28 +216,4 @@ async def invalidate_cache(*, publish: bool = True) -> None:
 
 async def refresh_models() -> list[dict[str, Any]]:
     """Refresh models from DB, update memory + Redis caches."""
-    global _memory_cache
-
-    try:
-        from src.infra.agent.model_storage import get_model_storage
-
-        storage = get_model_storage()
-        models = await storage.list_models(include_disabled=False)
-        if models:
-            logger.info(f"[LLMModels] Refreshed {len(models)} models from database")
-            model_list = [m.model_dump() for m in models]
-            _strip_api_keys(model_list)
-            _memory_cache = model_list
-            try:
-                from src.infra.storage.redis import get_redis_client
-
-                redis_client = get_redis_client()
-                ttl = getattr(settings, "LLM_MODELS_CACHE_TTL", _MODELS_CACHE_TTL)
-                await redis_client.set(_MODELS_CACHE_KEY, json.dumps(model_list), ex=ttl)
-            except Exception as e:
-                logger.debug(f"[LLMModels] Redis write failed: {e}")
-            return model_list
-    except Exception as e:
-        logger.debug(f"[LLMModels] DB query failed: {e}")
-
-    return []
+    return await _fetch_from_db(raise_on_error=False)

@@ -167,6 +167,7 @@ export function SkillSelector({
       ref={swipeRef as React.RefObject<HTMLDivElement>}
       className="sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] min-h-[40vh] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden"
       style={{ background: "var(--theme-bg-card)" }}
+      onClick={(e) => e.stopPropagation()}
     >
       {/* Header */}
       <div
@@ -478,20 +479,16 @@ export function SkillSelector({
       {isOpen &&
         createPortal(
           <>
-            {/* Backdrop - hidden on mobile */}
             <div
-              className="hidden sm:block fixed inset-0 z-50 bg-black/50 animate-fade-in"
-              onClick={() => setIsOpen(false)}
-            />
-
-            {/* Mobile backdrop - darker */}
-            <div
-              className="sm:hidden fixed inset-0 z-50 bg-black/60 animate-fade-in"
+              className="fixed inset-0 z-50 animate-fade-in"
               onClick={() => setIsOpen(false)}
             />
 
             {/* Modal Content - Desktop: centered, Mobile: bottom sheet */}
-            <div className="fixed z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in">
+            <div
+              className="fixed z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
+              onClick={() => setIsOpen(false)}
+            >
               <ModalContent />
             </div>
           </>,

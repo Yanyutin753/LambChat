@@ -3,14 +3,9 @@ import { Cpu, Save, Globe, List } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
+import { ModelIconImg } from "../../../agent/modelIcon.tsx";
+import type { ModelOption } from "../../../../services/api/model";
 import type { Role } from "../../../../types";
-
-interface ModelOption {
-  id: string;
-  value: string;
-  label: string;
-  description?: string;
-}
 
 interface RolesModelTabProps {
   roles: Role[];
@@ -195,6 +190,11 @@ export function RolesModelTab({
                       checked={isSelected}
                       onChange={() => toggleModel(model.id)}
                       className="h-4 w-4 rounded border-stone-300 text-stone-600 focus:ring-stone-500"
+                    />
+                    <ModelIconImg
+                      model={model.value}
+                      provider={model.provider}
+                      size={20}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">

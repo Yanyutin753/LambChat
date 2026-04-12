@@ -118,20 +118,29 @@ export function ProfileModal({
         className ?? ""
       }`}
     >
-      <div className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">
+      <a
+        href="https://github.com/clivia/LambChat"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+      >
         <span className="font-semibold text-stone-500 dark:text-stone-400 font-serif tracking-tight">
           {APP_NAME}
         </span>
         {versionInfo?.app_version && (
           <span className="ml-1.5 opacity-70">v{versionInfo.app_version}</span>
         )}
-      </div>
-      <button
-        onClick={onCloseProfileModal}
-        className="text-[11px] font-medium text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-700/60"
+      </a>
+      <a
+        href="https://github.com/clivia/LambChat"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="px-2 text-[11px] font-medium text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-700/60"
       >
         {t("common.poweredBy")}
-      </button>
+      </a>
     </div>
   );
 

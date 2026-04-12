@@ -20,6 +20,10 @@ export async function createAuthHeaders(
   return finalHeaders;
 }
 
+/**
+ * Authenticated request with automatic 401 retry.
+ * Behavior is consistent with authFetch: throws on auth failure.
+ */
 export async function authenticatedRequest(
   input: RequestInfo | URL,
   init: AuthenticatedRequestOptions = {},
@@ -37,14 +41,14 @@ export async function authenticatedRequest(
 
   if (!getRefreshToken()) {
     redirectToLogin();
-    return response;
+    throw new Error("Unauthorized: no refresh token");
   }
 
   try {
     await refreshAccessToken();
-  } catch {
+  } catch (error) {
     redirectToLogin();
-    return response;
+    throw error;
   }
 
   const retryHeaders = await createAuthHeaders(headers);
@@ -55,6 +59,7 @@ export async function authenticatedRequest(
 
   if (retryResponse.status === 401) {
     redirectToLogin();
+    throw new Error("Unauthorized after token refresh");
   }
 
   return retryResponse;

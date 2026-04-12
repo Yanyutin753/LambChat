@@ -15,6 +15,15 @@ import {
   RefreshCcw,
   Pencil,
   AlertTriangle,
+  Zap,
+  Package,
+  GraduationCap,
+  Code2,
+  PenTool,
+  Shield,
+  Database,
+  Sparkles,
+  MoreHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -29,6 +38,74 @@ import { useSkills } from "../../hooks/useSkills";
 import { Permission } from "../../types";
 import type { SkillResponse, SkillCreate } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
+
+// Deterministic gradient pairs for card banners
+const GRADIENT_PALETTES = [
+  ["#c7a16b", "#90bcd5", "#c1b5e3"],
+  ["#846bc7", "#d590a8", "#d5b5e3"],
+  ["#7766cc", "#8c95d9", "#bcb3e6"],
+  ["#82a9c9", "#d1c994", "#d8d9a6"],
+  ["#cc66b9", "#8cd9d5", "#c9b3e6"],
+  ["#b1b87a", "#9cc9a2", "#d0bddb"],
+  ["#c6c982", "#d1cf94", "#d2d9a6"],
+  ["#c98e82", "#d1c294", "#c0d9a6"],
+  ["#a68bc7", "#b5c7d5", "#d9c4e3"],
+  ["#7ab8a2", "#c9c082", "#d5b5c7"],
+  ["#c7946b", "#a8c790", "#c9a8d5"],
+  ["#8b7ac7", "#d5a08c", "#a8d5c9"],
+];
+
+// Category icon mapping based on tag keywords
+function getCategoryIcon(tag: string) {
+  const t = tag.toLowerCase();
+  if (
+    t.includes("学术") ||
+    t.includes("academic") ||
+    t.includes("论文") ||
+    t.includes("paper")
+  )
+    return GraduationCap;
+  if (
+    t.includes("编程") ||
+    t.includes("coding") ||
+    t.includes("code") ||
+    t.includes("dev")
+  )
+    return Code2;
+  if (
+    t.includes("文案") ||
+    t.includes("writing") ||
+    t.includes("copy") ||
+    t.includes("writer")
+  )
+    return PenTool;
+  if (t.includes("安全") || t.includes("security") || t.includes("安全"))
+    return Shield;
+  if (
+    t.includes("数据") ||
+    t.includes("data") ||
+    t.includes("数据库") ||
+    t.includes("database")
+  )
+    return Database;
+  if (
+    t.includes("效率") ||
+    t.includes("productivity") ||
+    t.includes("工具") ||
+    t.includes("tool")
+  )
+    return Zap;
+  return Package;
+}
+
+// Deterministic hash for gradient selection
+function nameToGradient(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return GRADIENT_PALETTES[Math.abs(hash) % GRADIENT_PALETTES.length];
+}
 
 export function MarketplacePanel() {
   const { t } = useTranslation();
@@ -107,6 +184,22 @@ export function MarketplacePanel() {
   const [isCreating, setIsCreating] = useState(false);
   const [isFormFullscreen, setIsFormFullscreen] = useState(false);
   const [isDescExpanded, setIsDescExpanded] = useState(false);
+  const [openMenuName, setOpenMenuName] = useState<string | null>(null);
+
+  // Close all dropdowns when clicking outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (isFilterOpen && !target.closest("[data-filter-menu]")) {
+        setIsFilterOpen(false);
+      }
+      if (openMenuName && !target.closest("[data-mp-menu]")) {
+        setOpenMenuName(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isFilterOpen, openMenuName]);
 
   const [adminDeleteConfirm, setAdminDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -277,7 +370,7 @@ export function MarketplacePanel() {
         searchPlaceholder={t("marketplace.searchPlaceholder")}
         searchAccessory={
           tags.length > 0 ? (
-            <div className="relative shrink-0">
+            <div className="relative shrink-0" data-filter-menu>
               <button
                 type="button"
                 onClick={() => setIsFilterOpen((prev) => !prev)}
@@ -403,8 +496,8 @@ export function MarketplacePanel() {
             )}
           </div>
         ) : (
-          <div className="skill-grid grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {skills.map((skill) => {
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {skills.map((skill, index) => {
               const isInstalled = installedMarketplaceNames.has(
                 skill.skill_name,
               );
@@ -413,213 +506,284 @@ export function MarketplacePanel() {
               );
               const isOwner = skill.is_owner;
               const canManage = isOwner || canAdmin;
+              const gradient = nameToGradient(skill.skill_name);
+              const primaryTag = skill.tags[0];
+              const CategoryIcon = primaryTag
+                ? getCategoryIcon(primaryTag)
+                : Sparkles;
+
               return (
                 <div
                   key={skill.skill_name}
-                  className={`skill-surface-card group flex h-full flex-col rounded-[1.6rem] p-4 sm:p-5 ${
-                    skill.is_active
-                      ? ""
-                      : "skill-surface-card--muted opacity-80"
-                  }`}
+                  className="mp-card group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
+                  style={{ animationDelay: `${index * 60}ms` }}
                 >
-                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--theme-primary)]/20 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                  <div className="relative flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-lg font-semibold text-[var(--theme-text)]">
+                  {/* Gradient Banner */}
+                  <div
+                    className="mp-card__banner relative h-12 shrink-0"
+                    style={{
+                      background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
+                    }}
+                  >
+                    {/* Status pills overlay on banner */}
+                    <div className="absolute top-2 right-2 flex gap-1.5">
+                      {isInstalled && (
+                        <span className="mp-card__status-pill mp-card__status-pill--installed">
+                          {t("marketplace.installed")}
+                        </span>
+                      )}
+                      {!skill.is_active && (
+                        <span className="mp-card__status-pill mp-card__status-pill--inactive">
+                          {t("marketplace.inactive")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="flex flex-1 flex-col p-4 pt-5">
+                    {/* Title row with icon */}
+                    <div className="flex items-start gap-3">
+                      <div className="mp-card__icon-ring shrink-0">
+                        <CategoryIcon
+                          size={20}
+                          className="text-[var(--theme-primary)]"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3
+                          className="truncate text-base font-semibold text-[var(--theme-text)] leading-tight"
+                          title={skill.skill_name}
+                        >
                           {skill.skill_name}
                         </h3>
-                        <span
-                          className={`skill-status-pill ${
-                            skill.is_active
-                              ? "skill-status-pill--active"
-                              : "skill-status-pill--disabled"
-                          }`}
-                        >
-                          {skill.is_active
-                            ? t("marketplace.active")
-                            : t("marketplace.inactive")}
-                        </span>
-                        {isInstalled && (
-                          <span className="skill-status-pill skill-status-pill--installed">
-                            {t("marketplace.installed")}
-                          </span>
-                        )}
-                        {hasLocalManualConflict && (
-                          <span className="skill-status-pill skill-status-pill--disabled">
-                            {t("marketplace.nameConflict")}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-2 text-sm leading-relaxed text-[var(--theme-text-secondary)] line-clamp-3 min-h-[3.75rem]">
-                        {skill.description || t("marketplace.noDescription")}
-                      </p>
-                      {hasLocalManualConflict && (
-                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/90 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                          <div className="flex items-start gap-2">
-                            <AlertTriangle
-                              size={14}
-                              className="mt-0.5 shrink-0"
-                            />
-                            <span>{t("marketplace.installNameConflict")}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate("/skills", {
-                                state: { prefillSkillSearch: skill.skill_name },
-                              })
-                            }
-                            className="mt-2 inline-flex items-center gap-1.5 font-medium text-amber-900 underline decoration-amber-400 underline-offset-2 transition-colors hover:text-amber-950 dark:text-amber-200 dark:decoration-amber-700 dark:hover:text-amber-100"
-                          >
-                            <Pencil size={13} />
-                            <span>{t("marketplace.viewInMySkills")}</span>
-                          </button>
+                        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+                          {skill.updated_at && (
+                            <span>
+                              {new Date(skill.updated_at).toLocaleDateString(
+                                undefined,
+                                {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                },
+                              )}
+                            </span>
+                          )}
+                          {skill.created_by_username && (
+                            <>
+                              <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
+                              <span className="truncate">
+                                {t("marketplace.publishedBy", {
+                                  username: skill.created_by_username,
+                                })}
+                              </span>
+                            </>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[var(--theme-text-secondary)]">
-                    <div className="skill-meta-pill">
-                      <FileText size={13} />
-                      <span>
-                        {skill.file_count} {t("marketplace.files")}
-                      </span>
-                    </div>
-                    <div className="skill-meta-pill">v{skill.version}</div>
-                    {skill.created_by_username && (
-                      <div className="skill-meta-pill truncate">
-                        {t("marketplace.publishedBy", {
-                          username: skill.created_by_username,
-                        })}
+                    {/* Description */}
+                    <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">
+                      {skill.description || t("marketplace.noDescription")}
+                    </p>
+
+                    {/* Category tag */}
+                    {primaryTag && (
+                      <div className="mt-3 flex items-center gap-1.5">
+                        <CategoryIcon
+                          size={12}
+                          className="text-[var(--theme-text-secondary)]"
+                        />
+                        <span className="mp-card__category-tag">
+                          {primaryTag}
+                        </span>
                       </div>
                     )}
-                  </div>
 
-                  {skill.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {skill.tags.slice(0, 4).map((tag) => (
+                    {/* Conflict warning */}
+                    {hasLocalManualConflict && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/90 px-2.5 py-2 text-[11px] text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+                        <div className="flex items-start gap-1.5">
+                          <AlertTriangle
+                            size={12}
+                            className="mt-0.5 shrink-0"
+                          />
+                          <span>{t("marketplace.installNameConflict")}</span>
+                        </div>
                         <button
-                          key={tag}
                           type="button"
-                          onClick={() => toggleTag(tag)}
-                          className={`skill-tag-chip ${
-                            selectedTags.includes(tag)
-                              ? "skill-tag-chip--active"
-                              : ""
-                          }`}
+                          onClick={() =>
+                            navigate("/skills", {
+                              state: { prefillSkillSearch: skill.skill_name },
+                            })
+                          }
+                          className="mt-1.5 inline-flex items-center gap-1 font-medium text-amber-900 underline decoration-amber-400 underline-offset-2 transition-colors hover:text-amber-950 dark:text-amber-200 dark:decoration-amber-700 dark:hover:text-amber-100"
                         >
-                          {tag}
+                          <Pencil size={11} />
+                          <span>{t("marketplace.viewInMySkills")}</span>
                         </button>
-                      ))}
-                      {skill.tags.length > 4 && (
-                        <span className="skill-tag-chip">
-                          +{skill.tags.length - 4}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
-                  <div className="mt-auto space-y-3 pt-5">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => openPreview(skill)}
-                        className="btn-secondary text-xs flex min-h-9 items-center gap-1.5 px-3 py-2"
-                      >
-                        <Eye size={14} />
-                        <span>{t("marketplace.preview")}</span>
-                      </button>
-                      {canWrite &&
-                        (installingSkill === skill.skill_name ? (
+                    {/* Tags */}
+                    {skill.tags.length > 1 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {skill.tags.slice(1, 4).map((tag) => (
                           <button
-                            disabled
-                            className="btn-primary opacity-50 text-xs min-h-9 px-3 py-2"
-                          >
-                            <Loader2Icon
-                              size={14}
-                              className="animate-spin text-white"
-                            />
-                            <span>{t("marketplace.installing")}</span>
-                          </button>
-                        ) : userSkillsLoading ? (
-                          <span className="inline-flex min-h-9 items-center text-xs text-[var(--theme-text-secondary)] px-2">
-                            <Loader2Icon
-                              size={14}
-                              className="animate-spin inline mr-1"
-                            />
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => handleInstallClick(skill.skill_name)}
-                            disabled={hasLocalManualConflict}
-                            title={
-                              hasLocalManualConflict
-                                ? t("marketplace.installNameConflict")
-                                : undefined
-                            }
-                            className={`text-xs flex min-h-9 items-center gap-1.5 px-3 py-2 ${
-                              hasLocalManualConflict
-                                ? "btn-secondary cursor-not-allowed opacity-60"
-                                : isInstalled
-                                  ? "btn-secondary"
-                                  : "btn-primary shadow-sm"
+                            key={tag}
+                            type="button"
+                            onClick={() => toggleTag(tag)}
+                            className={`mp-card__mini-tag ${
+                              selectedTags.includes(tag)
+                                ? "mp-card__mini-tag--active"
+                                : ""
                             }`}
                           >
-                            {hasLocalManualConflict ? (
-                              <>
-                                <AlertTriangle size={14} />
-                                <span>{t("marketplace.nameConflict")}</span>
-                              </>
-                            ) : isInstalled ? (
-                              <>
-                                <RefreshCcw size={14} />
-                                <span>{t("marketplace.update")}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Download size={14} />
-                                <span>{t("marketplace.install")}</span>
-                              </>
-                            )}
+                            {tag}
                           </button>
                         ))}
-                    </div>
-
-                    {canManage && (
-                      <div className="flex flex-wrap items-center gap-2 border-t border-[var(--theme-border)] pt-3">
-                        {isOwner && (
-                          <button
-                            onClick={() => handleEdit(skill.skill_name)}
-                            className="btn-secondary text-xs flex min-h-9 items-center gap-1.5 px-3 py-1.5"
-                          >
-                            <Pencil size={14} />
-                            <span>{t("common.edit")}</span>
-                          </button>
+                        {skill.tags.length > 4 && (
+                          <span className="mp-card__mini-tag">
+                            +{skill.tags.length - 4}
+                          </span>
                         )}
-                        <div className="flex-1" />
-                        <button
-                          onClick={() =>
-                            handleActivate(skill.skill_name, !skill.is_active)
-                          }
-                          className={`skill-status-pill min-h-9 px-3 py-1.5 text-xs transition-all ${
-                            skill.is_active
-                              ? "skill-status-pill--active"
-                              : "skill-status-pill--disabled"
-                          }`}
-                        >
-                          {skill.is_active
-                            ? t("marketplace.active")
-                            : t("marketplace.inactive")}
-                        </button>
-                        <button
-                          onClick={() => handleAdminDelete(skill.skill_name)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[var(--theme-text-secondary)] transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                        >
-                          <Trash2 size={14} />
-                        </button>
                       </div>
                     )}
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* Meta & Actions */}
+                    <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+                        <span className="inline-flex items-center gap-1">
+                          <FileText size={11} />
+                          {skill.file_count}
+                        </span>
+                        <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
+                        <span>v{skill.version}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openPreview(skill)}
+                          className="mp-card__action-btn mp-card__action-btn--ghost"
+                          title={t("marketplace.preview")}
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {canWrite &&
+                          (installingSkill === skill.skill_name ? (
+                            <button
+                              disabled
+                              className="mp-card__action-btn mp-card__action-btn--loading"
+                            >
+                              <Loader2Icon size={16} className="animate-spin" />
+                            </button>
+                          ) : userSkillsLoading ? (
+                            <span className="inline-flex items-center justify-center w-8 h-8">
+                              <Loader2Icon
+                                size={16}
+                                className="animate-spin text-[var(--theme-text-secondary)]"
+                              />
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                handleInstallClick(skill.skill_name)
+                              }
+                              disabled={hasLocalManualConflict}
+                              title={
+                                hasLocalManualConflict
+                                  ? t("marketplace.installNameConflict")
+                                  : isInstalled
+                                    ? t("marketplace.update")
+                                    : t("marketplace.install")
+                              }
+                              className={`mp-card__action-btn ${
+                                hasLocalManualConflict
+                                  ? "mp-card__action-btn--disabled"
+                                  : "mp-card__action-btn--ghost"
+                              }`}
+                            >
+                              {hasLocalManualConflict ? (
+                                <AlertTriangle size={16} />
+                              ) : isInstalled ? (
+                                <RefreshCcw size={16} />
+                              ) : (
+                                <Download size={16} />
+                              )}
+                            </button>
+                          ))}
+
+                        {/* Admin dropdown */}
+                        {canManage && (
+                          <div className="relative" data-mp-menu>
+                            <button
+                              className="mp-card__action-btn mp-card__action-btn--ghost"
+                              onClick={() =>
+                                setOpenMenuName(
+                                  openMenuName === skill.skill_name
+                                    ? null
+                                    : skill.skill_name,
+                                )
+                              }
+                            >
+                              <MoreHorizontal size={16} />
+                            </button>
+                            {openMenuName === skill.skill_name && (
+                              <div className="absolute right-0 bottom-full mb-1 z-10 w-36 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] py-1 shadow-lg">
+                                {isOwner && (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuName(null);
+                                      handleEdit(skill.skill_name);
+                                    }}
+                                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+                                  >
+                                    <Pencil size={12} />
+                                    {t("common.edit")}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuName(null);
+                                    handleActivate(
+                                      skill.skill_name,
+                                      !skill.is_active,
+                                    );
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-primary-light)]"
+                                >
+                                  {skill.is_active ? (
+                                    <>
+                                      <X size={12} />
+                                      {t("marketplace.inactive")}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Zap size={12} />
+                                      {t("marketplace.active")}
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuName(null);
+                                    handleAdminDelete(skill.skill_name);
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                >
+                                  <Trash2 size={12} />
+                                  {t("common.delete")}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

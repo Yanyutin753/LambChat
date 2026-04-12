@@ -7,9 +7,9 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { sessionApi } from "../../services/api";
 import {
   getValidAccessToken,
-  redirectToLogin,
   refreshAccessToken,
 } from "../../services/api/tokenManager";
+import { getRefreshToken } from "../../services/api/token";
 import type { EventType, StreamEvent } from "./types";
 import { handleStreamEvent, type EventHandlerContext } from "./eventHandlers";
 import { clearAllLoadingStates } from "./messageParts";
@@ -104,10 +104,18 @@ export async function connectToSSE(
         onopen: async (response) => {
           if (response.status === 401) {
             if (hasRetried) {
-              redirectToLogin();
+              // refreshAccessToken() in the first attempt already handled redirect
+              // if needed, so just abort and throw
               throw new Error("SSE unauthorized after token refresh");
             }
-            await refreshAccessToken();
+            if (!getRefreshToken()) {
+              throw new Error("SSE unauthorized: no refresh token");
+            }
+            try {
+              await refreshAccessToken();
+            } catch {
+              throw new Error("SSE unauthorized: token refresh failed");
+            }
             abortControllerRef.current?.abort();
             isConnectingRef.current = false;
             await connectToSSE(

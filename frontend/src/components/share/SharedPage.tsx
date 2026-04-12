@@ -556,13 +556,22 @@ export function SharedPage() {
                 {data.session.model && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
                     {(() => {
-                      const iconUrl = getModelIconUrl(data.session.model);
+                      const iconUrl = getModelIconUrl(
+                        data.session.model,
+                        (data.session as Record<string, unknown>).provider as
+                          | string
+                          | undefined,
+                      );
                       return iconUrl ? (
                         <img
                           src={iconUrl}
                           alt=""
                           className={`w-3.5 h-3.5 ${
-                            isMonochromeIcon(data.session.model)
+                            isMonochromeIcon(
+                              data.session.model,
+                              (data.session as Record<string, unknown>)
+                                .provider as string | undefined,
+                            )
                               ? "dark:invert"
                               : ""
                           }`}

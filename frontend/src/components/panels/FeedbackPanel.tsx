@@ -39,9 +39,9 @@ function StatsCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
+    <div className="glass-card rounded-xl p-4">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-stone-100 dark:bg-stone-800">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--glass-bg-subtle)]">
           <Icon size={24} className="text-stone-600 dark:text-stone-400" />
         </div>
         <div>
@@ -75,7 +75,7 @@ function DeleteConfirmModal({
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all dark:bg-stone-900"
+          className="w-full max-w-md transform overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] p-6 text-left align-middle shadow-xl transition-all"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Icon */}
@@ -99,7 +99,7 @@ function DeleteConfirmModal({
           <div className="mt-6 flex gap-3">
             <button
               onClick={onCancel}
-              className="flex-1 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              className="flex-1 rounded-xl border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:text-stone-300 dark:hover:bg-stone-700"
             >
               {t("common.cancel")}
             </button>
@@ -140,7 +140,7 @@ function FeedbackDetailModal({
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all dark:bg-stone-900"
+          className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] p-6 text-left align-middle shadow-xl transition-all"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -172,7 +172,7 @@ function FeedbackDetailModal({
           {/* User Info */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300 font-semibold text-lg">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--glass-bg-subtle)] text-stone-600 dark:text-stone-300 font-semibold text-lg">
                 {feedback.username.charAt(0).toUpperCase()}
               </div>
               <div>
@@ -188,10 +188,11 @@ function FeedbackDetailModal({
             {/* Rating */}
             <div className="flex items-center gap-2 mb-6">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${feedback.rating === "up"
-                  ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
-                  : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
-                  }`}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
+                  feedback.rating === "up"
+                    ? "bg-[var(--glass-bg-subtle)] text-stone-600 dark:text-stone-300"
+                    : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
+                }`}
               >
                 {feedback.rating === "up" ? (
                   <ThumbsUp size={16} />
@@ -257,7 +258,7 @@ function FeedbackDetailModal({
               <label className="block text-xs font-medium text-stone-500 dark:text-stone-400 mb-2">
                 {t("feedback.comment") || "Comment"}
               </label>
-              <div className="rounded-xl bg-stone-50 p-4 text-sm text-stone-700 dark:bg-stone-800 dark:text-stone-300 whitespace-pre-wrap">
+              <div className="rounded-xl bg-[var(--glass-bg-subtle)] p-4 text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap">
                 {feedback.comment}
               </div>
             </div>
@@ -267,7 +268,7 @@ function FeedbackDetailModal({
           <div className="mt-6 flex justify-end">
             <button
               onClick={onClose}
-              className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              className="rounded-xl border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50 dark:text-stone-300 dark:hover:bg-stone-700"
             >
               {t("common.close") || "Close"}
             </button>
@@ -377,17 +378,12 @@ export function FeedbackPanel() {
   };
 
   return (
-    <div className="flex h-full flex-col min-h-0">
+    <div className="glass-shell flex h-full flex-col min-h-0">
       {/* Header */}
       <PanelHeader
         title={t("feedback.title")}
         subtitle={t("feedback.subtitle")}
-        icon={
-          <Star
-            size={20}
-            className="text-stone-600 dark:text-stone-400"
-          />
-        }
+        icon={<Star size={20} className="text-stone-600 dark:text-stone-400" />}
         actions={
           <div className="relative w-full sm:w-44">
             <select
@@ -482,12 +478,12 @@ export function FeedbackPanel() {
                 <button
                   key={feedback.id}
                   onClick={() => setSelectedFeedback(feedback)}
-                  className="group relative w-full text-left overflow-hidden rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-900 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+                  className="group relative w-full text-left overflow-hidden glass-card rounded-xl p-4 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-3">
                     {/* User Info */}
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300 text-sm font-medium">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--glass-bg-subtle)] text-stone-600 dark:text-stone-300 text-sm font-medium">
                         {feedback.username.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -502,10 +498,11 @@ export function FeedbackPanel() {
                     {/* Rating & Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${feedback.rating === "up"
-                          ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
-                          : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
-                          }`}
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
+                          feedback.rating === "up"
+                            ? "bg-[var(--glass-bg-subtle)] text-stone-600 dark:text-stone-300"
+                            : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
+                        }`}
                       >
                         {feedback.rating === "up" ? (
                           <ThumbsUp size={12} />
@@ -529,7 +526,7 @@ export function FeedbackPanel() {
                   </div>
                   {/* Comment */}
                   {feedback.comment && (
-                    <div className="mt-3 rounded-lg bg-stone-50 p-3 text-sm text-stone-600 dark:bg-stone-800 dark:text-stone-300 whitespace-pre-wrap">
+                    <div className="mt-3 rounded-lg bg-[var(--glass-bg-subtle)] p-3 text-sm text-stone-600 dark:text-stone-300 whitespace-pre-wrap">
                       {feedback.comment}
                     </div>
                   )}
@@ -543,12 +540,12 @@ export function FeedbackPanel() {
                 <button
                   key={feedback.id}
                   onClick={() => setSelectedFeedback(feedback)}
-                  className="group relative w-full text-left overflow-hidden rounded-xl border border-stone-200 bg-white p-5 dark:border-stone-700 dark:bg-stone-900 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+                  className="group relative w-full text-left overflow-hidden glass-card rounded-xl p-5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-4">
                     {/* User Info */}
                     <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-200 text-stone-600 dark:bg-stone-700 dark:text-stone-300 font-medium">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--glass-bg-subtle)] text-stone-600 dark:text-stone-300 font-medium">
                         {feedback.username.charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -563,10 +560,11 @@ export function FeedbackPanel() {
 
                     {/* Rating Badge */}
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${feedback.rating === "up"
-                        ? "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300"
-                        : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
-                        }`}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                        feedback.rating === "up"
+                          ? "bg-[var(--glass-bg-subtle)] text-stone-600 dark:text-stone-300"
+                          : "bg-stone-800 text-stone-300 dark:bg-stone-200 dark:text-stone-700"
+                      }`}
                     >
                       {feedback.rating === "up" ? (
                         <ThumbsUp size={14} />
@@ -595,7 +593,7 @@ export function FeedbackPanel() {
 
                   {/* Comment */}
                   {feedback.comment && (
-                    <div className="mt-4 rounded-xl bg-stone-50 p-4 text-sm text-stone-600 dark:bg-stone-800/50 dark:text-stone-300 whitespace-pre-wrap">
+                    <div className="mt-4 rounded-xl bg-[var(--glass-bg-subtle)] p-4 text-sm text-stone-600 dark:text-stone-300 whitespace-pre-wrap">
                       {feedback.comment}
                     </div>
                   )}
@@ -608,7 +606,7 @@ export function FeedbackPanel() {
 
       {/* Pagination */}
       {total > limit && (
-        <div className="border-t border-stone-200 bg-white px-4 py-4 dark:border-stone-800 dark:bg-stone-950 sm:px-6">
+        <div className="glass-divider bg-transparent px-4 py-4 sm:px-6">
           <Pagination
             page={Math.floor(skip / limit) + 1}
             pageSize={limit}
