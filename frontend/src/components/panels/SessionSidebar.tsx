@@ -267,7 +267,7 @@ export function SessionSidebar({
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-md font-semibold leading-none text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors font-serif"
+            className="text-xl font-bold leading-none text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-stone-50 transition-colors font-serif"
           >
             {APP_NAME}
           </a>
@@ -277,7 +277,7 @@ export function SessionSidebar({
             setIsCollapsed(true);
             onMobileClose?.();
           }}
-          className="flex h-7 w-7 items-center justify-center rounded-[8px] text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
           title={t("sidebar.collapseSidebar")}
         >
           <svg

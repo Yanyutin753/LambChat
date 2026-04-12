@@ -224,13 +224,11 @@ function RoleFormModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-40 sm:hidden" onClick={onClose} />
       <div
-        className="modal-bottom-sheet"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
-      >
+        className="fixed inset-0 z-[299] bg-black/50 sm:hidden"
+        onClick={onClose}
+      />
+      <div className="modal-bottom-sheet" onClick={onClose}>
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content"
@@ -542,13 +540,11 @@ function DeleteConfirmModal({
   });
   return (
     <>
-      <div className="fixed inset-0 z-40 sm:hidden" onClick={onClose} />
       <div
-        className="modal-bottom-sheet"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
-        }}
-      >
+        className="fixed inset-0 z-[299] bg-black/50 sm:hidden"
+        onClick={onClose}
+      />
+      <div className="modal-bottom-sheet" onClick={onClose}>
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content"

@@ -15,6 +15,9 @@
     width: var(--sidebar-preview-width, 45%) !important;
     border-left: 1px solid #e7e5e4 !important;
   }
+  .dark [data-sidebar-panel] {
+    border-left-color: #3f3f46 !important;
+  }
 }
 
 /* 统一 checkbox / radio 样式 */
@@ -291,7 +294,7 @@ select:-webkit-autofill:active {
 .agent-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 300;
   background: rgba(0, 0, 0, 0.5);
 }
 .agent-modal-panel {
@@ -366,6 +369,19 @@ select:-webkit-autofill:active {
 
   to {
     transform: translateY(0);
+  }
+}
+
+/* Full-screen slide-up animation for mobile tool result panel */
+@keyframes slide-up-fullscreen {
+  from {
+    transform: translateY(100%);
+    opacity: 0.5;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }
 
@@ -454,7 +470,7 @@ select:-webkit-autofill:active {
     box-shadow: 0 -10px 40px rgb(0 0 0 / 0.15);
     overflow-y: auto;
     animation: slide-up-sheet 0.2s ease-out;
-    z-index: 50;
+    z-index: 301;
   }
 
   .dark .modal-bottom-sheet {
@@ -481,7 +497,7 @@ select:-webkit-autofill:active {
     position: fixed;
     inset: 0;
     background-color: rgb(0 0 0 / 0.5);
-    z-index: 40;
+    z-index: 300;
     animation: fade-in 0.2s ease-out;
   }
 }
@@ -498,6 +514,7 @@ select:-webkit-autofill:active {
     padding: 1.5rem;
     background-color: rgb(0 0 0 / 0.6);
     animation: fade-in 0.15s ease-out;
+    z-index: 301;
   }
 
   .modal-bottom-sheet-content {

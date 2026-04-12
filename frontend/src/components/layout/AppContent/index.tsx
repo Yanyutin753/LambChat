@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ProfileModal } from "../../profile/ProfileModal";
+import { BlockPreviewPortal } from "../../chat/ChatMessage/items/McpBlockPreview";
 import { SessionSidebar } from "../../panels/SessionSidebar";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAgent } from "../../../hooks/useAgent";
@@ -280,8 +281,13 @@ function ChatAppContent({
     () => localStorage.getItem("defaultModel") || defaultModel,
   );
 
+  // When a session is restored from history, suppress localStorage/defaultModel
+  // effects so they don't overwrite the session-specific model selection.
+  const isSessionRestoredRef = useRef(false);
+
   // Resolve currentModelId from availableModels if not set
   useEffect(() => {
+    if (isSessionRestoredRef.current) return;
     if (!currentModelId && availableModels && availableModels.length > 0) {
       const stored = localStorage.getItem("defaultModelId") || "";
       const match = stored
@@ -307,6 +313,7 @@ function ChatAppContent({
   }, [currentModelValue, currentModelId, setSessionAgentOption]);
 
   useEffect(() => {
+    if (isSessionRestoredRef.current) return;
     const storedValue = localStorage.getItem("defaultModel") || defaultModel;
     const storedId = localStorage.getItem("defaultModelId") || "";
     setCurrentModelValue(storedValue);
@@ -532,6 +539,10 @@ function ChatAppContent({
     }) => {
       console.log("[AppContent] Restoring session config:", config);
 
+      // Mark that this session was restored so localStorage/defaultModel
+      // effects don't overwrite the session-specific model selection.
+      isSessionRestoredRef.current = true;
+
       // 使用 useSessionConfig 恢复对话级配置
       restoreSessionConfig(config);
 
@@ -569,6 +580,7 @@ function ChatAppContent({
   const handleNewSessionWithReset = useCallback(() => {
     handleNewSession();
     resetToDefaults();
+    isSessionRestoredRef.current = false;
     // Re-apply current model so it persists across new sessions
     if (currentModelValue) setSessionAgentOption("model", currentModelValue);
     if (currentModelId) setSessionAgentOption("model_id", currentModelId);
@@ -695,6 +707,7 @@ function ChatAppContent({
           settings={settings || {}}
           i18n={i18n}
         />
+        <BlockPreviewPortal />
       </>
     </AppShell>
   );

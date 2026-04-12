@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { sanitizeSkillName } from "../../utils/skillFilters";
 import { normalizeTags, syncSkillMarkdownMetadata } from "./SkillForm.utils";
 import { DEFAULT_CONTENT } from "./SkillForm.types";
@@ -43,8 +44,15 @@ export function SkillForm({
     (fs: boolean) => {
       setIsFullscreen(fs);
       onFullscreenChange?.(fs);
+      if (fs) {
+        toast(t("skills.form.fullscreenHint", "按 Esc 退出全屏"), {
+          duration: 2000,
+          position: "top-center",
+          style: { borderRadius: "10px", background: "#1c1917", color: "#fff" },
+        });
+      }
     },
-    [onFullscreenChange],
+    [onFullscreenChange, t],
   );
 
   // Initialize files from skill prop
@@ -336,7 +344,7 @@ export function SkillForm({
       onSubmit={handleSubmit}
       className={
         isFullscreen
-          ? "skill-form skill-form--fullscreen fixed inset-0 z-[100] flex flex-col bg-[var(--theme-bg)]"
+          ? "skill-form skill-form--fullscreen fixed inset-0 z-[400] flex flex-col bg-[var(--theme-bg)]"
           : "skill-form flex flex-1 flex-col gap-4"
       }
     >

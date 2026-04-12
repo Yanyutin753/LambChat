@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Code2, FolderTree, Download, Maximize, X } from "lucide-react";
+import { PreviewHeader } from "../../../common/FileIcon";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { LoadingSpinner } from "../../../common";
@@ -8,6 +9,7 @@ import ProjectPreview from "../../../documents/previews/ProjectPreview";
 import { exportProjectZip } from "../../../../utils/exportProjectZip";
 import { getFullUrl } from "../../../../services/api/config";
 import { rewriteProjectTextFiles } from "./projectRevealAssetUtils";
+import { closeCurrentToolPanel } from "./ToolResultPanel";
 
 // v1 格式（旧后端）
 interface ProjectRevealResultV1 {
@@ -323,9 +325,17 @@ export function ProjectRevealItem({
   const sandpackFiles = v2 ? loadedFiles : v1Files;
 
   // Auto-open sidebar preview on desktop when project files are ready
+  const hasClosedPreview = useRef(false);
   useEffect(() => {
-    if (!success || !sandpackFiles || showFullPreview) return;
+    if (
+      !success ||
+      !sandpackFiles ||
+      showFullPreview ||
+      hasClosedPreview.current
+    )
+      return;
     if (window.innerWidth >= 640) {
+      closeCurrentToolPanel();
       setShowFullPreview(true);
     }
   }, [success, sandpackFiles, showFullPreview]);
@@ -341,7 +351,10 @@ export function ProjectRevealItem({
       });
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowFullPreview(false);
+      if (e.key === "Escape") {
+        hasClosedPreview.current = true;
+        setShowFullPreview(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -415,22 +428,14 @@ export function ProjectRevealItem({
     return (
       <div className="my-2 sm:my-3 min-w-0">
         <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
-          <div className="flex items-center justify-between px-2 sm:px-4 py-2 sm:py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700 gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <div className="p-1.5 sm:p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 shrink-0">
-                <Code2 size={16} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate max-w-[100px] sm:max-w-none">
-                  {projectName || t("project.untitled")}
-                </h4>
-                <p className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
-                  {t("project.fileCount", { count: fileCount })}
-                  {template !== "static" && ` · ${template}`}
-                </p>
-              </div>
-            </div>
-          </div>
+          <PreviewHeader
+            variant="card"
+            icon={Code2}
+            title={projectName || t("project.untitled")}
+            subtitle={`${t("project.fileCount", { count: fileCount })}${
+              template !== "static" ? ` · ${template}` : ""
+            }`}
+          />
           <div className="h-[300px] sm:h-[600px] bg-stone-900 flex items-center justify-center">
             <div className="text-stone-400 text-sm flex items-center gap-2">
               <LoadingSpinner size="sm" className="text-stone-400" />
@@ -473,8 +478,10 @@ export function ProjectRevealItem({
                 : "bg-stone-900"
             }`}
             onClick={() => {
-              if (!isResizing.current && !justResized.current)
+              if (!isResizing.current && !justResized.current) {
+                hasClosedPreview.current = true;
                 setShowFullPreview(false);
+              }
             }}
           >
             {/* Resize indicator line — follows mouse, no reflow */}
@@ -491,7 +498,7 @@ export function ProjectRevealItem({
             />
             <div
               ref={viewMode === "sidebar" ? panelRef : undefined}
-              className={`flex flex-col bg-white dark:bg-stone-900 pointer-events-auto ${
+              className={`flex flex-col bg-white dark:bg-[#1e1e1e] pointer-events-auto ${
                 viewMode === "sidebar"
                   ? "h-full sm:rounded-l-2xl relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)]"
                   : "overflow-hidden h-full w-full relative"
@@ -507,7 +514,10 @@ export function ProjectRevealItem({
               {/* Fullscreen close button */}
               {viewMode === "center" && (
                 <button
-                  onClick={() => setShowFullPreview(false)}
+                  onClick={() => {
+                    hasClosedPreview.current = true;
+                    setShowFullPreview(false);
+                  }}
                   className="absolute top-3 right-3 z-[310] flex items-center justify-center w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-all duration-200"
                   title={t("common.close")}
                 >
@@ -525,66 +535,59 @@ export function ProjectRevealItem({
               )}
               {/* Sidebar header */}
               {viewMode === "sidebar" && (
-                <div className="flex items-center gap-3 px-4 py-3 border-b border-stone-200 dark:border-stone-800 shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-900 dark:to-stone-900 whitespace-nowrap">
-                  {/* Icon */}
-                  <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 text-white shrink-0">
-                    <Code2 size={16} />
-                  </div>
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">
-                      {projectName || t("project.untitled")}
-                    </h3>
-                    <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
-                      {template !== "static" ? `${template} · ` : ""}
-                      {t("project.fileCount", {
-                        count: Object.keys(filesForExport).length,
-                      })}
-                    </p>
-                  </div>
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => setViewMode("center")}
-                      className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-                      title={t("documents.centerView", "居中")}
-                    >
-                      <Maximize
-                        size={15}
-                        className="text-stone-400 dark:text-stone-500"
-                      />
-                    </button>
-                    <button
-                      onClick={() =>
-                        exportProjectZip(
-                          filesForExport,
-                          projectName,
-                          binaryFiles,
-                        )
-                      }
-                      className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-                      title={t("project.exportZip")}
-                    >
-                      <Download
-                        size={15}
-                        className="text-stone-400 dark:text-stone-500"
-                      />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowFullPreview(false);
-                        setViewMode("center");
-                      }}
-                      className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-                      title={t("common.close")}
-                    >
-                      <X
-                        size={16}
-                        className="text-stone-500 dark:text-stone-400"
-                      />
-                    </button>
-                  </div>
-                </div>
+                <PreviewHeader
+                  icon={Code2}
+                  title={projectName || t("project.untitled")}
+                  subtitle={`${
+                    template !== "static" ? `${template} · ` : ""
+                  }${t("project.fileCount", {
+                    count: Object.keys(filesForExport).length,
+                  })}`}
+                  actions={
+                    <>
+                      <button
+                        onClick={() => setViewMode("center")}
+                        className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+                        title={t("documents.centerView", "居中")}
+                      >
+                        <Maximize
+                          size={15}
+                          className="text-stone-400 dark:text-stone-500"
+                        />
+                      </button>
+                      <button
+                        onClick={() =>
+                          exportProjectZip(
+                            filesForExport,
+                            projectName,
+                            binaryFiles,
+                          )
+                        }
+                        className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+                        title={t("project.exportZip")}
+                      >
+                        <Download
+                          size={15}
+                          className="text-stone-400 dark:text-stone-500"
+                        />
+                      </button>
+                      <button
+                        onClick={() => {
+                          hasClosedPreview.current = true;
+                          setShowFullPreview(false);
+                          setViewMode("center");
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+                        title={t("common.close")}
+                      >
+                        <X
+                          size={16}
+                          className="text-stone-500 dark:text-stone-400"
+                        />
+                      </button>
+                    </>
+                  }
+                />
               )}
               <ProjectPreview
                 name={projectName}
@@ -605,46 +608,42 @@ export function ProjectRevealItem({
         )}
 
       <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
-        <div className="flex items-center justify-between px-2 sm:px-4 py-2 sm:py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700 gap-2">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-            <div className="p-1.5 sm:p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 shrink-0">
-              <Code2 size={16} />
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate max-w-[100px] sm:max-w-none">
-                {projectName || t("project.untitled")}
-              </h4>
-              <p className="text-xs text-stone-500 dark:text-stone-400 hidden sm:block">
-                {t("project.fileCount", { count: fileCount })}
-                {template !== "static" && ` · ${template}`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() =>
-                exportProjectZip(filesForExport, projectName, binaryFiles)
-              }
-              className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
-            >
-              <Download size={14} />
-              <span className="hidden sm:inline">{t("project.exportZip")}</span>
-            </button>
-            <button
-              onClick={() => {
-                setShowFullPreview(true);
-                setViewMode("center");
-              }}
-              className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
-            >
-              <Maximize size={14} />
-              <span className="hidden sm:inline">
-                {t("project.fullscreen", "全屏")}
-              </span>
-            </button>
-          </div>
-        </div>
+        <PreviewHeader
+          variant="card"
+          icon={Code2}
+          title={projectName || t("project.untitled")}
+          subtitle={`${t("project.fileCount", { count: fileCount })}${
+            template !== "static" ? ` · ${template}` : ""
+          }`}
+          actions={
+            <>
+              <button
+                onClick={() =>
+                  exportProjectZip(filesForExport, projectName, binaryFiles)
+                }
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
+              >
+                <Download size={14} />
+                <span className="hidden sm:inline">
+                  {t("project.exportZip")}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  closeCurrentToolPanel();
+                  setShowFullPreview(true);
+                  setViewMode("center");
+                }}
+                className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
+              >
+                <Maximize size={14} />
+                <span className="hidden sm:inline">
+                  {t("project.fullscreen", "全屏")}
+                </span>
+              </button>
+            </>
+          }
+        />
 
         <div className="h-[300px] sm:h-[600px] bg-stone-900">
           {success && Object.keys(filesForExport).length > 0 && (

@@ -251,12 +251,12 @@ export function Header({
                 createPortal(
                   <>
                     <div
-                      className="fixed inset-0 z-[99]"
+                      className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
                       onClick={() => setMobileMenuOpen(false)}
                     />
                     <div
                       ref={mobileMenuPanelRef}
-                      className="fixed z-[100] right-3 top-[52px] w-44 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+                      className="fixed z-[301] right-3 top-[52px] w-44 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
                       style={{
                         backgroundColor: "var(--theme-bg-card)",
                         borderColor: "var(--theme-border)",

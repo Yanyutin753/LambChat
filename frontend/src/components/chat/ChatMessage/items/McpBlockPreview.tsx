@@ -1,10 +1,128 @@
-import { ChevronDown, ChevronUp, ExternalLink, FileText } from "lucide-react";
-import { useState } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  File,
+} from "lucide-react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { ImageViewer } from "../../../common/ImageViewer";
+import { createPortal } from "react-dom";
 import { MarkdownContent } from "../MarkdownContent";
 import type { McpContentBlock, McpMultiModalResult } from "./toolUtils";
 import { isMarkdownText, extractText } from "./toolUtils";
+import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
+
+// ── Module-level store for block preview (survives parent unmount) ──
+
+interface BlockPreviewData {
+  type: "image" | "file" | "text";
+  src?: string;
+  text?: string;
+  url?: string;
+  fileName?: string;
+}
+
+const _listeners = new Set<() => void>();
+let _current: BlockPreviewData | null = null;
+
+function _emit() {
+  _listeners.forEach((fn) => fn());
+}
+
+function openBlockPreview(data: BlockPreviewData) {
+  closeCurrentToolPanel();
+  _current = data;
+  _emit();
+}
+
+function closeBlockPreview() {
+  _current = null;
+  _emit();
+}
+
+function useBlockPreview() {
+  const [, setCount] = useState(0);
+  useEffect(() => {
+    const fn = () => setCount((c) => c + 1);
+    _listeners.add(fn);
+    return () => {
+      _listeners.delete(fn);
+    };
+  }, []);
+  return { preview: _current, close: closeBlockPreview };
+}
+
+/** Standalone portal — render once at app level, survives any component tree changes */
+export function BlockPreviewPortal() {
+  const { t } = useTranslation();
+  const { preview, close } = useBlockPreview();
+
+  if (!preview) return null;
+
+  let icon: React.ReactNode;
+  let title: string;
+  let content: React.ReactNode;
+
+  if (preview.type === "image" && preview.src) {
+    icon = <ImageIcon size={16} />;
+    title = t("chat.message.toolOutput");
+    content = (
+      <div className="flex items-center justify-center p-4 bg-stone-50 dark:bg-stone-900 min-h-[200px]">
+        <img
+          src={preview.src}
+          alt={t("chat.message.toolOutput")}
+          className="max-w-full max-h-[70vh] object-contain rounded-lg"
+        />
+      </div>
+    );
+  } else if (preview.type === "file" && preview.url) {
+    icon = <File size={16} />;
+    title = preview.fileName || t("chat.message.toolFile");
+    content = (
+      <div className="p-4 sm:p-5 space-y-3">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-sm text-stone-500 dark:text-stone-400 font-mono truncate">
+          <span className="truncate">{preview.url}</span>
+        </div>
+        <a
+          href={preview.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-sm text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors border border-stone-200 dark:border-stone-700"
+        >
+          <ExternalLink size={14} />
+          {t("chat.message.toolOpenFile", "Open file")}
+        </a>
+      </div>
+    );
+  } else if (preview.type === "text" && preview.text) {
+    icon = <FileText size={16} />;
+    title = t("chat.message.toolOutput");
+    content = (
+      <div className="p-4 sm:p-5">
+        <pre className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap break-words font-mono">
+          {preview.text}
+        </pre>
+      </div>
+    );
+  } else {
+    return null;
+  }
+
+  return createPortal(
+    <ToolResultPanel
+      open
+      onClose={close}
+      title={title}
+      icon={icon}
+      status="success"
+    >
+      {content}
+    </ToolResultPanel>,
+    document.body,
+  );
+}
 
 // LangChain content blocks 数组: [{"type": "text", "text": "..."}, ...]
 function isContentBlocksArray(result: unknown): result is McpContentBlock[] {
@@ -20,7 +138,6 @@ function isContentBlocksArray(result: unknown): result is McpContentBlock[] {
 // 单个 MCP content block 的预览
 export function McpBlockPreview({ block }: { block: McpContentBlock }) {
   const { t } = useTranslation();
-  const [viewerOpen, setViewerOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   if (block.type === "image") {
@@ -38,14 +155,10 @@ export function McpBlockPreview({ block }: { block: McpContentBlock }) {
           className={`max-w-full max-h-48 rounded-md border border-stone-200 dark:border-stone-700 cursor-pointer hover:opacity-80 transition-opacity${
             !loaded ? " hidden" : ""
           }`}
-          onClick={() => src && setViewerOpen(true)}
+          onClick={() => {
+            if (src) openBlockPreview({ type: "image", src });
+          }}
           onLoad={() => setLoaded(true)}
-        />
-        <ImageViewer
-          src={src}
-          alt={t("chat.message.toolOutput")}
-          isOpen={viewerOpen}
-          onClose={() => setViewerOpen(false)}
         />
       </>
     );
@@ -55,21 +168,22 @@ export function McpBlockPreview({ block }: { block: McpContentBlock }) {
     const url = block.url || "";
     const fileName = url.split("/").pop() || t("chat.message.toolFile");
     return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors border border-stone-200 dark:border-stone-700"
+      <button
+        onClick={() => openBlockPreview({ type: "file", url, fileName })}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors border border-stone-200 dark:border-stone-700 cursor-pointer"
       >
-        <ExternalLink size={12} />
+        <File size={12} />
         {fileName}
-      </a>
+      </button>
     );
   }
 
   if (block.text) {
     return (
-      <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words max-h-32 overflow-y-auto min-w-0">
+      <pre
+        onClick={() => openBlockPreview({ type: "text", text: block.text })}
+        className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words overflow-y-auto min-w-0 cursor-pointer hover:text-stone-900 dark:hover:text-stone-100 transition-colors"
+      >
         {block.text}
       </pre>
     );
@@ -203,7 +317,7 @@ export function ToolResultContent({
         <MarkdownContent content={textContent} />
       </div>
     ) : (
-      <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+      <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-y-auto whitespace-pre-wrap break-words">
         {textContent}
       </pre>
     );
@@ -226,7 +340,7 @@ function JsonFallback({ data }: { data: unknown }) {
 
   return (
     <div>
-      <pre className="text-xs text-stone-600 dark:text-stone-300 max-h-32 overflow-y-auto whitespace-pre-wrap break-words min-w-0">
+      <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-y-auto whitespace-pre-wrap break-words min-w-0">
         {display}
       </pre>
       {needsTruncation && (

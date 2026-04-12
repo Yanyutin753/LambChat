@@ -34,10 +34,10 @@ export function Checkbox({
     "flex items-center justify-center rounded-[5px] border-2 shrink-0 transition-all duration-200",
     sizeClasses[size],
     pending
-      ? "border-[var(--theme-primary)]/40 bg-[var(--theme-primary)]/[0.08]"
+      ? "border-amber-500/40 bg-amber-500/[0.08]"
       : checked
-        ? "border-[var(--theme-primary)] bg-[var(--theme-primary)] shadow-[0_0_8px_color-mix(in_srgb,var(--theme-primary)_30%,transparent)]"
-        : "border-[var(--theme-border)] group-hover:border-[var(--theme-primary)]/40",
+        ? "border-amber-500 bg-amber-500 shadow-[0_0_8px_color-mix(in_srgb,#f59e0b_30%,transparent)]"
+        : "border-[var(--theme-border)] group-hover:border-amber-500/40",
     disabled && "opacity-50 cursor-not-allowed",
     onChange && !disabled && "cursor-pointer",
     className,
@@ -62,7 +62,7 @@ export function Checkbox({
       {pending ? (
         <LoaderCircle
           size={iconSizes[size]}
-          className="animate-spin text-[var(--theme-primary)]"
+          className="animate-spin text-amber-500"
         />
       ) : checked ? (
         <Check

@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { FileIcon } from "../common/FileIcon";
 import { ImageViewer } from "../common/ImageViewer";
 import {
   X,
@@ -517,6 +518,37 @@ export default function DocumentPreview({
   const Icon = fileInfo.icon;
 
   const isSidebar = viewMode === "sidebar";
+  // Hide button text labels when sidebar is too narrow
+  const [hideBtnLabels, setHideBtnLabels] = useState(false);
+  useEffect(() => {
+    if (!isSidebar) {
+      setHideBtnLabels(false);
+      return;
+    }
+
+    const check = () => {
+      const pct =
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(
+            "--sidebar-preview-width",
+          ),
+        ) || sidebarWidth;
+      setHideBtnLabels((pct / 100) * window.innerWidth < 500);
+    };
+
+    check();
+    window.addEventListener("resize", check);
+    // Drag updates CSS variable on <html> style attr — observe it
+    const observer = new MutationObserver(check);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+    return () => {
+      window.removeEventListener("resize", check);
+      observer.disconnect();
+    };
+  }, [isSidebar, sidebarWidth]);
 
   return createPortal(
     <div
@@ -543,7 +575,7 @@ export default function DocumentPreview({
       />
       <div
         ref={isSidebar ? panelRef : undefined}
-        className={`w-full flex flex-col bg-white dark:bg-stone-900 pointer-events-auto ${
+        className={`w-full flex flex-col bg-white dark:bg-[#1e1e1e] pointer-events-auto ${
           isSidebar
             ? "h-full sm:rounded-l-2xl relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)]"
             : `overflow-hidden shadow-2xl ring-1 ring-black/5 dark:ring-white/10 transition-all duration-300 ease-out ${
@@ -553,7 +585,11 @@ export default function DocumentPreview({
               }`
         }`}
         {...(isSidebar ? { "data-sidebar-panel": "" } : {})}
-        style={isSidebar ? { maxWidth: "100%" } : undefined}
+        style={
+          isSidebar
+            ? { maxWidth: "100%", minWidth: "min(320px, 80vw)" }
+            : undefined
+        }
         onClick={(e) => e.stopPropagation()}
       >
         {/* Resize handle — outside overflow-hidden */}
@@ -566,18 +602,11 @@ export default function DocumentPreview({
           </div>
         )}
         {/* Header */}
-        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-stone-800 shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-900 dark:to-stone-900 whitespace-nowrap">
+        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-[#333] shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-[#252526] dark:to-[#1e1e1e] whitespace-nowrap">
           {/* File Icon */}
-          <div
-            className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${fileInfo.bg}`}
-          >
-            <Icon
-              size={20}
-              className={`sm:w-[22px] sm:h-[22px] ${fileInfo.color}`}
-            />
-          </div>
+          <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} />
           {/* File Info */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-[120px] sm:min-w-[180px]">
             <h3
               className="font-bold text-stone-900 dark:text-stone-100 text-sm sm:text-base"
               title={fileName}
@@ -586,7 +615,7 @@ export default function DocumentPreview({
             </h3>
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-stone-500 dark:text-stone-400">
               {codeFile && (
-                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 font-mono text-xs sm:text-xs">
+                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-[#2d2d30] font-mono text-xs sm:text-xs">
                   {language}
                 </span>
               )}
@@ -598,7 +627,7 @@ export default function DocumentPreview({
             </div>
           </div>
           {/* Actions */}
-          <div className="flex items-center gap-0.5 sm:gap-1 relative z-10">
+          <div className="flex items-center gap-0.5 sm:gap-1 relative z-10 shrink-0">
             {/* Source/Preview toggle for markdown files */}
             {markdownFile && data?.content && (
               <button
@@ -607,7 +636,7 @@ export default function DocumentPreview({
                   e.stopPropagation();
                   setViewSource(!viewSource);
                 }}
-                className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+                className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
                 title={
                   viewSource ? t("documents.preview") : t("documents.source")
                 }
@@ -615,16 +644,20 @@ export default function DocumentPreview({
                 {viewSource ? (
                   <>
                     <Eye size={16} />
-                    <span className="hidden sm:inline">
-                      {t("documents.preview")}
-                    </span>
+                    {!hideBtnLabels && (
+                      <span className="hidden sm:inline">
+                        {t("documents.preview")}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>
                     <Code2 size={16} />
-                    <span className="hidden sm:inline">
-                      {t("documents.source")}
-                    </span>
+                    {!hideBtnLabels && (
+                      <span className="hidden sm:inline">
+                        {t("documents.source")}
+                      </span>
+                    )}
                   </>
                 )}
               </button>
@@ -636,7 +669,7 @@ export default function DocumentPreview({
                 e.stopPropagation();
                 setViewMode(isSidebar ? "center" : "sidebar");
               }}
-              className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               title={
                 isSidebar
                   ? t("documents.centerView", "Center view")
@@ -644,15 +677,23 @@ export default function DocumentPreview({
               }
             >
               {isSidebar ? (
-                <Maximize
-                  size={18}
-                  className="text-stone-500 dark:text-stone-400"
-                />
+                <>
+                  <Maximize size={16} />
+                  {!hideBtnLabels && (
+                    <span className="hidden sm:inline">
+                      {t("documents.centerView")}
+                    </span>
+                  )}
+                </>
               ) : (
-                <PanelRight
-                  size={18}
-                  className="text-stone-500 dark:text-stone-400"
-                />
+                <>
+                  <PanelRight size={16} />
+                  {!hideBtnLabels && (
+                    <span className="hidden sm:inline">
+                      {t("documents.sidebarView")}
+                    </span>
+                  )}
+                </>
               )}
             </button>
             {/* Fullscreen button - desktop only */}
@@ -662,7 +703,7 @@ export default function DocumentPreview({
                 e.stopPropagation();
                 setIsFullscreen(!isFullscreen);
               }}
-              className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               title={
                 isFullscreen
                   ? t("documents.exitFullscreen")
@@ -670,15 +711,23 @@ export default function DocumentPreview({
               }
             >
               {isFullscreen ? (
-                <Minimize2
-                  size={18}
-                  className="text-stone-500 dark:text-stone-400"
-                />
+                <>
+                  <Minimize2 size={16} />
+                  {!hideBtnLabels && (
+                    <span className="hidden sm:inline">
+                      {t("documents.exitFullscreen")}
+                    </span>
+                  )}
+                </>
               ) : (
-                <Maximize2
-                  size={18}
-                  className="text-stone-500 dark:text-stone-400"
-                />
+                <>
+                  <Maximize2 size={16} />
+                  {!hideBtnLabels && (
+                    <span className="hidden sm:inline">
+                      {t("documents.fullscreen")}
+                    </span>
+                  )}
+                </>
               )}
             </button>
             {(data?.content ||
@@ -693,13 +742,15 @@ export default function DocumentPreview({
                     e.stopPropagation();
                     handleDownload();
                   }}
-                  className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+                  className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
                   title={t("documents.download")}
                 >
                   <Download size={16} />
-                  <span className="hidden sm:inline">
-                    {t("documents.download")}
-                  </span>
+                  {!hideBtnLabels && (
+                    <span className="hidden sm:inline">
+                      {t("documents.download")}
+                    </span>
+                  )}
                 </button>
                 {data?.content && (
                   <button
@@ -708,21 +759,28 @@ export default function DocumentPreview({
                       e.stopPropagation();
                       handleCopy();
                     }}
-                    className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+                    className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
                   >
                     {copied ? (
                       <>
-                        <Check size={16} className="text-green-500" />
-                        <span className="text-green-500 hidden sm:inline">
-                          {t("documents.copied")}
-                        </span>
+                        <Check
+                          size={16}
+                          className="text-green-500 dark:text-green-400"
+                        />
+                        {!hideBtnLabels && (
+                          <span className="text-green-500 dark:text-green-400 hidden sm:inline">
+                            {t("documents.copied")}
+                          </span>
+                        )}
                       </>
                     ) : (
                       <>
                         <Copy size={16} />
-                        <span className="hidden sm:inline">
-                          {t("documents.copy")}
-                        </span>
+                        {!hideBtnLabels && (
+                          <span className="hidden sm:inline">
+                            {t("documents.copy")}
+                          </span>
+                        )}
                       </>
                     )}
                   </button>
@@ -735,7 +793,7 @@ export default function DocumentPreview({
                 e.stopPropagation();
                 onClose();
               }}
-              className="flex items-center justify-center w-9 h-9 sm:w-9 sm:h-9 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center justify-center w-9 h-9 sm:w-9 sm:h-9 rounded-xl hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               aria-label={t("common.close")}
             >
               <X size={20} className="text-stone-500 dark:text-stone-400" />
@@ -939,7 +997,7 @@ export default function DocumentPreview({
         </div>
 
         {/* Footer - simplified on mobile */}
-        <div className="px-3 sm:px-5 py-2 sm:py-3 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900">
+        <div className="px-3 sm:px-5 py-2 sm:py-3 border-t border-stone-200 dark:border-[#333] bg-stone-50 dark:bg-[#252526]">
           <div className="flex items-center justify-between text-xs sm:text-xs text-stone-400 dark:text-stone-500">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
               <span className="font-medium text-stone-500 dark:text-stone-400 hidden xs:inline">
@@ -958,7 +1016,7 @@ export default function DocumentPreview({
         </div>
 
         {/* Safe area for mobile */}
-        <div className="h-safe-area-inset-bottom bg-stone-50 dark:bg-stone-900 sm:hidden" />
+        <div className="h-safe-area-inset-bottom bg-stone-50 dark:bg-[#252526] sm:hidden" />
       </div>
     </div>,
     document.body,

@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { clsx } from "clsx";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, ImageViewer } from "../../../common";
 import DocumentPreview from "../../../documents/DocumentPreview";
+import { closeCurrentToolPanel } from "./ToolResultPanel";
 import { getFileTypeInfo } from "../../../documents/utils";
 import { getFullUrl } from "../../../../services/api";
 
@@ -137,9 +138,18 @@ export function FileRevealItem({
   const canPreview = isImage || isVideo;
 
   // Auto-open sidebar preview on desktop when file is ready
+  const hasClosedPreview = useRef(false);
   useEffect(() => {
-    if (!success || !filePath || isImage || showPreview) return;
+    if (
+      !success ||
+      !filePath ||
+      isImage ||
+      showPreview ||
+      hasClosedPreview.current
+    )
+      return;
     if (window.innerWidth >= 640) {
+      closeCurrentToolPanel();
       setShowPreview(true);
     }
   }, [success, filePath, isImage, showPreview]);
@@ -216,7 +226,10 @@ export function FileRevealItem({
           s3Key={s3Key || undefined}
           signedUrl={s3Url || undefined}
           fileSize={fileSize}
-          onClose={() => setShowPreview(false)}
+          onClose={() => {
+            hasClosedPreview.current = true;
+            setShowPreview(false);
+          }}
         />
       )}
 
@@ -283,7 +296,12 @@ export function FileRevealItem({
 
           <div
             className="flex items-center gap-2 px-3 py-2 bg-stone-50 dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-700"
-            onClick={() => !isImage && setShowPreview(true)}
+            onClick={() => {
+              if (!isImage) {
+                closeCurrentToolPanel();
+                setShowPreview(true);
+              }
+            }}
           >
             <div className={`p-1.5 rounded-md shrink-0 ${bg}`}>
               <FileIcon size={14} className={color} />
@@ -305,6 +323,7 @@ export function FileRevealItem({
             if (isImage && s3Url) {
               setImageViewerSrc(s3Url);
             } else {
+              closeCurrentToolPanel();
               setShowPreview(true);
             }
           }}

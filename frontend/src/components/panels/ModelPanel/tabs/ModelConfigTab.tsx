@@ -788,8 +788,14 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
         {/* Create / Edit Modal */}
         {(isEditing || isCreating) && (
           <>
-            <div className="fixed inset-0" onClick={resetForm} />
-            <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+            <div
+              className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
+              onClick={resetForm}
+            />
+            <div
+              className="modal-bottom-sheet sm:modal-centered-wrapper"
+              onClick={resetForm}
+            >
               <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-2xl max-h-[85vh] flex flex-col">
                 <div className="bottom-sheet-handle sm:hidden" />
                 <div className="flex items-center justify-between glass-divider px-6 py-4">
@@ -1036,10 +1042,13 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
         {showBatchModal && (
           <>
             <div
-              className="fixed inset-0"
+              className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
               onClick={() => setShowBatchModal(false)}
             />
-            <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+            <div
+              className="modal-bottom-sheet sm:modal-centered-wrapper"
+              onClick={() => setShowBatchModal(false)}
+            >
               <div className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-3xl max-h-[85vh] flex flex-col">
                 <div className="bottom-sheet-handle sm:hidden" />
                 <div className="flex items-center justify-between px-6 py-4">

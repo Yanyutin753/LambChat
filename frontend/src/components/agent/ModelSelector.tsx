@@ -1,5 +1,8 @@
 import { memo, useState, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check, Info } from "lucide-react";
+import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import { ModelIconImg } from "./modelIcon.tsx";
 import type { ModelOption } from "../../services/api/model";
 
@@ -109,10 +112,39 @@ const ModelSelector = memo(function ModelSelector({
   currentModelId,
   onSelectModel,
 }: ModelSelectorProps) {
+  const { t } = useTranslation();
   const [showSelector, setShowSelector] = useState(false);
+  const [defaultTick, setDefaultTick] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const currentModelInfo = models.find((m) => m.id === currentModelId);
+
+  const isDefault = (() => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    void defaultTick; // re-read localStorage on tick change
+    return localStorage.getItem("defaultModelId") === currentModelId;
+  })();
+
+  const handleSetDefault = useCallback(() => {
+    if (!currentModelInfo) return;
+    localStorage.setItem("defaultModelId", currentModelId);
+    localStorage.setItem("defaultModel", currentModelInfo.value);
+    window.dispatchEvent(
+      new CustomEvent("model-preference-updated", {
+        detail: { modelId: currentModelId, modelValue: currentModelInfo.value },
+      }),
+    );
+    setDefaultTick((t) => t + 1);
+    toast.success(t("profile.defaultModelSet"));
+  }, [currentModelId, currentModelInfo]);
+
+  // Re-render when default model changes externally (e.g. from profile)
+  useEffect(() => {
+    const handler = () => setDefaultTick((t) => t + 1);
+    window.addEventListener("model-preference-updated", handler);
+    return () =>
+      window.removeEventListener("model-preference-updated", handler);
+  }, []);
 
   const handleSelectModel = useCallback(
     (modelId: string, modelValue: string) => {
@@ -142,6 +174,15 @@ const ModelSelector = memo(function ModelSelector({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showSelector]);
 
+  const dropdownStyle = (() => {
+    if (!showSelector || !containerRef.current) return undefined;
+    const rect = containerRef.current.getBoundingClientRect();
+    return {
+      top: rect.bottom + 8,
+      left: rect.left,
+    };
+  })();
+
   if (models.length === 0) return null;
 
   return (
@@ -165,20 +206,45 @@ const ModelSelector = memo(function ModelSelector({
         />
       </button>
 
-      {showSelector && (
-        <div className="absolute left-0 top-full z-50 mt-2 w-72 max-h-80 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
-          <div className="overflow-y-auto overscroll-contain max-h-full">
-            {models.map((model) => (
-              <ModelItem
-                key={model.id}
-                model={model}
-                isSelected={model.id === currentModelId}
-                onSelect={() => handleSelectModel(model.id, model.value)}
-              />
-            ))}
-          </div>
-        </div>
+      {!isDefault && (
+        <button
+          onClick={handleSetDefault}
+          className="absolute left-[1px] top-full mt-[1px] text-[0.7rem] text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors cursor-pointer select-none"
+        >
+          {t("profile.setDefault")}
+        </button>
       )}
+
+      {showSelector &&
+        createPortal(
+          <>
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 300,
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+              }}
+              onClick={() => setShowSelector(false)}
+            />
+            <div
+              className="fixed z-[301] w-72 max-h-80 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-scale-in"
+              style={dropdownStyle}
+            >
+              <div className="overflow-y-auto overscroll-contain max-h-full">
+                {models.map((model) => (
+                  <ModelItem
+                    key={model.id}
+                    model={model}
+                    isSelected={model.id === currentModelId}
+                    onSelect={() => handleSelectModel(model.id, model.value)}
+                  />
+                ))}
+              </div>
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 });

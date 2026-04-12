@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Minimize2, Plus, ChevronDown } from "lucide-react";
+import { Shrink, Plus, ChevronDown } from "lucide-react";
 import { FileTreeItem } from "./FileTreeItem";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
@@ -12,6 +12,15 @@ export function SkillFormFullscreen(a: SkillFormActions) {
 
   return (
     <>
+      {/* Top-right floating exit button — always visible, prominent */}
+      <button
+        type="button"
+        onClick={() => a.toggleFullscreen(false)}
+        className="fixed top-4 right-4 z-[410] flex items-center justify-center w-11 h-11 rounded-xl bg-black/80 hover:bg-black text-white shadow-xl backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95"
+        title={t("skills.form.exitFullscreen")}
+      >
+        <Shrink size={18} />
+      </button>
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Editor area — sidebar + editor, full-screen focused */}
         <div className="skill-form-editor flex flex-1 min-h-0 overflow-hidden">
@@ -22,14 +31,6 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 <ChevronDown size={12} />
                 {t("skills.form.files", "Files")}
               </div>
-              <button
-                type="button"
-                onClick={() => a.toggleFullscreen(false)}
-                className="rounded-xl p-1 text-stone-400 hover:text-[var(--theme-text)] hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-                title={t("skills.form.exitFullscreen")}
-              >
-                <Minimize2 size={14} />
-              </button>
             </div>
             <div className="flex-1 overflow-y-auto py-0.5">
               {buildFileTree(a.files).map((node, i) => (
@@ -58,7 +59,7 @@ export function SkillFormFullscreen(a: SkillFormActions) {
 
           {/* Right: editor only */}
           <div className="flex flex-1 flex-col min-h-0">
-            {/* Mobile header: tabs + minimize */}
+            {/* Mobile header: tabs + actions */}
             <div className="shrink-0 flex items-center gap-1 px-3 py-2 sm:hidden">
               <div className="flex-1 min-w-0">
                 <FileTabs
@@ -76,14 +77,6 @@ export function SkillFormFullscreen(a: SkillFormActions) {
                 title={t("skills.form.addFile", "Add file")}
               >
                 <Plus size={15} />
-              </button>
-              <button
-                type="button"
-                onClick={() => a.toggleFullscreen(false)}
-                className="shrink-0 flex items-center justify-center h-9 w-9 rounded-xl text-stone-400 transition-colors duration-150 hover:bg-[var(--theme-bg-card)] hover:text-[var(--theme-text)]"
-                title={t("skills.form.exitFullscreen")}
-              >
-                <Minimize2 size={15} />
               </button>
             </div>
 

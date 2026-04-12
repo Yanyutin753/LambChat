@@ -470,9 +470,15 @@ export function MCPPanel() {
       {showModal && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 " onClick={handleCancel} />
+          <div
+            className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
+            onClick={handleCancel}
+          />
           {/* Modal */}
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+          <div
+            className="modal-bottom-sheet sm:modal-centered-wrapper"
+            onClick={handleCancel}
+          >
             <div
               ref={swipeRef as React.RefObject<HTMLDivElement>}
               className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
@@ -549,10 +555,13 @@ export function MCPPanel() {
       {showImportModal && (
         <>
           <div
-            className="fixed inset-0 "
+            className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
             onClick={() => setShowImportModal(false)}
           />
-          <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+          <div
+            className="modal-bottom-sheet sm:modal-centered-wrapper"
+            onClick={() => setShowImportModal(false)}
+          >
             <div
               ref={swipeRefImport as React.RefObject<HTMLDivElement>}
               className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"

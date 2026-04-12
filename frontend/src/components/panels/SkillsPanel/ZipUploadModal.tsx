@@ -55,7 +55,7 @@ export function ZipUploadModal({
   return (
     <>
       <div
-        className="fixed inset-0"
+        className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
         onClick={
           zipUploading || zipPreviewing
             ? undefined
@@ -65,6 +65,11 @@ export function ZipUploadModal({
       <div
         data-disable-global-file-drop="true"
         className="modal-bottom-sheet sm:modal-centered-wrapper"
+        onClick={
+          zipUploading || zipPreviewing
+            ? undefined
+            : () => setShowZipModal(false)
+        }
       >
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}

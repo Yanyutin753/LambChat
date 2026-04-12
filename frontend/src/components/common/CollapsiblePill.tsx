@@ -21,6 +21,8 @@ export interface CollapsiblePillProps {
   variant?: CollapsibleVariant;
   children?: React.ReactNode;
   expandable?: boolean;
+  /** On mobile, call this instead of toggling inline expansion */
+  onPanelOpen?: () => void;
 }
 
 // Get spinner color based on variant
@@ -138,12 +140,17 @@ export function CollapsiblePill({
   variant = "default",
   children,
   expandable = true,
+  onPanelOpen,
 }: CollapsiblePillProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasChildren = children !== undefined;
 
   const handleToggle = () => {
     if (!expandable && !hasChildren) return;
+    if (onPanelOpen) {
+      onPanelOpen();
+      return;
+    }
     const newState = !isExpanded;
     setIsExpanded(newState);
     onExpandChange?.(newState);

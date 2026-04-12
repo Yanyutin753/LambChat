@@ -244,7 +244,7 @@ export function ChatMessage({
             <img
               src="/icons/icon.svg"
               alt="Assistant"
-              className="size-6 sm:size-7 shrink-0 rounded-full"
+              className="size-6 shrink-0 rounded-full"
             />
             <span
               className="text-base sm:text-lg font-semibold tracking-tight font-serif"

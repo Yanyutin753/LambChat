@@ -167,8 +167,14 @@ function UserFormModal({
 
   return (
     <>
-      <div className="fixed inset-0" onClick={onClose} />
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+      <div
+        className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
+        onClick={onClose}
+      />
+      <div
+        className="modal-bottom-sheet sm:modal-centered-wrapper"
+        onClick={onClose}
+      >
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
@@ -261,7 +267,7 @@ function UserFormModal({
                   {t("users.roles")}
                 </label>
                 <div className="relative">
-                  <div className="max-h-32 overflow-y-auto rounded-xl border border-[var(--glass-border)] bg-[var(--theme-bg-card)] py-2 pl-5 pr-4">
+                  <div className="overflow-y-auto rounded-xl border border-[var(--glass-border)] bg-[var(--theme-bg-card)] py-2 pl-5 pr-4">
                     {roles.length === 0 ? (
                       <p className="text-sm text-stone-500 dark:text-stone-400">
                         {t("users.noRolesAvailable")}

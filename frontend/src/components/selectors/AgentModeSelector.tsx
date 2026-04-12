@@ -61,17 +61,17 @@ export function AgentModeSelector({
         createPortal(
           <>
             <div
-              className="fixed inset-0 z-50 animate-fade-in"
+              className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
               onClick={handleClose}
             />
 
             <div
-              className="fixed z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
+              className="fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
               onClick={handleClose}
             >
               <div
                 ref={sheetRef as React.Ref<HTMLDivElement>}
-                className="sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-auto sm:min-w-[600px] min-h-[40vh] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden"
+                className="sm:rounded-2xl rounded-t-2xl shadow-2xl w-full sm:w-[40%] sm:min-w-[600px] min-h-[40vh] sm:max-h-[80vh] max-h-[85vh] max-h-[85dvh] flex flex-col overflow-hidden"
                 style={{ background: "var(--theme-bg-card)" }}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -89,16 +89,10 @@ export function AgentModeSelector({
                       />
                     </div>
                     <div>
-                      <h2
-                        className="text-sm sm:text-base font-semibold font-serif"
-                        style={{ color: "var(--theme-text)" }}
-                      >
+                      <h2 className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100 font-serif">
                         {t("agent.selectMode", "选择模式")}
                       </h2>
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--theme-text-secondary)" }}
-                      >
+                      <p className="text-xs text-stone-500 dark:text-stone-400">
                         {t("agent.selectModeDesc", "切换智能体模式")}
                       </p>
                     </div>
@@ -106,10 +100,12 @@ export function AgentModeSelector({
 
                   <button
                     onClick={handleClose}
-                    className="p-2 rounded-lg transition-colors"
-                    style={{ color: "var(--theme-text-secondary)" }}
+                    className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 transition-colors"
                   >
-                    <X size={18} />
+                    <X
+                      size={18}
+                      className="text-stone-400 dark:text-stone-500"
+                    />
                   </button>
                 </div>
 
@@ -201,20 +197,10 @@ export function AgentModeSelector({
                   })}
                 </div>
 
-                <div
-                  className="px-4 sm:px-5 py-3 sm:py-3.5 border-t pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-                  style={{
-                    borderColor: "var(--theme-border)",
-                    backgroundColor: "var(--theme-bg-card)",
-                  }}
-                >
+                <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-t border-stone-200 dark:border-stone-700 bg-stone-50/80 dark:bg-stone-800/50 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                   <button
                     onClick={handleClose}
-                    className="w-full py-2.5 px-4 rounded-xl font-medium text-sm transition-colors"
-                    style={{
-                      backgroundColor: "var(--theme-text)",
-                      color: "var(--theme-bg)",
-                    }}
+                    className="w-full py-2.5 px-4 bg-stone-900 dark:bg-stone-600 text-white dark:text-stone-100 rounded-xl font-medium text-sm hover:bg-stone-800 dark:hover:bg-stone-500 active:bg-stone-700 dark:active:bg-stone-600 transition-colors"
                   >
                     {t("common.done", "完成")}
                   </button>

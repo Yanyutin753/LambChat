@@ -373,21 +373,40 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               lastHistoryTimestampRef.current = lastTimestamp;
             }
 
-            setMessages(reconstructedMessages);
-
+            // When the task is still running, we need a streaming assistant
+            // message for SSE to target. Reuse the last assistant message from
+            // history if one exists (avoids a duplicate empty assistant bubble
+            // when the status API lags behind and reports "running" for an
+            // already-completed run).
             if (isTaskRunning && currentRunId) {
               setCurrentRunId(currentRunId);
 
-              const streamingMessageId = crypto.randomUUID();
-              const newAssistantMsg: Message = {
-                id: streamingMessageId,
-                role: "assistant",
-                content: "",
-                timestamp: new Date(),
-                parts: [],
-                isStreaming: true,
-              };
-              setMessages((prev) => [...prev, newAssistantMsg]);
+              const lastAssistant = [...reconstructedMessages]
+                .reverse()
+                .find((m) => m.role === "assistant");
+
+              let streamingMessageId: string;
+              if (lastAssistant) {
+                streamingMessageId = lastAssistant.id;
+                reconstructedMessages = reconstructedMessages.map((m) =>
+                  m.id === streamingMessageId ? { ...m, isStreaming: true } : m,
+                );
+              } else {
+                streamingMessageId = crypto.randomUUID();
+                reconstructedMessages = [
+                  ...reconstructedMessages,
+                  {
+                    id: streamingMessageId,
+                    role: "assistant" as const,
+                    content: "",
+                    timestamp: new Date(),
+                    parts: [],
+                    isStreaming: true,
+                  },
+                ];
+              }
+
+              setMessages(reconstructedMessages);
 
               isReconnectFromHistoryRef.current = false;
               const ctx = createSSEContext();
@@ -397,6 +416,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
                 streamingMessageId,
                 ctx,
               );
+            } else {
+              setMessages(reconstructedMessages);
             }
           } else {
             setMessages([]);
@@ -496,7 +517,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
         // Merge session-level agent options (e.g. model) with ChatInput values
         const fullAgentOptions = {
-          ...(options?.getAgentOptions?.()),
+          ...options?.getAgentOptions?.(),
           ...agentOptions,
         };
 

@@ -17,10 +17,8 @@ export function Toggle({
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-ring)] focus-visible:ring-offset-1 ${
-          checked
-            ? "bg-[var(--theme-primary)]"
-            : "bg-stone-200 dark:bg-stone-700"
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 focus-visible:ring-offset-1 ${
+          checked ? "bg-amber-500" : "bg-stone-200 dark:bg-stone-700"
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
       >
         <span

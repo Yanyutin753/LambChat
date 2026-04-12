@@ -58,10 +58,13 @@ export function GithubImportModal({
   return (
     <>
       <div
-        className="fixed inset-0"
+        className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
         onClick={githubInstalling ? undefined : () => setShowGithubModal(false)}
       />
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+      <div
+        className="modal-bottom-sheet sm:modal-centered-wrapper"
+        onClick={githubInstalling ? undefined : () => setShowGithubModal(false)}
+      >
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"

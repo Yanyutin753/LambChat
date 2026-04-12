@@ -41,13 +41,28 @@ export function SkillFormModal({
 
   return (
     <>
+      {/* Backdrop — hidden when fullscreen */}
       {!isFormFullscreen && (
-        <div className="fixed inset-0" onClick={onCancel} />
+        <div
+          className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
+          onClick={onCancel}
+        />
       )}
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+      {/* Modal wrapper — invisible when fullscreen but keeps SkillForm mounted to preserve state */}
+      <div
+        className={`modal-bottom-sheet sm:modal-centered-wrapper ${
+          isFormFullscreen
+            ? "!bg-transparent !shadow-none pointer-events-none"
+            : ""
+        }`}
+        onClick={!isFormFullscreen ? onCancel : undefined}
+      >
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+          className={`modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem] ${
+            isFormFullscreen ? "invisible" : ""
+          }`}
+          onClick={(e) => e.stopPropagation()}
         >
           {!isFormFullscreen && (
             <>
@@ -69,7 +84,11 @@ export function SkillFormModal({
               </div>
             </>
           )}
-          <div className="skill-modal-body flex flex-1 overflow-y-auto flex-col bg-[var(--theme-bg)]/30 px-3 py-3 sm:px-5 sm:py-4">
+          <div
+            className={`skill-modal-body flex flex-1 overflow-y-auto flex-col bg-[var(--theme-bg)]/30 px-3 py-3 sm:px-5 sm:py-4 ${
+              isFormFullscreen ? "hidden" : ""
+            }`}
+          >
             <SkillForm
               skill={editingSkill}
               onSave={onSave}

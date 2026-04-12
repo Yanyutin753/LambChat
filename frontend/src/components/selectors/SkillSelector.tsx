@@ -480,13 +480,13 @@ export function SkillSelector({
         createPortal(
           <>
             <div
-              className="fixed inset-0 z-50 animate-fade-in"
+              className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
               onClick={() => setIsOpen(false)}
             />
 
             {/* Modal Content - Desktop: centered, Mobile: bottom sheet */}
             <div
-              className="fixed z-50 sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
+              className="fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
               onClick={() => setIsOpen(false)}
             >
               <ModalContent />

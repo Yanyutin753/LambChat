@@ -344,12 +344,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
               // Desktop: positioned dropdown
               <>
                 <div
-                  className="fixed inset-0 z-[99]"
+                  className="fixed inset-0 z-[300]"
                   onClick={() => setShowMenu(false)}
                 />
                 <div
                   ref={menuRef}
-                  className="fixed z-[100] w-52 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+                  className="fixed z-[301] w-52 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
                   style={{
                     top: `${menuPosition.top}px`,
                     right: `${menuPosition.right}px`,

@@ -27,12 +27,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/docs",
         "/openapi.json",
         "/api/auth/permissions",
+        "/manifest.json",
+        "/api/version",
     }
 
     # 不需要认证的路径前缀
     PUBLIC_PREFIXES = (
         "/api/auth/oauth/",
+        "/api/upload/file/",
         "/assets/",
+        "/icons/",
         "/favicon",
         "/static/",
     )
