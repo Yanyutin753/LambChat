@@ -214,7 +214,11 @@ class LLMClient:
                     if max_tokens is None and db_model.max_tokens is not None:
                         max_tokens = db_model.max_tokens
                     if profile is None and db_model.profile:
-                        profile = db_model.profile.model_dump() if hasattr(db_model.profile, "model_dump") else db_model.profile
+                        profile = (
+                            db_model.profile.model_dump()
+                            if hasattr(db_model.profile, "model_dump")
+                            else db_model.profile
+                        )
                     # 已从 DB 获取完整配置，跳过缓存查找
                     use_model_config = False
                     logger.debug(f"[LLMClient] Resolved model_id={model_id} -> value={model}")

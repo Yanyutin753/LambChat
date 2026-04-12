@@ -46,7 +46,12 @@ class ModelStorage:
         """创建必要的 MongoDB 索引"""
         await self._get_collection().create_index("id", unique=True)
         # value 不再唯一：同一模型可来自不同渠道（如直连 OpenAI、Azure、代理服务等）
-        await self._get_collection().create_index("value")
+        # 迁移：删除旧的唯一索引（如存在），然后创建非唯一索引
+        existing = await self._get_collection().index_information()
+        if "value_1" in existing and existing["value_1"].get("unique"):
+            await self._get_collection().drop_index("value_1")
+        if "value_1" not in existing or existing["value_1"].get("unique"):
+            await self._get_collection().create_index("value")
         await self._get_collection().create_index("enabled")
         await self._get_collection().create_index("order")
 

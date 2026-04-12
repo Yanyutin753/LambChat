@@ -323,10 +323,13 @@ function ChatAppContent({
       window.removeEventListener("model-preference-updated", handler);
   }, []);
 
-  const handleSelectModel = useCallback((modelId: string, modelValue: string) => {
-    setCurrentModelId(modelId);
-    setCurrentModelValue(modelValue);
-  }, []);
+  const handleSelectModel = useCallback(
+    (modelId: string, modelValue: string) => {
+      setCurrentModelId(modelId);
+      setCurrentModelValue(modelValue);
+    },
+    [],
+  );
 
   // 同步 sessionConfig 到 ref，供 useAgent 使用
   useEffect(() => {
@@ -561,7 +564,13 @@ function ChatAppContent({
     // Re-apply current model so it persists across new sessions
     if (currentModelValue) setSessionAgentOption("model", currentModelValue);
     if (currentModelId) setSessionAgentOption("model_id", currentModelId);
-  }, [handleNewSession, resetToDefaults, setSessionAgentOption, currentModelValue, currentModelId]);
+  }, [
+    handleNewSession,
+    resetToDefaults,
+    setSessionAgentOption,
+    currentModelValue,
+    currentModelId,
+  ]);
 
   const handleMobileClose = useCallback(
     () => setMobileSidebarOpen(false),
