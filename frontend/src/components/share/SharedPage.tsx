@@ -675,7 +675,7 @@ export function SharedPage() {
                 <p className="text-[14px] sm:text-[15px] font-semibold text-stone-800 dark:text-stone-200 tracking-tight font-serif">
                   {t("share.createYourOwn")}
                 </p>
-                <p className="mt-1 text-[12px] text-stone-400 dark:text-stone-500">
+                <p className="mt-1 text-[12px] text-stone-400 dark:text-stone-500 font-serif">
                   {APP_NAME} &middot; Open Source &middot; MIT
                 </p>
               </div>
@@ -683,7 +683,7 @@ export function SharedPage() {
               {/* Button */}
               <Link
                 to="/"
-                className="group flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-stone-900 dark:bg-stone-100 dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md"
+                className="group flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold text-white bg-stone-900 dark:bg-stone-100 dark:text-stone-900 hover:bg-stone-800 dark:hover:bg-stone-200 active:scale-[0.97] transition-all duration-200 shadow-sm hover:shadow-md font-serif"
               >
                 <img src="/icons/icon.svg" alt="" className="w-4 h-4 rounded" />
                 {APP_NAME}
