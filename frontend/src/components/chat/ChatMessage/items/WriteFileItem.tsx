@@ -72,9 +72,8 @@ const WriteFileItem = memo(function WriteFileItem({
         expandable={canExpand}
         onPanelOpen={() => {
           if (panelOpen) return;
+          closeCurrentToolPanel();
           setPanelOpen(true);
-          // Close old panel after new one renders to avoid a flash gap
-          requestAnimationFrame(() => closeCurrentToolPanel());
         }}
       >
         {canExpand && (

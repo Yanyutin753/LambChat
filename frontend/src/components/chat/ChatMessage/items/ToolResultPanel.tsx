@@ -313,8 +313,8 @@ export function ToolResultPanel({
     <div
       className={`fixed inset-0 z-[300] flex flex-col ${
         isMobile
-          ? "bg-black/50 items-end justify-end animate-fade-in"
-          : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch animate-fade-in"
+          ? "bg-black/50 items-end justify-end"
+          : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
       }`}
       onClick={() => {
         if (!isResizing.current && !justResized.current) onClose();
