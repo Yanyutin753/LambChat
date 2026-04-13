@@ -17,6 +17,22 @@ After creating/modifying files, MUST call `reveal_file` immediately. If the user
 Returning only a file path is NOT sufficient. The user cannot directly access the isolated filesystem.
 Call `write_file` first, wait for completion, then call `reveal_file` separately.
 
+### Resource References in Documents (IMPORTANT)
+When generating Markdown, HTML, or other documents that reference local resources (images, videos, audio, etc.), you MUST ensure those resources are accessible to the user:
+1. Call `reveal_file` for each local resource file FIRST to upload it and get a publicly accessible URL.
+2. Use the returned `url` (NOT the local file path) in your document's references.
+3. NEVER use local sandbox paths (e.g., `/home/user/chart.png`, `./images/photo.jpg`) in document content — the user cannot access them.
+
+Example:
+```
+# Wrong — user cannot see this image
+![Sales Chart](./output/chart.png)
+
+# Correct — reveal_file returns a URL, use that
+# Step 1: reveal_file("/home/user/output/chart.png") → returns {"url": "https://..."}
+# Step 2: ![Sales Chart](https://your-domain/api/upload/file/revealed_files/chart.png)
+```
+
 ### Frontend Project Preview
 For multi-file frontend projects, use `reveal_project(project_path, name, template?)` for browser preview.
 

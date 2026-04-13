@@ -531,8 +531,8 @@ export function AuthPage({ onSuccess, initialMode }: AuthPageProps) {
 
               {/* Turnstile 人机验证 */}
               {requiresTurnstile() && (
-                <div className="auth-input mb-4 w-full rounded-xl p-3 sm:mb-6 sm:p-4">
-                  <div className="flex justify-center">
+                <div className="mb-4 sm:mb-6 flex justify-center overflow-hidden">
+                  <div className="max-w-[300px] w-full">
                     <Turnstile
                       key={turnstileKey}
                       sitekey={turnstileConfig.site_key}

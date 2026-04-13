@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Cpu, Save, Globe, List } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { PanelLoadingState } from "../../../common/PanelLoadingState";
+import { ModelPanelSkeleton } from "../../../skeletons";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import type { ModelOption } from "../../../../services/api/model";
@@ -42,12 +42,7 @@ export function RolesModelTab({
   }, [roles, selectedRole]);
 
   if (isLoading) {
-    return (
-      <PanelLoadingState
-        text={t("common.loading")}
-        containerClassName="h-40"
-      />
-    );
+    return <ModelPanelSkeleton />;
   }
 
   if (availableModels.length === 0) {

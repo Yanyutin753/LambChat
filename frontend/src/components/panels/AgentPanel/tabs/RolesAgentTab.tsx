@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { PanelLoadingState } from "../../../common/PanelLoadingState";
+import { AgentPanelSkeleton } from "../../../skeletons";
 import { RoleSelector } from "../shared/RoleSelector";
 import type { Role, AgentInfo } from "../../../../types";
 
@@ -40,12 +40,7 @@ export function RolesAgentTab({
   }, [roles, selectedRole]);
 
   if (isLoading) {
-    return (
-      <PanelLoadingState
-        text={t("common.loading")}
-        containerClassName="h-40"
-      />
-    );
+    return <AgentPanelSkeleton />;
   }
 
   const currentRoleAgents = selectedRole

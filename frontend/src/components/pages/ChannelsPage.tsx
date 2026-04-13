@@ -4,13 +4,7 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Loader2,
-  MessageCircle,
-  Radio,
-  Plus,
-  MoreVertical,
-} from "lucide-react";
+import { MessageCircle, Radio, Plus, MoreVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
@@ -20,6 +14,7 @@ import { channelApi } from "../../services/api/channel";
 import { ChannelPanel } from "../panels/ChannelPanel";
 import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
+import { ChannelsPanelSkeleton } from "../skeletons";
 import type {
   ChannelMetadata,
   ChannelConfigStatus,
@@ -277,17 +272,7 @@ export function ChannelsPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto py-4">
         {isLoading ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="relative">
-                <div className="absolute inset-0 animate-ping rounded-full bg-[var(--theme-primary)]/20" />
-                <Loader2 className="relative h-10 w-10 animate-spin text-[var(--theme-text-secondary)]" />
-              </div>
-              <p className="text-sm text-[var(--theme-text-secondary)]">
-                {t("common.loading", "Loading...")}
-              </p>
-            </div>
-          </div>
+          <ChannelsPanelSkeleton />
         ) : (
           <div className="mx-auto max-w-full">
             {channelTypes.length === 0 ? (

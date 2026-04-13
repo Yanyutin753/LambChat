@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AttachmentCard, ImageViewer } from "../../common";
 import type { MessageAttachment } from "../../../types";
 import DocumentPreview from "../../documents/DocumentPreview";
+import { DelayedUnmount } from "../../common/DelayedUnmount";
 import { getFullUrl } from "../../../services/api";
 import { MarkdownContent } from "./MarkdownContent";
 
@@ -109,19 +110,21 @@ export function UserMessageBubble({
       </div>
 
       {/* File preview modal */}
-      {previewAttachment && (
-        <DocumentPreview
-          path={previewAttachment.name}
-          s3Key={previewAttachment.key}
-          fileSize={previewAttachment.size}
-          onClose={() => setPreviewAttachment(null)}
-          imageUrl={
-            previewAttachment.type === "image"
-              ? getFullUrl(previewAttachment.url)
-              : undefined
-          }
-        />
-      )}
+      <DelayedUnmount show={!!previewAttachment}>
+        {previewAttachment && (
+          <DocumentPreview
+            path={previewAttachment.name}
+            s3Key={previewAttachment.key}
+            fileSize={previewAttachment.size}
+            onClose={() => setPreviewAttachment(null)}
+            imageUrl={
+              previewAttachment.type === "image"
+                ? getFullUrl(previewAttachment.url)
+                : undefined
+            }
+          />
+        )}
+      </DelayedUnmount>
 
       {/* Image viewer for direct image preview */}
       {imageViewerSrc && (

@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
-import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { SkeletonLine } from "../../skeletons";
 import type { AgentInfo } from "../../../types";
 
 const NEWLINE_MODIFIER_KEY = "newlineModifier";
@@ -74,7 +74,7 @@ function SelectRow<T extends string>({
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-600 transition-colors min-w-[120px] justify-between"
         >
           {loading ? (
-            <LoadingSpinner size="xs" />
+            <SkeletonLine width="w-16" />
           ) : (
             <span className="truncate">
               {renderLabel

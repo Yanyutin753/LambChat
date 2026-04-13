@@ -6,6 +6,7 @@ import { getFullUrl } from "../../services/api";
 import type { RevealedFileItem } from "../../services/api";
 import { projectApi } from "../../services/api/project";
 import DocumentPreview from "../documents/DocumentPreview";
+import { DelayedUnmount } from "../common/DelayedUnmount";
 import { Toolbar } from "./components/Toolbar";
 import { SessionGroup } from "./components/SessionGroup";
 import { EmptyState } from "./components/EmptyState";
@@ -146,19 +147,23 @@ export function RevealedFilesPanel() {
       </div>
 
       {/* Document preview modal */}
-      {previewFile && (
-        <DocumentPreview
-          path={previewFile.file_name}
-          signedUrl={previewFile.url ? getFullUrl(previewFile.url) : undefined}
-          imageUrl={
-            previewFile.file_type === "image" && previewFile.url
-              ? getFullUrl(previewFile.url)
-              : undefined
-          }
-          fileSize={previewFile.file_size}
-          onClose={handlePreviewClose}
-        />
-      )}
+      <DelayedUnmount show={!!previewFile}>
+        {previewFile && (
+          <DocumentPreview
+            path={previewFile.file_name}
+            signedUrl={
+              previewFile.url ? getFullUrl(previewFile.url) : undefined
+            }
+            imageUrl={
+              previewFile.file_type === "image" && previewFile.url
+                ? getFullUrl(previewFile.url)
+                : undefined
+            }
+            fileSize={previewFile.file_size}
+            onClose={handlePreviewClose}
+          />
+        )}
+      </DelayedUnmount>
     </>
   );
 }

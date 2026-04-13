@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, CheckCircle, XCircle, Ban } from "lucide-react";
 import { LoadingSpinner } from "../../../common";
+import { DelayedUnmount } from "../../../common/DelayedUnmount";
 import { useSwipeToClose } from "../../../../hooks/useSwipeToClose";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 
@@ -304,18 +305,20 @@ export function ToolResultPanel({
   );
 
   return createPortal(
-    <div
-      className={`fixed inset-0 z-[300] flex flex-col ${
-        isMobile
-          ? "bg-black/50 items-end justify-end"
-          : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
-      }`}
-      onClick={() => {
-        if (!isResizing.current && !justResized.current) onClose();
-      }}
-    >
-      {content}
-    </div>,
+    <DelayedUnmount show={open}>
+      <div
+        className={`fixed inset-0 z-[300] flex flex-col ${
+          isMobile
+            ? "bg-black/50 items-end justify-end"
+            : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
+        }`}
+        onClick={() => {
+          if (!isResizing.current && !justResized.current) onClose();
+        }}
+      >
+        {content}
+      </div>
+    </DelayedUnmount>,
     document.body,
   );
 }

@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { SkeletonList, SkeletonCard } from "../skeletons";
 import { shareApi } from "../../services/api/share";
 import type {
   ShareType,
@@ -284,12 +285,7 @@ export function ShareDialog({
                   )}
                 </div>
                 {isLoadingRuns ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2
-                      size={20}
-                      className="animate-spin text-stone-400"
-                    />
-                  </div>
+                  <SkeletonList count={3} className="py-2" />
                 ) : runs.length === 0 ? (
                   <div className="text-sm text-stone-500 dark:text-stone-400 py-2">
                     {t("share.noRuns")}
@@ -411,8 +407,9 @@ export function ShareDialog({
 
             {/* Existing shares */}
             {isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 size={20} className="animate-spin text-stone-400" />
+              <div className="space-y-2 py-2">
+                <SkeletonCard />
+                <SkeletonCard />
               </div>
             ) : existingShares.length > 0 ? (
               <div className="space-y-2">

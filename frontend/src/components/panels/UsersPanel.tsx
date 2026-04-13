@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { PanelLoadingState } from "../common/PanelLoadingState";
+import { UsersPanelSkeleton } from "../skeletons";
 import { Pagination } from "../common/Pagination";
 import { userApi, roleApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -550,7 +550,7 @@ export function UsersPanel() {
   };
 
   if (isLoading) {
-    return <PanelLoadingState text={t("common.loading")} />;
+    return <UsersPanelSkeleton />;
   }
 
   return (

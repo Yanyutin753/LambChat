@@ -8,6 +8,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
 import { APP_NAME } from "../../constants";
+import { SkeletonBlock, SkeletonLine } from "../skeletons";
 
 interface AboutDialogProps {
   isOpen: boolean;
@@ -57,8 +58,36 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
         {/* Content */}
         <div className="space-y-3">
           {isLoading ? (
-            <div className="py-8 text-center text-stone-500 dark:text-stone-400">
-              {t("common.loading", "Loading...")}
+            <div className="space-y-3 py-2">
+              <div className="flex items-center justify-between rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
+                <div className="space-y-2">
+                  <SkeletonLine width="w-24" className="!h-2" />
+                  <SkeletonBlock width="w-20" height="h-7" />
+                </div>
+                <SkeletonBlock
+                  width="w-24"
+                  height="h-9"
+                  className="!rounded-lg"
+                />
+              </div>
+              <div className="rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <SkeletonBlock
+                      width="w-5"
+                      height="h-5"
+                      className="!rounded-full"
+                    />
+                    <SkeletonLine width="w-24" className="!h-2" />
+                  </div>
+                  <SkeletonBlock width="w-16" height="h-5" />
+                </div>
+              </div>
+              <SkeletonBlock
+                width="w-full"
+                height="h-11"
+                className="!rounded-lg"
+              />
             </div>
           ) : error ? (
             <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">

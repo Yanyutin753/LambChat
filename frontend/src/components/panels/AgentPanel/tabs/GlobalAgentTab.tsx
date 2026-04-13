@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Bot, Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
-import { PanelLoadingState } from "../../../common/PanelLoadingState";
+import { AgentPanelSkeleton } from "../../../skeletons";
 import { ToggleSwitch } from "../shared/ToggleSwitch";
 import type { AgentConfig } from "../../../../types";
 
@@ -43,12 +43,7 @@ export function GlobalAgentTab({
   const hasChanges = JSON.stringify(localAgents) !== JSON.stringify(agents);
 
   if (isLoading) {
-    return (
-      <PanelLoadingState
-        text={t("common.loading")}
-        containerClassName="h-40"
-      />
-    );
+    return <AgentPanelSkeleton />;
   }
 
   return (

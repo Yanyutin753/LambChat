@@ -8,7 +8,7 @@ import { Cpu, AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../../common/PanelHeader";
-import { PanelLoadingState } from "../../common/PanelLoadingState";
+import { ModelPanelSkeleton } from "../../skeletons";
 import { agentConfigApi, roleApi, modelApi } from "../../../services/api";
 import type { ModelConfig } from "../../../services/api/model";
 import { useAuth } from "../../../hooks/useAuth";
@@ -135,7 +135,7 @@ export function ModelPanel() {
   };
 
   if (isLoading && !hasLoaded) {
-    return <PanelLoadingState text={t("common.loading")} />;
+    return <ModelPanelSkeleton />;
   }
 
   if (!canManageModels) {

@@ -7,6 +7,7 @@ import React, { memo, useState } from "react";
 import { Copy, Check, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
+import { getFullUrl } from "../../../services/api/config";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { CodeMirrorViewer } from "../../common/CodeMirrorViewer";
 import { ImageViewer } from "../../common";
@@ -329,14 +330,17 @@ export const MarkdownContent = memo(function MarkdownContent({
             </td>
           ),
           // Images — click to preview with ImageViewer
-          img: ({ src, alt }) => (
-            <img
-              src={src}
-              alt={alt}
-              className="max-w-full h-auto my-2 rounded-lg shadow cursor-zoom-in hover:opacity-90 transition-opacity"
-              onClick={() => src && setImageViewerSrc(src)}
-            />
-          ),
+          img: ({ src, alt }) => {
+            const resolvedSrc = getFullUrl(src);
+            return (
+              <img
+                src={resolvedSrc}
+                alt={alt}
+                className="max-w-full h-auto my-2 rounded-lg shadow cursor-zoom-in hover:opacity-90 transition-opacity"
+                onClick={() => resolvedSrc && setImageViewerSrc(resolvedSrc)}
+              />
+            );
+          },
         }}
       >
         {content}

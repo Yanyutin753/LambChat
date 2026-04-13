@@ -19,6 +19,7 @@ import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { FileUploadButton } from "./FileUploadButton";
 import { uploadApi, getFullUrl } from "../../services/api";
 import DocumentPreview from "../documents/DocumentPreview";
+import { DelayedUnmount } from "../common/DelayedUnmount";
 import { AttachmentCard } from "../common/AttachmentCard";
 import { ImageViewer } from "../common";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -695,10 +696,8 @@ export const ChatInput = memo(function ChatInput({
                   }}
                   className="chat-tool-btn-active flex items-center justify-center rounded-full p-2 transition-all duration-300 hover:scale-105 active:scale-95"
                   style={{
-                    borderColor:
-                      "color-mix(in srgb, #fbbf24 40%, transparent)",
-                    background:
-                      "color-mix(in srgb, #fbbf24 10%, transparent)",
+                    borderColor: "color-mix(in srgb, #fbbf24 40%, transparent)",
+                    background: "color-mix(in srgb, #fbbf24 10%, transparent)",
                     color: "#fbbf24",
                   }}
                   title={t("chat.stop")}
@@ -748,19 +747,21 @@ export const ChatInput = memo(function ChatInput({
       </div>
 
       {/* 文件预览弹窗 */}
-      {previewAttachment && (
-        <DocumentPreview
-          path={previewAttachment.name}
-          s3Key={previewAttachment.key}
-          fileSize={previewAttachment.size}
-          imageUrl={
-            previewAttachment.type === "image"
-              ? getFullUrl(previewAttachment.url)
-              : undefined
-          }
-          onClose={() => setPreviewAttachment(null)}
-        />
-      )}
+      <DelayedUnmount show={!!previewAttachment}>
+        {previewAttachment && (
+          <DocumentPreview
+            path={previewAttachment.name}
+            s3Key={previewAttachment.key}
+            fileSize={previewAttachment.size}
+            imageUrl={
+              previewAttachment.type === "image"
+                ? getFullUrl(previewAttachment.url)
+                : undefined
+            }
+            onClose={() => setPreviewAttachment(null)}
+          />
+        )}
+      </DelayedUnmount>
 
       {/* 图片预览器 - 直接预览图片 */}
       {imageViewerSrc && (

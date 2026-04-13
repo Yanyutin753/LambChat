@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, ImageViewer } from "../../../common";
 import DocumentPreview from "../../../documents/DocumentPreview";
+import { DelayedUnmount } from "../../../common/DelayedUnmount";
 import { closeCurrentToolPanel } from "./ToolResultPanel";
 import { getFileTypeInfo } from "../../../documents/utils";
 import { getFullUrl } from "../../../../services/api";
@@ -220,18 +221,20 @@ export function FileRevealItem({
 
   return (
     <div className="my-2 sm:my-3 min-w-0">
-      {showPreview && filePath && !isImage && (
-        <DocumentPreview
-          path={filePath}
-          s3Key={s3Key || undefined}
-          signedUrl={s3Url || undefined}
-          fileSize={fileSize}
-          onClose={() => {
-            hasClosedPreview.current = true;
-            setShowPreview(false);
-          }}
-        />
-      )}
+      <DelayedUnmount show={!!(showPreview && filePath && !isImage)}>
+        {showPreview && filePath && !isImage && (
+          <DocumentPreview
+            path={filePath}
+            s3Key={s3Key || undefined}
+            signedUrl={s3Url || undefined}
+            fileSize={fileSize}
+            onClose={() => {
+              hasClosedPreview.current = true;
+              setShowPreview(false);
+            }}
+          />
+        )}
+      </DelayedUnmount>
 
       {imageViewerSrc && (
         <ImageViewer
