@@ -68,7 +68,7 @@ export function ToolResultPanel({
   subtitle,
   children,
 }: ToolResultPanelProps) {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [isMobile, setIsMobile] = useState(true); // default mobile to avoid flash on small screens
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     parseInt(localStorage.getItem("sidebar-preview-width") || "45", 10),
   );
