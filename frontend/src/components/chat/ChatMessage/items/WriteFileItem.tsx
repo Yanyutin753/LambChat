@@ -71,6 +71,7 @@ const WriteFileItem = memo(function WriteFileItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
+          if (panelOpen) return;
           closeCurrentToolPanel();
           setPanelOpen(true);
         }}

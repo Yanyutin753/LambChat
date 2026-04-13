@@ -131,6 +131,7 @@ const ExecuteItem = memo(function ExecuteItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
+          if (panelOpen) return;
           closeCurrentToolPanel();
           setPanelOpen(true);
         }}
