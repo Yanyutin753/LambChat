@@ -645,7 +645,7 @@ export function ProjectRevealItem({
           }
         />
 
-        <div className="h-[300px] sm:h-[600px] bg-stone-900">
+        <div className="h-[300px] sm:h-[600px] bg-stone-100 dark:bg-stone-900">
           {success && Object.keys(filesForExport).length > 0 && (
             <ProjectPreview
               name={projectName}

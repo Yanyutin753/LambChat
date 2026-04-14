@@ -7,6 +7,7 @@ import {
   SandpackFileExplorer,
 } from "@codesandbox/sandpack-react";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "../../contexts/ThemeContext";
 import {
   Play,
   Code2,
@@ -103,6 +104,7 @@ export default function ProjectPreview({
   onToggleSidebar,
 }: ProjectPreviewProps) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
   const [showExplorer, setShowExplorer] = useState(showFileExplorer);
   const isFullscreen = !!externalFullscreen;
@@ -292,7 +294,7 @@ export default function ProjectPreview({
             template={config.template}
             customSetup={config.customSetup}
             files={config.files}
-            theme="dark"
+            theme={theme}
             options={{
               activeFile: config.entryFile,
               visibleFiles: config.visibleFiles,
@@ -328,6 +330,7 @@ export function ProjectPreviewCompact({
   onExpand?: () => void;
 }) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const config = useMemo(
     () => buildSandpackConfig(template, files),
     [template, files],
@@ -386,7 +389,7 @@ export function ProjectPreviewCompact({
             template={config.template}
             customSetup={config.customSetup}
             files={config.files}
-            theme="dark"
+            theme={theme}
             options={{
               activeFile: config.entryFile,
               visibleFiles: config.visibleFiles,
