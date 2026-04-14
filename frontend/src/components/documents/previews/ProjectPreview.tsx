@@ -144,10 +144,10 @@ export default function ProjectPreview({
   return (
     <div
       className={clsx(
-        "flex flex-col bg-white dark:bg-stone-900 overflow-hidden",
+        "flex flex-col overflow-hidden",
         isFullscreen
-          ? "h-full w-full"
-          : "h-full min-h-[300px] sm:min-h-[500px] rounded-xl border border-stone-200 dark:border-stone-700",
+          ? "h-full w-full bg-white dark:bg-stone-900"
+          : "h-full min-h-[300px] sm:min-h-[500px]",
       )}
     >
       {/* 工具栏 */}

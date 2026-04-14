@@ -279,7 +279,7 @@ export function ToolResultPanel({
 
       {/* Header section — sidebar mode only */}
       {isSidebar && (
-        <div className="flex flex-col shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-[#252526] dark:to-[#1e1e1e]">
+        <div className="flex flex-col shrink-0 bg-gradient-to-r from-stone-50 to-white dark:from-stone-800/50 dark:to-[#1e1e1e]">
           {/* Mobile drag handle */}
           {isMobile && (
             <div className="flex justify-center pt-2 pb-1">
@@ -289,32 +289,35 @@ export function ToolResultPanel({
           {hasCustomHeader ? (
             customHeader
           ) : (
-            <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-[#333]">
+            <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 shrink-0 whitespace-nowrap">
               {/* Status + Icon */}
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 bg-blue-100 dark:bg-blue-900/40">
                 {status === "loading" ? (
                   <LoadingSpinner
                     size="xs"
                     className="shrink-0"
-                    color="text-amber-500 dark:text-amber-400"
+                    color="text-blue-600 dark:text-blue-400"
                   />
                 ) : (
-                  <div
-                    className={`flex items-center justify-center w-7 h-7 rounded-lg ${cfg.bg}`}
+                  <span
+                    className={cfg.color || "text-blue-600 dark:text-blue-400"}
                   >
-                    <span className={cfg.color}>{cfg.icon || icon}</span>
-                  </div>
+                    {cfg.icon || icon}
+                  </span>
                 )}
               </div>
 
               {/* Title */}
               {title && (
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-stone-900 dark:text-stone-100 text-base truncate">
+                  <h3
+                    className="font-medium text-sm text-stone-900 dark:text-stone-100 truncate"
+                    title={title}
+                  >
                     {title}
                   </h3>
                   {subtitle && (
-                    <p className="text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5">
+                    <p className="text-xs hidden sm:block text-stone-500 dark:text-stone-400 mt-0.5">
                       {subtitle}
                     </p>
                   )}
@@ -331,10 +334,10 @@ export function ToolResultPanel({
                   e.stopPropagation();
                   onClose();
                 }}
-                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 active:bg-stone-200 dark:active:bg-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors duration-150 active:scale-95 cursor-pointer shrink-0"
                 aria-label="Close"
               >
-                <X size={18} className="text-stone-500 dark:text-stone-400" />
+                <X size={16} className="sm:w-[18px] sm:h-[18px]" />
               </button>
             </div>
           )}
