@@ -3491,23 +3491,3 @@ html.dark body {
 .dark .token.variable {
   color: #fbbf24;
 }
-
-/* Sandpack 暗色主题覆盖 */
-.dark .sp-layout {
-  background-color: transparent !important;
-}
-.dark .sp-preview-container {
-  background-color: #1c1917 !important;
-}
-.dark .sp-preview-iframe {
-  background-color: #1c1917 !important;
-}
-.dark .sp-stack {
-  background-color: #1c1917 !important;
-}
-.dark .sp-tabs {
-  background-color: #292524 !important;
-}
-.dark .sp-code-editor {
-  background-color: #1c1917 !important;
-}
