@@ -7,7 +7,7 @@ import {
   SandpackFileExplorer,
 } from "@codesandbox/sandpack-react";
 import { useTranslation } from "react-i18next";
-import { useTheme } from "../../contexts/ThemeContext";
+import { useTheme } from "../../../contexts/ThemeContext";
 import {
   Play,
   Code2,
