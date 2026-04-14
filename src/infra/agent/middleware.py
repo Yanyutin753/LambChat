@@ -81,7 +81,8 @@ def _is_retryable_error(exc: Exception) -> bool:
     """Check if an exception is a transient/retryable LLM error.
 
     Retries on: RateLimitError (429), 5xx server errors, timeouts,
-    APIConnectionError (network/TLS/proxy failures), empty stream.
+    APIConnectionError (network/TLS/proxy failures), empty stream,
+    and API proxy errors with custom error codes (e.g. code "1234").
     Does NOT retry on: 401/403 auth errors, 400 bad request, 404 not found.
     """
     # LangChain empty stream: LLM returned no chunks at all
@@ -105,8 +106,25 @@ def _is_retryable_error(exc: Exception) -> bool:
                 return True
             if isinstance(exc, mod.APIConnectionError):
                 return True
-            if isinstance(exc, mod.APIStatusError) and 500 <= exc.status_code < 600:
-                return True
+            if isinstance(exc, mod.APIStatusError):
+                # Standard 5xx server errors
+                if 500 <= exc.status_code < 600:
+                    return True
+                # API proxy errors with custom error codes (e.g. Chinese proxies
+                # returning code "1234" with "网络错误" for transient network issues)
+                body = getattr(exc, "body", None)
+                if isinstance(body, dict):
+                    error_obj = body.get("error", {})
+                    if isinstance(error_obj, dict):
+                        error_code = error_obj.get("code")
+                        error_msg = str(error_obj.get("message", "")).lower()
+                        # Known proxy error codes that indicate transient issues
+                        if error_code in ("1234",):
+                            return True
+                        # Network-related keywords in proxy error messages
+                        network_keywords = ("网络错误", "network error", "timeout", "overloaded")
+                        if any(kw in error_msg for kw in network_keywords):
+                            return True
         except (ImportError, AttributeError):
             continue
     return False

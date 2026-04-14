@@ -48,13 +48,26 @@ const ModelItem = memo(function ModelItem({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showTip]);
 
+  const tipPlacement = useRef<"top" | "bottom">("top");
+
   const tipStyle = (() => {
     if (!showTip || !iconRef.current) return undefined;
     const rect = iconRef.current.getBoundingClientRect();
+    // Estimate tooltip height (rough: ~20px per line, max ~4 lines)
+    const estimatedHeight = Math.min(model.description!.length * 0.6, 120) + 24;
+    const showAbove = rect.top > estimatedHeight + 8;
+    tipPlacement.current = showAbove ? "top" : "bottom";
+    if (showAbove) {
+      return {
+        left: rect.left + rect.width / 2,
+        top: rect.top - 8,
+        transform: "translate(-50%, -100%)",
+      };
+    }
     return {
       left: rect.left + rect.width / 2,
-      top: rect.top - 8,
-      transform: "translate(-50%, -100%)",
+      top: rect.bottom + 8,
+      transform: "translate(-50%, 0)",
     };
   })();
 
@@ -88,7 +101,11 @@ const ModelItem = memo(function ModelItem({
                   onTouchStart={(e) => e.stopPropagation()}
                 >
                   {model.description}
-                  <span className="absolute left-1/2 -translate-x-1/2 top-full border-[5px] border-transparent border-t-stone-700 dark:border-t-stone-900" />
+                  {tipPlacement.current === "top" ? (
+                    <span className="absolute left-1/2 -translate-x-1/2 top-full border-[5px] border-transparent border-t-stone-700 dark:border-t-stone-900" />
+                  ) : (
+                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full border-[5px] border-transparent border-b-stone-700 dark:border-b-stone-900" />
+                  )}
                 </span>
               )}
             </span>
