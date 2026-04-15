@@ -55,6 +55,8 @@ PROVIDER_REGISTRY: dict[str, tuple[str, list[str]]] = {
     "zeroone": ("openai", ["zero"]),
     # zai coding plan → Claude 协议
     "zai": ("anthropic", []),
+    # Kimi Coding Plan → Claude (Anthropic) 协议
+    "kimi-coding-plan": ("anthropic", []),
 }
 
 
