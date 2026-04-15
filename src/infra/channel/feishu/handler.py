@@ -9,15 +9,12 @@ import asyncio
 import json
 import sys
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Optional, cast
+from typing import Any, AsyncGenerator, Callable, Optional, cast
 
-from src.infra.logging import get_logger
-
-if TYPE_CHECKING:
-    from src.infra.channel.feishu.channel import FeishuChannel
-    from src.infra.channel.feishu.manager import FeishuChannelManager
-
+from src.infra.channel.feishu.channel import FeishuChannel
+from src.infra.channel.feishu.manager import FeishuChannelManager
 from src.infra.channel.feishu.markdown import FeishuMarkdownAdapter
+from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -130,8 +127,6 @@ class FeishuResponseCollector:
         """循环切换 emoji 表示正在处理。"""
         try:
             while self._processing_active:
-                from src.infra.channel.feishu.channel import FeishuChannel
-
                 for emoji in FeishuChannel.PROCESSING_EMOJIS:
                     await asyncio.sleep(3)
                     if not self._processing_active:
