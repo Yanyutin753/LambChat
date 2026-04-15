@@ -1,6 +1,7 @@
+import React, { useMemo } from "react";
 import { getModelIconUrl, isMonochromeIcon } from "./modelIcon";
 
-export function ModelIconImg({
+export const ModelIconImg = React.memo(function ModelIconImg({
   model,
   provider,
   size = 22,
@@ -9,8 +10,14 @@ export function ModelIconImg({
   provider?: string;
   size?: number;
 }) {
-  const url = getModelIconUrl(model, provider);
-  const mono = isMonochromeIcon(model, provider);
+  const url = useMemo(
+    () => getModelIconUrl(model, provider),
+    [model, provider],
+  );
+  const mono = useMemo(
+    () => isMonochromeIcon(model, provider),
+    [model, provider],
+  );
   if (!url) {
     return (
       <div
@@ -37,4 +44,4 @@ export function ModelIconImg({
       />
     </div>
   );
-}
+});

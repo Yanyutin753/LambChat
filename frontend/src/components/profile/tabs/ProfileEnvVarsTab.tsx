@@ -6,6 +6,7 @@ import { envvarApi } from "../../../services/api/envvar";
 import type { EnvVarResponse } from "../../../services/api/envvar";
 import { useAuth } from "../../../hooks/useAuth";
 import { Permission } from "../../../types/auth";
+import { SkeletonList } from "../../skeletons";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { ConfirmDialog } from "../../common/ConfirmDialog";
 
@@ -191,9 +192,7 @@ export function ProfileEnvVarsTab() {
 
         {/* 变量列表 */}
         {loading ? (
-          <div className="flex justify-center py-6">
-            <LoadingSpinner size="sm" />
-          </div>
+          <SkeletonList count={4} className="py-1" />
         ) : vars.length === 0 ? (
           <div className="text-center py-6 text-xs text-stone-400 dark:text-stone-500">
             {t("envVars.empty")}

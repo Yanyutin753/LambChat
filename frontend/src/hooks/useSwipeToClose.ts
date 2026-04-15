@@ -22,6 +22,9 @@ export function useSwipeToClose({
   const startTime = useRef<number>(0);
   const isDragging = useRef<boolean>(false);
   const elementRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (!elementRef.current) return;
@@ -70,8 +73,9 @@ export function useSwipeToClose({
     if (deltaY > threshold || velocity > velocityThreshold) {
       // Animate out and close
       elementRef.current.style.transform = `translateY(100%)`;
-      setTimeout(() => {
-        onClose();
+      closeTimerRef.current = setTimeout(() => {
+        closeTimerRef.current = null;
+        onCloseRef.current();
       }, 300);
     } else {
       // Snap back
@@ -79,7 +83,7 @@ export function useSwipeToClose({
     }
 
     isDragging.current = false;
-  }, [onClose, threshold, velocityThreshold]);
+  }, [threshold, velocityThreshold]);
 
   // Attach/detach listeners
   useEffect(() => {
@@ -96,6 +100,10 @@ export function useSwipeToClose({
       element.removeEventListener("touchstart", handleTouchStart);
       element.removeEventListener("touchmove", handleTouchMove);
       element.removeEventListener("touchend", handleTouchEnd);
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
     };
   }, [enabled, handleTouchStart, handleTouchMove, handleTouchEnd]);
 

@@ -30,7 +30,7 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { PanelLoadingState } from "../common/PanelLoadingState";
+import { MarketplacePanelSkeleton } from "../skeletons";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { BinaryFilePreview } from "../skill/BinaryFilePreview";
 import { SkillFormModal } from "./SkillsPanel/SkillFormModal";
@@ -471,7 +471,7 @@ export function MarketplacePanel() {
       {/* Skills List */}
       <div className="skill-content-area flex-1 overflow-y-auto p-4 sm:p-6">
         {isLoading && skills.length === 0 ? (
-          <PanelLoadingState text={t("marketplace.loading")} />
+          <MarketplacePanelSkeleton />
         ) : skills.length === 0 ? (
           <div className="skill-empty-state">
             <div className="skill-empty-state__icon">

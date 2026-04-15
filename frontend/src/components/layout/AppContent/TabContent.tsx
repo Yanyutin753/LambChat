@@ -81,7 +81,7 @@ export function TabContent({ activeTab }: { activeTab: TabType }) {
 
   return (
     <main className="flex-1 overflow-hidden">
-      <div className="mx-auto max-w-3xl xl:max-w-5xl w-full h-full">
+      <div className="mx-auto max-w-3xl xl:max-w-5xl w-full h-full flex flex-col">
         <Suspense fallback={<PanelLoader />}>
           <Panel />
         </Suspense>

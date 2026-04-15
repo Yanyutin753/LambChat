@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Settings, ChevronDown, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -13,7 +13,7 @@ interface RoleSelectorProps {
   onSelectRole: (roleId: string) => void;
 }
 
-export function RoleSelector({
+export const RoleSelector = React.memo(function RoleSelector({
   roles,
   selectedRoleId,
   onSelectRole,
@@ -94,4 +94,4 @@ export function RoleSelector({
       </div>
     </div>
   );
-}
+});

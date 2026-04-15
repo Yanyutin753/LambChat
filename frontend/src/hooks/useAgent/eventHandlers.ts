@@ -368,6 +368,7 @@ async function handleApprovalRequired(
         message?: string;
         type?: string;
         fields?: FormField[];
+        expires_at?: string | null;
       }>(`/human/${data.id}`);
       if (!approval) return;
       if (approval && approval.status === "pending") {
@@ -376,6 +377,10 @@ async function handleApprovalRequired(
           message: approval.message || "",
           type: approval.type || "form",
           fields: approval.fields || [],
+          expires_at: approval.expires_at || null,
+          timeout: (data as Record<string, unknown>).timeout as
+            | number
+            | undefined,
         });
       }
     } catch (err) {

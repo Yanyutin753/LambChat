@@ -8,18 +8,18 @@
     transition: max-width 300ms ease-out;
   }
   html[data-sidebar-preview="open"] #root {
-    max-width: calc(100% - var(--sidebar-preview-width, 45%)) !important;
+    max-width: calc(100% - var(--sidebar-preview-width, 35%)) !important;
   }
   /* Fixed/absolute elements inside #root must also yield space for the sidebar panel */
   html[data-sidebar-preview="open"] #root [data-yields-sidebar] {
-    right: var(--sidebar-preview-width, 45%) !important;
+    right: var(--sidebar-preview-width, 35%) !important;
   }
   [data-yields-sidebar] {
     transition: right 300ms ease-out;
   }
   /* Sidebar panel uses percentage width on desktop */
   [data-sidebar-panel] {
-    width: var(--sidebar-preview-width, 45%) !important;
+    width: var(--sidebar-preview-width, 35%) !important;
     border-left: 1px solid #e7e5e4 !important;
   }
   .dark [data-sidebar-panel] {
@@ -2370,6 +2370,220 @@ html.allow-scroll #root {
 }
 
 /* ── Mobile suggestion pills ── */
+
+/* ═══════════════════════════════════════════
+   Approval Panel — Human-in-the-loop
+   Inspired by Dify / Claude Code HITL patterns
+   ═══════════════════════════════════════════ */
+
+/* Approval accent tokens (amber — "needs attention") */
+.approval-card {
+  --approval-accent: #f59e0b;
+  --approval-accent-light: #fef3c7;
+  --approval-accent-hover: #d97706;
+  --approval-bg: var(--theme-bg-card);
+  --approval-border: var(--theme-border);
+  --approval-text: var(--theme-text);
+  --approval-text-dim: var(--theme-text-secondary);
+  --approval-input-bg: var(--theme-bg);
+  --approval-submit: #f59e0b;
+  --approval-submit-hover: #d97706;
+  --approval-submit-text: #fff;
+  --approval-cancel-border: var(--theme-border);
+  --approval-cancel-text: var(--theme-text-secondary);
+}
+
+.dark .approval-card {
+  --approval-accent: #fbbf24;
+  --approval-accent-light: #451a03;
+  --approval-accent-hover: #f59e0b;
+  --approval-submit: #fbbf24;
+  --approval-submit-hover: #f59e0b;
+  --approval-submit-text: #1c1917;
+}
+
+/* Card — clean white with subtle border and soft shadow */
+.approval-card {
+  position: relative;
+  background: var(--approval-bg);
+  border: 1px solid var(--approval-border);
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.03),
+    0 4px 12px -2px rgb(0 0 0 / 0.06);
+}
+
+.dark .approval-card {
+  box-shadow:
+    0 1px 2px 0 rgb(0 0 0 / 0.2),
+    0 4px 12px -2px rgb(0 0 0 / 0.3);
+}
+
+/* Header row — icon + label */
+.approval-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.875rem 1.25rem 0.5rem;
+}
+
+.approval-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+  background: var(--approval-accent-light);
+  color: var(--approval-accent);
+}
+
+.approval-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--approval-text);
+  letter-spacing: -0.01em;
+}
+
+/* Message area */
+.approval-message {
+  padding: 0.25rem 1.25rem 0.625rem;
+}
+
+.approval-message .prose {
+  color: var(--approval-text);
+}
+
+/* Divider */
+.approval-divider {
+  height: 1px;
+  margin: 0 1.25rem;
+  background: var(--approval-border);
+}
+
+/* Form area — clean inset */
+.approval-form {
+  padding: 0.875rem 1.25rem 0.75rem;
+}
+
+.approval-form .space-y-3 > div {
+  padding: 0.5rem 0;
+}
+
+.approval-form .space-y-3 > div + div {
+  border-top: 1px solid
+    color-mix(in srgb, var(--approval-border) 50%, transparent);
+  padding-top: 0.75rem;
+}
+
+/* ── Form inputs ── */
+.approval-input {
+  background-color: var(--approval-input-bg);
+  border: 1px solid var(--approval-border);
+  border-radius: 0.5rem;
+  color: var(--approval-text);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.approval-input::placeholder {
+  color: var(--approval-text-dim);
+  opacity: 0.5;
+}
+
+.approval-input:hover:not(:disabled):not(:focus) {
+  border-color: color-mix(
+    in srgb,
+    var(--approval-border) 60%,
+    var(--approval-accent) 40%
+  );
+}
+
+.approval-input:focus {
+  border-color: var(--approval-accent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--approval-accent) 15%, transparent);
+  background-color: var(--approval-input-bg);
+}
+
+/* ── Multi-select chips ── */
+.approval-chip {
+  border: 1px solid var(--approval-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.approval-chip:hover:not(:disabled):not(.approval-chip-active) {
+  border-color: var(--approval-accent);
+  color: var(--approval-accent) !important;
+  background-color: var(--approval-accent-light) !important;
+}
+
+.approval-chip-active {
+  background-color: var(--approval-accent) !important;
+  color: var(--approval-submit-text) !important;
+  border-color: var(--approval-accent) !important;
+  box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--approval-accent) 35%, transparent);
+}
+
+/* ── Action buttons ── */
+.approval-actions {
+  padding: 0.625rem 1.25rem 1rem;
+}
+
+.approval-btn-submit {
+  background-color: var(--approval-submit);
+  color: var(--approval-submit-text);
+  font-weight: 600;
+  border-radius: 0.625rem;
+  box-shadow: 0 1px 3px -1px color-mix(in srgb, var(--approval-accent) 30%, transparent);
+}
+
+.approval-btn-submit:hover:not(:disabled) {
+  background-color: var(--approval-submit-hover);
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--approval-accent) 40%, transparent);
+}
+
+.approval-btn-cancel {
+  background-color: transparent;
+  border: 1px solid var(--approval-cancel-border);
+  border-radius: 0.625rem;
+  color: var(--approval-cancel-text);
+  font-weight: 500;
+}
+
+.approval-btn-cancel:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--approval-border) 30%, transparent);
+  color: var(--approval-text);
+  border-color: var(--approval-text-dim);
+}
+
+/* ── Countdown timer ── */
+.approval-timer {
+  color: var(--approval-text-dim);
+  margin-left: auto;
+}
+
+.approval-timer-urgent {
+  color: var(--approval-accent);
+  font-weight: 600;
+  animation: approval-timer-pulse 1s ease-in-out infinite;
+}
+
+@keyframes approval-timer-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .welcome-pill {
   border-color: var(--theme-border);
 }

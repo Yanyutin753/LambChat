@@ -3,12 +3,12 @@
  * 管理员配置角色模型分配和模型配置
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Cpu, AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../../common/PanelHeader";
-import { PanelLoadingState } from "../../common/PanelLoadingState";
+import { ModelPanelSkeleton } from "../../skeletons";
 import { agentConfigApi, roleApi, modelApi } from "../../../services/api";
 import type { ModelConfig } from "../../../services/api/model";
 import { useAuth } from "../../../hooks/useAuth";
@@ -46,6 +46,10 @@ export function ModelPanel() {
     }[]
   >([]);
   const [dbModels, setDbModels] = useState<ModelConfig[]>([]);
+
+  // Use a ref for t to avoid loadData re-firing on language changes
+  const tRef = useRef(t);
+  tRef.current = t;
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -100,42 +104,43 @@ export function ModelPanel() {
       });
       setRoleModelsMap(modelMap);
     } catch (err) {
-      const errorMsg = (err as Error).message || t("agentConfig.loadFailed");
+      const errorMsg =
+        (err as Error).message || tRef.current("agentConfig.loadFailed");
       setError(errorMsg);
       toast.error(errorMsg);
     } finally {
       setIsLoading(false);
       setHasLoaded(true);
     }
-  }, [canManageModels, t]);
+  }, [canManageModels]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   // 更新角色模型配置
-  const handleUpdateRoleModels = async (
-    roleId: string,
-    modelValues: string[],
-  ) => {
-    if (!canManageModels) return;
-    try {
-      await agentConfigApi.updateRoleModels(roleId, modelValues);
-      setRoleModelsMap((prev) => ({ ...prev, [roleId]: modelValues }));
-      toast.success(t("agentConfig.saveSuccess"));
-    } catch (err) {
-      toast.error((err as Error).message || t("agentConfig.saveFailed"));
-      throw err;
-    }
-  };
+  const handleUpdateRoleModels = useCallback(
+    async (roleId: string, modelValues: string[]) => {
+      if (!canManageModels) return;
+      try {
+        await agentConfigApi.updateRoleModels(roleId, modelValues);
+        setRoleModelsMap((prev) => ({ ...prev, [roleId]: modelValues }));
+        toast.success(t("agentConfig.saveSuccess"));
+      } catch (err) {
+        toast.error((err as Error).message || t("agentConfig.saveFailed"));
+        throw err;
+      }
+    },
+    [canManageModels, t],
+  );
 
   // 刷新数据
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     loadData();
-  };
+  }, [loadData]);
 
   if (isLoading && !hasLoaded) {
-    return <PanelLoadingState text={t("common.loading")} />;
+    return <ModelPanelSkeleton />;
   }
 
   if (!canManageModels) {
@@ -203,19 +208,17 @@ export function ModelPanel() {
 
       {/* 内容 */}
       <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5">
-        <div className="animate-glass-enter" key={activeTab}>
-          {activeTab === "model-config" ? (
-            <ModelConfigTab models={dbModels} onReload={loadData} />
-          ) : (
-            <RolesModelTab
-              roles={roles}
-              roleModelsMap={roleModelsMap}
-              availableModels={availableModels}
-              onUpdate={handleUpdateRoleModels}
-              isLoading={isLoading}
-            />
-          )}
-        </div>
+        {activeTab === "model-config" ? (
+          <ModelConfigTab models={dbModels} onReload={loadData} />
+        ) : (
+          <RolesModelTab
+            roles={roles}
+            roleModelsMap={roleModelsMap}
+            availableModels={availableModels}
+            onUpdate={handleUpdateRoleModels}
+            isLoading={isLoading}
+          />
+        )}
       </div>
     </div>
   );

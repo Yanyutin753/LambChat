@@ -3,6 +3,7 @@ import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
+import { FilesPageSkeleton } from "./components/skeletons";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { usePageTitle } from "./hooks/usePageTitle";
@@ -351,7 +352,7 @@ function App() {
           <Route
             path="/files"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
                 <FilesPage />
               </ProtectedRoute>
             }

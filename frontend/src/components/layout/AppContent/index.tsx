@@ -36,6 +36,7 @@ import {
   reconcileCurrentModelSelection,
   resolveDefaultModelSelection,
 } from "./modelSelection";
+import { getRestoredModelSelection } from "./sessionState";
 import { ChatView } from "./ChatView";
 import { Header } from "./Header";
 import { TabContent } from "./TabContent";
@@ -530,6 +531,12 @@ function ChatAppContent({
       // effects don't overwrite the session-specific model selection.
       isSessionRestoredRef.current = true;
 
+      // Restore the agent first so agent-specific option defaults do not
+      // overwrite the session metadata we are about to apply.
+      if (config.agent_id) {
+        switchAgent(config.agent_id);
+      }
+
       // 使用 useSessionConfig 恢复对话级配置
       restoreSessionConfig(config);
 
@@ -537,22 +544,16 @@ function ChatAppContent({
       if (config.agent_options) {
         restoreAgentOptions(config.agent_options);
 
-        // Restore model selection if present
-        if (
-          config.agent_options.model_id &&
-          typeof config.agent_options.model_id === "string"
-        ) {
-          setCurrentModelId(config.agent_options.model_id);
+        const restoredModelSelection = getRestoredModelSelection(config);
+        if (restoredModelSelection.modelId) {
+          setCurrentModelId(restoredModelSelection.modelId);
         }
-        if (
-          config.agent_options.model &&
-          typeof config.agent_options.model === "string"
-        ) {
-          setCurrentModelValue(config.agent_options.model);
+        if (restoredModelSelection.modelValue) {
+          setCurrentModelValue(restoredModelSelection.modelValue);
         }
       }
     },
-    [restoreSessionConfig, restoreAgentOptions],
+    [restoreSessionConfig, restoreAgentOptions, switchAgent],
   );
 
   const { handleSelectSession, handleNewSession } = useSessionSync({

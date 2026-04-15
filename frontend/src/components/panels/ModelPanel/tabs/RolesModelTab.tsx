@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Cpu, Save, Globe, List } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { PanelLoadingState } from "../../../common/PanelLoadingState";
+import { ModelPanelSkeleton } from "../../../skeletons";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import type { ModelOption } from "../../../../services/api/model";
@@ -41,13 +41,18 @@ export function RolesModelTab({
     }
   }, [roles, selectedRole]);
 
+  const hasChanges = useMemo(() => {
+    if (!selectedRole) return false;
+    const local = localRoleModels[selectedRole];
+    const original = roleModelsMap[selectedRole];
+    if (!local && !original) return false;
+    if (!local || !original) return true;
+    if (local.length !== original.length) return true;
+    return local.some((v, i) => v !== original[i]);
+  }, [selectedRole, localRoleModels, roleModelsMap]);
+
   if (isLoading) {
-    return (
-      <PanelLoadingState
-        text={t("common.loading")}
-        containerClassName="h-40"
-      />
-    );
+    return <ModelPanelSkeleton />;
   }
 
   if (availableModels.length === 0) {
@@ -112,10 +117,6 @@ export function RolesModelTab({
   };
 
   const selectedRoleData = roles.find((r) => r.id === selectedRole);
-  const hasChanges = selectedRole
-    ? JSON.stringify(localRoleModels[selectedRole]) !==
-      JSON.stringify(roleModelsMap[selectedRole])
-    : false;
 
   return (
     <div className="space-y-4 sm:space-y-5 animate-glass-enter">

@@ -1,5 +1,4 @@
 import { useMemo, useCallback, useState, useEffect } from "react";
-import { toast } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
@@ -7,8 +6,8 @@ import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
-import { Loading } from "../../common";
 import { useMessageScroll } from "./useMessageScroll";
+import { isSessionRunning } from "./sessionState";
 import type {
   Message,
   PendingApproval,
@@ -115,6 +114,7 @@ export function ChatView({
 }: ChatViewProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const sessionRunning = isSessionRunning(messages, isLoading);
 
   const getGreetingKey = () => {
     const h = new Date().getHours();
@@ -173,7 +173,6 @@ export function ChatView({
   const virtuosoItemContent = useCallback(
     (index: number, message: (typeof messages)[number]) => (
       <ChatMessage
-        key={message.id}
         message={message}
         sessionId={sessionId ?? undefined}
         sessionName={sessionName ?? undefined}
@@ -228,7 +227,7 @@ export function ChatView({
   const chatInputProps = {
     onSend: onSendMessage,
     onStop: onStopGeneration,
-    isLoading,
+    isLoading: sessionRunning,
     canSend: canSendMessage,
     tools,
     onToggleTool,
@@ -261,21 +260,10 @@ export function ChatView({
     <>
       <main
         ref={messagesContainerRef}
-        className={`relative flex-1 min-h-0 pt-6 ${messages.length > 0 ? "overflow-hidden" : ""
-          }`}
+        className={`relative flex-1 min-h-0 pt-6 ${
+          messages.length > 0 ? "overflow-hidden" : ""
+        }`}
       >
-        {/* Initial load spinner (no previous messages) */}
-        {isLoading && messages.length === 0 && (
-          <div
-            className="absolute inset-0 z-10 flex items-center justify-center"
-            style={{
-              backgroundColor:
-                "color-mix(in srgb, var(--theme-bg) 80%, transparent)",
-            }}
-          >
-            <Loading size="lg" />
-          </div>
-        )}
         {messages.length === 0 ? (
           <WelcomePage
             greeting={greeting}
@@ -294,6 +282,7 @@ export function ChatView({
             ref={virtuosoRef}
             className="dark:divide-stone-800 overflow-x-hidden"
             data={messages}
+            computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}
             atBottomThreshold={50}
             followOutput="smooth"
@@ -307,8 +296,7 @@ export function ChatView({
       {messages.length > 0 && showScrollTop && (
         <button
           onClick={scrollToTop}
-          className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
-          style={{ bottom: "9rem" }}
+          className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 bottom-36 sm:bottom-48"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -328,8 +316,7 @@ export function ChatView({
       {messages.length > 0 && !isNearBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
-          style={{ bottom: "9rem", transform: "translateX(-50%)" }}
+          className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 bottom-36 sm:bottom-48 -translate-x-1/2"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -352,41 +339,8 @@ export function ChatView({
         isLoading={approvalLoading}
       />
 
-      {/* Mobile: suggestions pills above ChatInput */}
-      {messages.length === 0 && suggestions && (
-        <div className="sm:hidden px-3 pb-1">
-          <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {suggestions.map((s) => (
-              <button
-                key={s.text}
-                onClick={() => {
-                  if (!canSendMessage) {
-                    toast.error(t("chat.noPermissionHint"));
-                    return;
-                  }
-                  onSendMessage(s.text);
-                }}
-                className="welcome-pill shrink-0 inline-flex items-center gap-2 rounded-full border pl-2 pr-3 py-2 text-[13px] text-left transition-all duration-300 backdrop-blur-sm"
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--theme-bg-card) 85%, transparent)",
-                  borderColor: "var(--theme-border)",
-                  color: "var(--theme-text-secondary)",
-                }}
-              >
-                {s.icon}
-                <span>{s.text}</span>
-              </button>
-            ))}
-            <div className="w-3 shrink-0" aria-hidden="true" />
-          </div>
-        </div>
-      )}
-
-      {/* Mobile: always show ChatInput at bottom */}
-      <div className={messages.length === 0 ? "sm:hidden" : ""}>
-        <ChatInput {...chatInputProps} />
-      </div>
+      {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
+      {messages.length > 0 && <ChatInput {...chatInputProps} />}
     </>
   );
 }

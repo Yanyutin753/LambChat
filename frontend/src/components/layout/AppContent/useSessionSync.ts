@@ -1,8 +1,8 @@
 import { useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import type { TabType } from "./types";
-import { shouldBlockSessionSelection } from "../../../utils/sessionSelectionGuard";
-import type { SessionConfig } from "../../../hooks/useAgent/types";
+import type { TabType } from "./types.ts";
+import { shouldBlockSessionSelection } from "../../../utils/sessionSelectionGuard.ts";
+import type { SessionConfig } from "../../../hooks/useAgent/types.ts";
 
 interface UseSessionSyncOptions {
   activeTab: TabType;

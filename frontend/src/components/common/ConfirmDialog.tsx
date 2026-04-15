@@ -65,17 +65,21 @@ export function ConfirmDialog({
       icon: "text-red-500 dark:text-red-400",
       confirmButton:
         "bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white",
+      confirmIcon: AlertTriangle,
     },
     warning: {
       icon: "text-amber-500 dark:text-amber-400",
       confirmButton:
         "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-white",
+      confirmIcon: AlertTriangle,
     },
     info: {
       icon: "text-[var(--theme-primary)]",
       confirmButton: "btn-primary shadow-sm",
+      confirmIcon: AlertTriangle,
     },
   };
+  const ConfirmIcon = variantStyles[variant].confirmIcon;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
@@ -121,9 +125,13 @@ export function ConfirmDialog({
             disabled={loading}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors inline-flex items-center justify-center gap-2 disabled:opacity-70 ${variantStyles[variant].confirmButton}`}
           >
-            <span className="inline-flex h-4 w-4 items-center justify-center">
-              {loading ? <LoadingSpinner size="sm" color="text-current" /> : null}
-            </span>
+            {loading ? (
+              <span className="inline-flex h-4 w-4 items-center justify-center">
+                <LoadingSpinner size="sm" color="text-current" />
+              </span>
+            ) : (
+              <ConfirmIcon size={16} className="shrink-0" />
+            )}
             {confirmLabel}
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import toast from "react-hot-toast";
 import { Copy, Info, Sparkles } from "lucide-react";
 import type {
@@ -224,7 +224,7 @@ function TokenDetailsButton({
   );
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   message,
   sessionId,
   sessionName,
@@ -420,4 +420,4 @@ export function ChatMessage({
       </div>
     </div>
   );
-}
+});

@@ -1,3 +1,5 @@
+import React from "react";
+
 interface ToggleSwitchProps {
   enabled: boolean;
   onToggle: () => void;
@@ -5,7 +7,7 @@ interface ToggleSwitchProps {
   ariaLabel?: string;
 }
 
-export function ToggleSwitch({
+export const ToggleSwitch = React.memo(function ToggleSwitch({
   enabled,
   onToggle,
   disabled,
@@ -31,4 +33,4 @@ export function ToggleSwitch({
       />
     </button>
   );
-}
+});

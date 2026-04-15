@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { PanelLoadingState } from "../common/PanelLoadingState";
+import { MCPPanelSkeleton } from "../skeletons";
 import { Pagination } from "../common/Pagination";
 import { MCPServerCard } from "../mcp/MCPServerCard";
 import { MCPServerForm } from "../mcp/MCPServerForm";
@@ -417,7 +417,7 @@ export function MCPPanel() {
       {/* Servers List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4">
         {isLoading && servers.length === 0 ? (
-          <PanelLoadingState text={t("mcp.loading")} />
+          <MCPPanelSkeleton />
         ) : filteredServers.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400">
             <FolderOpen

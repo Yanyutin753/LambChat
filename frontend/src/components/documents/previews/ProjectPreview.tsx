@@ -7,6 +7,7 @@ import {
   SandpackFileExplorer,
 } from "@codesandbox/sandpack-react";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "../../../contexts/ThemeContext";
 import {
   Play,
   Code2,
@@ -103,6 +104,7 @@ export default function ProjectPreview({
   onToggleSidebar,
 }: ProjectPreviewProps) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
   const [showExplorer, setShowExplorer] = useState(showFileExplorer);
   const isFullscreen = !!externalFullscreen;
@@ -142,10 +144,10 @@ export default function ProjectPreview({
   return (
     <div
       className={clsx(
-        "flex flex-col bg-white dark:bg-stone-900 overflow-hidden",
+        "flex flex-col overflow-hidden",
         isFullscreen
-          ? "h-full w-full"
-          : "h-full min-h-[300px] sm:min-h-[500px] rounded-xl border border-stone-200 dark:border-stone-700",
+          ? "h-full w-full bg-white dark:bg-stone-900"
+          : "h-full min-h-[300px] sm:min-h-[500px]",
       )}
     >
       {/* 工具栏 */}
@@ -292,7 +294,7 @@ export default function ProjectPreview({
             template={config.template}
             customSetup={config.customSetup}
             files={config.files}
-            theme="dark"
+            theme={theme}
             options={{
               activeFile: config.entryFile,
               visibleFiles: config.visibleFiles,
@@ -328,6 +330,7 @@ export function ProjectPreviewCompact({
   onExpand?: () => void;
 }) {
   const { t } = useTranslation();
+  const { theme } = useTheme();
   const config = useMemo(
     () => buildSandpackConfig(template, files),
     [template, files],
@@ -386,7 +389,7 @@ export function ProjectPreviewCompact({
             template={config.template}
             customSetup={config.customSetup}
             files={config.files}
-            theme="dark"
+            theme={theme}
             options={{
               activeFile: config.entryFile,
               visibleFiles: config.visibleFiles,

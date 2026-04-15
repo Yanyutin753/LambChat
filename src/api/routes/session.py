@@ -21,9 +21,6 @@ from src.kernel.schemas.user import TokenPayload
 router = APIRouter()
 logger = get_logger(__name__)
 
-# 管理员角色
-ADMIN_ROLES = {"admin", "administrator"}
-
 # 支持的语言白名单
 SUPPORTED_LANGUAGES = frozenset(["en", "zh", "ja", "ko"])
 
@@ -39,6 +36,8 @@ def _is_retryable_error(error: Exception) -> bool:
         "timeout",
         "connection",
         "overloaded",
+        "网络错误",  # Chinese API proxy network error
+        "network error",
     ]
     return any(pattern in error_str for pattern in retryable_patterns)
 
@@ -67,11 +66,6 @@ async def _ainvoke_with_retry(model, prompt: str, max_retries: int | None = None
     if last_error is None:
         raise RuntimeError("Unexpected state: no error but loop exhausted")
     raise last_error
-
-
-def is_admin(user: TokenPayload) -> bool:
-    """检查用户是否为管理员"""
-    return bool(ADMIN_ROLES & set(user.roles))
 
 
 def verify_session_ownership(session: Session, user: TokenPayload) -> None:

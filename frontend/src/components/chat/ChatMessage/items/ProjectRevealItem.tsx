@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
-import { Code2, FolderTree, Download, Maximize, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Code2, FolderTree, Download, Maximize } from "lucide-react";
 import { PreviewHeader } from "../../../common/FileIcon";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -9,7 +8,7 @@ import ProjectPreview from "../../../documents/previews/ProjectPreview";
 import { exportProjectZip } from "../../../../utils/exportProjectZip";
 import { getFullUrl } from "../../../../services/api/config";
 import { rewriteProjectTextFiles } from "./projectRevealAssetUtils";
-import { closeCurrentToolPanel } from "./ToolResultPanel";
+import { ToolResultPanel } from "./ToolResultPanel";
 
 // v1 格式（旧后端）
 interface ProjectRevealResultV1 {
@@ -134,90 +133,6 @@ export function ProjectRevealItem({
   const { t } = useTranslation();
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [viewMode, setViewMode] = useState<"center" | "sidebar">("sidebar");
-  const sidebarWidthRef = useRef(
-    parseInt(localStorage.getItem("sidebar-preview-width") || "45", 10),
-  );
-  const isResizing = useRef(false);
-  const justResized = useRef(false);
-
-  // Set CSS variable for sidebar width
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty(
-      "--sidebar-preview-width",
-      `${sidebarWidthRef.current}%`,
-    );
-  }, []);
-
-  // Signal the main layout to compress when sidebar is open
-  useEffect(() => {
-    if (!showFullPreview) return;
-    const root = document.documentElement;
-    if (viewMode === "sidebar") {
-      root.setAttribute("data-sidebar-preview", "open");
-    } else {
-      root.removeAttribute("data-sidebar-preview");
-    }
-    return () => root.removeAttribute("data-sidebar-preview");
-  }, [showFullPreview, viewMode]);
-
-  // Drag resize handler — indicator line during drag, resize on mouseup only
-  const panelRef = useRef<HTMLDivElement>(null);
-  const indicatorRef = useRef<HTMLDivElement>(null);
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    isResizing.current = true;
-    const startX = e.clientX;
-    const root = document.documentElement;
-    const startWidth = parseInt(
-      root.style.getPropertyValue("--sidebar-preview-width") ||
-        String(sidebarWidthRef.current),
-      10,
-    );
-    const indicator = indicatorRef.current;
-
-    // Create a raw DOM capture layer — completely outside React, highest z-index
-    const capture = document.createElement("div");
-    capture.style.cssText =
-      "position:fixed;inset:0;z-index:999999;cursor:col-resize;";
-    document.body.appendChild(capture);
-
-    const onMove = (ev: MouseEvent) => {
-      if (!isResizing.current) return;
-      if (indicator) {
-        indicator.style.left = `${ev.clientX}px`;
-        indicator.style.display = "block";
-      }
-    };
-    const onUp = (ev: MouseEvent) => {
-      if (!isResizing.current) return;
-      isResizing.current = false;
-      if (indicator) indicator.style.display = "none";
-      capture.remove();
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      // Apply resize
-      const finalClientX = ev.clientX;
-      const capturedPanel = panelRef.current;
-      const delta = ((startX - finalClientX) / window.innerWidth) * 100;
-      const val = Math.round(Math.min(Math.max(startWidth + delta, 25), 75));
-      root.style.setProperty("--sidebar-preview-width", `${val}%`);
-      sidebarWidthRef.current = val;
-      if (capturedPanel) capturedPanel.style.width = `${val}%`;
-      localStorage.setItem("sidebar-preview-width", String(val));
-      justResized.current = true;
-      setTimeout(() => {
-        justResized.current = false;
-      }, 100);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, []);
 
   let projectName = "";
   let template:
@@ -335,29 +250,19 @@ export function ProjectRevealItem({
     )
       return;
     if (window.innerWidth >= 640) {
-      closeCurrentToolPanel();
       setShowFullPreview(true);
     }
   }, [success, sandpackFiles, showFullPreview]);
 
-  // Escape key to close fullscreen preview
+  // Toast hint when entering center mode (skip on mobile — no ESC key)
   useEffect(() => {
-    if (!showFullPreview) return;
-    if (viewMode === "center") {
-      toast(t("project.fullscreenHint", "按 Esc 退出全屏"), {
-        duration: 2000,
-        position: "top-center",
-        style: { borderRadius: "10px", background: "#1c1917", color: "#fff" },
-      });
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        hasClosedPreview.current = true;
-        setShowFullPreview(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    if (!showFullPreview || viewMode !== "center") return;
+    if (window.innerWidth < 640) return;
+    toast(t("project.fullscreenHint", "按 Esc 退出全屏"), {
+      duration: 2000,
+      position: "top-center",
+      style: { borderRadius: "10px", background: "#1c1917", color: "#fff" },
+    });
   }, [showFullPreview, viewMode, t]);
 
   if (isPending) {
@@ -467,147 +372,73 @@ export function ProjectRevealItem({
 
   const filesForExport = sandpackFiles || {};
 
+  const handlePanelClose = () => {
+    hasClosedPreview.current = true;
+    setShowFullPreview(false);
+  };
+
   return (
     <div className="my-2 sm:my-3 min-w-0">
-      {showFullPreview &&
-        createPortal(
-          <div
-            className={`fixed inset-0 z-[300] flex flex-col ${
-              viewMode === "sidebar"
-                ? "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
-                : "bg-stone-900"
-            }`}
-            onClick={() => {
-              if (!isResizing.current && !justResized.current) {
-                hasClosedPreview.current = true;
-                setShowFullPreview(false);
-              }
-            }}
-          >
-            {/* Resize indicator line — follows mouse, no reflow */}
-            <div
-              ref={indicatorRef}
-              className="sm:block fixed top-0 bottom-0 z-[301] pointer-events-none"
-              style={{
-                display: "none",
-                left: 0,
-                width: "2px",
-                backgroundColor: "var(--theme-primary)",
-                opacity: 0.4,
-              }}
-            />
-            <div
-              ref={viewMode === "sidebar" ? panelRef : undefined}
-              className={`flex flex-col bg-white dark:bg-[#1e1e1e] pointer-events-auto ${
-                viewMode === "sidebar"
-                  ? "h-full sm:rounded-l-2xl relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)]"
-                  : "overflow-hidden h-full w-full relative"
-              }`}
-              {...(viewMode === "sidebar" ? { "data-sidebar-panel": "" } : {})}
-              style={
-                viewMode === "sidebar"
-                  ? { width: "100%", flexShrink: 0 }
-                  : undefined
-              }
-              onClick={(e) => e.stopPropagation()}
+      <ToolResultPanel
+        open={showFullPreview}
+        onClose={handlePanelClose}
+        title={projectName || t("project.untitled")}
+        icon={<Code2 size={16} />}
+        status="success"
+        subtitle={`${template !== "static" ? `${template} · ` : ""}${t(
+          "project.fileCount",
+          {
+            count: Object.keys(filesForExport).length,
+          },
+        )}`}
+        viewMode={viewMode}
+        headerActions={
+          <>
+            <button
+              onClick={() => setViewMode("center")}
+              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+              title={t("documents.centerView", "居中")}
             >
-              {/* Fullscreen close button */}
-              {viewMode === "center" && (
-                <button
-                  onClick={() => {
-                    hasClosedPreview.current = true;
-                    setShowFullPreview(false);
-                  }}
-                  className="absolute top-3 right-3 z-[310] flex items-center justify-center w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-all duration-200"
-                  title={t("common.close")}
-                >
-                  <X size={18} />
-                </button>
-              )}
-              {/* Resize handle */}
-              {viewMode === "sidebar" && (
-                <div
-                  className="hidden sm:block absolute left-0 top-0 bottom-0 -translate-x-1/2 z-10 cursor-col-resize pointer-events-auto group"
-                  onMouseDown={handleResizeStart}
-                >
-                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-1 rounded-full bg-transparent group-hover:bg-[var(--theme-primary)]/50 transition-colors duration-200" />
-                </div>
-              )}
-              {/* Sidebar header */}
-              {viewMode === "sidebar" && (
-                <PreviewHeader
-                  icon={Code2}
-                  title={projectName || t("project.untitled")}
-                  subtitle={`${
-                    template !== "static" ? `${template} · ` : ""
-                  }${t("project.fileCount", {
-                    count: Object.keys(filesForExport).length,
-                  })}`}
-                  actions={
-                    <>
-                      <button
-                        onClick={() => setViewMode("center")}
-                        className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-                        title={t("documents.centerView", "居中")}
-                      >
-                        <Maximize
-                          size={15}
-                          className="text-stone-400 dark:text-stone-500"
-                        />
-                      </button>
-                      <button
-                        onClick={() =>
-                          exportProjectZip(
-                            filesForExport,
-                            projectName,
-                            binaryFiles,
-                          )
-                        }
-                        className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-                        title={t("project.exportZip")}
-                      >
-                        <Download
-                          size={15}
-                          className="text-stone-400 dark:text-stone-500"
-                        />
-                      </button>
-                      <button
-                        onClick={() => {
-                          hasClosedPreview.current = true;
-                          setShowFullPreview(false);
-                          setViewMode("center");
-                        }}
-                        className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-                        title={t("common.close")}
-                      >
-                        <X
-                          size={16}
-                          className="text-stone-500 dark:text-stone-400"
-                        />
-                      </button>
-                    </>
-                  }
-                />
-              )}
-              <ProjectPreview
-                name={projectName}
-                template={template}
-                files={filesForExport}
-                entry={parsed?.entry}
-                isFullscreen={viewMode !== "sidebar"}
-                showHeader={false}
-                onToggleSidebar={
-                  viewMode === "center"
-                    ? () => setViewMode("sidebar")
-                    : undefined
-                }
+              <Maximize
+                size={15}
+                className="text-stone-400 dark:text-stone-500"
               />
-            </div>
-          </div>,
-          document.body,
-        )}
+            </button>
+            <button
+              onClick={() =>
+                exportProjectZip(filesForExport, projectName, binaryFiles)
+              }
+              className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+              title={t("project.exportZip")}
+            >
+              <Download
+                size={15}
+                className="text-stone-400 dark:text-stone-500"
+              />
+            </button>
+          </>
+        }
+      >
+        <ProjectPreview
+          name={projectName}
+          template={template}
+          files={filesForExport}
+          entry={parsed?.entry}
+          isFullscreen={viewMode !== "sidebar"}
+          showHeader={false}
+          onToggleSidebar={
+            viewMode === "center" ? () => setViewMode("sidebar") : undefined
+          }
+        />
+      </ToolResultPanel>
 
-      <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
+      <div
+        className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900 cursor-pointer hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+        onClick={() => {
+          setShowFullPreview(true);
+          setViewMode("sidebar");
+        }}
+      >
         <PreviewHeader
           variant="card"
           icon={Code2}
@@ -618,9 +449,10 @@ export function ProjectRevealItem({
           actions={
             <>
               <button
-                onClick={() =>
-                  exportProjectZip(filesForExport, projectName, binaryFiles)
-                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  exportProjectZip(filesForExport, projectName, binaryFiles);
+                }}
                 className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
               >
                 <Download size={14} />
@@ -629,8 +461,8 @@ export function ProjectRevealItem({
                 </span>
               </button>
               <button
-                onClick={() => {
-                  closeCurrentToolPanel();
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowFullPreview(true);
                   setViewMode("center");
                 }}
@@ -645,7 +477,7 @@ export function ProjectRevealItem({
           }
         />
 
-        <div className="h-[300px] sm:h-[600px] bg-stone-900">
+        <div className="h-[300px] sm:h-[600px] bg-stone-100 dark:bg-stone-900">
           {success && Object.keys(filesForExport).length > 0 && (
             <ProjectPreview
               name={projectName}

@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Settings, ChevronDown } from "lucide-react";
+import { Settings, ChevronRight, Check } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
-import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { SkeletonLine } from "../../skeletons";
 import type { AgentInfo } from "../../../types";
 
 const NEWLINE_MODIFIER_KEY = "newlineModifier";
@@ -30,7 +31,7 @@ const THEME_OPTIONS: { key: "light" | "dark"; labelKey: string }[] = [
   { key: "dark", labelKey: "profile.darkTheme" },
 ];
 
-/** Reusable dropdown row */
+/** Reusable selection row — opens a centered dialog popup */
 function SelectRow<T extends string>({
   label,
   value,
@@ -52,31 +53,21 @@ function SelectRow<T extends string>({
 }) {
   const { t } = useTranslation();
   const selected = options.find((o) => o.key === value);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dropUp, setDropUp] = useState(false);
-
-  useEffect(() => {
-    if (!open || !containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    setDropUp(spaceBelow < 120 && spaceAbove > spaceBelow);
-  }, [open]);
 
   return (
-    <div className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-      <span className="text-sm text-stone-700 dark:text-stone-200">
-        {label}
-      </span>
-      <div className="relative" ref={containerRef}>
-        <button
-          onClick={onToggle}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-600 transition-colors min-w-[120px] justify-between"
-        >
+    <>
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center justify-between py-3 first:pt-0 last:pb-0 text-left"
+      >
+        <span className="text-sm text-stone-700 dark:text-stone-200">
+          {label}
+        </span>
+        <span className="flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400">
           {loading ? (
-            <LoadingSpinner size="xs" />
+            <SkeletonLine width="w-16" />
           ) : (
-            <span className="truncate">
+            <span className="truncate max-w-[140px]">
               {renderLabel
                 ? renderLabel(value)
                 : selected
@@ -84,37 +75,58 @@ function SelectRow<T extends string>({
                   : value}
             </span>
           )}
-          <ChevronDown
-            size={12}
-            className={`shrink-0 text-stone-400 transition-transform ${
-              open ? "rotate-180" : ""
-            }`}
-          />
-        </button>
-        {open && (
+          <ChevronRight size={14} className="shrink-0 text-stone-400" />
+        </span>
+      </button>
+      {open &&
+        createPortal(
           <div
-            className={`absolute right-0 z-10 min-w-[160px] rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-600 shadow-lg overflow-hidden ${
-              dropUp ? "bottom-full mb-1" : "top-full mt-1"
-            }`}
-            style={{ maxHeight: "40vh", overflowY: "auto" }}
+            className="fixed inset-0 z-[300] flex items-center justify-center animate-fade-in"
+            onClick={onToggle}
           >
-            {options.map((opt) => (
-              <button
-                key={opt.key}
-                onClick={() => onSelect(opt.key)}
-                className={`w-full text-left px-3 py-2 text-xs transition-colors ${
-                  value === opt.key
-                    ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-medium"
-                    : "text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700"
-                }`}
-              >
-                {renderLabel ? renderLabel(opt.key) : t(opt.labelKey)}
-              </button>
-            ))}
-          </div>
+            <div className="absolute inset-0 bg-black/40" />
+            <div
+              className="relative z-10 w-[300px] max-h-[60vh] rounded-2xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 shadow-2xl overflow-hidden animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 pt-4 pb-2">
+                <h4 className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                  {label}
+                </h4>
+              </div>
+              <div className="overflow-y-auto max-h-[50vh] pb-2">
+                {options.map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => onSelect(opt.key)}
+                    className={`w-full text-left px-5 py-2.5 text-sm transition-colors ${
+                      value === opt.key
+                        ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 font-medium"
+                        : "text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/50"
+                    }`}
+                  >
+                    <span className="flex items-center justify-between">
+                      {renderLabel ? renderLabel(opt.key) : t(opt.labelKey)}
+                      {value === opt.key && (
+                        <Check size={14} className="text-amber-500 shrink-0" />
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="border-t border-stone-100 dark:border-stone-700/50 px-5 py-3">
+                <button
+                  onClick={onToggle}
+                  className="w-full text-center text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
+                >
+                  {t("common.cancel")}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
         )}
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -242,14 +254,6 @@ export function ProfilePreferencesTab() {
     return agent ? t(agent.name) : key;
   };
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!openDropdown) return;
-    const close = () => setOpenDropdown(null);
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, [openDropdown]);
-
   return (
     <div className="rounded-2xl bg-stone-50 dark:bg-stone-700/40 p-4 border border-stone-200/60 dark:border-stone-600/40">
       <div className="flex items-center gap-2 mb-3">
@@ -259,7 +263,7 @@ export function ProfilePreferencesTab() {
         </h3>
       </div>
 
-      <div className="space-y-0" onClick={(e) => e.stopPropagation()}>
+      <div className="space-y-0">
         <SelectRow
           label={t("profile.language")}
           value={i18n.language}

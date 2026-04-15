@@ -64,16 +64,26 @@ export function startVirtuosoScrollToBottom({
 
   scroll();
 
+  // Minimum attempts before checking isAtBottom — Virtuoso may report
+  // being at the "bottom" based on an initial height estimate that is
+  // still being refined as it measures item heights.  Forcing a few
+  // extra scrollTo calls gives it time to settle at the true bottom.
+  const minAttemptsBeforeSettling = 5;
+
   const timer = setInterval(() => {
+    attempts += 1;
+
     const isAtBottom =
       scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
 
-    if (isAtBottom || attempts >= maxAttempts) {
+    if (
+      (isAtBottom && attempts >= minAttemptsBeforeSettling) ||
+      attempts >= maxAttempts
+    ) {
       clearInterval(timer);
       return;
     }
 
-    attempts += 1;
     scroll();
   }, intervalMs);
 

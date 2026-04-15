@@ -32,6 +32,9 @@ class ModelConfig(BaseModel):
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
+    fallback_model: Optional[str] = Field(
+        None, description="Fallback model ID (UUID) when this model fails"
+    )
     enabled: bool = Field(True, description="Whether this model is enabled")
     order: int = Field(0, description="Display order")
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
@@ -53,6 +56,9 @@ class ModelConfigCreate(BaseModel):
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
+    fallback_model: Optional[str] = Field(
+        None, description="Fallback model ID (UUID) when this model fails"
+    )
     enabled: bool = Field(True, description="Whether this model is enabled")
     order: Optional[int] = Field(0, description="Display order")
 
@@ -68,6 +74,9 @@ class ModelConfigUpdate(BaseModel):
     temperature: Optional[float] = Field(None, description="Per-model temperature override")
     max_tokens: Optional[int] = Field(None, description="Per-model max tokens override")
     profile: Optional[ModelProfile] = Field(None, description="Per-model profile settings")
+    fallback_model: Optional[str] = Field(
+        None, description="Fallback model ID (UUID) when this model fails"
+    )
     enabled: Optional[bool] = Field(None, description="Whether this model is enabled")
     order: Optional[int] = Field(None, description="Display order")
 

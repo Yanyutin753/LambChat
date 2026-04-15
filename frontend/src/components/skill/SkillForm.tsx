@@ -44,7 +44,7 @@ export function SkillForm({
     (fs: boolean) => {
       setIsFullscreen(fs);
       onFullscreenChange?.(fs);
-      if (fs) {
+      if (fs && window.innerWidth >= 640) {
         toast(t("skills.form.fullscreenHint", "按 Esc 退出全屏"), {
           duration: 2000,
           position: "top-center",

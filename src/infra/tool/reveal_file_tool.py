@@ -27,6 +27,7 @@ import asyncio
 import json
 import mimetypes
 import os
+import re
 from typing import Annotated, Any, Literal, Optional
 
 from langchain.tools import ToolRuntime, tool
@@ -159,6 +160,198 @@ async def _read_file_from_filesystem(file_path: str) -> Optional[bytes]:
     return None
 
 
+# ---------------------------------------------------------------------------
+# 本地资源引用检测与替换
+# ---------------------------------------------------------------------------
+
+# 需要处理的文件扩展名（这些文件类型可能引用本地资源）
+_RESOLVABLE_EXTENSIONS = {".md", ".markdown", ".html", ".htm", ".svg", ".xhtml"}
+
+# 可上传的资源扩展名（图片、视频、音频）
+_UPLOADABLE_EXTENSIONS = {
+    # 图片
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".bmp",
+    ".ico",
+    ".avif",
+    # 视频
+    ".mp4",
+    ".webm",
+    ".mov",
+    ".avi",
+    ".wmv",
+    ".mkv",
+    ".ogv",
+    # 音频
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".aac",
+    ".flac",
+    ".m4a",
+    ".opus",
+}
+
+# 正则模式
+_RE_MD_LINK = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")  # ![alt](path)
+_RE_HTML_SRC = re.compile(
+    r'<(img|video|audio|source|iframe)\b[^>]*(?:src|href)=["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
+_RE_CSS_URL = re.compile(r'url\(["\']?([^)"\']+)["\']?\)')  # CSS url()
+_RE_SVG_IMAGE = re.compile(r'<image\b[^>]*href=["\']([^"\']+)["\']', re.IGNORECASE)
+
+
+def _is_local_path(path: str) -> bool:
+    """判断路径是否为本地文件路径（非 http/https/data URL）"""
+    stripped = path.strip()
+    return (
+        not stripped.startswith("http://")
+        and not stripped.startswith("https://")
+        and not stripped.startswith("data:")
+        and not stripped.startswith("#")
+        and not stripped.startswith("blob:")
+        and not stripped.startswith("mailto:")
+    )
+
+
+def _is_uploadable_resource(path: str) -> bool:
+    """判断路径是否指向可上传的资源文件"""
+    # 去掉 query string / fragment
+    clean = path.split("?")[0].split("#")[0]
+    ext = os.path.splitext(clean)[1].lower()
+    return ext in _UPLOADABLE_EXTENSIONS
+
+
+def _needs_local_ref_resolution(filename: str, mime_type: str) -> bool:
+    """判断文件是否需要做本地引用替换"""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in _RESOLVABLE_EXTENSIONS:
+        return True
+    if mime_type in ("text/markdown", "text/x-markdown", "text/html", "image/svg+xml"):
+        return True
+    return False
+
+
+async def _upload_local_resource(
+    local_path: str,
+    file_dir: str,
+    backend: Any,
+    storage: Any,
+    base_url: str,
+) -> Optional[str]:
+    """
+    尝试下载并上传一个本地资源文件到 S3，返回 proxy URL。
+    失败时返回 None。
+    """
+    try:
+        if os.path.isabs(local_path):
+            abs_path = local_path
+        else:
+            abs_path = os.path.normpath(os.path.join(file_dir, local_path))
+
+        content = await _download_file_from_backend(backend, abs_path)
+        if content is None and not _is_sandbox_backend(backend):
+            content = await _read_file_from_filesystem(abs_path)
+        if content is None:
+            return None
+
+        res_filename = os.path.basename(abs_path)
+        res_mime = get_mime_type(res_filename)
+        upload_result = await storage.upload_bytes(
+            data=content,
+            folder="revealed_files",
+            filename=res_filename,
+            content_type=res_mime,
+        )
+        url = f"{base_url}/api/upload/file/{upload_result.key}"
+        logger.info(f"[reveal_file] Uploaded local resource {local_path} -> {url}")
+        return url
+    except Exception as e:
+        logger.warning(f"[reveal_file] Failed to upload local resource {local_path}: {e}")
+        return None
+
+
+async def _resolve_local_references(
+    content: bytes,
+    file_dir: str,
+    backend: Any,
+    storage: Any,
+    base_url: str,
+) -> bytes:
+    """
+    检测并替换文本内容中的本地资源引用（图片、视频、音频）为 S3 URL。
+    支持 Markdown、HTML、SVG、CSS 等文件类型。
+
+    作为兜底机制：agent 提示词已要求它主动上传资源并使用 URL，
+    此函数用于捕获遗漏的本地引用。
+    """
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        return content
+
+    # 收集所有需要上传的本地资源路径（保持原始大小写用于替换，但去重时不区分）
+    seen_normalized = set()
+    unique_paths: list[str] = []
+
+    for pattern in (_RE_MD_LINK, _RE_HTML_SRC, _RE_SVG_IMAGE, _RE_CSS_URL):
+        for match in pattern.finditer(text):
+            # 不同 pattern 的路径在不同 group
+            path = (
+                match.group(2).strip()
+                if match.lastindex and match.lastindex >= 2
+                else match.group(1).strip()
+            )
+            if _is_local_path(path) and _is_uploadable_resource(path):
+                normalized = os.path.normpath(path)
+                if normalized not in seen_normalized:
+                    seen_normalized.add(normalized)
+                    unique_paths.append(path)
+
+    if not unique_paths:
+        return content
+
+    logger.info(
+        f"[reveal_file] Found {len(unique_paths)} local resource reference(s), "
+        f"uploading to S3 as fallback"
+    )
+
+    # 批量上传
+    path_to_url: dict[str, str] = {}
+    for ref_path in unique_paths:
+        url = await _upload_local_resource(ref_path, file_dir, backend, storage, base_url)
+        if url:
+            path_to_url[ref_path] = url
+
+    if not path_to_url:
+        return content
+
+    # 替换所有匹配到的本地路径
+    def _replacer(match: re.Match) -> str:
+        original = match.group(0)
+        for group_idx in (1, 2):
+            if match.lastindex is not None and group_idx <= match.lastindex:
+                path = (
+                    match.group(group_idx).strip()
+                    if match.lastindex and match.lastindex >= group_idx
+                    else ""
+                )
+                if path in path_to_url:
+                    return original.replace(path, path_to_url[path], 1)
+        return original
+
+    for pattern in (_RE_MD_LINK, _RE_HTML_SRC, _RE_SVG_IMAGE, _RE_CSS_URL):
+        text = pattern.sub(_replacer, text)
+
+    return text.encode("utf-8")
+
+
 @tool
 async def reveal_file(
     file_path: Annotated[str, "要展示的文件路径（绝对路径或相对于工作目录的路径）"],
@@ -224,6 +417,17 @@ async def reveal_file(
         filename = file_path.split("/")[-1]
         mime_type = get_mime_type(filename)
 
+        # 对可包含本地资源引用的文件（Markdown、HTML、SVG 等），兜底替换本地路径
+        base_url = get_base_url_from_runtime(runtime)
+        if not base_url:
+            logger.warning("[reveal_file] base_url is empty, URL may be incomplete")
+
+        if _needs_local_ref_resolution(filename, mime_type):
+            file_dir = os.path.dirname(file_path)
+            file_content = await _resolve_local_references(
+                file_content, file_dir, backend, storage, base_url
+            )
+
         upload_result = await storage.upload_bytes(
             data=file_content,
             folder="revealed_files",
@@ -232,10 +436,6 @@ async def reveal_file(
         )
 
         file_category = get_file_category(upload_result.content_type or mime_type)
-
-        base_url = get_base_url_from_runtime(runtime)
-        if not base_url:
-            logger.warning("[reveal_file] base_url is empty, URL may be incomplete")
 
         proxy_url = f"{base_url}/api/upload/file/{upload_result.key}"
 
@@ -279,19 +479,19 @@ async def reveal_file(
 
             if user_id and trace_id:
                 storage_index = get_revealed_file_storage()
-                await storage_index.upsert_record(
+                await storage_index.upsert_by_name(
                     user_id=user_id,
+                    file_name=filename,
+                    source="reveal_file",
                     file_key=upload_result.key,
                     trace_id=trace_id,
                     data={
-                        "file_name": filename,
                         "file_type": file_category,
                         "mime_type": upload_result.content_type or mime_type,
                         "file_size": upload_result.size,
                         "url": proxy_url,
                         "session_id": session_id,
                         "project_id": session_project_id,
-                        "source": "reveal_file",
                         "description": description or "",
                         "original_path": file_path,
                     },

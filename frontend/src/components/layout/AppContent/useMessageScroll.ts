@@ -100,25 +100,33 @@ export function useMessageScroll(
     };
   }, [messages.length]);
 
-  // Scroll to bottom on session change (after messages load)
-  // Only trigger for session switches (not new session creation — sendMessage handles its own scrolling)
+  // Scroll to bottom on session change or initial load (after messages load)
+  // Only trigger for session switches and page refresh (not new session creation — sendMessage handles its own scrolling)
   const pendingScrollRef = useRef(false);
-  const prevSessionIdRef = useRef<string | null | undefined>(sessionId);
+  const prevSessionIdRef = useRef<string | null | undefined>(undefined);
+  const initializedRef = useRef(false);
   useEffect(() => {
-    if (sessionId && prevSessionIdRef.current) {
+    if (sessionId && (prevSessionIdRef.current || !initializedRef.current)) {
       pendingScrollRef.current = true;
+      initializedRef.current = true;
     }
     prevSessionIdRef.current = sessionId;
   }, [sessionId]);
 
   useEffect(() => {
     if (messages.length > 0 && pendingScrollRef.current) {
-      const timer = setTimeout(() => {
-        pendingScrollRef.current = false;
-        scrollToBottom();
-      }, 50);
+      let raf1 = 0;
+      let raf2 = 0;
+      // Wait two frames to ensure Virtuoso has rendered the new data
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          pendingScrollRef.current = false;
+          scrollToBottom();
+        });
+      });
       return () => {
-        clearTimeout(timer);
+        cancelAnimationFrame(raf1);
+        cancelAnimationFrame(raf2);
         scrollCleanupRef.current?.();
         scrollCleanupRef.current = null;
       };

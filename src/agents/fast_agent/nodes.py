@@ -16,6 +16,7 @@ from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
     build_human_message,
     emit_token_usage,
+    resolve_fallback_model,
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
 from src.agents.fast_agent.context import FastAgentContext
@@ -79,6 +80,12 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     llm_init_time = time.time() - llm_start
     logger.debug(f"[FastAgent] LLM init: {llm_init_time * 1000:.3f}ms")
 
+    # 查询 fallback_model 配置
+    fallback_model_value = await resolve_fallback_model(
+        model_id, selected_model, log_prefix="[FastAgent]"
+    )
+    thinking_config = {"type": "enabled"} if enable_thinking else None
+
     # 多租户隔离
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
@@ -138,7 +145,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 自定义子代理配置 - 强制将所有中间信息保存到文件
     subagent_base_url = configurable.get("base_url", "")
     subagent_middleware = [
-        *create_retry_middleware(),
+        *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
         ToolResultBinaryMiddleware(base_url=subagent_base_url),
         SubagentActivityMiddleware(backend=backend_factory),
     ]
@@ -163,7 +170,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 构建中间件栈：retry → binary upload → skills+memory → memory_index → tool search → cache tag
     # Order: stable → semi-stable → dynamic → cache breakpoint
-    user_middleware = create_retry_middleware()
+    user_middleware = create_retry_middleware(
+        fallback_model=fallback_model_value, thinking=thinking_config
+    )
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
     _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]

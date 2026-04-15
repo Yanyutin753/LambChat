@@ -24,7 +24,7 @@ import { Permission } from "../../types";
 import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { PanelLoadingState } from "../common/PanelLoadingState";
+import { ChannelsPanelSkeleton } from "../skeletons";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
 import { channelApi } from "../../services/api/channel";
 import type {
@@ -402,7 +402,7 @@ export function ChannelPanel({
   };
 
   if (isLoading) {
-    return <PanelLoadingState text={t("common.loading")} />;
+    return <ChannelsPanelSkeleton />;
   }
 
   return (

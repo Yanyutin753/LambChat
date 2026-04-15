@@ -204,6 +204,8 @@ export interface PendingApproval {
   fields: FormField[];
   status: "pending" | "approved" | "rejected";
   session_id?: string | null;
+  expires_at?: string | null;
+  timeout?: number;
 }
 
 export interface StreamEvent {

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { authenticatedRequest } from "../../../services/api/authenticatedRequest";
-import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { SkeletonBlock, SkeletonLine } from "../../skeletons";
 import type { ToolInfo } from "../../../types";
 
 const API_BASE = "/api";
@@ -147,9 +147,33 @@ export function ProfileToolsTab() {
       </p>
 
       {isLoading && tools.length === 0 ? (
-        <div className="flex items-center justify-center py-8 gap-2 text-stone-400 dark:text-stone-500">
-          <LoadingSpinner size="sm" />
-          <span className="text-sm">{t("mcp.loading", "Loading...")}</span>
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-stone-200/60 dark:border-stone-600/40 bg-stone-50 dark:bg-stone-700/40 overflow-hidden"
+            >
+              <div className="px-3 py-2 border-b border-stone-200/60 dark:border-stone-600/40 flex items-center justify-between bg-stone-100/60 dark:bg-stone-800/30">
+                <SkeletonLine width="w-32" />
+                <SkeletonLine width="w-8" className="!h-2" />
+              </div>
+              <div className="divide-y divide-stone-200/40 dark:divide-stone-600/30">
+                {Array.from({ length: 2 + (i % 2) }).map((_, j) => (
+                  <div key={j} className="flex items-center gap-2 px-3 py-2">
+                    <SkeletonBlock
+                      width="w-4"
+                      height="h-4"
+                      className="!rounded-full"
+                    />
+                    <div className="flex-1 space-y-1">
+                      <SkeletonLine width={j % 2 === 0 ? "w-24" : "w-32"} />
+                      <SkeletonLine width="w-48" className="!h-2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : groupedByServer.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-stone-400 dark:text-stone-500">

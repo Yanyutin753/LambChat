@@ -4,12 +4,65 @@ Agent 节点共享工具函数
 从 search_agent/nodes.py 和 fast_agent/nodes.py 中提取的公共逻辑。
 """
 
+from __future__ import annotations
+
 from langchain_core.messages import HumanMessage
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+async def resolve_fallback_model(
+    model_id: str | None,
+    selected_model: str | None,
+    *,
+    log_prefix: str = "",
+) -> str | None:
+    """从 DB 解析 fallback_model ID 到实际的 model value。
+
+    Args:
+        model_id: 当前模型的 DB ID（优先）
+        selected_model: 当前模型的 value 字符串（备选）
+        log_prefix: 日志前缀，如 "[FastAgent]" 或 "[Agent]"
+
+    Returns:
+        fallback model 的 value 字符串，或 None（无 fallback / 查询失败）
+    """
+    from src.infra.agent.model_storage import get_model_storage
+
+    storage = get_model_storage()
+    db_model = None
+
+    try:
+        if model_id:
+            db_model = await storage.get(model_id)
+        elif selected_model:
+            db_model = await storage.get_by_value(selected_model)
+    except Exception as e:
+        logger.warning("%s Failed to lookup model config: %s", log_prefix, e)
+        return None
+
+    if not db_model or not db_model.fallback_model:
+        return None
+
+    try:
+        fallback_db = await storage.get(db_model.fallback_model)
+    except Exception as e:
+        logger.warning("%s Failed to lookup fallback model: %s", log_prefix, e)
+        return None
+
+    if fallback_db:
+        logger.info(
+            "%s Fallback model: %s (%s)",
+            log_prefix,
+            fallback_db.label,
+            fallback_db.value,
+        )
+        return fallback_db.value
+
+    return None
 
 
 def build_human_message(text: str, attachments: list[dict] | None) -> HumanMessage:

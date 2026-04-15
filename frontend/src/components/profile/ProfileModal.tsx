@@ -1,7 +1,16 @@
 import { createPortal } from "react-dom";
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { X, User, Bell, Settings, Braces, Wrench } from "lucide-react";
+import {
+  X,
+  User,
+  Bell,
+  Settings,
+  Braces,
+  Wrench,
+  Cpu,
+  Scale,
+} from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
 import { APP_NAME } from "../../constants";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
@@ -9,6 +18,8 @@ import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
 import { ProfilePreferencesTab } from "./tabs/ProfilePreferencesTab";
 import { ProfileEnvVarsTab } from "./tabs/ProfileEnvVarsTab";
 import { ProfileToolsTab } from "./tabs/ProfileToolsTab";
+import { ProfileModelsTab } from "./tabs/ProfileModelsTab";
+import { ProfileTermsTab } from "./tabs/ProfileTermsTab";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface ProfileModalProps {
@@ -26,6 +37,8 @@ const TAB_ICONS: Record<
   preferences: Settings,
   envvars: Braces,
   tools: Wrench,
+  models: Cpu,
+  terms: Scale,
 };
 
 export function ProfileModal({
@@ -35,7 +48,13 @@ export function ProfileModal({
 }: ProfileModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<
-    "info" | "notification" | "preferences" | "envvars" | "tools"
+    | "info"
+    | "notification"
+    | "preferences"
+    | "envvars"
+    | "tools"
+    | "models"
+    | "terms"
   >("info");
 
   const mobileTabsRef = useRef<HTMLDivElement>(null);
@@ -89,6 +108,8 @@ export function ProfileModal({
     { key: "preferences", label: t("profile.preferences") },
     { key: "envvars", label: t("envVars.title") },
     { key: "tools", label: t("profile.toolsTab", "Tools") },
+    { key: "models", label: t("profile.modelIntro") },
+    { key: "terms", label: t("profile.termsTab") },
   ];
 
   const renderTabContent = () => (
@@ -98,6 +119,8 @@ export function ProfileModal({
       {activeTab === "preferences" && <ProfilePreferencesTab />}
       {activeTab === "envvars" && <ProfileEnvVarsTab />}
       {activeTab === "tools" && <ProfileToolsTab />}
+      {activeTab === "models" && <ProfileModelsTab />}
+      {activeTab === "terms" && <ProfileTermsTab />}
     </div>
   );
 
@@ -210,7 +233,7 @@ export function ProfileModal({
 
       {/* ===== Desktop: centered with sidebar ===== */}
       <div
-        className="hidden sm:flex relative z-10 w-[580px] sm:w-[680px] h-[540px] bg-white dark:bg-stone-800 rounded-2xl shadow-2xl shadow-stone-900/10 dark:shadow-black/40 border border-stone-200/80 dark:border-stone-700/50 overflow-hidden flex-col animate-scale-in"
+        className="hidden sm:flex relative z-10 w-[660px] sm:w-[800px] h-[640px] bg-white dark:bg-stone-800 rounded-2xl shadow-2xl shadow-stone-900/10 dark:shadow-black/40 border border-stone-200/80 dark:border-stone-700/50 overflow-hidden flex-col animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -260,7 +283,9 @@ export function ProfileModal({
           </div>
 
           {/* Right content */}
-          <div className="flex-1 overflow-y-auto p-5">{renderTabContent()}</div>
+          <div className="flex-1 overflow-y-auto p-5 sm:p-8">
+            {renderTabContent()}
+          </div>
         </div>
 
         {/* Footer */}

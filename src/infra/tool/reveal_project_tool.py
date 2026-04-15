@@ -885,19 +885,19 @@ async def reveal_project(
                 },
             }
 
-            await get_revealed_file_storage().upsert_record(
+            await get_revealed_file_storage().upsert_by_name(
                 user_id=user_id,
+                file_name=project_name,
+                source="reveal_project",
                 file_key=folder_name,
                 trace_id=trace_id,
                 data={
-                    "file_name": project_name,
                     "file_type": "project",
                     "mime_type": None,
                     "file_size": 0,
                     "url": None,
                     "session_id": session_id,
                     "project_id": session_project_id,
-                    "source": "reveal_project",
                     "description": description or "",
                     "original_path": project_path,
                     "project_meta": project_meta,

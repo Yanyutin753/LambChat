@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { getSessionTitle } from "./sessionHelpers";
+import { SkeletonList } from "../skeletons";
 
 const PAGE_SIZE = 30;
 
@@ -289,11 +290,7 @@ export function SearchDialog({
           }}
         >
           {/* Loading state */}
-          {isLoading && (
-            <div className="flex items-center justify-center py-10">
-              <div className="w-5 h-5 border-2 border-stone-300 dark:border-stone-600 border-t-stone-500 dark:border-t-stone-400 rounded-full animate-spin" />
-            </div>
-          )}
+          {isLoading && <SkeletonList count={5} className="py-2" />}
 
           {/* Empty search results */}
           {!isLoading && hasQuery && allSessions.length === 0 && (

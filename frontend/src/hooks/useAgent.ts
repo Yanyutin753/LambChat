@@ -408,14 +408,20 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
               setMessages(reconstructedMessages);
 
+              // Fire-and-forget SSE reconnect so that loadHistory
+              // returns sessionConfig immediately, allowing the caller
+              // (useSessionSync) to restore model selection and other UI
+              // state without being blocked by the long-lived connection.
               isReconnectFromHistoryRef.current = false;
               const ctx = createSSEContext();
-              await connectToSSE(
+              connectToSSE(
                 targetSessionId,
                 currentRunId,
                 streamingMessageId,
                 ctx,
-              );
+              ).catch((e) => {
+                console.warn("[loadHistory] SSE reconnect failed:", e);
+              });
             } else {
               setMessages(reconstructedMessages);
             }
@@ -436,16 +442,21 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
                 isStreaming: true,
               };
               setMessages([newAssistantMsg]);
+              // Fire-and-forget SSE reconnect (same reason as above).
               const ctx = createSSEContext();
-              await connectToSSE(
+              connectToSSE(
                 targetSessionId,
                 currentRunId,
                 streamingMessageId,
                 ctx,
-              );
+              ).catch((e) => {
+                console.warn("[loadHistory] SSE reconnect failed:", e);
+              });
             }
           }
 
+          // Return sessionConfig *before* any SSE reconnect so that the
+          // caller can immediately restore model selection / agent / config.
           return sessionConfig;
         }
       } catch (err) {

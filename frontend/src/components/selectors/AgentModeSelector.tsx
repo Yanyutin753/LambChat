@@ -119,34 +119,32 @@ export function AgentModeSelector({
                         className="flex w-full items-center gap-3 px-3.5 py-3.5 rounded-xl text-left transition-all duration-200"
                         style={{
                           backgroundColor: isActive
-                            ? "color-mix(in srgb, var(--theme-primary) 8%, transparent)"
+                            ? "var(--theme-primary)"
                             : "",
                           boxShadow: isActive
-                            ? "inset 0 0 0 1px color-mix(in srgb, var(--theme-primary) 15%, transparent)"
-                            : "none",
-                          color: isActive
-                            ? "var(--theme-primary)"
-                            : "var(--theme-text)",
+                            ? "none"
+                            : "inset 0 0 0 1px color-mix(in srgb, var(--theme-primary) 15%, transparent)",
+                          color: isActive ? "white" : "var(--theme-text)",
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = isActive
-                            ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
-                            : "color-mix(in srgb, var(--theme-primary) 4%, transparent)";
+                            ? "var(--theme-primary)"
+                            : "color-mix(in srgb, var(--theme-primary) 6%, transparent)";
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.backgroundColor = isActive
-                            ? "color-mix(in srgb, var(--theme-primary) 8%, transparent)"
+                            ? "var(--theme-primary)"
                             : "";
                         }}
                         onMouseDown={(e) => {
                           e.currentTarget.style.backgroundColor = isActive
-                            ? "color-mix(in srgb, var(--theme-primary) 16%, transparent)"
-                            : "color-mix(in srgb, var(--theme-primary) 8%, transparent)";
+                            ? "var(--theme-primary)"
+                            : "color-mix(in srgb, var(--theme-primary) 10%, transparent)";
                         }}
                         onMouseUp={(e) => {
                           e.currentTarget.style.backgroundColor = isActive
-                            ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
-                            : "color-mix(in srgb, var(--theme-primary) 4%, transparent)";
+                            ? "var(--theme-primary)"
+                            : "color-mix(in srgb, var(--theme-primary) 6%, transparent)";
                         }}
                         onClick={() => {
                           onSelectAgent(agent.id);
@@ -157,7 +155,7 @@ export function AgentModeSelector({
                           className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0"
                           style={{
                             backgroundColor: isActive
-                              ? "color-mix(in srgb, var(--theme-primary) 12%, transparent)"
+                              ? "rgba(255,255,255,0.2)"
                               : "color-mix(in srgb, var(--theme-primary) 5%, transparent)",
                           }}
                         >
@@ -166,7 +164,7 @@ export function AgentModeSelector({
                             className="sm:w-[18px] sm:h-[18px]"
                             style={{
                               color: isActive
-                                ? "var(--theme-primary)"
+                                ? "white"
                                 : "var(--theme-text-secondary)",
                             }}
                           />
@@ -175,9 +173,7 @@ export function AgentModeSelector({
                           <span
                             className="text-sm font-medium truncate block"
                             style={{
-                              color: isActive
-                                ? "var(--theme-primary)"
-                                : "var(--theme-text)",
+                              color: isActive ? "white" : "var(--theme-text)",
                             }}
                           >
                             {t(agent.name)}

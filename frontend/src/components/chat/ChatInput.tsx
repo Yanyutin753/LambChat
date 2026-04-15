@@ -19,6 +19,7 @@ import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { FileUploadButton } from "./FileUploadButton";
 import { uploadApi, getFullUrl } from "../../services/api";
 import DocumentPreview from "../documents/DocumentPreview";
+import { DelayedUnmount } from "../common/DelayedUnmount";
 import { AttachmentCard } from "../common/AttachmentCard";
 import { ImageViewer } from "../common";
 import { ConfirmDialog } from "../common/ConfirmDialog";
@@ -525,7 +526,7 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div
-      className="px-3 sm:px-4 pb-3"
+      className="px-1 sm:px-4 pb-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">
@@ -534,7 +535,7 @@ export const ChatInput = memo(function ChatInput({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`chat-input-container flex flex-col relative w-full rounded-2xl sm:rounded-3xl px-1 border transition-all duration-300 ${
+          className={`chat-input-container flex flex-col relative w-full rounded-3xl px-1 border transition-all duration-300 ${
             isDraggingOver ? "border-dashed shadow-lg border-2" : ""
           }`}
           style={{
@@ -693,13 +694,11 @@ export const ChatInput = memo(function ChatInput({
                     e.stopPropagation();
                     setStopConfirmOpen(true);
                   }}
-                  className="flex items-center justify-center rounded-full p-2 transition-all duration-300 hover:scale-105 active:scale-95"
+                  className="chat-tool-btn-active flex items-center justify-center rounded-full p-2 transition-all duration-300 hover:scale-105 active:scale-95"
                   style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--theme-primary) 10%, transparent)",
-                    border:
-                      "1px solid color-mix(in srgb, var(--theme-primary) 40%, transparent)",
-                    color: "var(--theme-primary)",
+                    borderColor: "color-mix(in srgb, #fbbf24 40%, transparent)",
+                    background: "color-mix(in srgb, #fbbf24 10%, transparent)",
+                    color: "#fbbf24",
                   }}
                   title={t("chat.stop")}
                 >
@@ -748,19 +747,21 @@ export const ChatInput = memo(function ChatInput({
       </div>
 
       {/* 文件预览弹窗 */}
-      {previewAttachment && (
-        <DocumentPreview
-          path={previewAttachment.name}
-          s3Key={previewAttachment.key}
-          fileSize={previewAttachment.size}
-          imageUrl={
-            previewAttachment.type === "image"
-              ? getFullUrl(previewAttachment.url)
-              : undefined
-          }
-          onClose={() => setPreviewAttachment(null)}
-        />
-      )}
+      <DelayedUnmount show={!!previewAttachment}>
+        {previewAttachment && (
+          <DocumentPreview
+            path={previewAttachment.name}
+            s3Key={previewAttachment.key}
+            fileSize={previewAttachment.size}
+            imageUrl={
+              previewAttachment.type === "image"
+                ? getFullUrl(previewAttachment.url)
+                : undefined
+            }
+            onClose={() => setPreviewAttachment(null)}
+          />
+        )}
+      </DelayedUnmount>
 
       {/* 图片预览器 - 直接预览图片 */}
       {imageViewerSrc && (

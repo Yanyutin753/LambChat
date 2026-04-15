@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { FolderSearch, Search } from "lucide-react";
+import { FilesContentSkeleton } from "../../skeletons";
 
 interface EmptyStateProps {
   isLoading: boolean;
@@ -14,21 +15,9 @@ export function EmptyState({
 }: EmptyStateProps) {
   const { t } = useTranslation();
 
-  /* Loading spinner */
+  /* Loading skeleton */
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-72">
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative w-8 h-8">
-            <div className="absolute inset-0 rounded-full border-2 border-stone-200 dark:border-stone-700" />
-            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-stone-500 dark:border-t-stone-400 animate-spin" />
-          </div>
-          <p className="text-[13px] text-stone-400 dark:text-stone-500">
-            {t("fileLibrary.loading")}
-          </p>
-        </div>
-      </div>
-    );
+    return <FilesContentSkeleton />;
   }
 
   /* Empty states */

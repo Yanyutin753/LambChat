@@ -177,6 +177,19 @@ async def update_model(
     # Allow clearing api_key by sending empty string ""
     if "api_key" in update_data and update_data["api_key"] == "":
         update_data["api_key"] = None
+    # 校验 fallback_model
+    if "fallback_model" in update_data and update_data["fallback_model"] is not None:
+        if update_data["fallback_model"] == model_id:
+            from src.kernel.exceptions import ValidationError
+
+            raise ValidationError("A model cannot be its own fallback")
+        fallback_exists = await storage.get(update_data["fallback_model"])
+        if not fallback_exists:
+            from src.kernel.exceptions import ValidationError
+
+            raise ValidationError(
+                f"Fallback model '{update_data['fallback_model']}' does not exist"
+            )
     updated = await storage.update(model_id, update_data)
 
     if not updated:
@@ -213,6 +226,19 @@ async def delete_model(
     await storage.delete(model_id)
 
     logger.info(f"[Model] Deleted model: {model_value} (id={model_id})")
+
+    # 清理所有模型中被删模型作为 fallback_model 的孤儿引用
+    from datetime import datetime, timezone
+
+    collection = storage._get_collection()
+    clear_result = collection.update_many(
+        {"fallback_model": model_id},
+        {"$set": {"fallback_model": None, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if clear_result.modified_count:
+        logger.info(
+            f"[Model] Cleared orphaned fallback_model refs in {clear_result.modified_count} model(s)"
+        )
 
     # 同步清理所有角色中关联的该模型（按 model_id 移除）
     from src.infra.agent.config_storage import get_agent_config_storage

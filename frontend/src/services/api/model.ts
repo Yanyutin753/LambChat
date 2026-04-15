@@ -36,6 +36,7 @@ export interface ModelConfig {
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
+  fallback_model?: string;
   enabled: boolean;
   order: number;
   created_at?: string;
@@ -52,6 +53,7 @@ export interface ModelConfigCreate {
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
+  fallback_model?: string;
   enabled?: boolean;
   order?: number;
 }
@@ -65,6 +67,7 @@ export interface ModelConfigUpdate {
   temperature?: number;
   max_tokens?: number;
   profile?: ModelProfile;
+  fallback_model?: string;
   enabled?: boolean;
   order?: number;
 }

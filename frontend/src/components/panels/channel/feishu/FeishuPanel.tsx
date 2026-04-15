@@ -17,7 +17,7 @@ import { useAuth } from "../../../../hooks/useAuth";
 import { Permission } from "../../../../types";
 import { PanelHeader } from "../../../common/PanelHeader";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
-import { PanelLoadingState } from "../../../common/PanelLoadingState";
+import { ChannelsPanelSkeleton } from "../../../skeletons";
 import { ChannelAgentSelect } from "../ChannelAgentSelect";
 import { channelApi } from "../../../../services/api/channel";
 import type {
@@ -395,7 +395,7 @@ export function FeishuPanel({
   };
 
   if (isLoading) {
-    return <PanelLoadingState text={t("common.loading")} />;
+    return <ChannelsPanelSkeleton />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
 import { modelApi } from "../../../../services/api/model";
@@ -39,7 +39,7 @@ interface ProviderSelectProps {
   className?: string;
 }
 
-export function ProviderSelect({
+export const ProviderSelect = React.memo(function ProviderSelect({
   value,
   onChange,
   placeholder = "",
@@ -214,4 +214,4 @@ export function ProviderSelect({
       )}
     </div>
   );
-}
+});

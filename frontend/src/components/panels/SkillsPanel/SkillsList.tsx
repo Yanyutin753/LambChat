@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
-import { PanelLoadingState } from "../../common/PanelLoadingState";
+import { SkillsPanelSkeleton } from "../../skeletons";
 import { Pagination } from "../../common/Pagination";
 import { SkillCard } from "../../skill/SkillCard";
 import type { SkillResponse } from "../../../types";
@@ -222,7 +222,7 @@ export function SkillsList({
       {/* Skills List */}
       <div className="skill-content-area flex-1 overflow-y-auto p-2 sm:p-4">
         {isLoading && paginatedSkills.length === 0 ? (
-          <PanelLoadingState text={t("skills.loading")} />
+          <SkillsPanelSkeleton />
         ) : filteredSkills.length === 0 ? (
           <div className="skill-empty-state">
             <div className="skill-empty-state__icon">

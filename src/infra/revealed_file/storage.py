@@ -49,9 +49,37 @@ class RevealedFileStorage:
                 name="user_file_type_idx",
                 background=True,
             )
+            # Remove duplicates before creating the unique index.
+            # Keep the latest document per (user_id, file_name, source) and
+            # delete the rest so the unique index can be built.
+            pipeline = [
+                {
+                    "$group": {
+                        "_id": {
+                            "user_id": "$user_id",
+                            "file_name": "$file_name",
+                            "source": "$source",
+                        },
+                        "ids": {"$push": "$_id"},
+                        "count": {"$sum": 1},
+                    }
+                },
+                {"$match": {"count": {"$gt": 1}}},
+            ]
+            async for group in c.aggregate(pipeline):
+                ids_to_remove = sorted(group["ids"])[:-1]  # keep the last inserted
+                if ids_to_remove:
+                    await c.delete_many({"_id": {"$in": ids_to_remove}})
+                    logger.info(
+                        f"Removed {len(ids_to_remove)} duplicate(s) for "
+                        f"user_id={group['_id']['user_id']}, "
+                        f"file_name={group['_id']['file_name']}, "
+                        f"source={group['_id']['source']}"
+                    )
+
             await c.create_index(
-                [("user_id", 1), ("file_key", 1), ("trace_id", 1)],
-                name="user_key_trace_unique_idx",
+                [("user_id", 1), ("file_name", 1), ("source", 1)],
+                name="user_name_source_unique_idx",
                 unique=True,
                 background=True,
             )
@@ -68,36 +96,61 @@ class RevealedFileStorage:
         except Exception as e:
             logger.warning(f"Failed to create revealed_files indexes: {e}")
 
-    async def upsert_record(
+    # Fields that must never be overwritten from caller-provided data.
+    # - _id / user_id: identity / ownership
+    # - is_favorite: user's explicit bookmark, must survive re-reveals
+    _PROTECTED_FIELDS = frozenset({"_id", "user_id", "is_favorite"})
+
+    async def upsert_by_name(
         self,
         user_id: str,
+        file_name: str,
+        source: str,
         file_key: str,
         trace_id: str,
         data: Dict[str, Any],
     ) -> None:
-        """Insert or update a revealed file record (dedup by user_id + file_key + trace_id)."""
+        """Upsert a record, deduplicating by user_id + file_name + source.
+
+        If a record with the same name and source already exists, update its
+        content fields and reset *created_at* so the entry bubbles to the top
+        of time-sorted lists.  Preserves ``is_favorite`` on the existing doc.
+        """
+        if not user_id or not file_name or not source:
+            logger.warning(
+                f"Skipping upsert_by_name: user_id={user_id!r}, "
+                f"file_name={file_name!r}, source={source!r}"
+            )
+            return
+
         await self.ensure_indexes_if_needed()
         try:
-            # Separate updatable fields from insert-only fields
-            created_at = data.get("created_at", datetime.now(timezone.utc))
-            update_fields = {k: v for k, v in data.items() if k != "created_at"}
+            now = datetime.now(timezone.utc)
+            # Fields managed by this method — always authoritative
+            set_fields: Dict[str, Any] = {
+                "file_name": file_name,
+                "source": source,
+                "file_key": file_key,
+                "trace_id": trace_id,
+                "created_at": now,
+            }
+            # Merge caller data, but skip protected fields to prevent
+            # accidental overwrite of identity / user preference fields.
+            for k, v in data.items():
+                if k not in self._PROTECTED_FIELDS:
+                    set_fields[k] = v
 
             await self.collection.update_one(
                 {
                     "user_id": user_id,
-                    "file_key": file_key,
-                    "trace_id": trace_id,
+                    "file_name": file_name,
+                    "source": source,
                 },
-                {
-                    "$set": update_fields,
-                    "$setOnInsert": {
-                        "created_at": created_at,
-                    },
-                },
+                {"$set": set_fields},
                 upsert=True,
             )
         except Exception as e:
-            logger.warning(f"Failed to upsert revealed file record: {e}")
+            logger.warning(f"Failed to upsert revealed file record by name: {e}")
 
     async def _search_session_ids(self, search: str) -> list[str]:
         """Find session IDs whose name matches the search term."""

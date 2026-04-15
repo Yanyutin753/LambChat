@@ -58,7 +58,7 @@ export function PreviewHeader({
       } shrink-0 bg-gradient-to-r from-stone-50 to-white ${
         isSidebar
           ? "dark:from-[#252526] dark:to-[#1e1e1e]"
-          : "dark:bg-stone-800/50"
+          : "dark:from-stone-800/50 dark:to-[#1e1e1e]"
       } whitespace-nowrap`}
     >
       <FileIcon icon={icon} bg={iconBg} color={iconColor} />

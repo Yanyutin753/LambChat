@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
+import { ChatPageSkeleton } from "../skeletons";
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -28,57 +29,6 @@ interface ProtectedRouteProps {
   showToast?: boolean;
   /** Toast 提示消息 */
   toastMessage?: string;
-}
-
-// 加载动画组件 - ChatGPT 风格
-function LoadingSpinner() {
-  const { t } = useTranslation();
-  return (
-    <div className="auth-shell flex min-h-screen">
-      <div className="flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-1.5 mb-6">
-            <span
-              className="h-3 w-3 rounded-full bg-[var(--theme-primary)]"
-              style={{
-                animation: "bounce 1.4s ease-in-out infinite both",
-                animationDelay: "-0.32s",
-              }}
-            />
-            <span
-              className="h-3 w-3 rounded-full bg-[var(--theme-primary)]"
-              style={{
-                animation: "bounce 1.4s ease-in-out infinite both",
-                animationDelay: "-0.16s",
-              }}
-            />
-            <span
-              className="h-3 w-3 rounded-full bg-[var(--theme-primary)]"
-              style={{
-                animation: "bounce 1.4s ease-in-out infinite both",
-                animationDelay: "0s",
-              }}
-            />
-          </div>
-          <p className="text-[var(--theme-text-secondary)] text-sm font-medium tracking-wide">
-            {t("common.loading")}
-          </p>
-        </div>
-        <style>{`
-          @keyframes bounce {
-            0%, 80%, 100% {
-              transform: scale(0.6);
-              opacity: 0.4;
-            }
-            40% {
-              transform: scale(1);
-              opacity: 1;
-            }
-          }
-        `}</style>
-      </div>
-    </div>
-  );
 }
 
 // 无权限提示组件
@@ -170,7 +120,7 @@ export function ProtectedRoute({
 
   // 加载中
   if (isLoading) {
-    return <>{loadingComponent || <LoadingSpinner />}</>;
+    return <>{loadingComponent || <ChatPageSkeleton />}</>;
   }
 
   // 未登录 → 重定向到登录页
