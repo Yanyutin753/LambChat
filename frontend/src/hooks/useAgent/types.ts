@@ -103,6 +103,8 @@ export interface UseAgentOptions {
     message: string;
     type: string;
     fields?: FormField[];
+    expires_at?: string | null;
+    timeout?: number;
   }) => void;
   onClearApprovals?: () => void;
   getEnabledTools?: () => string[];
