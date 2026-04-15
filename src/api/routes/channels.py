@@ -258,6 +258,7 @@ async def create_channel_instance(
             config=data.config,
             name=data.name.strip(),
             agent_id=data.agent_id,
+            project_id=data.project_id,
         )
 
         # Reload the channel client if manager exists
@@ -316,6 +317,13 @@ async def update_channel_instance(
     else:
         agent_id_value = ...  # type: ignore[assignment]
 
+    # Handle project_id with same ellipsis pattern
+    project_id_value: str | None = ...  # type: ignore[assignment]
+    if "project_id" in data.model_fields_set:
+        project_id_value = data.project_id
+    else:
+        project_id_value = ...  # type: ignore[assignment]
+
     config = await storage.update_config(
         user_id=user.sub,
         channel_type=channel_type,
@@ -323,6 +331,7 @@ async def update_channel_instance(
         instance_id=instance_id,
         enabled=data.enabled,
         agent_id=agent_id_value,
+        project_id=project_id_value,
     )
 
     if not config:

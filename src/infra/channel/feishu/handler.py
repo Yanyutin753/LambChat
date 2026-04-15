@@ -9,6 +9,7 @@ import asyncio
 import json
 import sys
 import time
+from datetime import datetime
 from typing import Any, AsyncGenerator, Callable, Optional, cast
 
 from src.infra.channel.feishu.channel import FeishuChannel
@@ -372,8 +373,9 @@ def create_feishu_message_handler(
             chat_type_from_msg = metadata.get("chat_type")
             attachments = metadata.get("attachments")
 
-            # Resolve agent: use per-channel agent_id if configured, else global default
+            # Resolve agent & project: use per-channel config if available
             agent_to_use = default_agent
+            project_id: str | None = None
             instance_id = metadata.get("instance_id")
             if instance_id:
                 from src.infra.channel.channel_storage import ChannelStorage
@@ -381,11 +383,13 @@ def create_feishu_message_handler(
 
                 ch_storage = ChannelStorage()
                 ch_config = await ch_storage.get_config(user_id, ChannelType.FEISHU, instance_id)
-                if ch_config and ch_config.get("agent_id"):
-                    agent_to_use = ch_config["agent_id"]
-                    logger.info(
-                        f"[Feishu] Using channel agent: {agent_to_use} for instance {instance_id}"
-                    )
+                if ch_config:
+                    if ch_config.get("agent_id"):
+                        agent_to_use = ch_config["agent_id"]
+                        logger.info(
+                            f"[Feishu] Using channel agent: {agent_to_use} for instance {instance_id}"
+                        )
+                    project_id = ch_config.get("project_id")
 
             collector = FeishuResponseCollector(
                 manager=manager,
@@ -422,6 +426,9 @@ def create_feishu_message_handler(
                 ):
                     yield event
 
+            # Use time-based session title for Feishu
+            session_title = datetime.now().strftime("%Y-%m-%d %H:%M")
+
             run_id, _ = await task_manager.submit(
                 session_id=session_id,
                 agent_id=agent_to_use,
@@ -429,6 +436,8 @@ def create_feishu_message_handler(
                 user_id=user_id,
                 executor=executor,
                 attachments=attachments,
+                project_id=project_id,
+                session_name=session_title,
             )
 
             logger.info(f"[Feishu] Task submitted: session={session_id}, run_id={run_id}")

@@ -395,8 +395,12 @@ class TaskExecutor:
         agent_id: str,
         user_id: str,
         project_id: str | None = None,
+        session_name: str | None = None,
     ) -> None:
         """确保 session 记录存在，不存在则创建
+
+        Args:
+            session_name: 自定义 session 名称，默认 "新对话"
 
         Raises:
             PermissionError: 如果 session 存在但不属于当前用户
@@ -420,7 +424,7 @@ class TaskExecutor:
                 metadata["project_id"] = project_id
             await self._storage.create(
                 SessionCreate(
-                    name="新对话",
+                    name=session_name or "新对话",
                     metadata=metadata,
                 ),
                 user_id=user_id,

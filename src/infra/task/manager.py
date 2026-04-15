@@ -86,6 +86,7 @@ class BackgroundTaskManager:
         project_id: Optional[str] = None,
         disabled_skills: Optional[List[str]] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
+        session_name: Optional[str] = None,
     ) -> Tuple[str, str]:
         """
         提交后台任务
@@ -99,6 +100,7 @@ class BackgroundTaskManager:
             disabled_tools: 用户禁用的工具列表（可选）
             agent_options: Agent 选项（可选，如 enable_thinking）
             attachments: 文件附件列表（可选）
+            session_name: 自定义 session 名称（可选）
 
         Returns:
             (run_id, trace_id) 元组
@@ -113,7 +115,8 @@ class BackgroundTaskManager:
         async with self._lock:
             # 确保 session 记录存在
             await self._executor.ensure_session(
-                session_id, agent_id, user_id, project_id=project_id
+                session_id, agent_id, user_id, project_id=project_id,
+                session_name=session_name,
             )
 
             # 更新 MongoDB session 状态（包含 current_run_id）
