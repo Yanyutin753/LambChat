@@ -262,6 +262,27 @@ async def respond_to_approval(
     return {"status": "success", "approval_id": approval_id, "approved": approved}
 
 
+@router.post("/{approval_id}/extend", dependencies=[Depends(require_permissions("chat:write"))])
+async def extend_approval_timeout(
+    approval_id: str,
+    extra_seconds: int = Query(60, ge=10, le=300, description="延长的秒数"),
+):
+    """
+    延长审批超时时间（用户交互时触发，支持分布式）
+    """
+    new_expires = await _approval_storage.extend_expires_at(
+        approval_id,
+        extra_seconds=extra_seconds,
+    )
+    if new_expires is None:
+        return {"status": "max_extensions_reached", "expires_at": None}
+
+    return {
+        "status": "success",
+        "expires_at": new_expires.isoformat(),
+    }
+
+
 @router.get("/{approval_id}", dependencies=[Depends(require_permissions("chat:write"))])
 async def get_approval(approval_id: str):
     """获取单个审批详情"""

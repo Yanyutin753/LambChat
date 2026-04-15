@@ -49,6 +49,34 @@ class RevealedFileStorage:
                 name="user_file_type_idx",
                 background=True,
             )
+            # Remove duplicates before creating the unique index.
+            # Keep the latest document per (user_id, file_name, source) and
+            # delete the rest so the unique index can be built.
+            pipeline = [
+                {
+                    "$group": {
+                        "_id": {
+                            "user_id": "$user_id",
+                            "file_name": "$file_name",
+                            "source": "$source",
+                        },
+                        "ids": {"$push": "$_id"},
+                        "count": {"$sum": 1},
+                    }
+                },
+                {"$match": {"count": {"$gt": 1}}},
+            ]
+            async for group in c.aggregate(pipeline):
+                ids_to_remove = sorted(group["ids"])[:-1]  # keep the last inserted
+                if ids_to_remove:
+                    await c.delete_many({"_id": {"$in": ids_to_remove}})
+                    logger.info(
+                        f"Removed {len(ids_to_remove)} duplicate(s) for "
+                        f"user_id={group['_id']['user_id']}, "
+                        f"file_name={group['_id']['file_name']}, "
+                        f"source={group['_id']['source']}"
+                    )
+
             await c.create_index(
                 [("user_id", 1), ("file_name", 1), ("source", 1)],
                 name="user_name_source_unique_idx",

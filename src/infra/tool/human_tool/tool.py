@@ -164,7 +164,9 @@ class AskHumanTool(BaseTool):
         )
 
         # 通过 SSE 流发送 approval_required 事件
-        await self._send_approval_event(approval, session_id, run_id, parsed_fields)
+        await self._send_approval_event(
+            approval, session_id, run_id, parsed_fields, timeout=timeout
+        )
 
         # 等待用户响应
         response = await wait_for_response(approval.id, timeout=timeout)
@@ -307,6 +309,7 @@ class AskHumanTool(BaseTool):
         session_id: Optional[str],
         run_id: Optional[str],
         fields: List[FormField],
+        timeout: int = 300,
     ) -> None:
         """
         发送 approval_required 事件到 SSE 流
@@ -341,7 +344,7 @@ class AskHumanTool(BaseTool):
                 "message": approval.message,
                 "type": approval.type,
                 "fields": [f.model_dump() for f in fields],
-                "timeout": 300,  # 可以从参数传入
+                "timeout": timeout,
             }
 
             await dual_writer.write_event(

@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  AlertCircle,
+  ShieldCheck,
   X,
   Send,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
   ListOrdered,
+  Clock,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
@@ -14,6 +15,7 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import type { PendingApproval, FormField } from "../../types";
 import { Checkbox } from "../common/Checkbox";
+import { authFetch } from "../../services/api/fetch";
 
 interface ApprovalPanelProps {
   approvals: PendingApproval[];
@@ -25,20 +27,31 @@ interface ApprovalPanelProps {
   isLoading: boolean;
 }
 
-// Form field renderer component
+/** Format seconds into M:SS */
+function formatCountdown(seconds: number): string {
+  if (seconds <= 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 function FormFieldRenderer({
   field,
   value,
   onChange,
   disabled,
+  onInteract,
 }: {
   field: FormField;
   value: unknown;
   onChange: (value: unknown) => void;
   disabled: boolean;
+  onInteract?: () => void;
 }) {
-  const baseInputClasses =
-    "glass-input w-full rounded-xl pl-4 pr-10 py-2.5 text-sm text-stone-900 placeholder-stone-400 transition-all duration-200 focus:outline-none disabled:opacity-50 dark:text-stone-100 dark:placeholder-stone-500";
+  const cls =
+    "w-full rounded-lg pl-3 pr-3 py-2 text-sm transition-all duration-150 focus:outline-none disabled:opacity-50 approval-input";
+
+  const interact = () => onInteract?.();
 
   switch (field.type) {
     case "text":
@@ -46,61 +59,77 @@ function FormFieldRenderer({
         <input
           type="text"
           value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            interact();
+            onChange(e.target.value);
+          }}
+          onFocus={interact}
           placeholder={field.placeholder}
           disabled={disabled}
-          className={baseInputClasses}
+          className={cls}
         />
       );
-
     case "textarea":
       return (
         <textarea
           value={(value as string) ?? ""}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            interact();
+            onChange(e.target.value);
+          }}
+          onFocus={interact}
           placeholder={field.placeholder}
           disabled={disabled}
           rows={3}
-          className={`${baseInputClasses} resize-none`}
+          className={`${cls} resize-none`}
         />
       );
-
     case "number":
       return (
         <input
           type="number"
           value={(value as number) ?? ""}
-          onChange={(e) =>
-            onChange(e.target.value ? Number(e.target.value) : "")
-          }
+          onChange={(e) => {
+            interact();
+            onChange(e.target.value ? Number(e.target.value) : "");
+          }}
+          onFocus={interact}
           placeholder={field.placeholder}
           disabled={disabled}
-          className={baseInputClasses}
+          className={cls}
         />
       );
-
     case "checkbox":
       return (
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className="flex items-center gap-2.5 cursor-pointer group">
           <Checkbox
             checked={(value as boolean) ?? false}
-            onChange={() => onChange(!((value as boolean) ?? false))}
+            onChange={() => {
+              interact();
+              onChange(!((value as boolean) ?? false));
+            }}
             disabled={disabled}
           />
-          <span className="text-sm text-stone-700 dark:text-stone-300">
+          <span
+            className="text-sm transition-colors duration-150 group-hover:text-[var(--theme-text)]"
+            style={{ color: "var(--theme-text-secondary)" }}
+          >
             {field.label}
           </span>
         </label>
       );
-
     case "select":
       return (
         <div className="relative">
           <select
             value={(value as string) ?? ""}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              interact();
+              onChange(e.target.value);
+            }}
+            onFocus={interact}
             disabled={disabled}
-            className={`${baseInputClasses} appearance-none`}
+            className={`${cls} appearance-none pr-8`}
           >
             <option value="" disabled>
               {field.placeholder || "Select an option"}
@@ -112,16 +141,16 @@ function FormFieldRenderer({
             ))}
           </select>
           <ChevronDown
-            size={16}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400"
+            size={14}
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2"
+            style={{ color: "var(--theme-text-secondary)" }}
           />
         </div>
       );
-
     case "multi_select": {
       const selectedValues = (value as string[]) ?? [];
       return (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {field.options?.map((option) => {
             const isSelected = selectedValues.includes(option);
             return (
@@ -129,6 +158,7 @@ function FormFieldRenderer({
                 key={option}
                 type="button"
                 onClick={() => {
+                  interact();
                   if (isSelected) {
                     onChange(selectedValues.filter((v) => v !== option));
                   } else {
@@ -136,11 +166,17 @@ function FormFieldRenderer({
                   }
                 }}
                 disabled={disabled}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isSelected
-                    ? "bg-black text-white dark:bg-white dark:text-black"
-                    : "border border-stone-200 bg-[var(--theme-bg-card)] text-stone-700 hover:bg-[var(--glass-bg-subtle)] dark:text-stone-300"
+                className={`approval-chip px-3 py-1 rounded-md text-[13px] font-medium ${
+                  isSelected ? "approval-chip-active" : ""
                 } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                style={
+                  isSelected
+                    ? undefined
+                    : {
+                        backgroundColor: "var(--theme-bg-card)",
+                        color: "var(--theme-text-secondary)",
+                      }
+                }
               >
                 {option}
               </button>
@@ -149,7 +185,6 @@ function FormFieldRenderer({
         </div>
       );
     }
-
     default:
       return null;
   }
@@ -166,7 +201,119 @@ export function ApprovalPanel({
     Record<string, Record<string, unknown>>
   >({});
 
-  // Initialize form values from field defaults when approvals change
+  // Countdown state: map of approval id -> remaining seconds
+  const [remaining, setRemaining] = useState<Record<string, number>>({});
+  // Track expiry deadlines so we can update them on extend
+  const deadlinesRef = useRef<Record<string, number>>({});
+  // Debounce extend calls (per approval)
+  const lastExtendRef = useRef<Record<string, number>>({});
+  const EXTEND_COOLDOWN = 30_000; // 30s between extend calls
+  const EXTEND_AMOUNT = 60; // extend by 60s
+  const DEFAULT_TIMEOUT = 300; // 5min fallback when backend doesn't provide data
+
+  // Initialize deadlines from expires_at / timeout / default
+  useEffect(() => {
+    const now = Date.now();
+    for (const a of approvals) {
+      if (deadlinesRef.current[a.id]) continue;
+      let deadline: number;
+      let seconds: number;
+      if (a.expires_at) {
+        deadline = new Date(a.expires_at).getTime();
+        seconds = Math.max(0, Math.floor((deadline - now) / 1000));
+      } else {
+        const ttl = a.timeout || DEFAULT_TIMEOUT;
+        deadline = now + ttl * 1000;
+        seconds = ttl;
+      }
+      deadlinesRef.current[a.id] = deadline;
+      setRemaining((prev) => ({
+        ...prev,
+        [a.id]: seconds,
+      }));
+    }
+    // Clean up removed approvals
+    const ids = new Set(approvals.map((a) => a.id));
+    for (const id of Object.keys(deadlinesRef.current)) {
+      if (!ids.has(id)) {
+        delete deadlinesRef.current[id];
+        setRemaining((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
+    }
+  }, [approvals]);
+
+  // Countdown tick
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setRemaining((prev) => {
+        const next: Record<string, number> = {};
+        let changed = false;
+        for (const [id, deadline] of Object.entries(deadlinesRef.current)) {
+          const secs = Math.max(
+            0,
+            Math.floor(((deadline ?? now) - now) / 1000),
+          );
+          next[id] = secs;
+          if (secs !== prev[id]) changed = true;
+        }
+        return changed ? { ...prev, ...next } : prev;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Auto-close expired approvals
+  useEffect(() => {
+    for (const a of approvals) {
+      const secs = remaining[a.id];
+      if (secs === 0 && remaining[a.id] !== undefined) {
+        // Expired — auto-reject
+        onRespond(a.id, {}, false);
+      }
+    }
+  }, [remaining, approvals, onRespond]);
+
+  // Extend timeout via API
+  const extendTimeout = useCallback(async (approvalId: string) => {
+    const now = Date.now();
+    if (now - (lastExtendRef.current[approvalId] || 0) < EXTEND_COOLDOWN)
+      return;
+    lastExtendRef.current[approvalId] = now;
+
+    try {
+      const res = await authFetch<{
+        status: string;
+        expires_at: string | null;
+      }>(`/human/${approvalId}/extend?extra_seconds=${EXTEND_AMOUNT}`, {
+        method: "POST",
+      });
+      if (res?.status === "success" && res.expires_at) {
+        const newDeadline = new Date(res.expires_at).getTime();
+        deadlinesRef.current[approvalId] = newDeadline;
+        setRemaining((prev) => ({
+          ...prev,
+          [approvalId]: Math.max(
+            0,
+            Math.floor((newDeadline - Date.now()) / 1000),
+          ),
+        }));
+      }
+    } catch (err) {
+      console.warn("[Approval] Failed to extend timeout:", err);
+    }
+  }, []);
+
+  // Touch handler — extend on any interaction
+  const handleInteract = useCallback(
+    (approvalId: string) => () => extendTimeout(approvalId),
+    [extendTimeout],
+  );
+
   useEffect(() => {
     setFormValues((prev) => {
       const newValues = { ...prev };
@@ -180,7 +327,6 @@ export function ApprovalPanel({
           newValues[approval.id] = initialValues;
         }
       });
-      // Remove values for approvals that no longer exist
       Object.keys(newValues).forEach((id) => {
         if (!approvals.find((a) => a.id === id)) {
           delete newValues[id];
@@ -190,7 +336,6 @@ export function ApprovalPanel({
     });
   }, [approvals]);
 
-  // Get default value based on field type
   function getDefaultValue(type: FormField["type"]): unknown {
     switch (type) {
       case "text":
@@ -209,7 +354,6 @@ export function ApprovalPanel({
     }
   }
 
-  // Adjust currentIndex when approvals count changes
   useEffect(() => {
     if (currentIndex >= approvals.length) {
       setCurrentIndex(Math.max(0, approvals.length - 1));
@@ -218,7 +362,6 @@ export function ApprovalPanel({
 
   if (approvals.length === 0) return null;
 
-  // Boundary protection
   const safeIndex = Math.min(currentIndex, approvals.length - 1);
   const currentApproval = approvals[safeIndex];
 
@@ -235,6 +378,8 @@ export function ApprovalPanel({
   };
 
   const currentFormValues = formValues[currentApproval.id] ?? {};
+  const currentRemaining = remaining[currentApproval.id];
+  const isUrgent = currentRemaining !== undefined && currentRemaining <= 60;
 
   const handleFieldChange = (fieldName: string, value: unknown) => {
     setFormValues((prev) => ({
@@ -272,12 +417,18 @@ export function ApprovalPanel({
   }
 
   return (
-    <div className="w-full max-h-[60dvh] shrink min-h-0 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 sm:py-3 bg-white dark:bg-stone-900">
+    <div
+      className="w-full max-h-[60dvh] shrink min-h-0 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 sm:py-3"
+      style={{ backgroundColor: "var(--theme-bg)" }}
+    >
       <div className="mx-auto max-w-3xl xl:max-w-5xl">
-        {/* Navigation control bar */}
+        {/* Pagination */}
         {approvals.length > 1 && (
           <div className="mb-2 flex items-center justify-between px-1">
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+            <div
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--theme-text-secondary)" }}
+            >
               <ListOrdered size={14} />
               <span>
                 {currentIndex + 1} / {approvals.length}
@@ -287,14 +438,16 @@ export function ApprovalPanel({
               <button
                 onClick={goToPrev}
                 disabled={currentIndex === 0}
-                className="p-1.5 rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] text-stone-600 hover:bg-[var(--glass-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed dark:text-stone-300"
+                className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--theme-primary-light)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                style={{ color: "var(--theme-text)" }}
               >
                 <ChevronLeft size={16} />
               </button>
               <button
                 onClick={goToNext}
                 disabled={currentIndex === approvals.length - 1}
-                className="p-1.5 rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] text-stone-600 hover:bg-[var(--glass-bg-subtle)] disabled:opacity-40 disabled:cursor-not-allowed dark:text-stone-300"
+                className="p-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--theme-primary-light)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+                style={{ color: "var(--theme-text)" }}
               >
                 <ChevronRight size={16} />
               </button>
@@ -302,23 +455,36 @@ export function ApprovalPanel({
           </div>
         )}
 
-        <div className="glass-card rounded-2xl" key={currentApproval.id}>
+        <div
+          className="approval-card animate-glass-enter"
+          key={currentApproval.id}
+        >
           {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[var(--glass-border)]">
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
-              <AlertCircle
-                size={12}
-                className="text-amber-600 dark:text-amber-400"
-              />
+          <div className="approval-header">
+            <div className="approval-icon">
+              <ShieldCheck size={15} strokeWidth={2} />
             </div>
-            <span className="text-xs font-medium text-stone-500 dark:text-stone-400">
+            <span className="approval-title">
               {t("approvals.needsConfirmation")}
             </span>
+            {currentRemaining !== undefined && (
+              <span
+                className={`approval-timer ml-auto flex items-center gap-1 text-xs tabular-nums ${
+                  isUrgent ? "approval-timer-urgent" : ""
+                }`}
+              >
+                <Clock size={12} />
+                {formatCountdown(currentRemaining)}
+              </span>
+            )}
           </div>
 
-          {/* Message content */}
-          <div className="px-4 py-3 sm:px-5">
-            <div className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed text-stone-800 dark:text-stone-200 prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-code:rounded-md prose-code:bg-stone-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-stone-600 dark:prose-code:bg-stone-700 dark:prose-code:text-stone-400">
+          {/* Message */}
+          <div className="approval-message">
+            <div
+              className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-code:rounded-md prose-code:px-1 prose-code:py-0.5"
+              style={{ color: "var(--theme-text)" }}
+            >
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                 {currentApproval.message}
               </ReactMarkdown>
@@ -327,45 +493,52 @@ export function ApprovalPanel({
 
           {/* Form fields */}
           {currentApproval.fields.length > 0 && (
-            <div className="px-4 py-3 sm:px-5 space-y-4 border-t border-[var(--glass-border)]">
-              {currentApproval.fields.map((field) => (
-                <div key={field.name} className="space-y-1.5">
-                  {field.type !== "checkbox" && (
-                    <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
-                      {field.label}
-                      {field.required && (
-                        <span className="text-red-500 ml-1">*</span>
-                      )}
-                    </label>
-                  )}
-                  <FormFieldRenderer
-                    field={field}
-                    value={currentFormValues[field.name]}
-                    onChange={(value) => handleFieldChange(field.name, value)}
-                    disabled={isLoading}
-                  />
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="approval-divider" />
+              <div className="approval-form space-y-3">
+                {currentApproval.fields.map((field) => (
+                  <div key={field.name} className="space-y-1">
+                    {field.type !== "checkbox" && (
+                      <label
+                        className="block text-xs font-medium"
+                        style={{ color: "var(--theme-text-secondary)" }}
+                      >
+                        {field.label}
+                        {field.required && (
+                          <span className="ml-0.5" style={{ color: "#ef4444" }}>
+                            *
+                          </span>
+                        )}
+                      </label>
+                    )}
+                    <FormFieldRenderer
+                      field={field}
+                      value={currentFormValues[field.name]}
+                      onChange={(value) => handleFieldChange(field.name, value)}
+                      disabled={isLoading}
+                      onInteract={handleInteract(currentApproval.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </>
           )}
-
-          {/* Actions */}
-          <div className="px-4 py-3 sm:px-5 bg-[var(--glass-bg-subtle)]">
-            <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+          <div className="approval-actions">
+            <div className="flex gap-2">
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-stone-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-black dark:hover:bg-stone-100"
+                className="approval-btn-submit flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Send size={18} />
+                <Send size={14} />
                 <span>{t("approvals.submit")}</span>
               </button>
               <button
                 onClick={handleCancel}
                 disabled={isLoading}
-                className="btn-secondary px-4 py-2.5 flex flex-1 items-center justify-center gap-2 rounded-xl text-sm font-medium transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="approval-btn-cancel flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-all duration-200 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <X size={18} />
+                <X size={14} />
                 <span>{t("approvals.cancel")}</span>
               </button>
             </div>

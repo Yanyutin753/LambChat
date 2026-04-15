@@ -432,7 +432,13 @@ export function ProjectRevealItem({
         />
       </ToolResultPanel>
 
-      <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
+      <div
+        className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900 cursor-pointer hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+        onClick={() => {
+          setShowFullPreview(true);
+          setViewMode("sidebar");
+        }}
+      >
         <PreviewHeader
           variant="card"
           icon={Code2}
@@ -443,9 +449,10 @@ export function ProjectRevealItem({
           actions={
             <>
               <button
-                onClick={() =>
-                  exportProjectZip(filesForExport, projectName, binaryFiles)
-                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  exportProjectZip(filesForExport, projectName, binaryFiles);
+                }}
                 className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium transition-colors"
               >
                 <Download size={14} />
@@ -454,7 +461,8 @@ export function ProjectRevealItem({
                 </span>
               </button>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setShowFullPreview(true);
                   setViewMode("center");
                 }}

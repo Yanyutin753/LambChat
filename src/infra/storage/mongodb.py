@@ -149,6 +149,8 @@ class PendingApproval(BaseModel):
     session_id: Optional[str] = None
     user_id: Optional[str] = None
     created_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    extensions: int = 0
 
 
 class ApprovalResponse(BaseModel):
@@ -168,6 +170,7 @@ class ApprovalStorage:
     def __init__(self, collection_name: str = "approvals"):
         self.collection_name = collection_name
         self._collection: "AsyncIOMotorCollection[Any] | None" = None
+        self._indexes_created = False
 
     @property
     def collection(self):
@@ -178,8 +181,31 @@ class ApprovalStorage:
             self._collection = db[self.collection_name]
         return self._collection
 
+    async def ensure_indexes(self) -> None:
+        """确保索引存在（幂等，可重复调用）"""
+        if self._indexes_created:
+            return
+        coll = self.collection
+        await coll.create_index("_id", unique=True, background=True)
+        await coll.create_index(
+            [("status", 1), ("expires_at", 1), ("user_id", 1)],
+            background=True,
+        )
+        await coll.create_index(
+            [("session_id", 1), ("status", 1)],
+            background=True,
+        )
+        # TTL index: MongoDB 自动删除过期文档（兜底清理）
+        await coll.create_index(
+            "expires_at",
+            expireAfterSeconds=0,
+            background=True,
+        )
+        self._indexes_created = True
+
     async def create(self, approval: PendingApproval, ttl: int = APPROVAL_TTL) -> PendingApproval:
         """创建审批记录"""
+        await self.ensure_indexes()
         now = datetime.now()
         doc = approval.model_dump()
         doc["_id"] = approval.id
@@ -190,9 +216,10 @@ class ApprovalStorage:
         return approval
 
     async def get(self, approval_id: str) -> Optional[PendingApproval]:
-        """获取审批记录"""
+        """获取审批记录（排除 response 子文档，减少传输量）"""
         doc = await self.collection.find_one(
-            {"_id": approval_id, "expires_at": {"$gt": datetime.now()}}
+            {"_id": approval_id, "expires_at": {"$gt": datetime.now()}},
+            {"response": 0},
         )
         if not doc:
             return None
@@ -212,6 +239,48 @@ class ApprovalStorage:
 
         result = await self.collection.update_one({"_id": approval_id}, {"$set": update_doc})
         return result.modified_count > 0
+
+    async def extend_expires_at(
+        self,
+        approval_id: str,
+        extra_seconds: int = 60,
+        max_extensions: int = 10,
+        max_total_seconds: int = 3600,
+    ) -> Optional[datetime]:
+        """
+        延长审批过期时间（支持分布式）
+
+        Args:
+            approval_id: 审批 ID
+            extra_seconds: 每次延长的秒数
+            max_extensions: 最大延长次数
+            max_total_seconds: 从创建时间起最大总有效时长
+
+        Returns:
+            新的 expires_at，或 None（已达上限）
+        """
+        doc = await self.collection.find_one({"_id": approval_id})
+        if not doc:
+            return None
+
+        extensions = doc.get("extensions", 0)
+        created_at = doc.get("created_at", datetime.now())
+        current_expires = doc.get("expires_at", datetime.now())
+
+        if extensions >= max_extensions:
+            return None
+
+        max_expires = created_at + timedelta(seconds=max_total_seconds)
+        new_expires = min(current_expires + timedelta(seconds=extra_seconds), max_expires)
+
+        if new_expires <= current_expires:
+            return None
+
+        await self.collection.update_one(
+            {"_id": approval_id},
+            {"$set": {"expires_at": new_expires, "extensions": extensions + 1}},
+        )
+        return new_expires
 
     async def delete(self, approval_id: str) -> bool:
         """删除审批记录"""
@@ -235,9 +304,20 @@ class ApprovalStorage:
             approvals.append(PendingApproval(**doc))
         return approvals
 
+    async def has_response(self, approval_id: str) -> bool:
+        """检查是否已有响应（轻量投影，用于轮询）"""
+        doc = await self.collection.find_one(
+            {"_id": approval_id, "response": {"$exists": True}},
+            {"response": 1},
+        )
+        return doc is not None
+
     async def get_response(self, approval_id: str) -> Optional[ApprovalResponse]:
-        """获取审批响应"""
-        doc = await self.collection.find_one({"_id": approval_id})
+        """获取审批响应（仅返回 response 子文档）"""
+        doc = await self.collection.find_one(
+            {"_id": approval_id},
+            {"response": 1},
+        )
         if not doc or "response" not in doc:
             return None
         response_data = doc["response"]
@@ -271,29 +351,32 @@ async def notify_approval_response(approval_id: str, response: ApprovalResponse)
 async def wait_for_response_distributed(
     approval_id: str,
     timeout: float = 300,
-    poll_interval: float = 0.5,
 ) -> Optional[ApprovalResponse]:
     """
-    等待审批响应 (仅使用 MongoDB 轮询)
+    等待审批响应 (仅使用 MongoDB 轮询，指数退避)
 
     Args:
         approval_id: 审批 ID
         timeout: 超时时间（秒）
-        poll_interval: MongoDB 轮询间隔（秒）
 
     Returns:
         ApprovalResponse 或 None (超时)
     """
     storage = get_approval_storage()
     start_time = asyncio.get_event_loop().time()
+    min_interval = 0.5
+    max_interval = 3.0
+    current_interval = min_interval
 
     while True:
         elapsed = asyncio.get_event_loop().time() - start_time
         if elapsed >= timeout:
             return None
 
-        response = await storage.get_response(approval_id)
-        if response:
-            return response
+        # 轻量检查：只查 response 字段是否存在
+        if await storage.has_response(approval_id):
+            return await storage.get_response(approval_id)
 
-        await asyncio.sleep(poll_interval)
+        # 指数退避，上限 3 秒
+        await asyncio.sleep(current_interval)
+        current_interval = min(current_interval * 1.5, max_interval)

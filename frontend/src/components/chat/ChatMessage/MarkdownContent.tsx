@@ -118,8 +118,27 @@ function TableBlock({ children }: { children: React.ReactNode }) {
 
   const handleCopy = async () => {
     const data = extractData();
-    const tsv = data.map((row) => row.join("\t")).join("\n");
-    await navigator.clipboard.writeText(tsv);
+    if (data.length === 0) return;
+
+    const colWidths = data[0].map((_, colIdx) =>
+      Math.max(...data.map((row) => (row[colIdx] || "").length)),
+    );
+    const pad = (str: string, width: number) =>
+      str.length < width ? str + " ".repeat(width - str.length) : str;
+
+    const header =
+      "| " + data[0].map((c, i) => pad(c, colWidths[i])).join(" | ") + " |";
+    const separator =
+      "| " + colWidths.map((w) => "-".repeat(w)).join(" | ") + " |";
+    const rows = data
+      .slice(1)
+      .map(
+        (row) =>
+          "| " + row.map((c, i) => pad(c, colWidths[i])).join(" | ") + " |",
+      );
+
+    const markdown = [header, separator, ...rows].join("\n");
+    await navigator.clipboard.writeText(markdown);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

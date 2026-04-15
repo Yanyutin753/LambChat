@@ -1,5 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import { createPortal } from "react-dom";
 import { X, CheckCircle, XCircle, Ban } from "lucide-react";
 import { LoadingSpinner } from "../../../common";
@@ -9,6 +15,10 @@ import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 
 // Module-level singleton: only one panel open at a time
 let _currentClose: (() => void) | null = null;
+// Reference counter so that the old panel's cleanup cannot remove the attribute
+// while the new panel is still open (useLayoutEffect cleanup fires in a later
+// render cycle than the new panel's setup).
+let _compressionCount = 0;
 
 /** Close any currently open ToolResultPanel (call before opening a new one) */
 export function closeCurrentToolPanel() {
@@ -87,13 +97,19 @@ export function ToolResultPanel({
   panelClass,
 }: ToolResultPanelProps) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
-  const [sidebarWidth, setSidebarWidth] = useState(() =>
-    parseInt(localStorage.getItem("sidebar-preview-width") || "45", 10),
+  const [sidebarWidth, setSidebarWidth] = useState(
+    () =>
+      parseInt(localStorage.getItem("sidebar-preview-width") || "35", 10) || 35,
   );
   const panelRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
   const justResized = useRef(false);
+  const resizeCaptureRef = useRef<HTMLDivElement | null>(null);
+  const resizeListenersRef = useRef<{
+    move: (ev: MouseEvent) => void;
+    up: (ev: MouseEvent) => void;
+  } | null>(null);
 
   // Track viewport size
   useEffect(() => {
@@ -114,11 +130,22 @@ export function ToolResultPanel({
   }, [sidebarWidth]);
 
   // Signal main layout compression (desktop sidebar mode)
-  useEffect(() => {
+  // Use useLayoutEffect to avoid visual flash between render and layout.
+  // A module-level ref-counter is used so that when panel A closes (its cleanup
+  // fires in a *later* render cycle) while panel B is already open, the
+  // attribute is not removed prematurely.
+  useLayoutEffect(() => {
     if (!open || isMobile || viewMode === "center") return;
-    document.documentElement.setAttribute("data-sidebar-preview", "open");
-    return () =>
-      document.documentElement.removeAttribute("data-sidebar-preview");
+    _compressionCount++;
+    if (_compressionCount === 1) {
+      document.documentElement.setAttribute("data-sidebar-preview", "open");
+    }
+    return () => {
+      _compressionCount--;
+      if (_compressionCount === 0) {
+        document.documentElement.removeAttribute("data-sidebar-preview");
+      }
+    };
   }, [open, isMobile, viewMode]);
 
   // Body scroll lock (mobile bottom-sheet + center fullscreen)
@@ -157,6 +184,33 @@ export function ToolResultPanel({
     };
   }, [open, onClose]);
 
+  // Cleanup drag resize resources (used on mouseup and on unmount)
+  const cleanupResize = useCallback((indicator: HTMLDivElement | null) => {
+    isResizing.current = false;
+    if (indicator) indicator.style.display = "none";
+    const capture = resizeCaptureRef.current;
+    if (capture) {
+      capture.remove();
+      resizeCaptureRef.current = null;
+    }
+    const listeners = resizeListenersRef.current;
+    if (listeners) {
+      window.removeEventListener("mousemove", listeners.move);
+      window.removeEventListener("mouseup", listeners.up);
+      resizeListenersRef.current = null;
+    }
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+  }, []);
+
+  // Cleanup resize on unmount to prevent leaked DOM/listeners
+  useEffect(() => {
+    const indicator = indicatorRef.current;
+    return () => {
+      if (isResizing.current) cleanupResize(indicator);
+    };
+  }, [cleanupResize]);
+
   // Desktop drag resize
   const handleResizeStart = useCallback(
     (e: React.MouseEvent) => {
@@ -176,6 +230,7 @@ export function ToolResultPanel({
       capture.style.cssText =
         "position:fixed;inset:0;z-index:999999;cursor:col-resize;";
       document.body.appendChild(capture);
+      resizeCaptureRef.current = capture;
 
       const onMove = (ev: MouseEvent) => {
         if (!isResizing.current) return;
@@ -186,13 +241,7 @@ export function ToolResultPanel({
       };
       const onUp = (ev: MouseEvent) => {
         if (!isResizing.current) return;
-        isResizing.current = false;
-        if (indicator) indicator.style.display = "none";
-        capture.remove();
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
+        cleanupResize(indicator);
         const delta = ((startX - ev.clientX) / window.innerWidth) * 100;
         const val = Math.round(Math.min(Math.max(startWidth + delta, 25), 75));
         root.style.setProperty("--sidebar-preview-width", `${val}%`);
@@ -204,12 +253,13 @@ export function ToolResultPanel({
           justResized.current = false;
         }, 100);
       };
+      resizeListenersRef.current = { move: onMove, up: onUp };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    [sidebarWidth],
+    [sidebarWidth, cleanupResize],
   );
 
   // Mobile swipe to close
@@ -231,7 +281,7 @@ export function ToolResultPanel({
         panelClass
           ? panelClass
           : isCenter
-            ? "overflow-hidden h-full w-full relative"
+            ? "overflow-hidden h-full relative"
             : isMobile
               ? "max-h-[92vh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)]"
               : "h-full sm:rounded-l-2xl relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] animate-[slide-in-right_200ms_ease-out]"
@@ -291,7 +341,9 @@ export function ToolResultPanel({
           ) : (
             <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 shrink-0 whitespace-nowrap">
               {/* Status + Icon */}
-              <div className="flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 bg-blue-100 dark:bg-blue-900/40">
+              <div
+                className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 ${cfg.bg}`}
+              >
                 {status === "loading" ? (
                   <LoadingSpinner
                     size="xs"
