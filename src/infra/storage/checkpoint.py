@@ -22,6 +22,7 @@ _mongo_checkpointer: Optional[object] = None
 
 # PostgreSQL Checkpointer 单例
 _pg_checkpointer: Optional[object] = None
+_pg_checkpointer_ctx: Optional[object] = None  # from_conn_string() 返回的 async context manager
 
 
 def get_mongo_checkpointer(collection_name: str = "checkpoints"):
@@ -77,7 +78,7 @@ async def get_pg_checkpointer():
     Returns:
         AsyncPostgresSaver 实例，如果创建失败则返回 None
     """
-    global _pg_checkpointer
+    global _pg_checkpointer, _pg_checkpointer_ctx
 
     if _pg_checkpointer is not None:
         return _pg_checkpointer
@@ -89,8 +90,8 @@ async def get_pg_checkpointer():
     try:
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-        checkpointer = AsyncPostgresSaver.from_conn_string(settings.postgres_url)
-        _pg_checkpointer = await checkpointer.__aenter__()
+        _pg_checkpointer_ctx = AsyncPostgresSaver.from_conn_string(settings.postgres_url)
+        _pg_checkpointer = await _pg_checkpointer_ctx.__aenter__()
         logger.info("PostgreSQL checkpointer created (AsyncPostgresSaver via from_conn_string)")
         return _pg_checkpointer
 
@@ -108,15 +109,16 @@ async def close_pg_checkpointer():
 
     应在应用关闭时调用。
     """
-    global _pg_checkpointer
+    global _pg_checkpointer, _pg_checkpointer_ctx
     if _pg_checkpointer is not None:
         try:
-            await _pg_checkpointer.__aexit__(None, None, None)
+            await _pg_checkpointer_ctx.__aexit__(None, None, None)
             logger.info("PostgreSQL checkpointer closed")
         except Exception as e:
             logger.warning(f"Error closing PostgreSQL checkpointer: {e}")
         finally:
             _pg_checkpointer = None
+            _pg_checkpointer_ctx = None
 
 
 async def get_async_checkpointer():
