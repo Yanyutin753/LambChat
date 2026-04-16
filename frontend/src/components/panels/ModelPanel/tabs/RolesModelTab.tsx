@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Cpu, Save, Globe, List } from "lucide-react";
+import { Cpu, Save, Globe, List, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModelPanelSkeleton } from "../../../skeletons";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
@@ -29,6 +29,10 @@ export function RolesModelTab({
   const [localRoleModels, setLocalRoleModels] =
     useState<Record<string, string[]>>(roleModelsMap);
   const [isSaving, setIsSaving] = useState(false);
+  const [expandedModel, setExpandedModel] = useState<string | null>(null);
+
+  const toggleExpand = (id: string) =>
+    setExpandedModel((prev) => (prev === id ? null : id));
 
   useEffect(() => {
     setLocalRoleModels(roleModelsMap);
@@ -178,43 +182,65 @@ export function RolesModelTab({
             <div className="px-2.5 sm:px-3 pb-2.5 sm:pb-3 space-y-1">
               {availableModels.map((model) => {
                 const isSelected = currentRoleModels.includes(model.id);
+                const hasDesc = !!model.description;
                 return (
-                  <label
+                  <div
                     key={model.id}
-                    className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 sm:py-3 sm:gap-3.5 transition-all duration-200 ${
+                    className={`rounded-lg transition-all duration-200 ${
                       isSelected
                         ? "glass-card"
                         : "hover:bg-white/50 dark:hover:bg-stone-800/40"
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleModel(model.id)}
-                      className="h-4 w-4 rounded border-stone-300 text-stone-600 focus:ring-stone-500"
-                    />
-                    <ModelIconImg
-                      model={model.value}
-                      provider={model.provider}
-                      size={20}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
-                        {model.label}
-                      </div>
-                      <div className="text-xs font-mono text-stone-400 dark:text-stone-500 truncate sm:hidden mt-0.5">
-                        {model.value}
-                      </div>
-                      {model.description && (
-                        <div className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 hidden sm:block">
-                          {model.description}
+                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 sm:py-3 sm:gap-3.5">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleModel(model.id)}
+                        className="h-4 w-4 rounded border-stone-300 text-stone-600 focus:ring-stone-500"
+                      />
+                      <ModelIconImg
+                        model={model.value}
+                        provider={model.provider}
+                        size={20}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
+                          {model.label}
                         </div>
+                        <div className="text-xs font-mono text-stone-400 dark:text-stone-500 truncate sm:hidden mt-0.5">
+                          {model.value}
+                        </div>
+                      </div>
+                      <span className="text-xs font-mono text-stone-400 dark:text-stone-500 truncate max-w-[140px] hidden sm:inline">
+                        {model.value}
+                      </span>
+                      {hasDesc && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleExpand(model.id);
+                          }}
+                          className="shrink-0 p-0.5 rounded-md text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+                        >
+                          <ChevronDown
+                            size={14}
+                            className={`transition-transform duration-200 ${
+                              expandedModel === model.id ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
                       )}
-                    </div>
-                    <span className="text-xs font-mono text-stone-400 dark:text-stone-500 truncate max-w-[140px] hidden sm:inline">
-                      {model.value}
-                    </span>
-                  </label>
+                    </label>
+                    {expandedModel === model.id && hasDesc && (
+                      <div className="px-3 pb-2.5 pt-0 pl-10 sm:pl-11">
+                        <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+                          {model.description}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

@@ -94,9 +94,15 @@ const ReadFileItem = memo(function ReadFileItem({
           <CodeMirrorViewer
             value={displayContent}
             filePath={filePath}
-            lineNumbers={false}
+            lineNumbers={true}
             maxHeight="60vh"
             fontSize="0.8rem"
+            startLine={offset ?? 1}
+            highlightLineRange={
+              offset !== undefined || limit !== undefined
+                ? { from: offset ?? 1, to: (offset ?? 1) + (limit ?? 0) }
+                : undefined
+            }
           />
         </div>
       )}
@@ -142,9 +148,15 @@ const ReadFileItem = memo(function ReadFileItem({
                 <CodeMirrorViewer
                   value={displayContent}
                   filePath={filePath}
-                  lineNumbers={false}
+                  lineNumbers={true}
                   maxHeight="16rem"
                   fontSize="0.75rem"
+                  startLine={offset ?? 1}
+                  highlightLineRange={
+                    offset !== undefined || limit !== undefined
+                      ? { from: offset ?? 1, to: (offset ?? 1) + (limit ?? 0) }
+                      : undefined
+                  }
                 />
               </div>
             )}

@@ -133,6 +133,15 @@ export function ProjectRevealItem({
   const { t } = useTranslation();
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [viewMode, setViewMode] = useState<"center" | "sidebar">("sidebar");
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   let projectName = "";
   let template:
@@ -391,7 +400,7 @@ export function ProjectRevealItem({
             count: Object.keys(filesForExport).length,
           },
         )}`}
-        viewMode={viewMode}
+        viewMode={isMobile ? "center" : viewMode}
         headerActions={
           <>
             <button

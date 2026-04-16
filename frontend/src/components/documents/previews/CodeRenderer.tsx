@@ -5,6 +5,7 @@ interface CodeRendererProps {
   content: string;
   language: string;
   t: (key: string, options?: Record<string, unknown>) => string;
+  initialLine?: number;
 }
 
 // Memoized code renderer for better performance
@@ -12,6 +13,7 @@ const CodeRenderer = memo(function CodeRenderer({
   content,
   language,
   t,
+  initialLine,
 }: CodeRendererProps) {
   // Limit content for very large files to prevent performance issues
   const displayContent = useMemo(() => {
@@ -34,6 +36,10 @@ const CodeRenderer = memo(function CodeRenderer({
         lineNumbers={true}
         fontSize="0.875rem"
         className="h-full"
+        startLine={initialLine}
+        highlightLineRange={
+          initialLine ? { from: initialLine, to: initialLine + 10 } : undefined
+        }
       />
     </div>
   );

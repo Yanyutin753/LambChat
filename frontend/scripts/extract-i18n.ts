@@ -3,7 +3,8 @@ import path from "path";
 import { glob } from "glob";
 
 // Regex to match t('key'), t("key"), and t(`key`) patterns (including template literals with ${...})
-const TRANSLATION_KEY_REGEX = /\bt\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+// Captures group 1 = quote delimiter, group 2 = key string
+const TRANSLATION_KEY_REGEX = /\bt\s*\(\s*(['"`])([^'"`]+)\1\s*[,)]/g;
 
 // Regex to detect dynamic key patterns containing ${...}
 const DYNAMIC_KEY_REGEX = /\$\{[^}]+\}/;
@@ -108,7 +109,7 @@ async function extractI18nKeys() {
     const content = fs.readFileSync(file, "utf-8");
     let match;
     while ((match = TRANSLATION_KEY_REGEX.exec(content)) !== null) {
-      const key = match[1];
+      const key = match[2];
       if (DYNAMIC_KEY_REGEX.test(key)) {
         // Extract the static prefix before ${...}, e.g. "tools.categories" from "tools.categories.${cat}"
         const prefix = key.replace(/\$\{[^}]+\}.*/, "").replace(/\.$/, "");

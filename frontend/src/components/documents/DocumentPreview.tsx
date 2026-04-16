@@ -83,6 +83,7 @@ interface DocumentPreviewProps {
   signedUrl?: string; // Pre-signed URL (if available, skips getSignedUrl call)
   fileSize?: number; // File size in bytes
   imageUrl?: string; // Direct image URL for previewing image attachments
+  initialLine?: number; // Scroll to and highlight this line in code files
   onClose: () => void;
 }
 
@@ -93,6 +94,7 @@ export default function DocumentPreview({
   signedUrl,
   fileSize,
   imageUrl: externalImageUrl,
+  initialLine,
   onClose,
 }: DocumentPreviewProps) {
   const { t } = useTranslation();
@@ -117,6 +119,15 @@ export default function DocumentPreview({
   const [viewSource, setViewSource] = useState(false);
   const [viewMode, setViewMode] = useState<"center" | "sidebar">("sidebar");
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const fileName = path.split("/").pop() || path;
   const ext = getFileExtension(fileName);
@@ -416,7 +427,7 @@ export default function DocumentPreview({
     <ToolResultPanel
       open={true}
       onClose={onClose}
-      viewMode={viewMode}
+      viewMode={isMobile ? "center" : viewMode}
       overlayClass={
         isSidebar ? undefined : "sm:items-center sm:justify-center bg-black/70"
       }
@@ -441,9 +452,9 @@ export default function DocumentPreview({
         </div>
       }
       customHeader={
-        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-[#333] whitespace-nowrap">
+        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-[#333] whitespace-nowrap overflow-hidden">
           <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} />
-          <div className="flex-1 min-w-[120px] sm:min-w-[180px]">
+          <div className="flex-1 min-w-0 overflow-hidden">
             <h3
               className="font-bold text-stone-900 dark:text-stone-100 text-sm sm:text-base"
               title={fileName}
@@ -452,18 +463,18 @@ export default function DocumentPreview({
             </h3>
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-stone-500 dark:text-stone-400">
               {codeFile && (
-                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-[#2d2d30] font-mono text-xs sm:text-xs">
+                <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-[#2d2d30] font-mono text-xs sm:text-xs shrink-0">
                   {language}
                 </span>
               )}
-              <span className="text-xs sm:text-xs">
+              <span className="text-xs sm:text-xs truncate">
                 {!hasTextContent
                   ? t("documents.binary")
                   : t("documents.chars", { count: displaySize })}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-0.5 sm:gap-1 relative z-10 shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1 relative z-10 shrink-0 overflow-x-auto scrollbar-none">
             {markdownFile && data?.content && (
               <button
                 type="button"
@@ -479,16 +490,12 @@ export default function DocumentPreview({
                 {viewSource ? (
                   <>
                     <Eye size={16} />
-                    <span className="hidden sm:inline">
-                      {t("documents.preview")}
-                    </span>
+                    {!isSidebar && <span>{t("documents.preview")}</span>}
                   </>
                 ) : (
                   <>
                     <Code2 size={16} />
-                    <span className="hidden sm:inline">
-                      {t("documents.source")}
-                    </span>
+                    {!isSidebar && <span>{t("documents.source")}</span>}
                   </>
                 )}
               </button>
@@ -507,18 +514,11 @@ export default function DocumentPreview({
               }
             >
               {isSidebar ? (
-                <>
-                  <Maximize2 size={16} />
-                  <span className="hidden sm:inline">
-                    {t("documents.centerView")}
-                  </span>
-                </>
+                <Maximize2 size={16} />
               ) : (
                 <>
                   <PanelRight size={16} />
-                  <span className="hidden sm:inline">
-                    {t("documents.sidebarView")}
-                  </span>
+                  <span>{t("documents.sidebarView")}</span>
                 </>
               )}
             </button>
@@ -539,16 +539,12 @@ export default function DocumentPreview({
                 {isFullscreen ? (
                   <>
                     <Minimize2 size={16} />
-                    <span className="hidden sm:inline">
-                      {t("documents.exitFullscreen")}
-                    </span>
+                    {!isSidebar && <span>{t("documents.exitFullscreen")}</span>}
                   </>
                 ) : (
                   <>
                     <Maximize2 size={16} />
-                    <span className="hidden sm:inline">
-                      {t("documents.fullscreen")}
-                    </span>
+                    {!isSidebar && <span>{t("documents.fullscreen")}</span>}
                   </>
                 )}
               </button>
@@ -569,9 +565,7 @@ export default function DocumentPreview({
                   title={t("documents.download")}
                 >
                   <Download size={16} />
-                  <span className="hidden sm:inline">
-                    {t("documents.download")}
-                  </span>
+                  {!isSidebar && <span>{t("documents.download")}</span>}
                 </button>
                 {data?.content && (
                   <button
@@ -588,16 +582,16 @@ export default function DocumentPreview({
                           size={16}
                           className="text-green-500 dark:text-green-400"
                         />
-                        <span className="text-green-500 dark:text-green-400 hidden sm:inline">
-                          {t("documents.copied")}
-                        </span>
+                        {!isSidebar && (
+                          <span className="text-green-500 dark:text-green-400">
+                            {t("documents.copied")}
+                          </span>
+                        )}
                       </>
                     ) : (
                       <>
                         <Copy size={16} />
-                        <span className="hidden sm:inline">
-                          {t("documents.copy")}
-                        </span>
+                        {!isSidebar && <span>{t("documents.copy")}</span>}
                       </>
                     )}
                   </button>
@@ -798,7 +792,12 @@ export default function DocumentPreview({
           <MarkdownRenderer content={data?.content || ""} _t={t} />
         )
       ) : (
-        <CodeRenderer content={data?.content || ""} language={language} t={t} />
+        <CodeRenderer
+          content={data?.content || ""}
+          language={language}
+          t={t}
+          initialLine={initialLine}
+        />
       )}
     </ToolResultPanel>
   );

@@ -12,18 +12,18 @@ export function ChatPageSkeleton() {
 
       {/* Main area */}
       <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
-        {/* Header skeleton */}
-        <div
-          className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b shrink-0"
-          style={{ borderColor: "var(--theme-border)" }}
-        >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="skeleton-line size-5 rounded-full shrink-0" />
-            <div className="skeleton-line h-3.5 sm:h-4 w-20 sm:w-28 rounded-md" />
+        {/* Header skeleton — matches real Header: no border-b, uses padding */}
+        <div className="relative z-50 flex items-center px-3 pt-3 sm:px-4 pb-1 shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="skeleton-line size-8 rounded-lg" />
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="skeleton-line size-7 sm:size-8 rounded-full" />
-            <div className="skeleton-line size-7 sm:size-8 rounded-full" />
+          <div className="flex items-center gap-2 sm:gap-3 ml-2">
+            <div className="skeleton-line h-4 w-24 sm:w-28 rounded-md" />
+          </div>
+          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+            <div className="skeleton-line size-8 rounded-lg" />
+            <div className="skeleton-line size-8 rounded-lg" />
+            <div className="skeleton-line size-8 rounded-full" />
           </div>
         </div>
 
@@ -75,11 +75,11 @@ export function ChatSkeleton({ count = 3 }: { count?: number }) {
               </div>
             </div>
 
-            {/* ── Assistant response ── matches ChatMessage structure exactly ── */}
+            {/* ── Assistant response ── matches ChatMessage structure ── */}
             <div className="group w-full mb-3 sm:mb-4">
               <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6">
                 <div className="min-w-0 min-h-0">
-                  {/* Avatar + Role label — mb-3 gap-2 */}
+                  {/* Avatar + Role label */}
                   <div className="mb-3 flex items-center gap-2">
                     <div className="skeleton-line size-6 rounded-full shrink-0" />
                     <SkeletonLine
@@ -87,22 +87,17 @@ export function ChatSkeleton({ count = 3 }: { count?: number }) {
                       className="!h-[18px] sm:!h-[19px]"
                     />
                   </div>
-                  {/* Thinking indicator — space-y-2.5 py-1 px-1, same as ThinkingIndicator */}
-                  <div className="space-y-3 px-2 my-2">
-                    <div className="skeleton-line w-full h-2 rounded-full" />
-                    <div className="flex gap-3">
-                      <div className="skeleton-line flex-1 h-2 rounded-full" />
-                      <div className="skeleton-line flex-1 h-2 rounded-full" />
-                      <div className="skeleton-line flex-1 h-2 rounded-full" />
+                  {/* Response content skeleton — variable line pattern */}
+                  <div className="space-y-2 sm:space-y-3 px-2 my-2">
+                    <div className="skeleton-line w-full h-2 sm:h-[7px] rounded-full" />
+                    <div className="flex gap-2 sm:gap-3">
+                      <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />
+                      <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />
+                      <div className="skeleton-line w-2/5 h-2 sm:h-[7px] rounded-full hidden sm:block" />
                     </div>
-                    <div className="flex gap-3">
-                      <div className="skeleton-line flex-1 h-2 rounded-full" />
-                      <div className="skeleton-line flex-1 h-2 rounded-full" />
-                      <div className="skeleton-line flex-1 h-2 rounded-full" />
-                    </div>
-                    <div className="flex gap-3">
-                      <div className="skeleton-line flex-1 h-2 rounded-full" />
-                      <div className="skeleton-line w-2/5 h-2 rounded-full" />
+                    <div className="flex gap-2 sm:gap-3">
+                      <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />
+                      <div className="skeleton-line w-1/3 h-2 sm:h-[7px] rounded-full" />
                     </div>
                   </div>
                 </div>
@@ -120,17 +115,17 @@ export function WelcomeSkeleton() {
   return (
     <div className="relative flex h-full flex-col items-center justify-center px-4 overflow-hidden animate-fade-in">
       {/* Greeting skeleton */}
-      <div className="relative flex flex-col items-center mb-6 sm:mb-8 w-full max-w-[90vw]">
-        {/* Mobile icon */}
+      <div className="relative flex flex-col items-center mb-5 sm:mb-8 w-full max-w-[90vw]">
+        {/* Mobile icon — matches WelcomePage: size-10 rounded-xl */}
         <div className="sm:hidden mb-4">
-          <div className="skeleton-line size-12 rounded-2xl" />
+          <div className="skeleton-line size-10 rounded-xl shadow-md ring-1 ring-stone-200/60 dark:ring-stone-700/40" />
         </div>
-        {/* Greeting line */}
+        {/* Greeting line — desktop icon inline */}
         <div className="max-w-[90vw] w-full flex items-center justify-center gap-3 sm:gap-4">
-          <div className="skeleton-line size-10 sm:size-12 rounded-full hidden sm:block" />
+          <div className="skeleton-line size-12 rounded-full hidden sm:block shadow-md ring-1 ring-stone-200/60 dark:ring-stone-700/40" />
           <SkeletonLine
             width="w-48 sm:w-64 lg:w-80"
-            className="!h-7 sm:!h-8 lg:!h-10 !rounded-lg"
+            className="!h-[1.65rem] sm:!h-8 md:!h-9 !rounded-lg"
           />
         </div>
         {/* Subtitle */}
@@ -140,85 +135,82 @@ export function WelcomeSkeleton() {
         />
       </div>
 
-      {/* Mobile: ChatInput skeleton */}
-      <div className="w-full max-w-[48rem] sm:hidden mb-4">
+      {/* ChatInput skeleton — matches real ChatInput rounded-3xl container */}
+      <div className="w-full max-w-[48rem]">
         <div
-          className="rounded-2xl px-1 py-1.5 space-y-1"
+          className="flex flex-col w-full rounded-3xl px-1 border"
           style={{
             backgroundColor: "var(--theme-bg-card)",
             borderColor: "var(--theme-border)",
-            border: "1px solid var(--theme-border)",
             boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
           }}
         >
-          <div className="px-3 py-1.5">
-            <div className="skeleton-line h-3 w-3/5 rounded" />
+          {/* Textarea area */}
+          <div className="px-2.5 py-2 flex items-start gap-2">
+            <div className="skeleton-line h-3 w-3/5 rounded flex-1 mt-3" />
           </div>
-          <div className="flex items-center justify-between px-2 pb-1.5">
-            <div className="flex items-center gap-2">
-              <div className="skeleton-line size-7 rounded-full" />
-              <div className="skeleton-line size-7 rounded-full" />
-              <div className="skeleton-line size-7 rounded-full" />
+          {/* Bottom toolbar */}
+          <div className="flex justify-between pt-2 pb-3 px-2 mx-0.5 max-w-full">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="skeleton-line size-8 rounded-lg shrink-0" />
+              <div className="skeleton-line size-8 rounded-lg shrink-0 hidden sm:block" />
+              <div className="skeleton-line size-8 rounded-lg shrink-0 hidden sm:block" />
+              <div className="skeleton-line size-8 rounded-lg shrink-0" />
             </div>
-            <div className="skeleton-line size-7 rounded-full" />
+            <div className="skeleton-line size-8 rounded-full shrink-0" />
           </div>
         </div>
       </div>
 
-      {/* Desktop: ChatInput skeleton */}
-      <div className="w-full max-w-[48rem] hidden sm:block">
-        <div
-          className="rounded-2xl sm:rounded-3xl px-1 py-2 space-y-1"
-          style={{
-            backgroundColor: "var(--theme-bg-card)",
-            borderColor: "var(--theme-border)",
-            border: "1px solid var(--theme-border)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-          }}
-        >
-          <div className="px-3 py-2">
-            <div className="skeleton-line h-3 w-3/5 rounded" />
-          </div>
-          <div className="flex items-center justify-between px-2 pb-2">
-            <div className="flex items-center gap-2">
-              <div className="skeleton-line size-8 rounded-full" />
-              <div className="skeleton-line size-8 rounded-full" />
-              <div className="skeleton-line size-8 rounded-full" />
-              <div className="skeleton-line size-8 rounded-full" />
+      {/* Suggestions skeleton — mobile: 2 cards, desktop: 4 cards */}
+      <div className="w-full px-2 mt-1 sm:mt-5">
+        <div className="w-[19rem] sm:max-w-[36rem] sm:w-full mx-auto">
+          {/* Label + refresh */}
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <div className="flex items-center gap-1.5">
+              <div className="skeleton-line size-3 rounded-full" />
+              <SkeletonLine width="w-16" className="!h-3 sm:!h-3.5" />
             </div>
-            <div className="skeleton-line size-8 rounded-full" />
+            <SkeletonLine width="w-20" className="!h-7 !rounded-lg" />
           </div>
-        </div>
-      </div>
-
-      {/* Desktop: Suggestions skeleton */}
-      <div className="w-full max-w-[36rem] px-2 mt-5 hidden sm:block">
-        {/* Label + refresh */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1.5">
-            <div className="skeleton-line size-3 rounded-full" />
-            <SkeletonLine width="w-16" className="!h-3.5" />
+          {/* Mobile: 2 cards */}
+          <div className="grid grid-cols-1 gap-2 sm:hidden">
+            {[0, 1].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-xl border px-3 py-2"
+                style={{
+                  backgroundColor: "var(--theme-bg-card)",
+                  borderColor: "var(--theme-border)",
+                }}
+              >
+                <div className="skeleton-line size-6 rounded-lg shrink-0" />
+                <SkeletonLine
+                  width={i === 0 ? "w-3/4" : "w-4/5"}
+                  className="!h-[12.5px] flex-1"
+                />
+              </div>
+            ))}
           </div>
-          <SkeletonLine width="w-20" className="!h-7 !rounded-lg" />
-        </div>
-        {/* 2x2 suggestion grid */}
-        <div className="grid grid-cols-2 gap-2.5">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 rounded-xl border px-4 py-3"
-              style={{
-                backgroundColor: "var(--theme-bg-card)",
-                borderColor: "var(--theme-border)",
-              }}
-            >
-              <div className="skeleton-line size-7 rounded-lg shrink-0" />
-              <SkeletonLine
-                width={i % 2 === 0 ? "w-3/4" : "w-4/5"}
-                className="!h-[13.5px] flex-1"
-              />
-            </div>
-          ))}
+          {/* Desktop: 2x2 grid */}
+          <div className="hidden sm:grid grid-cols-2 gap-2.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-xl border px-4 py-3"
+                style={{
+                  backgroundColor: "var(--theme-bg-card)",
+                  borderColor: "var(--theme-border)",
+                }}
+              >
+                <div className="skeleton-line size-7 rounded-lg shrink-0" />
+                <SkeletonLine
+                  width={i % 2 === 0 ? "w-3/4" : "w-4/5"}
+                  className="!h-[13.5px] flex-1"
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

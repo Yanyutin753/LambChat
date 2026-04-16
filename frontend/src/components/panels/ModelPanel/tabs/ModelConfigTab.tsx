@@ -8,6 +8,7 @@ import {
   Download,
   FileJson,
   Layers,
+  ChevronDown,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -123,6 +124,8 @@ interface ModelCardProps {
   isDragging: boolean;
   isDragOver: boolean;
   isDeleting: boolean;
+  isExpanded: boolean;
+  onToggleExpand: (modelId: string) => void;
   onToggle: (model: ModelConfig) => void;
   onEdit: (model: ModelConfig) => void;
   onDelete: (modelId: string) => void;
@@ -139,6 +142,8 @@ const ModelCard = React.memo(function ModelCard({
   isDragging,
   isDragOver,
   isDeleting,
+  isExpanded,
+  onToggleExpand,
   onToggle,
   onEdit,
   onDelete,
@@ -165,6 +170,11 @@ const ModelCard = React.memo(function ModelCard({
   );
 
   const hasTags = modelHasTags(model);
+  const hasDetails = !!(model.description || hasTags);
+
+  const handleExpand = useCallback(() => {
+    if (model.id) onToggleExpand(model.id);
+  }, [onToggleExpand, model.id]);
 
   return (
     <div
@@ -217,12 +227,34 @@ const ModelCard = React.memo(function ModelCard({
         <div className="text-xs font-mono text-stone-400 dark:text-stone-500 truncate mb-2">
           {model.value}
         </div>
-        {hasTags && (
-          <div className="flex flex-wrap gap-1 mb-2.5">
-            {renderModelTags(model, true)}
+        {isExpanded && hasDetails && (
+          <div className="glass-card-subtle rounded-lg px-3 py-2.5 mb-2.5">
+            {model.description && (
+              <p className="text-xs text-stone-500 dark:text-stone-400 mb-2">
+                {model.description}
+              </p>
+            )}
+            {hasTags && (
+              <div className="flex flex-wrap gap-1">
+                {renderModelTags(model, true)}
+              </div>
+            )}
           </div>
         )}
         <div className="flex items-center gap-1 justify-end -mr-1">
+          {hasDetails && (
+            <button
+              onClick={handleExpand}
+              className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+            >
+              <ChevronDown
+                size={16}
+                className={`transition-transform duration-200 ${
+                  isExpanded ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          )}
           <button
             onClick={handleEdit}
             className="p-2 text-stone-500 hover:text-stone-700 hover:bg-white/50 rounded-lg transition-all duration-200 dark:text-stone-400 dark:hover:text-stone-200 dark:hover:bg-stone-700/40"
@@ -274,6 +306,19 @@ const ModelCard = React.memo(function ModelCard({
           </div>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {hasDetails && (
+              <button
+                onClick={handleExpand}
+                className="p-2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+              >
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform duration-200 ${
+                    isExpanded ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            )}
             <ToggleSwitch
               enabled={model.enabled}
               onToggle={handleToggle}
@@ -302,7 +347,7 @@ const ModelCard = React.memo(function ModelCard({
         </div>
 
         {/* Details row */}
-        {(model.description || hasTags) && (
+        {isExpanded && hasDetails && (
           <div className="px-4 pb-4 pt-0">
             <div className="glass-card-subtle rounded-lg px-3 py-2.5">
               {model.description && (
@@ -334,6 +379,11 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
 
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
+
+  const handleToggleExpand = useCallback((modelId: string) => {
+    setExpandedModelId((prev) => (prev === modelId ? null : modelId));
+  }, []);
 
   // Drag-and-drop state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -551,6 +601,8 @@ export function ModelConfigTab({ models, onReload }: ModelConfigTabProps) {
                   dragIndex !== index
                 }
                 isDeleting={isDeleting === model.id}
+                isExpanded={expandedModelId === model.id}
+                onToggleExpand={handleToggleExpand}
                 onToggle={handleToggle}
                 onEdit={setEditingModel}
                 onDelete={handleDelete}

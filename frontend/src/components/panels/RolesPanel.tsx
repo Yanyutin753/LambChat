@@ -3,7 +3,16 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { Shield, Plus, Edit, Trash2, X, AlertCircle, Lock } from "lucide-react";
+import {
+  Shield,
+  Plus,
+  Edit,
+  Trash2,
+  X,
+  AlertCircle,
+  Lock,
+  ChevronDown,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -641,6 +650,7 @@ export function RolesPanel() {
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [deleteRole, setDeleteRole] = useState<Role | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
 
   // 权限检查
   const canManage = hasPermission(Permission.ROLE_MANAGE);
@@ -830,25 +840,52 @@ export function RolesPanel() {
                             {role.description}
                           </p>
                         )}
+                        <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
+                          {t("roles.permissionCount", {
+                            count: role.permissions.length,
+                          })}
+                        </p>
                       </div>
                     </div>
 
-                    {/* 权限标签 */}
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {role.permissions.map((permission) => (
-                        <span
-                          key={permission}
-                          className="rounded-full bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-xs text-stone-600 dark:text-stone-300"
-                        >
-                          {permissionLabels[permission] || permission}
-                        </span>
-                      ))}
-                    </div>
+                    {/* 权限按钮 */}
+                    {expandedRoleId === role.id && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {role.permissions.map((permission) => (
+                          <span
+                            key={permission}
+                            className="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium bg-stone-100 text-stone-700 dark:bg-stone-700/60 dark:text-stone-300 border border-stone-200/60 dark:border-stone-600/40 cursor-default"
+                          >
+                            {permissionLabels[permission] || permission}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* 操作按钮 */}
-                  {canManage && (
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        setExpandedRoleId((prev) =>
+                          prev === role.id ? null : role.id,
+                        )
+                      }
+                      className="btn-icon"
+                      title={
+                        expandedRoleId === role.id
+                          ? t("common.collapse")
+                          : t("common.expand")
+                      }
+                    >
+                      <ChevronDown
+                        size={18}
+                        className={`transition-transform duration-200 ${
+                          expandedRoleId === role.id ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {canManage && (
                       <button
                         onClick={() => openEditModal(role)}
                         className="btn-icon"
@@ -856,17 +893,17 @@ export function RolesPanel() {
                       >
                         <Edit size={18} />
                       </button>
-                      {!role.is_system && (
-                        <button
-                          onClick={() => setDeleteRole(role)}
-                          className="btn-icon hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                          title={t("common.delete")}
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    )}
+                    {canManage && !role.is_system && (
+                      <button
+                        onClick={() => setDeleteRole(role)}
+                        className="btn-icon hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                        title={t("common.delete")}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* 时间信息 */}

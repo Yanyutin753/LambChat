@@ -526,7 +526,7 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div
-      className="px-1 sm:px-4 pb-3"
+      className="sm:px-4 pb-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       <form onSubmit={handleSubmit} className="mx-auto max-w-3xl xl:max-w-5xl">

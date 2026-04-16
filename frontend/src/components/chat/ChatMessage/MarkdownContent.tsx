@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import toast from "react-hot-toast";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import remarkMath from "remark-math";
@@ -11,6 +12,18 @@ import { getFullUrl } from "../../../services/api/config";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { CodeMirrorViewer } from "../../common/CodeMirrorViewer";
 import { ImageViewer } from "../../common";
+
+// Generate a URL-safe slug from heading text
+function slugify(children: React.ReactNode): string {
+  const text = React.Children.toArray(children)
+    .map((c) => (typeof c === "string" ? c : ""))
+    .join("");
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s\u4e00-\u9fff-]/g, "")
+    .replace(/[\s]+/g, "-");
+}
 
 // Code block component with copy button and enhanced styling
 function CodeBlock({
@@ -33,6 +46,7 @@ function CodeBlock({
   const handleCopy = async () => {
     await navigator.clipboard.writeText(codeString);
     setCopied(true);
+    toast.success(t("chat.message.copied"));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -43,7 +57,14 @@ function CodeBlock({
 
   if (inline) {
     return (
-      <code className="rounded bg-stone-200 dark:bg-stone-700 px-1.5 py-0.5 text-sm text-stone-800 dark:text-stone-200 font-mono">
+      <code
+        className="rounded bg-stone-200 dark:bg-stone-700 px-1.5 py-0.5 text-sm text-stone-800 dark:text-stone-200 font-mono cursor-pointer hover:bg-stone-300 dark:hover:bg-stone-600 transition-colors"
+        onClick={() => {
+          navigator.clipboard.writeText(String(children));
+          toast.success(t("chat.message.copied"));
+        }}
+        title={t("chat.message.copyCode")}
+      >
         {children}
       </code>
     );
@@ -51,7 +72,7 @@ function CodeBlock({
 
   return (
     <div className="group relative my-2 sm:my-3 max-w-full overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700">
-      {/* Header bar - ChatGPT style */}
+      {/* Header bar - always visible on touch, hover on desktop */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-stone-200/70 dark:bg-stone-800/50">
         <div className="flex items-center gap-2 min-w-0">
           {/* Language label */}
@@ -88,14 +109,16 @@ function CodeBlock({
       </div>
 
       {/* Code content */}
-      <CodeMirrorViewer
-        value={codeString}
-        language={language || undefined}
-        lineNumbers={true}
-        maxHeight="400px"
-        fontSize="0.75rem"
-        className="[&_.cm-editor]:rounded-none [&_.cm-gutters]:border-r-0"
-      />
+      <div className="bg-white dark:bg-[#282c34] [&_.cm-line]:leading-5 [&_.cm-gutterElement]:leading-5 overflow-hidden rounded-b-xl">
+        <CodeMirrorViewer
+          value={codeString}
+          language={language || undefined}
+          lineNumbers={true}
+          maxHeight="400px"
+          fontSize="0.75rem"
+          className="[&_.cm-editor]:rounded-none [&_.cm-gutters]:border-r-0"
+        />
+      </div>
     </div>
   );
 }
@@ -140,6 +163,7 @@ function TableBlock({ children }: { children: React.ReactNode }) {
     const markdown = [header, separator, ...rows].join("\n");
     await navigator.clipboard.writeText(markdown);
     setCopied(true);
+    toast.success(t("chat.message.copied"));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -162,13 +186,13 @@ function TableBlock({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="group/table relative my-3 rounded-lg shadow ring-1 ring-stone-200 dark:ring-stone-700">
+    <div className="group/table relative my-3 rounded-lg shadow ring-1 ring-stone-200 dark:ring-stone-700 overflow-hidden">
       {/* Floating toolbar — pinned to container top-right, outside scroll flow */}
       <div
         className={clsx(
           "absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5 px-1 py-0.5 rounded-md",
           "bg-stone-100/90 dark:bg-stone-800/90 shadow-sm border border-stone-200/50 dark:border-stone-700/50",
-          "opacity-0 group-hover/table:opacity-100 transition-opacity duration-150",
+          "opacity-100 sm:opacity-0 sm:group-hover/table:opacity-100 transition-opacity duration-150",
         )}
       >
         <button
@@ -220,27 +244,71 @@ export const MarkdownContent = memo(function MarkdownContent({
         remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          // Headings
-          h1: ({ children }) => (
-            <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mt-4 mb-3 first:mt-0">
-              {children}
-            </h1>
-          ),
-          h2: ({ children }) => (
-            <h2 className="text-xl font-bold text-stone-900 dark:text-stone-100 mt-3 mb-2">
-              {children}
-            </h2>
-          ),
-          h3: ({ children }) => (
-            <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100 mt-2 mb-1.5">
-              {children}
-            </h3>
-          ),
-          h4: ({ children }) => (
-            <h4 className="text-base font-semibold text-stone-800 dark:text-stone-200 mt-2 mb-1">
-              {children}
-            </h4>
-          ),
+          // Headings with anchor links
+          h1: ({ children }) => {
+            const id = slugify(children);
+            return (
+              <h1
+                id={id}
+                className="text-2xl font-bold text-stone-900 dark:text-stone-100 mt-4 mb-3 first:mt-0 group/head scroll-mt-4"
+              >
+                <a
+                  href={`#${id}`}
+                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                >
+                  {children}
+                </a>
+              </h1>
+            );
+          },
+          h2: ({ children }) => {
+            const id = slugify(children);
+            return (
+              <h2
+                id={id}
+                className="text-xl font-bold text-stone-900 dark:text-stone-100 mt-3 mb-2 group/head scroll-mt-4"
+              >
+                <a
+                  href={`#${id}`}
+                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                >
+                  {children}
+                </a>
+              </h2>
+            );
+          },
+          h3: ({ children }) => {
+            const id = slugify(children);
+            return (
+              <h3
+                id={id}
+                className="text-lg font-semibold text-stone-900 dark:text-stone-100 mt-2 mb-1.5 group/head scroll-mt-4"
+              >
+                <a
+                  href={`#${id}`}
+                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                >
+                  {children}
+                </a>
+              </h3>
+            );
+          },
+          h4: ({ children }) => {
+            const id = slugify(children);
+            return (
+              <h4
+                id={id}
+                className="text-base font-semibold text-stone-800 dark:text-stone-200 mt-2 mb-1 group/head scroll-mt-4"
+              >
+                <a
+                  href={`#${id}`}
+                  className="no-underline text-inherit hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                >
+                  {children}
+                </a>
+              </h4>
+            );
+          },
           // Paragraphs
           p: ({ children }) => (
             <p className="text-stone-700 dark:text-stone-300 leading-relaxed mb-2 last:mb-0">
@@ -266,7 +334,7 @@ export const MarkdownContent = memo(function MarkdownContent({
           // Blockquotes with elegant styling
           blockquote: ({ children }) => (
             <blockquote className="my-3 pl-3 pr-3 py-2 border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-r-lg">
-              <div className="text-stone-600 dark:text-stone-300 italic text-sm">
+              <div className="text-stone-600 dark:text-stone-300 text-sm [&>p]:italic [&>p:first-child]:italic">
                 {children}
               </div>
             </blockquote>
@@ -277,14 +345,14 @@ export const MarkdownContent = memo(function MarkdownContent({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 no-underline transition-colors"
+              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
             >
               {children}
             </a>
           ),
           // Horizontal rule
           hr: () => (
-            <hr className="my-4 border-t border-stone-300 dark:border-stone-600" />
+            <hr className="my-4 border-0 h-px bg-gradient-to-r from-transparent via-stone-300 to-transparent dark:via-stone-600" />
           ),
           // Strong and emphasis
           strong: ({ children }) => (
@@ -344,7 +412,7 @@ export const MarkdownContent = memo(function MarkdownContent({
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-3 py-2 text-sm text-stone-600 dark:text-stone-400 whitespace-nowrap min-w-[60px]">
+            <td className="px-3 py-2 text-sm text-stone-600 dark:text-stone-400 break-words min-w-[60px]">
               {children}
             </td>
           ),
@@ -355,6 +423,7 @@ export const MarkdownContent = memo(function MarkdownContent({
               <img
                 src={resolvedSrc}
                 alt={alt}
+                loading="lazy"
                 className="max-w-full h-auto my-2 rounded-lg shadow cursor-zoom-in hover:opacity-90 transition-opacity"
                 onClick={() => resolvedSrc && setImageViewerSrc(resolvedSrc)}
               />

@@ -40,7 +40,7 @@ export function FilesContentSkeleton() {
               />
               <div className="skeleton-line h-[16px] sm:h-[18px] w-8 sm:w-10 rounded-md" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 items-start">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5 items-start">
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
@@ -78,7 +78,7 @@ export function FilesContentSkeleton() {
               />
               <div className="skeleton-line h-[16px] sm:h-[18px] w-8 sm:w-10 rounded-md" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 items-start">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5 items-start">
               {[0, 1].map((i) => (
                 <div
                   key={i}
@@ -122,18 +122,18 @@ export function FilesPageSkeleton() {
       <SidebarSkeleton />
 
       <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
-        {/* Header skeleton */}
-        <div
-          className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b shrink-0"
-          style={{ borderColor: "var(--theme-border)" }}
-        >
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="skeleton-line size-5 rounded-full shrink-0" />
-            <div className="skeleton-line h-3.5 sm:h-4 w-20 sm:w-28 rounded-md" />
+        {/* Header skeleton — matches real Header layout */}
+        <div className="relative z-50 flex items-center px-3 pt-3 sm:px-4 pb-1 shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <div className="skeleton-line size-8 rounded-lg" />
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <div className="skeleton-line size-7 sm:size-8 rounded-full" />
-            <div className="skeleton-line size-7 sm:size-8 rounded-full" />
+          <div className="flex items-center gap-2 sm:gap-3 ml-2">
+            <div className="skeleton-line h-4 w-24 sm:w-28 rounded-md" />
+          </div>
+          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
+            <div className="skeleton-line size-8 rounded-lg" />
+            <div className="skeleton-line size-8 rounded-lg" />
+            <div className="skeleton-line size-8 rounded-full" />
           </div>
         </div>
 

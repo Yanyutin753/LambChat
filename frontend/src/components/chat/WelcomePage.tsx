@@ -59,7 +59,7 @@ export const WelcomePage = memo(function WelcomePage({
       className="welcome-root relative flex h-full flex-col items-center justify-center px-4 overflow-hidden"
     >
       {/* Greeting section */}
-      <div className="relative flex flex-col items-center mb-6 sm:mb-8 w-full max-w-[90vw]">
+      <div className="relative flex flex-col items-center mb-5 sm:mb-8 w-full max-w-[90vw]">
         {/* App icon (mobile only) */}
         <div className="sm:hidden relative mb-4">
           <img
@@ -131,7 +131,7 @@ export const WelcomePage = memo(function WelcomePage({
               <button
                 key={suggestion.text}
                 onClick={() => handleSuggestionClick(suggestion.text)}
-                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 rounded-xl border px-3 py-1.5 sm:px-4 sm:py-3 text-left cursor-pointer transition-all duration-300 overflow-hidden${
+                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 text-left cursor-pointer transition-all duration-300 overflow-hidden${
                   i >= 2 ? " hidden sm:flex" : ""
                 }`}
                 style={{
