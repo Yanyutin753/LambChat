@@ -10,7 +10,7 @@ Checkpoint 存储实现
 两者都不可用时回退到 MemorySaver（内存存储，重启丢失）。
 """
 
-from typing import Optional
+from typing import AsyncContextManager, Optional
 
 from src.infra.logging import get_logger
 from src.kernel.config import settings
@@ -22,7 +22,7 @@ _mongo_checkpointer: Optional[object] = None
 
 # PostgreSQL Checkpointer 单例
 _pg_checkpointer: Optional[object] = None
-_pg_checkpointer_ctx: Optional[object] = None  # from_conn_string() 返回的 async context manager
+_pg_checkpointer_ctx: Optional[AsyncContextManager] = None
 
 
 def get_mongo_checkpointer(collection_name: str = "checkpoints"):
@@ -127,9 +127,10 @@ async def close_pg_checkpointer():
     应在应用关闭时调用。
     """
     global _pg_checkpointer, _pg_checkpointer_ctx
-    if _pg_checkpointer is not None:
+    ctx = _pg_checkpointer_ctx
+    if _pg_checkpointer is not None and ctx is not None:
         try:
-            await _pg_checkpointer_ctx.__aexit__(None, None, None)
+            await ctx.__aexit__(None, None, None)
             logger.info("PostgreSQL checkpointer closed")
         except Exception as e:
             logger.warning(f"Error closing PostgreSQL checkpointer: {e}")
