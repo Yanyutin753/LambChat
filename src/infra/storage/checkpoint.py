@@ -49,7 +49,7 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints"):
         motor_client = get_mongo_client()
         sync_client = motor_client.delegate
 
-        _mongo_checkpointer = MongoDBSaver(
+        cp = MongoDBSaver(
             sync_client,
             db_name=settings.MONGODB_DB,
             checkpoint_collection_name=collection_name,
@@ -58,6 +58,7 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints"):
         logger.info(
             f"MongoDB checkpointer created: {settings.MONGODB_DB}.{collection_name} (reusing motor connection pool)"
         )
+        _mongo_checkpointer = cp
         return _mongo_checkpointer
 
     except ImportError as e:
@@ -66,6 +67,14 @@ def get_mongo_checkpointer(collection_name: str = "checkpoints"):
     except Exception as e:
         logger.warning(f"Failed to create MongoDB checkpointer: {e}")
         return None
+
+
+def close_mongo_checkpointer():
+    """释放 MongoDB checkpointer 单例引用，允许 GC 回收。"""
+    global _mongo_checkpointer
+    if _mongo_checkpointer is not None:
+        _mongo_checkpointer = None
+        logger.info("MongoDB checkpointer reference released")
 
 
 async def get_pg_checkpointer():
@@ -97,9 +106,9 @@ async def get_pg_checkpointer():
             await ctx.__aexit__(None, None, None)
             raise
 
+        logger.info("PostgreSQL checkpointer created (AsyncPostgresSaver via from_conn_string)")
         _pg_checkpointer_ctx = ctx
         _pg_checkpointer = cp
-        logger.info("PostgreSQL checkpointer created (AsyncPostgresSaver via from_conn_string)")
         return _pg_checkpointer
 
     except ImportError as e:
