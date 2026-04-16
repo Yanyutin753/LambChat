@@ -50,18 +50,20 @@
 - **Streaming Output** — Native SSE support
 - **Sub-agents** — Multi-level nesting
 - **Thinking Mode** — Extended thinking for Anthropic models
-- **Human-in-the-Loop** — Approval system for sensitive operations
+- **Human-in-the-Loop** — Approval system with countdown timer, auto-extension, and urgent state styling
 
 </details>
 
 <details>
 <summary><b>🧠 Model Management</b></summary>
 
-- **Multi-Provider** — OpenAI, Anthropic, Google Gemini
+- **Multi-Provider** — OpenAI, Anthropic, Google Gemini, Kimi (Moonshot)
+- **Full CRUD** — Create, edit, delete, batch import models via UI with per-model config (api_key, api_base, temperature, max_tokens)
 - **Channel Routing** — Same model from multiple channels via `model_id` routing
-- **Role-based Access** — Permission-controlled model visibility per role
+- **Role-based Access** — `MODEL_ADMIN` permission, per-role model visibility control
 - **Per-user Preferences** — Default model selection persists across sessions
 - **Live Config Sync** — Distributed Redis pub/sub for real-time model updates
+- **Drag-and-Drop** — Reorder models in the selector
 
 </details>
 
@@ -93,7 +95,7 @@
 <summary><b>💬 Feedback · 📁 Files · 🔄 Realtime · 🔐 Auth · ⚙️ Tasks · 📊 Observability</b></summary>
 
 - **Feedback** — Thumbs rating, text comments, session-linked, run-level stats
-- **File Library** — Browse revealed files, code preview, organized file management
+- **File Library** — Browse revealed files, code preview, organized file management with grid/list views, favorites, and project-based filtering
 - **Documents** — PDF / Word / Excel / PPT / Markdown / Mermaid / Excalidraw preview + image viewer
 - **Cloud Storage** — S3 / OSS / MinIO / COS integration, drag & drop upload, presigned URLs
 - **Project Folders** — Organize sessions into projects with drag-and-drop
@@ -102,7 +104,7 @@
 - **Security** — JWT, RBAC (35+ permissions across 15 groups), bcrypt, OAuth (Google/GitHub/Apple), email verification, CAPTCHA, sandbox
 - **Tasks** — Concurrency control, cancellation, heartbeat, pub/sub notifications
 - **Observability** — LangSmith tracing, structured logging, health checks
-- **Channels** — Feishu (Lark) native integration, extensible multi-channel system
+- **Channels** — Feishu (Lark) native integration with model selector, project binding, and time-based session titles; extensible multi-channel system
 
 </details>
 
@@ -111,10 +113,13 @@
 
 - **React 19 + Vite 6 + TailwindCSS 3.4**
 - **ChatGPT-style** interface with dark/light theme
+- **Glass Design System** — Consistent glass-shell/glass-card styling across all panels
 - **i18n** — English, Chinese, Japanese, Korean, Russian
-- **Responsive** — Mobile, tablet, desktop
-- **Rich Content** — KaTeX math, syntax highlighting, Mermaid diagrams, table copy/CSV export, image preview lightbox
-- **Tool Panels** — Slide-up tool result panels with block preview
+- **Responsive** — Mobile, tablet, desktop with unified component rendering
+- **Rich Content** — KaTeX math, syntax highlighting, Mermaid diagrams, table copy/CSV export, image preview lightbox, line-highlighted code viewer
+- **Tool Panels** — Slide-up tool result panels with center/sidebar view modes and block preview portal
+- **Skeleton Loading** — Skeleton components for better perceived performance
+- **Landing Page** — Premium blog-style landing with scroll-reveal animations and section tracking
 
 </details>
 
@@ -126,8 +131,7 @@
 |----------|-------------|
 | Frontend | Default agent, welcome suggestions, UI preferences |
 | Agent | Debug mode, logging level |
-| LLM | Model, temperature, max tokens, API key & base URL |
-| Model | Multi-provider model management, channel routing |
+| Model | Multi-provider model management, per-model config, channel routing |
 | Session | Session management, message history, SSE cache |
 | Database | MongoDB connection, optional PostgreSQL |
 | Storage | Persistent storage, S3/OSS/MinIO/COS |
@@ -176,7 +180,9 @@ mypy src/           # Type check
 src/
 ├── agents/          # Agent implementations (core, fast, search)
 ├── api/             # FastAPI routes & middleware
-│   └── routes/      # 25+ route modules (auth, chat, mcp, skills, etc.)
+│   ├── routes/      # 27 route modules (auth, chat, mcp, skills, model, etc.)
+│   ├── admin/       # Admin API endpoints
+│   └── agent/       # Agent configuration & model management
 ├── infra/           # Infrastructure services
 │   ├── agent/       # Agent config & events
 │   ├── auth/        # JWT, OAuth, RBAC, CAPTCHA
@@ -186,9 +192,9 @@ src/
 │   ├── envvar/      # User environment variables
 │   ├── feedback/    # Feedback system
 │   ├── folder/      # Project folder management
-│   ├── llm/         # LLM integration
+│   ├── llm/         # LLM integration (OpenAI, Anthropic, Gemini, Kimi)
 │   ├── memory/      # Cross-session memory (native, hindsight, memu)
-│   ├── model/       # Model management
+│   ├── model/       # Model management with encryption & pub/sub sync
 │   ├── mcp/         # MCP protocol
 │   ├── role/        # RBAC roles
 │   ├── sandbox/     # Sandbox execution (Daytona / E2B)
@@ -201,7 +207,8 @@ src/
 │   ├── tool/        # Tool registry & MCP client
 │   ├── tracing/     # LangSmith tracing
 │   ├── upload/      # File upload handling
-│   └── revealed_file/  # File library
+│   ├── revealed_file/  # File library
+│   └── websocket/   # WebSocket & rate limiter
 ├── kernel/          # Core schemas, config, types
 └── skills/          # Built-in skills
 ```

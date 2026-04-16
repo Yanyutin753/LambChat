@@ -50,18 +50,20 @@
 - **流式输出** — 原生 SSE 支持
 - **子 Agent** — 多层级嵌套
 - **思考模式** — 支持 Anthropic 扩展思考
-- **人工审批** — 敏感操作审批流程
+- **人工审批** — 带倒计时、自动延期和紧急状态样式的审批系统
 
 </details>
 
 <details>
 <summary><b>🧠 模型管理</b></summary>
 
-- **多供应商** — OpenAI、Anthropic、Google Gemini
+- **多供应商** — OpenAI、Anthropic、Google Gemini、Kimi（月之暗面）
+- **完整 CRUD** — 通过 UI 创建、编辑、删除、批量导入模型，支持每模型独立配置（api_key、api_base、temperature、max_tokens）
 - **渠道路由** — 同一模型通过 `model_id` 路由支持多个渠道
-- **角色权限** — 基于角色权限控制模型可见性
+- **角色权限** — `MODEL_ADMIN` 权限，按角色控制模型可见性
 - **用户偏好** — 默认模型选择跨会话持久化
 - **实时同步** — Redis 分布式发布/订阅实时更新模型配置
+- **拖拽排序** — 模型选择器中拖拽重排模型顺序
 
 </details>
 
@@ -93,7 +95,7 @@
 <summary><b>💬 反馈 · 📁 文件 · 🔄 实时 · 🔐 认证 · ⚙️ 任务 · 📊 可观测性</b></summary>
 
 - **反馈** — 点赞评分、文字评论、会话关联、运行级别统计
-- **文件库** — 浏览已揭示文件、代码预览、文件管理
+- **文件库** — 浏览已揭示文件、代码预览，支持网格/列表视图、收藏、项目级筛选
 - **文档** — PDF / Word / Excel / PPT / Markdown / Mermaid / Excalidraw 预览 + 图片查看器
 - **云存储** — S3 / OSS / MinIO / COS 集成，拖拽上传，预签名 URL
 - **项目文件夹** — 拖拽方式将会话组织到项目中
@@ -102,7 +104,7 @@
 - **安全** — JWT、RBAC（15 组 35+ 细粒度权限）、bcrypt、OAuth（Google/GitHub/Apple）、邮箱验证、验证码、沙箱
 - **任务** — 并发控制、任务取消、心跳监控、发布/订阅通知
 - **可观测性** — LangSmith 链路追踪、结构化日志、健康检查
-- **渠道** — 飞书原生集成，可扩展多渠道系统
+- **渠道** — 飞书原生集成，支持模型选择器、项目绑定、基于时间的会话标题，可扩展多渠道系统
 
 </details>
 
@@ -111,10 +113,13 @@
 
 - **React 19 + Vite 6 + TailwindCSS 3.4**
 - **ChatGPT 风格** 界面，深色/浅色主题切换
+- **毛玻璃设计系统** — 全局统一的 glass-shell/glass-card 风格
 - **国际化** — 英文、中文、日文、韩文、俄文
-- **响应式** — 移动端、平板、桌面端适配
-- **富内容** — KaTeX 数学公式、代码高亮、Mermaid 图表、表格复制/CSV 导出、图片预览灯箱
-- **工具面板** — 滑出式工具结果面板与块预览
+- **响应式** — 移动端、平板、桌面端统一组件渲染
+- **富内容** — KaTeX 数学公式、代码高亮、Mermaid 图表、表格复制/CSV 导出、图片预览灯箱、行高亮代码查看器
+- **工具面板** — 滑出式工具结果面板，支持居中/侧边视图模式和块预览门户
+- **骨架屏加载** — 骨架屏组件提升感知性能
+- **Landing 页面** — 高级博客风格首页，滚动动画和区域追踪
 
 </details>
 
@@ -126,8 +131,7 @@
 |------|------|
 | 前端 | 默认 Agent、欢迎建议、UI 偏好 |
 | Agent | 调试模式、日志级别 |
-| LLM | 模型、温度、最大 Token、API 密钥和基础 URL |
-| 模型 | 多供应商模型管理、渠道路由 |
+| 模型 | 多供应商模型管理、每模型独立配置、渠道路由 |
 | 会话 | 会话管理、消息历史、SSE 缓存 |
 | 数据库 | MongoDB 连接，可选 PostgreSQL |
 | 存储 | 持久化存储、S3/OSS/MinIO/COS |
@@ -176,7 +180,9 @@ mypy src/           # 类型检查
 src/
 ├── agents/          # Agent 实现（核心、快速、搜索）
 ├── api/             # FastAPI 路由与中间件
-│   └── routes/      # 25+ 路由模块（auth、chat、mcp、skills 等）
+│   ├── routes/      # 27 路由模块（auth、chat、mcp、skills、model 等）
+│   ├── admin/       # 管理 API 端点
+│   └── agent/       # Agent 配置与模型管理
 ├── infra/           # 基础设施服务
 │   ├── agent/       # Agent 配置与事件
 │   ├── auth/        # JWT、OAuth、RBAC、验证码
@@ -186,9 +192,9 @@ src/
 │   ├── envvar/      # 用户环境变量
 │   ├── feedback/    # 反馈系统
 │   ├── folder/      # 项目文件夹管理
-│   ├── llm/         # LLM 集成
+│   ├── llm/         # LLM 集成（OpenAI、Anthropic、Gemini、Kimi）
 │   ├── memory/      # 跨会话记忆（native、hindsight、memu）
-│   ├── model/       # 模型管理
+│   ├── model/       # 模型管理（加密存储、发布/订阅同步）
 │   ├── mcp/         # MCP 协议
 │   ├── role/        # RBAC 角色
 │   ├── sandbox/     # 沙箱执行（Daytona / E2B）
@@ -201,7 +207,8 @@ src/
 │   ├── tool/        # 工具注册与 MCP 客户端
 │   ├── tracing/     # LangSmith 链路追踪
 │   ├── upload/      # 文件上传处理
-│   └── revealed_file/  # 文件库
+│   ├── revealed_file/  # 文件库
+│   └── websocket/   # WebSocket 与限流
 ├── kernel/          # 核心模型、配置、类型
 └── skills/          # 内置技能
 ```
