@@ -5,7 +5,7 @@ Checkpoint 存储实现
 
 用户通过 CHECKPOINT_BACKEND 配置选择后端：
 - "mongodb": 使用 MongoDBSaver（默认，受 16MB 文档大小限制）
-- "postgres": 使用 AsyncPostgresSaver（无文档大小限制，需 ENABLE_POSTGRES_STORAGE=true）
+- "postgres": 使用 AsyncPostgresSaver（无文档大小限制，需 PostgreSQL 连接参数）
 
 两者都不可用时回退到 MemorySaver（内存存储，重启丢失）。
 """
@@ -82,7 +82,7 @@ async def get_pg_checkpointer():
     获取 PostgreSQL checkpointer 单例（异步）
 
     使用 AsyncPostgresSaver.from_conn_string()，无 16MB 文档大小限制。
-    需要 ENABLE_POSTGRES_STORAGE=true 且 CHECKPOINT_BACKEND=postgres。
+    仅需 CHECKPOINT_BACKEND=postgres，独立于 ENABLE_POSTGRES_STORAGE。
 
     Returns:
         AsyncPostgresSaver 实例，如果创建失败则返回 None
@@ -92,14 +92,10 @@ async def get_pg_checkpointer():
     if _pg_checkpointer is not None:
         return _pg_checkpointer
 
-    if not settings.ENABLE_POSTGRES_STORAGE:
-        logger.warning("PostgreSQL checkpointer requested but ENABLE_POSTGRES_STORAGE is false")
-        return None
-
     try:
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-        ctx = AsyncPostgresSaver.from_conn_string(settings.postgres_url)
+        ctx = AsyncPostgresSaver.from_conn_string(settings.checkpoint_postgres_url)
         try:
             cp = await ctx.__aenter__()
         except Exception:
@@ -107,6 +103,7 @@ async def get_pg_checkpointer():
             raise
 
         try:
+            await cp.setup()
             logger.info("PostgreSQL checkpointer created (AsyncPostgresSaver via from_conn_string)")
             _pg_checkpointer_ctx = ctx
             _pg_checkpointer = cp
@@ -156,13 +153,17 @@ async def get_async_checkpointer():
     backend = getattr(settings, "CHECKPOINT_BACKEND", "mongodb")
 
     if backend == "postgres":
+        logger.info("Using PostgreSQL checkpointer")
         checkpointer = await get_pg_checkpointer()
         if checkpointer is not None:
             return checkpointer
         logger.warning("PostgreSQL checkpointer unavailable, falling back")
 
     # MongoDB (default)
+    logger.info("Using MongoDB checkpointer")
     checkpointer = get_mongo_checkpointer()
+    if checkpointer is None:
+        logger.warning("MongoDB checkpointer unavailable, falling back")
     if checkpointer is not None:
         return checkpointer
 

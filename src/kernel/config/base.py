@@ -118,6 +118,13 @@ class Settings(BaseSettings):
 
     # Checkpoint Backend Settings
     CHECKPOINT_BACKEND: str = "mongodb"
+    CHECKPOINT_PG_HOST: str = ""  # empty = fallback to POSTGRES_*
+    CHECKPOINT_PG_PORT: int = 5432
+    CHECKPOINT_PG_USER: str = ""
+    CHECKPOINT_PG_PASSWORD: str = ""
+    CHECKPOINT_PG_DB: str = ""
+    CHECKPOINT_PG_POOL_MIN_SIZE: int = 2
+    CHECKPOINT_PG_POOL_MAX_SIZE: int = 10
 
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
@@ -333,6 +340,16 @@ class Settings(BaseSettings):
     def postgres_url(self) -> str:
         """Construct PostgreSQL connection URL from components."""
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def checkpoint_postgres_url(self) -> str:
+        """Construct checkpoint PostgreSQL connection URL. Falls back to shared POSTGRES_* when CHECKPOINT_PG_HOST is empty."""
+        host = self.CHECKPOINT_PG_HOST or self.POSTGRES_HOST
+        port = self.CHECKPOINT_PG_PORT
+        user = self.CHECKPOINT_PG_USER or self.POSTGRES_USER
+        password = self.CHECKPOINT_PG_PASSWORD or self.POSTGRES_PASSWORD
+        db = self.CHECKPOINT_PG_DB or self.POSTGRES_DB
+        return f"postgresql://{user}:{password}@{host}:{port}/{db}"
 
 
 @lru_cache
