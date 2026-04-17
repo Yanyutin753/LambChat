@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, memo } from "react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import {
   ArrowUp,
@@ -8,7 +9,6 @@ import {
   Brain,
   Zap,
   Settings,
-  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import TurndownService from "turndown";
@@ -170,6 +170,37 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Settings,
 };
 
+const THINKING_LEVEL_COLOR: Record<
+  string,
+  { border: string; bg: string; text: string }
+> = {
+  off: {
+    border: "transparent",
+    bg: "transparent",
+    text: "var(--theme-text-secondary)",
+  },
+  low: {
+    border: "color-mix(in srgb, #60a5fa 40%, transparent)",
+    bg: "color-mix(in srgb, #60a5fa 10%, transparent)",
+    text: "#60a5fa",
+  },
+  medium: {
+    border: "color-mix(in srgb, #fbbf24 40%, transparent)",
+    bg: "color-mix(in srgb, #fbbf24 10%, transparent)",
+    text: "#fbbf24",
+  },
+  high: {
+    border: "color-mix(in srgb, #fb923c 40%, transparent)",
+    bg: "color-mix(in srgb, #fb923c 10%, transparent)",
+    text: "#fb923c",
+  },
+  max: {
+    border: "color-mix(in srgb, #f472b6 40%, transparent)",
+    bg: "color-mix(in srgb, #f472b6 10%, transparent)",
+    text: "#f472b6",
+  },
+};
+
 export interface ChatInputProps {
   onSend: (
     message: string,
@@ -235,6 +266,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
   const { t } = useTranslation();
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   // Get label with i18n support
   const label = option.label_key ? t(option.label_key) : option.label;
@@ -250,12 +282,14 @@ const AgentOptionButton = memo(function AgentOptionButton({
     if (!showDropdown) return;
 
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        dropdownRef.current?.contains(target) ||
+        portalRef.current?.contains(target)
       ) {
-        setShowDropdown(false);
+        return;
       }
+      setShowDropdown(false);
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -282,55 +316,83 @@ const AgentOptionButton = memo(function AgentOptionButton({
   // Select/dropdown for string/number options
   if (option.options && option.options.length > 0) {
     const selectedOption = option.options.find((opt) => opt.value === value);
-    const selectedLabel = selectedOption?.label || String(value);
+    const selectedLabel = selectedOption?.label_key
+      ? t(selectedOption.label_key)
+      : selectedOption?.label || String(value);
+
+    const getDropdownStyle = (): React.CSSProperties => {
+      const rect = dropdownRef.current?.getBoundingClientRect();
+      if (!rect) return { display: "none" };
+      return {
+        position: "fixed",
+        bottom: window.innerHeight - rect.top + 4,
+        left: rect.left,
+        minWidth: Math.max(120, rect.width),
+        zIndex: 9999,
+      };
+    };
+
+    const ActiveIcon = IconComponent || Brain;
+    const isOff = String(value) === "off";
+    const levelColor =
+      THINKING_LEVEL_COLOR[String(value)] ?? THINKING_LEVEL_COLOR.off;
 
     return (
-      <div className="relative" ref={dropdownRef}>
+      <div ref={dropdownRef}>
         <button
           type="button"
           onClick={() => setShowDropdown(!showDropdown)}
-          className={`flex items-center gap-1 rounded-full px-2 py-1.5 border text-sm transition-all duration-300 ${
-            showDropdown || value !== option.default
-              ? "chat-tool-btn-active"
-              : "chat-tool-btn"
-          }`}
-          title={description}
+          className="chat-tool-btn"
+          style={
+            isOff
+              ? undefined
+              : {
+                  borderColor: levelColor.border,
+                  background: levelColor.bg,
+                  color: levelColor.text,
+                }
+          }
+          title={`${description}: ${selectedLabel}`}
         >
-          {IconComponent && <IconComponent size={14} />}
-          <span className="max-w-[80px] truncate">{selectedLabel}</span>
-          <ChevronDown size={14} />
+          <ActiveIcon size={18} />
         </button>
 
-        {showDropdown && (
-          <div
-            className="absolute bottom-full left-0 mb-1 z-50 min-w-[120px] rounded-lg shadow-lg border overflow-hidden"
-            style={{
-              background: "var(--theme-bg-card)",
-              borderColor: "var(--theme-border)",
-            }}
-          >
-            {option.options.map((opt) => (
-              <button
-                key={String(opt.value)}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setShowDropdown(false);
-                }}
-                className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                  value === opt.value ? "chat-tool-btn-active" : ""
-                }`}
-                style={
-                  value === opt.value
-                    ? undefined
-                    : { color: "var(--theme-text)" }
-                }
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        )}
+        {showDropdown &&
+          createPortal(
+            <div
+              ref={portalRef}
+              className="rounded-lg shadow-lg border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+              style={{
+                ...getDropdownStyle(),
+                background: "var(--theme-bg-card)",
+                borderColor: "var(--theme-border)",
+              }}
+            >
+              {option.options.map((opt) => (
+                <button
+                  key={String(opt.value)}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setShowDropdown(false);
+                  }}
+                  className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                    value === opt.value ? "chat-tool-btn-active" : ""
+                  }`}
+                  style={
+                    value === opt.value
+                      ? undefined
+                      : { color: "var(--theme-text)" }
+                  }
+                >
+                  {opt.label_key
+                    ? t(opt.label_key)
+                    : opt.label || String(opt.value)}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )}
       </div>
     );
   }

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Bot, X } from "lucide-react";
-import { Checkbox } from "../common/Checkbox";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 interface AgentModeSelectorProps {
@@ -75,12 +74,12 @@ export function AgentModeSelector({
                 style={{ background: "var(--theme-bg-card)" }}
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Header */}
                 <div
                   className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b relative"
                   style={{ borderColor: "var(--theme-border)" }}
                 >
                   <div className="absolute left-1/2 -translate-x-1/2 top-2 w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600 sm:hidden" />
-
                   <div className="flex items-center gap-3 mt-2 sm:mt-0">
                     <div className="size-9 sm:size-10 rounded-xl bg-gradient-to-br from-stone-100 to-stone-200 dark:from-amber-500/20 dark:to-orange-500/20 flex items-center justify-center">
                       <Bot
@@ -97,7 +96,6 @@ export function AgentModeSelector({
                       </p>
                     </div>
                   </div>
-
                   <button
                     onClick={handleClose}
                     className="p-2 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 transition-colors"
@@ -109,90 +107,73 @@ export function AgentModeSelector({
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2">
+                {/* Agent list */}
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-1.5">
                   {agents.map((agent) => {
                     const isActive = agent.id === currentAgent;
                     return (
                       <button
                         key={agent.id}
                         type="button"
-                        className="flex w-full items-center gap-3 px-3.5 py-3.5 rounded-xl text-left transition-all duration-200"
-                        style={{
-                          backgroundColor: isActive
-                            ? "var(--theme-primary)"
-                            : "",
-                          boxShadow: isActive
-                            ? "none"
-                            : "inset 0 0 0 1px color-mix(in srgb, var(--theme-primary) 15%, transparent)",
-                          color: isActive ? "white" : "var(--theme-text)",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = isActive
-                            ? "var(--theme-primary)"
-                            : "color-mix(in srgb, var(--theme-primary) 6%, transparent)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = isActive
-                            ? "var(--theme-primary)"
-                            : "";
-                        }}
-                        onMouseDown={(e) => {
-                          e.currentTarget.style.backgroundColor = isActive
-                            ? "var(--theme-primary)"
-                            : "color-mix(in srgb, var(--theme-primary) 10%, transparent)";
-                        }}
-                        onMouseUp={(e) => {
-                          e.currentTarget.style.backgroundColor = isActive
-                            ? "var(--theme-primary)"
-                            : "color-mix(in srgb, var(--theme-primary) 6%, transparent)";
-                        }}
+                        className={`flex w-full items-center gap-3 px-3 sm:px-3.5 py-3 sm:py-3.5 rounded-xl text-left transition-all duration-200 ${
+                          isActive
+                            ? "bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15"
+                            : "hover:bg-stone-50 dark:hover:bg-stone-700/30 active:bg-stone-100/80 dark:active:bg-stone-600/40"
+                        }`}
                         onClick={() => {
                           onSelectAgent(agent.id);
                           setOpen(false);
                         }}
                       >
-                        <div
-                          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0"
-                          style={{
-                            backgroundColor: isActive
-                              ? "rgba(255,255,255,0.2)"
-                              : "color-mix(in srgb, var(--theme-primary) 5%, transparent)",
-                          }}
-                        >
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 bg-white dark:bg-stone-700 shadow-sm border border-stone-100 dark:border-stone-600">
                           <Bot
                             size={17}
-                            className="sm:w-[18px] sm:h-[18px]"
-                            style={{
-                              color: isActive
-                                ? "white"
-                                : "var(--theme-text-secondary)",
-                            }}
+                            className={`sm:w-[18px] sm:h-[18px] ${
+                              isActive
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-stone-500 dark:text-stone-400"
+                            }`}
                           />
                         </div>
                         <div className="flex-1 min-w-0">
                           <span
-                            className="text-sm font-medium truncate block"
-                            style={{
-                              color: isActive ? "white" : "var(--theme-text)",
-                            }}
+                            className={`text-[13px] sm:text-sm font-medium truncate block ${
+                              isActive
+                                ? "text-amber-700 dark:text-amber-400"
+                                : "text-stone-700 dark:text-stone-200"
+                            }`}
                           >
                             {t(agent.name)}
                           </span>
                           {agent.description && (
-                            <p
-                              className="text-xs truncate mt-1 text-left leading-relaxed"
-                              style={{ color: "var(--theme-text-secondary)" }}
-                            >
+                            <p className="text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed text-left">
                               {t(agent.description)}
                             </p>
                           )}
                         </div>
-                        {isActive && <Checkbox checked size="sm" />}
+                        {isActive && (
+                          <div className="w-5 h-5 rounded-full bg-amber-500 dark:bg-amber-500 flex items-center justify-center shrink-0">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          </div>
+                        )}
                       </button>
                     );
                   })}
                 </div>
 
+                {/* Footer */}
                 <div className="px-4 sm:px-5 py-3 sm:py-3.5 border-t border-stone-200 dark:border-stone-700 bg-stone-50/80 dark:bg-stone-800/50 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                   <button
                     onClick={handleClose}

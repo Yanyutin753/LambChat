@@ -2,10 +2,12 @@ import { useMemo, useCallback, useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
+import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHost";
 import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
+import { ChatSkeleton } from "../../skeletons/ChatSkeletons";
 import { useMessageScroll } from "./useMessageScroll";
 import { isSessionRunning } from "./sessionState";
 import type {
@@ -17,7 +19,9 @@ import type {
   ToolCategory,
   AgentOption,
   MessageAttachment,
+  ConnectionStatus,
 } from "../../../types";
+import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
 
 interface ChatViewProps {
   messages: Message[];
@@ -25,6 +29,7 @@ interface ChatViewProps {
   sessionName: string | null;
   currentRunId: string | null;
   isLoading: boolean;
+  connectionStatus?: ConnectionStatus;
   canSendMessage: boolean;
   tools: ToolState[];
   onToggleTool: (name: string) => void;
@@ -78,6 +83,7 @@ export function ChatView({
   sessionName,
   currentRunId,
   isLoading,
+  connectionStatus,
   canSendMessage,
   tools,
   onToggleTool,
@@ -116,6 +122,11 @@ export function ChatView({
   const { user } = useAuth();
   const sessionRunning = isSessionRunning(messages, isLoading);
 
+  const isDisconnected =
+    connectionStatus === "disconnected" ||
+    connectionStatus === "reconnecting" ||
+    connectionStatus === "connecting";
+
   const getGreetingKey = () => {
     const h = new Date().getHours();
     if (h < 6) return "chat.goodEvening";
@@ -138,6 +149,21 @@ export function ChatView({
     scrollToBottom,
     scrollToTop,
   } = useMessageScroll(messages, sessionId);
+
+  const [activePreview, setActivePreview] =
+    useState<RevealPreviewRequest | null>(null);
+
+  const handleOpenPreview = useCallback((preview: RevealPreviewRequest) => {
+    setActivePreview(preview);
+  }, []);
+
+  const handleClosePreview = useCallback(() => {
+    setActivePreview(null);
+  }, []);
+
+  useEffect(() => {
+    setActivePreview(null);
+  }, [sessionId]);
 
   const virtuosoComponents = useMemo(
     () => ({
@@ -164,10 +190,19 @@ export function ChatView({
           </div>
         );
       },
-      Footer: () => <div ref={messagesEndRef} className="h-8" />,
+      Footer: () => (
+        <>
+          {isDisconnected && sessionRunning && messages.length > 0 && (
+            <div className="pb-4">
+              <ChatSkeleton count={1} />
+            </div>
+          )}
+          <div ref={messagesEndRef} className="h-8" />
+        </>
+      ),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [isDisconnected, sessionRunning, messages.length],
   );
 
   const virtuosoItemContent = useCallback(
@@ -178,9 +213,18 @@ export function ChatView({
         sessionName={sessionName ?? undefined}
         runId={currentRunId ?? undefined}
         isLastMessage={index === messages.length - 1}
+        activePreview={activePreview}
+        onOpenPreview={handleOpenPreview}
       />
     ),
-    [sessionId, sessionName, currentRunId, messages.length],
+    [
+      sessionId,
+      sessionName,
+      currentRunId,
+      messages.length,
+      activePreview,
+      handleOpenPreview,
+    ],
   );
 
   const suggestions = useMemo(() => {
@@ -265,18 +309,24 @@ export function ChatView({
         }`}
       >
         {messages.length === 0 ? (
-          <WelcomePage
-            greeting={greeting}
-            subtitle={t("chat.welcomeSubtitle") ?? "How can I help you today?"}
-            suggestionsLabel={t("chat.welcomeSuggestions") ?? "Suggestions"}
-            refreshLabel={t("chat.welcomeRefresh") ?? "Refresh"}
-            suggestions={displaySuggestions}
-            canSendMessage={canSendMessage}
-            onSendMessage={onSendMessage}
-            noPermissionHint={t("chat.noPermissionHint")}
-            chatInputProps={chatInputProps}
-            onRefreshSuggestions={refreshSuggestions}
-          />
+          isLoading ? (
+            <ChatSkeleton count={3} />
+          ) : (
+            <WelcomePage
+              greeting={greeting}
+              subtitle={
+                t("chat.welcomeSubtitle") ?? "How can I help you today?"
+              }
+              suggestionsLabel={t("chat.welcomeSuggestions") ?? "Suggestions"}
+              refreshLabel={t("chat.welcomeRefresh") ?? "Refresh"}
+              suggestions={displaySuggestions}
+              canSendMessage={canSendMessage}
+              onSendMessage={onSendMessage}
+              noPermissionHint={t("chat.noPermissionHint")}
+              chatInputProps={chatInputProps}
+              onRefreshSuggestions={refreshSuggestions}
+            />
+          )
         ) : (
           <Virtuoso
             ref={virtuosoRef}
@@ -338,6 +388,8 @@ export function ChatView({
         onRespond={onRespondApproval}
         isLoading={approvalLoading}
       />
+
+      <RevealPreviewHost preview={activePreview} onClose={handleClosePreview} />
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
       {messages.length > 0 && <ChatInput {...chatInputProps} />}

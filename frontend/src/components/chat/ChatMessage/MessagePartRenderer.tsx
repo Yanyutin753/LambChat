@@ -17,16 +17,23 @@ import {
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { TodoBlock } from "./TodoBlock";
+import type { RevealPreviewRequest } from "./items/revealPreviewData";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
   part,
   isStreaming,
   isLast,
+  allowAutoPreview,
+  activePreview,
+  onOpenPreview,
 }: {
   part: MessagePart;
   isStreaming?: boolean;
   isLast: boolean;
+  allowAutoPreview?: boolean;
+  activePreview?: RevealPreviewRequest | null;
+  onOpenPreview?: (preview: RevealPreviewRequest) => void;
 }) {
   const { t } = useTranslation();
 
@@ -61,6 +68,9 @@ export function MessagePartRenderer({
           success={part.success}
           isPending={part.isPending}
           cancelled={part.cancelled}
+          allowAutoPreview={allowAutoPreview}
+          activePreview={activePreview}
+          onOpenPreview={onOpenPreview}
         />
       );
     }
@@ -73,6 +83,9 @@ export function MessagePartRenderer({
           success={part.success}
           isPending={part.isPending}
           cancelled={part.cancelled}
+          allowAutoPreview={allowAutoPreview}
+          activePreview={activePreview}
+          onOpenPreview={onOpenPreview}
         />
       );
     }

@@ -55,13 +55,20 @@ class FastAgent(BaseGraphAgent):
 
     _options = {
         "enable_thinking": {
-            "type": "boolean",
-            "default": False,
-            "label": "Enable Thinking",
+            "type": "string",
+            "default": "off",
+            "label": "Thinking",
             "label_key": "agentOptions.enableThinking.label",
-            "description": "Enable extended thinking mode (Anthropic models only)",
+            "description": "Control thinking intensity (supported models only)",
             "description_key": "agentOptions.enableThinking.description",
             "icon": "Brain",
+            "options": [
+                {"value": "off", "label_key": "agentOptions.enableThinking.options.off"},
+                {"value": "low", "label_key": "agentOptions.enableThinking.options.low"},
+                {"value": "medium", "label_key": "agentOptions.enableThinking.options.medium"},
+                {"value": "high", "label_key": "agentOptions.enableThinking.options.high"},
+                {"value": "max", "label_key": "agentOptions.enableThinking.options.max"},
+            ],
         }
     }
 

@@ -73,8 +73,8 @@ export function useBrowserNotification() {
 
       try {
         const notification = new Notification(title, {
-          icon: "/icons/icon-192.png",
-          badge: "/icons/icon-192.png",
+          icon: "/icons/icon.svg",
+          badge: "/icons/icon.svg",
           tag: "lambchat-notification",
           ...options,
         });

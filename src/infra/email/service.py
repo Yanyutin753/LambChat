@@ -304,7 +304,7 @@ class EmailService:
         reset_url = base_url.rstrip("/") + "/auth/reset-password?token=" + reset_token
         from_name = account.get("email_from_name", "LambChat")
         expire_hours = str(self._reset_expire_hours)
-        icon_url = base_url.rstrip("/") + "/icons/icon-192.png"
+        icon_url = base_url.rstrip("/") + "/icons/icon.svg"
         safe_username = EmailTemplate._escape_html(username)
 
         texts = get_texts(lang, "password_reset")
@@ -372,7 +372,7 @@ class EmailService:
             base_url.rstrip("/") + "/auth/verify-email?token=" + verify_token + "&email=" + to_email
         )
         from_name = account.get("email_from_name", "LambChat")
-        icon_url = base_url.rstrip("/") + "/icons/icon-192.png"
+        icon_url = base_url.rstrip("/") + "/icons/icon.svg"
         safe_username = EmailTemplate._escape_html(username)
 
         texts = get_texts(lang, "verify_email")
@@ -433,7 +433,7 @@ class EmailService:
 
         login_url = base_url.rstrip("/") + "/auth/login"
         from_name = account.get("email_from_name", "LambChat")
-        icon_url = base_url.rstrip("/") + "/icons/icon-192.png"
+        icon_url = base_url.rstrip("/") + "/icons/icon.svg"
         safe_username = EmailTemplate._escape_html(username)
 
         texts = get_texts(lang, "welcome")

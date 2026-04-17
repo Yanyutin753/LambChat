@@ -1,12 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { clsx } from "clsx";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, ImageViewer } from "../../../common";
-import DocumentPreview from "../../../documents/DocumentPreview";
-import { DelayedUnmount } from "../../../common/DelayedUnmount";
 import { getFileTypeInfo } from "../../../documents/utils";
 import { getFullUrl } from "../../../../services/api";
+import {
+  getFileRevealAutoOpenKey,
+  markFileRevealPreviewAutoOpened,
+  shouldAutoOpenFileRevealPreview,
+} from "./fileRevealAutoOpen";
+import type { RevealPreviewRequest } from "./revealPreviewData";
 
 function MediaSkeleton({ aspectRatio = "16/9" }: { aspectRatio?: string }) {
   return (
@@ -68,15 +72,20 @@ export function FileRevealItem({
   success,
   isPending,
   cancelled,
+  allowAutoPreview,
+  activePreview,
+  onOpenPreview,
 }: {
   args: Record<string, unknown>;
   result?: string | Record<string, unknown>;
   success?: boolean;
   isPending?: boolean;
   cancelled?: boolean;
+  allowAutoPreview?: boolean;
+  activePreview?: RevealPreviewRequest | null;
+  onOpenPreview?: (preview: RevealPreviewRequest) => void;
 }) {
   const { t } = useTranslation();
-  const [showPreview, setShowPreview] = useState(false);
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const [mediaLoaded, setMediaLoaded] = useState(false);
 
@@ -136,22 +145,74 @@ export function FileRevealItem({
   const isImage = fileInfo.category === "image";
   const isVideo = fileInfo.category === "video";
   const canPreview = isImage || isVideo;
+  const previewAutoOpenKey = getFileRevealAutoOpenKey({
+    s3Key,
+    s3Url,
+    filePath,
+  });
+  const isPreviewOpen =
+    activePreview?.kind === "file" &&
+    activePreview.previewKey === previewAutoOpenKey;
 
   // Auto-open sidebar preview on desktop when file is ready
-  const hasClosedPreview = useRef(false);
   useEffect(() => {
-    if (
-      !success ||
-      !filePath ||
-      isImage ||
-      showPreview ||
-      hasClosedPreview.current
-    )
+    const decision = shouldAutoOpenFileRevealPreview({
+      success,
+      filePath,
+      isImage,
+      showPreview: isPreviewOpen,
+      isDesktop: window.innerWidth >= 640,
+      allowAutoPreview,
+      previewKey: previewAutoOpenKey,
+    });
+    console.log("[FileRevealItem] auto-preview check", {
+      filePath,
+      previewAutoOpenKey,
+      success,
+      isImage,
+      showPreview: isPreviewOpen,
+      allowAutoPreview,
+      isDesktop: window.innerWidth >= 640,
+      decision,
+    });
+    if (!decision || !previewAutoOpenKey) {
       return;
-    if (window.innerWidth >= 640) {
-      setShowPreview(true);
     }
-  }, [success, filePath, isImage, showPreview]);
+
+    markFileRevealPreviewAutoOpened(previewAutoOpenKey);
+    console.log("[FileRevealItem] auto-opening preview", {
+      filePath,
+      previewAutoOpenKey,
+    });
+    onOpenPreview?.({
+      kind: "file",
+      previewKey: previewAutoOpenKey,
+      filePath,
+      s3Key: s3Key || undefined,
+      signedUrl: s3Url || undefined,
+      fileSize,
+    });
+  }, [
+    success,
+    filePath,
+    isImage,
+    isPreviewOpen,
+    allowAutoPreview,
+    previewAutoOpenKey,
+    onOpenPreview,
+    s3Key,
+    s3Url,
+    fileSize,
+  ]);
+
+  useEffect(() => {
+    if (!filePath) return;
+    console.log("[FileRevealItem] preview visibility changed", {
+      filePath,
+      previewAutoOpenKey,
+      showPreview: isPreviewOpen,
+    });
+  }, [filePath, previewAutoOpenKey, isPreviewOpen]);
 
   if (isPending) {
     return (
@@ -219,21 +280,6 @@ export function FileRevealItem({
 
   return (
     <div className="my-2 sm:my-3 min-w-0">
-      <DelayedUnmount show={!!(showPreview && filePath && !isImage)}>
-        {showPreview && filePath && !isImage && (
-          <DocumentPreview
-            path={filePath}
-            s3Key={s3Key || undefined}
-            signedUrl={s3Url || undefined}
-            fileSize={fileSize}
-            onClose={() => {
-              hasClosedPreview.current = true;
-              setShowPreview(false);
-            }}
-          />
-        )}
-      </DelayedUnmount>
-
       {imageViewerSrc && (
         <ImageViewer
           src={imageViewerSrc}
@@ -299,7 +345,15 @@ export function FileRevealItem({
             className="flex items-center gap-2 px-3 py-2 bg-stone-50 dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-700"
             onClick={() => {
               if (!isImage) {
-                setShowPreview(true);
+                if (!previewAutoOpenKey) return;
+                onOpenPreview?.({
+                  kind: "file",
+                  previewKey: previewAutoOpenKey,
+                  filePath,
+                  s3Key: s3Key || undefined,
+                  signedUrl: s3Url || undefined,
+                  fileSize,
+                });
               }
             }}
           >
@@ -323,7 +377,15 @@ export function FileRevealItem({
             if (isImage && s3Url) {
               setImageViewerSrc(s3Url);
             } else {
-              setShowPreview(true);
+              if (!previewAutoOpenKey) return;
+              onOpenPreview?.({
+                kind: "file",
+                previewKey: previewAutoOpenKey,
+                filePath,
+                s3Key: s3Key || undefined,
+                signedUrl: s3Url || undefined,
+                fileSize,
+              });
             }
           }}
           className={clsx(

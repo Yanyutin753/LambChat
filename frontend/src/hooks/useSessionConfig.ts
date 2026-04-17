@@ -15,6 +15,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { SessionConfig } from "./useAgent/types";
+import { normalizeAgentOptionValues } from "../components/layout/AppContent/useAgentOptions";
 
 const STORAGE_KEY = "lambchat_session_config";
 
@@ -237,7 +238,8 @@ export function useSessionConfig(
           sessionConfig.disabled_tools ??
           [],
         agentOptions:
-          sessionConfig.agent_options || options.getDefaultAgentOptions(),
+          normalizeAgentOptionValues(sessionConfig.agent_options) ||
+          options.getDefaultAgentOptions(),
       };
       setConfig(restored);
       persistConfig(restored);

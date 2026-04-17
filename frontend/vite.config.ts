@@ -1,11 +1,84 @@
+import fs from "node:fs";
+import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // Available agents (sync with backend)
 const AGENT_IDS = ["default", "api", "data_pipeline", "simple_workflow"];
+const ICONS_DIR = path.resolve(__dirname, "public/icons");
+
+function getStaticIconContentType(filePath: string): string {
+  if (filePath.endsWith(".svg")) return "image/svg+xml";
+  if (filePath.endsWith(".png")) return "image/png";
+  if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+  if (filePath.endsWith(".webp")) return "image/webp";
+  if (filePath.endsWith(".ico")) return "image/x-icon";
+  return "application/octet-stream";
+}
+
+const cacheStableIconsPlugin = {
+  name: "cache-stable-icons",
+  configureServer(server: {
+    middlewares: {
+      use: (
+        handler: (
+          req: { method?: string; url?: string },
+          res: {
+            statusCode?: number;
+            setHeader: (name: string, value: string) => void;
+            end: (body: Buffer) => void;
+          },
+          next: () => void,
+        ) => void,
+      ) => void;
+    };
+  }) {
+    server.middlewares.use((req, res, next) => {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        next();
+        return;
+      }
+
+      const requestPath = req.url?.split("?")[0];
+      if (!requestPath?.startsWith("/icons/")) {
+        next();
+        return;
+      }
+
+      const relativePath = requestPath.slice("/icons/".length);
+      if (
+        !relativePath ||
+        relativePath.includes("..") ||
+        relativePath.includes("\\")
+      ) {
+        next();
+        return;
+      }
+
+      const filePath = path.join(ICONS_DIR, relativePath);
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+        next();
+        return;
+      }
+
+      const fileBuffer = fs.readFileSync(filePath);
+      res.statusCode = 200;
+      res.setHeader("Content-Type", getStaticIconContentType(filePath));
+      res.setHeader("Content-Length", String(fileBuffer.length));
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      if (req.method === "HEAD") {
+        res.end(Buffer.alloc(0));
+        return;
+      }
+      res.end(fileBuffer);
+    });
+  },
+};
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), cacheStableIconsPlugin],
   esbuild: {
     drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
   },

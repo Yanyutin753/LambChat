@@ -36,6 +36,7 @@ interface SessionSidebarProps {
   onSetPendingProjectId?: (projectId: string | null) => void;
   /** Project ID to auto-expand after a new session is created in it */
   autoExpandProjectId?: string | null;
+  onConsumeAutoExpandProjectId?: (projectId: string) => void;
 }
 
 export function SessionSidebar({
@@ -51,6 +52,7 @@ export function SessionSidebar({
   onShowProfile,
   onSetPendingProjectId,
   autoExpandProjectId,
+  onConsumeAutoExpandProjectId,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -463,6 +465,7 @@ export function SessionSidebar({
                   }
                   onNewSessionInProject={handleNewSessionInProject}
                   forceExpandProjectId={autoExpandProjectId}
+                  onConsumeAutoExpand={onConsumeAutoExpandProjectId}
                 />
               ))}
 

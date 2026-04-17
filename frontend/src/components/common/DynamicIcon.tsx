@@ -20,7 +20,10 @@ export function DynamicIcon({
     );
   if (name === "Star") {
     return (
-      <span className={className} style={{ fontSize: size }}>
+      <span
+        className={`inline-flex items-center justify-center overflow-hidden ${className}`}
+        style={{ width: size, height: size, fontSize: size }}
+      >
         ⭐
       </span>
     );
@@ -29,7 +32,10 @@ export function DynamicIcon({
   const isEmoji = !/^[a-zA-Z]+$/.test(name);
   if (isEmoji) {
     return (
-      <span className={className} style={{ fontSize: size }}>
+      <span
+        className={`inline-flex items-center justify-center overflow-hidden ${className}`}
+        style={{ width: size, height: size, fontSize: size }}
+      >
         {name}
       </span>
     );

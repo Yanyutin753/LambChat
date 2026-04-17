@@ -17,6 +17,10 @@ import {
 } from "lucide-react";
 import { uploadApi } from "../../services/api";
 import { ToolResultPanel } from "../chat/ChatMessage/items/ToolResultPanel";
+import {
+  fetchDocumentArrayBuffer,
+  fetchDocumentText,
+} from "./documentFetchCache";
 
 // Import utilities
 import {
@@ -276,11 +280,8 @@ export default function DocumentPreview({
             setHtmlUrl(url);
             // 同时获取内容用于查看源代码
             try {
-              const response = await fetch(url);
-              if (response.ok) {
-                const text = await response.text();
-                setHtmlContent(text);
-              }
+              const text = await fetchDocumentText(url);
+              setHtmlContent(text);
             } catch (e) {
               console.error("Failed to fetch HTML content:", e);
             }
@@ -291,11 +292,7 @@ export default function DocumentPreview({
 
           // Excalidraw files - load as text and pass to preview
           if (excalidrawFile) {
-            const response = await fetch(url);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch file: ${response.status}`);
-            }
-            const text = await response.text();
+            const text = await fetchDocumentText(url);
             setExcalidrawData(text);
             setData({ content: "", path });
             setLoading(false);
@@ -311,18 +308,13 @@ export default function DocumentPreview({
           }
 
           // 其他文件获取内容
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch file: ${response.status}`);
-          }
-
           // 根据文件类型处理内容
           if (binaryFile) {
             // 二进制文件，只设置路径用于下载
             setData({ content: "", path });
           } else if (wordFile || excelFile) {
             // Word/Excel 文件需要作为 ArrayBuffer 处理
-            const buffer = await response.arrayBuffer();
+            const buffer = await fetchDocumentArrayBuffer(url);
             setArrayBuffer(buffer);
             setData({ content: "", path });
           } else if (!previewable) {
@@ -337,7 +329,7 @@ export default function DocumentPreview({
             }, 100);
           } else {
             // 文本文件，读取内容
-            const text = await response.text();
+            const text = await fetchDocumentText(url);
             setData({ content: text, path });
           }
           setLoading(false);

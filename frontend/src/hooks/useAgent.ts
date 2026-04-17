@@ -267,12 +267,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       clearReconnectTimeout(reconnectTimeoutRef);
 
       setIsLoading(true);
+      setMessages([]);
       setError(null);
 
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
 
-      // Clear approvals before loading new session (keep old messages visible until new ones are ready)
+      // Clear approvals before loading new session
       options?.onClearApprovals?.();
 
       try {
@@ -846,6 +847,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       autoExpandProjectIdRef.current = id;
     },
     autoExpandProjectId: autoExpandProjectIdRef.current,
+    clearAutoExpandProjectId: (id?: string | null) => {
+      if (
+        id === undefined ||
+        id === null ||
+        autoExpandProjectIdRef.current === id
+      ) {
+        autoExpandProjectIdRef.current = null;
+      }
+    },
     currentProjectId,
   };
 }

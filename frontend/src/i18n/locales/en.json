@@ -169,8 +169,15 @@
   },
   "agentOptions": {
     "enableThinking": {
-      "description": "Enable extended thinking mode (Anthropic models only)",
-      "label": "Enable Thinking"
+      "description": "Control thinking intensity (supported models only)",
+      "label": "Thinking",
+      "options": {
+        "high": "High",
+        "low": "Low",
+        "max": "Max",
+        "medium": "Medium",
+        "off": "Off"
+      }
     }
   },
   "agents": {
@@ -1075,6 +1082,7 @@
     "defaultModel": "Default Model",
     "defaultModelDesc": "Select your default model for new conversations",
     "defaultModelSet": "Default model set",
+    "defaultThinking": "Default Thinking",
     "deleteAvatar": "Delete Avatar",
     "denied": "Denied",
     "email": "Email",

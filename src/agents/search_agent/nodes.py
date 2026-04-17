@@ -20,6 +20,7 @@ from src.agents.core.node_utils import (
     resolve_fallback_model,
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
+from src.agents.core.thinking import build_thinking_config
 from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
@@ -67,9 +68,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 获取 agent_options
     agent_options = configurable.get("agent_options") or {}
-    enable_thinking = agent_options.get("enable_thinking", False)
     selected_model = agent_options.get("model")  # Per-request model override
     model_id = agent_options.get("model_id")  # Model config ID for specific channel/provider
+    thinking_config = build_thinking_config(agent_options)
     logger.info(f"agent_options: {agent_options}")
 
     # 获取附件
@@ -80,7 +81,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     llm = await LLMClient.get_model(
         model=selected_model,
         model_id=model_id,
-        thinking={"type": "enabled"} if enable_thinking else None,
+        thinking=thinking_config,
     )
     llm_init_time = time.time() - llm_start
     logger.debug(f"[Agent] LLM init: {llm_init_time * 1000:.3f}ms")
@@ -89,7 +90,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     fallback_model_value = await resolve_fallback_model(
         model_id, selected_model, log_prefix="[Agent]"
     )
-    thinking_config = {"type": "enabled"} if enable_thinking else None
 
     # 多租户隔离
     tenant_id = context.user_id or "default"

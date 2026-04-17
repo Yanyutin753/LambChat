@@ -12,21 +12,13 @@ import { LoadingSpinner } from "../../../common";
 
 import { useSwipeToClose } from "../../../../hooks/useSwipeToClose";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
+import { registerToolPanel } from "./toolPanelRegistry";
+export { closeCurrentToolPanel } from "./toolPanelRegistry";
 
-// Module-level singleton: only one panel open at a time
-let _currentClose: (() => void) | null = null;
 // Reference counter so that the old panel's cleanup cannot remove the attribute
 // while the new panel is still open (useLayoutEffect cleanup fires in a later
 // render cycle than the new panel's setup).
 let _compressionCount = 0;
-
-/** Close any currently open ToolResultPanel (call before opening a new one) */
-export function closeCurrentToolPanel() {
-  if (_currentClose) {
-    _currentClose();
-    _currentClose = null;
-  }
-}
 
 interface ToolResultPanelProps {
   open: boolean;
@@ -48,6 +40,8 @@ interface ToolResultPanelProps {
   overlayClass?: string;
   /** Custom panel className (overrides default) */
   panelClass?: string;
+  /** Optional external ref to the root panel element */
+  panelElementRef?: React.Ref<HTMLDivElement>;
 }
 
 const statusConfig: Record<
@@ -95,8 +89,13 @@ export function ToolResultPanel({
   footer,
   overlayClass,
   panelClass,
+  panelElementRef,
 }: ToolResultPanelProps) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const panelOwnerRef = useRef(
+    Symbol(`tool-result-panel:${title || "untitled"}`),
+  );
+  const latestOnCloseRef = useRef(onClose);
   const [sidebarWidth, setSidebarWidth] = useState(
     () =>
       parseInt(localStorage.getItem("sidebar-preview-width") || "35", 10) || 35,
@@ -112,6 +111,28 @@ export function ToolResultPanel({
   } | null>(null);
 
   // Track viewport size
+  useEffect(() => {
+    latestOnCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    console.log("[ToolResultPanel] open", {
+      title,
+      viewMode,
+      isMobile,
+      owner: panelOwnerRef.current.description,
+    });
+    return () => {
+      console.log("[ToolResultPanel] close/unmount", {
+        title,
+        viewMode,
+        isMobile,
+        owner: panelOwnerRef.current.description,
+      });
+    };
+  }, [open, title, viewMode, isMobile]);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
     setIsMobile(mq.matches); // set initial value immediately
@@ -168,6 +189,7 @@ export function ToolResultPanel({
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
+      if (document.fullscreenElement) return;
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handler);
@@ -177,12 +199,14 @@ export function ToolResultPanel({
   // Register as the active panel (singleton — closes any previous panel)
   useEffect(() => {
     if (!open) return;
-    closeCurrentToolPanel(); // auto-close any previously open panel
-    _currentClose = onClose;
-    return () => {
-      if (_currentClose === onClose) _currentClose = null;
-    };
-  }, [open, onClose]);
+    console.log("[ToolResultPanel] registering active panel", {
+      title,
+      owner: panelOwnerRef.current.description,
+    });
+    return registerToolPanel(panelOwnerRef.current, () =>
+      latestOnCloseRef.current(),
+    );
+  }, [open, title]);
 
   // Cleanup drag resize resources (used on mouseup and on unmount)
   const cleanupResize = useCallback((indicator: HTMLDivElement | null) => {
@@ -294,6 +318,13 @@ export function ToolResultPanel({
         if (!isMobile && isSidebar && !panelClass) {
           (panelRef as React.MutableRefObject<HTMLDivElement | null>).current =
             el;
+        }
+        if (typeof panelElementRef === "function") {
+          panelElementRef(el);
+        } else if (panelElementRef) {
+          (
+            panelElementRef as React.MutableRefObject<HTMLDivElement | null>
+          ).current = el;
         }
       }}
       {...(isSidebar && !isMobile ? { "data-sidebar-panel": "" } : {})}

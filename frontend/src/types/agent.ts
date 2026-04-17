@@ -10,7 +10,7 @@ export interface AgentOption {
   description?: string;
   description_key?: string; // i18n translation key for description
   icon?: string; // lucide-react icon name (e.g., "Brain", "Zap", "Settings")
-  options?: { value: string | number; label: string }[]; // For select/dropdown type options
+  options?: { value: string | number; label?: string; label_key?: string }[]; // For select/dropdown type options
 }
 
 export interface AgentInfo {

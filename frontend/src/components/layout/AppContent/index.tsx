@@ -203,6 +203,7 @@ function ChatAppContent({
     agents,
     currentAgent,
     allowedModelIds: agentAllowedModelIds,
+    connectionStatus,
     newlyCreatedSession,
     sendMessage,
     stopGeneration,
@@ -211,6 +212,7 @@ function ChatAppContent({
     loadHistory,
     setPendingProjectId,
     autoExpandProjectId,
+    clearAutoExpandProjectId,
     currentProjectId,
   } = useAgent({
     onApprovalRequired: (approval) => {
@@ -635,6 +637,7 @@ function ChatAppContent({
           onNewSession={handleNewSessionAndClose}
           onSetPendingProjectId={setPendingProjectId}
           autoExpandProjectId={autoExpandProjectId}
+          onConsumeAutoExpandProjectId={clearAutoExpandProjectId}
           newSession={newlyCreatedSession}
           mobileOpen={mobileSidebarOpen}
           onMobileClose={handleMobileClose}
@@ -675,6 +678,7 @@ function ChatAppContent({
           sessionName={sessionName}
           currentRunId={currentRunId}
           isLoading={isLoading}
+          connectionStatus={connectionStatus}
           canSendMessage={canSendMessage}
           tools={effectiveTools}
           onToggleTool={effectiveToggleTool}

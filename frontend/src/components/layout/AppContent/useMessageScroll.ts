@@ -113,18 +113,35 @@ export function useMessageScroll(
     prevSessionIdRef.current = sessionId;
   }, [sessionId]);
 
+  // Scroll to bottom on session change or initial load (after messages load)
+  // When Virtuoso mounts for the first time (switching from WelcomePage), refs
+  // may not be available yet. We poll until the scroller appears.
   useEffect(() => {
     if (messages.length > 0 && pendingScrollRef.current) {
       let raf1 = 0;
       let raf2 = 0;
-      // Wait two frames to ensure Virtuoso has rendered the new data
+      let settled = false;
+
+      const tryScroll = () => {
+        if (settled) return;
+        // Virtuoso may not have mounted yet (refs still null) — retry
+        if (!virtuosoRef.current || !virtuosoScrollerRef.current) {
+          raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(tryScroll);
+          });
+          return;
+        }
+        settled = true;
+        pendingScrollRef.current = false;
+        scrollToBottom();
+      };
+
+      // Wait two frames for React to commit the Virtuoso mount
       raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => {
-          pendingScrollRef.current = false;
-          scrollToBottom();
-        });
+        raf2 = requestAnimationFrame(tryScroll);
       });
       return () => {
+        settled = true;
         cancelAnimationFrame(raf1);
         cancelAnimationFrame(raf2);
         scrollCleanupRef.current?.();

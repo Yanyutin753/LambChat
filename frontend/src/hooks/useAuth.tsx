@@ -20,12 +20,17 @@ import {
   getRedirectPath,
   clearRedirectPath,
 } from "../services/api";
+import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../components/layout/AppContent/useAgentOptions";
 import { Permission } from "../types";
 import type { User, UserCreate, LoginRequest, AuthState } from "../types";
 import i18n from "../i18n";
 
 /** Apply user metadata preferences from backend */
-function applyUserMetadata(metadata?: { language?: string; theme?: string }) {
+function applyUserMetadata(metadata?: {
+  language?: string;
+  theme?: string;
+  defaultThinkingLevel?: string;
+}) {
   if (!metadata) return;
 
   if (metadata.language) {
@@ -38,6 +43,18 @@ function applyUserMetadata(metadata?: { language?: string; theme?: string }) {
     // Notify ThemeContext to update React state + DOM in sync
     window.dispatchEvent(
       new CustomEvent("theme:external-change", { detail: metadata.theme }),
+    );
+  }
+
+  if (metadata.defaultThinkingLevel) {
+    localStorage.setItem(
+      DEFAULT_THINKING_LEVEL_STORAGE_KEY,
+      metadata.defaultThinkingLevel,
+    );
+    window.dispatchEvent(
+      new CustomEvent("thinking-preference-updated", {
+        detail: metadata.defaultThinkingLevel,
+      }),
     );
   }
 }
