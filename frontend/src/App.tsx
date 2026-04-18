@@ -162,6 +162,13 @@ function FilesPage() {
   return <AppContent key="files" activeTab="files" />;
 }
 
+function NotificationsPage() {
+  usePageTitle("nav.notifications", undefined, {
+    description: "nav.notifications",
+  });
+  return <AppContent key="notifications" activeTab="notifications" />;
+}
+
 // Auth page wrapper - redirects to /chat after successful login/register
 function AuthPageWrapper({
   initialMode,
@@ -355,6 +362,19 @@ function App() {
               element={
                 <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
                   <FilesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute
+                  permissions={[Permission.NOTIFICATION_MANAGE]}
+                  redirectTo="/chat"
+                  showToast
+                  toastMessage={t("errors.noPermission")}
+                >
+                  <NotificationsPage />
                 </ProtectedRoute>
               }
             />

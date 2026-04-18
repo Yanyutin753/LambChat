@@ -47,6 +47,11 @@ const RevealedFilesPage = lazy(() =>
     default: m.RevealedFilesPanel,
   })),
 );
+const NotificationPanel = lazy(() =>
+  import("../../panels/NotificationPanel").then((m) => ({
+    default: m.NotificationPanel,
+  })),
+);
 
 const panelMap: Record<
   string,
@@ -63,6 +68,7 @@ const panelMap: Record<
   agents: AgentConfigPanel,
   models: ModelPanel,
   files: RevealedFilesPage,
+  notifications: NotificationPanel,
 };
 
 function PanelLoader() {
