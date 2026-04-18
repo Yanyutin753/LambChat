@@ -30,68 +30,8 @@ const TYPE_CONFIG: Record<
   },
 };
 
-function NotificationCard({
-  notification,
-  onDismiss,
-  style,
-}: {
-  notification: Notification;
-  onDismiss: () => void;
-  style: React.CSSProperties;
-}) {
-  const { t, i18n } = useTranslation();
-  const lang = (i18n.language?.split("-")[0] ||
-    "en") as keyof typeof notification.title_i18n;
-  const title = notification.title_i18n[lang] || notification.title_i18n.en;
-  const content =
-    notification.content_i18n[lang] || notification.content_i18n.en;
-  const config = TYPE_CONFIG[notification.type] || TYPE_CONFIG.info;
-  const Icon = config.icon;
-
-  return (
-    <div
-      className="mx-3 sm:mx-4 flex items-start gap-3 rounded-xl border px-3 py-2.5 backdrop-blur-xl transition-all duration-300"
-      style={{
-        backgroundColor: "var(--theme-bg-card)",
-        borderColor: "var(--theme-border)",
-        ...style,
-      }}
-    >
-      <div className="flex flex-1 flex-col gap-1.5 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none ${config.tagClass}`}
-          >
-            <Icon size={11} />
-            {t(config.labelKey)}
-          </span>
-        </div>
-        <p
-          className="text-sm leading-snug"
-          style={{ color: "var(--theme-text)" }}
-        >
-          {title}
-          {content ? ` — ${content}` : ""}
-        </p>
-      </div>
-      <button
-        onClick={onDismiss}
-        className="mt-0.5 shrink-0 flex h-5 w-5 items-center justify-center rounded-md transition-colors"
-        style={{ color: "var(--theme-text-secondary)" }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = "var(--theme-text)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = "var(--theme-text-secondary)";
-        }}
-      >
-        <X size={13} />
-      </button>
-    </div>
-  );
-}
-
 export function NotificationBanner() {
+  const { t, i18n } = useTranslation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
@@ -111,16 +51,55 @@ export function NotificationBanner() {
   const visible = notifications.filter((n) => !dismissedIds.has(n.id));
   if (visible.length === 0) return null;
 
+  const lang = (i18n.language?.split("-")[0] ||
+    "en") as keyof (typeof notifications)[number]["title_i18n"];
+
   return (
-    <div className="shrink-0 flex flex-col gap-1.5 py-2 relative z-30">
-      {visible.map((n) => (
-        <NotificationCard
-          key={n.id}
-          notification={n}
-          onDismiss={() => handleDismiss(n.id)}
-          style={{ animation: "fadeSlideIn 0.3s ease-out both" }}
-        />
-      ))}
+    <div className="flex flex-col gap-1.5 mb-3">
+      {visible.map((n) => {
+        const title = n.title_i18n[lang] || n.title_i18n.en;
+        const content = n.content_i18n[lang] || n.content_i18n.en;
+        const config = TYPE_CONFIG[n.type] || TYPE_CONFIG.info;
+        const Icon = config.icon;
+
+        return (
+          <div
+            key={n.id}
+            className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs backdrop-blur-sm transition-all duration-300"
+            style={{
+              backgroundColor: "var(--theme-bg-card)",
+              borderColor: "var(--theme-border)",
+              animation: "fadeSlideIn 0.3s ease-out both",
+            }}
+          >
+            <span
+              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none shrink-0 ${config.tagClass}`}
+            >
+              <Icon size={10} />
+              {t(config.labelKey)}
+            </span>
+            <p
+              className="truncate leading-snug"
+              style={{ color: "var(--theme-text)" }}
+            >
+              {content ? `${title} — ${content}` : title}
+            </p>
+            <button
+              onClick={() => handleDismiss(n.id)}
+              className="shrink-0 p-0.5 rounded-md transition-colors"
+              style={{ color: "var(--theme-text-secondary)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--theme-text)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--theme-text-secondary)";
+              }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
