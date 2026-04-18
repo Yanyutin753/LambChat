@@ -24,11 +24,11 @@ def get_notification_manager() -> NotificationManager:
 
 
 @router.get("/active")
-async def get_active_notification(
+async def get_active_notifications(
     user: TokenPayload = Depends(get_current_user_required),
     manager: NotificationManager = Depends(get_notification_manager),
-) -> Notification | None:
-    return await manager.get_active_notification(user.sub)
+) -> list[Notification]:
+    return await manager.get_active_notifications(user.sub)
 
 
 @router.get("/admin", response_model=NotificationListResponse)

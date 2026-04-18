@@ -56,6 +56,20 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         },
         "frontend_visible": True,
     },
+    "ADMIN_CONTACT_EMAIL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.FRONTEND,
+        "description": "Administrator contact email displayed to users in the About dialog",
+        "default": "",
+        "frontend_visible": True,
+    },
+    "ADMIN_CONTACT_URL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.FRONTEND,
+        "description": "Administrator contact/support URL (e.g. help desk, feedback form) displayed to users in the About dialog",
+        "default": "",
+        "frontend_visible": True,
+    },
     # ============================================
     # Application Settings
     # ============================================

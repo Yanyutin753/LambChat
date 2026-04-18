@@ -504,7 +504,10 @@ export function SessionSidebar({
                   <>
                     {uncategorizedList.isLoading ? (
                       <div className="flex justify-center py-4">
-                        <LoadingSpinner size="sm" />
+                        <LoadingSpinner
+                          size="sm"
+                          color="text-[var(--theme-primary)]"
+                        />
                       </div>
                     ) : (
                       groupedUncategorized.map((group) => (

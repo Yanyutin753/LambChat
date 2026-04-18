@@ -1,9 +1,17 @@
 """通知系统 Schema"""
 
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
+
+
+class NotificationType(str, Enum):
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    MAINTENANCE = "maintenance"
 
 
 class I18nText(BaseModel):
@@ -21,6 +29,7 @@ class NotificationCreate(BaseModel):
 
     title_i18n: I18nText
     content_i18n: I18nText
+    type: NotificationType = NotificationType.INFO
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     is_active: bool = True
@@ -31,6 +40,7 @@ class NotificationUpdate(BaseModel):
 
     title_i18n: Optional[I18nText] = None
     content_i18n: Optional[I18nText] = None
+    type: Optional[NotificationType] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     is_active: Optional[bool] = None
@@ -42,6 +52,7 @@ class Notification(BaseModel):
     id: str
     title_i18n: I18nText
     content_i18n: I18nText
+    type: NotificationType = NotificationType.INFO
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
     is_active: bool

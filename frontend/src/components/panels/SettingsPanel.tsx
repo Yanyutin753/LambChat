@@ -506,7 +506,10 @@ export function SettingsPanel() {
                   >
                     <span className="inline-flex h-4 w-4 items-center justify-center">
                       {isImporting ? (
-                        <LoadingSpinner size="sm" />
+                        <LoadingSpinner
+                          size="sm"
+                          color="text-[var(--theme-primary)]"
+                        />
                       ) : (
                         <Upload size={16} />
                       )}

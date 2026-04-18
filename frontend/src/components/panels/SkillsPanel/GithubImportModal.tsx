@@ -133,7 +133,12 @@ export function GithubImportModal({
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       <span className="inline-flex h-4 w-4 items-center justify-center">
-                        {githubLoading ? <LoadingSpinner size="sm" /> : null}
+                        {githubLoading ? (
+                          <LoadingSpinner
+                            size="sm"
+                            color="text-[var(--theme-primary)]"
+                          />
+                        ) : null}
                       </span>
                       <span>{t("skills.preview")}</span>
                     </span>
@@ -228,7 +233,10 @@ export function GithubImportModal({
                   <span className="inline-flex items-center justify-center gap-2">
                     <span className="inline-flex h-4 w-4 items-center justify-center">
                       {githubExporting ? (
-                        <LoadingSpinner size="sm" />
+                        <LoadingSpinner
+                          size="sm"
+                          color="text-[var(--theme-primary)]"
+                        />
                       ) : (
                         <Archive size={18} />
                       )}

@@ -222,7 +222,7 @@ export function WelcomeSkeleton() {
   return (
     <div className="relative flex h-full flex-col items-center justify-center px-4 overflow-hidden animate-fade-in">
       {/* Greeting skeleton */}
-      <div className="relative flex flex-col items-center mb-5 sm:mb-8 w-full max-w-[90vw]">
+      <div className="relative flex flex-col items-center mb-4 sm:mb-8 w-full max-w-[90vw]">
         {/* Mobile icon — matches WelcomePage: size-10 rounded-xl */}
         <div className="sm:hidden mb-4">
           <div className="skeleton-line size-10 rounded-xl shadow-md ring-1 ring-stone-200/60 dark:ring-stone-700/40" />

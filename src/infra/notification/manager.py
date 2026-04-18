@@ -36,8 +36,8 @@ class NotificationManager:
     async def delete(self, notification_id: str) -> bool:
         return await self.storage.delete(notification_id)
 
-    async def get_active_notification(self, user_id: str) -> Optional[Notification]:
-        return await self.storage.get_active_notification(user_id)
+    async def get_active_notifications(self, user_id: str, limit: int = 5) -> list[Notification]:
+        return await self.storage.get_active_notifications(user_id, limit=limit)
 
     async def dismiss(self, notification_id: str, user_id: str) -> bool:
         return await self.storage.dismiss(notification_id, user_id)

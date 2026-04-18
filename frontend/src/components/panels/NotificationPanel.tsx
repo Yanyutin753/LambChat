@@ -187,6 +187,9 @@ function NotificationFormModal({
     toDatetimeLocal(notification?.end_time ?? null),
   );
   const [isActive, setIsActive] = useState(notification?.is_active ?? true);
+  const [notifType, setNotifType] = useState<string>(
+    notification?.type ?? "info",
+  );
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -195,6 +198,7 @@ function NotificationFormModal({
       const data: NotificationCreate = {
         title_i18n: titleI18n,
         content_i18n: contentI18n,
+        type: notifType as NotificationCreate["type"],
         start_time: fromDatetimeLocal(startTime),
         end_time: fromDatetimeLocal(endTime),
         is_active: isActive,
@@ -286,6 +290,41 @@ function NotificationFormModal({
                     />
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Type selector */}
+            <div>
+              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
+                {t("notification.typeLabel")}
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {(["info", "success", "warning", "maintenance"] as const).map(
+                  (nt) => (
+                    <button
+                      key={nt}
+                      type="button"
+                      onClick={() => setNotifType(nt)}
+                      className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                        notifType === nt
+                          ? nt === "info"
+                            ? "border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-300"
+                            : nt === "success"
+                              ? "border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-300"
+                              : nt === "warning"
+                                ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500 dark:bg-amber-900/30 dark:text-amber-300"
+                                : "border-orange-400 bg-orange-50 text-orange-700 dark:border-orange-500 dark:bg-orange-900/30 dark:text-orange-300"
+                          : "border-stone-200 bg-stone-50 text-stone-500 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:border-stone-600"
+                      }`}
+                    >
+                      {t(
+                        `notification.type${
+                          nt.charAt(0).toUpperCase() + nt.slice(1)
+                        }`,
+                      )}
+                    </button>
+                  ),
+                )}
               </div>
             </div>
 
@@ -575,6 +614,24 @@ export function NotificationPanel() {
                     {/* Info */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-3 mb-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none ${
+                            notification.type === "info"
+                              ? "bg-blue-500/15 text-blue-600 dark:text-blue-300"
+                              : notification.type === "success"
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+                                : notification.type === "warning"
+                                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-300"
+                                  : "bg-orange-500/15 text-orange-600 dark:text-orange-300"
+                          }`}
+                        >
+                          {t(
+                            `notification.type${
+                              notification.type.charAt(0).toUpperCase() +
+                              notification.type.slice(1)
+                            }`,
+                          )}
+                        </span>
                         <p className="font-medium text-stone-900 dark:text-stone-100 truncate">
                           {getLocalizedTitle(notification)}
                         </p>

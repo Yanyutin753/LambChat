@@ -4,9 +4,11 @@ import {
   ExternalLink,
   ArrowDownCircle,
   Github,
+  Mail,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVersion } from "../../hooks/useVersion";
+import { useSettingsContext } from "../../contexts/SettingsContext";
 import { APP_NAME } from "../../constants";
 import { SkeletonBlock, SkeletonLine } from "../skeletons";
 
@@ -18,6 +20,15 @@ interface AboutDialogProps {
 export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
   const { t } = useTranslation();
   const { versionInfo, isLoading, error, checkForUpdates } = useVersion();
+  const { settings } = useSettingsContext();
+
+  const adminEmail = settings?.items?.ADMIN_CONTACT_EMAIL?.value as
+    | string
+    | undefined;
+  const adminUrl = settings?.items?.ADMIN_CONTACT_URL?.value as
+    | string
+    | undefined;
+  const hasContactInfo = !!(adminEmail || adminUrl);
 
   if (!isOpen) return null;
 
@@ -159,6 +170,37 @@ export function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
               {versionInfo.latest_version && !versionInfo.has_update && (
                 <div className="rounded-lg bg-green-50 p-3 text-center text-sm text-green-700 dark:bg-green-900/30 dark:text-green-400">
                   {t("about.upToDate", "You're up to date!")}
+                </div>
+              )}
+
+              {/* Admin Contact */}
+              {hasContactInfo && (
+                <div className="rounded-lg bg-stone-50 p-4 dark:bg-stone-700/50">
+                  <div className="text-xs text-stone-500 dark:text-stone-400 mb-2">
+                    {t("about.contactTitle", "Contact Administrator")}
+                  </div>
+                  <div className="space-y-1">
+                    {adminEmail && (
+                      <a
+                        href={`mailto:${adminEmail}`}
+                        className="flex items-center gap-2 text-sm text-stone-700 hover:text-blue-600 dark:text-stone-300 dark:hover:text-blue-400"
+                      >
+                        <Mail className="h-4 w-4" />
+                        {adminEmail}
+                      </a>
+                    )}
+                    {adminUrl && (
+                      <a
+                        href={adminUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm text-stone-700 hover:text-blue-600 dark:text-stone-300 dark:hover:text-blue-400"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        {t("about.contactSupport", "Support Page")}
+                      </a>
+                    )}
+                  </div>
                 </div>
               )}
 

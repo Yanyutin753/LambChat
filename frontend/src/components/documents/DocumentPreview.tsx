@@ -614,9 +614,13 @@ export default function DocumentPreview({
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4">
           <div className="relative">
-            <LoadingSpinner size="lg" />
+            <LoadingSpinner size="lg" color="text-[var(--theme-primary)]" />
             <div className="absolute inset-0 animate-ping">
-              <LoadingSpinner size="lg" static />
+              <LoadingSpinner
+                size="lg"
+                static
+                color="text-[var(--theme-primary)]"
+              />
             </div>
           </div>
           <p className="text-sm text-stone-500 dark:text-stone-400 font-medium">

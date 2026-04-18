@@ -6,10 +6,13 @@ export interface I18nText {
   ru: string;
 }
 
+export type NotificationType = "info" | "success" | "warning" | "maintenance";
+
 export interface Notification {
   id: string;
   title_i18n: I18nText;
   content_i18n: I18nText;
+  type: NotificationType;
   start_time: string | null;
   end_time: string | null;
   is_active: boolean;
@@ -21,6 +24,7 @@ export interface Notification {
 export interface NotificationCreate {
   title_i18n: I18nText;
   content_i18n: I18nText;
+  type?: NotificationType;
   start_time: string | null;
   end_time: string | null;
   is_active: boolean;
@@ -29,6 +33,7 @@ export interface NotificationCreate {
 export interface NotificationUpdate {
   title_i18n?: I18nText;
   content_i18n?: I18nText;
+  type?: NotificationType;
   start_time?: string | null;
   end_time?: string | null;
   is_active?: boolean;

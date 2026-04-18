@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { Maximize2, X, Plus, Tag } from "lucide-react";
+import { Maximize2, X, Plus, Save, Tag, Pencil } from "lucide-react";
 import { Toggle } from "./Toggle";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
@@ -263,20 +264,31 @@ export function SkillFormNormal(a: SkillFormActions) {
               }
               return (
                 <div
-                  className={`flex h-full min-h-[18rem] sm:min-h-[24rem] flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg)] transition-colors duration-150 ${
+                  className={`relative flex flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg)] transition-colors duration-150 ${
                     a.errors.content
                       ? "ring-1 ring-red-300 dark:ring-red-700"
                       : ""
-                  } skill-editor-shell`}
+                  }`}
+                  style={{ height: "180px" }}
                 >
                   <SkillEditor
                     value={a.files[a.activeFileIndex]?.content || ""}
                     onChange={(val) =>
                       a.updateFileContent(a.activeFileIndex, val)
                     }
-                    className="flex-1 min-h-0"
+                    className="h-full"
                     filePath={a.files[a.activeFileIndex]?.path}
+                    readOnly
                   />
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[var(--theme-bg)] to-transparent" />
+                  <button
+                    type="button"
+                    onClick={() => a.toggleFullscreen(true)}
+                    className="absolute right-3 bottom-3 flex items-center gap-1.5 rounded-lg bg-[var(--theme-primary)] px-2.5 py-1.5 text-xs font-medium text-white shadow-md transition-all duration-150 hover:scale-105 active:scale-95"
+                  >
+                    <Pencil size={12} />
+                    {t("skills.form.editFullscreen", "Edit")}
+                  </button>
                 </div>
               );
             })()}
@@ -305,26 +317,11 @@ export function SkillFormNormal(a: SkillFormActions) {
           className="rounded-xl bg-[var(--theme-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--theme-primary-hover)] disabled:opacity-50 transition-colors duration-150 dark:text-stone-950 inline-flex items-center gap-2"
         >
           <span className="inline-flex h-4 w-4 items-center justify-center">
-            {a.isLoading ? (
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-            ) : null}
+            {a.isLoading ? <LoadingSpinner size="sm" /> : <Save size={16} />}
           </span>
-          <span className={a.isLoading ? "loading-text" : ""}>{submitLabel}</span>
+          <span className={a.isLoading ? "loading-text" : ""}>
+            {submitLabel}
+          </span>
         </button>
       </div>
     </>

@@ -100,7 +100,10 @@ export function ZipUploadModal({
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
                 onDrop={onDrop}
-                onClick={() => zipInputRef.current?.click()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  zipInputRef.current?.click();
+                }}
                 className={`group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-10 transition-all duration-200 ${
                   isDragging
                     ? "border-[var(--theme-primary)] bg-[var(--theme-primary-light)]/40 scale-[1.01]"

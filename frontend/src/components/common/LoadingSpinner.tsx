@@ -21,7 +21,7 @@ export function LoadingSpinner({
   size = "md",
   className = "",
   static: isStatic = false,
-  color = "text-[var(--theme-primary)]",
+  color = "",
 }: LoadingSpinnerProps) {
   const sizeValue = sizeMap[size];
 

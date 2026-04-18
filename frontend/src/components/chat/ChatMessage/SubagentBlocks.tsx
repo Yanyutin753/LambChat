@@ -67,7 +67,11 @@ export function ThinkingBlock({
       >
         {/* Status indicator */}
         {isPending ? (
-          <LoadingSpinner size="sm" className="shrink-0" />
+          <LoadingSpinner
+            size="sm"
+            className="shrink-0"
+            color="text-[var(--theme-primary)]"
+          />
         ) : success ? (
           <CheckCircle size={12} className="shrink-0" />
         ) : hasResult ? (

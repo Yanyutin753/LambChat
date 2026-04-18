@@ -9,13 +9,13 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 export const notificationApi = {
-  async getActive(): Promise<Notification | null> {
+  async getActive(): Promise<Notification[]> {
     try {
-      return await authFetch<Notification | null>(
+      return await authFetch<Notification[]>(
         `${API_BASE}/api/notifications/active`,
       );
     } catch {
-      return null;
+      return [];
     }
   },
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional
 
 from bson import ObjectId
@@ -55,6 +56,7 @@ class NotificationStorage:
         doc = {
             "title_i18n": data.title_i18n.model_dump(),
             "content_i18n": data.content_i18n.model_dump(),
+            "type": data.type.value if isinstance(data.type, Enum) else data.type,
             "start_time": data.start_time,
             "end_time": data.end_time,
             "is_active": data.is_active,
@@ -127,8 +129,8 @@ class NotificationStorage:
             logger.error(f"Error deleting notification {notification_id}: {e}")
             return False
 
-    async def get_active_notification(self, user_id: str) -> Optional[Notification]:
-        """Get the most recent active notification that the user hasn't dismissed."""
+    async def get_active_notifications(self, user_id: str, limit: int = 5) -> list[Notification]:
+        """Get active notifications that the user hasn't dismissed, sorted by created_at desc."""
         now = datetime.now(timezone.utc)
 
         dismissed = await self.dismissal_collection.distinct(
@@ -141,28 +143,24 @@ class NotificationStorage:
         if dismissed:
             query["_id"] = {"$nin": [ObjectId(d) for d in dismissed]}
 
-        doc = await self.collection.find_one(
-            query,
-            sort=[("created_at", -1)],
-        )
-        if not doc:
-            return None
-
-        start = doc.get("start_time")
-        end = doc.get("end_time")
-        if start:
-            if start.tzinfo is None:
-                start = start.replace(tzinfo=timezone.utc)
-            if start > now:
-                return None
-        if end:
-            if end.tzinfo is None:
-                end = end.replace(tzinfo=timezone.utc)
-            if end < now:
-                return None
-
-        doc["id"] = str(doc.pop("_id"))
-        return Notification.model_validate(doc)
+        cursor = self.collection.find(query).sort("created_at", -1).limit(limit)
+        results = []
+        async for doc in cursor:
+            start = doc.get("start_time")
+            end = doc.get("end_time")
+            if start:
+                if start.tzinfo is None:
+                    start = start.replace(tzinfo=timezone.utc)
+                if start > now:
+                    continue
+            if end:
+                if end.tzinfo is None:
+                    end = end.replace(tzinfo=timezone.utc)
+                if end < now:
+                    continue
+            doc["id"] = str(doc.pop("_id"))
+            results.append(Notification.model_validate(doc))
+        return results
 
     async def dismiss(self, notification_id: str, user_id: str) -> bool:
         try:

@@ -8,6 +8,7 @@ import {
   Plus,
   Edit,
   Trash2,
+  Save,
   X,
   AlertCircle,
   Lock,
@@ -522,7 +523,11 @@ function RoleFormModal({
               >
                 <span className="inline-flex items-center justify-center gap-2">
                   <span className="inline-flex h-4 w-4 items-center justify-center">
-                    {isLoading ? <LoadingSpinner size="sm" /> : null}
+                    {isLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <Save size={16} />
+                    )}
                   </span>
                   <span>{t("common.save")}</span>
                 </span>
@@ -600,7 +605,9 @@ function DeleteConfirmModal({
                   <span className="inline-flex h-4 w-4 items-center justify-center">
                     {isLoading ? (
                       <LoadingSpinner size="sm" color="text-white" />
-                    ) : null}
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
                   </span>
                   <span>{t("common.delete")}</span>
                 </span>

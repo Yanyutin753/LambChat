@@ -9,11 +9,13 @@ export function SkillEditor({
   onChange,
   className,
   filePath,
+  readOnly,
 }: {
   value: string;
   onChange: (val: string) => void;
   className?: string;
   filePath?: string;
+  readOnly?: boolean;
 }) {
   const [isDark, setIsDark] = useState(() =>
     typeof document !== "undefined"
@@ -67,6 +69,8 @@ export function SkillEditor({
         onChange={onChange}
         theme={isDark ? oneDark : undefined}
         extensions={extensions}
+        readOnly={readOnly}
+        editable={!readOnly}
         basicSetup={{
           lineNumbers: true,
           highlightActiveLineGutter: true,
