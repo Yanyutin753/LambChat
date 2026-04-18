@@ -247,7 +247,7 @@ export function Header({
               className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
               title={t("share.title")}
             >
-              <Share2 size={18} />
+              <Share2 size={20} />
             </button>
           )}
 
@@ -259,7 +259,7 @@ export function Header({
               className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
               title={t("common.menu")}
             >
-              <MoreHorizontal size={18} />
+              <MoreHorizontal size={20} />
             </button>
             {mobileMenuOpen &&
               createPortal(
@@ -393,9 +393,9 @@ export function Header({
             className="relative hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
             title={t("nav.notifications")}
           >
-            <Bell size={18} />
+            <Bell size={20} />
             {activeNotifCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white leading-none">
+              <span className="absolute top-0.5 right-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white leading-none">
                 {activeNotifCount > 99 ? "99+" : activeNotifCount}
               </span>
             )}
