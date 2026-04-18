@@ -149,10 +149,16 @@ class NotificationStorage:
 
         start = doc.get("start_time")
         end = doc.get("end_time")
-        if start and start > now:
-            return None
-        if end and end < now:
-            return None
+        if start:
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            if start > now:
+                return None
+        if end:
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=timezone.utc)
+            if end < now:
+                return None
 
         doc["id"] = str(doc.pop("_id"))
         return Notification.model_validate(doc)
