@@ -62,6 +62,8 @@ export enum Permission {
   ENVVAR_READ = "envvar:read",
   ENVVAR_WRITE = "envvar:write",
   ENVVAR_DELETE = "envvar:delete",
+  // Notification
+  NOTIFICATION_MANAGE = "notification:manage",
 }
 
 // 用户信息

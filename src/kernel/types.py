@@ -92,6 +92,9 @@ class Permission(str, Enum):
     ENVVAR_WRITE = "envvar:write"
     ENVVAR_DELETE = "envvar:delete"
 
+    # Notification
+    NOTIFICATION_MANAGE = "notification:manage"
+
 
 class MessageType(str, Enum):
     """消息类型"""
