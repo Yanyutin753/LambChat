@@ -91,15 +91,16 @@ class NotificationStorage:
     ) -> Optional[Notification]:
         try:
             update_fields: dict = {"updated_at": datetime.now(timezone.utc)}
-            if data.title_i18n is not None:
+            provided = data.model_fields_set
+            if "title_i18n" in provided:
                 update_fields["title_i18n"] = data.title_i18n.model_dump()
-            if data.content_i18n is not None:
+            if "content_i18n" in provided:
                 update_fields["content_i18n"] = data.content_i18n.model_dump()
-            if data.start_time is not None:
+            if "start_time" in provided:
                 update_fields["start_time"] = data.start_time
-            if data.end_time is not None:
+            if "end_time" in provided:
                 update_fields["end_time"] = data.end_time
-            if data.is_active is not None:
+            if "is_active" in provided:
                 update_fields["is_active"] = data.is_active
 
             result = await self.collection.find_one_and_update(
