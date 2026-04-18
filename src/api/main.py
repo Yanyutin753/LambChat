@@ -27,6 +27,7 @@ from src.api.routes import (
     health,
     human,
     mcp,
+    notification,
     project,
     revealed_file,
     role,
@@ -174,6 +175,12 @@ async def lifespan(app: FastAPI):
     revealed_storage = get_revealed_file_storage()
     await revealed_storage.ensure_indexes_if_needed()
     logger.info("RevealedFileStorage indexes initialized")
+
+    # 初始化 Notification 索引
+    from src.infra.notification.storage import NotificationStorage
+
+    await NotificationStorage().create_indexes()
+    logger.info("NotificationStorage indexes initialized")
 
     # Start Feishu channels in background (don't block app startup)
     async def _start_feishu():
@@ -362,6 +369,7 @@ def create_app() -> FastAPI:
     app.include_router(revealed_file.router, prefix="/api/files", tags=["Files"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
+    app.include_router(notification.router, prefix="/api/notifications", tags=["Notifications"])
     # Generic channel configuration
     app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
     # WebSocket 路由: /ws 用于实时通知
