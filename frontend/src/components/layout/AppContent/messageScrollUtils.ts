@@ -20,6 +20,8 @@ interface StartVirtuosoScrollToBottomOptions {
   footer?: FooterLike | null;
   intervalMs?: number;
   maxAttempts?: number;
+  maxDurationMs?: number;
+  bottomOffsetPx?: number;
   shouldAbort?: () => boolean;
   onAutoScroll?: () => void;
   onComplete?: (reason: "settled" | "aborted" | "max-attempts") => void;
@@ -51,6 +53,8 @@ export function startVirtuosoScrollToBottom({
   footer,
   intervalMs = 30,
   maxAttempts = 40,
+  maxDurationMs,
+  bottomOffsetPx = 0,
   shouldAbort,
   onAutoScroll,
   onComplete,
@@ -87,6 +91,8 @@ export function startVirtuosoScrollToBottom({
   // extra scrollTo calls gives it time to settle at the true bottom.
   const minAttemptsBeforeSettling = 5;
   const settleWindowMs = Math.max(intervalMs * 4, 120);
+  const maxScrollWindowMs = maxDurationMs ?? intervalMs * maxAttempts;
+  const startedAt = Date.now();
 
   const timer = setInterval(() => {
     attempts += 1;
@@ -102,16 +108,18 @@ export function startVirtuosoScrollToBottom({
     }
 
     const isAtBottom =
-      scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+      scroller.scrollTop + scroller.clientHeight >=
+      scroller.scrollHeight - Math.max(1, bottomOffsetPx);
     const hasStableHeight = Date.now() - lastHeightChangeAt >= settleWindowMs;
+    const hasExceededScrollBudget = Date.now() - startedAt >= maxScrollWindowMs;
 
     if (
       (isAtBottom &&
         hasStableHeight &&
         attempts >= minAttemptsBeforeSettling) ||
-      attempts >= maxAttempts
+      hasExceededScrollBudget
     ) {
-      finish(attempts >= maxAttempts ? "max-attempts" : "settled");
+      finish(hasExceededScrollBudget ? "max-attempts" : "settled");
       return;
     }
 

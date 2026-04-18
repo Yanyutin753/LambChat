@@ -231,6 +231,8 @@ export function ChatView({
     () => getLatestAutoPreviewTarget(messages),
     [messages],
   );
+  const isMobileViewport =
+    typeof window !== "undefined" ? window.innerWidth < 640 : false;
 
   const virtuosoComponents = useMemo(
     () => ({
@@ -264,7 +266,10 @@ export function ChatView({
               <ChatSkeletonMessagesOnly count={1} />
             </div>
           )}
-          <div ref={messagesEndRef} className="h-8" />
+          <div
+            ref={messagesEndRef}
+            className="h-[calc(5rem+env(safe-area-inset-bottom))] sm:h-8"
+          />
         </>
       ),
     }),
@@ -403,7 +408,7 @@ export function ChatView({
             data={messages}
             computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}
-            atBottomThreshold={50}
+            atBottomThreshold={isMobileViewport ? 120 : 50}
             followOutput="smooth"
             components={virtuosoComponents}
             itemContent={virtuosoItemContent}

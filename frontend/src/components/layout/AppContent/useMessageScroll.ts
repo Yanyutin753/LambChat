@@ -21,6 +21,13 @@ export function useMessageScroll(
   messages: { id: string }[],
   sessionId?: string | null,
 ): UseMessageScrollReturn {
+  const MOBILE_BOTTOM_BREATHING_ROOM_PX = 96;
+  const DESKTOP_BOTTOM_BREATHING_ROOM_PX = 16;
+  const isMobileViewport =
+    typeof window !== "undefined" ? window.innerWidth < 640 : false;
+  const bottomBreathingRoomPx = isMobileViewport
+    ? MOBILE_BOTTOM_BREATHING_ROOM_PX
+    : DESKTOP_BOTTOM_BREATHING_ROOM_PX;
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const virtuosoScrollerRef = useRef<HTMLDivElement>(null);
@@ -29,8 +36,10 @@ export function useMessageScroll(
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const rafRef = useRef<number>(0);
+  const viewportResizeRafRef = useRef<number>(0);
   const scrollCleanupRef = useRef<(() => void) | null>(null);
   const previousMessagesRef = useRef(messages);
+  const isNearBottomRef = useRef(true);
 
   const userScrolledUpRef = useRef(false);
   const autoScrollActiveRef = useRef(false);
@@ -40,6 +49,7 @@ export function useMessageScroll(
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(() => {
       setIsNearBottom(atBottom);
+      isNearBottomRef.current = atBottom;
       if (atBottom) {
         setShowScrollTop(false);
         userScrolledUpRef.current = false;
@@ -57,6 +67,8 @@ export function useMessageScroll(
       virtuoso: virtuosoRef.current,
       scroller: virtuosoScrollerRef.current,
       footer: messagesEndRef.current,
+      bottomOffsetPx: bottomBreathingRoomPx,
+      maxDurationMs: isMobileViewport ? 4000 : 2500,
       shouldAbort: () => userScrolledUpRef.current,
       onAutoScroll: () => {
         ignoreProgrammaticScrollUntilRef.current = Date.now() + 80;
@@ -65,7 +77,7 @@ export function useMessageScroll(
         autoScrollActiveRef.current = false;
       },
     });
-  }, []);
+  }, [bottomBreathingRoomPx, isMobileViewport]);
 
   const scrollToTop = useCallback(() => {
     userScrolledUpRef.current = true;
@@ -95,7 +107,8 @@ export function useMessageScroll(
         now <= ignoreProgrammaticScrollUntilRef.current;
       const movedUp = scrollTop < lastScrollTop.value - 2;
       const isAwayFromBottom =
-        scrollTop + scroller.clientHeight < scroller.scrollHeight - 50;
+        scrollTop + scroller.clientHeight <
+        scroller.scrollHeight - Math.max(50, bottomBreathingRoomPx);
 
       if (
         autoScrollActiveRef.current &&
@@ -126,7 +139,56 @@ export function useMessageScroll(
       scroller.removeEventListener("scroll", handleScroll);
       if (timer) clearTimeout(timer);
     };
-  }, [messages.length]);
+  }, [bottomBreathingRoomPx, messages.length]);
+
+  useEffect(() => {
+    if (!isMobileViewport || typeof window === "undefined") {
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+
+    let previousHeight = viewport.height;
+    let previousOffsetTop = viewport.offsetTop;
+
+    const handleViewportChange = () => {
+      const heightChanged = Math.abs(viewport.height - previousHeight) > 4;
+      const offsetChanged =
+        Math.abs(viewport.offsetTop - previousOffsetTop) > 2;
+
+      previousHeight = viewport.height;
+      previousOffsetTop = viewport.offsetTop;
+
+      if (!heightChanged && !offsetChanged) {
+        return;
+      }
+
+      if (userScrolledUpRef.current) {
+        return;
+      }
+
+      if (!autoScrollActiveRef.current && !isNearBottomRef.current) {
+        return;
+      }
+
+      cancelAnimationFrame(viewportResizeRafRef.current);
+      viewportResizeRafRef.current = requestAnimationFrame(() => {
+        scrollToBottom();
+      });
+    };
+
+    viewport.addEventListener("resize", handleViewportChange);
+    viewport.addEventListener("scroll", handleViewportChange);
+
+    return () => {
+      viewport.removeEventListener("resize", handleViewportChange);
+      viewport.removeEventListener("scroll", handleViewportChange);
+      cancelAnimationFrame(viewportResizeRafRef.current);
+    };
+  }, [isMobileViewport, scrollToBottom]);
 
   // Scroll to bottom on session change or initial load (after messages load)
   // Only trigger for session switches and page refresh (not new session creation — sendMessage handles its own scrolling)
@@ -188,6 +250,7 @@ export function useMessageScroll(
   useEffect(() => {
     return () => {
       cancelAnimationFrame(rafRef.current);
+      cancelAnimationFrame(viewportResizeRafRef.current);
       scrollCleanupRef.current?.();
     };
   }, []);
