@@ -14,16 +14,19 @@ export function ChatPageSkeleton() {
       <div className="relative flex flex-1 min-w-0 flex-col overflow-hidden">
         {/* Header skeleton — matches real Header: no border-b, uses padding */}
         <div className="relative z-50 flex items-center px-3 pt-3 sm:px-4 pb-1 shrink-0">
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="skeleton-line size-8 rounded-lg" />
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 ml-2">
+          <div className="flex items-center gap-2 sm:gap-3 ml-2 sm:hidden">
             <div className="skeleton-line h-4 w-24 sm:w-28 rounded-md" />
           </div>
-          <div className="flex items-center gap-1.5 ml-auto flex-shrink-0">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line size-8 rounded-full" />
+          <div className="flex items-center gap-1.5 sm:gap-2 ml-auto flex-shrink-0">
+            <div className="skeleton-line size-8 rounded-lg sm:hidden" />
+            <div className="skeleton-line size-8 rounded-lg hidden sm:block" />
+            <div className="skeleton-line size-8 rounded-lg hidden sm:block" />
+            <div className="skeleton-line size-8 rounded-lg hidden sm:block" />
+            <div className="skeleton-line size-8 rounded-lg hidden sm:block" />
+            <div className="skeleton-line size-8 rounded-lg hidden sm:block" />
           </div>
         </div>
 
@@ -83,14 +86,14 @@ export function ChatSkeleton({ count = 3 }: { count?: number }) {
                   <div className="min-w-0 min-h-0">
                     {/* Avatar + Role label */}
                     <div className="mb-3 flex items-center gap-2">
-                      <div className="skeleton-line size-6 rounded-full shrink-0" />
+                      <div className="skeleton-line size-7 rounded-full shrink-0" />
                       <SkeletonLine
                         width="w-16"
-                        className="!h-[18px] sm:!h-[19px]"
+                        className="!h-4 sm:!h-[18px]"
                       />
                     </div>
                     {/* Response content skeleton — variable line pattern */}
-                    <div className="space-y-2 sm:space-y-3 px-2 my-2">
+                    <div className="space-y-3 px-2 my-2">
                       <div className="skeleton-line w-full h-2 sm:h-[7px] rounded-full" />
                       <div className="flex gap-2 sm:gap-3">
                         <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />
@@ -128,16 +131,16 @@ export function ChatSkeleton({ count = 3 }: { count?: number }) {
             {/* Bottom toolbar — matches real ChatInput toolbar layout */}
             <div className="flex justify-between pt-3 pb-3 px-2 mx-0.5 max-w-full">
               <div className="flex items-center gap-2 overflow-hidden">
-                <div className="skeleton-line size-8 rounded-lg shrink-0" />
-                <div className="skeleton-line size-8 rounded-lg shrink-0 hidden sm:block" />
-                <div className="skeleton-line size-8 rounded-lg shrink-0 hidden sm:block" />
-                <div className="skeleton-line size-8 rounded-lg shrink-0" />
+                <div className="skeleton-line size-8 rounded-full shrink-0" />
+                <div className="skeleton-line size-8 rounded-full shrink-0 hidden sm:block" />
+                <div className="skeleton-line size-8 rounded-full shrink-0 hidden sm:block" />
+                <div className="skeleton-line size-8 rounded-full shrink-0" />
               </div>
               <div className="skeleton-line size-8 rounded-full shrink-0" />
             </div>
           </div>
           {/* Keyboard shortcut hint — desktop only, matches real ChatInput */}
-          <div className="hidden sm:flex mx-auto mt-3 px-2 justify-center">
+          <div className="hidden sm:flex mx-auto mt-3 px-2 max-w-3xl xl:max-w-5xl justify-center">
             <SkeletonLine width="w-40" className="!h-3" />
           </div>
         </div>
@@ -189,13 +192,10 @@ export function ChatSkeletonMessagesOnly({ count = 1 }: { count?: number }) {
               <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6">
                 <div className="min-w-0 min-h-0">
                   <div className="mb-3 flex items-center gap-2">
-                    <div className="skeleton-line size-6 rounded-full shrink-0" />
-                    <SkeletonLine
-                      width="w-16"
-                      className="!h-[18px] sm:!h-[19px]"
-                    />
+                    <div className="skeleton-line size-7 rounded-full shrink-0" />
+                    <SkeletonLine width="w-16" className="!h-4 sm:!h-[18px]" />
                   </div>
-                  <div className="space-y-2 sm:space-y-3 px-2 my-2">
+                  <div className="space-y-3 px-2 my-2">
                     <div className="skeleton-line w-full h-2 sm:h-[7px] rounded-full" />
                     <div className="flex gap-2 sm:gap-3">
                       <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />
@@ -224,11 +224,11 @@ export function WelcomeSkeleton() {
       {/* Greeting skeleton */}
       <div className="relative flex flex-col items-center mb-4 sm:mb-8 w-full max-w-[90vw]">
         {/* Mobile icon — matches WelcomePage: size-10 rounded-xl */}
-        <div className="sm:hidden mb-4">
+        <div className="sm:hidden mb-3">
           <div className="skeleton-line size-10 rounded-xl shadow-md ring-1 ring-stone-200/60 dark:ring-stone-700/40" />
         </div>
         {/* Greeting line — desktop icon inline */}
-        <div className="max-w-[90vw] w-full flex items-center justify-center gap-3 sm:gap-4">
+        <div className="max-w-[90vw] w-full flex items-center justify-center gap-4">
           <div className="skeleton-line size-12 rounded-full hidden sm:block shadow-md ring-1 ring-stone-200/60 dark:ring-stone-700/40" />
           <SkeletonLine
             width="w-48 sm:w-64 lg:w-80"
@@ -254,15 +254,15 @@ export function WelcomeSkeleton() {
         >
           {/* Textarea area */}
           <div className="px-2.5 py-2 flex items-start gap-2">
-            <div className="skeleton-line h-3 w-3/5 rounded flex-1 mt-3" />
+            <div className="skeleton-line h-3 w-3/5 rounded flex-1 mt-3 min-h-[52px]" />
           </div>
           {/* Bottom toolbar */}
-          <div className="flex justify-between pt-2 pb-3 px-2 mx-0.5 max-w-full">
+          <div className="flex justify-between pt-3 pb-3 px-2 mx-0.5 max-w-full">
             <div className="flex items-center gap-2 overflow-hidden">
-              <div className="skeleton-line size-8 rounded-lg shrink-0" />
-              <div className="skeleton-line size-8 rounded-lg shrink-0 hidden sm:block" />
-              <div className="skeleton-line size-8 rounded-lg shrink-0 hidden sm:block" />
-              <div className="skeleton-line size-8 rounded-lg shrink-0" />
+              <div className="skeleton-line size-8 rounded-full shrink-0" />
+              <div className="skeleton-line size-8 rounded-full shrink-0 hidden sm:block" />
+              <div className="skeleton-line size-8 rounded-full shrink-0 hidden sm:block" />
+              <div className="skeleton-line size-8 rounded-full shrink-0" />
             </div>
             <div className="skeleton-line size-8 rounded-full shrink-0" />
           </div>
@@ -270,7 +270,7 @@ export function WelcomeSkeleton() {
       </div>
 
       {/* Suggestions skeleton — mobile: 2 cards, desktop: 4 cards */}
-      <div className="w-full px-2 mt-1 sm:mt-5">
+      <div className="w-full px-2 sm:mt-5">
         <div className="w-[19rem] sm:max-w-[36rem] sm:w-full mx-auto">
           {/* Label + refresh */}
           <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -285,7 +285,7 @@ export function WelcomeSkeleton() {
             {[0, 1].map((i) => (
               <div
                 key={i}
-                className="flex items-center gap-3 rounded-xl border px-3 py-2"
+                className="flex items-center gap-2 sm:gap-3 rounded-xl border px-3 py-2 sm:px-4 sm:py-3"
                 style={{
                   backgroundColor: "var(--theme-bg-card)",
                   borderColor: "var(--theme-border)",

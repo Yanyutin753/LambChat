@@ -65,7 +65,7 @@ export function NotificationBanner() {
         return (
           <div
             key={n.id}
-            className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs backdrop-blur-sm transition-all duration-300"
+            className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-all duration-300"
             style={{
               backgroundColor: "var(--theme-bg-card)",
               borderColor: "var(--theme-border)",

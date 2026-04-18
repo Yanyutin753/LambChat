@@ -28,16 +28,10 @@ export const ModelIconImg = React.memo(function ModelIconImg({
   }
   return (
     <div
-      className="flex items-center justify-center rounded-full bg-white dark:bg-stone-600"
+      className="flex items-center justify-center rounded-full bg-stone-50 dark:bg-stone-300/70 dark:ring-1 dark:ring-white/10"
       style={{ width: size, height: size }}
     >
-      <img
-        src={url}
-        alt={model}
-        width={size * 0.7}
-        height={size * 0.7}
-        className="dark:invert"
-      />
+      <img src={url} alt={model} width={size * 0.7} height={size * 0.7} />
     </div>
   );
 });

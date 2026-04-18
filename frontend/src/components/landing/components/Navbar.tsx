@@ -9,6 +9,7 @@ import { CloseIcon, MenuIcon } from "./Icons";
 interface NavbarProps {
   activeSection: string;
   showNav: boolean;
+  scrolled: boolean;
   mobileMenuOpen: boolean;
   onToggleMobileMenu: () => void;
   onScrollToSection: (id: string) => void;
@@ -17,6 +18,7 @@ interface NavbarProps {
 export function Navbar({
   activeSection,
   showNav,
+  scrolled,
   mobileMenuOpen,
   onToggleMobileMenu,
   onScrollToSection,
@@ -25,7 +27,11 @@ export function Navbar({
   const navigate = useNavigate();
 
   return (
-    <nav className="fixed top-0 inset-x-0 z-50 bg-white/80 dark:bg-stone-950/80 border-b border-stone-100/60 dark:border-stone-800/40">
+    <nav
+      className={`fixed top-0 inset-x-0 z-50 bg-white/90 dark:bg-stone-950/90 border-b border-stone-100/60 dark:border-stone-800/40 transition-shadow duration-300 ${
+        scrolled ? "blog-nav-scrolled" : ""
+      }`}
+    >
       <div className="max-wfull mx-auto px-5 sm:px-8 h-14 flex items-center justify-between">
         <div
           className="flex items-center gap-2.5 cursor-pointer group"

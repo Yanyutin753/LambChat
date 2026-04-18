@@ -11,9 +11,9 @@ export function SkillsPanelSkeleton() {
     <div className="flex h-full flex-col gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto min-h-0 p-2 sm:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="panel-card flex flex-col p-3 sm:p-5">
+            <div key={i} className="panel-card flex flex-col p-4 sm:p-5">
               <div className="flex items-start justify-between gap-2 sm:gap-3">
                 <div className="flex-1 min-w-0">
                   <SkeletonLine
@@ -71,7 +71,7 @@ export function MarketplacePanelSkeleton() {
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {Array.from({ length: 9 }).map((_, i) => (
             <div key={i} className="panel-card overflow-hidden !p-0">
               {/* Gradient banner */}
@@ -225,9 +225,9 @@ export function RolesPanelSkeleton() {
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-        <div className="grid gap-3 sm:gap-4">
+        <div className="grid gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="panel-card !p-3 sm:!p-4">
+            <div key={i} className="panel-card !p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   {/* Icon + name row */}
@@ -309,9 +309,9 @@ export function MCPPanelSkeleton() {
   return (
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 sm:space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="panel-card !p-3 sm:!p-4">
+          <div key={i} className="panel-card !p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 {/* Server name + status badges */}
@@ -364,9 +364,9 @@ export function FeedbackPanelSkeleton() {
       <PanelHeaderSkeleton hasSearch={false} />
       <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6">
         {/* Stats grid — matches glass-card style */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="glass-card rounded-xl p-3 sm:p-4">
+            <div key={i} className="glass-card rounded-xl p-4">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
@@ -375,7 +375,7 @@ export function FeedbackPanelSkeleton() {
                       "var(--glass-bg-subtle, color-mix(in srgb, var(--theme-bg) 80%, white))",
                   }}
                 >
-                  <div className="skeleton-line size-[22px] rounded-md" />
+                  <div className="skeleton-line size-6 rounded-md" />
                 </div>
                 <div className="min-w-0">
                   <SkeletonLine
@@ -392,12 +392,12 @@ export function FeedbackPanelSkeleton() {
           ))}
         </div>
         {/* Feedback list */}
-        <div className="space-y-2.5 sm:space-y-3">
+        <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="panel-card !p-3 sm:!p-5">
+            <div key={i} className="panel-card !p-4 sm:!p-5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                  <div className="skeleton-line size-7 sm:size-8 rounded-full shrink-0" />
+                  <div className="skeleton-line size-9 sm:size-10 rounded-full shrink-0" />
                   <div className="min-w-0">
                     <SkeletonLine
                       width={i % 2 === 0 ? "w-16 sm:w-20" : "w-20 sm:w-24"}
@@ -431,9 +431,9 @@ export function ChannelsPanelSkeleton() {
   return (
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton hasSearch={false} />
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 sm:space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="panel-card !p-3 sm:!p-4">
+          <div key={i} className="panel-card !p-4">
             <div className="flex items-center gap-2.5 sm:gap-3">
               <div
                 className="flex size-8 sm:size-10 shrink-0 items-center justify-center rounded-xl"
@@ -482,14 +482,11 @@ export function AgentPanelSkeleton() {
           className="!h-7 sm:!h-8 !rounded-md"
         />
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 space-y-2.5 sm:space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 space-y-5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div
-            key={i}
-            className="panel-card flex items-center gap-2.5 sm:gap-3.5 !p-3 sm:!p-4"
-          >
+          <div key={i} className="panel-card flex items-center gap-3.5 !p-4">
             <div
-              className="flex size-9 sm:size-11 shrink-0 items-center justify-center rounded-xl"
+              className="flex size-11 shrink-0 items-center justify-center rounded-xl"
               style={{
                 backgroundColor:
                   "var(--glass-bg-subtle, color-mix(in srgb, var(--theme-bg) 80%, white))",
@@ -531,7 +528,7 @@ export function ModelPanelSkeleton() {
           className="!h-7 sm:!h-8 !rounded-md"
         />
       </div>
-      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5 space-y-2.5 sm:space-y-3">
+      <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5 space-y-1">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="panel-card !p-0">
             <div className="flex items-center justify-between p-3 sm:p-4 gap-2">

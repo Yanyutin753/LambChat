@@ -18,6 +18,7 @@ import { PanelLoadingState } from "../common/PanelLoadingState";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useSettingsContext } from "../../contexts/SettingsContext";
+import { JsonSchemaEditor } from "./JsonSchemaEditor";
 import { useAuth } from "../../hooks/useAuth";
 import { roleApi, agentApi } from "../../services/api";
 import { Permission, type AgentInfo } from "../../types";
@@ -595,7 +596,7 @@ export function SettingsPanel() {
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-stone-500 sm:text-sm dark:text-stone-400">
-                            {setting.description}
+                            {t(setting.description)}
                           </p>
                         </div>
                       </div>
@@ -664,7 +665,25 @@ export function SettingsPanel() {
                             className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
                           />
                         )}
-                        {isJson && (
+                        {isJson && setting.json_schema && (
+                          <JsonSchemaEditor
+                            value={
+                              typeof getDisplayValue(setting) === "string"
+                                ? JSON.parse(getDisplayValue(setting) || "[]")
+                                : getDisplayValue(setting)
+                            }
+                            schema={setting.json_schema}
+                            disabled={!canManage}
+                            onChange={(val) =>
+                              handleValueChange(
+                                setting.key,
+                                JSON.stringify(val),
+                                setting.type,
+                              )
+                            }
+                          />
+                        )}
+                        {isJson && !setting.json_schema && (
                           <textarea
                             value={getDisplayValue(setting)}
                             onChange={(e) =>

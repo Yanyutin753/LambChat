@@ -8,7 +8,7 @@ export function PanelHeaderSkeleton({
 }) {
   return (
     <div
-      className="panel-header space-y-3"
+      className="panel-header"
       style={{ borderBottomColor: "var(--theme-border)" }}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -22,7 +22,7 @@ export function PanelHeaderSkeleton({
             }}
           >
             <div className="flex size-full items-center justify-center">
-              <div className="skeleton-line size-[22px] rounded-md" />
+              <div className="skeleton-line size-6 rounded-md" />
             </div>
           </div>
           <div className="min-w-0">

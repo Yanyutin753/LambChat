@@ -27,6 +27,7 @@ export function LandingPage() {
   const [showBackTop, setShowBackTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(true);
   const [showNav, setShowNav] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [viewerSrc, setViewerSrc] = useState<string | null>(null);
   const [viewerAlt, setViewerAlt] = useState("");
@@ -54,6 +55,7 @@ export function LandingPage() {
       setShowBackTop(y > 600);
       setShowNav(y > 300);
       setShowScrollBottom(y < max - 600);
+      setScrolled(y > 10);
     };
     window.addEventListener("scroll", h, { passive: true });
     return () => window.removeEventListener("scroll", h);
@@ -114,6 +116,7 @@ export function LandingPage() {
       <Navbar
         activeSection={activeSection}
         showNav={showNav}
+        scrolled={scrolled}
         mobileMenuOpen={mobileMenuOpen}
         onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
         onScrollToSection={scrollToSection}
@@ -129,13 +132,33 @@ export function LandingPage() {
 
       <HeroSection onLogin={goLogin} />
 
+      <div className="blog-section-divider py-2" aria-hidden="true">
+        <div className="blog-ornament-diamond" />
+      </div>
+
       <InterfaceSection onOpenViewer={openViewer} />
+
+      <div className="blog-section-divider py-2" aria-hidden="true">
+        <div className="blog-ornament-diamond" />
+      </div>
 
       <FeaturesSection />
 
+      <div className="blog-section-divider py-2" aria-hidden="true">
+        <div className="blog-ornament-diamond" />
+      </div>
+
       <ArchitectureSection onOpenViewer={openViewer} />
 
+      <div className="blog-section-divider py-2" aria-hidden="true">
+        <div className="blog-ornament-diamond" />
+      </div>
+
       <DashboardSection onOpenViewer={openViewer} />
+
+      <div className="blog-section-divider py-2" aria-hidden="true">
+        <div className="blog-ornament-diamond" />
+      </div>
 
       <ResponsiveSection onOpenViewer={openViewer} />
 

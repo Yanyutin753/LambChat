@@ -17,31 +17,33 @@ export function ArchitectureSection({
       id="architecture"
       className="py-20 sm:py-28 lg:py-36 scroll-mt-14 bg-stone-50/40 dark:bg-stone-900/10"
     >
-      <div className="max-w-5xl lg:max-w-6xl mx-auto px-5 sm:px-6">
+      <div className="max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto px-5 sm:px-6">
         <SectionHeading
           label={t("landing.sectionLabelArchitecture")}
           title={t("landing.architecture")}
           description={t("landing.architectureDesc")}
         />
-        <div
-          data-reveal-scale
-          className="blog-arch-card group relative rounded-2xl overflow-hidden cursor-pointer bg-white/80 dark:bg-stone-900/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
-          onClick={() =>
-            onOpenViewer(
-              "/images/best-practice/architecture.webp",
-              t("landing.architecture"),
-            )
-          }
-        >
-          <img
-            src="/images/best-practice/architecture.webp"
-            alt={t("landing.architecture")}
-            width={1200}
-            height={680}
-            className="w-full transition-all duration-700 group-hover:brightness-[0.97]"
-            loading="lazy"
-            decoding="async"
-          />
+        <div className="blog-dot-pattern rounded-2xl p-1">
+          <div
+            data-reveal-scale
+            className="blog-arch-frame blog-arch-card group relative rounded-xl overflow-hidden cursor-pointer bg-white/80 dark:bg-stone-900/30 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl"
+            onClick={() =>
+              onOpenViewer(
+                "/images/best-practice/architecture.webp",
+                t("landing.architecture"),
+              )
+            }
+          >
+            <img
+              src="/images/best-practice/architecture.webp"
+              alt={t("landing.architecture")}
+              width={1200}
+              height={680}
+              className="w-full transition-all duration-700 group-hover:brightness-[0.97]"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
         </div>
 
         {/* Stats */}

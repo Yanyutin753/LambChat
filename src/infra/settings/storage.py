@@ -82,6 +82,7 @@ class SettingsStorage:
                 frontend_visible=definition.get("frontend_visible", False),
                 depends_on=definition.get("depends_on"),
                 options=definition.get("options"),
+                json_schema=definition.get("json_schema"),
                 updated_at=db_doc.get("updated_at") if db_doc else None,
                 updated_by=db_doc.get("updated_by") if db_doc else None,
             )
@@ -129,6 +130,7 @@ class SettingsStorage:
             frontend_visible=definition.get("frontend_visible", False),
             depends_on=definition.get("depends_on"),
             options=definition.get("options"),
+            json_schema=definition.get("json_schema"),
             updated_at=doc.get("updated_at") if doc else None,
             updated_by=doc.get("updated_by") if doc else None,
         )

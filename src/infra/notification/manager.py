@@ -25,8 +25,10 @@ class NotificationManager:
     async def get_by_id(self, notification_id: str) -> Optional[Notification]:
         return await self.storage.get_by_id(notification_id)
 
-    async def list(self, skip: int = 0, limit: int = 50) -> tuple[list[Notification], int]:
-        return await self.storage.list(skip=skip, limit=limit)
+    async def list_notifications(
+        self, skip: int = 0, limit: int = 50
+    ) -> tuple[list[Notification], int]:
+        return await self.storage.list_notifications(skip=skip, limit=limit)
 
     async def update(
         self, notification_id: str, data: NotificationUpdate

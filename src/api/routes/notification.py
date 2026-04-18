@@ -38,7 +38,7 @@ async def list_notifications(
     _: None = Depends(require_permissions("notification:manage")),
     manager: NotificationManager = Depends(get_notification_manager),
 ) -> NotificationListResponse:
-    items, total = await manager.list(skip=skip, limit=limit)
+    items, total = await manager.list_notifications(skip=skip, limit=limit)
     return NotificationListResponse(items=items, total=total)
 
 

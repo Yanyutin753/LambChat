@@ -25,13 +25,11 @@ export function LanguageToggle({ className }: LanguageToggleProps) {
       i18n.changeLanguage(code);
       localStorage.setItem("language", code);
       setIsOpen(false);
-      // Sync to backend (non-blocking)
       authApi.updateMetadata({ language: code }).catch(() => {});
     },
     [i18n],
   );
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -41,19 +39,16 @@ export function LanguageToggle({ className }: LanguageToggleProps) {
         setIsOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && isOpen) {
         setIsOpen(false);
       }
     };
-
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);

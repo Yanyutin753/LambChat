@@ -2225,14 +2225,14 @@ html.allow-scroll #root {
 /* Scroll-reveal animation for landing page */
 [data-reveal] {
   opacity: 0;
-  transform: translateY(20px);
+  transform: translateY(24px) scale(0.99);
   transition:
-    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
 [data-reveal].revealed {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
 }
 
 /* Stagger delay helpers */
@@ -2258,10 +2258,10 @@ html.allow-scroll #root {
 /* Scale reveal variant */
 [data-reveal-scale] {
   opacity: 0;
-  transform: translateY(16px) scale(0.98);
+  transform: translateY(20px) scale(0.97);
   transition:
-    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 [data-reveal-scale].revealed {
   opacity: 1;
@@ -2872,6 +2872,193 @@ html.dark .blog-stat-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
+/* ── Section Divider ── */
+.blog-section-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1rem;
+}
+.blog-section-divider::before,
+.blog-section-divider::after {
+  content: "";
+  flex: 1;
+  max-width: 120px;
+  height: 1px;
+}
+.blog-section-divider::before {
+  background: linear-gradient(to right, transparent, rgba(168, 162, 158, 0.2));
+}
+.blog-section-divider::after {
+  background: linear-gradient(to left, transparent, rgba(168, 162, 158, 0.2));
+}
+html.dark .blog-section-divider::before {
+  background: linear-gradient(to right, transparent, rgba(168, 162, 158, 0.08));
+}
+html.dark .blog-section-divider::after {
+  background: linear-gradient(to left, transparent, rgba(168, 162, 158, 0.08));
+}
+
+/* ── Feature Number Badge ── */
+.blog-feature-number {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.05em;
+  color: rgba(168, 162, 158, 0.25);
+  transition: color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.blog-feature-card:hover .blog-feature-number {
+  color: rgba(168, 162, 158, 0.45);
+}
+html.dark .blog-feature-number {
+  color: rgba(120, 113, 108, 0.2);
+}
+html.dark .blog-feature-card:hover .blog-feature-number {
+  color: rgba(120, 113, 108, 0.35);
+}
+
+/* ── Feature Card Gradient Border ── */
+.blog-feature-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 50%,
+    rgba(168, 162, 158, 0.1) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.blog-feature-card:hover::before {
+  opacity: 1;
+}
+html.dark .blog-feature-card::before {
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 50%,
+    rgba(120, 113, 108, 0.12) 100%
+  );
+}
+
+/* ── Dot Pattern Background ── */
+.blog-dot-pattern {
+  background-image: radial-gradient(
+    circle,
+    rgba(0, 0, 0, 0.03) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
+}
+html.dark .blog-dot-pattern {
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px
+  );
+}
+
+/* ── Arch Card Frame ── */
+.blog-arch-frame {
+  position: relative;
+}
+.blog-arch-frame::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid rgba(168, 162, 158, 0.08);
+  pointer-events: none;
+  transition: border-color 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.blog-arch-frame:hover::after {
+  border-color: rgba(168, 162, 158, 0.15);
+}
+html.dark .blog-arch-frame::after {
+  border-color: rgba(120, 113, 108, 0.06);
+}
+html.dark .blog-arch-frame:hover::after {
+  border-color: rgba(120, 113, 108, 0.12);
+}
+
+/* ── CTA Ambient ── */
+.blog-cta-ambient {
+  position: relative;
+}
+.blog-cta-ambient::before {
+  content: "";
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 700px;
+  height: 400px;
+  background: radial-gradient(
+    ellipse,
+    rgba(251, 191, 36, 0.05) 0%,
+    rgba(232, 121, 249, 0.03) 30%,
+    transparent 65%
+  );
+  pointer-events: none;
+}
+html.dark .blog-cta-ambient::before {
+  background: radial-gradient(
+    ellipse,
+    rgba(251, 191, 36, 0.04) 0%,
+    rgba(232, 121, 249, 0.02) 30%,
+    transparent 65%
+  );
+}
+
+/* ── Navbar Scroll Shadow ── */
+.blog-nav-scrolled {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.02);
+}
+html.dark .blog-nav-scrolled {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.15),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ── Stat Card Gradient Underline ── */
+.blog-stat-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #d97706, #f59e0b);
+  opacity: 0;
+  transition:
+    opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.blog-stat-card:hover::after {
+  opacity: 0.6;
+  width: 36px;
+}
+
 /* ── Scroll Progress Bar ── */
 .landing-progress-bar {
   position: fixed;
@@ -2883,14 +3070,16 @@ html.dark .blog-stat-card:hover {
     #d97706,
     #f59e0b,
     #fbbf24,
+    #e879f9,
     #f59e0b,
     #d97706
   );
-  background-size: 300% 100%;
-  animation: progress-shimmer 6s ease infinite;
+  background-size: 400% 100%;
+  animation: progress-shimmer 8s ease infinite;
   z-index: 100;
   transition: width 0.1s linear;
-  opacity: 0.6;
+  opacity: 0.7;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.3);
 }
 
 @keyframes progress-shimmer {

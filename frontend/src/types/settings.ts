@@ -31,6 +31,26 @@ export interface SettingDependsOn {
   value: string | number | boolean; // Expected value for visibility
 }
 
+// JSON schema field definition
+export interface JsonSchemaField {
+  name: string;
+  type: "text" | "password" | "number" | "toggle" | "select";
+  label: string; // i18n key
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];
+}
+
+// JSON schema for structured editing of JSON-type settings
+export interface JsonSchema {
+  type: "array" | "object";
+  item_label?: string; // i18n key for array items
+  key_label?: string; // i18n key for object keys (object type)
+  value_type?: "array"; // for object values that are arrays
+  key_options?: string[]; // allowed keys for object type
+  fields: JsonSchemaField[];
+}
+
 export interface SettingItem {
   key: string;
   value: string | number | boolean | object;
@@ -43,6 +63,7 @@ export interface SettingItem {
   frontend_visible: boolean;
   depends_on?: string | SettingDependsOn; // Key of parent setting or condition object
   options?: string[]; // Available options for SELECT type
+  json_schema?: JsonSchema; // Schema for JSON-type settings
   updated_at?: string;
   updated_by?: string;
 }

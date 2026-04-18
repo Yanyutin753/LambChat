@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   Check,
+  ChevronLeft,
 } from "lucide-react";
 import { ModelSelector } from "../../agent/ModelSelector";
 import { LanguageToggle } from "../../common/LanguageToggle";
@@ -340,51 +341,77 @@ export function Header({
                       )}
                     </button>
                     <button
-                      onClick={() => setLangMenuOpen((v) => !v)}
+                      onClick={() => setLangMenuOpen(true)}
                       className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                     >
                       <Languages size={16} className="shrink-0" />
                       <span className="truncate">{t("common.language")}</span>
                     </button>
-                    {langMenuOpen && (
-                      <div className="px-2 pb-1 space-y-0.5">
-                        {[
-                          { code: "en", name: "English" },
-                          { code: "zh", name: "中文" },
-                          { code: "ja", name: "日本語" },
-                          { code: "ko", name: "한국어" },
-                          { code: "ru", name: "Русский" },
-                        ].map((lang) => (
-                          <button
-                            key={lang.code}
-                            onClick={() => {
-                              i18n.changeLanguage(lang.code);
-                              localStorage.setItem("language", lang.code);
-                              authApi
-                                .updateMetadata({ language: lang.code })
-                                .catch(() => {});
-                              setLangMenuOpen(false);
-                              setMobileMenuOpen(false);
-                            }}
-                            className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                              i18n.language === lang.code
-                                ? "text-[var(--theme-text)] bg-[var(--theme-primary-light)]"
-                                : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
-                            }`}
-                          >
-                            <span>{lang.name}</span>
-                            {i18n.language === lang.code && (
-                              <Check size={14} className="ml-auto" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>,
                 document.body,
               )}
           </div>
+
+          {langMenuOpen &&
+            createPortal(
+              <div
+                className="fixed z-[302] right-3 top-[52px] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+                style={{
+                  backgroundColor: "var(--theme-bg-card)",
+                  borderColor: "var(--theme-border)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => setLangMenuOpen(false)}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] transition-colors"
+                >
+                  <ChevronLeft size={16} className="shrink-0" />
+                  <span>{t("common.language")}</span>
+                </button>
+                <div
+                  className="h-px mx-2"
+                  style={{ backgroundColor: "var(--theme-border)" }}
+                />
+                <div className="py-1">
+                  {[
+                    { code: "en", name: "English" },
+                    { code: "zh", name: "中文" },
+                    { code: "ja", name: "日本語" },
+                    { code: "ko", name: "한국어" },
+                    { code: "ru", name: "Русский" },
+                  ].map((lang) => {
+                    const isActive = i18n.language?.split("-")[0] === lang.code;
+                    return (
+                      <button
+                        key={lang.code}
+                        onClick={() => {
+                          i18n.changeLanguage(lang.code);
+                          localStorage.setItem("language", lang.code);
+                          authApi
+                            .updateMetadata({ language: lang.code })
+                            .catch(() => {});
+                          setLangMenuOpen(false);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
+                          isActive
+                            ? "text-[var(--theme-text)] bg-[var(--theme-primary-light)]"
+                            : "text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+                        }`}
+                      >
+                        <span className="truncate">{lang.name}</span>
+                        {isActive && (
+                          <Check size={14} className="ml-auto shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>,
+              document.body,
+            )}
 
           <LanguageToggle className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors" />
           <ThemeToggle className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors" />

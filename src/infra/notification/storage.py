@@ -79,7 +79,9 @@ class NotificationStorage:
             logger.error(f"Error getting notification {notification_id}: {e}")
             return None
 
-    async def list(self, skip: int = 0, limit: int = 50) -> tuple[list[Notification], int]:
+    async def list_notifications(
+        self, skip: int = 0, limit: int = 50
+    ) -> tuple[list[Notification], int]:
         total = await self.collection.count_documents({})
         cursor = self.collection.find().sort("created_at", -1).skip(skip).limit(limit)
         items = []
@@ -94,9 +96,9 @@ class NotificationStorage:
         try:
             update_fields: dict = {"updated_at": datetime.now(timezone.utc)}
             provided = data.model_fields_set
-            if "title_i18n" in provided:
+            if "title_i18n" in provided and data.title_i18n is not None:
                 update_fields["title_i18n"] = data.title_i18n.model_dump()
-            if "content_i18n" in provided:
+            if "content_i18n" in provided and data.content_i18n is not None:
                 update_fields["content_i18n"] = data.content_i18n.model_dump()
             if "start_time" in provided:
                 update_fields["start_time"] = data.start_time
