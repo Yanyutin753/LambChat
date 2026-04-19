@@ -349,7 +349,7 @@ export function ToolResultPanel({
             }
           : !animateIn && !panelClass && !isCenter
             ? isMobile
-              ? { transform: "translateY(100%)", opacity: 0 }
+              ? { transform: "translateY(100%)" }
               : undefined
             : undefined
       }
