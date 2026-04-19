@@ -155,38 +155,40 @@ export function ToolResultPanel({
     localStorage.setItem("sidebar-preview-width", String(sidebarWidth));
   }, [sidebarWidth]);
 
-  // Signal main layout compression (desktop sidebar mode)
-  // Use useLayoutEffect to avoid visual flash between render and layout.
-  // A module-level ref-counter is used so that when panel A closes (its cleanup
-  // fires in a *later* render cycle) while panel B is already open, the
-  // attribute is not removed prematurely.
+  // Layout-level side-effects (run synchronously before paint to prevent flash).
+  // Combined into a single useLayoutEffect to avoid multiple layout flushes.
   useLayoutEffect(() => {
-    if (!open || isMobile || viewMode === "center") return;
-    _compressionCount++;
-    if (_compressionCount === 1) {
-      document.documentElement.setAttribute("data-sidebar-preview", "open");
-    }
-    return () => {
-      _compressionCount--;
-      if (_compressionCount === 0) {
-        document.documentElement.removeAttribute("data-sidebar-preview");
-      }
-    };
-  }, [open, isMobile, viewMode]);
-
-  // Body scroll lock (mobile bottom-sheet + center fullscreen)
-  useEffect(() => {
     if (!open) return;
-    if (!isMobile && viewMode !== "center") return; // sidebar keeps scroll
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+    // Desktop sidebar: signal main layout compression
+    if (!isMobile && viewMode !== "center") {
+      _compressionCount++;
+      if (_compressionCount === 1) {
+        document.documentElement.setAttribute("data-sidebar-preview", "open");
+      }
     }
+
+    // Mobile bottom-sheet / center fullscreen: lock body scroll
+    if (isMobile || viewMode === "center") {
+      const scrollbarWidth =
+        window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = "hidden";
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
+    }
+
     return () => {
-      document.body.style.overflow = "";
-      document.body.style.paddingRight = "";
+      if (!isMobile && viewMode !== "center") {
+        _compressionCount--;
+        if (_compressionCount === 0) {
+          document.documentElement.removeAttribute("data-sidebar-preview");
+        }
+      }
+      if (isMobile || viewMode === "center") {
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+      }
     };
   }, [open, isMobile, viewMode]);
 
@@ -311,13 +313,13 @@ export function ToolResultPanel({
             : isMobile
               ? `max-h-[92vh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] ${
                   animateIn
-                    ? "animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)]"
-                    : "translate-y-full opacity-0"
+                    ? "animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)_backwards]"
+                    : ""
                 }`
               : `h-full relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
                   animateIn
-                    ? "animate-[slide-in-right_200ms_ease-out]"
-                    : "translate-x-full"
+                    ? "animate-[slide-in-right_200ms_ease-out_backwards]"
+                    : ""
                 }`
       }`}
       ref={(el) => {
@@ -340,8 +342,16 @@ export function ToolResultPanel({
       {...(isSidebar && !isMobile ? { "data-sidebar-panel": "" } : {})}
       style={
         isSidebar && !isMobile && !panelClass
-          ? { maxWidth: `${sidebarWidth}%`, minWidth: "min(320px, 80vw)" }
-          : undefined
+          ? {
+              maxWidth: `${sidebarWidth}%`,
+              minWidth: "min(320px, 80vw)",
+              ...(animateIn ? {} : { transform: "translateX(100%)" }),
+            }
+          : !animateIn && !panelClass && !isCenter
+            ? isMobile
+              ? { transform: "translateY(100%)", opacity: 0 }
+              : undefined
+            : undefined
       }
       onClick={(e) => e.stopPropagation()}
     >
@@ -473,7 +483,7 @@ export function ToolResultPanel({
           : isCenter
             ? "bg-stone-900"
             : isMobile
-              ? "bg-black/50 items-end justify-end animate-[overlay-fade-in_280ms_cubic-bezier(0.16,1,0.3,1)_backwards]"
+              ? "bg-black/50 items-end justify-end"
               : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
       }`}
       onClick={() => {
