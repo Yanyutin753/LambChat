@@ -53,6 +53,64 @@ test("falls back to the footer sentinel when Virtuoso handles are unavailable", 
   assert.equal(called, true);
 });
 
+test("uses the footer sentinel even when Virtuoso is available", async () => {
+  let footerScrolls = 0;
+  const virtuoso = {
+    scrollTo: () => undefined,
+  };
+  const scroller = {
+    scrollTop: 0,
+    clientHeight: 100,
+    scrollHeight: 500,
+  };
+  const footer = {
+    scrollIntoView: () => {
+      footerScrolls += 1;
+      scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
+    },
+  };
+
+  startVirtuosoScrollToBottom({
+    virtuoso,
+    scroller,
+    footer,
+    intervalMs: 1,
+    maxDurationMs: 20,
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  assert.ok(footerScrolls > 0);
+  assert.equal(scroller.scrollTop, 400);
+});
+
+test("does not settle early just because the scroller is within the breathing room", async () => {
+  let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
+  const virtuoso = {
+    scrollTo: () => undefined,
+  };
+  const scroller = {
+    scrollTop: 460,
+    clientHeight: 100,
+    scrollHeight: 600,
+  };
+
+  startVirtuosoScrollToBottom({
+    virtuoso,
+    scroller,
+    intervalMs: 5,
+    maxDurationMs: 140,
+    bottomOffsetPx: 40,
+    onComplete: (reason) => {
+      completionReason = reason;
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 130));
+
+  assert.notEqual(completionReason, "settled");
+});
+
 test("detects when the local send path appends a user message and placeholder reply", () => {
   const hasOutgoingMessage = hasNewOutgoingMessage(
     [{ id: "1", role: "assistant" }],

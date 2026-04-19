@@ -239,6 +239,8 @@
     "or": "or",
     "orContinueWith": "or continue with",
     "password": "Password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "passwordMismatch": "Passwords do not match",
     "passwordPlaceholder": "Enter password",
     "passwordRequired": "Please enter password",

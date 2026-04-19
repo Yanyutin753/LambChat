@@ -240,6 +240,8 @@
     "or": "или",
     "orContinueWith": "или продолжить с",
     "password": "Пароль",
+    "showPassword": "Показать пароль",
+    "hidePassword": "Скрыть пароль",
     "passwordMismatch": "Пароли не совпадают",
     "passwordPlaceholder": "Введите пароль",
     "passwordRequired": "Пожалуйста, введите пароль",

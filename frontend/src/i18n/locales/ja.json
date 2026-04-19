@@ -240,6 +240,8 @@
     "or": "または",
     "orContinueWith": "または、以下の方法でログイン",
     "password": "パスワード",
+    "showPassword": "パスワードを表示",
+    "hidePassword": "パスワードを非表示",
     "passwordMismatch": "パスワードが一致しません",
     "passwordPlaceholder": "パスワードを入力",
     "passwordRequired": "パスワードを入力してください",

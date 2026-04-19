@@ -239,6 +239,8 @@
     "or": "或",
     "orContinueWith": "或使用以下方式登录",
     "password": "密码",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码",
     "passwordMismatch": "两次输入的密码不一致",
     "passwordPlaceholder": "请输入密码",
     "passwordRequired": "请输入密码",

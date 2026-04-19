@@ -11,7 +11,10 @@ interface ScrollerLike {
 }
 
 interface FooterLike {
-  scrollIntoView: (args?: { behavior?: ScrollBehaviorMode }) => void;
+  scrollIntoView: (args?: {
+    behavior?: ScrollBehaviorMode;
+    block?: ScrollLogicalPosition;
+  }) => void;
 }
 
 interface StartVirtuosoScrollToBottomOptions {
@@ -21,6 +24,8 @@ interface StartVirtuosoScrollToBottomOptions {
   intervalMs?: number;
   maxAttempts?: number;
   maxDurationMs?: number;
+  // Kept for compatibility with older callers. Settling must still require
+  // the physical scroll bottom, otherwise the user can still drag lower.
   bottomOffsetPx?: number;
   shouldAbort?: () => boolean;
   onAutoScroll?: () => void;
@@ -54,7 +59,6 @@ export function startVirtuosoScrollToBottom({
   intervalMs = 30,
   maxAttempts = 40,
   maxDurationMs,
-  bottomOffsetPx = 0,
   shouldAbort,
   onAutoScroll,
   onComplete,
@@ -81,6 +85,7 @@ export function startVirtuosoScrollToBottom({
       top: Number.MAX_SAFE_INTEGER,
       behavior: "auto",
     });
+    footer?.scrollIntoView({ behavior: "auto", block: "end" });
   };
 
   scroll();
@@ -108,8 +113,7 @@ export function startVirtuosoScrollToBottom({
     }
 
     const isAtBottom =
-      scroller.scrollTop + scroller.clientHeight >=
-      scroller.scrollHeight - Math.max(1, bottomOffsetPx);
+      scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
     const hasStableHeight = Date.now() - lastHeightChangeAt >= settleWindowMs;
     const hasExceededScrollBudget = Date.now() - startedAt >= maxScrollWindowMs;
 

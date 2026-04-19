@@ -240,6 +240,8 @@
     "or": "또는",
     "orContinueWith": "또는 다음 방법으로 계속",
     "password": "비밀번호",
+    "showPassword": "비밀번호 표시",
+    "hidePassword": "비밀번호 숨기기",
     "passwordMismatch": "비밀번호가 일치하지 않습니다",
     "passwordPlaceholder": "비밀번호 입력",
     "passwordRequired": "비밀번호를 입력해주세요",

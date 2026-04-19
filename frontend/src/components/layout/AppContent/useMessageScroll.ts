@@ -67,7 +67,6 @@ export function useMessageScroll(
       virtuoso: virtuosoRef.current,
       scroller: virtuosoScrollerRef.current,
       footer: messagesEndRef.current,
-      bottomOffsetPx: bottomBreathingRoomPx,
       maxDurationMs: isMobileViewport ? 4000 : 2500,
       shouldAbort: () => userScrolledUpRef.current,
       onAutoScroll: () => {
@@ -77,7 +76,7 @@ export function useMessageScroll(
         autoScrollActiveRef.current = false;
       },
     });
-  }, [bottomBreathingRoomPx, isMobileViewport]);
+  }, [isMobileViewport]);
 
   const scrollToTop = useCallback(() => {
     userScrolledUpRef.current = true;
