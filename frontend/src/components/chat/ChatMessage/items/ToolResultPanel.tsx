@@ -445,7 +445,7 @@ export function ToolResultPanel({
           : isCenter
             ? "bg-stone-900"
             : isMobile
-              ? "bg-black/50 items-end justify-end"
+              ? "bg-black/50 items-end justify-end animate-[overlay-fade-in_280ms_cubic-bezier(0.16,1,0.3,1)]"
               : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
       }`}
       onClick={() => {

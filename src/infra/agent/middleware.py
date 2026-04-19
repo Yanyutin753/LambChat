@@ -160,6 +160,38 @@ def _is_empty_content(aimessage: AIMessage) -> bool:
     return False
 
 
+def _is_truncated_response(aimessage: AIMessage) -> bool:
+    """Check if a response was truncated (incomplete) based on stop_reason or content cues.
+
+    A response is considered truncated when:
+    - stop_reason is not 'end_turn'/'tool_use'/'stop_sequence' (explicit truncation), or
+    - stop_reason is absent but the text ends with an incomplete cue (colon, ellipsis)
+      and there are no tool_calls (heuristic for connection-drop truncation).
+    """
+    # Explicit stop_reason check
+    metadata = getattr(aimessage, "response_metadata", None)
+    if isinstance(metadata, dict):
+        stop_reason = metadata.get("stop_reason")
+        if stop_reason is not None:
+            return stop_reason not in ("end_turn", "tool_use", "stop_sequence")
+
+    # Heuristic: text ends with incomplete cue and no tool_calls
+    if getattr(aimessage, "tool_calls", None):
+        return False
+    content = getattr(aimessage, "content", None)
+    text = ""
+    if isinstance(content, str):
+        text = content.strip()
+    elif isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text = (block.get("text", "") or "").strip()
+                break
+    if not text:
+        return False
+    return text.endswith(("：", ":", "……", "...", "…")) and len(text) > 2
+
+
 class ModelFallbackMiddleware(AgentMiddleware):
     """Middleware that falls back to an alternate model when the primary model fails.
 
@@ -253,11 +285,13 @@ class EmptyContentRetryMiddleware(AgentMiddleware):
             if not messages or not isinstance(messages[0], AIMessage):
                 break
 
-            if not _is_empty_content(messages[0]):
+            if not _is_empty_content(messages[0]) and not _is_truncated_response(messages[0]):
                 return response
 
+            reason = "truncated" if _is_truncated_response(messages[0]) else "empty"
             logger.warning(
-                "Empty content in model response (attempt %d/%d)",
+                "%s content in model response (attempt %d/%d)",
+                reason.capitalize(),
                 attempt + 1,
                 self.max_retries + 1,
             )

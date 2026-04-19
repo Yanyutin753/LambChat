@@ -75,3 +75,14 @@
     opacity: 1;
   }
 }
+
+/* Overlay backdrop fade — matches panel animation duration */
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

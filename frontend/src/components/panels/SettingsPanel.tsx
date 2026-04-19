@@ -622,7 +622,7 @@ export function SettingsPanel() {
                               {setting.key === "DEFAULT_AGENT" ? (
                                 agents.map((agent) => (
                                   <option key={agent.id} value={agent.id}>
-                                    {agent.name || agent.id}
+                                    {t(agent.name || agent.id)}
                                   </option>
                                 ))
                               ) : setting.key === "DEFAULT_USER_ROLE" ? (
