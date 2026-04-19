@@ -87,6 +87,15 @@ def _is_retryable_error(exc: Exception) -> bool:
     if isinstance(exc, ValueError) and "No generations found in stream" in str(exc):
         return True
 
+    # httpx transient network errors (peer closed, incomplete chunked read, etc.)
+    try:
+        import httpx
+
+        if isinstance(exc, httpx.RemoteProtocolError):
+            return True
+    except ImportError:
+        pass
+
     for module in ("anthropic", "openai"):
         try:
             mod = __import__(
