@@ -25,8 +25,7 @@ import { ImageViewer } from "../common";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import {
-  getKeyboardInsetPx,
-  keepElementVisibleInViewport,
+  getTextareaMaxHeightPx,
   resizeTextareaForContent,
 } from "./chatInputViewport";
 import type {
@@ -465,10 +464,8 @@ export const ChatInput = memo(function ChatInput({
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
-  const [keyboardInsetPx, setKeyboardInsetPx] = useState(0);
-  const rootRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const visibilityRafRef = useRef<number>(0);
+  const resizeRafRef = useRef<number>(0);
 
   // Use external attachments if provided, otherwise use internal state
   const attachments = externalAttachments ?? internalAttachments;
@@ -479,28 +476,31 @@ export const ChatInput = memo(function ChatInput({
     onAttachmentsChange: setAttachments,
   });
 
-  const keepInputVisible = useCallback(() => {
-    const target = rootRef.current ?? textareaRef.current;
-    if (!target || typeof window === "undefined") return;
-
-    keepElementVisibleInViewport({
-      element: target,
-      viewport: window.visualViewport,
-    });
-  }, []);
-
-  const scheduleInputVisibility = useCallback(() => {
-    if (typeof window === "undefined") return;
-    cancelAnimationFrame(visibilityRafRef.current);
-    visibilityRafRef.current = requestAnimationFrame(keepInputVisible);
-  }, [keepInputVisible]);
-
-  const resetTextareaHeight = useCallback(() => {
+  const resizeTextareaHeightNow = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
-    resizeTextareaForContent(el);
-    scheduleInputVisibility();
-  }, [scheduleInputVisibility]);
+    resizeTextareaForContent(
+      el,
+      getTextareaMaxHeightPx({
+        isMobile:
+          typeof window !== "undefined" ? window.innerWidth < 640 : false,
+        viewportHeight:
+          typeof window !== "undefined"
+            ? window.visualViewport?.height ?? window.innerHeight
+            : null,
+      }),
+    );
+  }, []);
+
+  const scheduleTextareaResize = useCallback(() => {
+    if (typeof window === "undefined") return;
+    cancelAnimationFrame(resizeRafRef.current);
+    resizeRafRef.current = requestAnimationFrame(resizeTextareaHeightNow);
+  }, [resizeTextareaHeightNow]);
+
+  const resetTextareaHeight = useCallback(() => {
+    resizeTextareaHeightNow();
+  }, [resizeTextareaHeightNow]);
 
   useEffect(() => {
     // Use rAF to ensure the DOM has updated before measuring scrollHeight
@@ -510,37 +510,25 @@ export const ChatInput = memo(function ChatInput({
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
-    const viewport = window.visualViewport;
-    if (!viewport) return undefined;
-
-    const updateKeyboardInset = () => {
-      const nextInset =
-        window.innerWidth < 640
-          ? getKeyboardInsetPx({
-              windowHeight: window.innerHeight,
-              viewport,
-            })
-          : 0;
-
-      setKeyboardInsetPx(nextInset);
-      scheduleInputVisibility();
+    const updateTextareaSize = () => {
+      scheduleTextareaResize();
     };
 
-    updateKeyboardInset();
-    viewport.addEventListener("resize", updateKeyboardInset);
-    viewport.addEventListener("scroll", updateKeyboardInset);
-    window.addEventListener("orientationchange", updateKeyboardInset);
+    updateTextareaSize();
+    window.visualViewport?.addEventListener("resize", updateTextareaSize);
+    window.addEventListener("resize", updateTextareaSize);
+    window.addEventListener("orientationchange", updateTextareaSize);
 
     return () => {
-      viewport.removeEventListener("resize", updateKeyboardInset);
-      viewport.removeEventListener("scroll", updateKeyboardInset);
-      window.removeEventListener("orientationchange", updateKeyboardInset);
+      window.visualViewport?.removeEventListener("resize", updateTextareaSize);
+      window.removeEventListener("resize", updateTextareaSize);
+      window.removeEventListener("orientationchange", updateTextareaSize);
     };
-  }, [scheduleInputVisibility]);
+  }, [scheduleTextareaResize]);
 
   useEffect(() => {
     return () => {
-      cancelAnimationFrame(visibilityRafRef.current);
+      cancelAnimationFrame(resizeRafRef.current);
     };
   }, []);
 
@@ -584,7 +572,7 @@ export const ChatInput = memo(function ChatInput({
           textarea.selectionStart = textarea.selectionEnd =
             start + markdownText.length;
           textarea.focus();
-          scheduleInputVisibility();
+          scheduleTextareaResize();
         }, 0);
       }
     }
@@ -657,17 +645,8 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div
-      ref={rootRef}
-      className="sm:px-4 pb-3 will-change-transform"
-      style={{
-        backgroundColor: "var(--theme-bg)",
-        transform:
-          keyboardInsetPx > 0 ? `translateY(-${keyboardInsetPx}px)` : undefined,
-        transition:
-          keyboardInsetPx > 0
-            ? "transform 120ms cubic-bezier(0.16, 1, 0.3, 1)"
-            : "transform 160ms ease-out",
-      }}
+      className="sm:px-4 pb-3"
+      style={{ backgroundColor: "var(--theme-bg)" }}
     >
       <form
         onSubmit={handleSubmit}
@@ -741,7 +720,7 @@ export const ChatInput = memo(function ChatInput({
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onFocus={scheduleInputVisibility}
+              onFocus={scheduleTextareaResize}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               placeholder={

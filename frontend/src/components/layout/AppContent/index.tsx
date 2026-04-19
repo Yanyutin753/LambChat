@@ -40,6 +40,7 @@ import { getRestoredModelSelection } from "./sessionState";
 import { ChatView } from "./ChatView";
 import { Header } from "./Header";
 import { TabContent } from "./TabContent";
+import { getAppViewportHeightCssValue } from "./appViewport";
 
 interface AppContentProps {
   activeTab: TabType;
@@ -96,6 +97,47 @@ function AppShell({
   sessionId,
   sessionName,
 }: AppShellProps) {
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const rootStyle = document.documentElement.style;
+    let raf = 0;
+
+    const updateViewportHeight = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        rootStyle.setProperty(
+          "--app-viewport-height",
+          getAppViewportHeightCssValue({
+            visualViewportHeight: window.visualViewport?.height ?? null,
+            windowInnerHeight: window.innerHeight,
+          }),
+        );
+      });
+    };
+
+    updateViewportHeight();
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
+    window.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("orientationchange", updateViewportHeight);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.visualViewport?.removeEventListener(
+        "resize",
+        updateViewportHeight,
+      );
+      window.visualViewport?.removeEventListener(
+        "scroll",
+        updateViewportHeight,
+      );
+      window.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("orientationchange", updateViewportHeight);
+      rootStyle.removeProperty("--app-viewport-height");
+    };
+  }, []);
+
   return (
     <>
       <ProfileModal
@@ -105,8 +147,11 @@ function AppShell({
       />
 
       <div
-        className="flex h-[100dvh] w-full overflow-hidden"
-        style={{ backgroundColor: "var(--theme-bg)" }}
+        className="flex w-full overflow-hidden"
+        style={{
+          backgroundColor: "var(--theme-bg)",
+          height: "var(--app-viewport-height, 100dvh)",
+        }}
       >
         {sidebar}
 

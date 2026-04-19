@@ -1,6 +1,6 @@
 const DEFAULT_TEXTAREA_MAX_HEIGHT_PX = 250;
-const DEFAULT_VIEWPORT_MARGIN_PX = 16;
-const DEFAULT_KEYBOARD_THRESHOLD_PX = 80;
+const MOBILE_TEXTAREA_VIEWPORT_RATIO = 0.32;
+const MOBILE_TEXTAREA_MIN_HEIGHT_PX = 120;
 
 interface TextareaLike {
   style: {
@@ -8,19 +8,6 @@ interface TextareaLike {
   };
   scrollHeight: number;
   scrollTop: number;
-}
-
-interface VisibleElementLike {
-  getBoundingClientRect: () => {
-    top: number;
-    bottom: number;
-  };
-  scrollIntoView?: (options?: ScrollIntoViewOptions) => void;
-}
-
-interface VisualViewportLike {
-  offsetTop: number;
-  height: number;
 }
 
 export function resizeTextareaForContent(
@@ -32,53 +19,22 @@ export function resizeTextareaForContent(
   textarea.scrollTop = textarea.scrollHeight;
 }
 
-export function keepElementVisibleInViewport({
-  element,
-  viewport,
-  marginPx = DEFAULT_VIEWPORT_MARGIN_PX,
+export function getTextareaMaxHeightPx({
+  isMobile,
+  viewportHeight,
 }: {
-  element: VisibleElementLike;
-  viewport?: VisualViewportLike | null;
-  marginPx?: number;
-}): boolean {
-  const rect = element.getBoundingClientRect();
-  const viewportTop = viewport?.offsetTop ?? 0;
-  const viewportBottom =
-    viewportTop +
-    (viewport?.height ??
-      (typeof window !== "undefined" ? window.innerHeight : rect.bottom));
-
-  if (
-    rect.top >= viewportTop + marginPx &&
-    rect.bottom <= viewportBottom - marginPx
-  ) {
-    return false;
-  }
-
-  element.scrollIntoView?.({
-    block: "nearest",
-    inline: "nearest",
-    behavior: "auto",
-  });
-  return true;
-}
-
-export function getKeyboardInsetPx({
-  windowHeight,
-  viewport,
-  thresholdPx = DEFAULT_KEYBOARD_THRESHOLD_PX,
-}: {
-  windowHeight: number;
-  viewport?: VisualViewportLike | null;
-  thresholdPx?: number;
+  isMobile: boolean;
+  viewportHeight?: number | null;
 }): number {
-  if (!viewport) {
-    return 0;
+  if (!isMobile || !viewportHeight) {
+    return DEFAULT_TEXTAREA_MAX_HEIGHT_PX;
   }
 
-  const inset = Math.max(
-    0,
-    windowHeight - viewport.height - viewport.offsetTop,
+  return Math.min(
+    DEFAULT_TEXTAREA_MAX_HEIGHT_PX,
+    Math.max(
+      MOBILE_TEXTAREA_MIN_HEIGHT_PX,
+      Math.round(viewportHeight * MOBILE_TEXTAREA_VIEWPORT_RATIO),
+    ),
   );
-  return inset >= thresholdPx ? Math.round(inset) : 0;
 }

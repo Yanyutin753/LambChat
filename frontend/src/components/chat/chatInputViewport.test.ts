@@ -1,8 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  getKeyboardInsetPx,
-  keepElementVisibleInViewport,
+  getTextareaMaxHeightPx,
   resizeTextareaForContent,
 } from "./chatInputViewport.ts";
 
@@ -19,40 +18,20 @@ test("resizeTextareaForContent keeps the newest typed content visible", () => {
   assert.equal(textarea.scrollTop, 420);
 });
 
-test("getKeyboardInsetPx returns the overlay height when mobile keyboard covers the bottom", () => {
+test("getTextareaMaxHeightPx uses a comfortable fraction of small mobile viewports", () => {
   assert.equal(
-    getKeyboardInsetPx({
-      windowHeight: 800,
-      viewport: { height: 500, offsetTop: 0 },
-    }),
-    300,
+    getTextareaMaxHeightPx({ isMobile: true, viewportHeight: 500 }),
+    160,
   );
 });
 
-test("getKeyboardInsetPx ignores small browser chrome viewport changes", () => {
+test("getTextareaMaxHeightPx keeps the default cap on desktop and roomy mobile viewports", () => {
   assert.equal(
-    getKeyboardInsetPx({
-      windowHeight: 800,
-      viewport: { height: 760, offsetTop: 0 },
-    }),
-    0,
+    getTextareaMaxHeightPx({ isMobile: false, viewportHeight: 500 }),
+    250,
   );
-});
-
-test("keepElementVisibleInViewport scrolls the input into view when keyboard overlaps it", () => {
-  let scrolled = false;
-  const element = {
-    getBoundingClientRect: () => ({ top: 460, bottom: 540 }),
-    scrollIntoView: () => {
-      scrolled = true;
-    },
-  };
-
-  const changed = keepElementVisibleInViewport({
-    element,
-    viewport: { height: 500, offsetTop: 0 },
-  });
-
-  assert.equal(changed, true);
-  assert.equal(scrolled, true);
+  assert.equal(
+    getTextareaMaxHeightPx({ isMobile: true, viewportHeight: 900 }),
+    250,
+  );
 });
