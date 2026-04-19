@@ -306,8 +306,8 @@ export function SearchDialog({
               }`}
             >
               <SkeletonList
-                count={5}
-                className="h-full flex flex-col justify-around py-2"
+                count={12}
+                className="h-full flex flex-col py-2"
                 compact
               />
             </div>

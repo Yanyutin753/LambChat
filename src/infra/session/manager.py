@@ -147,9 +147,10 @@ class SessionManager:
         limit: int = 100,
         is_active: Optional[bool] = None,
         project_id: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> tuple[list[Session], int]:
         """列出会话，返回 (sessions, total_count)"""
-        return await self.storage.list_sessions(user_id, skip, limit, is_active, project_id)
+        return await self.storage.list_sessions(user_id, skip, limit, is_active, project_id, search)
 
     async def deactivate_session(self, session_id: str) -> Optional[Session]:
         """停用会话"""

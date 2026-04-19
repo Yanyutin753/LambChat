@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
 import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHost";
-import { PersistentToolPanelHost } from "../../chat/ChatMessage/items/persistentToolPanelState";
+import {
+  PersistentToolPanelHost,
+  closePersistentToolPanel,
+} from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso } from "react-virtuoso";
@@ -225,6 +228,7 @@ export function ChatView({
     clearFileRevealAutoOpenState();
     clearProjectRevealAutoOpenState();
     setActivePreviewState(null);
+    closePersistentToolPanel();
   }, [sessionId]);
 
   const latestAutoPreview = useMemo(

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Code2, Download, Maximize, Minimize } from "lucide-react";
+import { Code2, Download, Maximize } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import DocumentPreview from "../../../documents/DocumentPreview";
 import ProjectPreview from "../../../documents/previews/ProjectPreview";
@@ -7,10 +7,8 @@ import { LoadingSpinner } from "../../../common";
 import { ToolResultPanel } from "./ToolResultPanel";
 import { exportProjectZip } from "../../../../utils/exportProjectZip";
 import {
-  exitProjectPreviewFullscreen,
   isProjectPreviewFullscreen,
   requestProjectPreviewFullscreen,
-  resolveProjectPreviewMode,
 } from "./projectPreviewFullscreen";
 import type {
   ParsedProjectRevealData,
@@ -39,8 +37,8 @@ function ProjectRevealPreviewPanel({
   onUserInteraction?: () => void;
 }) {
   const { t } = useTranslation();
-  const [viewMode, setViewMode] = useState<"center" | "sidebar">("sidebar");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [viewMode, setViewMode] = useState<"center" | "sidebar">("sidebar");
   const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
   const panelElementRef = useRef<HTMLDivElement | null>(null);
   const cacheKey = useMemo(
@@ -74,11 +72,12 @@ function ProjectRevealPreviewPanel({
 
   useEffect(() => {
     const syncFullscreenState = () => {
-      setIsBrowserFullscreen(
+      const fullscreen =
         isProjectPreviewFullscreen({
           element: panelElementRef.current,
-        }),
-      );
+        });
+      setIsBrowserFullscreen(fullscreen);
+      setViewMode(fullscreen ? "center" : "sidebar");
     };
 
     syncFullscreenState();
@@ -171,18 +170,8 @@ function ProjectRevealPreviewPanel({
       element: panelElementRef.current,
     });
 
-    if (!fullscreenEntered && !isMobile) {
-      setViewMode((currentMode) =>
-        resolveProjectPreviewMode(currentMode, fullscreenEntered),
-      );
-    }
-
     return fullscreenEntered;
   }, [isMobile]);
-
-  const exitBrowserFullscreen = useCallback(async () => {
-    await exitProjectPreviewFullscreen();
-  }, []);
 
   useEffect(() => {
     if (!openInFullscreen) return;
@@ -208,34 +197,21 @@ function ProjectRevealPreviewPanel({
       onUserInteraction={onUserInteraction}
       headerActions={
         <>
-          <button
-            onClick={() => {
-              onUserInteraction?.();
-              if (isBrowserFullscreen) {
-                void exitBrowserFullscreen();
-                return;
-              }
-              void enterBrowserFullscreen();
-            }}
-            className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-            title={
-              isBrowserFullscreen
-                ? t("documents.exitFullscreen")
-                : t("documents.fullscreen")
-            }
-          >
-            {isBrowserFullscreen ? (
-              <Minimize
-                size={15}
-                className="text-stone-400 dark:text-stone-500"
-              />
-            ) : (
+          {!isBrowserFullscreen && (
+            <button
+              onClick={() => {
+                onUserInteraction?.();
+                void enterBrowserFullscreen();
+              }}
+              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+              title={t("documents.fullscreen")}
+            >
               <Maximize
                 size={15}
                 className="text-stone-400 dark:text-stone-500"
               />
-            )}
-          </button>
+            </button>
+          )}
           <button
             onClick={() =>
               exportProjectZip(filesForPreview, project.name, binaryFiles)
@@ -269,10 +245,12 @@ function ProjectRevealPreviewPanel({
           template={project.template}
           files={filesForPreview}
           entry={project.entry}
-          isFullscreen={viewMode !== "sidebar" || isBrowserFullscreen}
+          isFullscreen={viewMode === "center" || isBrowserFullscreen}
           showHeader={false}
           onToggleSidebar={
-            viewMode === "center" ? () => setViewMode("sidebar") : undefined
+            viewMode === "center" && !isBrowserFullscreen
+              ? () => setViewMode("sidebar")
+              : undefined
           }
         />
       )}

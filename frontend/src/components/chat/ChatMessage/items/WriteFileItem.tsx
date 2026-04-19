@@ -43,7 +43,7 @@ const WriteFileItem = memo(function WriteFileItem({
           <CodeMirrorViewer
             value={content}
             filePath={filePath}
-            lineNumbers={false}
+            lineNumbers={true}
             maxHeight="60vh"
             fontSize="0.8rem"
           />
@@ -90,7 +90,7 @@ const WriteFileItem = memo(function WriteFileItem({
                 <CodeMirrorViewer
                   value={content}
                   filePath={filePath}
-                  lineNumbers={false}
+                  lineNumbers={true}
                   maxHeight="16rem"
                   fontSize="0.75rem"
                 />
