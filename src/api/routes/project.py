@@ -4,7 +4,7 @@
 所有项目操作都需要认证，用户只能访问自己的项目。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.deps import get_current_user_required
 from src.infra.folder.storage import get_project_storage
@@ -90,13 +90,15 @@ async def update_project(
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: str,
+    delete_sessions: bool = Query(False, description="是否同时删除项目内的所有会话"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
     删除项目
 
     - 不能删除收藏项目
-    - 项目内的会话会被移动到未分类
+    - delete_sessions=false: 项目内的会话会被移动到未分类
+    - delete_sessions=true: 同时删除项目内的所有会话
     """
     storage = get_project_storage()
 
@@ -115,9 +117,14 @@ async def delete_project(
             detail="不能删除收藏项目",
         )
 
-    # Clear project_id for all sessions in this project
     session_storage = SessionStorage()
-    await session_storage.clear_project_id(project_id, user.sub)
+
+    if delete_sessions:
+        # Delete all sessions in this project
+        await session_storage.delete_by_project(project_id, user.sub)
+    else:
+        # Clear project_id for all sessions in this project
+        await session_storage.clear_project_id(project_id, user.sub)
 
     # Clear project_id on all revealed files belonging to this project
     try:

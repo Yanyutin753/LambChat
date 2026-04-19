@@ -39,7 +39,7 @@ export function ArchitectureSection({
               alt={t("landing.architecture")}
               width={1200}
               height={680}
-              className="w-full transition-all duration-700 group-hover:brightness-[0.97]"
+              className="w-full transition-all duration-700"
               loading="lazy"
               decoding="async"
             />

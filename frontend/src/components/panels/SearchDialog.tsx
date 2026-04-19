@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useInView } from "react-intersection-observer";
 import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
@@ -224,9 +225,9 @@ export function SearchDialog({
 
   if (!isAnimating) return null;
 
-  return (
+  return createPortal(
     <div
-      className={`fixed inset-0 z-[80] flex items-center justify-center transition-all duration-200 ease-out ${
+      className={`fixed inset-0 z-[300] flex items-center justify-center transition-all duration-200 ease-out ${
         visible ? "visible" : "invisible"
       }`}
     >
@@ -404,6 +405,7 @@ export function SearchDialog({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

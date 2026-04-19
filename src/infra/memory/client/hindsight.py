@@ -177,7 +177,7 @@ class AsyncHindsight:
 
     async def delete_memory(self, bank_id: str, memory_id: str) -> Any:
         """Delete a specific memory by ID."""
-        return await self._memory_api.delete_memory(
+        return await self._memory_api.delete_memory(  # type: ignore[attr-defined]
             bank_id=bank_id,
             memory_id=memory_id,
             _request_timeout=self._timeout,

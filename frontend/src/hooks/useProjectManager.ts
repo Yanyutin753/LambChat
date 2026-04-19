@@ -21,7 +21,7 @@ interface UseProjectManagerReturn {
   handleRenameProject: (projectId: string, name: string) => void;
   handleDeleteProject: (
     projectId: string,
-    onAfter?: () => void,
+    options?: { deleteSessions?: boolean; onAfter?: () => void },
   ) => Promise<void>;
   handleUpdateIcon: (projectId: string, icon: string) => Promise<void>;
   handleMoveSession: (
@@ -73,12 +73,14 @@ export function useProjectManager(): UseProjectManagerReturn {
 
   const handleDeleteProject = async (
     projectId: string,
-    onAfter?: () => void,
+    options?: { deleteSessions?: boolean; onAfter?: () => void },
   ) => {
     try {
-      await projectApi.delete(projectId);
+      await projectApi.delete(projectId, {
+        deleteSessions: options?.deleteSessions,
+      });
       setProjects((prev) => prev.filter((p) => p.id !== projectId));
-      onAfter?.();
+      options?.onAfter?.();
       toast.success(t("sidebar.projectDeleted"));
     } catch (err) {
       console.error("Failed to delete project:", err);

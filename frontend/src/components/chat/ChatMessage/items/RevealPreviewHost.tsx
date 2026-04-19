@@ -257,7 +257,7 @@ function ProjectRevealPreviewPanel({
           {t("project.loadFilesFailed")}
         </div>
       ) : !loadedFiles ? (
-        <div className="h-[300px] sm:h-[600px] bg-stone-900 flex items-center justify-center">
+        <div className="h-full bg-stone-900 flex items-center justify-center">
           <div className="text-stone-400 text-sm flex items-center gap-2">
             <LoadingSpinner size="sm" className="text-stone-400" />
             {t("project.loadingFiles")}

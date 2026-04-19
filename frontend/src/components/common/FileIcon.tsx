@@ -53,12 +53,10 @@ export function PreviewHeader({
         isSidebar
           ? "gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4"
           : "gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3"
-      } border-b border-stone-200 ${
-        isSidebar ? "dark:border-[#333]" : "dark:border-stone-700"
-      } shrink-0 bg-gradient-to-r from-stone-50 to-white ${
+      } border-b border-stone-200 dark:border-stone-700/80 shrink-0 ${
         isSidebar
-          ? "dark:from-[#252526] dark:to-[#1e1e1e]"
-          : "dark:from-stone-800/50 dark:to-[#1e1e1e]"
+          ? "bg-stone-50 dark:bg-[#1e1e1e]"
+          : "bg-stone-50/80 dark:bg-stone-800/60"
       } whitespace-nowrap`}
     >
       <FileIcon icon={icon} bg={iconBg} color={iconColor} />

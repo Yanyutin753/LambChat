@@ -228,6 +228,21 @@ class SessionStorage:
         )
         return result.modified_count
 
+    async def delete_by_project(self, project_id: str, user_id: str) -> int:
+        """Delete all sessions in a project.
+
+        Args:
+            project_id: The project ID
+            user_id: The user ID (for ownership verification)
+
+        Returns:
+            Number of deleted sessions
+        """
+        result = await self.collection.delete_many(
+            {"user_id": user_id, "metadata.project_id": project_id},
+        )
+        return result.deleted_count
+
     async def move_to_project(
         self, session_id: str, user_id: str, project_id: Optional[str]
     ) -> Optional[Session]:

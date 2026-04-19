@@ -26,10 +26,10 @@ from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
     PromptCachingMiddleware,
     SectionPromptMiddleware,
-    SubagentActivityMiddleware,
     ToolResultBinaryMiddleware,
     create_retry_middleware,
 )
+from src.infra.agent.middleware_subagent import SubagentActivityMiddleware
 from src.infra.backend.deepagent import create_persistent_backend_factory
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger

@@ -11,6 +11,7 @@ export type { LoadingSize } from "./LoadingSpinner";
 export { ThemeToggle } from "./ThemeToggle";
 export { LanguageToggle } from "./LanguageToggle";
 export { ConfirmDialog } from "./ConfirmDialog";
+export { DeleteProjectDialog } from "./DeleteProjectDialog";
 export { AboutDialog } from "./AboutDialog";
 
 export { ImageViewer } from "./ImageViewer";

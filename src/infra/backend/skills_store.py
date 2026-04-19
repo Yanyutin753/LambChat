@@ -224,16 +224,15 @@ class SkillsStoreBackend(BackendProtocol):
     # 读取操作
     # ==========================================
 
-    def read(
+    def read(  # type: ignore[override]
         self,
         file_path: str,
         offset: int = 0,
         limit: int = 2000,
     ) -> str:
-        """读取 skill 文件内容（同步，内部调用异步）"""
         return _run_async(self.aread(file_path, offset, limit))
 
-    async def aread(
+    async def aread(  # type: ignore[override]
         self,
         file_path: str,
         offset: int = 0,

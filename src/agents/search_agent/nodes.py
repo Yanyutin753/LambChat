@@ -28,10 +28,10 @@ from src.infra.agent.middleware import (
     PromptCachingMiddleware,
     SandboxMCPMiddleware,
     SectionPromptMiddleware,
-    SubagentActivityMiddleware,
     ToolResultBinaryMiddleware,
     create_retry_middleware,
 )
+from src.infra.agent.middleware_subagent import SubagentActivityMiddleware
 from src.infra.backend import (
     create_persistent_backend_factory,
     create_sandbox_backend_factory,

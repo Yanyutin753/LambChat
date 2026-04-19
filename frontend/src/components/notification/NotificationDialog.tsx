@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   Bell,
@@ -97,9 +98,9 @@ export function NotificationDialog({
   const lang = (i18n.language?.split("-")[0] ||
     "en") as keyof Notification["title_i18n"];
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
       onClick={onClose}
     >
       <div
@@ -275,6 +276,7 @@ export function NotificationDialog({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

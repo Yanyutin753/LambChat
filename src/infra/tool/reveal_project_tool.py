@@ -667,7 +667,7 @@ async def _upload_file(
             if max_size
             else 50 * 1024 * 1024
         )
-        if len(content_bytes) > max_size:
+        if len(content_bytes) > max_size:  # type: ignore[operator]
             logger.info(f"Skipping large file: {rel_path} ({len(content_bytes)} bytes)")
             return None
 

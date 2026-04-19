@@ -262,7 +262,7 @@ export function ProjectRevealItem({
   return (
     <div className="my-2 sm:my-3 min-w-0">
       <div
-        className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900 cursor-pointer hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+        className="ring-1 ring-stone-200 dark:ring-stone-700/80 rounded-2xl overflow-hidden bg-white dark:bg-stone-900 cursor-pointer hover:ring-stone-300 dark:hover:ring-stone-600 transition-all duration-200 shadow-sm hover:shadow-md"
         onClick={() => openPreview()}
       >
         <PreviewHeader
@@ -305,7 +305,7 @@ export function ProjectRevealItem({
         />
 
         {loadedFiles ? (
-          <div className="h-[300px] sm:h-[600px] bg-stone-100 dark:bg-stone-900">
+          <div className="h-[300px] sm:h-[600px] bg-stone-50 dark:bg-stone-900/95 rounded-b-2xl">
             <ProjectPreview
               name={projectName}
               template={template}
@@ -316,7 +316,7 @@ export function ProjectRevealItem({
             />
           </div>
         ) : loadingError ? (
-          <div className="h-[220px] sm:h-[320px] bg-stone-50 dark:bg-stone-950 border-t border-stone-200 dark:border-stone-800 flex items-center justify-center px-6 text-center">
+          <div className="h-[220px] sm:h-[320px] bg-stone-50 dark:bg-stone-900/95 rounded-b-2xl flex items-center justify-center px-6 text-center">
             <div className="max-w-sm space-y-3">
               <div className="mx-auto size-12 rounded-2xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
                 <FolderTree
@@ -330,7 +330,7 @@ export function ProjectRevealItem({
             </div>
           </div>
         ) : (
-          <div className="h-[220px] sm:h-[320px] bg-stone-50 dark:bg-stone-950 border-t border-stone-200 dark:border-stone-800 flex items-center justify-center px-6 text-center">
+          <div className="h-[220px] sm:h-[320px] bg-stone-50 dark:bg-stone-900/95 rounded-b-2xl flex items-center justify-center px-6 text-center">
             <div className="max-w-sm space-y-3">
               <div className="mx-auto size-12 rounded-2xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
                 <FolderTree

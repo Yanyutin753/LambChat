@@ -37,9 +37,15 @@ export const projectApi = {
   /**
    * Delete a project
    */
-  async delete(projectId: string): Promise<{ status: string }> {
+  async delete(
+    projectId: string,
+    options?: { deleteSessions?: boolean },
+  ): Promise<{ status: string }> {
+    const params = new URLSearchParams();
+    if (options?.deleteSessions) params.set("delete_sessions", "true");
+    const qs = params.toString();
     return authFetch<{ status: string }>(
-      `${API_BASE}/api/projects/${projectId}`,
+      `${API_BASE}/api/projects/${projectId}${qs ? `?${qs}` : ""}`,
       {
         method: "DELETE",
       },

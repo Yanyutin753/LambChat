@@ -1,0 +1,249 @@
+/* ===== Polished Glass ===== */
+
+.glass-shell {
+  --glass-bg: color-mix(in srgb, white 72%, transparent);
+  --glass-bg-hover: color-mix(in srgb, white 82%, transparent);
+  --glass-bg-subtle: color-mix(in srgb, white 60%, transparent);
+  --glass-border: color-mix(in srgb, var(--theme-border) 64%, transparent);
+  --glass-border-hover: color-mix(
+    in srgb,
+    var(--theme-primary) 22%,
+    var(--theme-border)
+  );
+  --glass-shadow: 0 4px 24px -8px rgb(0 0 0 / 0.08);
+  --glass-shadow-hover: 0 8px 32px -8px rgb(0 0 0 / 0.12);
+  --glass-glow: 0 0 20px
+    color-mix(in srgb, var(--theme-primary) 8%, transparent);
+  --glass-blur: blur(12px);
+}
+
+.dark .glass-shell {
+  --glass-bg: color-mix(in srgb, var(--theme-bg-card) 64%, transparent);
+  --glass-bg-hover: color-mix(in srgb, var(--theme-bg-card) 74%, transparent);
+  --glass-bg-subtle: color-mix(in srgb, var(--theme-bg-card) 50%, transparent);
+  --glass-border: color-mix(in srgb, var(--theme-border) 54%, transparent);
+  --glass-border-hover: color-mix(
+    in srgb,
+    var(--theme-primary) 28%,
+    var(--theme-border)
+  );
+  --glass-shadow: 0 4px 24px -8px rgb(0 0 0 / 0.24);
+  --glass-shadow-hover: 0 8px 32px -8px rgb(0 0 0 / 0.32);
+  --glass-glow: 0 0 24px
+    color-mix(in srgb, var(--theme-primary) 10%, transparent);
+  --glass-blur: blur(12px);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.875rem;
+  box-shadow: var(--glass-shadow);
+  transition:
+    border-color 0.24s ease,
+    box-shadow 0.24s ease,
+    background-color 0.24s ease;
+}
+
+.glass-card:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover), var(--glass-glow);
+}
+
+.glass-card-subtle {
+  background: var(--glass-bg-subtle);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.75rem;
+}
+
+.glass-input {
+  background: color-mix(in srgb, white 68%, transparent);
+  border: 1px solid var(--glass-border);
+  border-radius: 0.625rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--glass-border-hover);
+  background: color-mix(in srgb, white 82%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--theme-primary) 10%, transparent);
+  outline: none;
+}
+
+.dark .glass-input {
+  background: color-mix(in srgb, var(--theme-bg-card) 60%, transparent);
+}
+
+.dark .glass-input:focus {
+  background: color-mix(in srgb, var(--theme-bg-card) 72%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--theme-primary) 14%, transparent);
+}
+
+.glass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-text-secondary);
+  transition: border-color 0.2s ease;
+}
+
+.glass-pill--active {
+  border-color: color-mix(in srgb, #10b981 26%, var(--theme-border));
+  background: color-mix(in srgb, #10b981 8%, var(--glass-bg-subtle));
+  color: #059669;
+}
+
+.dark .glass-pill--active {
+  background: color-mix(in srgb, #10b981 14%, var(--glass-bg-subtle));
+  color: #34d399;
+}
+
+.glass-pill--info {
+  border-color: color-mix(in srgb, #3b82f6 26%, var(--theme-border));
+  background: color-mix(in srgb, #3b82f6 8%, var(--glass-bg-subtle));
+  color: #2563eb;
+}
+
+.dark .glass-pill--info {
+  background: color-mix(in srgb, #3b82f6 14%, var(--glass-bg-subtle));
+  color: #60a5fa;
+}
+
+.glass-pill--disabled {
+  opacity: 0.55;
+}
+
+.glass-tab-bar {
+  background: transparent;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.glass-tab-active {
+  position: relative;
+}
+
+.glass-tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 1rem;
+  right: 1rem;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--theme-primary) 60%, transparent),
+    var(--theme-primary),
+    color-mix(in srgb, var(--theme-primary) 60%, transparent)
+  );
+  box-shadow: 0 0 8px color-mix(in srgb, var(--theme-primary) 20%, transparent);
+}
+
+.glass-divider {
+  border-top: 1px solid var(--glass-border);
+}
+
+.glass-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-subtle);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  transition:
+    border-color 0.2s ease,
+    transform 0.15s ease;
+}
+
+.glass-tag--accent {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 22%,
+    var(--theme-border)
+  );
+  color: var(--theme-text);
+}
+
+.glass-tag--key {
+  border-color: color-mix(in srgb, #10b981 22%, var(--theme-border));
+  background: color-mix(in srgb, #10b981 6%, var(--glass-bg-subtle));
+  color: #059669;
+}
+
+.dark .glass-tag--key {
+  background: color-mix(in srgb, #10b981 12%, var(--glass-bg-subtle));
+  color: #34d399;
+}
+
+.glass-tag--api {
+  border-color: color-mix(in srgb, #3b82f6 22%, var(--theme-border));
+  background: color-mix(in srgb, #3b82f6 6%, var(--glass-bg-subtle));
+  color: #2563eb;
+}
+
+.dark .glass-tag--api {
+  background: color-mix(in srgb, #3b82f6 12%, var(--glass-bg-subtle));
+  color: #60a5fa;
+}
+
+@keyframes glass-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    backdrop-filter: var(--glass-blur);
+  }
+}
+
+.animate-glass-enter {
+  animation: glass-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes glass-drag-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0
+      color-mix(in srgb, var(--theme-primary) 14%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--theme-primary) 8%, transparent),
+      0 12px 24px -8px rgb(0 0 0 / 0.15);
+  }
+}
+
+.animate-glass-drag {
+  animation: glass-drag-glow 1.2s ease-in-out infinite;
+}
+
+/* ===== End Polished Glass ===== */
+
+/* ═══════════════════════════════════════════
+   Marketplace Card Styles — Refined Editorial
+   ═══════════════════════════════════════════ */

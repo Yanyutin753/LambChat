@@ -223,7 +223,7 @@ class E2BBackend(BaseSandbox):
             logger.warning(f"E2B files.list({path}) failed: {e}, falling back to execute()")
             return super().ls_info(path)
 
-    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
+    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:  # type: ignore[override]
         """使用 E2B 原生 files.read() 读取文件，支持 offset/limit 行号"""
         try:
             content = self._sandbox.files.read(path=file_path, format="text")
@@ -237,7 +237,7 @@ class E2BBackend(BaseSandbox):
             return "\n".join(numbered)
         except Exception as e:
             logger.warning(f"E2B files.read({file_path}) failed: {e}, falling back to execute()")
-            return super().read(file_path, offset, limit)
+            return super().read(file_path, offset, limit)  # type: ignore[return-value]
 
     def write(self, file_path: str, content: str) -> WriteResult:
         """使用 E2B 原生 files.write() 写入文件"""

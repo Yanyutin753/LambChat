@@ -1,0 +1,85 @@
+/* Toast 容器 - 添加光标提示 */
+[data-hot-toast] {
+  cursor: pointer !important;
+}
+
+/* Toast 悬停效果 */
+[data-hot-toast]:hover {
+  opacity: 0.95 !important;
+}
+
+/* Excalidraw preview styles */
+.excalidraw-preview-container {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.excalidraw-preview-container .excalidraw {
+  height: 100% !important;
+  width: 100% !important;
+  max-height: 100% !important;
+}
+
+.excalidraw-preview-container .excalidraw-wrapper {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.excalidraw-preview-container .excalidraw__canvas-wrapper {
+  overflow: hidden !important;
+}
+
+/* Ensure canvas doesn't overflow */
+.excalidraw-preview-container canvas {
+  max-width: 100% !important;
+}
+
+/* Prism syntax highlighting - dark mode overrides */
+.dark .token.comment,
+.dark .token.prolog,
+.dark .token.doctype,
+.dark .token.cdata {
+  color: #6b7280;
+}
+.dark .token.punctuation {
+  color: #9ca3af;
+}
+.dark .token.property,
+.dark .token.tag,
+.dark .token.boolean,
+.dark .token.number,
+.dark .token.constant,
+.dark .token.symbol,
+.dark .token.deleted {
+  color: #f472b6;
+}
+.dark .token.selector,
+.dark .token.attr-name,
+.dark .token.string,
+.dark .token.char,
+.dark .token.builtin,
+.dark .token.inserted {
+  color: #34d399;
+}
+.dark .token.operator,
+.dark .token.entity,
+.dark .token.url {
+  color: #93c5fd;
+}
+.dark .token.atrule,
+.dark .token.attr-value,
+.dark .token.keyword {
+  color: #c084fc;
+}
+.dark .token.function,
+.dark .token.class-name {
+  color: #60a5fa;
+}
+.dark .token.regex,
+.dark .token.important,
+.dark .token.variable {
+  color: #fbbf24;
+}

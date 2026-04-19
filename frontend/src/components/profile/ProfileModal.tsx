@@ -171,7 +171,7 @@ export function ProfileModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center sm:justify-center"
+      className="fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center"
       onClick={() => onCloseProfileModal()}
     >
       {/* Backdrop */}

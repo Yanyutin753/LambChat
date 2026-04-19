@@ -8,6 +8,15 @@ import { sessionApi, type BackendSession } from "../services/api";
 
 const PAGE_SIZE = 20;
 
+function dedup(sessions: BackendSession[]): BackendSession[] {
+  const seen = new Set<string>();
+  return sessions.filter((s) => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  });
+}
+
 // ─── Per-project paginated session list ─────────────────────────────
 
 interface UseProjectSessionListReturn {
@@ -68,10 +77,10 @@ export function useProjectSessionList(
       const newHasMore = "has_more" in response ? response.has_more : false;
 
       if (reset) {
-        setSessions(newSessions);
+        setSessions(dedup(newSessions));
         setSkip(newSessions.length);
       } else {
-        setSessions((prev) => [...prev, ...newSessions]);
+        setSessions((prev) => dedup([...prev, ...newSessions]));
         setSkip(targetSkip + newSessions.length);
       }
       setHasMore(newSessions.length > 0 ? newHasMore : false);
