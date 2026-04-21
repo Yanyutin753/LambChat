@@ -12,8 +12,10 @@
 """
 
 import asyncio
+import base64
 import os
 import shlex
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from deepagents.backends.protocol import (
@@ -229,6 +231,16 @@ class E2BBackend(BaseSandbox):
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
         """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断"""
         try:
+            # Check if binary by extension — read as base64
+            ext = PurePosixPath(file_path).suffix.lower()
+            if ext in (".png", ".jpg", ".jpeg", ".webp", ".gif", ".heic", ".heif",
+                       ".mp4", ".mpeg", ".mov", ".avi", ".flv", ".mpg", ".webm", ".wmv", ".3gpp",
+                       ".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac",
+                       ".pdf", ".ppt", ".pptx"):
+                raw = self._sandbox.files.read(path=file_path, format="bytes")
+                encoded = base64.standard_b64encode(raw).decode("ascii")
+                return ReadResult(file_data={"content": encoded, "encoding": "base64"})
+
             content = self._sandbox.files.read(path=file_path, format="text")
             if offset > 0:
                 lines = content.split("\n")
