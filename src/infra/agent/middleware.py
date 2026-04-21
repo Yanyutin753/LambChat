@@ -7,6 +7,7 @@ import base64
 import json
 import logging
 import mimetypes
+import os
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
@@ -448,16 +449,55 @@ def create_retry_middleware(
 # MCP content block types that may carry binary data
 _BINARY_BLOCK_TYPES = frozenset(("image", "file"))
 
+# Binary file extensions — read_file should upload these to S3 instead of returning garbled text
+_BINARY_EXTENSIONS = frozenset(
+    (
+        # Images
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".ico",
+        ".svg",
+        ".avif",
+        ".tiff",
+        ".tif",
+        # Videos
+        ".mp4",
+        ".webm",
+        ".mov",
+        ".avi",
+        ".wmv",
+        ".mkv",
+        ".ogv",
+        # Audio
+        ".mp3",
+        ".wav",
+        ".ogg",
+        ".aac",
+        ".flac",
+        ".m4a",
+        ".opus",
+        # Documents
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+    )
+)
+
 
 class ToolResultBinaryMiddleware(AgentMiddleware):
     """在 ToolMessage 送回 LLM 前，上传 base64 二进制数据并替换为 URL。
 
-    当工具（如 MCP 工具）返回 image/file 类型的 base64 数据时：
-    1. 将二进制数据上传到对象存储
-    2. 用包含 URL 的文本块替换原始 base64 块
-    3. LLM 收到的是可访问的 URL，而非原始 base64
-
-    这样 LLM 就能在后续工具调用（如 analyze_image）中使用正确的 URL。
+    处理两类场景：
+    1. MCP 工具返回 image/file 类型的 base64 数据 → 上传并替换为 URL
+    2. read_file 工具读取二进制文件 → 下载并上传到 S3，返回文件链接
     """
 
     def __init__(self, *, base_url: str = "") -> None:
@@ -469,6 +509,17 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
         request: Any,
         handler: Callable[[Any], Awaitable[Any]],
     ) -> Any:
+        tool_name = request.tool_call.get("name", "")
+        tool_args = request.tool_call.get("args", {})
+
+        # --- read_file binary interception ---
+        if tool_name == "read_file":
+            file_path = tool_args.get("file_path", "") if isinstance(tool_args, dict) else ""
+            if file_path and self._is_binary_file(file_path):
+                uploaded = await self._handle_read_file_binary(request, file_path)
+                if uploaded is not None:
+                    return uploaded
+
         result = await handler(request)
 
         # Only process ToolMessage results
@@ -512,6 +563,92 @@ class ToolResultBinaryMiddleware(AgentMiddleware):
             status=getattr(result, "status", None),
             artifact=getattr(result, "artifact", None),
         )
+
+    @staticmethod
+    def _is_binary_file(file_path: str) -> bool:
+        """Check if a file path has a binary extension."""
+        ext = os.path.splitext(file_path)[1].lower()
+        return ext in _BINARY_EXTENSIONS
+
+    async def _handle_read_file_binary(self, request: Any, file_path: str) -> ToolMessage | None:
+        """Download a binary file from the sandbox, upload to S3, return URL info."""
+        try:
+            from src.infra.storage.s3.service import get_or_init_storage
+            from src.infra.tool.backend_utils import get_backend_from_runtime
+
+            backend = get_backend_from_runtime(request.runtime)
+            if backend is None:
+                return None
+
+            # Download from sandbox backend
+            file_bytes: bytes | None = None
+            if hasattr(backend, "adownload_files"):
+                try:
+                    responses = await backend.adownload_files([file_path])
+                    if responses and responses[0].content:
+                        file_bytes = responses[0].content
+                except Exception:
+                    pass
+
+            if file_bytes is None and hasattr(backend, "download_files"):
+                try:
+                    responses = await asyncio.to_thread(backend.download_files, [file_path])
+                    if responses and responses[0].content:
+                        file_bytes = responses[0].content
+                except Exception:
+                    pass
+
+            if file_bytes is None:
+                return None
+
+            # Upload to storage
+            storage = await get_or_init_storage()
+            filename = file_path.rsplit("/", 1)[-1]
+            mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            upload_result = await storage.upload_bytes(
+                data=file_bytes,
+                folder="revealed_files",
+                filename=filename,
+                content_type=mime_type,
+            )
+
+            base_url = self._base_url or getattr(settings, "APP_BASE_URL", "").rstrip("/")
+            proxy_url = (
+                f"{base_url}/api/upload/file/{upload_result.key}"
+                if base_url
+                else f"/api/upload/file/{upload_result.key}"
+            )
+
+            result_data = json.dumps(
+                {
+                    "key": upload_result.key,
+                    "url": proxy_url,
+                    "name": filename,
+                    "mime_type": upload_result.content_type or mime_type,
+                    "size": len(file_bytes),
+                    "_meta": {
+                        "path": file_path,
+                        "source": "read_file_binary_upload",
+                    },
+                },
+                ensure_ascii=False,
+            )
+
+            logger.info(
+                "read_file binary upload: %s → %s (%d bytes)",
+                file_path,
+                upload_result.key,
+                len(file_bytes),
+            )
+
+            return ToolMessage(
+                content=result_data,
+                tool_call_id=request.tool_call.get("id", ""),
+                name="read_file",
+            )
+        except Exception as e:
+            logger.warning("read_file binary upload failed: %s", e)
+            return None
 
     async def _upload_block(self, block: dict) -> str | None:
         """Upload a single binary block to storage, return the access URL."""
