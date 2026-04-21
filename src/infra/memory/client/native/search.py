@@ -429,6 +429,12 @@ async def recall_memories(
         memories = list(
             await asyncio.gather(*(hydrate_formatted_memory(backend, m) for m in memories))
         )
+
+        # Filter out low-scoring memories
+        min_score = getattr(settings, "NATIVE_MEMORY_RECALL_MIN_SCORE", 0.3)
+        if min_score > 0:
+            memories = [m for m in memories if m.get("score", 0) >= min_score]
+
         if touch_access:
             await backend._update_access_stats([m["memory_id"] for m in memories], user_id)
 
