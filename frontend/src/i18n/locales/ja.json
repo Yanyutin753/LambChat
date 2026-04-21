@@ -426,7 +426,7 @@
       "expandAll": "すべて展開",
       "exportCsv": "CSVをエクスポート",
       "filePath": "ファイルパス",
-      "generating": "生成中...",
+      "generating": "生成中",
       "mermaidError": "Mermaidエラー",
       "model": "モデル",
       "parameters": "パラメータ",

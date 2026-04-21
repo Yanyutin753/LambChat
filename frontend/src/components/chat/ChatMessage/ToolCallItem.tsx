@@ -72,9 +72,9 @@ export function ToolCallItem({
   const canExpand = hasArgs || hasResult;
 
   const panelContent = canExpand && (
-    <div className="space-y-3 max-h-[80vh] overflow-y-auto p-1 [&_pre]:!text-sm">
+    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm">
       {hasArgs && (
-        <div className="p-3 sm:p-4 rounded-lg bg-stone-50 dark:bg-stone-800/50">
+        <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
           <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
             {t("chat.message.args")}
           </div>
@@ -85,7 +85,7 @@ export function ToolCallItem({
       )}
 
       {hasResult && (
-        <div className="p-3 sm:p-4 rounded-lg bg-stone-50 dark:bg-stone-800/50">
+        <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
           <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
             {t("chat.message.result")}
           </div>

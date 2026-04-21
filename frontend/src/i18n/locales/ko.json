@@ -426,7 +426,7 @@
       "expandAll": "모두 펼치기",
       "exportCsv": "CSV 내보내기",
       "filePath": "파일 경로",
-      "generating": "생성 중...",
+      "generating": "생성 중",
       "mermaidError": "Mermaid 오류",
       "model": "모델",
       "parameters": "매개변수",

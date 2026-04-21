@@ -16,6 +16,7 @@ import {
   ChatSkeletonMessagesOnly,
 } from "../../skeletons/ChatSkeletons";
 import { useMessageScroll } from "./useMessageScroll";
+import { getInitialBottomItemLocation } from "./messageScrollUtils";
 import {
   isSessionRunning,
   shouldShowStreamingFooterSkeleton,
@@ -416,7 +417,9 @@ export function ChatView({
             followOutput="smooth"
             components={virtuosoComponents}
             itemContent={virtuosoItemContent}
-            initialTopMostItemIndex={messages.length - 1}
+            initialTopMostItemIndex={getInitialBottomItemLocation(
+              messages.length,
+            )}
           />
         )}
       </main>

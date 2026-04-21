@@ -426,7 +426,7 @@
       "expandAll": "Развернуть всё",
       "exportCsv": "Экспорт CSV",
       "filePath": "Путь к файлу",
-      "generating": "Генерация...",
+      "generating": "Генерация",
       "mermaidError": "Ошибка Mermaid",
       "model": "Модель",
       "parameters": "Параметры",

@@ -425,7 +425,7 @@
       "expandAll": "Expand all",
       "exportCsv": "Export CSV",
       "filePath": "File Path",
-      "generating": "Generating...",
+      "generating": "Generating",
       "mermaidError": "Mermaid Error",
       "model": "Model",
       "parameters": "Parameters",

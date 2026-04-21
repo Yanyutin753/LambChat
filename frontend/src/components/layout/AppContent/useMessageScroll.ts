@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import {
   hasNewOutgoingMessage,
+  shouldAutoScrollForMessageUpdate,
   shouldAutoScrollAfterViewportChange,
   startVirtuosoScrollToBottom,
 } from "./messageScrollUtils";
@@ -244,7 +245,18 @@ export function useMessageScroll(
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    if (hasNewOutgoingMessage(previousMessagesRef.current, messages)) {
+    const previousMessages = previousMessagesRef.current;
+    if (hasNewOutgoingMessage(previousMessages, messages)) {
+      scrollToBottom();
+    } else if (
+      shouldAutoScrollForMessageUpdate({
+        previousMessages,
+        nextMessages: messages,
+        userScrolledUp: userScrolledUpRef.current,
+        autoScrollActive: autoScrollActiveRef.current,
+        isNearBottom: isNearBottomRef.current,
+      })
+    ) {
       scrollToBottom();
     }
     previousMessagesRef.current = messages;

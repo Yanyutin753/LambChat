@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
+import { isMobileDevice } from "../../../../utils/mobile";
 import { ToolResultPanel } from "./ToolResultPanel";
 import { closeCurrentToolPanel } from "./toolPanelRegistry";
 
@@ -19,6 +20,8 @@ export interface PersistentToolPanelState {
   overlayClass?: string;
   panelClass?: string;
   onUserInteraction?: () => void;
+  /** If true, skip opening on mobile devices */
+  auto?: boolean;
 }
 
 const listeners = new Set<() => void>();
@@ -39,6 +42,7 @@ export function isPersistentToolPanelOpen(panelKey?: string): boolean {
 }
 
 export function openPersistentToolPanel(panel: PersistentToolPanelState): void {
+  if (panel.auto && isMobileDevice()) return;
   closeCurrentToolPanel();
   currentPanel = panel;
   panelOpen = true;

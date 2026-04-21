@@ -23,6 +23,8 @@ export interface CollapsiblePillProps {
   expandable?: boolean;
   /** On mobile, call this instead of toggling inline expansion */
   onPanelOpen?: () => void;
+  /** Add animated typing dots after label */
+  animatedDots?: boolean;
 }
 
 // Get spinner color based on variant
@@ -175,6 +177,7 @@ export function CollapsiblePill({
   children,
   expandable = true,
   onPanelOpen,
+  animatedDots = false,
 }: CollapsiblePillProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasChildren = children !== undefined;
@@ -203,7 +206,7 @@ export function CollapsiblePill({
       <button
         onClick={handleToggle}
         className={clsx(
-          "inline-flex items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
+          "inline-flex items-center gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
           "transition-colors",
           getButtonStyles(status, variant),
           canExpand && "cursor-pointer",
@@ -212,7 +215,12 @@ export function CollapsiblePill({
       >
         <StatusIndicator status={status} variant={variant} />
         {icon}
-        <span className="font-mono truncate max-w-[200px] sm:max-w-[400px]">
+        <span
+          className={clsx(
+            "font-mono truncate max-w-[200px] sm:max-w-[400px]",
+            animatedDots && "typing-dots",
+          )}
+        >
           {formattedLabel}
         </span>
         {suffix}

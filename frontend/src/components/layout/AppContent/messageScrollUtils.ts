@@ -46,6 +46,19 @@ interface ScrollMessageLike {
   role?: string;
 }
 
+export function getInitialBottomItemLocation(
+  messageCount: number,
+): { index: number; align: "end" } | undefined {
+  if (messageCount <= 0) {
+    return undefined;
+  }
+
+  return {
+    index: messageCount - 1,
+    align: "end",
+  };
+}
+
 export function hasNewOutgoingMessage(
   previousMessages: ScrollMessageLike[],
   nextMessages: ScrollMessageLike[],
@@ -59,6 +72,42 @@ export function hasNewOutgoingMessage(
 
   const appendedMessages = nextMessages.slice(previousMessages.length);
   return appendedMessages[0]?.role === "user";
+}
+
+export function shouldAutoScrollForMessageUpdate({
+  previousMessages,
+  nextMessages,
+  userScrolledUp,
+  autoScrollActive,
+  isNearBottom,
+}: {
+  previousMessages: ScrollMessageLike[];
+  nextMessages: ScrollMessageLike[];
+  userScrolledUp: boolean;
+  autoScrollActive: boolean;
+  isNearBottom: boolean;
+}): boolean {
+  if (userScrolledUp || nextMessages.length === 0) {
+    return false;
+  }
+
+  if (!autoScrollActive && !isNearBottom) {
+    return false;
+  }
+
+  const previousLatestMessage = previousMessages[previousMessages.length - 1];
+  const nextLatestMessage = nextMessages[nextMessages.length - 1];
+
+  if (nextLatestMessage?.role !== "assistant") {
+    return false;
+  }
+
+  const latestChanged = nextLatestMessage.id !== previousLatestMessage?.id;
+  const latestContinued =
+    nextLatestMessage.id === previousLatestMessage?.id &&
+    previousLatestMessage?.role === "assistant";
+
+  return latestChanged || latestContinued;
 }
 
 export function shouldAutoScrollAfterViewportChange({

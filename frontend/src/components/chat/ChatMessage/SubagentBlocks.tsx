@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import { clsx } from "clsx";
 import {
   CheckCircle,
@@ -9,7 +15,6 @@ import {
   Users,
   Box,
   Loader2,
-  PanelRight,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner, CollapsiblePill } from "../../common";
@@ -22,6 +27,11 @@ import {
   updatePersistentToolPanel,
   isPersistentToolPanelOpen,
 } from "./items/persistentToolPanelState";
+import {
+  isNearSubagentPanelBottom,
+  shouldAutoScrollSubagentPanel,
+} from "./subagentPanelScroll";
+import { shouldAutoOpenSubagentPanel } from "./subagentPanelControl";
 
 // ==========================================
 // Reactive subagent panel data store
@@ -74,6 +84,61 @@ function useSubagentPanelData(agentId: string): SubagentPanelData | undefined {
 function SubagentPanelContent({ agentId }: { agentId: string }) {
   const { t } = useTranslation();
   const data = useSubagentPanelData(agentId);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);
+
+  const scrollToBottom = useCallback(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    userScrolledUpRef.current = !isNearSubagentPanelBottom(scroller);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (
+      !shouldAutoScrollSubagentPanel({
+        scroller: scrollRef.current,
+        userScrolledUp: userScrolledUpRef.current,
+      })
+    ) {
+      return;
+    }
+
+    scrollToBottom();
+  });
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      if (
+        shouldAutoScrollSubagentPanel({
+          scroller,
+          userScrolledUp: userScrolledUpRef.current,
+        })
+      ) {
+        scrollToBottom();
+      }
+    });
+
+    observer.observe(scroller);
+    if (contentRef.current) {
+      observer.observe(contentRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [scrollToBottom]);
 
   if (!data) return null;
 
@@ -82,55 +147,62 @@ function SubagentPanelContent({ agentId }: { agentId: string }) {
     (data.isPending ? "running" : data.success ? "complete" : "error");
 
   return (
-    <div className="space-y-3 max-h-[80vh] overflow-y-auto p-1">
-      {data.input && (
-        <div className="p-3 sm:p-4 rounded-lg bg-stone-50 dark:bg-stone-800/50">
-          <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
-            {t("chat.message.args")}
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className="max-h-full overflow-y-auto p-2 sm:p-4"
+    >
+      <div ref={contentRef} className="space-y-3">
+        {data.input && (
+          <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
+            <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
+              {t("chat.message.args")}
+            </div>
+            <div className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
+              <MarkdownContent content={data.input} />
+            </div>
           </div>
-          <div className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed">
-            <MarkdownContent content={data.input} />
+        )}
+        {data.parts && data.parts.length > 0 && (
+          <div className="space-y-2 pl-3 border-l-2 border-stone-200 dark:border-stone-700">
+            {data.parts.map((part, index) => (
+              <MessagePartRenderer
+                key={index}
+                part={part}
+                isStreaming={data.isPending}
+                isLast={index === data.parts!.length - 1}
+              />
+            ))}
           </div>
-        </div>
-      )}
-      {data.parts && data.parts.length > 0 && (
-        <div className="space-y-2 pl-3 border-l-2 border-stone-200 dark:border-stone-700">
-          {data.parts.map((part, index) => (
-            <MessagePartRenderer
-              key={index}
-              part={part}
-              isStreaming={data.isPending}
-              isLast={index === data.parts!.length - 1}
-            />
-          ))}
-        </div>
-      )}
-      {data.error && effectiveStatus === "error" && (
-        <div className="p-3 sm:p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50">
-          <div className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">
-            {t("chat.message.error")}
+        )}
+        {data.error && effectiveStatus === "error" && (
+          <div className="p-3 sm:p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50">
+            <div className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">
+              {t("chat.message.error")}
+            </div>
+            <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+              {data.error}
+            </div>
           </div>
-          <div className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
-            {data.error}
+        )}
+        {data.result && effectiveStatus === "complete" && (
+          <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
+            <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
+              {t("chat.message.result")}
+            </div>
+            <div className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
+              <MarkdownContent content={data.result} />
+            </div>
           </div>
-        </div>
-      )}
-      {data.result && effectiveStatus === "complete" && (
-        <div className="p-3 sm:p-4 rounded-lg bg-stone-50 dark:bg-stone-800/50">
-          <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
-            {t("chat.message.result")}
+        )}
+        {data.isPending && !data.parts?.length && (
+          <div className="flex items-center gap-2 text-stone-500 dark:text-stone-400">
+            <LoadingSpinner size="sm" />
+            <span className="text-sm">{t("chat.message.executing")}</span>
           </div>
-          <div className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed">
-            <MarkdownContent content={data.result} />
-          </div>
-        </div>
-      )}
-      {data.isPending && !data.parts?.length && (
-        <div className="flex items-center gap-2 text-stone-500 dark:text-stone-400">
-          <LoadingSpinner size="sm" />
-          <span className="text-sm">{t("chat.message.executing")}</span>
-        </div>
-      )}
+        )}
+        <div ref={bottomRef} className="h-px" />
+      </div>
     </div>
   );
 }
@@ -157,6 +229,17 @@ function getElapsedTime(
   return `${minutes}m ${remainingSeconds}s`;
 }
 
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts);
+  const YY = String(d.getFullYear()).padStart(4, "0");
+  const MM = String(d.getMonth() + 1).padStart(2, "0");
+  const DD = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${YY}-${MM}-${DD} ${hh}:${mm}:${ss}`;
+}
+
 // Thinking Block - thinking process display (ChatGPT style)
 export function ThinkingBlock({
   content,
@@ -179,7 +262,7 @@ export function ThinkingBlock({
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={clsx(
-          "inline-flex items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
+          "inline-flex items-center gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
           "transition-colors bg-stone-200 dark:bg-stone-700",
           "text-stone-600 dark:text-stone-300",
           "hover:bg-stone-300 dark:hover:bg-stone-600 cursor-pointer",
@@ -264,30 +347,11 @@ export function SubagentBlock({
   status?: "pending" | "running" | "complete" | "error" | "cancelled";
   error?: string;
 }) {
-  // Live elapsed time while running
-  const [liveElapsed, setLiveElapsed] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!startedAt || completedAt) {
-      setLiveElapsed(null);
-      return;
-    }
-
-    setLiveElapsed(getElapsedTime(startedAt, completedAt));
-
-    const interval = setInterval(() => {
-      setLiveElapsed(getElapsedTime(startedAt, completedAt));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [startedAt, completedAt]);
-
-  const elapsed = completedAt
-    ? getElapsedTime(startedAt, completedAt)
-    : liveElapsed;
-
   const effectiveStatus =
     status || (isPending ? "running" : success ? "complete" : "error");
+
+  // Only show elapsed time when completedAt is available
+  const elapsed = completedAt ? getElapsedTime(startedAt, completedAt) : null;
 
   const formattedAgentName = agent_name
     .split("_")
@@ -307,6 +371,11 @@ export function SubagentBlock({
 
   const panelKey = `subagent-${agent_id}`;
 
+  const ts = completedAt ?? startedAt;
+  const subtitle = [ts ? formatTimestamp(ts) : undefined, elapsed || undefined]
+    .filter(Boolean)
+    .join(" · ");
+
   // Keep sidebar panel data in sync
   useEffect(() => {
     setSubagentPanelData({
@@ -323,28 +392,31 @@ export function SubagentBlock({
       status: effectiveStatus as SubagentPanelData["status"],
     });
 
-    // Auto-open panel on first render when running
-    if (effectiveStatus === "running" && !isPersistentToolPanelOpen(panelKey)) {
-      openPersistentToolPanel({
-        title: formattedAgentName,
-        icon: <Users size={16} />,
-        status: panelStatus,
-        subtitle: elapsed || undefined,
-        panelKey,
-        children: <SubagentPanelContent agentId={agent_id} />,
-      });
-    }
-
-    // Keep panel status/elapsed in sync
+    // Auto-open only when no panel is open; multiple running subagents should not steal focus.
     if (isPersistentToolPanelOpen(panelKey)) {
       updatePersistentToolPanel(
         (prev) => ({
           ...prev,
           status: panelStatus,
-          subtitle: elapsed || undefined,
+          subtitle: subtitle || undefined,
         }),
         panelKey,
       );
+    } else if (
+      shouldAutoOpenSubagentPanel({
+        status: effectiveStatus,
+        anyPanelOpen: isPersistentToolPanelOpen(),
+      })
+    ) {
+      openPersistentToolPanel({
+        title: formattedAgentName,
+        icon: <Users size={16} />,
+        status: panelStatus,
+        subtitle: subtitle || undefined,
+        panelKey,
+        children: <SubagentPanelContent agentId={agent_id} />,
+        auto: true,
+      });
     }
   }, [
     agent_id,
@@ -359,7 +431,7 @@ export function SubagentBlock({
     completedAt,
     effectiveStatus,
     panelStatus,
-    elapsed,
+    subtitle,
     formattedAgentName,
     panelKey,
   ]);
@@ -375,11 +447,11 @@ export function SubagentBlock({
       title: formattedAgentName,
       icon: <Users size={16} />,
       status: panelStatus,
-      subtitle: elapsed || undefined,
+      subtitle: subtitle || undefined,
       panelKey,
       children: <SubagentPanelContent agentId={agent_id} />,
     });
-  }, [formattedAgentName, panelStatus, elapsed, panelKey, agent_id]);
+  }, [formattedAgentName, panelStatus, subtitle, panelKey, agent_id]);
 
   return (
     <div
@@ -387,13 +459,13 @@ export function SubagentBlock({
         "my-1.5 rounded-xl overflow-hidden min-w-0 group",
         "border transition-all duration-200",
         effectiveStatus === "running" &&
-          "border-blue-200/60 dark:border-blue-800/40 bg-gradient-to-r from-blue-50/60 to-transparent dark:from-blue-950/20",
+          "border-stone-200/60 dark:border-stone-700/40 bg-stone-50/50 dark:bg-stone-800/30",
         effectiveStatus === "complete" &&
           "border-stone-200/60 dark:border-stone-700/40 bg-stone-50/50 dark:bg-stone-800/30",
         effectiveStatus === "error" &&
           "border-red-200/60 dark:border-red-900/40 bg-gradient-to-r from-red-50/60 to-transparent dark:from-red-950/20",
         effectiveStatus === "cancelled" &&
-          "border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-r from-amber-50/60 to-transparent dark:from-amber-950/20",
+          "border-stone-200/60 dark:border-stone-700/40 bg-stone-50/50 dark:bg-stone-800/30",
         (!effectiveStatus || effectiveStatus === "pending") &&
           "border-stone-200/60 dark:border-stone-700/40",
       )}
@@ -405,7 +477,7 @@ export function SubagentBlock({
         <div
           className={clsx(
             "flex h-7 w-7 items-center justify-center rounded-lg shrink-0",
-            effectiveStatus === "running" && "bg-blue-500/10",
+            effectiveStatus === "running" && "bg-amber-500/10",
             effectiveStatus === "complete" && "bg-emerald-500/10",
             effectiveStatus === "error" && "bg-red-500/10",
             effectiveStatus === "cancelled" && "bg-amber-500/10",
@@ -416,7 +488,7 @@ export function SubagentBlock({
           {effectiveStatus === "running" ? (
             <Loader2
               size={13}
-              className="text-blue-500 dark:text-blue-400 animate-spin"
+              className="text-amber-500 dark:text-amber-400 animate-spin"
             />
           ) : effectiveStatus === "complete" ? (
             <CheckCircle
@@ -440,12 +512,12 @@ export function SubagentBlock({
             className={clsx(
               "text-[13px] font-medium truncate block",
               effectiveStatus === "running" &&
-                "text-blue-700 dark:text-blue-300",
+                "text-stone-700 dark:text-stone-300",
               effectiveStatus === "complete" &&
                 "text-stone-700 dark:text-stone-300",
               effectiveStatus === "error" && "text-red-700 dark:text-red-300",
               effectiveStatus === "cancelled" &&
-                "text-amber-700 dark:text-amber-300",
+                "text-stone-700 dark:text-stone-300",
               (!effectiveStatus || effectiveStatus === "pending") &&
                 "text-stone-600 dark:text-stone-400",
             )}
@@ -464,26 +536,18 @@ export function SubagentBlock({
             className={clsx(
               "text-[11px] shrink-0 tabular-nums tracking-tight px-1.5 py-0.5 rounded-md",
               effectiveStatus === "running" &&
-                "text-blue-400 dark:text-blue-500 bg-blue-500/5",
+                "text-stone-400 dark:text-stone-500 bg-stone-500/5",
               effectiveStatus === "complete" &&
                 "text-stone-400 dark:text-stone-500 bg-stone-500/5",
               effectiveStatus === "error" &&
                 "text-red-400 dark:text-red-500 bg-red-500/5",
+              effectiveStatus === "cancelled" &&
+                "text-stone-400 dark:text-stone-500 bg-stone-500/5",
             )}
           >
             {elapsed}
           </span>
         )}
-
-        <div
-          className={clsx(
-            "flex items-center justify-center w-6 h-6 rounded-md shrink-0 transition-colors",
-            "text-stone-300 dark:text-stone-600 group-hover:text-stone-500 dark:group-hover:text-stone-400",
-            "group-hover:bg-stone-100 dark:group-hover:bg-stone-700/50",
-          )}
-        >
-          <PanelRight size={13} />
-        </div>
       </div>
     </div>
   );

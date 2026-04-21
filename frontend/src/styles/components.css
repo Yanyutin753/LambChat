@@ -1,3 +1,18 @@
+/* Typewriter dots animation */
+.typing-dots::after {
+  content: "...";
+  animation: typing-dots 2s ease-in-out infinite;
+}
+@keyframes typing-dots {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Refined skeleton lines */
 .skeleton-line {
   background: linear-gradient(

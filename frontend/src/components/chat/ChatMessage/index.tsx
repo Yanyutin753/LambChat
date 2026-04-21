@@ -380,6 +380,7 @@ export const ChatMessage = memo(function ChatMessage({
                 label={t("chat.message.generating")}
                 variant="tool"
                 expandable={false}
+                animatedDots
               />
             </div>
           )}

@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  getInitialBottomItemLocation,
   hasNewOutgoingMessage,
+  shouldAutoScrollForMessageUpdate,
   shouldAutoScrollAfterViewportChange,
   startVirtuosoScrollToBottom,
 } from "./messageScrollUtils.ts";
@@ -26,9 +28,9 @@ test("keeps asking Virtuoso to scroll until the scroller reaches the bottom", as
     maxAttempts: 5,
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 3));
+  await new Promise((resolve) => setTimeout(resolve, 20));
   scroller.scrollTop = 400;
-  await new Promise((resolve) => setTimeout(resolve, 3));
+  await new Promise((resolve) => setTimeout(resolve, 20));
   stop();
 
   assert.ok(scrollCalls.length >= 2);
@@ -36,6 +38,15 @@ test("keeps asking Virtuoso to scroll until the scroller reaches the bottom", as
     top: Number.MAX_SAFE_INTEGER,
     behavior: "auto",
   });
+});
+
+test("initializes history at the bottom edge of the latest message", () => {
+  assert.deepEqual(getInitialBottomItemLocation(3), {
+    index: 2,
+    align: "end",
+  });
+
+  assert.equal(getInitialBottomItemLocation(0), undefined);
 });
 
 test("falls back to the footer sentinel when Virtuoso handles are unavailable", () => {
@@ -273,6 +284,87 @@ test("does not treat assistant-only streaming updates or bulk history loads as l
         { id: "3", role: "user" },
       ],
     ),
+    false,
+  );
+});
+
+test("allows bulk history loads to bottom-lock when the latest message is assistant", () => {
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages: [],
+      nextMessages: [
+        { id: "1", role: "user" },
+        { id: "2", role: "assistant" },
+        { id: "3", role: "user" },
+        { id: "4", role: "assistant" },
+      ],
+      userScrolledUp: false,
+      autoScrollActive: false,
+      isNearBottom: true,
+    }),
+    true,
+  );
+});
+
+test("auto-scrolls appended assistant messages only while the view is bottom-anchored", () => {
+  const previousMessages = [{ id: "1", role: "user" }];
+  const nextMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: false,
+      autoScrollActive: false,
+      isNearBottom: true,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: true,
+      autoScrollActive: false,
+      isNearBottom: false,
+    }),
+    false,
+  );
+});
+
+test("keeps streaming message updates bottom-locked without stealing history scrollback", () => {
+  const previousMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+  const nextMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: false,
+      autoScrollActive: true,
+      isNearBottom: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: true,
+      autoScrollActive: true,
+      isNearBottom: false,
+    }),
     false,
   );
 });

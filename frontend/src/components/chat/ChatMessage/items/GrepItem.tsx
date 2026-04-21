@@ -118,7 +118,6 @@ const GrepItem = memo(function GrepItem({
           <CodeMirrorViewer
             value={parsedResult.lines.join("\n")}
             lineNumbers={false}
-            maxHeight="85vh"
             fontSize="0.8rem"
           />
         </div>
@@ -205,7 +204,6 @@ const GrepItem = memo(function GrepItem({
                 <CodeMirrorViewer
                   value={parsedResult.lines.slice(0, 50).join("\n")}
                   lineNumbers={false}
-                  maxHeight="12rem"
                   fontSize="0.75rem"
                 />
                 {parsedResult.lines.length > 50 && (

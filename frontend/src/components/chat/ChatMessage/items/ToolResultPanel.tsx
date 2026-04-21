@@ -420,7 +420,7 @@ export function ToolResultPanel({
                     {title}
                   </h3>
                   {subtitle && (
-                    <p className="text-xs hidden sm:block text-stone-500 dark:text-stone-400 mt-0.5">
+                    <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
                       {subtitle}
                     </p>
                   )}

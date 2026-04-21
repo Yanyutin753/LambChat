@@ -425,7 +425,7 @@
       "expandAll": "展开全部",
       "exportCsv": "导出 CSV",
       "filePath": "文件路径",
-      "generating": "生成中...",
+      "generating": "生成中",
       "mermaidError": "Mermaid 错误",
       "model": "模型",
       "parameters": "参数",

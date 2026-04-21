@@ -49,7 +49,6 @@ const EditFileItem = memo(function EditFileItem({
               value={oldString}
               filePath={filePath}
               lineNumbers={false}
-              maxHeight="85vh"
               fontSize="0.8rem"
               className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
             />
@@ -66,7 +65,6 @@ const EditFileItem = memo(function EditFileItem({
               value={newString}
               filePath={filePath}
               lineNumbers={false}
-              maxHeight="40vh"
               fontSize="0.8rem"
               className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
             />
@@ -119,7 +117,6 @@ const EditFileItem = memo(function EditFileItem({
                     value={oldString}
                     filePath={filePath}
                     lineNumbers={false}
-                    maxHeight="8rem"
                     fontSize="0.75rem"
                     className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
                   />
@@ -136,7 +133,6 @@ const EditFileItem = memo(function EditFileItem({
                     value={newString}
                     filePath={filePath}
                     lineNumbers={false}
-                    maxHeight="8rem"
                     fontSize="0.75rem"
                     className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
                   />
