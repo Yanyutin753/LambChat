@@ -38,15 +38,31 @@ export function SkeletonBlock({
 interface SkeletonListProps {
   count?: number;
   className?: string;
+  /** Single-line variant that matches search result item height */
+  compact?: boolean;
 }
 
-export function SkeletonList({ count = 4, className = "" }: SkeletonListProps) {
+export function SkeletonList({
+  count = 4,
+  className = "",
+  compact = false,
+}: SkeletonListProps) {
   return (
-    <div className={`space-y-1.5 sm:space-y-2.5 ${className}`}>
+    <div
+      className={
+        compact
+          ? `space-y-1 ${className}`
+          : `space-y-1.5 sm:space-y-2.5 ${className}`
+      }
+    >
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="flex items-center gap-2.5 sm:gap-3 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg sm:rounded-xl"
+          className={`flex items-center gap-3 px-4 rounded-lg ${
+            compact
+              ? "py-2.5"
+              : "px-2 sm:px-3 py-2 sm:py-2.5 sm:gap-3 sm:rounded-xl"
+          }`}
           style={{
             backgroundColor:
               i === 0
@@ -54,14 +70,20 @@ export function SkeletonList({ count = 4, className = "" }: SkeletonListProps) {
                 : undefined,
           }}
         >
-          <div className="skeleton-line h-4 sm:h-[18px] w-4 sm:w-[18px] rounded-full flex-shrink-0" />
-          <div className="flex-1 space-y-1 sm:space-y-1.5 min-w-0">
+          {compact ? (
             <SkeletonLine width={i % 2 === 0 ? "w-3/4" : "w-1/2"} />
-            <SkeletonLine
-              width="w-1/3"
-              className="!h-1.5 sm:!h-2 !opacity-60"
-            />
-          </div>
+          ) : (
+            <>
+              <div className="skeleton-line h-4 sm:h-[18px] w-4 sm:w-[18px] rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-1 sm:space-y-1.5 min-w-0">
+                <SkeletonLine width={i % 2 === 0 ? "w-3/4" : "w-1/2"} />
+                <SkeletonLine
+                  width="w-1/3"
+                  className="!h-1.5 sm:!h-2 !opacity-60"
+                />
+              </div>
+            </>
+          )}
         </div>
       ))}
     </div>

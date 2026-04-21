@@ -42,8 +42,8 @@ export function TodoBlock({ items, isStreaming }: TodoBlockProps) {
   return (
     <div
       className={clsx(
-        "my-1.5 rounded-xl border",
-        "border-stone-200 dark:border-stone-700/80",
+        "my-1.5 rounded-xl ring-1",
+        "ring-stone-200 dark:ring-stone-700/80",
         "bg-stone-50/80 dark:bg-stone-800/40",
       )}
     >

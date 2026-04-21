@@ -8,6 +8,9 @@ Documentation: https://github.com/NevaMind-AI/memU
 """
 
 import asyncio
+import json
+import os
+import tempfile
 from typing import Any, Optional
 
 import httpx
@@ -153,7 +156,8 @@ class MemuBackend(MemoryBackend):
 
     async def initialize(self) -> None:
         """Initialize the memU client."""
-        if not settings.MEMU_API_KEY:
+        api_key = getattr(settings, "MEMU_API_KEY", "")
+        if not api_key:
             logger.warning("[memU] MEMU_API_KEY not configured")
             return
 
@@ -163,11 +167,13 @@ class MemuBackend(MemoryBackend):
 
             try:
                 self.client = AsyncMemU(
-                    base_url=settings.MEMU_BASE_URL,
-                    api_key=settings.MEMU_API_KEY,
+                    base_url=getattr(settings, "MEMU_BASE_URL", ""),
+                    api_key=api_key,
                 )
                 self._semaphore = await get_request_semaphore("memu", 64)
-                logger.info(f"[memU] Created async client for: {settings.MEMU_BASE_URL}")
+                logger.info(
+                    f"[memU] Created async client for: {getattr(settings, 'MEMU_BASE_URL', '')}"
+                )
             except Exception as e:
                 logger.error(f"[memU] Failed to create client: {e}")
 
@@ -183,26 +189,22 @@ class MemuBackend(MemoryBackend):
         context: Optional[str] = None,
         title: Optional[str] = None,
         summary: Optional[str] = None,
+        tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        del title, summary, existing_memory_id
-        import json
-        import os
-        import tempfile
+        del title, summary, tags, existing_memory_id
 
         conversation_data = [{"role": "user", "content": content}]
         if context:
             conversation_data.insert(0, {"role": "system", "content": f"Context: {context}"})
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", prefix="memu_", delete=False
-        ) as f:
-            json.dump(conversation_data, f, ensure_ascii=False)
-            temp_path = f.name
-
         if not self.client:
             raise RuntimeError("memU client not initialized")
+
+        fd, temp_path = tempfile.mkstemp(suffix=".json", prefix="memu_")
         try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(conversation_data, f, ensure_ascii=False)
             result = await self._do_retry(
                 lambda: self.client.memorize(
                     resource_url=f"file://{temp_path}",

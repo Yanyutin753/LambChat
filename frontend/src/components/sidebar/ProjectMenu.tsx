@@ -4,7 +4,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Edit2, Plus, Trash2, X } from "lucide-react";
+import { Edit2, Trash2, MessageSquarePlus, X } from "lucide-react";
 import type { Project } from "../../types";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
@@ -138,7 +138,7 @@ export function ProjectMenu({
                 }}
                 className="w-full flex items-center gap-3 px-3 py-3 text-base text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
-                <Plus size={18} />
+                <MessageSquarePlus size={18} />
                 <span>{t("sidebar.newChat")}</span>
               </button>
             )}
@@ -212,7 +212,7 @@ export function ProjectMenu({
           }}
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
         >
-          <Plus size={14} />
+          <MessageSquarePlus size={14} />
           <span>{t("sidebar.newChat")}</span>
         </button>
       )}

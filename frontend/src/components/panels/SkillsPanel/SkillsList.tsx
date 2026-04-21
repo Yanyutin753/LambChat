@@ -97,6 +97,10 @@ export function SkillsList({
     return () => document.removeEventListener("mousedown", handleClick);
   }, [isFilterOpen, setIsFilterOpen]);
 
+  if (isLoading) {
+    return <SkillsPanelSkeleton />;
+  }
+
   const hasActiveFilters =
     searchQuery.trim().length > 0 || selectedTags.length > 0;
 
@@ -221,9 +225,7 @@ export function SkillsList({
 
       {/* Skills List */}
       <div className="skill-content-area flex-1 overflow-y-auto p-2 sm:p-4">
-        {isLoading && paginatedSkills.length === 0 ? (
-          <SkillsPanelSkeleton />
-        ) : filteredSkills.length === 0 ? (
+        {filteredSkills.length === 0 ? (
           <div className="skill-empty-state">
             <div className="skill-empty-state__icon">
               <FolderOpen size={28} />

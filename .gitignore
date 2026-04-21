@@ -71,8 +71,10 @@ docs/plans/
 node_modules/
 .claude/
 docs/superpowers/
-.worktrees/
-docs/
+docs/plans/
+docs/*
+!docs/images/
+!docs/images/**/
 frontend/src/components/common/DynamicIcon.tsx
 .codex
 claude-code

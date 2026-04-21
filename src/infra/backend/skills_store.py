@@ -13,6 +13,7 @@ Skills Store Backend
 """
 
 import asyncio
+import fnmatch
 import re
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -22,7 +23,11 @@ from deepagents.backends.protocol import (
     FileDownloadResponse,
     FileInfo,
     FileUploadResponse,
+    GlobResult,
     GrepMatch,
+    GrepResult,
+    LsResult,
+    ReadResult,
     WriteResult,
 )
 
@@ -69,7 +74,7 @@ def _run_async(coro):
     在同步上下文中安全地运行异步协程。
 
     使用场景：
-    - 同步方法（read/write/edit/ls_info）被外部同步代码调用
+    - 同步方法（read/write/edit/ls）被外部同步代码调用
     - CLI 工具或测试脚本
 
     注意：
@@ -105,7 +110,9 @@ class SkillsStoreBackend(BackendProtocol):
     - 读取：read("/skills/my-skill/SKILL.md")
     - 写入：write("/skills/my-skill/SKILL.md", content)
     - 编辑：edit("/skills/my-skill/SKILL.md", old, new)
-    - 列表：ls_info("/skills/") 或 ls_info("/skills/my-skill/")
+    - 列表：ls("/skills/") 或 ls("/skills/my-skill/")
+    - 搜索：grep("pattern", "/skills/my-skill/")
+    - 匹配：glob("*.md", "/skills/my-skill/")
     """
 
     def __init__(self, user_id: str, runtime: Any = None):
@@ -191,35 +198,6 @@ class SkillsStoreBackend(BackendProtocol):
             return match.group(1)
         return None
 
-    def _format_content_with_line_numbers(
-        self, content: str, offset: int = 0, limit: int = 2000
-    ) -> str:
-        """
-        格式化内容为带行号的格式（类似 cat -n）
-
-        Args:
-            content: 文件内容
-            offset: 起始行号（0-indexed）
-            limit: 最大行数
-
-        Returns:
-            带行号的格式化内容
-        """
-        lines = content.split("\n")
-        start = offset
-        end = min(offset + limit, len(lines))
-
-        result_lines = []
-        for i in range(start, end):
-            line_num = i + 1  # 1-indexed
-            line_content = lines[i]
-            # 截断超长行
-            if len(line_content) > 2000:
-                line_content = line_content[:2000] + "..."
-            result_lines.append(f"{line_num:6d}\t{line_content}")
-
-        return "\n".join(result_lines)
-
     # ==========================================
     # 读取操作
     # ==========================================
@@ -229,8 +207,7 @@ class SkillsStoreBackend(BackendProtocol):
         file_path: str,
         offset: int = 0,
         limit: int = 2000,
-    ) -> str:
-        """读取 skill 文件内容（同步，内部调用异步）"""
+    ) -> ReadResult:
         return _run_async(self.aread(file_path, offset, limit))
 
     async def aread(
@@ -238,7 +215,7 @@ class SkillsStoreBackend(BackendProtocol):
         file_path: str,
         offset: int = 0,
         limit: int = 2000,
-    ) -> str:
+    ) -> ReadResult:
         """
         异步读取 skill 文件
 
@@ -248,14 +225,15 @@ class SkillsStoreBackend(BackendProtocol):
             limit: 最大行数
 
         Returns:
-            带行号的文件内容，或错误信息字符串
+            ReadResult — middleware 负责行号格式化和截断
         """
-        # 标准化路径，确保有 /skills/ 前缀
         file_path = self._normalize_path(file_path)
 
         parsed = self._parse_skill_path(file_path)
         if not parsed:
-            return f"Error: Invalid skills path: {file_path}. Expected /skills/{{skill_name}}/{{file_path}}"
+            return ReadResult(
+                error=f"Invalid skills path: {file_path}. Expected /skills/{{skill_name}}/{{file_path}}"
+            )
 
         skill_name, file_name = parsed
         storage = await self._get_storage()
@@ -264,20 +242,17 @@ class SkillsStoreBackend(BackendProtocol):
             content = await storage.get_skill_file(skill_name, file_name, self._user_id)
 
             if content is None:
-                # Skill might exist but file might not — check if skill exists (without loading content)
                 paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
                 if not paths:
-                    return f"Error: Skill '{skill_name}' not found"
+                    return ReadResult(error=f"Skill '{skill_name}' not found")
                 if file_name not in paths:
-                    return f"Error: File '{file_name}' not found in skill '{skill_name}'"
-                # file exists in paths but get_skill_file returned None — should not happen
-                return f"Error: File '{file_name}' not found in skill '{skill_name}'"
+                    return ReadResult(error=f"File '{file_name}' not found in skill '{skill_name}'")
+                return ReadResult(error=f"File '{file_name}' not found in skill '{skill_name}'")
 
-            # 检查是否为二进制文件引用
             binary_ref = parse_binary_ref(content)
             if binary_ref:
                 file_url = f"/api/upload/file/{binary_ref.storage_key}"
-                return (
+                desc = (
                     f"[Binary file: {file_name}]\n"
                     f"- MIME type: {binary_ref.mime_type}\n"
                     f"- Size: {binary_ref.size} bytes\n"
@@ -285,12 +260,18 @@ class SkillsStoreBackend(BackendProtocol):
                     f"\nThis is a binary file stored in object storage. "
                     f"Access it via the URL above."
                 )
+                return ReadResult(file_data={"content": desc, "encoding": "utf-8"})
 
-            return self._format_content_with_line_numbers(content, offset, limit)
+            # Apply offset: skip lines before offset, middleware handles line numbering + limit truncation
+            if offset > 0:
+                lines = content.split("\n")
+                content = "\n".join(lines[offset:])
+
+            return ReadResult(file_data={"content": content, "encoding": "utf-8"})
 
         except Exception as e:
             logger.error(f"Failed to read {file_path}: {e}")
-            return f"Error: {e}"
+            return ReadResult(error=str(e))
 
     # ==========================================
     # 写入操作
@@ -467,11 +448,11 @@ class SkillsStoreBackend(BackendProtocol):
     # 列表操作
     # ==========================================
 
-    def ls_info(self, path: str) -> list[FileInfo]:
+    def ls(self, path: str) -> LsResult:
         """列出文件（同步，内部调用异步）"""
-        return _run_async(self.als_info(path))
+        return _run_async(self.als(path))
 
-    async def als_info(self, path: str) -> list[FileInfo]:
+    async def als(self, path: str) -> LsResult:
         """
         异步列出 skills 或文件
 
@@ -479,18 +460,18 @@ class SkillsStoreBackend(BackendProtocol):
             path: 路径（会自动添加 /skills/ 前缀）
 
         Returns:
-            list[FileInfo] 包含文件/目录信息
+            LsResult 包含文件/目录信息
         """
-        # 标准化路径，确保有 /skills/ 前缀
         path = self._normalize_path(path)
         storage = await self._get_storage()
 
         try:
-            # 列出所有 skills
-            # 注意：返回的路径不应包含 /skills/ 前缀，因为 CompositeBackend 会自动添加
             if self._is_skills_root(path):
                 effective_skills = await storage.get_effective_skills(self._user_id)
                 skills = effective_skills.get("skills", {})
+                logger.info(
+                    f"[Skills ls] user={self._user_id}, found {len(skills)} effective skills: {list(skills.keys())}"
+                )
 
                 entries: list[FileInfo] = []
                 for skill_name in skills.keys():
@@ -501,99 +482,50 @@ class SkillsStoreBackend(BackendProtocol):
                         )
                     )
 
-                return entries
+                return LsResult(entries=entries)
 
-            # 解析路径：/skills/{skill_name}/{sub_path}
             parsed = self._parse_skill_path(path)
             if not parsed:
-                # 可能是 skill 根目录（无子路径）
                 if self._is_skill_dir(path):
                     dir_skill_name: str | None = self._get_skill_name_from_dir(path)
                     if dir_skill_name:
                         paths = await self._get_skill_file_paths(storage, dir_skill_name)
-                        return self._build_file_list_from_paths(dir_skill_name, "", paths)
-                return []
+                        return LsResult(
+                            entries=self._build_file_list_from_paths(dir_skill_name, "", paths)
+                        )
+                return LsResult(entries=[])
 
             skill_name, sub_path = parsed
-
-            # 如果 sub_path 不含 /，可能是直接列文件或列子目录
-            # 去掉末尾的 / 以统一处理
             sub_path = sub_path.rstrip("/")
 
-            # First try path-only to check for exact file match
-            # For ls on a sub-path, we need to know if it's a file or directory prefix
-            # Check if sub_path is an exact file path
-            content = await storage.get_skill_file(skill_name, sub_path, self._user_id)
-
-            if content is not None:
-                # 精确匹配到一个文件 — ls 单文件等同于 glob
-                return [
-                    FileInfo(
-                        path=f"/{skill_name}/{sub_path}",
-                        is_dir=False,
-                        size=len(content),
-                    )
-                ]
-
-            # Otherwise list as directory prefix
+            # Use paths list to check for exact file match, avoiding a full content read
             paths = await self._get_skill_file_paths(storage, skill_name)
-            return self._build_file_list_from_paths(skill_name, sub_path, paths)
+
+            if sub_path in paths:
+                # Exact file match — get content only when needed for size
+                content = await storage.get_skill_file(skill_name, sub_path, self._user_id)
+                size = len(content) if content is not None else 0
+                return LsResult(
+                    entries=[
+                        FileInfo(
+                            path=f"/{skill_name}/{sub_path}",
+                            is_dir=False,
+                            size=size,
+                        )
+                    ]
+                )
+
+            # List as directory prefix
+            return LsResult(entries=self._build_file_list_from_paths(skill_name, sub_path, paths))
 
         except Exception as e:
-            logger.error(f"Failed to list {path}: {e}")
-            return []
+            logger.error(f"Failed to list {path}: {e}", exc_info=True)
+            return LsResult(error=str(e))
 
     async def _get_skill_file_paths(self, storage, skill_name: str) -> list[str]:
         """获取 skill 文件路径"""
         paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
         return paths or []
-
-    @staticmethod
-    def _build_file_list(skill_name: str, prefix: str, files: dict[str, str]) -> list[FileInfo]:
-        """
-        构建 skill 目录的文件列表，正确处理虚拟子目录。
-
-        Args:
-            skill_name: skill 名称
-            prefix: 子目录前缀（空字符串表示 skill 根目录）
-            files: skill 的所有文件 dict (file_path -> content)
-        """
-        entries: list[FileInfo] = []
-        seen_dirs: set[str] = set()
-
-        prefix_slash = f"{prefix}/" if prefix else ""
-
-        for file_name in files:
-            if not file_name.startswith(prefix_slash):
-                continue
-
-            # 去掉前缀后的相对路径
-            relative = file_name[len(prefix_slash) :]
-
-            # 如果相对路径中还有 /，说明在更深的子目录里
-            slash_idx = relative.find("/")
-            if slash_idx >= 0:
-                # 取第一级子目录名作为虚拟目录
-                dir_name = relative[:slash_idx]
-                if dir_name not in seen_dirs:
-                    seen_dirs.add(dir_name)
-                    entries.append(
-                        FileInfo(
-                            path=f"/{skill_name}/{prefix_slash}{dir_name}/",
-                            is_dir=True,
-                        )
-                    )
-            else:
-                # 直接位于当前目录的文件
-                entries.append(
-                    FileInfo(
-                        path=f"/{skill_name}/{file_name}",
-                        is_dir=False,
-                        size=len(files[file_name]),
-                    )
-                )
-
-        return entries
 
     @staticmethod
     def _build_file_list_from_paths(
@@ -776,42 +708,138 @@ class SkillsStoreBackend(BackendProtocol):
     # 搜索操作（grep）
     # ==========================================
 
-    def grep_raw(
+    def grep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
-        """在 skill 文件中搜索文本模式"""
-        # Skills backend 不支持 grep，返回提示信息
-        return "grep is not supported for skills backend. Use read() to view file content."
+    ) -> GrepResult:
+        """在 skill 文件中搜索文本模式（同步）"""
+        return _run_async(self.agrep(pattern, path, glob))
 
-    async def agrep_raw(
+    async def agrep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
-        """异步版本"""
-        return self.grep_raw(pattern, path, glob)
+    ) -> GrepResult:
+        """异步在 skill 文件中搜索文本模式（精确子串匹配）"""
+        normalized_path = self._normalize_path(path or "/")
+        storage = await self._get_storage()
+
+        try:
+            if self._is_skills_root(normalized_path):
+                # Search across all skills
+                effective_skills = await storage.get_effective_skills(self._user_id)
+                skills = effective_skills.get("skills", {})
+                skill_keys = [(name, self._user_id) for name in skills]
+                all_files = await storage.batch_get_skill_files(skill_keys)
+                matches = self._grep_across_skills(pattern, glob, all_files)
+                return GrepResult(matches=matches)
+
+            parsed = self._parse_skill_path(normalized_path.rstrip("/"))
+            if not parsed:
+                skill_name = self._get_skill_name_from_dir(normalized_path)
+                if not skill_name:
+                    return GrepResult(error=f"Invalid skills path: {normalized_path}")
+                paths = await self._get_skill_file_paths(storage, skill_name)
+                return await self._grep_single_skill(pattern, glob, skill_name, storage, paths)
+
+            skill_name, sub_path = parsed
+            paths = await self._get_skill_file_paths(storage, skill_name)
+            # Filter to files under sub_path
+            prefix = f"{sub_path}/" if sub_path else ""
+            filtered = [p for p in paths if p.startswith(prefix)]
+            return await self._grep_single_skill(pattern, glob, skill_name, storage, filtered)
+
+        except Exception as e:
+            logger.error(f"Failed to grep {path}: {e}", exc_info=True)
+            return GrepResult(error=str(e))
+
+    async def _grep_single_skill(
+        self,
+        pattern: str,
+        glob_pattern: str | None,
+        skill_name: str,
+        storage: SkillStorage,
+        file_paths: list[str],
+    ) -> GrepResult:
+        """在单个 skill 的指定文件中搜索"""
+        if not file_paths:
+            return GrepResult(matches=[])
+
+        # Apply glob filter on file paths
+        if glob_pattern:
+            file_paths = [
+                p
+                for p in file_paths
+                if fnmatch.fnmatch(p, glob_pattern)
+                or fnmatch.fnmatch(p.split("/")[-1], glob_pattern)
+            ]
+
+        if not file_paths:
+            return GrepResult(matches=[])
+
+        files_map = await storage.batch_get_skill_files([(skill_name, self._user_id)])
+        files = files_map.get((skill_name, self._user_id), {})
+
+        matches: list[GrepMatch] = []
+        for fp in file_paths:
+            content = files.get(fp)
+            if content is None:
+                continue
+            for i, line in enumerate(content.split("\n"), start=1):
+                if pattern in line:
+                    matches.append(
+                        GrepMatch(
+                            path=f"/{skill_name}/{fp}",
+                            line=i,
+                            text=line[:2000],
+                        )
+                    )
+
+        return GrepResult(matches=matches)
+
+    @staticmethod
+    def _grep_across_skills(
+        pattern: str,
+        glob_pattern: str | None,
+        all_files: dict[tuple[str, str], dict[str, str]],
+    ) -> list[GrepMatch]:
+        """在多个 skill 中搜索"""
+        matches: list[GrepMatch] = []
+        for (skill_name, _user_id), files in all_files.items():
+            for fp, content in files.items():
+                if glob_pattern and not (
+                    fnmatch.fnmatch(fp, glob_pattern)
+                    or fnmatch.fnmatch(fp.split("/")[-1], glob_pattern)
+                ):
+                    continue
+                for i, line in enumerate(content.split("\n"), start=1):
+                    if pattern in line:
+                        matches.append(
+                            GrepMatch(
+                                path=f"/{skill_name}/{fp}",
+                                line=i,
+                                text=line[:2000],
+                            )
+                        )
+        return matches
 
     # ==========================================
     # Glob 操作
     # ==========================================
 
-    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        """使用 glob 模式查找文件"""
-        return _run_async(self.aglob_info(pattern, path))
+    def glob(self, pattern: str, path: str = "/") -> GlobResult:
+        """使用 glob 模式查找文件（同步）"""
+        return _run_async(self.aglob(pattern, path))
 
-    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+    async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
         """异步版本"""
-        import fnmatch
-
         normalized_path = self._normalize_path(path)
         storage = await self._get_storage()
 
         try:
-            # 根目录：列出所有 skills
             if self._is_skills_root(normalized_path):
                 effective_skills = await storage.get_effective_skills(self._user_id)
                 skills = effective_skills.get("skills", {})
@@ -819,61 +847,33 @@ class SkillsStoreBackend(BackendProtocol):
                 for skill_name in skills:
                     if fnmatch.fnmatch(skill_name, pattern):
                         entries.append(FileInfo(path=f"/{skill_name}/", is_dir=True))
-                return entries
+                return GlobResult(matches=entries)
 
-            # skill 目录或子目录：在 skill 文件中 glob
             parsed = self._parse_skill_path(normalized_path.rstrip("/"))
             if not parsed:
                 glob_skill_name: str | None = self._get_skill_name_from_dir(normalized_path)
                 if glob_skill_name:
                     paths = await self._get_skill_file_paths(storage, glob_skill_name)
-                    return self._glob_files_from_paths(glob_skill_name, "", pattern, paths)
-                return []
+                    return GlobResult(
+                        matches=self._glob_files_from_paths(glob_skill_name, "", pattern, paths)
+                    )
+                return GlobResult(matches=[])
 
             skill_name, sub_path = parsed
             paths = await self._get_skill_file_paths(storage, skill_name)
-            return self._glob_files_from_paths(skill_name, sub_path, pattern, paths)
+            return GlobResult(
+                matches=self._glob_files_from_paths(skill_name, sub_path, pattern, paths)
+            )
 
         except Exception as e:
             logger.error(f"Failed to glob {path}: {e}")
-            return []
-
-    @staticmethod
-    def _glob_files(
-        skill_name: str, prefix: str, pattern: str, files: dict[str, str]
-    ) -> list[FileInfo]:
-        """在 skill 文件中按 glob 模式匹配"""
-        import fnmatch
-
-        prefix_slash = f"{prefix}/" if prefix else ""
-        entries: list[FileInfo] = []
-
-        for file_name in files:
-            if not file_name.startswith(prefix_slash):
-                continue
-
-            # 去掉前缀后取最后一段（basename）进行匹配
-            relative = file_name[len(prefix_slash) :]
-            basename = relative.rsplit("/", 1)[-1] if "/" in relative else relative
-
-            if fnmatch.fnmatch(basename, pattern):
-                entries.append(
-                    FileInfo(
-                        path=f"/{skill_name}/{file_name}",
-                        is_dir=False,
-                        size=len(files[file_name]),
-                    )
-                )
-
-        return entries
+            return GlobResult(error=str(e))
 
     @staticmethod
     def _glob_files_from_paths(
         skill_name: str, prefix: str, pattern: str, paths: list[str]
     ) -> list[FileInfo]:
         """在 skill 文件路径中按 glob 模式匹配（无内容大小）"""
-        import fnmatch
-
         prefix_slash = f"{prefix}/" if prefix else ""
         entries: list[FileInfo] = []
 

@@ -414,7 +414,6 @@ async def recall_memories(
         vector_results = []
 
     memories = rrf_merge(text_results, vector_results, max_results * 2)
-    memories = prioritize_sources(memories)
 
     if not memories and is_context_overview_query(query):
         memories = await recent_context_fallback(
@@ -423,7 +422,7 @@ async def recall_memories(
 
     if enable_rerank and memories and len(memories) > max_results:
         memories = await rerank_candidates(query, memories, max_results)
-        memories = prioritize_sources(memories)
+    memories = prioritize_sources(memories)
 
     if memories:
         memories = memories[:max_results]

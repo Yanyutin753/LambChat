@@ -15,12 +15,19 @@ import { ToolCallItem } from "./ToolCallItem";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { MessagePartRenderer } from "./MessagePartRenderer";
 import { FeedbackButtons } from "./FeedbackButtons";
+import { AssistantAvatar } from "./AssistantAvatar";
 import { ShareButton } from "./ShareButton";
 import { CollapsiblePill } from "../../common/CollapsiblePill";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { ModelIconImg } from "../../agent/modelIcon.tsx";
 import { shouldCloseTokenDetailsPopover } from "./tokenDetailsPopoverGuards";
 import { resolveTokenUsageModelDetails } from "./tokenUsageModel";
+import {
+  shouldAllowAutoPreviewForPart,
+  type AutoPreviewTarget,
+} from "./autoPreviewEligibility";
+import type { RevealPreviewRequest } from "./items/revealPreviewData";
+import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -59,6 +66,12 @@ interface ChatMessageProps {
   runId?: string;
   isLastMessage?: boolean;
   onStop?: () => void;
+  activePreview?: RevealPreviewRequest | null;
+  latestAutoPreview?: AutoPreviewTarget | null;
+  onOpenPreview?: (
+    preview: RevealPreviewRequest,
+    source?: RevealPreviewOpenSource,
+  ) => boolean;
 }
 
 // Token usage statistics button component - ChatGPT style
@@ -230,6 +243,9 @@ export const ChatMessage = memo(function ChatMessage({
   sessionName,
   runId,
   isLastMessage,
+  activePreview,
+  latestAutoPreview,
+  onOpenPreview,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const { availableModels } = useSettingsContext();
@@ -243,7 +259,6 @@ export const ChatMessage = memo(function ChatMessage({
 
   // If there are parts, render in order; otherwise fall back to old rendering method
   const hasParts = message.parts && message.parts.length > 0;
-
   // User message: bubble style, right aligned
   if (isUser) {
     return (
@@ -277,11 +292,7 @@ export const ChatMessage = memo(function ChatMessage({
         <div className="min-w-0 min-h-0">
           {/* Header: Avatar + Role label + Stop button */}
           <div className="mb-3 flex items-center gap-2">
-            <img
-              src="/icons/icon.svg"
-              alt="Assistant"
-              className="size-6 shrink-0 rounded-full"
-            />
+            <AssistantAvatar className="size-6 shrink-0 rounded-full" />
             <span
               className="text-base sm:text-lg font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
@@ -315,6 +326,13 @@ export const ChatMessage = memo(function ChatMessage({
                   part={part}
                   isStreaming={message.isStreaming}
                   isLast={index === message.parts!.length - 1}
+                  activePreview={activePreview}
+                  onOpenPreview={onOpenPreview}
+                  allowAutoPreview={shouldAllowAutoPreviewForPart({
+                    messageId: message.id,
+                    partIndex: index,
+                    latestAutoPreview: latestAutoPreview ?? null,
+                  })}
                 />
               ))}
             </div>
@@ -362,6 +380,7 @@ export const ChatMessage = memo(function ChatMessage({
                 label={t("chat.message.generating")}
                 variant="tool"
                 expandable={false}
+                animatedDots
               />
             </div>
           )}

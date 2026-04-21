@@ -1,10 +1,10 @@
-import { memo, useState } from "react";
+import { memo } from "react";
 import { FilePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { extractText } from "./toolUtils";
-import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
+import { openPersistentToolPanel } from "./persistentToolPanelState";
 
 const WriteFileItem = memo(function WriteFileItem({
   args,
@@ -23,7 +23,6 @@ const WriteFileItem = memo(function WriteFileItem({
   const filePath = (args.file_path as string) || "";
   const fileName = filePath.split("/").pop() || filePath;
   const content = (args.content as string) || "";
-  const [panelOpen, setPanelOpen] = useState(false);
 
   const canExpand = !!content || !!result;
   const status = isPending
@@ -44,8 +43,7 @@ const WriteFileItem = memo(function WriteFileItem({
           <CodeMirrorViewer
             value={content}
             filePath={filePath}
-            lineNumbers={false}
-            maxHeight="60vh"
+            lineNumbers={true}
             fontSize="0.8rem"
           />
         </div>
@@ -71,9 +69,14 @@ const WriteFileItem = memo(function WriteFileItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
-          if (panelOpen) return;
-          closeCurrentToolPanel();
-          setPanelOpen(true);
+          if (!canExpand) return;
+          openPersistentToolPanel({
+            title: `${t("chat.message.toolWrite")} ${fileName || filePath}`,
+            icon: <FilePlus size={16} />,
+            status,
+            subtitle: filePath,
+            children: detailContent,
+          });
         }}
       >
         {canExpand && (
@@ -86,8 +89,7 @@ const WriteFileItem = memo(function WriteFileItem({
                 <CodeMirrorViewer
                   value={content}
                   filePath={filePath}
-                  lineNumbers={false}
-                  maxHeight="16rem"
+                  lineNumbers={true}
                   fontSize="0.75rem"
                 />
               </div>
@@ -104,18 +106,6 @@ const WriteFileItem = memo(function WriteFileItem({
           </div>
         )}
       </CollapsiblePill>
-      {canExpand && (
-        <ToolResultPanel
-          open={panelOpen}
-          onClose={() => setPanelOpen(false)}
-          title={`${t("chat.message.toolWrite")} ${fileName || filePath}`}
-          icon={<FilePlus size={16} />}
-          status={status}
-          subtitle={filePath}
-        >
-          {detailContent}
-        </ToolResultPanel>
-      )}
     </>
   );
 });

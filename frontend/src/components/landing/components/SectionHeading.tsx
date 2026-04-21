@@ -23,7 +23,7 @@ export function SectionHeading({
       <h2 className="text-[1.65rem] sm:text-3xl lg:text-4xl font-extrabold font-serif tracking-[-0.025em] text-stone-900 dark:text-stone-50 mb-5 leading-[1.15]">
         {title}
       </h2>
-      <p className="blog-prose text-stone-400 dark:text-stone-500 max-w-md mx-auto text-sm sm:text-[15px] leading-[1.8]">
+      <p className="blog-prose text-stone-400 dark:text-stone-500 max-w-md lg:max-w-lg mx-auto text-sm sm:text-[15px] leading-[1.8]">
         {description}
       </p>
     </div>

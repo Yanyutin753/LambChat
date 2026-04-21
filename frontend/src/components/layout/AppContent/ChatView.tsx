@@ -1,13 +1,26 @@
-import { useMemo, useCallback, useState, useEffect } from "react";
+import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
+import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHost";
+import {
+  PersistentToolPanelHost,
+  closePersistentToolPanel,
+} from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
 import { Virtuoso } from "react-virtuoso";
 import { ApprovalPanel } from "../../panels/ApprovalPanel";
+import {
+  ChatSkeleton,
+  ChatSkeletonMessagesOnly,
+} from "../../skeletons/ChatSkeletons";
 import { useMessageScroll } from "./useMessageScroll";
-import { isSessionRunning } from "./sessionState";
+import { getInitialBottomItemLocation } from "./messageScrollUtils";
+import {
+  isSessionRunning,
+  shouldShowStreamingFooterSkeleton,
+} from "./sessionState";
 import type {
   Message,
   PendingApproval,
@@ -17,7 +30,19 @@ import type {
   ToolCategory,
   AgentOption,
   MessageAttachment,
+  ConnectionStatus,
 } from "../../../types";
+import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
+import { clearFileRevealAutoOpenState } from "../../chat/ChatMessage/items/fileRevealAutoOpen";
+import { clearProjectRevealAutoOpenState } from "../../chat/ChatMessage/items/projectRevealAutoOpen";
+import { getLatestAutoPreviewTarget } from "../../chat/ChatMessage/autoPreviewEligibility";
+import {
+  createActiveRevealPreviewState,
+  markRevealPreviewInteracted,
+  shouldAcceptRevealPreviewOpen,
+  type ActiveRevealPreviewState,
+  type RevealPreviewOpenSource,
+} from "../../chat/ChatMessage/items/revealPreviewState";
 
 interface ChatViewProps {
   messages: Message[];
@@ -25,6 +50,7 @@ interface ChatViewProps {
   sessionName: string | null;
   currentRunId: string | null;
   isLoading: boolean;
+  connectionStatus?: ConnectionStatus;
   canSendMessage: boolean;
   tools: ToolState[];
   onToggleTool: (name: string) => void;
@@ -78,6 +104,7 @@ export function ChatView({
   sessionName,
   currentRunId,
   isLoading,
+  connectionStatus,
   canSendMessage,
   tools,
   onToggleTool,
@@ -115,6 +142,16 @@ export function ChatView({
   const { t } = useTranslation();
   const { user } = useAuth();
   const sessionRunning = isSessionRunning(messages, isLoading);
+  const hasVisibleStreamingMessage = messages.some(
+    (message) => message.role === "assistant" && message.isStreaming,
+  );
+
+  const showStreamingFooterSkeleton = shouldShowStreamingFooterSkeleton({
+    connectionStatus,
+    sessionRunning,
+    messageCount: messages.length,
+    hasVisibleStreamingMessage,
+  });
 
   const getGreetingKey = () => {
     const h = new Date().getHours();
@@ -138,6 +175,69 @@ export function ChatView({
     scrollToBottom,
     scrollToTop,
   } = useMessageScroll(messages, sessionId);
+
+  const [activePreviewState, setActivePreviewState] =
+    useState<ActiveRevealPreviewState | null>(null);
+  const activePreviewStateRef = useRef<ActiveRevealPreviewState | null>(null);
+  const dismissedPreviewKeysRef = useRef<Set<string>>(new Set());
+  const activePreview = activePreviewState?.request ?? null;
+
+  useEffect(() => {
+    activePreviewStateRef.current = activePreviewState;
+  }, [activePreviewState]);
+
+  const handleOpenPreview = useCallback(
+    (
+      preview: RevealPreviewRequest,
+      source: RevealPreviewOpenSource = "manual",
+    ) => {
+      const shouldOpen = shouldAcceptRevealPreviewOpen({
+        activePreview: activePreviewStateRef.current,
+        nextPreview: preview,
+        source,
+        dismissedPreviewKeys: dismissedPreviewKeysRef.current,
+      });
+
+      if (!shouldOpen) {
+        return false;
+      }
+
+      if (source === "manual") {
+        dismissedPreviewKeysRef.current.delete(preview.previewKey);
+      }
+
+      setActivePreviewState(createActiveRevealPreviewState(preview, source));
+      return true;
+    },
+    [],
+  );
+
+  const handleClosePreview = useCallback((dismiss = true) => {
+    const currentPreview = activePreviewStateRef.current;
+    if (dismiss && currentPreview) {
+      dismissedPreviewKeysRef.current.add(currentPreview.request.previewKey);
+    }
+    setActivePreviewState(null);
+  }, []);
+
+  const handlePreviewInteraction = useCallback(() => {
+    setActivePreviewState((current) => markRevealPreviewInteracted(current));
+  }, []);
+
+  useEffect(() => {
+    dismissedPreviewKeysRef.current.clear();
+    clearFileRevealAutoOpenState();
+    clearProjectRevealAutoOpenState();
+    setActivePreviewState(null);
+    closePersistentToolPanel();
+  }, [sessionId]);
+
+  const latestAutoPreview = useMemo(
+    () => getLatestAutoPreviewTarget(messages),
+    [messages],
+  );
+  const isMobileViewport =
+    typeof window !== "undefined" ? window.innerWidth < 640 : false;
 
   const virtuosoComponents = useMemo(
     () => ({
@@ -164,10 +264,22 @@ export function ChatView({
           </div>
         );
       },
-      Footer: () => <div ref={messagesEndRef} className="h-8" />,
+      Footer: () => (
+        <>
+          {showStreamingFooterSkeleton && (
+            <div className="pb-4">
+              <ChatSkeletonMessagesOnly count={1} />
+            </div>
+          )}
+          <div
+            ref={messagesEndRef}
+            className="h-[calc(5rem+env(safe-area-inset-bottom))] sm:h-8"
+          />
+        </>
+      ),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [showStreamingFooterSkeleton],
   );
 
   const virtuosoItemContent = useCallback(
@@ -178,9 +290,20 @@ export function ChatView({
         sessionName={sessionName ?? undefined}
         runId={currentRunId ?? undefined}
         isLastMessage={index === messages.length - 1}
+        activePreview={activePreview}
+        latestAutoPreview={latestAutoPreview}
+        onOpenPreview={handleOpenPreview}
       />
     ),
-    [sessionId, sessionName, currentRunId, messages.length],
+    [
+      sessionId,
+      sessionName,
+      currentRunId,
+      messages.length,
+      activePreview,
+      latestAutoPreview,
+      handleOpenPreview,
+    ],
   );
 
   const suggestions = useMemo(() => {
@@ -265,18 +388,24 @@ export function ChatView({
         }`}
       >
         {messages.length === 0 ? (
-          <WelcomePage
-            greeting={greeting}
-            subtitle={t("chat.welcomeSubtitle") ?? "How can I help you today?"}
-            suggestionsLabel={t("chat.welcomeSuggestions") ?? "Suggestions"}
-            refreshLabel={t("chat.welcomeRefresh") ?? "Refresh"}
-            suggestions={displaySuggestions}
-            canSendMessage={canSendMessage}
-            onSendMessage={onSendMessage}
-            noPermissionHint={t("chat.noPermissionHint")}
-            chatInputProps={chatInputProps}
-            onRefreshSuggestions={refreshSuggestions}
-          />
+          isLoading ? (
+            <ChatSkeleton count={3} />
+          ) : (
+            <WelcomePage
+              greeting={greeting}
+              subtitle={
+                t("chat.welcomeSubtitle") ?? "How can I help you today?"
+              }
+              suggestionsLabel={t("chat.welcomeSuggestions") ?? "Suggestions"}
+              refreshLabel={t("chat.welcomeRefresh") ?? "Refresh"}
+              suggestions={displaySuggestions}
+              canSendMessage={canSendMessage}
+              onSendMessage={onSendMessage}
+              noPermissionHint={t("chat.noPermissionHint")}
+              chatInputProps={chatInputProps}
+              onRefreshSuggestions={refreshSuggestions}
+            />
+          )
         ) : (
           <Virtuoso
             ref={virtuosoRef}
@@ -284,11 +413,13 @@ export function ChatView({
             data={messages}
             computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}
-            atBottomThreshold={50}
+            atBottomThreshold={isMobileViewport ? 120 : 50}
             followOutput="smooth"
             components={virtuosoComponents}
             itemContent={virtuosoItemContent}
-            initialTopMostItemIndex={messages.length - 1}
+            initialTopMostItemIndex={getInitialBottomItemLocation(
+              messages.length,
+            )}
           />
         )}
       </main>
@@ -338,6 +469,13 @@ export function ChatView({
         onRespond={onRespondApproval}
         isLoading={approvalLoading}
       />
+
+      <RevealPreviewHost
+        preview={activePreview}
+        onClose={() => handleClosePreview(true)}
+        onUserInteraction={handlePreviewInteraction}
+      />
+      <PersistentToolPanelHost />
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
       {messages.length > 0 && <ChatInput {...chatInputProps} />}

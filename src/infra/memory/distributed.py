@@ -18,6 +18,15 @@ from src.infra.storage.redis import get_redis_client
 
 logger = get_logger(__name__)
 
+# Lua script: only delete lock key if value matches instance_id (prevents releasing another instance's lock)
+_RELEASE_LOCK_LUA = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+else
+    return 0
+end
+"""
+
 # Redis channel for memory cache invalidation
 MEMORY_INVALIDATION_CHANNEL = "memory:invalidated"
 
@@ -82,15 +91,7 @@ async def release_consolidation_lock(user_id: str, instance_id: str) -> None:
     try:
         redis_client = get_redis_client()
         lock_key = CONSOLIDATION_LOCK_KEY.format(user_id=user_id)
-        # Lua script: only delete if value matches (prevents releasing another instance's lock)
-        lua = """
-        if redis.call("GET", KEYS[1]) == ARGV[1] then
-            return redis.call("DEL", KEYS[1])
-        else
-            return 0
-        end
-        """
-        await redis_client.eval(lua, 1, lock_key, instance_id)  # type: ignore[misc]
+        await redis_client.eval(_RELEASE_LOCK_LUA, 1, lock_key, instance_id)  # type: ignore[misc]
     except Exception as e:
         logger.debug("[Memory] Failed to release consolidation lock for %s: %s", user_id, e)
 
@@ -112,14 +113,7 @@ async def release_auto_capture_lock(user_id: str, instance_id: str) -> None:
     try:
         redis_client = get_redis_client()
         lock_key = AUTO_CAPTURE_LOCK_KEY.format(user_id=user_id)
-        lua = """
-        if redis.call("GET", KEYS[1]) == ARGV[1] then
-            return redis.call("DEL", KEYS[1])
-        else
-            return 0
-        end
-        """
-        await redis_client.eval(lua, 1, lock_key, instance_id)  # type: ignore[misc]
+        await redis_client.eval(_RELEASE_LOCK_LUA, 1, lock_key, instance_id)  # type: ignore[misc]
     except Exception as e:
         logger.debug("[Memory] Failed to release auto-capture lock for %s: %s", user_id, e)
 
@@ -228,15 +222,6 @@ class MemoryPubSub:
         """Stop the memory pub/sub listener."""
         self._running = False
 
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(MEMORY_INVALIDATION_CHANNEL)
-                await self._pubsub.close()
-            except Exception:
-                pass
-            finally:
-                self._pubsub = None
-
         if self._pubsub_task and not self._pubsub_task.done():
             self._pubsub_task.cancel()
             try:
@@ -244,7 +229,7 @@ class MemoryPubSub:
             except asyncio.CancelledError:
                 pass
 
-        logger.info("[MemoryPubSub] Listener stopped")
+        # _cleanup is handled by listener()'s finally block
 
     @property
     def is_running(self) -> bool:

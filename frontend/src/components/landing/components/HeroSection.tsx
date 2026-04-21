@@ -11,7 +11,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
   const { t } = useTranslation();
 
   return (
-    <section className="blog-hero relative pt-40 sm:pt-52 md:pt-64 pb-24 sm:pb-36 lg:pb-48 overflow-hidden">
+    <section className="blog-hero relative flex flex-col items-center justify-center min-h-[100svh] px-5 sm:px-6 py-16 sm:py-20 overflow-hidden">
       {/* Atmospheric background */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
@@ -37,7 +37,7 @@ export function HeroSection({ onLogin }: HeroSectionProps) {
         aria-hidden="true"
       />
 
-      <div className="relative max-w-2xl sm:max-w-3xl mx-auto px-5 sm:px-6 text-center">
+      <div className="relative max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto text-center w-full">
         {/* Editorial tag */}
         <div
           data-reveal

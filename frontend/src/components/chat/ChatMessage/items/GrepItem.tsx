@@ -1,10 +1,10 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { Search, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { extractText } from "./toolUtils";
-import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
+import { openPersistentToolPanel } from "./persistentToolPanelState";
 
 const GrepItem = memo(function GrepItem({
   args,
@@ -24,7 +24,6 @@ const GrepItem = memo(function GrepItem({
   const searchPath = (args.path as string) || "";
   const glob = (args.glob as string) || "";
   const outputMode = (args.output_mode as string) || "files_with_matches";
-  const [panelOpen, setPanelOpen] = useState(false);
 
   const parsedResult = useMemo(() => {
     if (!result) return { files: [] as string[], lines: [] as string[] };
@@ -119,7 +118,6 @@ const GrepItem = memo(function GrepItem({
           <CodeMirrorViewer
             value={parsedResult.lines.join("\n")}
             lineNumbers={false}
-            maxHeight="60vh"
             fontSize="0.8rem"
           />
         </div>
@@ -147,8 +145,14 @@ const GrepItem = memo(function GrepItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
-          closeCurrentToolPanel();
-          setPanelOpen(true);
+          if (!canExpand) return;
+          openPersistentToolPanel({
+            title: `${t("chat.message.toolSearch")} ${pattern}`,
+            icon: <Search size={16} />,
+            status,
+            subtitle: searchPath || glob || undefined,
+            children: detailContent,
+          });
         }}
       >
         {canExpand && (
@@ -200,7 +204,6 @@ const GrepItem = memo(function GrepItem({
                 <CodeMirrorViewer
                   value={parsedResult.lines.slice(0, 50).join("\n")}
                   lineNumbers={false}
-                  maxHeight="12rem"
                   fontSize="0.75rem"
                 />
                 {parsedResult.lines.length > 50 && (
@@ -226,18 +229,6 @@ const GrepItem = memo(function GrepItem({
           </div>
         )}
       </CollapsiblePill>
-      {canExpand && (
-        <ToolResultPanel
-          open={panelOpen}
-          onClose={() => setPanelOpen(false)}
-          title={`${t("chat.message.toolSearch")} ${pattern}`}
-          icon={<Search size={16} />}
-          status={status}
-          subtitle={searchPath || glob || undefined}
-        >
-          {detailContent}
-        </ToolResultPanel>
-      )}
     </>
   );
 });

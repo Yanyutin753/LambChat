@@ -17,6 +17,10 @@ import {
 } from "lucide-react";
 import { uploadApi } from "../../services/api";
 import { ToolResultPanel } from "../chat/ChatMessage/items/ToolResultPanel";
+import {
+  fetchDocumentArrayBuffer,
+  fetchDocumentText,
+} from "./documentFetchCache";
 
 // Import utilities
 import {
@@ -85,6 +89,7 @@ interface DocumentPreviewProps {
   imageUrl?: string; // Direct image URL for previewing image attachments
   initialLine?: number; // Scroll to and highlight this line in code files
   onClose: () => void;
+  onUserInteraction?: () => void;
 }
 
 export default function DocumentPreview({
@@ -96,6 +101,7 @@ export default function DocumentPreview({
   imageUrl: externalImageUrl,
   initialLine,
   onClose,
+  onUserInteraction,
 }: DocumentPreviewProps) {
   const { t } = useTranslation();
   const [data, setData] = useState<{ content: string; path: string } | null>(
@@ -276,11 +282,8 @@ export default function DocumentPreview({
             setHtmlUrl(url);
             // 同时获取内容用于查看源代码
             try {
-              const response = await fetch(url);
-              if (response.ok) {
-                const text = await response.text();
-                setHtmlContent(text);
-              }
+              const text = await fetchDocumentText(url);
+              setHtmlContent(text);
             } catch (e) {
               console.error("Failed to fetch HTML content:", e);
             }
@@ -291,11 +294,7 @@ export default function DocumentPreview({
 
           // Excalidraw files - load as text and pass to preview
           if (excalidrawFile) {
-            const response = await fetch(url);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch file: ${response.status}`);
-            }
-            const text = await response.text();
+            const text = await fetchDocumentText(url);
             setExcalidrawData(text);
             setData({ content: "", path });
             setLoading(false);
@@ -311,18 +310,13 @@ export default function DocumentPreview({
           }
 
           // 其他文件获取内容
-          const response = await fetch(url);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch file: ${response.status}`);
-          }
-
           // 根据文件类型处理内容
           if (binaryFile) {
             // 二进制文件，只设置路径用于下载
             setData({ content: "", path });
           } else if (wordFile || excelFile) {
             // Word/Excel 文件需要作为 ArrayBuffer 处理
-            const buffer = await response.arrayBuffer();
+            const buffer = await fetchDocumentArrayBuffer(url);
             setArrayBuffer(buffer);
             setData({ content: "", path });
           } else if (!previewable) {
@@ -337,7 +331,7 @@ export default function DocumentPreview({
             }, 100);
           } else {
             // 文本文件，读取内容
-            const text = await response.text();
+            const text = await fetchDocumentText(url);
             setData({ content: text, path });
           }
           setLoading(false);
@@ -432,6 +426,7 @@ export default function DocumentPreview({
         isSidebar ? undefined : "sm:items-center sm:justify-center bg-black/70"
       }
       panelClass={isSidebar ? undefined : centerPanelClass}
+      onUserInteraction={onUserInteraction}
       footer={
         <div className="px-3 sm:px-5 py-2 sm:py-3 border-t border-stone-200 dark:border-[#333] bg-stone-50 dark:bg-[#252526]">
           <div className="flex items-center justify-between text-xs sm:text-xs text-stone-400 dark:text-stone-500">
@@ -504,6 +499,7 @@ export default function DocumentPreview({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                onUserInteraction?.();
                 setViewMode(isSidebar ? "center" : "sidebar");
               }}
               className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
@@ -527,6 +523,7 @@ export default function DocumentPreview({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  onUserInteraction?.();
                   setIsFullscreen(!isFullscreen);
                 }}
                 className="hidden sm:flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
@@ -617,9 +614,13 @@ export default function DocumentPreview({
       {loading ? (
         <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4">
           <div className="relative">
-            <LoadingSpinner size="lg" />
+            <LoadingSpinner size="lg" color="text-[var(--theme-primary)]" />
             <div className="absolute inset-0 animate-ping">
-              <LoadingSpinner size="lg" static />
+              <LoadingSpinner
+                size="lg"
+                static
+                color="text-[var(--theme-primary)]"
+              />
             </div>
           </div>
           <p className="text-sm text-stone-500 dark:text-stone-400 font-medium">

@@ -39,7 +39,8 @@ export type MessagePart =
   | SandboxPart
   | TokenUsagePart
   | CancelledPart
-  | TodoPart;
+  | TodoPart
+  | SummaryPart;
 
 // Sandbox 状态块类型（用于渲染沙箱初始化状态）
 export interface SandboxPart {
@@ -80,6 +81,15 @@ export interface TodoItem {
 export interface TodoPart {
   type: "todo";
   items: TodoItem[];
+  isStreaming?: boolean;
+}
+
+export interface SummaryPart {
+  type: "summary";
+  content: string;
+  summary_id?: string;
+  depth?: number;
+  agent_id?: string;
   isStreaming?: boolean;
 }
 

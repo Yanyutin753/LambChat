@@ -9,7 +9,7 @@ export type CollapsibleStatus =
   | "success"
   | "error"
   | "cancelled";
-export type CollapsibleVariant = "default" | "tool" | "thinking";
+export type CollapsibleVariant = "default" | "tool" | "thinking" | "summary";
 
 export interface CollapsiblePillProps {
   status?: CollapsibleStatus;
@@ -23,6 +23,8 @@ export interface CollapsiblePillProps {
   expandable?: boolean;
   /** On mobile, call this instead of toggling inline expansion */
   onPanelOpen?: () => void;
+  /** Add animated typing dots after label */
+  animatedDots?: boolean;
 }
 
 // Get spinner color based on variant
@@ -32,6 +34,9 @@ function getSpinnerColor(variant: CollapsibleVariant): string {
   }
   if (variant === "thinking") {
     return "text-stone-500 dark:text-stone-400";
+  }
+  if (variant === "summary") {
+    return "text-amber-500 dark:text-amber-400";
   }
   // default (sandbox) - use emerald
   return "text-emerald-500 dark:text-emerald-400";
@@ -111,6 +116,37 @@ function getButtonStyles(
     );
   }
 
+  if (variant === "summary") {
+    if (status === "loading") {
+      return clsx(
+        "bg-amber-100/80 dark:bg-amber-900/30",
+        "text-amber-700 dark:text-amber-300",
+      );
+    }
+    if (status === "success") {
+      return clsx(
+        "bg-emerald-100/80 dark:bg-emerald-900/30",
+        "text-emerald-700 dark:text-emerald-300",
+      );
+    }
+    if (status === "error") {
+      return clsx(
+        "bg-red-100/80 dark:bg-red-900/30",
+        "text-red-700 dark:text-red-300",
+      );
+    }
+    if (status === "cancelled") {
+      return clsx(
+        "bg-amber-100/80 dark:bg-amber-900/30",
+        "text-amber-700 dark:text-amber-300",
+      );
+    }
+    return clsx(
+      "bg-stone-100 dark:bg-stone-800",
+      "text-stone-600 dark:text-stone-400",
+    );
+  }
+
   // default variant (for Sandbox)
   if (status === "error") {
     return clsx(
@@ -141,6 +177,7 @@ export function CollapsiblePill({
   children,
   expandable = true,
   onPanelOpen,
+  animatedDots = false,
 }: CollapsiblePillProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const hasChildren = children !== undefined;
@@ -169,7 +206,7 @@ export function CollapsiblePill({
       <button
         onClick={handleToggle}
         className={clsx(
-          "inline-flex items-center gap-1 sm:gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
+          "inline-flex items-center gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
           "transition-colors",
           getButtonStyles(status, variant),
           canExpand && "cursor-pointer",
@@ -178,7 +215,12 @@ export function CollapsiblePill({
       >
         <StatusIndicator status={status} variant={variant} />
         {icon}
-        <span className="font-mono truncate max-w-[200px] sm:max-w-[400px]">
+        <span
+          className={clsx(
+            "font-mono truncate max-w-[200px] sm:max-w-[400px]",
+            animatedDots && "typing-dots",
+          )}
+        >
           {formattedLabel}
         </span>
         {suffix}

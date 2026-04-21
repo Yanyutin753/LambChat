@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   Settings,
   RotateCcw,
@@ -18,6 +18,7 @@ import { PanelLoadingState } from "../common/PanelLoadingState";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { useSettingsContext } from "../../contexts/SettingsContext";
+import { JsonSchemaEditor } from "./JsonSchemaEditor";
 import { useAuth } from "../../hooks/useAuth";
 import { roleApi, agentApi } from "../../services/api";
 import { Permission, type AgentInfo } from "../../types";
@@ -33,16 +34,25 @@ const CATEGORY_ORDER: SettingCategory[] = [
   "agent",
   "llm",
   "session",
-  "database",
+  "mongodb",
+  "redis",
+  "checkpoint",
   "long_term_storage",
   "memory",
+  "memory_embedding",
+  "memory_search",
+  "memory_storage",
   "security",
+  "email",
+  "captcha",
   "s3",
+  "file_upload",
   "sandbox",
   "skills",
   "tools",
   "tracing",
   "user",
+  "oauth",
 ];
 
 const TYPE_COLORS: Record<SettingType, string> = {
@@ -78,15 +88,24 @@ export function SettingsPanel() {
     llm: t("categories.llm"),
     session: t("categories.session"),
     skills: t("categories.skills"),
-    database: t("categories.database"),
+    mongodb: t("categories.mongodb"),
+    redis: t("categories.redis"),
+    checkpoint: t("categories.checkpoint"),
     long_term_storage: t("categories.long_term_storage"),
     memory: t("categories.memory"),
+    memory_embedding: t("categories.memory_embedding"),
+    memory_search: t("categories.memory_search"),
+    memory_storage: t("categories.memory_storage"),
     security: t("categories.security"),
+    email: t("categories.email"),
+    captcha: t("categories.captcha"),
     sandbox: t("categories.sandbox"),
     s3: t("categories.s3"),
+    file_upload: t("categories.file_upload"),
     tools: t("categories.tools"),
     tracing: t("categories.tracing"),
     user: t("categories.user"),
+    oauth: t("categories.oauth"),
   };
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -138,6 +157,42 @@ export function SettingsPanel() {
   // Get settings for active category
   const categorySettings = settings?.settings[activeCategory] ?? [];
 
+  const SUBCATEGORY_LABELS = useMemo<Record<string, string>>(
+    () => ({
+      display: t("subcategories.display"),
+      contact: t("subcategories.contact"),
+      general: t("subcategories.general"),
+      retry: t("subcategories.retry"),
+      cache: t("subcategories.cache"),
+      title: t("subcategories.title"),
+      events: t("subcategories.events"),
+      daytona: t("subcategories.daytona"),
+      e2b: t("subcategories.e2b"),
+      mcp: t("subcategories.mcp"),
+      deferred: t("subcategories.deferred"),
+      connection: t("subcategories.connection"),
+      langsmith: t("subcategories.langsmith"),
+      jwt: t("subcategories.jwt"),
+      service: t("subcategories.service"),
+      turnstile: t("subcategories.turnstile"),
+      bucket: t("subcategories.bucket"),
+      limits: t("subcategories.limits"),
+      storage: t("subcategories.storage"),
+      pool: t("subcategories.pool"),
+      postgres: t("subcategories.postgres"),
+      registration: t("subcategories.registration"),
+      google: t("subcategories.google"),
+      github: t("subcategories.github"),
+      apple: t("subcategories.apple"),
+      api: t("subcategories.api"),
+      index: t("subcategories.index"),
+      rerank: t("subcategories.rerank"),
+      llm: t("subcategories.llm"),
+      policy: t("subcategories.policy"),
+    }),
+    [t],
+  );
+
   // Check if a setting should be visible based on depends_on
   const isSettingVisible = useCallback(
     (setting: SettingItem): boolean => {
@@ -185,6 +240,29 @@ export function SettingsPanel() {
     const isVisible = isSettingVisible(setting);
     return matchesSearch && isVisible;
   });
+
+  // Group filtered settings by subcategory
+  const groupedSettings = useMemo(() => {
+    const groups: {
+      subcategory: string;
+      label: string;
+      settings: typeof filteredSettings;
+    }[] = [];
+    const map = new Map<string, typeof filteredSettings>();
+    for (const s of filteredSettings) {
+      const key = s.subcategory || "";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    }
+    for (const [key, items] of map) {
+      groups.push({
+        subcategory: key,
+        label: key ? SUBCATEGORY_LABELS[key] || key : "",
+        settings: items,
+      });
+    }
+    return groups;
+  }, [filteredSettings, SUBCATEGORY_LABELS]);
 
   // Handle value change
   const handleValueChange = useCallback(
@@ -506,7 +584,10 @@ export function SettingsPanel() {
                   >
                     <span className="inline-flex h-4 w-4 items-center justify-center">
                       {isImporting ? (
-                        <LoadingSpinner size="sm" />
+                        <LoadingSpinner
+                          size="sm"
+                          color="text-[var(--theme-primary)]"
+                        />
                       ) : (
                         <Upload size={16} />
                       )}
@@ -559,196 +640,234 @@ export function SettingsPanel() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredSettings.map((setting) => {
-                  const isSaving = savingKeys.has(setting.key);
-                  const modified = isModified(setting);
-                  const justSaved = savedKeys.has(setting.key);
-                  const isJson = setting.type === "json";
-                  const isSelect =
-                    setting.key === "DEFAULT_AGENT" ||
-                    setting.key === "DEFAULT_USER_ROLE" ||
-                    setting.type === "boolean" ||
-                    (setting.type === "select" && setting.options);
+              <div className="space-y-5">
+                {groupedSettings.map((group) => (
+                  <div key={group.subcategory} className="space-y-3">
+                    {group.label && (
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                        {group.label}
+                      </h3>
+                    )}
+                    {group.settings.map((setting) => {
+                      const isSaving = savingKeys.has(setting.key);
+                      const modified = isModified(setting);
+                      const justSaved = savedKeys.has(setting.key);
+                      const isJson = setting.type === "json";
+                      const isSelect =
+                        setting.key === "DEFAULT_AGENT" ||
+                        setting.key === "DEFAULT_USER_ROLE" ||
+                        setting.type === "boolean" ||
+                        (setting.type === "select" && setting.options);
 
-                  return (
-                    <div
-                      key={setting.key}
-                      className="glass-card rounded-xl p-4"
-                    >
-                      {/* Key and Type */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <code className="rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-xs font-medium text-stone-900 break-all dark:text-stone-100">
-                              {setting.key}
-                            </code>
-                            <span
-                              className={`tag text-[11px] ${
-                                TYPE_COLORS[setting.type]
-                              }`}
-                            >
-                              {setting.type}
-                            </span>
+                      return (
+                        <div
+                          key={setting.key}
+                          className="glass-card rounded-xl p-4"
+                        >
+                          {/* Key and Type */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <code className="rounded-md bg-[var(--glass-bg-subtle)] px-2 py-0.5 text-xs font-medium text-stone-900 break-all dark:text-stone-100">
+                                  {setting.key}
+                                </code>
+                                <span
+                                  className={`tag text-[11px] ${
+                                    TYPE_COLORS[setting.type]
+                                  }`}
+                                >
+                                  {setting.type}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-stone-500 sm:text-sm dark:text-stone-400">
+                                {t(setting.description)}
+                              </p>
+                            </div>
                           </div>
-                          <p className="mt-1 text-xs text-stone-500 sm:text-sm dark:text-stone-400">
-                            {setting.description}
-                          </p>
-                        </div>
-                      </div>
 
-                      {/* Edit Input */}
-                      <div className="mt-3">
-                        {isSelect && (
-                          <div className="relative">
-                            <select
-                              value={getDisplayValue(setting)}
-                              onChange={(e) =>
-                                handleValueChange(
-                                  setting.key,
-                                  e.target.value,
-                                  setting.type === "select"
-                                    ? "string"
-                                    : setting.type,
-                                )
-                              }
-                              disabled={!canManage}
-                              className="w-full appearance-none rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] py-2 pl-3 pr-9 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
-                            >
-                              {setting.key === "DEFAULT_AGENT" ? (
-                                agents.map((agent) => (
-                                  <option key={agent.id} value={agent.id}>
-                                    {agent.name || agent.id}
-                                  </option>
-                                ))
-                              ) : setting.key === "DEFAULT_USER_ROLE" ? (
-                                roles.map((role) => (
-                                  <option key={role.id} value={role.name}>
-                                    {role.name}
-                                  </option>
-                                ))
-                              ) : setting.type === "boolean" ? (
-                                <>
-                                  <option value="true">true</option>
-                                  <option value="false">false</option>
-                                </>
-                              ) : (
-                                setting.options?.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))
+                          {/* Edit Input */}
+                          <div className="mt-3">
+                            {isSelect && (
+                              <div className="relative">
+                                <select
+                                  value={getDisplayValue(setting)}
+                                  onChange={(e) =>
+                                    handleValueChange(
+                                      setting.key,
+                                      e.target.value,
+                                      setting.type === "select"
+                                        ? "string"
+                                        : setting.type,
+                                    )
+                                  }
+                                  disabled={!canManage}
+                                  className="w-full appearance-none rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] py-2 pl-3 pr-9 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
+                                >
+                                  {setting.key === "DEFAULT_AGENT" ? (
+                                    agents.map((agent) => (
+                                      <option key={agent.id} value={agent.id}>
+                                        {t(agent.name || agent.id)}
+                                      </option>
+                                    ))
+                                  ) : setting.key === "DEFAULT_USER_ROLE" ? (
+                                    roles.map((role) => (
+                                      <option key={role.id} value={role.name}>
+                                        {role.name}
+                                      </option>
+                                    ))
+                                  ) : setting.type === "boolean" ? (
+                                    <>
+                                      <option value="true">true</option>
+                                      <option value="false">false</option>
+                                    </>
+                                  ) : (
+                                    setting.options?.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))
+                                  )}
+                                </select>
+                                <ChevronDown
+                                  size={16}
+                                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+                                />
+                              </div>
+                            )}
+                            {setting.type === "text" && (
+                              <textarea
+                                value={getDisplayValue(setting)}
+                                onChange={(e) =>
+                                  handleValueChange(
+                                    setting.key,
+                                    e.target.value,
+                                    setting.type,
+                                  )
+                                }
+                                disabled={!canManage}
+                                rows={8}
+                                className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
+                              />
+                            )}
+                            {isJson && setting.json_schema && (
+                              <JsonSchemaEditor
+                                value={
+                                  typeof getDisplayValue(setting) === "string"
+                                    ? JSON.parse(
+                                        getDisplayValue(setting) || "[]",
+                                      )
+                                    : getDisplayValue(setting)
+                                }
+                                schema={setting.json_schema}
+                                disabled={!canManage}
+                                onChange={(val) =>
+                                  handleValueChange(
+                                    setting.key,
+                                    JSON.stringify(val),
+                                    setting.type,
+                                  )
+                                }
+                              />
+                            )}
+                            {isJson && !setting.json_schema && (
+                              <textarea
+                                value={getDisplayValue(setting)}
+                                onChange={(e) =>
+                                  handleValueChange(
+                                    setting.key,
+                                    e.target.value,
+                                    setting.type,
+                                  )
+                                }
+                                disabled={!canManage}
+                                rows={20}
+                                className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-xs text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:text-stone-100"
+                              />
+                            )}
+                            {!isSelect &&
+                              setting.type !== "text" &&
+                              !isJson && (
+                                <input
+                                  type={
+                                    setting.type === "number"
+                                      ? "number"
+                                      : "text"
+                                  }
+                                  value={getDisplayValue(setting)}
+                                  onChange={(e) =>
+                                    handleValueChange(
+                                      setting.key,
+                                      e.target.value,
+                                      setting.type,
+                                    )
+                                  }
+                                  disabled={!canManage}
+                                  className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
+                                />
                               )}
-                            </select>
-                            <ChevronDown
-                              size={16}
-                              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-                            />
                           </div>
-                        )}
-                        {setting.type === "text" && (
-                          <textarea
-                            value={getDisplayValue(setting)}
-                            onChange={(e) =>
-                              handleValueChange(
-                                setting.key,
-                                e.target.value,
-                                setting.type,
-                              )
-                            }
-                            disabled={!canManage}
-                            rows={8}
-                            className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
-                          />
-                        )}
-                        {isJson && (
-                          <textarea
-                            value={getDisplayValue(setting)}
-                            onChange={(e) =>
-                              handleValueChange(
-                                setting.key,
-                                e.target.value,
-                                setting.type,
-                              )
-                            }
-                            disabled={!canManage}
-                            rows={20}
-                            className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 font-mono text-xs text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm dark:text-stone-100"
-                          />
-                        )}
-                        {!isSelect && setting.type !== "text" && !isJson && (
-                          <input
-                            type={setting.type === "number" ? "number" : "text"}
-                            value={getDisplayValue(setting)}
-                            onChange={(e) =>
-                              handleValueChange(
-                                setting.key,
-                                e.target.value,
-                                setting.type,
-                              )
-                            }
-                            disabled={!canManage}
-                            className="w-full rounded-lg border border-[var(--glass-border)] bg-[var(--theme-bg-card)] px-3 py-2 text-sm text-stone-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:text-stone-100"
-                          />
-                        )}
-                      </div>
 
-                      {/* Actions and Info */}
-                      <div className="mt-3 flex flex-wrap-nowrap items-center justify-between gap-2">
-                        {canManage && (
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <button
-                              onClick={() => handleSave(setting)}
-                              disabled={!modified || isSaving}
-                              className="btn-primary flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {justSaved ? (
-                                <>
-                                  <Check size={14} />
-                                  {t("common.saved")}
-                                </>
-                              ) : (
-                                <>
-                                  <Save size={14} />
-                                  {t("common.save")}
-                                </>
+                          {/* Actions and Info */}
+                          <div className="mt-3 flex flex-wrap-nowrap items-center justify-between gap-2">
+                            {canManage && (
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <button
+                                  onClick={() => handleSave(setting)}
+                                  disabled={!modified || isSaving}
+                                  className="btn-primary flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {justSaved ? (
+                                    <>
+                                      <Check size={14} />
+                                      {t("common.saved")}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Save size={14} />
+                                      {t("common.save")}
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => handleReset(setting.key)}
+                                  disabled={isSaving}
+                                  className="btn-secondary flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm disabled:opacity-50"
+                                >
+                                  <RotateCcw size={14} />
+                                  {t("common.reset")}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Default Value and Updated Info */}
+                            <div className="hidden text-xs text-stone-400 sm:block dark:text-stone-500 max-w-full truncate">
+                              {t("common.default")}:{" "}
+                              {typeof setting.default_value === "object"
+                                ? JSON.stringify(setting.default_value)
+                                : String(setting.default_value)}
+                              {setting.updated_at && (
+                                <span className="ml-2 inline-flex">
+                                  {new Date(
+                                    setting.updated_at,
+                                  ).toLocaleString()}
+                                  {setting.updated_by &&
+                                    ` · ${setting.updated_by}`}
+                                </span>
                               )}
-                            </button>
-                            <button
-                              onClick={() => handleReset(setting.key)}
-                              disabled={isSaving}
-                              className="btn-secondary flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm disabled:opacity-50"
-                            >
-                              <RotateCcw size={14} />
-                              {t("common.reset")}
-                            </button>
+                            </div>
                           </div>
-                        )}
 
-                        {/* Default Value and Updated Info */}
-                        <div className="hidden text-xs text-stone-400 sm:block dark:text-stone-500 max-w-full truncate">
-                          {t("common.default")}:{" "}
-                          {typeof setting.default_value === "object"
-                            ? JSON.stringify(setting.default_value)
-                            : String(setting.default_value)}
-                          {setting.updated_at && (
-                            <span className="ml-2 inline-flex">
-                              {new Date(setting.updated_at).toLocaleString()}
-                              {setting.updated_by && ` · ${setting.updated_by}`}
-                            </span>
+                          {/* Read-only notice */}
+                          {!canManage && (
+                            <div className="mt-2 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-1.5 text-xs text-stone-400 dark:text-stone-500">
+                              {t("settings.readOnlyNotice")}
+                            </div>
                           )}
                         </div>
-                      </div>
-
-                      {/* Read-only notice */}
-                      {!canManage && (
-                        <div className="mt-2 rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-1.5 text-xs text-stone-400 dark:text-stone-500">
-                          {t("settings.readOnlyNotice")}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             )}
           </div>

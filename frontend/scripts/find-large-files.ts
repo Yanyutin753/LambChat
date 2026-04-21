@@ -1,9 +1,14 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import fs from "fs";
 import { glob } from "glob";
 
-const LINE_THRESHOLD = 1000;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, "../..");
+const FRONTEND_SRC = path.join(PROJECT_ROOT, "frontend/src");
+const BACKEND_SRC = path.join(PROJECT_ROOT, "src");
 
-const BACKEND_SRC = "src";
+const LINE_THRESHOLD = 1000;
 
 async function findLargeFiles(
   pattern: string,
@@ -18,11 +23,7 @@ async function findLargeFiles(
     const lines = content.split("\n").length;
 
     if (lines > LINE_THRESHOLD) {
-      const rel = file.includes("/frontend/")
-        ? file.split("/frontend/")[1]
-        : file.includes("/LambChat/")
-          ? file.split("/LambChat/")[1]
-          : file;
+      const rel = path.relative(PROJECT_ROOT, file);
       results.push({ file: rel, lines });
     }
   }
@@ -48,8 +49,8 @@ async function main() {
   console.log("========================================");
 
   const frontendResults = await findLargeFiles(
-    "src/**/*.{ts,tsx,js,jsx}",
-    process.cwd(),
+    "**/*.{ts,tsx,js,jsx}",
+    FRONTEND_SRC,
     "Frontend",
   );
 

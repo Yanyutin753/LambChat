@@ -109,27 +109,27 @@ export const TECH_STACK = [
 ];
 
 export const MAIN_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/login-page.png", altKey: "loginPage" },
-  { src: "/images/best-practice/chat-home.png", altKey: "chatInterface" },
+  { src: "/images/best-practice/login-page.webp", altKey: "loginPage" },
+  { src: "/images/best-practice/chat-home.webp", altKey: "chatInterface" },
   {
-    src: "/images/best-practice/chat-response.png",
+    src: "/images/best-practice/chat-response.webp",
     altKey: "streamingResponse",
   },
-  { src: "/images/best-practice/share-dialog.png", altKey: "shareDialog" },
+  { src: "/images/best-practice/share-dialog.webp", altKey: "shareDialog" },
 ];
 
 export const MGMT_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/skills-page.png", altKey: "skills" },
-  { src: "/images/best-practice/mcp-page.png", altKey: "mcp" },
-  { src: "/images/best-practice/settings-page.png", altKey: "settings" },
-  { src: "/images/best-practice/feedback-page.png", altKey: "feedback" },
-  { src: "/images/best-practice/shared-page.png", altKey: "shared" },
-  { src: "/images/best-practice/roles-page.png", altKey: "roles" },
+  { src: "/images/best-practice/skills-page.webp", altKey: "skills" },
+  { src: "/images/best-practice/mcp-page.webp", altKey: "mcp" },
+  { src: "/images/best-practice/settings-page.webp", altKey: "settings" },
+  { src: "/images/best-practice/feedback-page.webp", altKey: "feedback" },
+  { src: "/images/best-practice/shared-page.webp", altKey: "shared" },
+  { src: "/images/best-practice/roles-page.webp", altKey: "roles" },
 ];
 
 export const RESPONSIVE_SHOTS: ScreenshotItem[] = [
-  { src: "/images/best-practice/mobile-view.png", altKey: "mobile" },
-  { src: "/images/best-practice/tablet-view.png", altKey: "tablet" },
+  { src: "/images/best-practice/mobile-view.webp", altKey: "mobile" },
+  { src: "/images/best-practice/tablet-view.webp", altKey: "tablet" },
 ];
 
 export const STATS = [

@@ -44,10 +44,12 @@ class DeferredToolManager:
         all_deferred_tools: list["BaseTool"],
         session_id: str,
         disabled_tools: Optional[list[str]] = None,
+        disabled_mcp_tools: Optional[list[str]] = None,
         pre_discovered_names: Optional[list[str]] = None,
     ):
         # 应用 disabled_tools 过滤
         disabled_set = set(disabled_tools or [])
+        disabled_set.update(disabled_mcp_tools or [])
         mcp_servers = {t[4:] for t in disabled_set if t.startswith("mcp:")}
         exact_disabled = disabled_set - {f"mcp:{s}" for s in mcp_servers}
 
@@ -74,9 +76,10 @@ class DeferredToolManager:
         self._discovered_names: set[str] = pre_set
         self._session_id = session_id
 
-        # Dirty flag: 当 discover_tools() 被调用后设为 True
-        # 外部消费者检查此 flag 决定是否需要重建缓存
+        # Backward-compatible aggregate dirty flag.
         self.stale: bool = True
+        self._stubs_stale: bool = True
+        self._prompt_stale: bool = True
 
         # 缓存
         self._cached_stubs: list[DeferredToolStub] = []
@@ -112,7 +115,7 @@ class DeferredToolManager:
 
     def get_deferred_stubs(self) -> list[DeferredToolStub]:
         """获取未发现工具的轻量描述列表（带脏标记缓存）"""
-        if not self.stale:
+        if not self._stubs_stale:
             return self._cached_stubs
 
         stubs: list[DeferredToolStub] = []
@@ -131,7 +134,8 @@ class DeferredToolManager:
             )
 
         self._cached_stubs = sorted(stubs, key=lambda stub: (stub.server, stub.name))
-        self.stale = False
+        self._stubs_stale = False
+        self.stale = self._stubs_stale or self._prompt_stale
         return self._cached_stubs
 
     def get_deferred_stubs_string(self) -> str:
@@ -141,7 +145,7 @@ class DeferredToolManager:
         1. 未发现工具列表 — Agent 需通过 search_tools 加载
         2. 已发现工具列表 — Agent 可直接使用（schema 已注入 request.tools）
         """
-        if not self.stale:
+        if not self._prompt_stale:
             return self._cached_stubs_string
 
         parts: list[str] = []
@@ -164,17 +168,21 @@ class DeferredToolManager:
                 "The following tools are available but not yet loaded. "
                 "Call `search_tools` to load their full parameter schemas before using them. "
                 "`search_tools` only searches the deferred MCP tools listed in this section; "
-                "it does NOT search sandbox MCP tools. Use `mcporter` inside the sandbox to "
-                "discover those tools.\n\n"
+                "it does NOT search sandbox tools. Sandbox tools are NOT MCP tools — "
+                "use `execute` with `mcporter` commands to discover and call them.\n\n"
                 f"{lines}\n"
             )
 
         if not parts:
             self._cached_stubs_string = ""
+            self._prompt_stale = False
+            self.stale = self._stubs_stale or self._prompt_stale
             return ""
 
         result = "\n\n".join(parts)
         self._cached_stubs_string = result
+        self._prompt_stale = False
+        self.stale = self._stubs_stale or self._prompt_stale
         return result
 
     def get_discovered_tools(self) -> list["BaseTool"]:
@@ -202,6 +210,8 @@ class DeferredToolManager:
 
         if newly_discovered:
             self.stale = True
+            self._stubs_stale = True
+            self._prompt_stale = True
             logger.info(
                 "[DeferredToolManager] Discovered %d tools: %s (session %s)",
                 len(newly_discovered),

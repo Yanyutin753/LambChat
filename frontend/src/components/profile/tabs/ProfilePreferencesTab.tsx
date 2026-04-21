@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
+import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { SkeletonLine } from "../../skeletons";
 import type { AgentInfo } from "../../../types";
 
@@ -20,6 +21,7 @@ const LANGUAGES = [
 ];
 
 type NewlineModifier = "shift" | "ctrl";
+type ThinkingLevel = "off" | "low" | "medium" | "high" | "max";
 
 const NEWLINE_OPTIONS: { key: NewlineModifier; labelKey: string }[] = [
   { key: "shift", labelKey: "profile.newlineShift" },
@@ -29,6 +31,14 @@ const NEWLINE_OPTIONS: { key: NewlineModifier; labelKey: string }[] = [
 const THEME_OPTIONS: { key: "light" | "dark"; labelKey: string }[] = [
   { key: "light", labelKey: "profile.lightTheme" },
   { key: "dark", labelKey: "profile.darkTheme" },
+];
+
+const THINKING_LEVEL_OPTIONS: { key: ThinkingLevel; labelKey: string }[] = [
+  { key: "off", labelKey: "agentOptions.enableThinking.options.off" },
+  { key: "low", labelKey: "agentOptions.enableThinking.options.low" },
+  { key: "medium", labelKey: "agentOptions.enableThinking.options.medium" },
+  { key: "high", labelKey: "agentOptions.enableThinking.options.high" },
+  { key: "max", labelKey: "agentOptions.enableThinking.options.max" },
 ];
 
 /** Reusable selection row — opens a centered dialog popup */
@@ -147,6 +157,20 @@ export function ProfilePreferencesTab() {
       return stored === "ctrl" ? "ctrl" : "shift";
     },
   );
+  const [defaultThinkingLevel, setDefaultThinkingLevel] =
+    useState<ThinkingLevel>(() => {
+      const stored = localStorage.getItem(DEFAULT_THINKING_LEVEL_STORAGE_KEY);
+      if (
+        stored === "off" ||
+        stored === "low" ||
+        stored === "medium" ||
+        stored === "high" ||
+        stored === "max"
+      ) {
+        return stored;
+      }
+      return "off";
+    });
 
   // Default model preference
   const [selectedModelId, setSelectedModelId] = useState<string>(() => {
@@ -244,6 +268,18 @@ export function ProfilePreferencesTab() {
     }
   };
 
+  const handleThinkingLevelChange = (level: ThinkingLevel) => {
+    setDefaultThinkingLevel(level);
+    localStorage.setItem(DEFAULT_THINKING_LEVEL_STORAGE_KEY, level);
+    authApi.updateMetadata({ defaultThinkingLevel: level }).catch(() => {});
+    window.dispatchEvent(
+      new CustomEvent("thinking-preference-updated", {
+        detail: level,
+      }),
+    );
+    setOpenDropdown(null);
+  };
+
   const agentOptions = agents.map((a) => ({
     key: a.id,
     labelKey: a.name,
@@ -316,6 +352,15 @@ export function ProfilePreferencesTab() {
             }}
           />
         )}
+
+        <SelectRow
+          label={t("profile.defaultThinking")}
+          value={defaultThinkingLevel}
+          options={THINKING_LEVEL_OPTIONS}
+          open={openDropdown === "thinking"}
+          onToggle={() => toggle("thinking")}
+          onSelect={handleThinkingLevelChange}
+        />
 
         <SelectRow
           label={t("profile.newlineModifier")}

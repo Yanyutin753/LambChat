@@ -20,6 +20,7 @@ from src.agents.core.node_utils import (
     resolve_fallback_model,
 )
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
+from src.agents.core.thinking import build_thinking_config
 from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
@@ -27,10 +28,10 @@ from src.infra.agent.middleware import (
     PromptCachingMiddleware,
     SandboxMCPMiddleware,
     SectionPromptMiddleware,
-    SubagentActivityMiddleware,
     ToolResultBinaryMiddleware,
     create_retry_middleware,
 )
+from src.infra.agent.middleware_subagent import SubagentActivityMiddleware
 from src.infra.backend import (
     create_persistent_backend_factory,
     create_sandbox_backend_factory,
@@ -67,9 +68,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 获取 agent_options
     agent_options = configurable.get("agent_options") or {}
-    enable_thinking = agent_options.get("enable_thinking", False)
     selected_model = agent_options.get("model")  # Per-request model override
     model_id = agent_options.get("model_id")  # Model config ID for specific channel/provider
+    thinking_config = build_thinking_config(agent_options)
     logger.info(f"agent_options: {agent_options}")
 
     # 获取附件
@@ -80,7 +81,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     llm = await LLMClient.get_model(
         model=selected_model,
         model_id=model_id,
-        thinking={"type": "enabled"} if enable_thinking else None,
+        thinking=thinking_config,
     )
     llm_init_time = time.time() - llm_start
     logger.debug(f"[Agent] LLM init: {llm_init_time * 1000:.3f}ms")
@@ -89,7 +90,6 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     fallback_model_value = await resolve_fallback_model(
         model_id, selected_model, log_prefix="[Agent]"
     )
-    thinking_config = {"type": "enabled"} if enable_thinking else None
 
     # 多租户隔离
     tenant_id = context.user_id or "default"
@@ -116,7 +116,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             logger.warning(f"Failed to build skills prompt: {e}")
 
     # 构建记忆系统提示
-    memory_guide = get_memory_guide(settings.MEMORY_PERFORM) if settings.ENABLE_MEMORY else ""
+    memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
 
     # 过滤工具（懒加载 MCP 工具）
     filtered_tools = None
@@ -187,12 +187,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
-    if (
-        settings.ENABLE_MEMORY
-        and settings.MEMORY_PERFORM == "native"
-        and settings.NATIVE_MEMORY_INDEX_ENABLED
-        and context.user_id
-    ):
+    if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
         from src.infra.agent.middleware import MemoryIndexMiddleware
 
         user_middleware.append(MemoryIndexMiddleware(user_id=context.user_id))
@@ -256,9 +251,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     ):
         await event_processor.process_event(event)
     # Flush any remaining buffered chunks
-    await event_processor._flush_chunk_buffer()
+    await event_processor.flush()
 
-    if settings.ENABLE_MEMORY and settings.MEMORY_PERFORM == "native" and context.user_id:
+    if settings.ENABLE_MEMORY and context.user_id:
         from src.infra.memory.tools import schedule_auto_memory_capture
 
         schedule_auto_memory_capture(context.user_id, user_input)
@@ -289,8 +284,11 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         except Exception:
             pass  # 非关键路径，失败静默
 
+    output_text = event_processor.output_text
+    event_processor.clear()
+
     return {
-        "output": event_processor.output_text,
+        "output": output_text,
         "messages": final_messages,
     }
 

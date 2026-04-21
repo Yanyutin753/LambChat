@@ -230,7 +230,7 @@ export function ImageViewer({
       onClick={handleBackgroundClick}
     >
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-black/50">
+      <div className="flex items-center justify-between px-4 py-3 bg-black">
         {/* Close button */}
         <button
           type="button"
@@ -342,7 +342,7 @@ export function ImageViewer({
       </div>
 
       {/* Hint */}
-      <div className="flex items-center justify-center px-4 py-2 bg-black/50">
+      <div className="flex items-center justify-center px-4 py-2 bg-black">
         <p className="text-white/60 text-xs">{t("imageViewer.hint")}</p>
       </div>
     </div>,

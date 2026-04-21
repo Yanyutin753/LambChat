@@ -10,13 +10,13 @@ export function CTASection({ onLogin }: CTASectionProps) {
   const { t } = useTranslation();
 
   return (
-    <section className="py-20 sm:py-28 lg:py-36 relative overflow-hidden">
-      {/* Subtle ambient glow */}
+    <section className="blog-cta-ambient py-20 sm:py-28 lg:py-36 relative overflow-hidden">
+      {/* Ambient glow */}
       <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-[radial-gradient(ellipse,rgba(251,191,36,0.04)_0%,transparent_60%)] dark:bg-[radial-gradient(ellipse,rgba(251,191,36,0.03)_0%,transparent_60%)]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse,rgba(251,191,36,0.05)_0%,rgba(232,121,249,0.02)_40%,transparent_65%)] dark:bg-[radial-gradient(ellipse,rgba(251,191,36,0.04)_0%,rgba(232,121,249,0.015)_40%,transparent_65%)]" />
       </div>
 
-      <div className="relative max-w-2xl mx-auto px-5 sm:px-6 text-center">
+      <div className="relative max-w-2xl lg:max-w-3xl mx-auto px-5 sm:px-6 text-center">
         {/* Ornamental top */}
         <div
           data-reveal

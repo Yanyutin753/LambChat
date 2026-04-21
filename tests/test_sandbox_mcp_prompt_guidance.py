@@ -24,8 +24,8 @@ def test_deferred_prompt_excludes_sandbox_mcp_from_search_tools() -> None:
     prompt = manager.get_deferred_stubs_string()
 
     assert "search_tools" in prompt
-    assert "does NOT search sandbox MCP tools" in prompt
-    assert "Use `mcporter` inside the sandbox to discover those tools" in prompt
+    assert "does NOT search sandbox tools" in prompt
+    assert "use `execute` with `mcporter`" in prompt
 
 
 def test_sandbox_mcp_prompt_tells_model_to_use_mcporter_not_search_tools() -> None:
@@ -52,6 +52,22 @@ def test_sandbox_mcp_prompt_tells_model_to_use_mcporter_not_search_tools() -> No
     )
 
     assert total == 1
-    assert "Sandbox MCP tools are NOT part of `search_tools`" in prompt
-    assert "Discover them with `mcporter list`" in prompt
-    assert "Inspect schemas with `mcporter list --schema`" in prompt
+    assert "NOT MCP" in prompt
+    assert "execute" in prompt
+    assert "mcporter call" in prompt
+
+
+def test_deferred_manager_applies_disabled_mcp_tools() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool("github:create_issue", "Create issue", server="github"),
+            _FakeTool("slack:send", "Send Slack message", server="slack"),
+            _FakeTool("notion:query", "Query Notion", server="notion"),
+        ],
+        session_id="session-1",
+        disabled_mcp_tools=["github:create_issue", "mcp:slack"],
+    )
+
+    assert manager.get_tool("github:create_issue") is None
+    assert manager.get_tool("slack:send") is None
+    assert manager.get_tool("notion:query") is not None

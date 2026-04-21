@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
-from src.infra.memory.client.native.classification import extract_tags
+from src.infra.logging import get_logger
 from src.infra.memory.client.native.content import build_content_fields, delete_memory_content
 from src.infra.memory.client.native.models import ensure_aware
 from src.infra.memory.client.native.summaries import (
     build_index_label,
-    llm_build_summary,
-    llm_build_title,
+    llm_enrich_memory,
 )
 from src.infra.memory.client.types import MemoryType
 from src.kernel.config import settings
+
+logger = get_logger(__name__)
 
 
 async def consolidate_memories(
@@ -37,7 +39,7 @@ async def consolidate_memories(
         }
 
     try:
-        return await backend._do_consolidate(user_id)
+        return await do_consolidate(backend, user_id)
     finally:
         await release_lock(user_id, instance_id)
 
@@ -45,6 +47,7 @@ async def consolidate_memories(
 async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
     all_memories = await backend._collection.find(
         {"user_id": user_id},
+        {"embedding": 0},
         sort=[("created_at", 1)],
     ).to_list(length=500)
 
@@ -88,8 +91,8 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
         type_memories = [m for m in auto_memories if m.get("memory_type") == mtype.value]
         if len(type_memories) < 3:
             continue
-        for batch in split_batches(type_memories, max_size=30):
-            consolidated = await llm_batch_consolidate(backend, batch, mtype.value)
+        for batch in _split_batches(type_memories, max_size=30):
+            consolidated = await _llm_batch_consolidate(backend, batch, mtype.value)
             if consolidated is None:
                 continue
             old_store_keys = [
@@ -98,11 +101,14 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
                 if m.get("content_storage_mode") == "store" and m.get("content_store_key")
             ]
             old_ids = [m["memory_id"] for m in batch]
+            # Delete store content first to avoid orphaned files on crash
+            if old_store_keys:
+                await asyncio.gather(
+                    *(delete_memory_content(backend, user_id, key) for key in old_store_keys)
+                )
             await backend._collection.delete_many(
                 {"user_id": user_id, "memory_id": {"$in": old_ids}}
             )
-            for store_key in old_store_keys:
-                await delete_memory_content(backend, user_id, store_key)
             if consolidated:
                 await backend._collection.insert_many(consolidated)
             reduced += len(batch) - len(consolidated)
@@ -116,13 +122,24 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
         excess = current_count - max_per_user
         oldest_auto = (
             backend._collection.find(
-                {"user_id": user_id, "source": {"$ne": "manual"}}, {"memory_id": 1}
+                {"user_id": user_id, "source": {"$ne": "manual"}},
+                {"memory_id": 1, "content_storage_mode": 1, "content_store_key": 1},
             )
             .sort("created_at", 1)
             .limit(excess)
         )
         oldest_docs = await oldest_auto.to_list(length=excess)
         if oldest_docs:
+            # Clean up content store entries before deleting MongoDB docs
+            store_keys = [
+                d["content_store_key"]
+                for d in oldest_docs
+                if d.get("content_storage_mode") == "store" and d.get("content_store_key")
+            ]
+            if store_keys:
+                await asyncio.gather(
+                    *(delete_memory_content(backend, user_id, key) for key in store_keys)
+                )
             cap_ids = [d["memory_id"] for d in oldest_docs]
             result = await backend._collection.delete_many(
                 {"user_id": user_id, "memory_id": {"$in": cap_ids}}
@@ -130,19 +147,41 @@ async def do_consolidate(backend, user_id: str) -> dict[str, Any]:
             cap_pruned = result.deleted_count
             await backend._invalidate_cache(user_id)
 
+    final_count = await backend._collection.count_documents({"user_id": user_id})
+
     return {
         "merged": reduced,
         "pruned": len(pruned_ids) + cap_pruned,
         "total_before": total_before,
-        "total_after": current_count - cap_pruned,
+        "total_after": final_count,
     }
 
 
-def split_batches(items: list[dict], max_size: int = 30) -> list[list[dict]]:
+def _split_batches(items: list[dict], max_size: int = 30) -> list[list[dict]]:
     return [items[i : i + max_size] for i in range(0, len(items), max_size)]
 
 
-async def llm_batch_consolidate(backend, memories: list[dict], expected_type: str):
+async def _enrich_item(
+    backend, content: str, provided_summary: str, provided_title: str, provided_tags: list
+) -> dict[str, Any] | None:
+    """Enrich a single consolidated item. Returns None if content is too short."""
+    if not content or len(content) < 10:
+        return None
+
+    if provided_summary and provided_title and provided_tags:
+        summary = provided_summary
+        title = provided_title
+        tags = [str(t) for t in provided_tags if isinstance(t, str) and len(t) >= 2][:5]
+    else:
+        enriched = await llm_enrich_memory(backend, content)
+        summary = enriched.get("summary") or provided_summary
+        title = enriched.get("title") or provided_title
+        tags = enriched.get("tags") or []
+
+    return {"summary": summary, "title": title, "tags": tags}
+
+
+async def _llm_batch_consolidate(backend, memories: list[dict], expected_type: str):
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -167,8 +206,9 @@ async def llm_batch_consolidate(backend, memories: list[dict], expected_type: st
             "4. Each output memory should be ONE focused fact or observation\n"
             "5. When merging, preserve all unique details from all source memories\n"
             '6. Keep memory type as: "{type}"\n\n'
-            'Return ONLY a JSON array: [{{"content": "...", "summary": "...", "title": "..."}}]\n'
+            'Return ONLY a JSON array: [{{"content": "...", "summary": "...", "title": "...", "tags": ["...", "..."]}}]\n'
             "title should be max 25 chars, a short label for this memory.\n"
+            "tags should be 3-5 meaningful keywords.\n"
             "Memories to delete should simply be OMITTED from the array.\n\n"
             f"Input memories (oldest first):\n{items_text}"
         ).format(type=expected_type)
@@ -199,32 +239,42 @@ async def llm_batch_consolidate(backend, memories: list[dict], expected_type: st
             return None
 
         now = datetime.now(timezone.utc)
-        docs = []
-        for item in parsed:
-            content = item.get("content", "").strip()
-            if not content or len(content) < 10:
-                continue
-            summary = item.get("summary", "") or await llm_build_summary(backend, content)
-            title = item.get("title", "").strip() or await llm_build_title(backend, content)
-            memory_id = uuid.uuid4().hex
-            content_fields = await build_content_fields(
+        # Enrich items concurrently
+        enrich_coros = [
+            _enrich_item(
                 backend,
-                memories[0]["user_id"],
-                memory_id,
-                content,
+                item.get("content", "").strip(),
+                item.get("summary", "").strip(),
+                item.get("title", "").strip(),
+                item.get("tags") or [],
+            )
+            for item in parsed
+        ]
+        enrich_results = await asyncio.gather(*enrich_coros)
+
+        docs = []
+        for item, meta in zip(parsed, enrich_results):
+            if meta is None:
+                continue
+            content = item.get("content", "").strip()
+            # Build content fields and embed concurrently across items
+            memory_id = uuid.uuid4().hex
+            content_fields, embedding = await asyncio.gather(
+                build_content_fields(backend, memories[0]["user_id"], memory_id, content),
+                backend._maybe_embed(content),
             )
             docs.append(
                 {
                     "memory_id": memory_id,
                     "user_id": memories[0]["user_id"],
-                    "summary": summary[:100],
-                    "title": title[:25],
-                    "index_label": build_index_label(title, summary, content),
+                    "summary": meta["summary"][:100],
+                    "title": meta["title"][:25],
+                    "index_label": build_index_label(meta["title"], meta["summary"], content),
                     "memory_type": expected_type,
                     "context": "consolidated",
-                    "tags": extract_tags(content),
+                    "tags": meta["tags"],
                     "source": "consolidated",
-                    "embedding": await backend._maybe_embed(content),
+                    "embedding": embedding,
                     "created_at": now,
                     "updated_at": now,
                     "accessed_at": now,
@@ -234,7 +284,7 @@ async def llm_batch_consolidate(backend, memories: list[dict], expected_type: st
             )
         return docs if docs else None
     except Exception as e:
-        backend_logger = getattr(backend, "_logger", None)
-        if backend_logger:
-            backend_logger.debug("[NativeMemory] Batch consolidation failed: %s", e)
+        logger.warning(
+            "[NativeMemory] Batch consolidation failed (batch of %d): %s", len(memories), e
+        )
         return None

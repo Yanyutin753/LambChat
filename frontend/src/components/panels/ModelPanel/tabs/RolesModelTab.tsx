@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ModelPanelSkeleton } from "../../../skeletons";
 import { RoleSelector } from "../../AgentPanel/shared/RoleSelector";
 import { ModelIconImg } from "../../../agent/modelIcon.tsx";
+import { Checkbox } from "../../../common/Checkbox";
 import type { ModelOption } from "../../../../services/api/model";
 import type { Role } from "../../../../types";
 
@@ -193,11 +194,10 @@ export function RolesModelTab({
                     }`}
                   >
                     <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 sm:py-3 sm:gap-3.5">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={isSelected}
                         onChange={() => toggleModel(model.id)}
-                        className="h-4 w-4 rounded border-stone-300 text-stone-600 focus:ring-stone-500"
+                        size="sm"
                       />
                       <ModelIconImg
                         model={model.value}

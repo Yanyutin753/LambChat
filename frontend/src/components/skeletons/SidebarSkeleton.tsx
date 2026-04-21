@@ -41,7 +41,7 @@ export function SidebarSkeleton() {
       {/* Session list */}
       <div className="flex-1 overflow-hidden px-2 space-y-px">
         {/* Section header — Projects */}
-        <div className="flex items-center gap-1 px-[9px] h-9">
+        <div className="flex items-center justify-between px-[9px] h-9">
           <div className="skeleton-line h-3 w-16 rounded-md" />
           <div className="skeleton-line size-3.5 rounded-sm shrink-0" />
         </div>
@@ -50,7 +50,7 @@ export function SidebarSkeleton() {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="flex items-center gap-2 px-[9px] h-10 rounded-[10px]"
+              className="flex items-center gap-3 px-[9px] h-10 rounded-[10px]"
             >
               <div className="skeleton-line size-[18px] rounded shrink-0" />
               <div
@@ -62,7 +62,7 @@ export function SidebarSkeleton() {
         </div>
 
         {/* Section header — Chats */}
-        <div className="mt-2 flex items-center gap-1 px-[9px] h-9">
+        <div className="mt-2 flex items-center justify-between px-[9px] h-9">
           <div className="skeleton-line h-3 w-12 rounded-md" />
           <div className="skeleton-line size-3.5 rounded-sm shrink-0" />
         </div>
@@ -93,7 +93,7 @@ export function SidebarSkeleton() {
             "1px solid color-mix(in srgb, var(--theme-border) 60%, transparent)",
         }}
       >
-        <div className="flex items-center gap-2 px-[9px] h-10 rounded-[10px]">
+        <div className="flex items-center gap-3 px-[9px] h-9 rounded-[10px]">
           <div className="skeleton-line size-5 rounded-full shrink-0" />
           <div className="skeleton-line h-[14px] w-16 rounded-md" />
         </div>

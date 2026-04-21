@@ -1,10 +1,10 @@
-import { memo, useState } from "react";
+import { memo } from "react";
 import { Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { CodeMirrorViewer } from "../../../common/CodeMirrorViewer";
 import { extractText } from "./toolUtils";
-import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
+import { openPersistentToolPanel } from "./persistentToolPanelState";
 
 const EditFileItem = memo(function EditFileItem({
   args,
@@ -24,7 +24,6 @@ const EditFileItem = memo(function EditFileItem({
   const fileName = filePath.split("/").pop() || filePath;
   const oldString = (args.old_string as string) || "";
   const newString = (args.new_string as string) || "";
-  const [panelOpen, setPanelOpen] = useState(false);
 
   const canExpand = !!oldString || !!newString || !!result;
   const status = isPending
@@ -43,14 +42,13 @@ const EditFileItem = memo(function EditFileItem({
       {oldString && (
         <div>
           <div className="text-xs text-red-500 dark:text-red-400 mb-1.5 font-semibold uppercase tracking-wider">
-            Removed
+            {t("chat.message.toolEditRemoved")}
           </div>
           <div className="rounded-lg border border-red-200/60 dark:border-red-800/40 bg-red-50 dark:bg-red-950/30 overflow-hidden">
             <CodeMirrorViewer
               value={oldString}
               filePath={filePath}
               lineNumbers={false}
-              maxHeight="40vh"
               fontSize="0.8rem"
               className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
             />
@@ -60,14 +58,13 @@ const EditFileItem = memo(function EditFileItem({
       {newString && (
         <div>
           <div className="text-xs text-emerald-500 dark:text-emerald-400 mb-1.5 font-semibold uppercase tracking-wider">
-            Added
+            {t("chat.message.toolEditAdded")}
           </div>
           <div className="rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/30 overflow-hidden">
             <CodeMirrorViewer
               value={newString}
               filePath={filePath}
               lineNumbers={false}
-              maxHeight="40vh"
               fontSize="0.8rem"
               className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
             />
@@ -95,9 +92,14 @@ const EditFileItem = memo(function EditFileItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
-          if (panelOpen) return;
-          closeCurrentToolPanel();
-          setPanelOpen(true);
+          if (!canExpand) return;
+          openPersistentToolPanel({
+            title: `${t("chat.message.toolEdit")} ${fileName || filePath}`,
+            icon: <Pencil size={16} />,
+            status,
+            subtitle: filePath,
+            children: detailContent,
+          });
         }}
       >
         {canExpand && (
@@ -115,7 +117,6 @@ const EditFileItem = memo(function EditFileItem({
                     value={oldString}
                     filePath={filePath}
                     lineNumbers={false}
-                    maxHeight="8rem"
                     fontSize="0.75rem"
                     className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
                   />
@@ -132,7 +133,6 @@ const EditFileItem = memo(function EditFileItem({
                     value={newString}
                     filePath={filePath}
                     lineNumbers={false}
-                    maxHeight="8rem"
                     fontSize="0.75rem"
                     className="[&_.cm-editor]:bg-transparent dark:[&_.cm-editor]:bg-transparent"
                   />
@@ -151,18 +151,6 @@ const EditFileItem = memo(function EditFileItem({
           </div>
         )}
       </CollapsiblePill>
-      {canExpand && (
-        <ToolResultPanel
-          open={panelOpen}
-          onClose={() => setPanelOpen(false)}
-          title={`${t("chat.message.toolEdit")} ${fileName || filePath}`}
-          icon={<Pencil size={16} />}
-          status={status}
-          subtitle={filePath}
-        >
-          {detailContent}
-        </ToolResultPanel>
-      )}
     </>
   );
 });

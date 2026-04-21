@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ToggleLeft, ToggleRight, Trash2, X } from "lucide-react";
+import { Power, Zap, Trash2, X } from "lucide-react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 
 interface BatchActionBarProps {
@@ -20,53 +20,45 @@ export function BatchActionBar({
   const { t } = useTranslation();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-stone-200 bg-white/95 px-4 py-3 shadow-lg dark:border-stone-800 dark:bg-stone-900/95 sm:left-auto sm:right-auto sm:mx-auto sm:max-w-3xl sm:rounded-t-2xl">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-[var(--theme-text)]">
-          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--theme-primary)] px-1.5 text-[11px] font-bold text-white">
-            {selectedCount}
-          </span>
-          <span className="text-[var(--theme-text-secondary)]">
-            {t("skills.batchSelected")}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onBatchToggle(false)}
-            disabled={batchLoading}
-            className="btn-secondary text-xs"
-          >
-            <ToggleLeft size={14} />
-            <span className="hidden sm:inline">{t("skills.card.disable")}</span>
-          </button>
-          <button
-            onClick={() => onBatchToggle(true)}
-            disabled={batchLoading}
-            className="btn-secondary text-xs"
-          >
-            <ToggleRight size={14} />
-            <span className="hidden sm:inline">{t("skills.card.enable")}</span>
-          </button>
-          <button
-            onClick={onBatchDelete}
-            disabled={batchLoading}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 disabled:opacity-50"
-          >
-            {batchLoading ? (
-              <LoadingSpinner
-                size="sm"
-                color="text-red-600 dark:text-red-400"
-              />
-            ) : (
-              <Trash2 size={14} />
-            )}
-            <span className="hidden sm:inline">{t("common.delete")}</span>
-          </button>
-          <button onClick={onClearSelection} className="btn-secondary text-xs">
-            <X size={14} />
-            <span className="hidden sm:inline">{t("common.cancel")}</span>
-          </button>
-        </div>
+    <div className="fixed bottom-4 left-4 right-4 z-40 flex justify-center sm:bottom-6 sm:left-1/2 sm:right-auto sm:-translate-x-1/2">
+      <div className="flex items-center gap-1 rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg)]/90 px-2 py-1.5 shadow-xl shadow-black/8 backdrop-blur-xl dark:shadow-black/24">
+        <span className="mr-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary)] px-1 text-[10px] font-bold leading-none text-white">
+          {selectedCount}
+        </span>
+        <span className="mr-1 text-xs text-[var(--theme-text-secondary)] hidden sm:inline">
+          {t("skills.batchSelected")}
+        </span>
+        <div className="w-px h-4 bg-[var(--theme-border)]" />
+        <button
+          onClick={() => onBatchToggle(false)}
+          disabled={batchLoading}
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--theme-text-secondary)] transition-colors hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text)] disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <Power size={13} />
+          <span className="hidden sm:inline">{t("skills.card.disable")}</span>
+        </button>
+        <button
+          onClick={() => onBatchToggle(true)}
+          disabled={batchLoading}
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-[var(--theme-text-secondary)] transition-colors hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text)] disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <Zap size={13} />
+          <span className="hidden sm:inline">{t("skills.card.enable")}</span>
+        </button>
+        <button
+          onClick={onBatchDelete}
+          disabled={batchLoading}
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40 disabled:pointer-events-none dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+        >
+          {batchLoading ? <LoadingSpinner size="xs" /> : <Trash2 size={13} />}
+          <span className="hidden sm:inline">{t("common.delete")}</span>
+        </button>
+        <button
+          onClick={onClearSelection}
+          className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[var(--theme-text-tertiary)] transition-colors hover:bg-[var(--theme-hover)] hover:text-[var(--theme-text-secondary)]"
+        >
+          <X size={13} />
+        </button>
       </div>
     </div>
   );

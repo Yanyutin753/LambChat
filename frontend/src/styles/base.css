@@ -1,0 +1,158 @@
+/* When DocumentPreview sidebar is open, compress the main app layout */
+@media (min-width: 640px) {
+  #root {
+    transition: max-width 300ms ease-out;
+  }
+  html[data-sidebar-preview="open"] #root {
+    max-width: calc(100% - var(--sidebar-preview-width, 35%)) !important;
+  }
+  /* Fixed/absolute elements inside #root must also yield space for the sidebar panel */
+  html[data-sidebar-preview="open"] #root [data-yields-sidebar] {
+    right: var(--sidebar-preview-width, 35%) !important;
+  }
+  [data-yields-sidebar] {
+    transition: right 300ms ease-out;
+  }
+  /* Sidebar panel uses percentage width on desktop */
+  [data-sidebar-panel] {
+    width: var(--sidebar-preview-width, 35%) !important;
+  }
+}
+
+/* 统一 checkbox / radio 样式 */
+input[type="checkbox"],
+input[type="radio"] {
+  @apply h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-2 focus:ring-stone-500/30 dark:border-stone-500 dark:bg-stone-800 dark:text-stone-100 dark:focus:ring-stone-400/30;
+  accent-color: var(--theme-primary);
+}
+
+/* 浏览器自动填充适配主题色 */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px white inset !important;
+  -webkit-text-fill-color: #1c1917 !important;
+  caret-color: #1c1917 !important;
+  outline: none !important;
+  border-color: #e7e5e4 !important;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active,
+.dark textarea:-webkit-autofill,
+.dark textarea:-webkit-autofill:hover,
+.dark textarea:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill:active,
+.dark select:-webkit-autofill,
+.dark select:-webkit-autofill:hover,
+.dark select:-webkit-autofill:focus,
+.dark select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #292524 inset !important;
+  -webkit-text-fill-color: #f5f5f4 !important;
+  caret-color: #f5f5f4 !important;
+  outline: none !important;
+  border-color: #44403c !important;
+}
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Theme color - stone tone */
+  --theme-primary: #78716c; /* stone-500 */
+  --theme-primary-hover: #57534e; /* stone-600 */
+  --theme-primary-light: #f5f5f4; /* stone-100 */
+  --theme-ring: #78716c; /* stone-500 */
+  --theme-bg: #fafaf9; /* stone-50 */
+  --theme-bg-card: #ffffff;
+  --theme-bg-sidebar: #f5f5f4; /* stone-100 */
+  --theme-border: #e7e5e4; /* stone-200 */
+  --theme-text: #1c1917; /* stone-900 */
+  --theme-text-secondary: #78716c; /* stone-500 */
+}
+
+.dark {
+  --theme-primary: #a8a29e; /* stone-400 */
+  --theme-primary-hover: #d6d3d1; /* stone-300 */
+  --theme-primary-light: #292524; /* stone-800 */
+  --theme-ring: #a8a29e; /* stone-400 */
+  --theme-bg: #0c0a09; /* stone-950 */
+  --theme-bg-card: #1c1917; /* stone-900 */
+  --theme-bg-sidebar: #171412; /* stone-950 variant */
+  --theme-border: #44403c; /* stone-700 */
+  --theme-text: #fafaf9; /* stone-50 */
+  --theme-text-secondary: #a8a29e; /* stone-400 */
+}
+/* Skeleton shimmer animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: pan-y;
+}
+
+/* Allow scrolling on full-page public routes (landing, auth, shared, etc.) */
+html.allow-scroll,
+html.allow-scroll body,
+html.allow-scroll #root {
+  overflow-y: scroll;
+  height: auto;
+  overscroll-behavior: auto;
+}
+
+/* Custom scrollbar - subtle and thin */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* Dark mode scrollbar */
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}

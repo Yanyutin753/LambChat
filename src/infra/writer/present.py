@@ -349,6 +349,32 @@ class Presenter:
             agent_id=agent_id,
         )
 
+    def present_summary(
+        self,
+        content: str,
+        summary_id: Optional[str] = None,
+        depth: int = 0,
+        agent_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出总结/意图信息（来自 summarization 事件）
+
+        Args:
+            content: 总结文本
+            summary_id: 唯一标识（用于前端合并多个 chunk）
+            depth: 层级深度（0=主代理，1+=子代理）
+            agent_id: 代理ID（用于子代理事件）
+        """
+        return self._build_event(
+            "summary",
+            {
+                "content": content,
+                "summary_id": summary_id,
+                "timestamp": _get_timestamp(),
+            },
+            depth=depth,
+            agent_id=agent_id,
+        )
+
     def present_thinking(
         self,
         content: str,

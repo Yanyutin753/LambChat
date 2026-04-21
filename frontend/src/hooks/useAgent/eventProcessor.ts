@@ -16,6 +16,7 @@ import type {
   TokenUsagePart,
   SandboxPart,
   TodoPart,
+  SummaryPart,
 } from "../../types";
 import i18n from "../../i18n";
 import type { EventData, SubagentStackItem } from "./types";
@@ -374,6 +375,54 @@ export function processMessageEvent(
         );
       } else {
         result.parts = upsertTodoPart(parts, todoPart);
+      }
+      break;
+    }
+
+    // ---- Summary events ----
+
+    case "summary": {
+      const summaryContent = data.content || "";
+      if (!summaryContent) break;
+
+      const summaryPart: SummaryPart = {
+        type: "summary",
+        content: summaryContent,
+        summary_id: data.summary_id,
+        depth,
+        agent_id: agentId,
+        isStreaming,
+      };
+
+      if (depth > 0) {
+        result.parts = addPartToDepth(
+          parts,
+          summaryPart,
+          depth,
+          subagentStack,
+          agentId,
+          messageId,
+        );
+      } else {
+        const newParts = [...parts];
+        let lastSummaryIdx = -1;
+        for (let i = newParts.length - 1; i >= 0; i--) {
+          const p = newParts[i];
+          if (p.type === "summary" && p.summary_id === data.summary_id) {
+            lastSummaryIdx = i;
+            break;
+          }
+        }
+        if (lastSummaryIdx >= 0) {
+          const existing = newParts[lastSummaryIdx] as SummaryPart;
+          newParts[lastSummaryIdx] = {
+            ...existing,
+            content: existing.content + summaryContent,
+          };
+        } else {
+          newParts.push(summaryPart);
+        }
+        result.parts = newParts;
       }
       break;
     }

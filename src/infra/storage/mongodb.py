@@ -186,7 +186,8 @@ class ApprovalStorage:
         if self._indexes_created:
             return
         coll = self.collection
-        await coll.create_index("_id", unique=True, background=True)
+        # _id already has a unique index by default, no need to recreate
+
         await coll.create_index(
             [("status", 1), ("expires_at", 1), ("user_id", 1)],
             background=True,

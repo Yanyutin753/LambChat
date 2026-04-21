@@ -28,6 +28,7 @@ import {
 import {
   reconstructMessagesFromEvents,
   getLastEventTimestamp,
+  prepareMessagesForRunningRun,
 } from "./useAgent/historyLoader";
 import { clearAllLoadingStates } from "./useAgent/messageParts";
 import { type EventHandlerContext } from "./useAgent/eventHandlers";
@@ -37,6 +38,7 @@ import {
   clearReconnectTimeout,
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
+import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
@@ -267,12 +269,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       clearReconnectTimeout(reconnectTimeoutRef);
 
       setIsLoading(true);
+      setMessages([]);
       setError(null);
 
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
 
-      // Clear approvals before loading new session (keep old messages visible until new ones are ready)
+      // Clear approvals before loading new session
       options?.onClearApprovals?.();
 
       try {
@@ -373,38 +376,18 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               lastHistoryTimestampRef.current = lastTimestamp;
             }
 
-            // When the task is still running, we need a streaming assistant
-            // message for SSE to target. Reuse the last assistant message from
-            // history if one exists (avoids a duplicate empty assistant bubble
-            // when the status API lags behind and reports "running" for an
-            // already-completed run).
+            // When the task is still running, target the assistant message for
+            // that same run. If history has the user message but no assistant
+            // events yet, append a fresh assistant bubble after the latest user.
             if (isTaskRunning && currentRunId) {
               setCurrentRunId(currentRunId);
 
-              const lastAssistant = [...reconstructedMessages]
-                .reverse()
-                .find((m) => m.role === "assistant");
-
-              let streamingMessageId: string;
-              if (lastAssistant) {
-                streamingMessageId = lastAssistant.id;
-                reconstructedMessages = reconstructedMessages.map((m) =>
-                  m.id === streamingMessageId ? { ...m, isStreaming: true } : m,
-                );
-              } else {
-                streamingMessageId = crypto.randomUUID();
-                reconstructedMessages = [
-                  ...reconstructedMessages,
-                  {
-                    id: streamingMessageId,
-                    role: "assistant" as const,
-                    content: "",
-                    timestamp: new Date(),
-                    parts: [],
-                    isStreaming: true,
-                  },
-                ];
-              }
+              const prepared = prepareMessagesForRunningRun(
+                reconstructedMessages,
+                currentRunId,
+              );
+              reconstructedMessages = prepared.messages;
+              const streamingMessageId = prepared.streamingMessageId;
 
               setMessages(reconstructedMessages);
 
@@ -433,15 +416,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               isReconnectFromHistoryRef.current = false;
 
               const streamingMessageId = crypto.randomUUID();
-              const newAssistantMsg: Message = {
-                id: streamingMessageId,
-                role: "assistant",
-                content: "",
-                timestamp: new Date(),
-                parts: [],
-                isStreaming: true,
-              };
-              setMessages([newAssistantMsg]);
+              const prepared = prepareMessagesForRunningRun(
+                [],
+                currentRunId,
+                () => streamingMessageId,
+              );
+              setMessages(prepared.messages);
               // Fire-and-forget SSE reconnect (same reason as above).
               const ctx = createSSEContext();
               connectToSSE(
@@ -499,25 +479,14 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
 
-      const userMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: content.trim(),
-        timestamp: new Date(),
-        attachments: attachments,
-      };
+      const { messages: optimisticMessages, assistantMessageId } =
+        createOptimisticMessagesForSend({
+          previousMessages: messagesRef.current,
+          content,
+          attachments,
+        });
 
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "",
-        timestamp: new Date(),
-        toolCalls: [],
-        toolResults: [],
-        isStreaming: true,
-      };
-
-      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setMessages(optimisticMessages);
       setIsLoading(true);
       setError(null);
 
@@ -633,7 +602,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           setCurrentRunId(newRunId);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantMessage.id ? { ...m, runId: newRunId } : m,
+              m.id === assistantMessageId ? { ...m, runId: newRunId } : m,
             ),
           );
         }
@@ -650,7 +619,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         await connectToSSE(
           streamSessionId,
           streamRunId,
-          assistantMessage.id,
+          assistantMessageId,
           ctx,
         );
       } catch (err) {
@@ -662,7 +631,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         setError(errorMessage);
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantMessage.id
+            m.id === assistantMessageId
               ? {
                   ...m,
                   content: i18n.t("chat.errorPrefix", { error: errorMessage }),
@@ -846,6 +815,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       autoExpandProjectIdRef.current = id;
     },
     autoExpandProjectId: autoExpandProjectIdRef.current,
+    clearAutoExpandProjectId: (id?: string | null) => {
+      if (
+        id === undefined ||
+        id === null ||
+        autoExpandProjectIdRef.current === id
+      ) {
+        autoExpandProjectIdRef.current = null;
+      }
+    },
     currentProjectId,
   };
 }

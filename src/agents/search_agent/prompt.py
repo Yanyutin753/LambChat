@@ -15,7 +15,7 @@ SANDBOX_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skill
 | Sandbox Local | `{work_dir}/` | shell commands |
 | Remote Storage | `/skills/` | read/write/edit_file tools |
 
-- Remote paths (`/skills/`, `/memories/`) DO NOT exist in sandbox filesystem
+- Remote paths (`/skills/`) DO NOT exist in sandbox filesystem
 - To move files between sandbox and remote storage, use `transfer_file` (single) or `transfer_path` (batch directory)
 - NEVER access remote paths via shell: `python /skills/x.py`, `cat /skills/x.md`, `cp /skills/* .`
 

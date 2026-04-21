@@ -27,6 +27,8 @@ from src.api.routes import (
     health,
     human,
     mcp,
+    memory,
+    notification,
     project,
     revealed_file,
     role,
@@ -175,6 +177,12 @@ async def lifespan(app: FastAPI):
     await revealed_storage.ensure_indexes_if_needed()
     logger.info("RevealedFileStorage indexes initialized")
 
+    # 初始化 Notification 索引
+    from src.infra.notification.storage import NotificationStorage
+
+    await NotificationStorage().create_indexes()
+    logger.info("NotificationStorage indexes initialized")
+
     # Start Feishu channels in background (don't block app startup)
     async def _start_feishu():
         try:
@@ -261,9 +269,11 @@ async def lifespan(app: FastAPI):
         await AgentFactory.close_all()
 
         # 关闭 PostgreSQL 连接池
+        from src.infra.storage.checkpoint import close_pg_checkpointer
         from src.infra.storage.postgres import close_connection_pool
 
         close_connection_pool()
+        await close_pg_checkpointer()
 
         # 关闭 EmailService HTTP 客户端
         from src.infra.email import get_email_service
@@ -281,6 +291,11 @@ async def lifespan(app: FastAPI):
         from src.infra.storage.redis import close_redis_client
 
         await close_redis_client()
+
+        # 释放 MongoDB checkpointer 引用（在关闭连接池之前）
+        from src.infra.storage.checkpoint import close_mongo_checkpointer
+
+        close_mongo_checkpointer()
 
         # 关闭 MongoDB 连接池
         from src.infra.storage.mongodb import close_mongo_client
@@ -348,6 +363,7 @@ def create_app() -> FastAPI:
     app.include_router(marketplace_router, prefix="/api/marketplace", tags=["Marketplace"])
 
     app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
+    app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
     app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])
     app.include_router(mcp.admin_router, prefix="/api/admin/mcp", tags=["MCP Admin"])
     app.include_router(envvar.router, prefix="/api/env-vars", tags=["Environment Variables"])
@@ -355,6 +371,7 @@ def create_app() -> FastAPI:
     app.include_router(revealed_file.router, prefix="/api/files", tags=["Files"])
     app.include_router(human.router, prefix="/human", tags=["Human"])
     app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
+    app.include_router(notification.router, prefix="/api/notifications", tags=["Notifications"])
     # Generic channel configuration
     app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
     # WebSocket 路由: /ws 用于实时通知

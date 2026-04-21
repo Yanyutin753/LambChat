@@ -21,14 +21,16 @@ export function LoadingSpinner({
   size = "md",
   className = "",
   static: isStatic = false,
-  color = "text-[var(--theme-primary)]",
+  color = "",
 }: LoadingSpinnerProps) {
   const sizeValue = sizeMap[size];
 
   return (
     <Loader2
       size={sizeValue}
-      className={`${color} ${isStatic ? "" : "animate-spin"} ${className}`}
+      className={`${color || "text-stone-500 dark:text-stone-300"} ${
+        isStatic ? "" : "animate-spin"
+      } ${className}`}
     />
   );
 }

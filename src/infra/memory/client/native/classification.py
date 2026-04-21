@@ -3,43 +3,64 @@
 from __future__ import annotations
 
 import re
+import warnings
 from typing import Any, Awaitable, Callable, Optional
 
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", SyntaxWarning)
+    import jieba.posseg as pseg
+
 from src.infra.memory.client.native.models import CJK_STOPWORDS, STOPWORDS, char_ngrams, has_cjk
-from src.infra.memory.client.types import HIGH_SIGNAL_PATTERNS, MemoryType
 
+_USEFUL_POS = frozenset({"n", "nr", "ns", "nt", "nz", "v", "vn", "a", "eng", "x"})
 
-def classify_type(content: str, context: Optional[str] = None) -> str:
-    """Rule-based memory type classification."""
-    content_lower = content.lower()
+_CODE_MARKERS = (
+    "import ",
+    "def ",
+    "class ",
+    "traceback",
+    "exception:",
+    "error:",
+    "git ",
+    "pip install",
+    "npm install",
+    "npm run",
+    "src/",
+    "node_modules",
+    ".py",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+)
 
-    if context:
-        ctx_lower = context.lower()
-        for mt in MemoryType:
-            if mt.value in ctx_lower:
-                return mt.value
+_TRANSIENT_STARTS = (
+    "正在",
+    "现在",
+    "刚刚",
+    "我在看",
+    "我在改",
+    "我来",
+    "让我",
+    "准备",
+    "先",
+    "currently",
+    "right now",
+    "i am checking",
+    "i'm checking",
+    "i am looking",
+    "i'm looking",
+    "let me",
+)
 
-    scores: dict[str, float] = {}
-    for mtype, patterns in HIGH_SIGNAL_PATTERNS.items():
-        score = 0
-        for pat in patterns:
-            if re.search(pat, content_lower):
-                score += 1
-        if score > 0:
-            scores[mtype] = score
-
-    if scores:
-        max_score = max(scores.values())
-        for mt in [
-            MemoryType.FEEDBACK,
-            MemoryType.REFERENCE,
-            MemoryType.PROJECT,
-            MemoryType.USER,
-        ]:
-            if mt.value in scores and scores[mt.value] == max_score:
-                return mt.value
-
-    return MemoryType.USER
+_TRANSIENT_CONTAINS = (
+    "看一下",
+    "改一下",
+    "查一下",
+    "reading",
+    "checking",
+    "searching",
+)
 
 
 def word_similarity(a: str, b: str) -> float:
@@ -56,124 +77,58 @@ def word_similarity(a: str, b: str) -> float:
 
 
 def looks_like_code_or_path(content: str) -> bool:
-    lowered = content.lower()
     if content.count("/") + content.count("\\") >= 3:
         return True
-    code_markers = (
-        "import ",
-        "def ",
-        "class ",
-        "traceback",
-        "exception:",
-        "error:",
-        "git ",
-        "pip install",
-        "npm install",
-        "npm run",
-        "src/",
-        "node_modules",
-        ".py",
-        ".ts",
-        ".tsx",
-        ".js",
-        ".jsx",
-    )
-    return any(marker in lowered for marker in code_markers)
+    return any(marker in content for marker in _CODE_MARKERS)
 
 
 def is_transient_status_content(content: str) -> bool:
     stripped = content.strip()
-    starts = (
-        "正在",
-        "现在",
-        "刚刚",
-        "我在看",
-        "我在改",
-        "我来",
-        "让我",
-        "准备",
-        "先",
-        "currently",
-        "right now",
-        "i am checking",
-        "i'm checking",
-        "i am looking",
-        "i'm looking",
-        "let me",
+    return stripped.startswith(_TRANSIENT_STARTS) or any(
+        marker in stripped.lower() for marker in _TRANSIENT_CONTAINS
     )
-    markers = (
-        "看一下",
-        "改一下",
-        "查一下",
-        "reading",
-        "checking",
-        "searching",
-        "definitions.py",
-        "nodes.py",
-        "base.py",
-    )
-    lowered = stripped.lower()
-    return stripped.startswith(starts) or any(marker in lowered for marker in markers)
 
 
 def passes_lightweight_memory_filter(content: str) -> bool:
-    stripped = content.strip()
-    if len(stripped) < 20:
+    if len(content) < 5:
         return False
-    if is_transient_status_content(stripped):
+    if is_transient_status_content(content):
         return False
-    if looks_like_code_or_path(stripped):
+    if looks_like_code_or_path(content):
         return False
     return True
 
 
 def is_manual_memory_worthy(content: str, context: Optional[str] = None) -> bool:
     stripped = content.strip()
-    if len(stripped) < 10:
+    if len(stripped) < 5:
         return False
+    # For explicit manual retention, skip transient/code filters entirely
+    # — the user explicitly chose to save this content.
+    if context and any(kw in context.lower() for kw in ("project", "reference")):
+        return True
     if not passes_lightweight_memory_filter(stripped):
         return False
-    if context:
-        ctx = context.lower()
-        if "project" in ctx or "reference" in ctx:
-            return True
     return True
 
 
 def extract_tags(content: str) -> list[str]:
-    """Extract keyword tags. Supports both English and Chinese."""
+    """Extract keyword tags using jieba for Chinese, whitespace for English."""
     tags: list[str] = []
     seen: set[str] = set()
 
     if has_cjk(content):
-        chunks = []
-        current: list[str] = []
-        for c in content:
-            if c in "，。！？、；：''【】（）《》\t\n\r ":
-                if current:
-                    chunks.append("".join(current))
-                    current = []
-            else:
-                current.append(c)
-        if current:
-            chunks.append("".join(current))
-
-        for chunk in chunks:
-            chunk = chunk.strip()
-            if not chunk or chunk in CJK_STOPWORDS:
+        cleaned = re.sub(r"[^\w\u4e00-\u9fff]+", " ", content)
+        words = pseg.cut(cleaned)
+        for word, flag in words:
+            w = word.strip()
+            if not w or w in CJK_STOPWORDS or len(w) < 2:
                 continue
-            if 2 <= len(chunk) <= 4:
-                if chunk not in seen:
-                    tags.append(chunk)
-                    seen.add(chunk)
-            elif len(chunk) > 4:
-                for i in range(len(chunk) - 2):
-                    seg = chunk[i : i + 3]
-                    if any(sw in seg for sw in ("的", "了", "是", "在")):
-                        continue
-                    if seg not in seen:
-                        tags.append(seg)
-                        seen.add(seg)
+            if flag not in _USEFUL_POS:
+                continue
+            if w not in seen:
+                tags.append(w)
+                seen.add(w)
     else:
         for w in content.lower().split():
             clean = w.strip(".,!?;:()[]{}\"'").lower()
@@ -204,7 +159,7 @@ async def deduplicate_against_existing(
             filtered.append(mem)
             continue
         if any(
-            word_similarity(summary, rs) > (0.55 if has_cjk(summary + rs) else 0.7)
+            word_similarity(summary, rs) > (0.55 if has_cjk(summary + rs) else 0.6)
             for rs in recent_summaries
         ):
             continue

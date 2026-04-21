@@ -14,13 +14,11 @@ from src.infra.mcp.encryption import (
     encrypt_server_secrets,
     encrypt_value,
 )
+from src.infra.mcp.storage_operations import StorageOperations
 from src.infra.storage.mongodb import get_mongo_client
 from src.kernel.config import settings
 from src.kernel.schemas.mcp import (
-    MCPImportRequest,
-    MCPServerCreate,
     MCPServerResponse,
-    MCPServerUpdate,
     MCPTransport,
     SystemMCPServer,
     UserMCPServer,
@@ -42,7 +40,7 @@ SENSITIVE_FIELDS = [
 SENSITIVE_ENV_PATTERNS = ["_API_KEY", "_SECRET", "_PASSWORD", "_TOKEN"]
 
 
-class MCPStorage:
+class MCPStorage(StorageOperations):
     """
     MCP server storage
 
@@ -123,9 +121,7 @@ class MCPStorage:
             return self._doc_to_system_server(doc)
         return None
 
-    async def create_system_server(
-        self, server: MCPServerCreate, admin_user_id: str
-    ) -> SystemMCPServer:
+    async def create_system_server(self, server, admin_user_id: str) -> SystemMCPServer:
         """Create a system MCP server (admin only)"""
         collection = self._get_system_collection()
 
@@ -156,7 +152,7 @@ class MCPStorage:
         return self._doc_to_system_server(doc)
 
     async def update_system_server(
-        self, name: str, updates: MCPServerUpdate, admin_user_id: str
+        self, name: str, updates, admin_user_id: str
     ) -> Optional[SystemMCPServer]:
         """Update a system MCP server (admin only)"""
         collection = self._get_system_collection()
@@ -224,7 +220,7 @@ class MCPStorage:
             return self._doc_to_user_server(doc)
         return None
 
-    async def create_user_server(self, server: MCPServerCreate, user_id: str) -> UserMCPServer:
+    async def create_user_server(self, server, user_id: str) -> UserMCPServer:
         """Create a user MCP server"""
         collection = self._get_user_collection()
 
@@ -253,9 +249,7 @@ class MCPStorage:
 
         return self._doc_to_user_server(doc)
 
-    async def update_user_server(
-        self, name: str, updates: MCPServerUpdate, user_id: str
-    ) -> Optional[UserMCPServer]:
+    async def update_user_server(self, name: str, updates, user_id: str) -> Optional[UserMCPServer]:
         """Update a user MCP server"""
         collection = self._get_user_collection()
 
@@ -298,109 +292,6 @@ class MCPStorage:
             await self._invalidate_user_cache(user_id)
 
         return result.deleted_count > 0
-
-    # ==========================================
-    # Server Type Conversion (Admin only)
-    # ==========================================
-
-    async def promote_to_system_server(
-        self, name: str, user_id: str, admin_user_id: str
-    ) -> Optional[SystemMCPServer]:
-        """
-        Promote a user server to system server (admin only).
-
-        This moves the server from user collection to system collection.
-        Returns the new system server, or None if user server not found.
-        """
-        # Get the user server
-        user_server = await self.get_user_server(name, user_id)
-        if not user_server:
-            return None
-
-        # Check if system server with same name exists
-        existing_system = await self.get_system_server(name)
-        if existing_system:
-            return None  # Conflict
-
-        # Create system server
-        now = datetime.now(timezone.utc).isoformat()
-        system_collection = self._get_system_collection()
-        doc = {
-            "name": user_server.name,
-            "transport": user_server.transport.value,
-            "enabled": user_server.enabled,
-            "url": user_server.url,
-            "headers": user_server.headers,
-            "command": user_server.command,
-            "env_keys": user_server.env_keys,
-            "is_system": True,
-            "created_at": user_server.created_at or now,
-            "updated_at": now,
-            "updated_by": admin_user_id,
-            "promoted_from_user": user_id,  # Track origin
-            "created_by": user_id,  # Original creator
-        }
-        # 加密敏感字段
-        doc = encrypt_server_secrets(doc)
-
-        await system_collection.insert_one(doc)
-
-        # Delete the user server (this will invalidate user cache)
-        await self.delete_user_server(name, user_id)
-
-        # Invalidate all caches since system server now exists
-        await self._invalidate_all_cache()
-
-        return self._doc_to_system_server(doc)
-
-    async def demote_to_user_server(
-        self, name: str, target_user_id: str, admin_user_id: str
-    ) -> Optional[UserMCPServer]:
-        """
-        Demote a system server to user server (admin only).
-
-        This moves the server from system collection to user collection.
-        The server will be owned by target_user_id.
-        Returns the new user server, or None if system server not found.
-        """
-        # Get the system server
-        system_server = await self.get_system_server(name)
-        if not system_server:
-            return None
-
-        # Check if user server with same name exists
-        existing_user = await self.get_user_server(name, target_user_id)
-        if existing_user:
-            return None  # Conflict
-
-        # Create user server
-        now = datetime.now(timezone.utc).isoformat()
-        user_collection = self._get_user_collection()
-        doc = {
-            "name": system_server.name,
-            "transport": system_server.transport.value,
-            "enabled": system_server.enabled,
-            "url": system_server.url,
-            "headers": system_server.headers,
-            "command": system_server.command,
-            "env_keys": system_server.env_keys,
-            "user_id": target_user_id,
-            "is_system": False,
-            "created_at": system_server.created_at or now,
-            "updated_at": now,
-        }
-        # 加密敏感字段
-        doc = encrypt_server_secrets(doc)
-
-        await user_collection.insert_one(doc)
-
-        # Delete the system server (this will invalidate all caches)
-        await self.delete_system_server(name)
-
-        # Invalidate cache for target user
-        await self._invalidate_user_cache(target_user_id)
-
-        return self._doc_to_user_server(doc)
 
     # ==========================================
     # User Preferences (for system servers)
@@ -712,336 +603,6 @@ class MCPStorage:
             if disabled_tools:
                 result[server_name] = set(disabled_tools)
         return result
-
-    # ==========================================
-    # Combined Operations (for runtime)
-    # ==========================================
-
-    async def get_sandbox_servers(self, user_id: str) -> list[dict[str, Any]]:
-        """Get all enabled sandbox-transport MCP servers for a user (system + user).
-
-        Used during sandbox rebuild to re-register mcporter configs.
-        Returns list of config dicts with name, command, env_keys.
-        """
-        servers = []
-
-        # System sandbox servers
-        system_collection = self._get_system_collection()
-        async for doc in system_collection.find({"transport": "sandbox", "enabled": True}):
-            servers.append(
-                {
-                    "name": doc.get("name", ""),
-                    "command": doc.get("command", ""),
-                    "env_keys": doc.get("env_keys", []),
-                }
-            )
-
-        # User sandbox servers
-        user_collection = self._get_user_collection()
-        async for doc in user_collection.find(
-            {"user_id": user_id, "transport": "sandbox", "enabled": True}
-        ):
-            servers.append(
-                {
-                    "name": doc.get("name", ""),
-                    "command": doc.get("command", ""),
-                    "env_keys": doc.get("env_keys", []),
-                }
-            )
-
-        return servers
-
-    async def get_effective_config(self, user_id: str) -> dict[str, Any]:
-        """
-        Get effective MCP configuration for a user.
-
-        Merges system and user configurations, with user preferences taking precedence.
-        Only includes servers that are enabled (after applying user preferences).
-        """
-        logger = get_logger(__name__)
-
-        # Get user preferences for system servers
-        user_preferences = await self._get_user_preferences(user_id)
-        logger.info(f"[MCP] User {user_id} preferences: {user_preferences}")
-
-        # Get system servers and apply user preferences
-        system_collection = self._get_system_collection()
-        system_servers = {}
-        async for doc in system_collection.find({}):
-            server_name = doc["name"]
-            # Check if user has a preference, otherwise use system default
-            if server_name in user_preferences:
-                is_enabled = user_preferences[server_name]
-            else:
-                is_enabled = doc.get("enabled", True)
-
-            if is_enabled:
-                # Deep copy to avoid modifying the original document
-                system_servers[server_name] = self._doc_to_config_dict(copy.deepcopy(doc))
-
-        # Get enabled user servers
-        user_collection = self._get_user_collection()
-        user_servers = {}
-        async for doc in user_collection.find({"user_id": user_id, "enabled": True}):
-            # Deep copy to avoid modifying the original document
-            user_servers[doc["name"]] = self._doc_to_config_dict(copy.deepcopy(doc))
-
-        # Merge (user servers override system servers with same name)
-        result = {**system_servers, **user_servers}
-
-        logger.info(
-            f"[MCP] Effective config for user {user_id}: {list(result.keys())} servers enabled"
-        )
-
-        return {"mcpServers": result}
-
-    async def get_visible_servers(
-        self,
-        user_id: str,
-        is_admin: bool = False,
-    ) -> list[MCPServerResponse]:
-        """
-        Get all MCP servers visible to a user.
-
-        Returns system servers (with user preferences applied) + user's own servers.
-        For system servers, only the creator (created_by) can see sensitive fields
-        (url, headers, command, env_keys) and edit the server.
-        """
-        servers = []
-
-        # Get user preferences for system servers
-        user_preferences = await self._get_user_preferences(user_id)
-
-        # Get system servers
-        system_collection = self._get_system_collection()
-        async for doc in system_collection.find({}):
-            # Apply user preference if exists, otherwise use system default
-            server_name = doc["name"]
-            if server_name in user_preferences:
-                doc = copy.deepcopy(doc)
-                doc["enabled"] = user_preferences[server_name]
-            # Only the creator (created_by) can see sensitive fields
-            # Admins can always edit system servers; non-admins cannot
-            is_creator = doc.get("created_by", doc.get("updated_by")) == user_id
-            can_edit = is_admin or is_creator
-            hide_sensitive = not (is_admin or is_creator)
-            server = self._doc_to_response(
-                doc, is_system=True, can_edit=can_edit, hide_sensitive=hide_sensitive
-            )
-            servers.append(server)
-
-        # Get user servers
-        user_collection = self._get_user_collection()
-        async for doc in user_collection.find({"user_id": user_id}):
-            server = self._doc_to_response(doc, is_system=False, can_edit=True)
-            servers.append(server)
-
-        return servers
-
-    async def toggle_server(self, name: str, user_id: str) -> Optional[MCPServerResponse]:
-        """
-        Toggle a server's enabled status.
-
-        For user-created servers: toggles the server directly.
-        For system servers: toggles the user's preference for that server.
-        """
-        # First try user-created server
-        user_collection = self._get_user_collection()
-        user_doc = await user_collection.find_one({"name": name, "user_id": user_id})
-
-        if user_doc:
-            # Toggle user-created server
-            new_enabled = not user_doc.get("enabled", True)
-            await user_collection.update_one(
-                {"name": name, "user_id": user_id},
-                {
-                    "$set": {
-                        "enabled": new_enabled,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                },
-            )
-
-            # Invalidate cache for this user
-            await self._invalidate_user_cache(user_id)
-
-            updated_doc = await user_collection.find_one({"name": name, "user_id": user_id})
-            if updated_doc:
-                return self._doc_to_response(updated_doc, is_system=False, can_edit=True)
-
-        # Check if it's a system server
-        system_collection = self._get_system_collection()
-        system_doc = await system_collection.find_one({"name": name})
-
-        if system_doc:
-            # For system servers, toggle user's preference
-            # Get current user preference or system default
-            preferences = await self._get_user_preferences(user_id)
-            current_enabled = preferences.get(name, system_doc.get("enabled", True))
-            new_enabled = not current_enabled
-
-            # Save user preference (this will invalidate user cache)
-            await self._set_user_preference(name, user_id, new_enabled)
-
-            # Return updated server response with user's preference applied
-            response_doc = copy.deepcopy(system_doc)
-            response_doc["enabled"] = new_enabled
-            is_creator = response_doc.get("created_by", response_doc.get("updated_by")) == user_id
-            return self._doc_to_response(response_doc, is_system=True, can_edit=is_creator)
-
-        return None
-
-    async def toggle_system_server(self, name: str) -> Optional[MCPServerResponse]:
-        """Toggle a system server's enabled status (admin only)"""
-        return await self._toggle_system_server_internal(name)
-
-    async def _toggle_system_server_internal(self, name: str) -> Optional[MCPServerResponse]:
-        """Internal method to toggle system server"""
-        system_collection = self._get_system_collection()
-        system_doc = await system_collection.find_one({"name": name})
-
-        if system_doc:
-            new_enabled = not system_doc.get("enabled", True)
-            await system_collection.update_one(
-                {"name": name},
-                {
-                    "$set": {
-                        "enabled": new_enabled,
-                        "updated_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                },
-            )
-
-            # Invalidate all caches since system server affects all users
-            await self._invalidate_all_cache()
-
-            updated_doc = await system_collection.find_one({"name": name})
-            if updated_doc:
-                return self._doc_to_response(updated_doc, is_system=True, can_edit=True)
-
-        return None
-
-    # ==========================================
-    # Import/Export
-    # ==========================================
-
-    async def import_servers(
-        self,
-        import_data: MCPImportRequest,
-        user_id: str,
-        is_admin: bool = False,
-    ) -> tuple[int, int, list[str]]:
-        """
-        Import MCP servers from JSON configuration.
-
-        Returns (imported_count, skipped_count, errors).
-        """
-        imported = 0
-        skipped = 0
-        errors = []
-
-        for name, config in import_data.get_servers().items():
-            try:
-                # Auto-detect transport if not specified (studio format compatibility)
-                transport_str = config.get("transport")
-                if not transport_str:
-                    if config.get("url"):
-                        transport_str = "streamable_http"
-                    else:
-                        transport_str = "sse"
-                try:
-                    transport = MCPTransport(transport_str)
-                except ValueError:
-                    errors.append(f"Invalid transport '{transport_str}' for server '{name}'")
-                    continue
-
-                # Create server object
-                server = MCPServerCreate(
-                    name=name,
-                    transport=transport,
-                    enabled=config.get("enabled", True),
-                    url=config.get("url"),
-                    headers=config.get("headers"),
-                    command=config.get("command"),
-                    env_keys=config.get("env_keys"),
-                )
-
-                # Check if exists
-                existing: Optional[SystemMCPServer] | Optional[UserMCPServer] = None
-                if is_admin:
-                    existing = await self.get_system_server(name)
-                else:
-                    existing = await self.get_user_server(name, user_id)
-
-                if existing and not import_data.overwrite:
-                    skipped += 1
-                    continue
-
-                # Create or update
-                if is_admin:
-                    if existing:
-                        await self.update_system_server(
-                            name,
-                            MCPServerUpdate(
-                                transport=transport,
-                                enabled=server.enabled,
-                                url=server.url,
-                                headers=server.headers,
-                                command=server.command,
-                                env_keys=server.env_keys,
-                            ),
-                            user_id,
-                        )
-                    else:
-                        await self.create_system_server(server, user_id)
-                else:
-                    if existing:
-                        await self.update_user_server(
-                            name,
-                            MCPServerUpdate(
-                                transport=transport,
-                                enabled=server.enabled,
-                                url=server.url,
-                                headers=server.headers,
-                                command=server.command,
-                                env_keys=server.env_keys,
-                            ),
-                            user_id,
-                        )
-                    else:
-                        await self.create_user_server(server, user_id)
-
-                imported += 1
-
-            except Exception as e:
-                errors.append(f"Error importing '{name}': {str(e)}")
-
-        # Cache invalidation is handled by create/update methods
-        # But if admin import, we should invalidate all caches at the end
-        if is_admin and imported > 0:
-            await self._invalidate_all_cache()
-
-        return imported, skipped, errors
-
-    async def export_user_servers(self, user_id: str) -> dict[str, Any]:
-        """Export user's MCP servers as JSON configuration"""
-        user_collection = self._get_user_collection()
-        servers = {}
-
-        async for doc in user_collection.find({"user_id": user_id}):
-            servers[doc["name"]] = self._doc_to_config_dict(doc)
-
-        return {"mcpServers": servers}
-
-    async def export_all_servers(self) -> dict[str, Any]:
-        """Export all MCP servers (system only, admin)"""
-        system_collection = self._get_system_collection()
-        servers = {}
-
-        async for doc in system_collection.find({}):
-            servers[doc["name"]] = self._doc_to_config_dict(doc)
-
-        return {"mcpServers": servers}
 
     # ==========================================
     # Document Conversion

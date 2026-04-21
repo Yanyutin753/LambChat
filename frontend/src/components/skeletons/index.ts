@@ -8,6 +8,7 @@ export { SidebarSkeleton } from "./SidebarSkeleton";
 export {
   ChatPageSkeleton,
   ChatSkeleton,
+  ChatSkeletonMessagesOnly,
   WelcomeSkeleton,
 } from "./ChatSkeletons";
 export { FilesContentSkeleton, FilesPageSkeleton } from "./FilesSkeletons";

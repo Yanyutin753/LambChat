@@ -1,13 +1,9 @@
-import { useState } from "react";
 import { Wrench, Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, LoadingSpinner } from "../../common";
 import type { CollapsibleStatus } from "../../common";
 import { ToolResultContent } from "./items/McpBlockPreview";
-import {
-  ToolResultPanel,
-  closeCurrentToolPanel,
-} from "./items/ToolResultPanel";
+import { openPersistentToolPanel } from "./items/persistentToolPanelState";
 
 // Re-export all sub-components
 export { ReadFileItem } from "./items/ReadFileItem";
@@ -37,7 +33,6 @@ export function ToolCallItem({
   cancelled?: boolean;
 }) {
   const { t } = useTranslation();
-  const [panelOpen, setPanelOpen] = useState(false);
   const hasResult = result !== undefined;
 
   // Parse MCP server name from tool name (format: "server_name:tool_name")
@@ -77,9 +72,9 @@ export function ToolCallItem({
   const canExpand = hasArgs || hasResult;
 
   const panelContent = canExpand && (
-    <div className="space-y-3 max-h-[80vh] overflow-y-auto p-1 [&_pre]:!text-sm">
+    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm">
       {hasArgs && (
-        <div className="p-3 sm:p-4 rounded-lg bg-stone-50 dark:bg-stone-800/50">
+        <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
           <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
             {t("chat.message.args")}
           </div>
@@ -90,7 +85,7 @@ export function ToolCallItem({
       )}
 
       {hasResult && (
-        <div className="p-3 sm:p-4 rounded-lg bg-stone-50 dark:bg-stone-800/50">
+        <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
           <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
             {t("chat.message.result")}
           </div>
@@ -129,8 +124,14 @@ export function ToolCallItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
-          closeCurrentToolPanel();
-          setPanelOpen(true);
+          if (!canExpand) return;
+          openPersistentToolPanel({
+            title: formattedToolName,
+            icon: isMcpTool ? <Globe size={16} /> : <Wrench size={16} />,
+            status,
+            subtitle: serverName || undefined,
+            children: panelContent,
+          });
         }}
       >
         {canExpand && (
@@ -164,18 +165,6 @@ export function ToolCallItem({
           </div>
         )}
       </CollapsiblePill>
-      {canExpand && (
-        <ToolResultPanel
-          open={panelOpen}
-          onClose={() => setPanelOpen(false)}
-          title={formattedToolName}
-          icon={isMcpTool ? <Globe size={16} /> : <Wrench size={16} />}
-          status={status}
-          subtitle={serverName || undefined}
-        >
-          {panelContent}
-        </ToolResultPanel>
-      )}
     </>
   );
 }

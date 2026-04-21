@@ -10,7 +10,6 @@ import {
   AlertCircle,
   ArrowLeft,
   MessageSquare,
-  User,
   Sun,
   Moon,
   ExternalLink,
@@ -25,6 +24,17 @@ import { Loading } from "../common/LoadingSpinner";
 import { shareApi } from "../../services/api/share";
 import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
+import { RevealPreviewHost } from "../chat/ChatMessage/items/RevealPreviewHost";
+import { PersistentToolPanelHost } from "../chat/ChatMessage/items/persistentToolPanelState";
+import type { RevealPreviewRequest } from "../chat/ChatMessage/items/revealPreviewData";
+import { getLatestAutoPreviewTarget } from "../chat/ChatMessage/autoPreviewEligibility";
+import {
+  createActiveRevealPreviewState,
+  markRevealPreviewInteracted,
+  shouldAcceptRevealPreviewOpen,
+  type ActiveRevealPreviewState,
+  type RevealPreviewOpenSource,
+} from "../chat/ChatMessage/items/revealPreviewState";
 import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoader";
 import { APP_NAME, GITHUB_URL } from "../../constants";
 import { getModelIconUrl, isMonochromeIcon } from "../agent/modelIcon";
@@ -225,6 +235,59 @@ export function SharedPage() {
       activeSubagentStack: [],
     });
   }, [data?.events]);
+
+  const [activePreviewState, setActivePreviewState] =
+    useState<ActiveRevealPreviewState | null>(null);
+  const activePreviewStateRef = useRef<ActiveRevealPreviewState | null>(null);
+  const dismissedPreviewKeysRef = useRef<Set<string>>(new Set());
+  const activePreview = activePreviewState?.request ?? null;
+
+  useEffect(() => {
+    activePreviewStateRef.current = activePreviewState;
+  }, [activePreviewState]);
+
+  const handleOpenPreview = useCallback(
+    (
+      preview: RevealPreviewRequest,
+      source: RevealPreviewOpenSource = "manual",
+    ) => {
+      const shouldOpen = shouldAcceptRevealPreviewOpen({
+        activePreview: activePreviewStateRef.current,
+        nextPreview: preview,
+        source,
+        dismissedPreviewKeys: dismissedPreviewKeysRef.current,
+      });
+
+      if (!shouldOpen) {
+        return false;
+      }
+
+      if (source === "manual") {
+        dismissedPreviewKeysRef.current.delete(preview.previewKey);
+      }
+
+      setActivePreviewState(createActiveRevealPreviewState(preview, source));
+      return true;
+    },
+    [],
+  );
+
+  const handleClosePreview = useCallback((dismiss = true) => {
+    const currentPreview = activePreviewStateRef.current;
+    if (dismiss && currentPreview) {
+      dismissedPreviewKeysRef.current.add(currentPreview.request.previewKey);
+    }
+    setActivePreviewState(null);
+  }, []);
+
+  const handlePreviewInteraction = useCallback(() => {
+    setActivePreviewState((current) => markRevealPreviewInteracted(current));
+  }, []);
+
+  const latestAutoPreview = useMemo(
+    () => getLatestAutoPreviewTarget(messages),
+    [messages],
+  );
 
   // Reading time estimate (rough: ~200 words per minute)
   const readingTime = useMemo(() => {
@@ -520,9 +583,11 @@ export function SharedPage() {
                     onError={() => setImgError(true)}
                   />
                 ) : (
-                  <div className="size-10 rounded-full bg-stone-300 dark:bg-stone-700 flex items-center justify-center flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800">
-                    <User size={17} className="text-white/70" />
-                  </div>
+                  <img
+                    src="/icons/icon.svg"
+                    alt=""
+                    className="size-10 rounded-full flex-shrink-0 ring-2 ring-stone-100 dark:ring-stone-800"
+                  />
                 )}
                 <div className="space-y-1">
                   <div className="text-[13px] font-semibold text-stone-800 dark:text-stone-200">
@@ -565,19 +630,17 @@ export function SharedPage() {
                           | string
                           | undefined,
                       );
+                      const mono = isMonochromeIcon(
+                        data.session.model,
+                        (data.session as Record<string, unknown>).provider as
+                          | string
+                          | undefined,
+                      );
                       return iconUrl ? (
                         <img
                           src={iconUrl}
                           alt=""
-                          className={`w-3.5 h-3.5 ${
-                            isMonochromeIcon(
-                              data.session.model,
-                              (data.session as Record<string, unknown>)
-                                .provider as string | undefined,
-                            )
-                              ? "dark:invert"
-                              : ""
-                          }`}
+                          className={`w-3.5 h-3.5 ${mono ? "dark:invert" : ""}`}
                         />
                       ) : null;
                     })()}
@@ -652,7 +715,13 @@ export function SharedPage() {
                 >
                   <ChatMessage
                     message={message}
+                    sessionId={data.session.id}
+                    sessionName={data.session.name}
+                    runId={data.run_ids?.[0]}
                     isLastMessage={index === messages.length - 1}
+                    activePreview={activePreview}
+                    latestAutoPreview={latestAutoPreview}
+                    onOpenPreview={handleOpenPreview}
                   />
                 </div>
               ))}
@@ -753,6 +822,13 @@ export function SharedPage() {
         onScrollToTop={scrollToTop}
         onScrollToBottom={scrollToBottom}
       />
+
+      <RevealPreviewHost
+        preview={activePreview}
+        onClose={() => handleClosePreview(true)}
+        onUserInteraction={handlePreviewInteraction}
+      />
+      <PersistentToolPanelHost />
     </div>
   );
 }

@@ -231,7 +231,7 @@ async def delete_model(
     from datetime import datetime, timezone
 
     collection = storage._get_collection()
-    clear_result = collection.update_many(
+    clear_result = await collection.update_many(
         {"fallback_model": model_id},
         {"$set": {"fallback_model": None, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
@@ -244,7 +244,7 @@ async def delete_model(
     from src.infra.agent.config_storage import get_agent_config_storage
 
     agent_storage = get_agent_config_storage()
-    affected = await agent_storage.remove_model_from_all_roles(model_id)
+    affected = await agent_storage.remove_model_from_all_roles(model_value)
     if affected:
         logger.info(f"[Model] Removed deleted model '{model_id}' from {affected} role(s)")
 

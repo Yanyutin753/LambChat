@@ -1,4 +1,7 @@
-"""Sandbox MCP Prompt Builder - Injects sandbox MCP tool descriptions into system prompt.
+"""Sandbox Tools Prompt Builder - Injects sandbox tool descriptions into system prompt.
+
+These are sandbox tools (managed via mcporter), NOT MCP tools.
+The LLM must use the `execute` tool to invoke them.
 
 Caches mcporter list output per-user to maximize KV cache hit rate.
 The prompt section is appended at the END of the system prompt so that
@@ -93,7 +96,7 @@ def _maybe_append_overflow_hint(prompt: str, total_count: int) -> str:
     return (
         prompt
         + f"> **Note:** Only {_MAX_TOOLS_IN_PROMPT} of {total_count} tools are shown above. "
-        + "Run `mcporter list` to browse all available tools.\n"
+        + 'Use `execute(command="mcporter list")` to browse all available tools.\n'
     )
 
 
@@ -189,15 +192,25 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
         return "", 0
 
     lines = [
-        "## Sandbox MCP Tools",
+        "## Sandbox Tools (NOT MCP — DO NOT call directly)",
         "",
-        "MCP tools available in your sandbox, managed via `mcporter`. NOT part of `search_tools`.",
+        "⚠️ **IMPORTANT**: The tools listed below are **sandbox tools**, NOT MCP tools. "
+        "You do NOT have direct access to them. Do NOT attempt to call them as MCP tools "
+        "— such calls will fail.",
         "",
-        "**Discovery**",
+        "**How to use**: You MUST use the `execute` tool with `mcporter` commands. "
+        "The `execute` tool is your ONLY way to invoke sandbox tools.",
+        "",
+        "Example — calling `server.my_tool` with arg `query=hello`:",
+        "```",
+        'execute(command="mcporter call server.my_tool query=hello")',
+        "```",
+        "",
+        "**Discovery** — run via `execute`:",
         "- `mcporter list` — list all servers and tools",
         "- `mcporter list --schema` — show parameter schemas (check before first use)",
         "",
-        "**Invocation** — `mcporter call server.tool <args>`:",
+        "**Invocation** — call via `execute`: `mcporter call server.tool <args>`",
         "- Named args: `mcporter call server.tool key=value` (values with spaces MUST be quoted)",
         '- JSON payload: `mcporter call server.tool --args \'{"key": "value"}\'` (for complex params)',
         "",
@@ -245,14 +258,16 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
             # Clean description: strip Args/COST WARNING sections, keep core description
             tool_desc = _clean_description(tool_desc)
 
-            lines.append(f"- **{full_name}**")
+            lines.append(f"- `{full_name}`")
             if tool_desc:
                 lines.append(f"  {tool_desc}")
 
-            # Extract and format parameters from inputSchema
+            # Extract and format parameters
             param_line = _format_params(tool.get("inputSchema"))
             if param_line:
                 lines.append(f"  {param_line}")
+
+            lines.append(f'  → use: `execute(command="mcporter call {full_name} <args>")`')
 
         lines.append("")
 

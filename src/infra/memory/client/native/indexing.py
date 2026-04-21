@@ -29,7 +29,7 @@ def choose_index_memories(
             else 0.5
         )
         access_score = min(float(doc.get("access_count", 0) or 0), 5.0) * 0.3
-        age_days = (now - ensure_aware(doc["updated_at"])).days
+        age_days = (now - ensure_aware(doc.get("updated_at", now))).days
         freshness_score = max(0.0, 2.0 - (age_days / max(staleness_days, 1)))
         return (source_score + access_score + freshness_score, -age_days)
 

@@ -50,7 +50,7 @@ async def _close_client(client: MultiServerMCPClient) -> None:
         if hasattr(client, "close"):
             await client.close()
         elif hasattr(client, "__aexit__"):
-            await client.__aexit__(None, None, None)  # type: ignore[func-returns-value]
+            await client.__aexit__(None, None, None)  # type: ignore[misc, func-returns-value]
     except Exception as e:
         logger.debug(f"Error closing MCP client: {e}")
 

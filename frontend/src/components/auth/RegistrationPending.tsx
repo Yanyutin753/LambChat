@@ -1,173 +1,122 @@
-/**
- * 注册成功等待验证页面组件
- */
-
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { Mail, CheckCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { authApi } from "../../services/api";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { ThemeToggle } from "../common/ThemeToggle";
-import { LanguageToggle } from "../common/LanguageToggle";
+import { AuthLayout } from "./AuthLayout";
 
 export function RegistrationPending() {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
-
   const email = searchParams.get("email");
 
   useEffect(() => {
-    if (!email) {
-      // 如果没有 email 参数，跳转到首页（会自动显示登录页）
-      navigate("/auth/login");
-    }
+    if (!email) navigate("/auth/login");
   }, [email, navigate]);
 
   const handleResendVerification = async () => {
     if (!email) return;
-
     setIsResending(true);
     try {
       await authApi.resendVerification(email);
       setResendSuccess(true);
       toast.success(t("auth.verificationEmailSent"));
     } catch (err) {
-      const errorMessage = (err as Error).message || t("auth.operationFailed");
-      toast.error(errorMessage);
+      toast.error((err as Error).message || t("auth.operationFailed"));
     } finally {
       setIsResending(false);
     }
   };
 
-  const handleGoToLogin = () => {
-    navigate("/auth/login");
-  };
+  const handleGoToLogin = () => navigate("/auth/login");
 
-  if (!email) {
-    return null;
-  }
+  if (!email) return null;
 
   return (
-    <div className="auth-shell min-h-screen overflow-y-auto overflow-x-hidden">
-      {/* 左上角返回按钮 */}
-      <div className="fixed left-3 top-3 z-50 flex items-center gap-2 sm:left-4 sm:top-4">
-        <div
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 dark:bg-stone-800/40 dark:hover:bg-stone-800/60"
-          onClick={handleGoToLogin}
-        >
-          <ArrowLeft className="h-5 w-5 text-stone-600 dark:text-stone-400" />
+    <AuthLayout>
+      <div className="mb-5 text-center">
+        <div className="auth-status-icon relative mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/20">
+          <CheckCircle className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
         </div>
+        <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100 mb-1 font-serif">
+          {t("auth.registrationSuccessTitle")}
+        </h1>
+        <p className="text-sm text-stone-400 dark:text-stone-500">
+          {t("auth.registrationSuccessDesc")}
+        </p>
       </div>
 
-      {/* 右上角按钮 */}
-      <div className="fixed right-3 top-3 z-50 flex items-center gap-1.5 sm:right-4 sm:top-4">
-        <LanguageToggle className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 text-stone-600 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 dark:text-stone-300" />
-        <ThemeToggle className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/40 shadow-sm transition-colors hover:bg-white/60 text-stone-600 dark:bg-stone-800/40 dark:hover:bg-stone-800/60 dark:text-stone-300" />
-      </div>
-
-      {/* 主内容区域 */}
-      <div className="grid min-h-screen place-items-center px-4 py-8 sm:px-6">
-        <div className="w-full max-w-md py-8">
-          {/* 成功图标 */}
-          <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
-            </div>
-            <h1 className="mb-2 text-2xl font-bold text-stone-900 dark:text-stone-100 sm:text-3xl font-serif">
-              {t("auth.registrationSuccessTitle")}
-            </h1>
-            <p className="text-stone-600 dark:text-stone-400">
-              {t("auth.registrationSuccessDesc")}
+      <div className="auth-panel mb-3 rounded-xl p-3">
+        <div className="flex items-center gap-2.5">
+          <div className="auth-accent-icon flex h-8 w-8 items-center justify-center rounded-full">
+            <Mail className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-stone-700 dark:text-stone-300">
+              {t("auth.verificationEmailSentTo")}
+            </p>
+            <p className="text-xs text-stone-400 dark:text-stone-500 truncate">
+              {email}
             </p>
           </div>
-
-          {/* 邮箱信息卡片 */}
-          <div className="auth-panel mb-6 rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="auth-accent-icon flex h-10 w-10 items-center justify-center rounded-full">
-                <Mail className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
-                  {t("auth.verificationEmailSentTo")}
-                </p>
-                <p className="text-sm text-stone-600 dark:text-stone-400">
-                  {email}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 操作指引 */}
-          <div className="auth-muted-panel mb-6 rounded-xl p-4">
-            <h2 className="mb-3 font-medium text-stone-900 dark:text-stone-100">
-              {t("auth.whatToDoNext")}
-            </h2>
-            <ol className="space-y-2 text-sm text-stone-600 dark:text-stone-400">
-              <li className="flex items-start gap-2">
-                <span className="auth-accent-badge mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                  1
-                </span>
-                <span>{t("auth.checkInboxStep")}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="auth-accent-badge mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                  2
-                </span>
-                <span>{t("auth.clickVerifyLinkStep")}</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="auth-accent-badge mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                  3
-                </span>
-                <span>{t("auth.loginAfterVerifyStep")}</span>
-              </li>
-            </ol>
-          </div>
-
-          {/* 重发按钮 */}
-          {resendSuccess ? (
-            <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
-              <p className="text-center text-sm text-green-700 dark:text-green-400">
-                {t("auth.verificationEmailSent")}
-              </p>
-            </div>
-          ) : (
-            <button
-              onClick={handleResendVerification}
-              disabled={isResending}
-              className="auth-secondary-button mb-4 w-full rounded-xl py-3 text-sm font-medium shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 sm:py-3.5"
-            >
-              <span className="inline-flex items-center justify-center gap-2">
-                <span className="inline-flex h-4 w-4 items-center justify-center">
-                  {isResending ? (
-                    <LoadingSpinner
-                      size="sm"
-                      className="text-stone-700 dark:text-stone-300"
-                    />
-                  ) : null}
-                </span>
-                <span>{t("auth.resendVerificationEmail")}</span>
-              </span>
-            </button>
-          )}
-
-          {/* 返回登录 */}
-          <button
-            onClick={handleGoToLogin}
-            className="auth-primary-button w-full rounded-xl py-3 text-sm font-medium transition-all hover:-translate-y-0.5 active:translate-y-0 sm:py-3.5"
-          >
-            {t("auth.backToLogin")}
-          </button>
         </div>
       </div>
-    </div>
+
+      <div className="auth-muted-panel mb-3 rounded-xl p-3">
+        <h2 className="mb-2 text-xs font-medium text-stone-700 dark:text-stone-300">
+          {t("auth.whatToDoNext")}
+        </h2>
+        <ol className="space-y-1.5 text-xs text-stone-500 dark:text-stone-400">
+          <li className="flex items-start gap-2">
+            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-medium">
+              1
+            </span>
+            <span>{t("auth.checkInboxStep")}</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-medium">
+              2
+            </span>
+            <span>{t("auth.clickVerifyLinkStep")}</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="auth-accent-badge mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-medium">
+              3
+            </span>
+            <span>{t("auth.loginAfterVerifyStep")}</span>
+          </li>
+        </ol>
+      </div>
+
+      {resendSuccess ? (
+        <div className="mb-2.5 rounded-lg border border-emerald-200/60 bg-emerald-50/80 p-2.5 text-center text-xs text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-900/20 dark:text-emerald-400">
+          {t("auth.verificationEmailSent")}
+        </div>
+      ) : (
+        <button
+          onClick={handleResendVerification}
+          disabled={isResending}
+          className="blog-btn-ghost auth-secondary-button mb-2.5 w-full rounded-full py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className="inline-flex items-center justify-center gap-2">
+            {isResending && <LoadingSpinner size="sm" />}
+            <span>{t("auth.resendVerificationEmail")}</span>
+          </span>
+        </button>
+      )}
+
+      <button
+        onClick={handleGoToLogin}
+        className="blog-btn-primary auth-primary-button w-full rounded-full py-2.5 text-sm font-medium transition-all"
+      >
+        {t("auth.backToLogin")}
+      </button>
+    </AuthLayout>
   );
 }
 

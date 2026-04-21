@@ -361,6 +361,10 @@ export function MCPPanel() {
     );
   }
 
+  if (isLoading) {
+    return <MCPPanelSkeleton />;
+  }
+
   return (
     <div className="glass-shell flex h-full flex-col min-h-0">
       {/* Header */}
@@ -378,22 +382,22 @@ export function MCPPanel() {
             <>
               <button
                 onClick={handleImportClick}
-                className="btn-secondary h-10"
+                className="btn-secondary"
                 title={t("mcp.importFromJSON")}
               >
-                <Upload size={16} className="sm:size-[18px]" />
+                <Upload size={16} />
                 <span className="hidden sm:inline">{t("common.import")}</span>
               </button>
               <button
                 onClick={handleExport}
-                className="btn-secondary h-10"
+                className="btn-secondary"
                 title={t("mcp.exportToJSON")}
               >
-                <Download size={16} className="sm:size-[18px]" />
+                <Download size={16} />
                 <span className="hidden sm:inline">{t("common.export")}</span>
               </button>
-              <button onClick={handleCreate} className="btn-primary h-10">
-                <Plus size={16} className="sm:size-[18px]" />
+              <button onClick={handleCreate} className="btn-primary">
+                <Plus size={16} />
                 <span className="hidden sm:inline">{t("mcp.addServer")}</span>
               </button>
             </>
@@ -416,9 +420,7 @@ export function MCPPanel() {
 
       {/* Servers List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-        {isLoading && servers.length === 0 ? (
-          <MCPPanelSkeleton />
-        ) : filteredServers.length === 0 ? (
+        {filteredServers.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400">
             <FolderOpen
               size={48}

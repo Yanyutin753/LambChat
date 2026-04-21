@@ -88,7 +88,6 @@ export function GridCard({
                 value={codePreview}
                 filePath={file.file_name}
                 lineNumbers={false}
-                maxHeight="100%"
                 fontSize="11px"
               />
             </div>

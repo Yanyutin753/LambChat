@@ -22,10 +22,10 @@
 
 | | | |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/login-page.png" width="280" alt="Login"><br>**Login** | <img src="docs/images/best-practice/chat-home.png" width="280" alt="Chat"><br>**Chat** | <img src="docs/images/best-practice/chat-response.png" width="280" alt="Streaming"><br>**Streaming** |
-| <img src="docs/images/best-practice/skills-page.png" width="280" alt="Skills"><br>**Skills** | <img src="docs/images/best-practice/mcp-page.png" width="280" alt="MCP"><br>**MCP Config** | <img src="docs/images/best-practice/share-dialog.png" width="280" alt="Share"><br>**Share** |
-| <img src="docs/images/best-practice/roles-page.png" width="280" alt="Roles"><br>**Roles** | <img src="docs/images/best-practice/settings-page.png" width="280" alt="Settings"><br>**Settings** | <img src="docs/images/best-practice/feedback-page.png" width="280" alt="Feedback"><br>**Feedback** |
-| <img src="docs/images/best-practice/mobile-view.png" width="200" alt="Mobile"><br>**Mobile** | <img src="docs/images/best-practice/tablet-view.png" width="280" alt="Tablet"><br>**Tablet** | <img src="docs/images/best-practice/shared-page.png" width="280" alt="Shared"><br>**Shared Session** |
+| <img src="docs/images/best-practice/login-page.webp" width="280" alt="Login"><br>**Login** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="Chat"><br>**Chat** | <img src="docs/images/best-practice/chat-response.webp" width="280" alt="Streaming"><br>**Streaming** |
+| <img src="docs/images/best-practice/skills-page.webp" width="280" alt="Skills"><br>**Skills** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP Config** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="Share"><br>**Share** |
+| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="Roles"><br>**Roles** | <img src="docs/images/best-practice/settings-page.webp" width="280" alt="Settings"><br>**Settings** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="Feedback"><br>**Feedback** |
+| <img src="docs/images/best-practice/mobile-view.webp" width="200" alt="Mobile"><br>**Mobile** | <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="Tablet"><br>**Tablet** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="Shared"><br>**Shared Session** |
 
 ## 🎬 Use Cases
 
@@ -37,7 +37,7 @@
 
 ## 🏗️ Architecture
 
-<p align="center"><img src="docs/images/best-practice/architecture.png" width="600" alt="Architecture"></p>
+<p align="center"><img src="docs/images/best-practice/architecture.webp" width="600" alt="Architecture"></p>
 
 ## ✨ Features
 

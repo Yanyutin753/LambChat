@@ -59,9 +59,9 @@ export const WelcomePage = memo(function WelcomePage({
       className="welcome-root relative flex h-full flex-col items-center justify-center px-4 overflow-hidden"
     >
       {/* Greeting section */}
-      <div className="relative flex flex-col items-center mb-5 sm:mb-8 w-full max-w-[90vw]">
+      <div className="relative flex flex-col items-center mb-4 sm:mb-8 w-full max-w-[90vw]">
         {/* App icon (mobile only) */}
-        <div className="sm:hidden relative mb-4">
+        <div className="sm:hidden relative mb-3">
           <img
             src="/icons/icon.svg"
             alt="LambChat"
@@ -97,7 +97,7 @@ export const WelcomePage = memo(function WelcomePage({
 
       {/* Suggestions with refresh */}
       {suggestions && suggestions.length > 0 && (
-        <div className="welcome-suggestions relative w-[19rem] sm:max-w-[36rem] sm:w-full px-2 mt-1 sm:mt-5">
+        <div className="welcome-suggestions relative w-[19rem] sm:max-w-[36rem] sm:w-full px-2 sm:mt-5">
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <div
               className="flex items-center gap-1 text-xs sm:text-sm font-medium"

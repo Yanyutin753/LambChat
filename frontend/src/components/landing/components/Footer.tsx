@@ -12,11 +12,11 @@ export function Footer({ onScrollToSection }: FooterProps) {
   const { t } = useTranslation();
 
   return (
-    <footer className="relative border-t border-stone-200/60 dark:border-stone-800/40 bg-stone-50/40 dark:bg-stone-900/20">
+    <footer className="relative border-t border-stone-200/50 dark:border-stone-800/30 bg-stone-50/30 dark:bg-stone-900/15">
       {/* Top accent */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent dark:via-amber-500/20" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent dark:via-amber-500/25" />
 
-      <div className="max-w-6xl mx-auto px-5 sm:px-6 pt-20 sm:pt-24 pb-8 sm:pb-10">
+      <div className="max-w-6xl xl:max-w-7xl mx-auto px-5 sm:px-6 pt-24 sm:pt-28 pb-10 sm:pb-12">
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-14 sm:gap-8 mb-16 sm:mb-20">
           {/* Brand */}
           <div className="sm:col-span-5">
@@ -117,11 +117,11 @@ export function Footer({ onScrollToSection }: FooterProps) {
         </div>
 
         {/* Bottom */}
-        <div className="pt-8 border-t border-stone-200/40 dark:border-stone-800/30 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-xs text-stone-300 dark:text-stone-600 font-serif">
+        <div className="pt-8 border-t border-stone-200/30 dark:border-stone-800/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-xs text-stone-300 dark:text-stone-600 font-serif tracking-wide">
             &copy; {new Date().getFullYear()} {APP_NAME}
           </span>
-          <div className="flex items-center gap-2 text-xs text-stone-300 dark:text-stone-600">
+          <div className="flex items-center gap-2.5 text-xs text-stone-300 dark:text-stone-600">
             <span>Open Source</span>
             <span className="w-1 h-1 rounded-full bg-stone-200 dark:bg-stone-700" />
             <span>MIT</span>

@@ -10,6 +10,7 @@ import type {
   MessagePart,
   SandboxPart,
   SubagentPart,
+  SummaryPart,
   ThinkingPart,
   ToolPart,
   TodoPart,
@@ -193,6 +194,19 @@ export function addPartToDepth(
         } else {
           newSubagentParts = [...existingParts, part];
         }
+      } else if (part.type === "summary") {
+        const summaryIdx = findSummaryIndex(existingParts, part.summary_id);
+        if (summaryIdx >= 0) {
+          const existing = existingParts[summaryIdx] as SummaryPart;
+          newSubagentParts = [...existingParts];
+          newSubagentParts[summaryIdx] = {
+            ...existing,
+            content: existing.content + part.content,
+            isStreaming: part.isStreaming ? true : existing.isStreaming,
+          };
+        } else {
+          newSubagentParts = [...existingParts, part];
+        }
       } else {
         newSubagentParts = [...existingParts, part];
       }
@@ -288,6 +302,19 @@ export function findAndAddToSubagent(
         } else {
           newParts = [...existingParts, part];
         }
+      } else if (part.type === "summary") {
+        const summaryIdx = findSummaryIndex(existingParts, part.summary_id);
+        if (summaryIdx >= 0) {
+          const existing = existingParts[summaryIdx] as SummaryPart;
+          newParts = [...existingParts];
+          newParts[summaryIdx] = {
+            ...existing,
+            content: existing.content + part.content,
+            isStreaming: part.isStreaming ? true : existing.isStreaming,
+          };
+        } else {
+          newParts = [...existingParts, part];
+        }
       } else {
         newParts = [...existingParts, part];
       }
@@ -321,6 +348,16 @@ export function findAndAddToSubagent(
 // ============================================
 // Subagent result
 // ============================================
+
+function findSummaryIndex(parts: MessagePart[], summaryId?: string): number {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    if (part.type === "summary" && part.summary_id === summaryId) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 /**
  * Update subagent result. Returns new parts array.

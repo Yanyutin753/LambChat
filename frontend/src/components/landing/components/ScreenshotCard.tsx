@@ -23,10 +23,10 @@ export function ScreenshotCard({
         <img
           src={src}
           alt={alt}
-          className="w-full h-full object-cover object-top transition-all duration-700 ease-out group-hover:scale-[1.03] group-hover:brightness-[0.97]"
+          className="w-full h-full object-cover object-top transition-all duration-700 ease-out group-hover:scale-[1.03]"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="opacity-0 group-hover:opacity-100 transition-all duration-500 scale-75 group-hover:scale-100 w-11 h-11 rounded-full bg-white/90 dark:bg-stone-800/90 shadow-xl shadow-black/10 dark:shadow-black/40 flex items-center justify-center text-stone-500 dark:text-stone-400">
             <ZoomIcon />

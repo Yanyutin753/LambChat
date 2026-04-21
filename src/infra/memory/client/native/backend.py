@@ -2,7 +2,7 @@
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -10,8 +10,6 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from src.infra.logging import get_logger
 from src.infra.memory.client.base import MemoryBackend
 from src.infra.memory.client.native.classification import (
-    classify_type,
-    extract_tags,
     find_existing_memory_match,
     is_manual_memory_worthy,
 )
@@ -23,11 +21,31 @@ from src.infra.memory.client.native.content import (
 from src.infra.memory.client.native.indexing import build_memory_index
 from src.infra.memory.client.native.models import COLLECTION_NAME
 from src.infra.memory.client.native.search import recall_memories
-from src.infra.memory.client.native.summaries import build_index_label, build_summary
+from src.infra.memory.client.native.summaries import (
+    _fallback_enrich,
+    build_index_label,
+    llm_enrich_memory,
+)
+from src.infra.memory.client.types import MemoryType
 from src.infra.storage.mongodb import get_mongo_client
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
+
+_CONTEXT_TYPE_HINTS = {
+    "feedback": MemoryType.FEEDBACK,
+    "project": MemoryType.PROJECT,
+    "reference": MemoryType.REFERENCE,
+}
+
+
+def _infer_memory_type(context: Optional[str] = None) -> str:
+    if context:
+        ctx_lower = context.lower()
+        for hint, mt in _CONTEXT_TYPE_HINTS.items():
+            if hint in ctx_lower:
+                return mt.value
+    return MemoryType.USER
 
 
 # ============================================================================
@@ -133,13 +151,14 @@ class NativeMemoryBackend(MemoryBackend):
         context: Optional[str] = None,
         title: Optional[str] = None,
         summary: Optional[str] = None,
+        tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
         # --- Validation (relaxed for manual retention — trust user intent) ---
         if len(content.strip()) < 5:
             return {
                 "success": False,
-                "error": "Content too short (minimum 10 characters)",
+                "error": "Content too short (minimum 5 characters)",
             }
 
         if not is_manual_memory_worthy(content, context):
@@ -148,17 +167,25 @@ class NativeMemoryBackend(MemoryBackend):
                 "error": "Content rejected: appears transient, noisy, or not durable enough",
             }
 
-        memory_type = classify_type(content, context)
-        tags = extract_tags(content)
+        memory_type = _infer_memory_type(context)
 
-        # Use caller-provided title/summary, fall back to rule-based
-        if not summary:
-            summary = build_summary(content)
-        if not title:
-            title = build_summary(content, 25)
+        # If caller provides all three, skip LLM enrichment entirely
+        if title and summary and tags:
+            tags = [str(t)[:20] for t in tags[:5] if t]
+        elif not title or not summary:
+            enriched = await llm_enrich_memory(self, content)
+            if not tags:
+                tags = enriched["tags"]
+            if not summary:
+                summary = enriched["summary"]
+            if not title:
+                title = enriched["title"]
+        elif not tags:
+            enriched = await llm_enrich_memory(self, content)
+            tags = enriched["tags"]
 
         async def fetch_recent_memories(target_user_id: str) -> list[dict[str, Any]]:
-            seven_days_ago = datetime.now(timezone.utc) - __import__("datetime").timedelta(days=7)
+            seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
             return await self._collection.find(
                 {"user_id": target_user_id, "updated_at": {"$gte": seven_days_ago}},
                 {"summary": 1, "memory_id": 1, "memory_type": 1},
@@ -197,15 +224,17 @@ class NativeMemoryBackend(MemoryBackend):
                     existing_match.update(full_doc)
 
         now = datetime.now(timezone.utc)
-        memory_id_for_content = existing_match["memory_id"] if existing_match else uuid.uuid4().hex
+        is_update = existing_match is not None
+        _existing: dict[str, Any] = existing_match if is_update else {}  # type: ignore[assignment]
+        memory_id = _existing["memory_id"] if is_update else uuid.uuid4().hex
         content_fields, embedding = await asyncio.gather(
-            build_content_fields(self, user_id, memory_id_for_content, content),
+            build_content_fields(self, user_id, memory_id, content),
             self._maybe_embed(content),
         )
 
-        if existing_match:
+        if is_update:
             await self._collection.update_one(
-                {"user_id": user_id, "memory_id": existing_match["memory_id"]},
+                {"user_id": user_id, "memory_id": _existing["memory_id"]},
                 {
                     "$set": {
                         "title": title[:25],
@@ -220,27 +249,20 @@ class NativeMemoryBackend(MemoryBackend):
                 },
             )
             if (
-                existing_match
-                and existing_match.get("content_storage_mode") == "store"
-                and existing_match.get("content_store_key")
-                and existing_match.get("content_store_key")
-                != content_fields.get("content_store_key")
+                _existing.get("content_storage_mode") == "store"
+                and _existing.get("content_store_key")
+                and _existing.get("content_store_key") != content_fields.get("content_store_key")
             ):
-                await delete_memory_content(self, user_id, existing_match.get("content_store_key"))
+                await delete_memory_content(self, user_id, _existing.get("content_store_key"))
             await self._invalidate_cache(user_id)
             return {
                 "success": True,
-                "memory_id": existing_match["memory_id"],
+                "memory_id": _existing["memory_id"],
                 "memory_type": memory_type,
                 "updated_existing": True,
                 "message": "Memory updated successfully",
             }
 
-        memory_id = uuid.uuid4().hex
-        content_fields_new, embedding_new = await asyncio.gather(
-            build_content_fields(self, user_id, memory_id, content),
-            self._maybe_embed(content),
-        )
         doc = {
             "memory_id": memory_id,
             "user_id": user_id,
@@ -251,13 +273,13 @@ class NativeMemoryBackend(MemoryBackend):
             "context": context,
             "tags": tags,
             "source": "manual",
-            "embedding": embedding_new,
+            "embedding": embedding,
             "created_at": now,
             "updated_at": now,
             "accessed_at": now,
             "access_count": 0,
         }
-        doc.update(content_fields_new)
+        doc.update(content_fields)
 
         await self._collection.insert_one(doc)
         # Invalidate index cache (local + distributed)
@@ -344,6 +366,9 @@ class NativeMemoryBackend(MemoryBackend):
                             "Only retain user identity, preferences with reasons, durable project context, "
                             "explicit feedback, or lasting references. Never retain code, file paths, "
                             "temporary worklogs, greetings, or transient status updates.\n"
+                            "When calling memory_retain, ALWAYS provide title, summary, and tags "
+                            "— this avoids a second LLM call. Keep title under 25 chars, summary under 80 chars, "
+                            "and provide 3-5 keyword tags.\n"
                             "If one existing memory already covers the same topic, call memory_retain with "
                             "`existing_memory_id` set to that memory id so the system updates it instead of "
                             "creating a duplicate.\n"
@@ -371,12 +396,23 @@ class NativeMemoryBackend(MemoryBackend):
             content = str(args.get("content") or "").strip()
             if not content:
                 continue
+            # Ensure all three enrichment fields are present so retain() skips the LLM call.
+            # Rule-based fallbacks fill gaps when the decision LLM omits optional params.
+            title = args.get("title")
+            summary = args.get("summary")
+            tags = args.get("tags")
+            if not title or not summary or not tags:
+                enriched = _fallback_enrich(content)
+                title = title or enriched["title"]
+                summary = summary or enriched["summary"]
+                tags = tags or enriched["tags"]
             result = await self.retain(
                 user_id,
                 content,
                 context=args.get("context"),
-                title=args.get("title"),
-                summary=args.get("summary"),
+                title=title,
+                summary=summary,
+                tags=tags,
                 existing_memory_id=args.get("existing_memory_id"),
             )
             if result.get("success"):
@@ -513,12 +549,3 @@ class NativeMemoryBackend(MemoryBackend):
 # ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
-
-
-def _cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = sum(x * x for x in a) ** 0.5
-    norm_b = sum(x * x for x in b) ** 0.5
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return dot / (norm_a * norm_b)

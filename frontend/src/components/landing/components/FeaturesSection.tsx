@@ -10,7 +10,7 @@ export function FeaturesSection() {
       id="features"
       className="py-20 sm:py-28 lg:py-36 relative scroll-mt-14"
     >
-      <div className="max-w-5xl lg:max-w-6xl mx-auto px-5 sm:px-6">
+      <div className="max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto px-5 sm:px-6">
         <SectionHeading
           label={t("landing.sectionLabelFeatures")}
           title={t("landing.coreFeatures")}
@@ -28,6 +28,10 @@ export function FeaturesSection() {
               <div
                 className={`absolute top-0 left-7 sm:left-8 w-8 h-[2px] bg-gradient-to-r ${f.gradient} rounded-full opacity-50 group-hover:opacity-90 group-hover:w-12 transition-all duration-500`}
               />
+              {/* Number badge */}
+              <span className="blog-feature-number">
+                {String(i + 1).padStart(2, "0")}
+              </span>
               <div
                 className={`flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br ${f.gradient} text-lg sm:text-xl mb-5 sm:mb-6 shadow-sm transition-all duration-400 group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-md`}
               >

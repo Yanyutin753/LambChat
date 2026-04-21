@@ -120,6 +120,7 @@ class FastAgentContext:
                     all_deferred_tools=mcp_tools,
                     session_id=self.session_id,
                     disabled_tools=self.disabled_tools,
+                    disabled_mcp_tools=self.disabled_mcp_tools,
                     pre_discovered_names=pre_discovered,
                 )
                 logger.info(

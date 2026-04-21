@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
-from src.infra.memory.client.native.models import has_cjk
+import json
+import logging
+import warnings
+from typing import Any
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", SyntaxWarning)
+    import jieba.posseg as pseg
+
+from src.infra.memory.client.native.models import CJK_STOPWORDS, has_cjk
+
+logger = logging.getLogger(__name__)
 
 
 def build_summary(content: str, max_len: int = 100) -> str:
@@ -30,77 +41,161 @@ def build_summary(content: str, max_len: int = 100) -> str:
     return truncated.strip() + "..."
 
 
-async def llm_build_summary(backend, content: str) -> str:
-    """Use LLM to generate a concise summary. Falls back to build_summary."""
-    try:
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        model = await backend._get_memory_model()
-        response = await model.ainvoke(
-            [
-                SystemMessage(
-                    content="Summarize in at most 80 characters. Output ONLY the summary, nothing else."
-                ),
-                HumanMessage(
-                    content=f"Summarize this memory in at most 80 characters (Chinese or English):\n\n{content[:500]}"
-                ),
-            ],
-        )
-        text = response.content
-        if isinstance(text, list):
-            for item in text:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text = item.get("text", "")
-                    break
-            else:
-                return build_summary(content)
-        summary = str(text).strip().strip("\"'")
-        if summary and len(summary) <= 120:
-            return summary[:100]
-    except Exception as e:
-        backend_logger = getattr(backend, "_logger", None)
-        if backend_logger:
-            backend_logger.debug("[NativeMemory] LLM summary failed, using rule-based: %s", e)
-    return build_summary(content)
-
-
-async def llm_build_title(backend, content: str) -> str:
-    """Use LLM to generate a short title. Falls back to summary truncation."""
-    try:
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        model = await backend._get_memory_model()
-        response = await model.ainvoke(
-            [
-                SystemMessage(
-                    content="Generate a short title in at most 25 characters. Output ONLY the title."
-                ),
-                HumanMessage(
-                    content=f"Give this memory a concise title (max 25 chars, Chinese or English):\n\n{content[:300]}"
-                ),
-            ],
-        )
-        text = response.content
-        if isinstance(text, list):
-            for item in text:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text = item.get("text", "")
-                    break
-            else:
-                return build_summary(content, 25)
-        title = str(text).strip().strip("\"'")
-        if title and len(title) <= 40:
-            return title[:25]
-    except Exception as e:
-        backend_logger = getattr(backend, "_logger", None)
-        if backend_logger:
-            backend_logger.debug("[NativeMemory] LLM title failed, using fallback: %s", e)
-    return build_summary(content, 25)
-
-
 def build_index_label(title: str, summary: str, content: str) -> str:
     """Build a compact deterministic label for memory indexes without extra LLM calls."""
     seed = (title or summary or content).strip()
     if not seed:
         return ""
     return build_summary(seed, 12)
+
+
+def _fallback_tags(content: str) -> list[str]:
+    """Rule-based tag fallback when LLM is unavailable."""
+    from src.infra.memory.client.native.classification import extract_tags
+
+    return extract_tags(content)
+
+
+_ENRICH_SYSTEM = (
+    "You are a memory tagging assistant. Respond with ONLY a JSON object, no markdown or explanation.\n"
+    'Keys: "title" (max 25 chars), "summary" (max 80 chars), "tags" (array of 3-5 keyword strings).\n'
+    "Tags should be meaningful keywords, NOT sliding character windows. Use the language of the input."
+)
+
+
+async def llm_enrich_memory(backend: Any, content: str) -> dict[str, Any]:
+    """Single LLM call to extract title, summary, and tags together."""
+    try:
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        model = await backend._get_memory_model()
+        response = await model.ainvoke(
+            [
+                SystemMessage(content=_ENRICH_SYSTEM),
+                HumanMessage(content=f"Annotate this memory:\n\n{content[:500]}"),
+            ],
+        )
+        text = response.content
+        if isinstance(text, list):
+            for item in text:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text = item.get("text", "")
+                    break
+            else:
+                return _fallback_enrich(content)
+
+        text = str(text).strip().strip("```json").strip("```").strip()
+        data = json.loads(text)
+        return {
+            "title": str(data.get("title", ""))[:25] or build_summary(content, 25),
+            "summary": str(data.get("summary", ""))[:100] or build_summary(content),
+            "tags": [
+                str(t) for t in (data.get("tags") or []) if isinstance(t, str) and len(t) >= 2
+            ][:5]
+            or _fallback_tags(content),
+        }
+    except Exception as e:
+        logger.debug("[NativeMemory] LLM enrich failed, using fallback: %s", e)
+        return _fallback_enrich(content)
+
+
+def _fallback_title(content: str, summary: str) -> str:
+    """Build a short title that differs from the summary — extract key nouns/phrases."""
+    import re
+
+    flat = content.replace("\n", " ").strip()
+    if has_cjk(flat):
+        clause = flat
+        for sep in ("，", "。", "！", "？", "；", "、"):
+            pos = flat.find(sep)
+            if 2 < pos < len(clause):
+                clause = flat[:pos]
+        try:
+            words = [
+                (w, f)
+                for w, f in pseg.cut(clause)
+                if w.strip() and len(w) >= 2 and f in ("n", "nr", "ns", "nt", "nz", "eng", "vn")
+            ][:3]
+            if words:
+                title = "".join(w for w, _ in words)
+                return title[:25] if len(title) > 25 else title
+        except Exception:
+            pass
+        return build_summary(flat, 25)
+
+    cleaned = re.sub(r"[^a-zA-Z0-9\s]", " ", flat)
+    stop: set[str] = set(CJK_STOPWORDS) | {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "and",
+        "but",
+        "or",
+        "not",
+        "this",
+        "that",
+        "it",
+        "its",
+        "i",
+        "my",
+        "me",
+        "you",
+        "your",
+        "we",
+        "our",
+        "they",
+        "their",
+        "he",
+        "she",
+    }
+    keyword_words: list[str] = [w for w in cleaned.split() if w.lower() not in stop and len(w) >= 3]
+    title = " ".join(keyword_words[:4]) if keyword_words else ""
+    if not title or len(title) < 3:
+        return build_summary(flat, 25)
+    if len(title) > 25:
+        result = ""
+        for w in keyword_words:
+            candidate = f"{result} {w}".strip()
+            if len(candidate) > 25:
+                break
+            result = candidate
+        title = result or build_summary(flat, 25)
+    if title == summary[: len(title)]:
+        title = build_summary(flat, 25)
+    return title
+
+
+def _fallback_enrich(content: str) -> dict[str, Any]:
+    """Rule-based fallback for all enrich fields."""
+    summary = build_summary(content)
+    title = _fallback_title(content, summary)
+    return {
+        "title": title,
+        "summary": summary,
+        "tags": _fallback_tags(content),
+    }

@@ -1,0 +1,40 @@
+/* Chat input focus glow effect */
+.chat-input-container:focus-within {
+  border-color: var(--theme-ring);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--theme-ring) 12%, transparent),
+    0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Chat input textarea placeholder */
+.chat-input-container textarea::placeholder {
+  color: var(--theme-text-secondary);
+}
+
+/* Chat toolbar icon button */
+.chat-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 0.5rem;
+  border: 1px solid var(--theme-border);
+  background: transparent;
+  color: var(--theme-text-secondary);
+  transition:
+    border-color 0.3s,
+    background-color 0.3s,
+    color 0.3s;
+}
+.chat-tool-btn:hover {
+  border-color: color-mix(in srgb, #fbbf24 40%, transparent);
+  background: color-mix(in srgb, #fbbf24 10%, transparent);
+  color: #fbbf24;
+}
+
+/* Chat toolbar icon button (active/enabled state) */
+.chat-tool-btn-active {
+  border-color: color-mix(in srgb, #fbbf24 40%, transparent);
+  background: color-mix(in srgb, #fbbf24 10%, transparent);
+  color: #fbbf24;
+}

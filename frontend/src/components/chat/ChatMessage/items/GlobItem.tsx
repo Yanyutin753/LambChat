@@ -1,10 +1,10 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import { FolderSearch, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractPaths } from "./toolUtils";
-import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
+import { openPersistentToolPanel } from "./persistentToolPanelState";
 
 const GlobItem = memo(function GlobItem({
   args,
@@ -22,7 +22,6 @@ const GlobItem = memo(function GlobItem({
   const { t } = useTranslation();
   const pattern = (args.pattern as string) || "";
   const searchPath = (args.path as string) || "";
-  const [panelOpen, setPanelOpen] = useState(false);
 
   const paths = useMemo(() => {
     return extractPaths(result);
@@ -104,8 +103,14 @@ const GlobItem = memo(function GlobItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
-          closeCurrentToolPanel();
-          setPanelOpen(true);
+          if (!canExpand) return;
+          openPersistentToolPanel({
+            title: `${t("chat.message.toolGlob")} ${pattern}`,
+            icon: <FolderSearch size={16} />,
+            status,
+            subtitle: searchPath || undefined,
+            children: detailContent,
+          });
         }}
       >
         {canExpand && (
@@ -166,18 +171,6 @@ const GlobItem = memo(function GlobItem({
           </div>
         )}
       </CollapsiblePill>
-      {canExpand && (
-        <ToolResultPanel
-          open={panelOpen}
-          onClose={() => setPanelOpen(false)}
-          title={`${t("chat.message.toolGlob")} ${pattern}`}
-          icon={<FolderSearch size={16} />}
-          status={status}
-          subtitle={searchPath || undefined}
-        >
-          {detailContent}
-        </ToolResultPanel>
-      )}
     </>
   );
 });

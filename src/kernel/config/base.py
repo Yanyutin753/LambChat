@@ -116,6 +116,16 @@ class Settings(BaseSettings):
     POSTGRES_POOL_MIN_SIZE: int = 2
     POSTGRES_POOL_MAX_SIZE: int = 10
 
+    # Checkpoint Backend Settings
+    CHECKPOINT_BACKEND: str = "mongodb"
+    CHECKPOINT_PG_HOST: str = ""  # empty = fallback to POSTGRES_*
+    CHECKPOINT_PG_PORT: int = 5432
+    CHECKPOINT_PG_USER: str = ""
+    CHECKPOINT_PG_PASSWORD: str = ""
+    CHECKPOINT_PG_DB: str = ""
+    CHECKPOINT_PG_POOL_MIN_SIZE: int = 2
+    CHECKPOINT_PG_POOL_MAX_SIZE: int = 10
+
     # Sandbox Settings
     ENABLE_SANDBOX: bool = True
     SANDBOX_PLATFORM: str = "daytona"
@@ -186,6 +196,8 @@ class Settings(BaseSettings):
     )
     DEFAULT_USER_ROLE: str = "user"
     ENABLE_REGISTRATION: bool = True
+    ADMIN_CONTACT_EMAIL: str = ""
+    ADMIN_CONTACT_URL: str = ""
 
     # OAuth Settings
     OAUTH_GOOGLE_ENABLED: bool = False
@@ -216,16 +228,6 @@ class Settings(BaseSettings):
 
     # Memory Settings (Master Switch)
     ENABLE_MEMORY: bool = False
-    MEMORY_PERFORM: str = "memu"
-
-    # Hindsight Memory Settings
-    HINDSIGHT_BASE_URL: str = ""
-    HINDSIGHT_API_KEY: str = ""
-    HINDSIGHT_MAX_CONCURRENT: int = 64
-
-    # memU Memory Settings
-    MEMU_API_KEY: str = ""
-    MEMU_BASE_URL: str = "https://api.memu.so"
 
     # Native Memory Settings (MongoDB-backed, zero external deps)
     NATIVE_MEMORY_EMBEDDING_API_BASE: str = ""
@@ -331,6 +333,16 @@ class Settings(BaseSettings):
     def postgres_url(self) -> str:
         """Construct PostgreSQL connection URL from components."""
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+
+    @property
+    def checkpoint_postgres_url(self) -> str:
+        """Construct checkpoint PostgreSQL connection URL. Falls back to shared POSTGRES_* when CHECKPOINT_PG_HOST is empty."""
+        host = self.CHECKPOINT_PG_HOST or self.POSTGRES_HOST
+        port = self.CHECKPOINT_PG_PORT
+        user = self.CHECKPOINT_PG_USER or self.POSTGRES_USER
+        password = self.CHECKPOINT_PG_PASSWORD or self.POSTGRES_PASSWORD
+        db = self.CHECKPOINT_PG_DB or self.POSTGRES_DB
+        return f"postgresql://{user}:{password}@{host}:{port}/{db}"
 
 
 @lru_cache

@@ -347,7 +347,7 @@ export function ProjectPreviewCompact({
 
   return (
     <div className="my-2 sm:my-3">
-      <div className="border border-stone-200 dark:border-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
+      <div className="ring-1 ring-stone-200 dark:ring-stone-700 rounded-xl overflow-hidden bg-white dark:bg-stone-900">
         {/* 工具栏 */}
         <div className="flex items-center justify-between px-2 sm:px-4 py-2 sm:py-3 bg-stone-50 dark:bg-stone-800/50 border-b border-stone-200 dark:border-stone-700 gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">

@@ -40,12 +40,14 @@ export const sessionApi = {
     limit?: number;
     skip?: number;
     project_id?: string;
+    search?: string;
   }): Promise<SessionListResponse | BackendSession[]> {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.set("status", params.status);
     if (params?.limit) searchParams.set("limit", params.limit.toString());
     if (params?.skip) searchParams.set("skip", params.skip.toString());
     if (params?.project_id) searchParams.set("project_id", params.project_id);
+    if (params?.search) searchParams.set("search", params.search);
 
     const url = `${API_BASE}/api/sessions${
       searchParams.toString() ? `?${searchParams}` : ""

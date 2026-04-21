@@ -62,12 +62,12 @@ export function handleStreamEvent(
   if (eventTimestamp && ctx.lastHistoryTimestampRef.current) {
     const eventTime = new Date(eventTimestamp);
     const historyTime = ctx.lastHistoryTimestampRef.current;
-    if (eventTime < historyTime) {
+    if (eventTime <= historyTime) {
       console.log(
         "[SSE] Skipping duplicate event by timestamp:",
         eventId,
         eventTime.toISOString(),
-        "<",
+        "<=",
         historyTime.toISOString(),
       );
       return;
@@ -187,6 +187,7 @@ export function handleStreamEvent(
     "sandbox:error",
     "token:usage",
     "todo:updated",
+    "summary",
     "error",
   ]);
   if (!MESSAGE_EVENTS.has(eventType)) {

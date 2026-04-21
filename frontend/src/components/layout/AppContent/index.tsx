@@ -40,6 +40,10 @@ import { getRestoredModelSelection } from "./sessionState";
 import { ChatView } from "./ChatView";
 import { Header } from "./Header";
 import { TabContent } from "./TabContent";
+import {
+  getAppViewportHeightCssValue,
+  shouldUpdateAppViewportHeight,
+} from "./appViewport";
 
 interface AppContentProps {
   activeTab: TabType;
@@ -96,6 +100,53 @@ function AppShell({
   sessionId,
   sessionName,
 }: AppShellProps) {
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const rootStyle = document.documentElement.style;
+    let raf = 0;
+    let viewportHeightValue = "";
+
+    const updateViewportHeight = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const nextViewportHeightValue = getAppViewportHeightCssValue({
+          visualViewportHeight: window.visualViewport?.height ?? null,
+          windowInnerHeight: window.innerHeight,
+        });
+
+        if (
+          shouldUpdateAppViewportHeight(
+            viewportHeightValue,
+            nextViewportHeightValue,
+          )
+        ) {
+          viewportHeightValue = nextViewportHeightValue;
+          rootStyle.setProperty(
+            "--app-viewport-height",
+            nextViewportHeightValue,
+          );
+        }
+      });
+    };
+
+    updateViewportHeight();
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("resize", updateViewportHeight);
+    window.addEventListener("orientationchange", updateViewportHeight);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.visualViewport?.removeEventListener(
+        "resize",
+        updateViewportHeight,
+      );
+      window.removeEventListener("resize", updateViewportHeight);
+      window.removeEventListener("orientationchange", updateViewportHeight);
+      rootStyle.removeProperty("--app-viewport-height");
+    };
+  }, []);
+
   return (
     <>
       <ProfileModal
@@ -105,8 +156,11 @@ function AppShell({
       />
 
       <div
-        className="flex h-[100dvh] w-full overflow-hidden"
-        style={{ backgroundColor: "var(--theme-bg)" }}
+        className="flex w-full overflow-hidden"
+        style={{
+          backgroundColor: "var(--theme-bg)",
+          height: "var(--app-viewport-height, 100dvh)",
+        }}
       >
         {sidebar}
 
@@ -203,6 +257,7 @@ function ChatAppContent({
     agents,
     currentAgent,
     allowedModelIds: agentAllowedModelIds,
+    connectionStatus,
     newlyCreatedSession,
     sendMessage,
     stopGeneration,
@@ -211,6 +266,7 @@ function ChatAppContent({
     loadHistory,
     setPendingProjectId,
     autoExpandProjectId,
+    clearAutoExpandProjectId,
     currentProjectId,
   } = useAgent({
     onApprovalRequired: (approval) => {
@@ -635,6 +691,7 @@ function ChatAppContent({
           onNewSession={handleNewSessionAndClose}
           onSetPendingProjectId={setPendingProjectId}
           autoExpandProjectId={autoExpandProjectId}
+          onConsumeAutoExpandProjectId={clearAutoExpandProjectId}
           newSession={newlyCreatedSession}
           mobileOpen={mobileSidebarOpen}
           onMobileClose={handleMobileClose}
@@ -675,6 +732,7 @@ function ChatAppContent({
           sessionName={sessionName}
           currentRunId={currentRunId}
           isLoading={isLoading}
+          connectionStatus={connectionStatus}
           canSendMessage={canSendMessage}
           tools={effectiveTools}
           onToggleTool={effectiveToggleTool}

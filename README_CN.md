@@ -22,10 +22,10 @@
 
 | | | |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/login-page.png" width="280" alt="登录"><br>**登录** | <img src="docs/images/best-practice/chat-home.png" width="280" alt="聊天"><br>**聊天** | <img src="docs/images/best-practice/chat-response.png" width="280" alt="流式"><br>**流式输出** |
-| <img src="docs/images/best-practice/skills-page.png" width="280" alt="技能"><br>**技能** | <img src="docs/images/best-practice/mcp-page.png" width="280" alt="MCP"><br>**MCP 配置** | <img src="docs/images/best-practice/share-dialog.png" width="280" alt="分享"><br>**分享** |
-| <img src="docs/images/best-practice/roles-page.png" width="280" alt="角色"><br>**角色管理** | <img src="docs/images/best-practice/settings-page.png" width="280" alt="设置"><br>**系统设置** | <img src="docs/images/best-practice/feedback-page.png" width="280" alt="反馈"><br>**反馈** |
-| <img src="docs/images/best-practice/mobile-view.png" width="200" alt="移动端"><br>**移动端** | <img src="docs/images/best-practice/tablet-view.png" width="280" alt="平板"><br>**平板端** | <img src="docs/images/best-practice/shared-page.png" width="280" alt="分享页"><br>**会话分享** |
+| <img src="docs/images/best-practice/login-page.webp" width="280" alt="登录"><br>**登录** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="聊天"><br>**聊天** | <img src="docs/images/best-practice/chat-response.webp" width="280" alt="流式"><br>**流式输出** |
+| <img src="docs/images/best-practice/skills-page.webp" width="280" alt="技能"><br>**技能** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP 配置** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="分享"><br>**分享** |
+| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="角色"><br>**角色管理** | <img src="docs/images/best-practice/settings-page.webp" width="280" alt="设置"><br>**系统设置** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="反馈"><br>**反馈** |
+| <img src="docs/images/best-practice/mobile-view.webp" width="200" alt="移动端"><br>**移动端** | <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="平板"><br>**平板端** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="分享页"><br>**会话分享** |
 
 ## 🎬 实战案例
 
@@ -37,7 +37,7 @@
 
 ## 🏗️ 系统架构
 
-<p align="center"><img src="docs/images/best-practice/architecture.png" width="600" alt="架构"></p>
+<p align="center"><img src="docs/images/best-practice/architecture.webp" width="600" alt="架构"></p>
 
 ## ✨ 核心特性
 

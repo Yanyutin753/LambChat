@@ -267,6 +267,49 @@ export function reconstructMessagesFromEvents(
   return reconstructedMessages;
 }
 
+export interface RunningAssistantPreparationResult {
+  messages: Message[];
+  streamingMessageId: string;
+}
+
+export function prepareMessagesForRunningRun(
+  messages: Message[],
+  runId: string,
+  createId: () => string = () => crypto.randomUUID(),
+): RunningAssistantPreparationResult {
+  const existingAssistant = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.runId === runId);
+
+  if (existingAssistant) {
+    return {
+      streamingMessageId: existingAssistant.id,
+      messages: messages.map((message) =>
+        message.id === existingAssistant.id
+          ? { ...message, isStreaming: true }
+          : message,
+      ),
+    };
+  }
+
+  const streamingMessageId = createId();
+  return {
+    streamingMessageId,
+    messages: [
+      ...messages,
+      {
+        id: streamingMessageId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+        parts: [],
+        isStreaming: true,
+        runId,
+      },
+    ],
+  };
+}
+
 /**
  * Get the last event timestamp from sorted events.
  */

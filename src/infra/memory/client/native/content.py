@@ -64,6 +64,12 @@ async def store_delete(backend, namespace: tuple[str, ...], key: str) -> None:
         return
     if hasattr(store, "put"):
         await maybe_await(store.put(namespace, key, None))
+        return
+    import logging
+
+    logging.getLogger(__name__).warning(
+        "[NativeMemory] store_delete: no compatible delete method found on store"
+    )
 
 
 async def delete_memory_content(backend, user_id: str, content_store_key: str | None) -> None:
@@ -75,7 +81,7 @@ async def delete_memory_content(backend, user_id: str, content_store_key: str | 
 def inline_preview(content: str) -> str:
     max_chars = int(getattr(settings, "NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS", 1200))
     if len(content) <= max_chars:
-        return content[:5000]
+        return content
     if max_chars <= 3:
         return content[:max_chars]
     return content[: max_chars - 3].rstrip() + "..."

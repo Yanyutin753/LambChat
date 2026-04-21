@@ -80,7 +80,6 @@ async def refresh_settings(key: Optional[str] = None) -> None:
     # Settings that require memory backend reinitialization
     memory_affected_settings = {
         "ENABLE_MEMORY",
-        "MEMORY_PERFORM",
         "NATIVE_MEMORY_EMBEDDING_API_BASE",
         "NATIVE_MEMORY_EMBEDDING_API_KEY",
     }

@@ -51,7 +51,7 @@ install-all: install frontend-install
 # 开发运行
 dev:
 	@echo "🚀 启动后端开发服务器..."
-	python main.py
+	uv run python main.py
 
 frontend-dev:
 	@echo "🎨 启动前端开发服务器..."

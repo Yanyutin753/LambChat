@@ -16,6 +16,7 @@ export type EventType =
   | "tool:start"
   | "tool:result"
   | "todo:updated"
+  | "summary"
   | "agent:call"
   | "agent:result"
   | "approval_required"
@@ -95,6 +96,8 @@ export interface EventData {
     status: "pending" | "in_progress" | "completed";
   }>;
   updated_index?: number;
+  // summary event fields
+  summary_id?: string;
 }
 
 export interface UseAgentOptions {
@@ -202,6 +205,7 @@ export interface UseAgentReturn {
   reconnectSSE: () => Promise<void>;
   setPendingProjectId: (id: string | null) => void;
   autoExpandProjectId: string | null;
+  clearAutoExpandProjectId: (id?: string | null) => void;
 }
 
 // Session configuration restored from metadata

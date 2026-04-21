@@ -40,6 +40,7 @@ export type {
   ConnectionStatus,
   ConnectionState,
   RunSummary,
+  SummaryPart,
 } from "./message";
 
 // ============================================

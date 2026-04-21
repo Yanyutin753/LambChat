@@ -114,7 +114,6 @@ function CodeBlock({
           value={codeString}
           language={language || undefined}
           lineNumbers={true}
-          maxHeight="400px"
           fontSize="0.75rem"
           className="[&_.cm-editor]:rounded-none [&_.cm-gutters]:border-r-0"
         />

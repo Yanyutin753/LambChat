@@ -56,7 +56,9 @@ def _list_to_ns(ns_list: Any) -> tuple[str, ...]:
     return tuple(ns_list)
 
 
-def _parse_doc_timestamps(doc: dict[str, Any]) -> tuple[datetime | None, datetime | None]:
+def _parse_doc_timestamps(
+    doc: dict[str, Any],
+) -> tuple[datetime | None, datetime | None]:
     """解析文档中的时间戳字段。"""
     created_at = doc.get("created_at")
     updated_at = doc.get("updated_at")

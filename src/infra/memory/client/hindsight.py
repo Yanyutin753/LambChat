@@ -177,7 +177,7 @@ class AsyncHindsight:
 
     async def delete_memory(self, bank_id: str, memory_id: str) -> Any:
         """Delete a specific memory by ID."""
-        return await self._memory_api.delete_memory(
+        return await self._memory_api.delete_memory(  # type: ignore[attr-defined]
             bank_id=bank_id,
             memory_id=memory_id,
             _request_timeout=self._timeout,
@@ -213,7 +213,8 @@ class HindsightBackend(MemoryBackend):
 
     async def initialize(self) -> None:
         """Initialize the Hindsight client."""
-        if not settings.HINDSIGHT_BASE_URL:
+        base_url = getattr(settings, "HINDSIGHT_BASE_URL", "")
+        if not base_url:
             logger.warning("[Hindsight] HINDSIGHT_BASE_URL not configured")
             return
 
@@ -223,16 +224,16 @@ class HindsightBackend(MemoryBackend):
 
             try:
                 self.client = AsyncHindsight(
-                    base_url=settings.HINDSIGHT_BASE_URL,
-                    api_key=settings.HINDSIGHT_API_KEY or None,
+                    base_url=base_url,
+                    api_key=getattr(settings, "HINDSIGHT_API_KEY", "") or None,
                     timeout=180.0,
                 )
                 try:
-                    max_concurrent = int(settings.HINDSIGHT_MAX_CONCURRENT)
+                    max_concurrent = int(getattr(settings, "HINDSIGHT_MAX_CONCURRENT", 64))
                 except (AttributeError, TypeError, ValueError):
                     max_concurrent = int(os.getenv("HINDSIGHT_MAX_CONCURRENT", "64"))
                 self._semaphore = await get_request_semaphore("hindsight", max_concurrent)
-                logger.info(f"[Hindsight] Created async client for: {settings.HINDSIGHT_BASE_URL}")
+                logger.info(f"[Hindsight] Created async client for: {base_url}")
             except Exception as e:
                 logger.error(f"[Hindsight] Failed to create client: {e}")
 
@@ -267,9 +268,10 @@ class HindsightBackend(MemoryBackend):
         context: Optional[str] = None,
         title: Optional[str] = None,
         summary: Optional[str] = None,
+        tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        del title, summary, existing_memory_id
+        del title, summary, tags, existing_memory_id
         if not self.client:
             return {"success": False, "error": "Hindsight client not initialized"}
         bank_id = self._get_bank_id(user_id)
@@ -311,7 +313,7 @@ class HindsightBackend(MemoryBackend):
                 "type": getattr(r, "type", "unknown"),
             }
             if hasattr(r, "chunks") and r.chunks:
-                memory_item["source"] = r.chunks[0].text if r.chunks[0].text else None
+                memory_item["source"] = getattr(r.chunks[0], "text", None)
             memories.append(memory_item)
 
         logger.info(f"[Hindsight] Recalled {len(memories)} memories for user {user_id}")

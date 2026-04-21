@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useInView } from "react-intersection-observer";
 import { useTranslation } from "react-i18next";
 import { Search, X, Hash } from "lucide-react";
@@ -45,6 +46,7 @@ export function SearchDialog({
   const [hasMore, setHasMore] = useState(false);
   const [skip, setSkip] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [skeletonVisible, setSkeletonVisible] = useState(false);
 
   // Infinite scroll sentinel
   const { ref: sentinelRef, inView } = useInView({
@@ -94,6 +96,7 @@ export function SearchDialog({
 
       if (reset) {
         setIsLoading(true);
+        setSkeletonVisible(true);
       } else {
         setIsLoadingMore(true);
       }
@@ -137,6 +140,9 @@ export function SearchDialog({
       } finally {
         setIsLoading(false);
         setIsLoadingMore(false);
+        if (reset) {
+          requestAnimationFrame(() => setSkeletonVisible(false));
+        }
       }
     },
     [searchQuery, skip, isLoadingMore, hasMore],
@@ -219,9 +225,9 @@ export function SearchDialog({
 
   if (!isAnimating) return null;
 
-  return (
+  return createPortal(
     <div
-      className={`fixed inset-0 z-[80] flex items-center justify-center transition-all duration-200 ease-out ${
+      className={`fixed inset-0 z-[300] flex items-center justify-center transition-all duration-200 ease-out ${
         visible ? "visible" : "invisible"
       }`}
     >
@@ -275,7 +281,7 @@ export function SearchDialog({
 
         {/* Results list */}
         <div
-          className="max-h-[50vh] overflow-y-auto scroll-smooth"
+          className="h-[50vh] overflow-y-auto scroll-smooth"
           style={{
             scrollbarWidth: "thin",
             scrollbarColor: "transparent transparent",
@@ -289,64 +295,85 @@ export function SearchDialog({
               "transparent transparent";
           }}
         >
-          {/* Loading state */}
-          {isLoading && <SkeletonList count={5} className="py-2" />}
-
-          {/* Empty search results */}
-          {!isLoading && hasQuery && allSessions.length === 0 && (
-            <div className="px-4 py-10 text-center">
-              <p className="text-sm text-stone-400 dark:text-stone-500">
-                {t("sidebar.noSearchResults")}
-              </p>
-              <p className="mt-1 text-xs text-stone-300 dark:text-stone-600">
-                &quot;{searchQuery}&quot;
-              </p>
+          {/* Results area — grid stacking prevents height jump during crossfade */}
+          <div className="grid h-full">
+            {/* Loading state — fades out when results arrive */}
+            <div
+              className={`[grid-area:1/1] h-full transition-opacity duration-150 ease-out ${
+                skeletonVisible
+                  ? "opacity-100"
+                  : "opacity-0 pointer-events-none"
+              }`}
+            >
+              <SkeletonList
+                count={12}
+                className="h-full flex flex-col py-2"
+                compact
+              />
             </div>
-          )}
 
-          {/* Session items */}
-          {!isLoading &&
-            allSessions.map(({ session, projectName }, index) => {
-              const isActive = index === activeIndex;
-              return (
-                <button
-                  key={session.id}
-                  ref={(el) => {
-                    if (el) {
-                      itemRefs.current.set(index, el);
-                    } else {
-                      itemRefs.current.delete(index);
-                    }
-                  }}
-                  onClick={() => onSelectSession(session.id)}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-75 group ${
-                    isActive
-                      ? "bg-stone-100 dark:bg-stone-800/60"
-                      : "hover:bg-stone-50 dark:hover:bg-stone-800/30"
-                  }`}
-                >
-                  <span className="flex-1 min-w-0 text-sm text-stone-700 dark:text-stone-200 truncate leading-snug">
-                    {getSessionTitle(session, t)}
-                  </span>
-                  {projectName && (
-                    <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 px-1.5 py-0.5 rounded-md">
-                      <Hash size={9} strokeWidth={2} />
-                      {projectName}
+            {/* Session items — fades in when skeleton fades out */}
+            <div
+              className={`[grid-area:1/1] transition-opacity duration-150 ease-out ${
+                !isLoading ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+            >
+              {/* Empty search results */}
+              {hasQuery && allSessions.length === 0 && (
+                <div className="px-4 py-10 text-center">
+                  <p className="text-sm text-stone-400 dark:text-stone-500">
+                    {t("sidebar.noSearchResults")}
+                  </p>
+                  <p className="mt-1 text-xs text-stone-300 dark:text-stone-600">
+                    &quot;{searchQuery}&quot;
+                  </p>
+                </div>
+              )}
+
+              {/* Session items */}
+              {allSessions.map(({ session, projectName }, index) => {
+                const isActive = index === activeIndex;
+                return (
+                  <button
+                    key={session.id}
+                    ref={(el) => {
+                      if (el) {
+                        itemRefs.current.set(index, el);
+                      } else {
+                        itemRefs.current.delete(index);
+                      }
+                    }}
+                    onClick={() => onSelectSession(session.id)}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-75 group ${
+                      isActive
+                        ? "bg-stone-100 dark:bg-stone-800/60"
+                        : "hover:bg-stone-50 dark:hover:bg-stone-800/30"
+                    }`}
+                  >
+                    <span className="flex-1 min-w-0 text-sm text-stone-700 dark:text-stone-200 truncate leading-snug">
+                      {getSessionTitle(session, t)}
                     </span>
-                  )}
-                </button>
-              );
-            })}
+                    {projectName && (
+                      <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-stone-400 dark:text-stone-500 bg-stone-100 dark:bg-stone-800/50 px-1.5 py-0.5 rounded-md">
+                        <Hash size={9} strokeWidth={2} />
+                        {projectName}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
 
-          {/* Infinite scroll sentinel */}
-          {!isLoading && hasMore && (
-            <div ref={sentinelRef} className="flex justify-center py-3">
-              {isLoadingMore && (
-                <div className="w-4 h-4 border-2 border-stone-300 dark:border-stone-600 border-t-stone-500 dark:border-t-stone-400 rounded-full animate-spin" />
+              {/* Infinite scroll sentinel */}
+              {hasMore && (
+                <div ref={sentinelRef} className="flex justify-center py-3">
+                  {isLoadingMore && (
+                    <div className="w-4 h-4 border-2 border-stone-300 dark:border-stone-600 border-t-stone-500 dark:border-t-stone-400 rounded-full animate-spin" />
+                  )}
+                </div>
               )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Bottom hint bar */}
@@ -378,6 +405,7 @@ export function SearchDialog({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

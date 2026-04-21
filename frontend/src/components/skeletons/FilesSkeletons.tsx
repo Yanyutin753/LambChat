@@ -30,17 +30,17 @@ export function FilesContentSkeleton() {
 
       {/* Content: session groups with grid cards */}
       <div className="flex-1 overflow-y-auto min-h-0 relative z-[1]">
-        <div className="flex flex-col pb-6 px-3 sm:px-5 md:px-6 gap-3 md:gap-6">
+        <div className="flex flex-col pb-6 px-5 md:px-6 gap-3 md:gap-6">
           {/* Session group 1 */}
           <div className="flex flex-col gap-2.5 md:gap-3">
-            <div className="flex items-center justify-between gap-2 pt-3 sm:pt-4 md:pt-5">
+            <div className="flex items-center justify-between gap-2 pt-4 md:pt-5">
               <SkeletonLine
                 width="w-32 sm:w-40"
                 className="!h-[14px] sm:!h-[15px] !rounded-md"
               />
               <div className="skeleton-line h-[16px] sm:h-[18px] w-8 sm:w-10 rounded-md" />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
@@ -71,14 +71,14 @@ export function FilesContentSkeleton() {
 
           {/* Session group 2 */}
           <div className="flex flex-col gap-2.5 md:gap-3">
-            <div className="flex items-center justify-between gap-2 pt-3 sm:pt-4 md:pt-5">
+            <div className="flex items-center justify-between gap-2 pt-4 md:pt-5">
               <SkeletonLine
                 width="w-24 sm:w-32"
                 className="!h-[14px] sm:!h-[15px] !rounded-md"
               />
               <div className="skeleton-line h-[16px] sm:h-[18px] w-8 sm:w-10 rounded-md" />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
               {[0, 1].map((i) => (
                 <div
                   key={i}

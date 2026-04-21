@@ -1,10 +1,10 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import { FolderOpen, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractPaths } from "./toolUtils";
-import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
+import { openPersistentToolPanel } from "./persistentToolPanelState";
 
 const LsItem = memo(function LsItem({
   args,
@@ -21,7 +21,6 @@ const LsItem = memo(function LsItem({
 }) {
   const { t } = useTranslation();
   const dirPath = (args.path as string) || "/";
-  const [panelOpen, setPanelOpen] = useState(false);
 
   const entries = useMemo(() => {
     return extractPaths(result);
@@ -100,8 +99,14 @@ const LsItem = memo(function LsItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
-          closeCurrentToolPanel();
-          setPanelOpen(true);
+          if (!canExpand) return;
+          openPersistentToolPanel({
+            title: `${t("chat.message.toolLs")} ${displayLabel}`,
+            icon: <FolderOpen size={16} />,
+            status,
+            subtitle: dirPath,
+            children: detailContent,
+          });
         }}
       >
         {canExpand && (
@@ -157,18 +162,6 @@ const LsItem = memo(function LsItem({
           </div>
         )}
       </CollapsiblePill>
-      {canExpand && (
-        <ToolResultPanel
-          open={panelOpen}
-          onClose={() => setPanelOpen(false)}
-          title={`${t("chat.message.toolLs")} ${displayLabel}`}
-          icon={<FolderOpen size={16} />}
-          status={status}
-          subtitle={dirPath}
-        >
-          {detailContent}
-        </ToolResultPanel>
-      )}
     </>
   );
 });

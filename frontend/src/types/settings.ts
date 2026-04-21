@@ -15,15 +15,24 @@ export type SettingCategory =
   | "llm"
   | "session"
   | "skills"
-  | "database"
+  | "mongodb"
+  | "redis"
+  | "checkpoint"
   | "long_term_storage"
-  | "memory"
   | "security"
-  | "sandbox"
+  | "email"
+  | "captcha"
   | "s3"
+  | "file_upload"
+  | "sandbox"
   | "tools"
   | "tracing"
-  | "user";
+  | "user"
+  | "oauth"
+  | "memory"
+  | "memory_embedding"
+  | "memory_search"
+  | "memory_storage";
 
 // Setting dependency condition
 export interface SettingDependsOn {
@@ -31,11 +40,32 @@ export interface SettingDependsOn {
   value: string | number | boolean; // Expected value for visibility
 }
 
+// JSON schema field definition
+export interface JsonSchemaField {
+  name: string;
+  type: "text" | "password" | "number" | "toggle" | "select";
+  label: string; // i18n key
+  placeholder?: string;
+  required?: boolean;
+  options?: string[];
+}
+
+// JSON schema for structured editing of JSON-type settings
+export interface JsonSchema {
+  type: "array" | "object";
+  item_label?: string; // i18n key for array items
+  key_label?: string; // i18n key for object keys (object type)
+  value_type?: "array"; // for object values that are arrays
+  key_options?: string[]; // allowed keys for object type
+  fields: JsonSchemaField[];
+}
+
 export interface SettingItem {
   key: string;
   value: string | number | boolean | object;
   type: SettingType;
   category: SettingCategory;
+  subcategory: string;
   description: string;
   default_value: string | number | boolean | object;
   requires_restart: boolean;
@@ -43,6 +73,7 @@ export interface SettingItem {
   frontend_visible: boolean;
   depends_on?: string | SettingDependsOn; // Key of parent setting or condition object
   options?: string[]; // Available options for SELECT type
+  json_schema?: JsonSchema; // Schema for JSON-type settings
   updated_at?: string;
   updated_by?: string;
 }

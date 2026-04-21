@@ -15,8 +15,11 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 
 from src.infra.logging import get_logger
-from src.infra.memory.client.base import MemoryBackend, create_memory_backend
-from src.infra.memory.client.hindsight import get_user_id_from_runtime
+from src.infra.memory.client.base import (
+    MemoryBackend,
+    create_memory_backend,
+    get_user_id_from_runtime,
+)
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
@@ -68,9 +71,8 @@ async def _get_backend() -> Optional[MemoryBackend]:
             _backend = await create_memory_backend()
             if _backend is None:
                 logger.warning(
-                    "[Memory] No backend available (ENABLE_MEMORY=%s, MEMORY_PERFORM=%s)",
+                    "[Memory] No backend available (ENABLE_MEMORY=%s)",
                     settings.ENABLE_MEMORY,
-                    getattr(settings, "MEMORY_PERFORM", "N/A"),
                 )
             else:
                 logger.info("[Memory] Backend initialized: %s", _backend.name)
@@ -96,6 +98,10 @@ async def memory_retain(
     context: Annotated[
         Optional[str],
         "Optional context or category for this memory (e.g., 'user_identity', 'project_constraint', 'feedback_rule', 'reference_link')",
+    ] = None,
+    tags: Annotated[
+        Optional[list[str]],
+        "Optional keyword tags for this memory (e.g., ['Go', 'React', 'newcomer']). Max 5 tags.",
     ] = None,
     existing_memory_id: Annotated[
         Optional[str],
@@ -130,6 +136,7 @@ async def memory_retain(
             context,
             title=title,
             summary=summary,
+            tags=tags,
             existing_memory_id=existing_memory_id,
         )
         return json.dumps(result, ensure_ascii=False)
@@ -277,22 +284,23 @@ async def _auto_retain_user_memory(user_id: str, user_input: str) -> None:
     if lock is None:
         lock = asyncio.Lock()
         _auto_capture_user_locks[user_id] = lock
-    async with lock:
-        instance_id = uuid.uuid4().hex[:8]
-        acquire_lock, release_lock = _get_auto_capture_lock_fns()
-        lock_state = await acquire_lock(user_id, instance_id)
-        if lock_state != "acquired":
-            _cleanup_local_auto_capture_lock(user_id, lock)
-            return
-        try:
-            backend = await _get_backend()
-            if backend is None or backend.name != "native":
+    try:
+        async with lock:
+            instance_id = uuid.uuid4().hex[:8]
+            acquire_lock, release_lock = _get_auto_capture_lock_fns()
+            lock_state = await acquire_lock(user_id, instance_id)
+            if lock_state != "acquired":
                 return
-            if hasattr(backend, "auto_retain_from_text"):
-                await backend.auto_retain_from_text(user_id, user_input)
-        finally:
-            await release_lock(user_id, instance_id)
-    _cleanup_local_auto_capture_lock(user_id, lock)
+            try:
+                backend = await _get_backend()
+                if backend is None:
+                    return
+                if hasattr(backend, "auto_retain_from_text"):
+                    await backend.auto_retain_from_text(user_id, user_input)
+            finally:
+                await release_lock(user_id, instance_id)
+    finally:
+        _cleanup_local_auto_capture_lock(user_id, lock)
 
 
 def schedule_auto_memory_capture(user_id: str, user_input: str) -> None:

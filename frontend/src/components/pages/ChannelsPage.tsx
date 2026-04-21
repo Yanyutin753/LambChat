@@ -255,6 +255,10 @@ export function ChannelsPage() {
   }
 
   // Show channel type list
+  if (isLoading) {
+    return <ChannelsPanelSkeleton />;
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
@@ -271,96 +275,91 @@ export function ChannelsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto py-4">
-        {isLoading ? (
-          <ChannelsPanelSkeleton />
-        ) : (
-          <div className="mx-auto max-w-full">
-            {channelTypes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center xl:py-20 2xl:py-24">
-                <div className="relative">
-                  <div className="absolute inset-0 rounded-full bg-[var(--theme-primary)]/20" />
-                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[var(--theme-primary-light)]">
-                    <Radio className="h-10 w-10 text-[var(--theme-text-secondary)]" />
-                  </div>
+        <div className="mx-auto max-w-full">
+          {channelTypes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center xl:py-20 2xl:py-24">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-[var(--theme-primary)]/20" />
+                <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-[var(--theme-primary-light)]">
+                  <Radio className="h-10 w-10 text-[var(--theme-text-secondary)]" />
                 </div>
-                <h3 className="mt-6 text-xl font-semibold text-[var(--theme-text)]">
-                  {t("channel.noChannels", "No channels available")}
-                </h3>
-                <p className="mt-2 max-w-md text-sm text-[var(--theme-text-secondary)]">
-                  {t(
-                    "channel.noChannelsDesc",
-                    "Check back later for available integrations",
-                  )}
-                </p>
               </div>
-            ) : (
-              <div className="space-y-3 p-3 sm:p-4">
-                {channelTypes.map((ct) => {
-                  const channelInstances = instances[ct.channel_type] || [];
-                  const instanceCount = channelInstances.length;
-                  const hasAnyConnected = channelInstances.some(
-                    (i) =>
-                      statuses[`${ct.channel_type}:${i.instance_id}`]
-                        ?.connected,
-                  );
+              <h3 className="mt-6 text-xl font-semibold text-[var(--theme-text)]">
+                {t("channel.noChannels", "No channels available")}
+              </h3>
+              <p className="mt-2 max-w-md text-sm text-[var(--theme-text-secondary)]">
+                {t(
+                  "channel.noChannelsDesc",
+                  "Check back later for available integrations",
+                )}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3 p-3 sm:p-4">
+              {channelTypes.map((ct) => {
+                const channelInstances = instances[ct.channel_type] || [];
+                const instanceCount = channelInstances.length;
+                const hasAnyConnected = channelInstances.some(
+                  (i) =>
+                    statuses[`${ct.channel_type}:${i.instance_id}`]?.connected,
+                );
 
-                  return (
-                    <div
-                      key={ct.channel_type}
-                      onClick={() => navigate(`/channels/${ct.channel_type}`)}
-                      className="panel-card cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {getChannelIcon(
-                              ct.icon,
-                              "text-[var(--theme-text-secondary)] flex-shrink-0",
-                            )}
-                            <h4 className="font-medium text-[var(--theme-text)] truncate">
-                              {ct.display_name}
-                            </h4>
-                            {/* Capabilities badges */}
-                            {ct.capabilities.includes("websocket") && (
-                              <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs font-medium text-[var(--theme-text-secondary)]">
-                                WS
+                return (
+                  <div
+                    key={ct.channel_type}
+                    onClick={() => navigate(`/channels/${ct.channel_type}`)}
+                    className="panel-card cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {getChannelIcon(
+                            ct.icon,
+                            "text-[var(--theme-text-secondary)] flex-shrink-0",
+                          )}
+                          <h4 className="font-medium text-[var(--theme-text)] truncate">
+                            {ct.display_name}
+                          </h4>
+                          {/* Capabilities badges */}
+                          {ct.capabilities.includes("websocket") && (
+                            <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs font-medium text-[var(--theme-text-secondary)]">
+                              WS
+                            </span>
+                          )}
+                          {ct.capabilities.includes("webhook") && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                              Hook
+                            </span>
+                          )}
+                          {/* Instance count badge */}
+                          {instanceCount > 0 && (
+                            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                              {instanceCount}{" "}
+                              {instanceCount === 1 ? "instance" : "instances"}
+                            </span>
+                          )}
+                          {instanceCount > 0 &&
+                            (hasAnyConnected ? (
+                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                                Connected
                               </span>
-                            )}
-                            {ct.capabilities.includes("webhook") && (
+                            ) : (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                                Hook
+                                Disconnected
                               </span>
-                            )}
-                            {/* Instance count badge */}
-                            {instanceCount > 0 && (
-                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                                {instanceCount}{" "}
-                                {instanceCount === 1 ? "instance" : "instances"}
-                              </span>
-                            )}
-                            {instanceCount > 0 &&
-                              (hasAnyConnected ? (
-                                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                                  Connected
-                                </span>
-                              ) : (
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                                  Disconnected
-                                </span>
-                              ))}
-                          </div>
-                          <p className="mt-2 text-sm text-[var(--theme-text-secondary)]">
-                            {ct.description}
-                          </p>
+                            ))}
                         </div>
+                        <p className="mt-2 text-sm text-[var(--theme-text-secondary)]">
+                          {ct.description}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

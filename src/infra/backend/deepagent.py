@@ -26,14 +26,14 @@ def _create_routes(
 
     from src.infra.backend.skills_store import create_skills_backend
 
-    def memory_namespace_factory(ctx: BackendContext) -> tuple[str, ...]:
+    def memory_namespace_factory(ctx: BackendContext) -> tuple[str, ...]:  # type: ignore[arg-type]
         return (assistant_id, "memories")
 
     skills_backend = create_skills_backend(user_id=user_id, runtime=rt)
 
     return {
         "/skills/": skills_backend,
-        "/memories/": StoreBackend(rt, namespace=memory_namespace_factory),
+        "/memories/": StoreBackend(rt, namespace=memory_namespace_factory),  # type: ignore[arg-type]
     }
 
 
@@ -70,11 +70,11 @@ def create_persistent_backend_factory(
 
         routes = _create_routes(rt, assistant_id, user_id or "default")
 
-        def default_namespace_factory(ctx: BackendContext) -> tuple[str, ...]:
+        def default_namespace_factory(ctx: BackendContext) -> tuple[str, ...]:  # type: ignore[arg-type]
             return (assistant_id, "filesystem")
 
         return CompositeBackend(
-            default=StoreBackend(rt, namespace=default_namespace_factory),
+            default=StoreBackend(rt, namespace=default_namespace_factory),  # type: ignore[arg-type]
             routes=routes,
         )
 

@@ -1,0 +1,228 @@
+/* ========================================
+   Syntax Highlighting - Light Mode (Default)
+   ======================================== */
+
+.hljs {
+  color: #18181b;
+  /* zinc-900 */
+  background: transparent;
+}
+
+/* Keywords (def, if, return, import, etc.) */
+.hljs-doctag,
+.hljs-keyword,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-variable.language_ {
+  color: #c026d3;
+  /* fuchsia-600 */
+}
+
+/* Function names */
+.hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__,
+.hljs-title.function_ {
+  color: #6d28d9;
+  /* violet-700 */
+}
+
+/* Variables, attributes, numbers */
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #0e7490;
+  /* cyan-700 */
+}
+
+/* Strings */
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string,
+.hljs-addition {
+  color: #047857;
+  /* emerald-700 */
+}
+
+/* Built-in functions, symbols */
+.hljs-built_in,
+.hljs-symbol {
+  color: #b45309;
+  /* amber-700 */
+}
+
+/* Comments */
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: #71717a;
+  /* zinc-500 */
+  font-style: italic;
+}
+
+/* Tags, selectors */
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: #c2410c;
+  /* orange-700 */
+}
+
+.hljs-subst {
+  color: #27272a;
+  /* zinc-800 */
+}
+
+.hljs-section {
+  color: #6d28d9;
+  font-weight: bold;
+}
+
+.hljs-bullet {
+  color: #b45309;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-deletion {
+  color: #b91c1c;
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Additional syntax colors */
+.hljs-params {
+  color: #c2410c;
+}
+
+.hljs-property {
+  color: #0e7490;
+}
+
+.hljs-punctuation {
+  color: #71717a;
+}
+
+.hljs-tag {
+  color: #c026d3;
+}
+
+/* ========================================
+   Syntax Highlighting - Dark Mode
+   ======================================== */
+
+.dark .hljs {
+  color: #fafafa;
+  /* zinc-50 */
+}
+
+.dark .hljs-doctag,
+.dark .hljs-keyword,
+.dark .hljs-meta .hljs-keyword,
+.dark .hljs-template-tag,
+.dark .hljs-template-variable,
+.dark .hljs-type,
+.dark .hljs-variable.language_ {
+  color: #f0abfc;
+  /* fuchsia-300 */
+}
+
+.dark .hljs-title,
+.dark .hljs-title.class_,
+.dark .hljs-title.class_.inherited__,
+.dark .hljs-title.function_ {
+  color: #c4b5fd;
+  /* violet-300 */
+}
+
+.dark .hljs-attr,
+.dark .hljs-attribute,
+.dark .hljs-literal,
+.dark .hljs-meta,
+.dark .hljs-number,
+.dark .hljs-operator,
+.dark .hljs-variable,
+.dark .hljs-selector-attr,
+.dark .hljs-selector-class,
+.dark .hljs-selector-id {
+  color: #67e8f9;
+  /* cyan-300 */
+}
+
+.dark .hljs-regexp,
+.dark .hljs-string,
+.dark .hljs-meta .hljs-string,
+.dark .hljs-addition {
+  color: #86efac;
+  /* green-300 */
+}
+
+.dark .hljs-built_in,
+.dark .hljs-symbol {
+  color: #fcd34d;
+  /* amber-300 */
+}
+
+.dark .hljs-comment,
+.dark .hljs-code,
+.dark .hljs-formula {
+  color: #a1a1aa;
+  /* zinc-400 */
+  font-style: italic;
+}
+
+.dark .hljs-name,
+.dark .hljs-quote,
+.dark .hljs-selector-tag,
+.dark .hljs-selector-pseudo {
+  color: #fdba74;
+  /* orange-300 */
+}
+
+.dark .hljs-subst {
+  color: #e4e4e7;
+}
+
+.dark .hljs-section {
+  color: #c4b5fd;
+}
+
+.dark .hljs-bullet {
+  color: #fcd34d;
+}
+
+.dark .hljs-deletion {
+  color: #fca5a5;
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.dark .hljs-params {
+  color: #fdba74;
+}
+
+.dark .hljs-property {
+  color: #67e8f9;
+}
+
+.dark .hljs-punctuation {
+  color: #a1a1aa;
+}
+
+.dark .hljs-tag {
+  color: #f0abfc;
+}

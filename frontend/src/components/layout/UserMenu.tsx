@@ -16,6 +16,8 @@ import {
   User,
   ShoppingBag,
   Cpu,
+  Bell,
+  Brain,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -33,7 +35,7 @@ interface UserMenuProps {
 export function UserMenu({ onShowProfile }: UserMenuProps) {
   const { t } = useTranslation();
   const { logout, hasAnyPermission, user } = useAuth();
-  const { enableSkills } = useSettingsContext();
+  const { enableSkills, enableMemory } = useSettingsContext();
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
@@ -64,6 +66,9 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canManageAgents = hasAnyPermission([Permission.AGENT_READ]);
   const canManageModels = hasAnyPermission([Permission.MODEL_ADMIN]);
+  const canManageNotifications = hasAnyPermission([
+    Permission.NOTIFICATION_MANAGE,
+  ]);
 
   // Reactive mobile detection
   useEffect(() => {
@@ -150,6 +155,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       icon: MessageCircle,
       show: canReadChannels,
     },
+    {
+      path: "/memory",
+      label: t("nav.memory"),
+      icon: Brain,
+      show: enableMemory,
+    },
   ];
 
   const userSettingsItems = [
@@ -185,6 +196,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       label: t("nav.feedback"),
       icon: Star,
       show: canViewFeedback,
+    },
+    {
+      path: "/notifications",
+      label: t("nav.notifications"),
+      icon: Bell,
+      show: canManageNotifications,
     },
     {
       path: "/settings",

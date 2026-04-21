@@ -21,8 +21,7 @@ Recall full memory details before relying on a relevant item.
 ## File Transfer
 Different storage backends are routed by path prefix:
 - `/skills/*` → skill store (MongoDB)
-- `/memories/*` → memory store (DB)
-- Other paths → workspace/sandbox
+- Other paths → workspace
 
 Tools:
 - `transfer_file(src, dst)` — Transfer a **single** text file between any two backends (bidirectional).

@@ -68,6 +68,7 @@ export function GithubImportModal({
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="bottom-sheet-handle sm:hidden" />
           <div className="skill-modal-header">
@@ -133,7 +134,14 @@ export function GithubImportModal({
                   >
                     <span className="inline-flex items-center justify-center gap-2">
                       <span className="inline-flex h-4 w-4 items-center justify-center">
-                        {githubLoading ? <LoadingSpinner size="sm" /> : null}
+                        {githubLoading ? (
+                          <LoadingSpinner
+                            size="sm"
+                            color="text-[var(--theme-primary)]"
+                          />
+                        ) : (
+                          <Sparkles size={16} />
+                        )}
                       </span>
                       <span>{t("skills.preview")}</span>
                     </span>
@@ -225,15 +233,16 @@ export function GithubImportModal({
                   }
                   className="btn-secondary disabled:opacity-50"
                 >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <span className="inline-flex h-4 w-4 items-center justify-center">
-                      {githubExporting ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <Archive size={18} />
-                      )}
-                    </span>
-                    <span>{t("skills.exportZip")}</span>
+                  {githubExporting ? (
+                    <LoadingSpinner
+                      size="sm"
+                      color="text-[var(--theme-primary)]"
+                    />
+                  ) : (
+                    <Archive size={16} />
+                  )}
+                  <span className="hidden sm:inline">
+                    {t("skills.exportZip")}
                   </span>
                 </button>
                 <button
@@ -243,19 +252,15 @@ export function GithubImportModal({
                   }
                   className="btn-primary disabled:opacity-50"
                 >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <span className="inline-flex h-4 w-4 items-center justify-center">
-                      {githubInstalling ? (
-                        <LoadingSpinner size="sm" color="text-white" />
-                      ) : (
-                        <Upload size={18} />
-                      )}
-                    </span>
-                    <span>
-                      {t("skills.installSelected", {
-                        count: selectedGithubSkills.length,
-                      })}
-                    </span>
+                  {githubInstalling ? (
+                    <LoadingSpinner size="sm" color="text-white" />
+                  ) : (
+                    <Upload size={16} />
+                  )}
+                  <span className="hidden sm:inline">
+                    {t("skills.installSelected", {
+                      count: selectedGithubSkills.length,
+                    })}
                   </span>
                 </button>
               </div>

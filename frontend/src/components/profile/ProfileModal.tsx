@@ -12,6 +12,7 @@ import {
   Scale,
 } from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
+
 import { APP_NAME } from "../../constants";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import { ProfileNotificationTab } from "./tabs/ProfileNotificationTab";
@@ -47,6 +48,7 @@ export function ProfileModal({
   versionInfo,
 }: ProfileModalProps) {
   const { t } = useTranslation();
+
   const [activeTab, setActiveTab] = useState<
     | "info"
     | "notification"
@@ -137,7 +139,7 @@ export function ProfileModal({
 
   const renderFooter = (className?: string) => (
     <div
-      className={`px-5 py-3 border-t border-stone-100 dark:border-stone-700/50 flex items-center justify-between bg-stone-50/50 dark:bg-stone-900/30 ${
+      className={`px-4 sm:px-5 py-2.5 sm:py-3 border-t border-stone-100 dark:border-stone-700/50 flex items-center justify-between bg-stone-50/50 dark:bg-stone-900/30 whitespace-nowrap ${
         className ?? ""
       }`}
     >
@@ -152,7 +154,7 @@ export function ProfileModal({
           {APP_NAME}
         </span>
         {versionInfo?.app_version && (
-          <span className="ml-1.5 opacity-70">v{versionInfo.app_version}</span>
+          <span className="ml-1 opacity-70">v{versionInfo.app_version}</span>
         )}
       </a>
       <a
@@ -160,7 +162,7 @@ export function ProfileModal({
         target="_blank"
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
-        className="px-2 text-[11px] font-medium text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-700/60"
+        className="px-1.5 sm:px-2 text-[11px] font-medium text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 transition-colors py-1 rounded-md hover:bg-stone-100 dark:hover:bg-stone-700/60 shrink-0"
       >
         {t("common.poweredBy")}
       </a>
@@ -169,7 +171,7 @@ export function ProfileModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-end sm:items-center sm:justify-center"
+      className="fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center"
       onClick={() => onCloseProfileModal()}
     >
       {/* Backdrop */}

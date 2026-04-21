@@ -12,21 +12,13 @@ import { LoadingSpinner } from "../../../common";
 
 import { useSwipeToClose } from "../../../../hooks/useSwipeToClose";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
+import { registerToolPanel } from "./toolPanelRegistry";
+export { closeCurrentToolPanel } from "./toolPanelRegistry";
 
-// Module-level singleton: only one panel open at a time
-let _currentClose: (() => void) | null = null;
 // Reference counter so that the old panel's cleanup cannot remove the attribute
 // while the new panel is still open (useLayoutEffect cleanup fires in a later
 // render cycle than the new panel's setup).
 let _compressionCount = 0;
-
-/** Close any currently open ToolResultPanel (call before opening a new one) */
-export function closeCurrentToolPanel() {
-  if (_currentClose) {
-    _currentClose();
-    _currentClose = null;
-  }
-}
 
 interface ToolResultPanelProps {
   open: boolean;
@@ -48,6 +40,10 @@ interface ToolResultPanelProps {
   overlayClass?: string;
   /** Custom panel className (overrides default) */
   panelClass?: string;
+  /** Optional external ref to the root panel element */
+  panelElementRef?: React.Ref<HTMLDivElement>;
+  /** Called when the user explicitly manipulates the panel UI */
+  onUserInteraction?: () => void;
 }
 
 const statusConfig: Record<
@@ -67,17 +63,17 @@ const statusConfig: Record<
   success: {
     bg: "bg-emerald-100/80 dark:bg-emerald-900/30",
     color: "text-emerald-600 dark:text-emerald-400",
-    icon: <CheckCircle size={14} />,
+    icon: <CheckCircle size={16} />,
   },
   error: {
     bg: "bg-red-100/80 dark:bg-red-900/30",
     color: "text-red-600 dark:text-red-400",
-    icon: <XCircle size={14} />,
+    icon: <XCircle size={16} />,
   },
   cancelled: {
     bg: "bg-amber-100/80 dark:bg-amber-900/30",
     color: "text-amber-600 dark:text-amber-400",
-    icon: <Ban size={14} />,
+    icon: <Ban size={16} />,
   },
 };
 
@@ -95,8 +91,34 @@ export function ToolResultPanel({
   footer,
   overlayClass,
   panelClass,
+  panelElementRef,
+  onUserInteraction,
 }: ToolResultPanelProps) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [animateIn, setAnimateIn] = useState(false);
+
+  // Double-rAF: first frame paints the panel off-screen (translate-y-full),
+  // second frame kicks off the slide-in animation.  This guarantees zero
+  // white flash on all browsers — a single rAF can still leak one painted
+  // frame on mobile WebKit.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        setAnimateIn(true);
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+  const panelOwnerRef = useRef(
+    Symbol(`tool-result-panel:${title || "untitled"}`),
+  );
+  const latestOnCloseRef = useRef(onClose);
   const [sidebarWidth, setSidebarWidth] = useState(
     () =>
       parseInt(localStorage.getItem("sidebar-preview-width") || "35", 10) || 35,
@@ -112,6 +134,10 @@ export function ToolResultPanel({
   } | null>(null);
 
   // Track viewport size
+  useEffect(() => {
+    latestOnCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
     setIsMobile(mq.matches); // set initial value immediately
@@ -129,38 +155,40 @@ export function ToolResultPanel({
     localStorage.setItem("sidebar-preview-width", String(sidebarWidth));
   }, [sidebarWidth]);
 
-  // Signal main layout compression (desktop sidebar mode)
-  // Use useLayoutEffect to avoid visual flash between render and layout.
-  // A module-level ref-counter is used so that when panel A closes (its cleanup
-  // fires in a *later* render cycle) while panel B is already open, the
-  // attribute is not removed prematurely.
+  // Layout-level side-effects (run synchronously before paint to prevent flash).
+  // Combined into a single useLayoutEffect to avoid multiple layout flushes.
   useLayoutEffect(() => {
-    if (!open || isMobile || viewMode === "center") return;
-    _compressionCount++;
-    if (_compressionCount === 1) {
-      document.documentElement.setAttribute("data-sidebar-preview", "open");
-    }
-    return () => {
-      _compressionCount--;
-      if (_compressionCount === 0) {
-        document.documentElement.removeAttribute("data-sidebar-preview");
-      }
-    };
-  }, [open, isMobile, viewMode]);
-
-  // Body scroll lock (mobile bottom-sheet + center fullscreen)
-  useEffect(() => {
     if (!open) return;
-    if (!isMobile && viewMode !== "center") return; // sidebar keeps scroll
-    const scrollbarWidth =
-      window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
+
+    // Desktop sidebar: signal main layout compression
+    if (!isMobile && viewMode !== "center") {
+      _compressionCount++;
+      if (_compressionCount === 1) {
+        document.documentElement.setAttribute("data-sidebar-preview", "open");
+      }
     }
+
+    // Mobile bottom-sheet / center fullscreen: lock body scroll
+    if (isMobile || viewMode === "center") {
+      const scrollbarWidth =
+        window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.overflow = "hidden";
+      if (scrollbarWidth > 0) {
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      }
+    }
+
     return () => {
-      document.body.style.overflow = "";
-      document.body.style.paddingRight = "";
+      if (!isMobile && viewMode !== "center") {
+        _compressionCount--;
+        if (_compressionCount === 0) {
+          document.documentElement.removeAttribute("data-sidebar-preview");
+        }
+      }
+      if (isMobile || viewMode === "center") {
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+      }
     };
   }, [open, isMobile, viewMode]);
 
@@ -168,6 +196,7 @@ export function ToolResultPanel({
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
+      if (document.fullscreenElement) return;
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handler);
@@ -177,12 +206,10 @@ export function ToolResultPanel({
   // Register as the active panel (singleton — closes any previous panel)
   useEffect(() => {
     if (!open) return;
-    closeCurrentToolPanel(); // auto-close any previously open panel
-    _currentClose = onClose;
-    return () => {
-      if (_currentClose === onClose) _currentClose = null;
-    };
-  }, [open, onClose]);
+    return registerToolPanel(panelOwnerRef.current, () =>
+      latestOnCloseRef.current(),
+    );
+  }, [open]);
 
   // Cleanup drag resize resources (used on mouseup and on unmount)
   const cleanupResize = useCallback((indicator: HTMLDivElement | null) => {
@@ -216,6 +243,7 @@ export function ToolResultPanel({
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      onUserInteraction?.();
       isResizing.current = true;
       const startX = e.clientX;
       const root = document.documentElement;
@@ -259,7 +287,7 @@ export function ToolResultPanel({
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    [sidebarWidth, cleanupResize],
+    [sidebarWidth, cleanupResize, onUserInteraction],
   );
 
   // Mobile swipe to close
@@ -283,8 +311,16 @@ export function ToolResultPanel({
           : isCenter
             ? "overflow-hidden h-full relative"
             : isMobile
-              ? "max-h-[92vh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)]"
-              : "h-full sm:rounded-l-2xl relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] animate-[slide-in-right_200ms_ease-out]"
+              ? `max-h-[92vh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] ${
+                  animateIn
+                    ? "animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)_backwards]"
+                    : ""
+                }`
+              : `h-full relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
+                  animateIn
+                    ? "animate-[slide-in-right_200ms_ease-out_backwards]"
+                    : ""
+                }`
       }`}
       ref={(el) => {
         // Merge refs
@@ -295,12 +331,27 @@ export function ToolResultPanel({
           (panelRef as React.MutableRefObject<HTMLDivElement | null>).current =
             el;
         }
+        if (typeof panelElementRef === "function") {
+          panelElementRef(el);
+        } else if (panelElementRef) {
+          (
+            panelElementRef as React.MutableRefObject<HTMLDivElement | null>
+          ).current = el;
+        }
       }}
       {...(isSidebar && !isMobile ? { "data-sidebar-panel": "" } : {})}
       style={
         isSidebar && !isMobile && !panelClass
-          ? { maxWidth: `${sidebarWidth}%`, minWidth: "min(320px, 80vw)" }
-          : undefined
+          ? {
+              maxWidth: `${sidebarWidth}%`,
+              minWidth: "min(320px, 80vw)",
+              ...(animateIn ? {} : { transform: "translateX(100%)" }),
+            }
+          : !animateIn && !panelClass && !isCenter
+            ? isMobile
+              ? { transform: "translateY(100%)" }
+              : undefined
+            : undefined
       }
       onClick={(e) => e.stopPropagation()}
     >
@@ -342,13 +393,13 @@ export function ToolResultPanel({
             <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 shrink-0 whitespace-nowrap">
               {/* Status + Icon */}
               <div
-                className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 ${cfg.bg}`}
+                className={`flex items-center justify-center size-10 rounded-xl shrink-0 ${cfg.bg}`}
               >
                 {status === "loading" ? (
                   <LoadingSpinner
-                    size="xs"
+                    size="sm"
                     className="shrink-0"
-                    color="text-blue-600 dark:text-blue-400"
+                    color={cfg.color || "text-blue-600 dark:text-blue-400"}
                   />
                 ) : (
                   <span
@@ -369,7 +420,7 @@ export function ToolResultPanel({
                     {title}
                   </h3>
                   {subtitle && (
-                    <p className="text-xs hidden sm:block text-stone-500 dark:text-stone-400 mt-0.5">
+                    <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
                       {subtitle}
                     </p>
                   )}
@@ -386,7 +437,7 @@ export function ToolResultPanel({
                   e.stopPropagation();
                   onClose();
                 }}
-                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 active:bg-stone-200 dark:active:bg-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors duration-150 active:scale-95 cursor-pointer shrink-0"
+                className="flex items-center justify-center size-10 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 active:bg-stone-200 dark:active:bg-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors duration-150 active:scale-95 cursor-pointer shrink-0"
                 aria-label="Close"
               >
                 <X size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -426,7 +477,7 @@ export function ToolResultPanel({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[300] flex flex-col ${
+      className={`fixed inset-0 z-[200] flex flex-col ${
         overlayClass
           ? overlayClass
           : isCenter

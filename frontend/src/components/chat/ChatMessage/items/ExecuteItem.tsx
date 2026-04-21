@@ -1,10 +1,10 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { clsx } from "clsx";
 import { Terminal, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill } from "../../../common";
 import { extractText } from "./toolUtils";
-import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
+import { openPersistentToolPanel } from "./persistentToolPanelState";
 
 const ExecuteItem = memo(function ExecuteItem({
   args,
@@ -22,7 +22,6 @@ const ExecuteItem = memo(function ExecuteItem({
   const { t } = useTranslation();
   const command = (args.command as string) || "";
   const timeout = args.timeout as number | undefined;
-  const [panelOpen, setPanelOpen] = useState(false);
 
   const parsed = useMemo(() => {
     if (!result) return { output: "", exitCode: null, truncated: false };
@@ -131,9 +130,15 @@ const ExecuteItem = memo(function ExecuteItem({
         variant="tool"
         expandable={canExpand}
         onPanelOpen={() => {
-          if (panelOpen) return;
-          closeCurrentToolPanel();
-          setPanelOpen(true);
+          if (!canExpand) return;
+          openPersistentToolPanel({
+            title: t("chat.message.toolExecute"),
+            icon: <Terminal size={16} />,
+            status,
+            subtitle:
+              command.length > 120 ? command.slice(0, 117) + "…" : command,
+            children: detailContent,
+          });
         }}
       >
         {canExpand && (
@@ -194,20 +199,6 @@ const ExecuteItem = memo(function ExecuteItem({
           </div>
         )}
       </CollapsiblePill>
-      {canExpand && (
-        <ToolResultPanel
-          open={panelOpen}
-          onClose={() => setPanelOpen(false)}
-          title={t("chat.message.toolExecute")}
-          icon={<Terminal size={16} />}
-          status={status}
-          subtitle={
-            command.length > 120 ? command.slice(0, 117) + "…" : command
-          }
-        >
-          {detailContent}
-        </ToolResultPanel>
-      )}
     </>
   );
 });

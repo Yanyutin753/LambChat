@@ -83,6 +83,7 @@ async def list_sessions(
     limit: int = Query(20, ge=1, le=100, description="返回的会话数量"),
     status: Optional[str] = Query(None, description="状态过滤: active 或 archived"),
     project_id: Optional[str] = Query(None, description="项目过滤: 项目ID 或 'none'(未分类)"),
+    search: Optional[str] = Query(None, description="搜索关键词，模糊匹配会话名称"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -123,6 +124,7 @@ async def list_sessions(
         limit=limit,
         is_active=is_active,
         project_id=project_id,
+        search=search,
     )
 
     return {
@@ -238,14 +240,14 @@ async def get_session_events(
     if event_types:
         types_list = [t.strip() for t in event_types.split(",") if t.strip()]
 
-    # 重要：completed_only=False，确保正在运行的 trace 中的事件也被返回
+    # 重要：completed_only=True，确保正在运行的 trace 中的事件不要被返回，而是单独去请求/stream接口，避免重复返回事件，导致前端消息重复显示。
     # 否则刷新页面时，当前 run 的 user:message 事件会丢失，导致消息合并
     events = await dual_writer.read_session_events(
         session_id,
         types_list,
         run_id=run_id,
         exclude_run_id=exclude_run_id,
-        completed_only=False,
+        completed_only=True,
     )
 
     # 获取 session 的 current_run_id 用于响应

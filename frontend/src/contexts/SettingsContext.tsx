@@ -23,6 +23,7 @@ export interface AvailableModel {
 interface SettingsContextValue {
   settings: SettingsResponse | null;
   enableSkills: boolean;
+  enableMemory: boolean;
   isLoading: boolean;
   error: string | null;
   savingKeys: Set<string>;
@@ -106,6 +107,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const value: SettingsContextValue = {
     settings,
     enableSkills: getBooleanSetting("ENABLE_SKILLS"),
+    enableMemory: getBooleanSetting("ENABLE_MEMORY"),
     availableModels,
     defaultModel,
     isLoading,

@@ -1,0 +1,101 @@
+/* ═══════════════════════════════════════════
+   Welcome Page Styles — Ambient Refinement
+   ═══════════════════════════════════════════ */
+
+/* Welcome root */
+.welcome-root {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.welcome-root::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Content layers ── */
+.welcome-greeting,
+.welcome-subtitle,
+.welcome-input,
+.welcome-suggestions {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Icon subtle pulse ── */
+.welcome-icon {
+  animation: welcome-icon-pulse 3s ease-in-out infinite;
+}
+
+@keyframes welcome-icon-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+/* ── Refresh button ── */
+.welcome-refresh-btn {
+  border-radius: 0.5rem;
+}
+.welcome-refresh-btn:hover {
+  background-color: var(--theme-primary-light) !important;
+  color: var(--theme-text) !important;
+}
+
+/* ── Suggestion cards — clean elevated style ── */
+.welcome-card {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+/* Hover shimmer overlay */
+.welcome-card-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in srgb, var(--theme-primary) 4%, transparent) 50%,
+    transparent 60%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.45s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.welcome-card:hover .welcome-card-shimmer {
+  transform: translateX(100%);
+}
+
+.welcome-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 16%,
+    var(--theme-border)
+  );
+  background-color: var(--theme-bg) !important;
+  box-shadow: 0 1px 4px -1px color-mix(in srgb, var(--theme-text) 3%, transparent);
+}
+
+.dark .welcome-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 20%,
+    var(--theme-border)
+  );
+  box-shadow: 0 1px 6px -1px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+}
+
+.welcome-card:active {
+  transform: scale(0.98);
+  transition-duration: 0.08s;
+}
+
+/* ── Mobile suggestion pills ── */

@@ -39,7 +39,6 @@ For multi-file frontend projects, use `reveal_project(project_path, name, templa
 ### File Transfer
 Different storage backends are routed by path prefix:
 - `/skills/*` → skill store (MongoDB)
-- `/memories/*` → memory store (DB)
 - Other paths → sandbox workspace (Daytona/E2B)
 
 Tools:
@@ -55,24 +54,12 @@ When uncertain, use `ask_human`. Never guess.
 # ---------------------------------------------------------------------------
 # 共享 Memory 段
 # ---------------------------------------------------------------------------
-HINDSIGHT_MEMORY_SECTION = """## Cross-Session Memory
-
-Tools: `memory_retain`(store), `memory_recall`(search), `memory_delete`(remove)
-
-- `memory_recall`: Call when you lack user context (preferences, past projects). NOT needed at every conversation start.
-- `memory_retain`: Store important user info selectively. Skip trivial data.
-"""
-
-EMPTY_MEMORY_SECTION = ""
 
 
-def get_memory_guide(memory_perform: str) -> str:
-    """Build memory guide based on active backend."""
-    if memory_perform == "native":
-        from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
+def get_memory_guide() -> str:
+    from src.infra.memory.client.types import NATIVE_MEMORY_GUIDE
 
-        return NATIVE_MEMORY_GUIDE
-    return HINDSIGHT_MEMORY_SECTION
+    return NATIVE_MEMORY_GUIDE
 
 
 # ---------------------------------------------------------------------------

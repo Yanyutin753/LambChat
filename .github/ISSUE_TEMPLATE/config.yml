@@ -1,9 +1,0 @@
----
-blank_issues_enabled: false
-contact_links:
-  - name: 📖 文档 / Documentation
-    url: https://github.com/Yanyutin753/LambChat#readme
-    about: 查看项目文档 / Check the project documentation
-  - name: 💬 讨论 / Discussions
-    url: https://github.com/Yanyutin753/LambChat/discussions
-    about: 参与社区讨论 / Join the community discussion

@@ -1,0 +1,426 @@
+.auth-shell {
+  background: #ffffff;
+  position: relative;
+}
+
+html.dark .auth-shell {
+  background: #0c0a09;
+}
+
+html,
+body {
+  background: #ffffff;
+}
+
+html.dark,
+html.dark body {
+  background: #0c0a09;
+}
+
+/* Auth crosshatch background (matches landing page) */
+.auth-crosshatch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-crosshatch::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+html.dark .auth-crosshatch::before {
+  background-image: linear-gradient(
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+}
+
+/* Auth atmospheric gradients (matches landing page hero) */
+.auth-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Auth panel - clean card */
+.auth-panel {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgba(231, 229, 228, 0.6);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+html.dark .auth-panel {
+  border-color: rgba(68, 64, 60, 0.5);
+  background: rgba(28, 25, 23, 0.85);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* Auth input - refined with better visual weight */
+.auth-input {
+  border: 1px solid rgba(231, 229, 228, 0.8);
+  background: rgba(250, 250, 249, 0.6);
+  color: #1c1917;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.auth-input::placeholder {
+  color: rgba(168, 162, 158, 0.6);
+}
+
+.auth-input:focus {
+  border-color: #78716c;
+  background: #fff;
+  box-shadow:
+    0 0 0 3px rgba(120, 113, 108, 0.08),
+    0 1px 4px rgba(0, 0, 0, 0.04);
+  outline: none;
+}
+
+html.dark .auth-input {
+  border-color: rgba(68, 64, 60, 0.8);
+  background: rgba(12, 10, 9, 0.5);
+  color: #fafaf9;
+}
+
+html.dark .auth-input::placeholder {
+  color: rgba(168, 162, 158, 0.45);
+}
+
+html.dark .auth-input:focus {
+  border-color: #a8a29e;
+  background: rgba(12, 10, 9, 0.7);
+  box-shadow:
+    0 0 0 3px rgba(168, 162, 158, 0.06),
+    0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 浏览器自动填充样式覆盖 */
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus,
+.auth-input:autofill,
+.auth-input:autofill:hover,
+.auth-input:autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #fafaf9 inset !important;
+  -webkit-text-fill-color: #1c1917 !important;
+  background-color: #fafaf9 !important;
+  background-image: none !important;
+  border-color: #e7e5e4 !important;
+  border-radius: 0.625rem !important;
+  color: #1c1917 !important;
+}
+
+html.dark .auth-input:-webkit-autofill,
+html.dark .auth-input:-webkit-autofill:hover,
+html.dark .auth-input:-webkit-autofill:focus,
+html.dark .auth-input:autofill,
+html.dark .auth-input:autofill:hover,
+html.dark .auth-input:autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #1c1917 inset !important;
+  -webkit-text-fill-color: #fafaf9 !important;
+  background-color: #1c1917 !important;
+  border-color: #44403c !important;
+  color: #fafaf9 !important;
+}
+
+/* Auth primary button - elegant solid with weight */
+.auth-primary-button {
+  position: relative;
+  overflow: hidden;
+  background: #1c1917;
+  color: #fafaf9;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.auth-primary-button:hover {
+  background: #292524;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.12),
+    0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+html.dark .auth-primary-button {
+  background: #f5f5f4;
+  color: #1c1917;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+html.dark .auth-primary-button:hover {
+  background: #fafaf9;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.25),
+    0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Shimmer sweep on hover (matches blog-btn-primary) */
+.auth-primary-button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.auth-primary-button:hover::after {
+  left: 100%;
+}
+
+html.dark .auth-primary-button::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.06),
+    transparent
+  );
+}
+
+/* Auth secondary button - ghost pill (matches landing ghost button) */
+.auth-secondary-button {
+  border: 1px solid rgba(231, 229, 228, 0.8);
+  background: transparent;
+  color: #78716c;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.auth-secondary-button:hover {
+  color: #1c1917;
+  border-color: #a8a29e;
+  background: rgba(245, 245, 244, 0.5);
+}
+
+html.dark .auth-secondary-button {
+  border-color: rgba(68, 64, 60, 0.5);
+  color: #a8a29e;
+}
+
+html.dark .auth-secondary-button:hover {
+  color: #fafaf9;
+  border-color: #78716c;
+  background: rgba(41, 37, 36, 0.5);
+}
+
+.auth-accent-icon {
+  background: rgba(245, 245, 244, 0.8);
+  color: #78716c;
+}
+
+html.dark .auth-accent-icon {
+  background: rgba(41, 37, 36, 0.8);
+  color: #a8a29e;
+}
+
+.auth-accent-badge {
+  background: rgba(245, 245, 244, 0.8);
+  color: #78716c;
+}
+
+html.dark .auth-accent-badge {
+  background: rgba(41, 37, 36, 0.8);
+  color: #a8a29e;
+}
+
+.auth-muted-panel {
+  background: rgba(250, 250, 249, 0.6);
+  border: 1px solid rgba(231, 229, 228, 0.4);
+}
+
+html.dark .auth-muted-panel {
+  background: rgba(12, 10, 9, 0.4);
+  border-color: rgba(68, 64, 60, 0.3);
+}
+
+/* ===== Auth Animations ===== */
+
+/* Form mode switch animation (login <-> register) */
+.auth-form-animate {
+  animation: auth-form-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-form-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Status icon entrance (success / error / loading) */
+.auth-status-icon {
+  animation: auth-icon-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes auth-icon-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Pulse ring on status icon */
+.auth-status-icon::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0;
+  animation: auth-icon-ring 0.6s 0.3s ease-out both;
+}
+
+@keyframes auth-icon-ring {
+  from {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+/* Auth panel entrance */
+.auth-panel {
+  animation: auth-panel-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Auth title entrance */
+.auth-shell h1 {
+  animation: auth-title-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-title-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* OAuth buttons stagger entrance */
+.auth-shell .auth-panel > div:first-child > div > button {
+  animation: auth-oauth-enter 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.auth-shell .auth-panel > div:first-child > div > button:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.auth-shell .auth-panel > div:first-child > div > button:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.auth-shell .auth-panel > div:first-child > div > button:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+@keyframes auth-oauth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Password toggle button hover */
+.auth-input + button,
+.auth-input ~ button {
+  transition: color 0.15s ease;
+}
+
+/* Button press effect */
+.auth-primary-button:active:not(:disabled),
+.auth-secondary-button:active:not(:disabled) {
+  transform: scale(0.98) !important;
+}
+
+/* Error message entrance */
+.auth-shell .border-red-200\/60,
+.auth-shell .border-red-900\/40 {
+  animation: auth-error-enter 0.25s ease-out both;
+}
+
+@keyframes auth-error-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-form-animate,
+  .auth-status-icon,
+  .auth-status-icon::after,
+  .auth-panel,
+  .auth-shell h1,
+  .auth-shell .auth-panel > div:first-child > div > button,
+  .auth-shell .border-red-200\/60,
+  .auth-shell .border-red-900\/40 {
+    animation: none !important;
+  }
+
+  .auth-primary-button::after {
+    transition: none !important;
+  }
+}

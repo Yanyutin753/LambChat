@@ -75,6 +75,7 @@ class SettingsStorage:
                 value=value,
                 type=definition["type"],
                 category=definition["category"],
+                subcategory=definition.get("subcategory", ""),
                 description=definition["description"],
                 default_value=default_value,
                 requires_restart=key in RESTART_REQUIRED_SETTINGS,
@@ -82,6 +83,7 @@ class SettingsStorage:
                 frontend_visible=definition.get("frontend_visible", False),
                 depends_on=definition.get("depends_on"),
                 options=definition.get("options"),
+                json_schema=definition.get("json_schema"),
                 updated_at=db_doc.get("updated_at") if db_doc else None,
                 updated_by=db_doc.get("updated_by") if db_doc else None,
             )
@@ -122,6 +124,7 @@ class SettingsStorage:
             value=value,
             type=definition["type"],
             category=definition["category"],
+            subcategory=definition.get("subcategory", ""),
             description=definition["description"],
             default_value=default_value,
             requires_restart=key in RESTART_REQUIRED_SETTINGS,
@@ -129,6 +132,7 @@ class SettingsStorage:
             frontend_visible=definition.get("frontend_visible", False),
             depends_on=definition.get("depends_on"),
             options=definition.get("options"),
+            json_schema=definition.get("json_schema"),
             updated_at=doc.get("updated_at") if doc else None,
             updated_by=doc.get("updated_by") if doc else None,
         )

@@ -127,6 +127,7 @@ class MemoryBackend(ABC):
         context: Optional[str] = None,
         title: Optional[str] = None,
         summary: Optional[str] = None,
+        tags: Optional[list[str]] = None,
         existing_memory_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Store a memory."""
@@ -166,50 +167,23 @@ async def create_memory_backend() -> Optional[MemoryBackend]:
     """
     Create the active memory backend based on configuration.
 
-    Returns None if no backend is configured or memory is disabled via master switch.
-    Provider selection is controlled by MEMORY_PERFORM: "memu", "hindsight", or "native".
+    Returns None if memory is disabled via master switch.
+    Only native (MongoDB-backed) backend is supported.
     """
     from src.kernel.config import settings
 
     if not settings.ENABLE_MEMORY:
         return None
 
-    perform = getattr(settings, "MEMORY_PERFORM", "memu")
+    try:
+        from src.infra.memory.client.native import NativeMemoryBackend
 
-    backend: MemoryBackend | None = None
-
-    if perform == "memu":
-        try:
-            from src.infra.memory.client.memu import MemuBackend
-
-            backend = MemuBackend()
-            await backend.initialize()
-            if backend.client:
-                return backend
-        except Exception as e:
-            logger.warning(f"[Memory] Failed to initialize memU backend: {e}")
-
-    if perform == "native":
-        try:
-            from src.infra.memory.client.native import NativeMemoryBackend
-
-            backend = NativeMemoryBackend()
-            await backend.initialize()
-            if backend._collection is not None:
-                return backend
-        except Exception as e:
-            logger.warning(f"[Memory] Failed to initialize native backend: {e}")
-
-    if perform == "hindsight":
-        try:
-            from src.infra.memory.client.hindsight import HindsightBackend
-
-            backend = HindsightBackend()
-            await backend.initialize()
-            if backend.client:
-                return backend
-        except Exception as e:
-            logger.warning(f"[Memory] Failed to initialize Hindsight backend: {e}")
+        backend = NativeMemoryBackend()
+        await backend.initialize()
+        if backend._collection is not None:
+            return backend
+    except Exception as e:
+        logger.warning(f"[Memory] Failed to initialize native backend: {e}")
 
     return None
 
@@ -219,3 +193,20 @@ def is_memory_enabled() -> bool:
     from src.kernel.config import settings
 
     return settings.ENABLE_MEMORY
+
+
+def get_user_id_from_runtime(runtime: Any) -> Optional[str]:
+    """Extract user_id from ToolRuntime context."""
+    if not runtime:
+        return None
+    try:
+        if hasattr(runtime, "config"):
+            config = runtime.config
+            if isinstance(config, dict):
+                configurable = config.get("configurable", {})
+                context = configurable.get("context")
+                if context and hasattr(context, "user_id"):
+                    return context.user_id
+    except Exception:
+        pass
+    return None

@@ -2,6 +2,7 @@
 会话存储层
 """
 
+import re
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -170,6 +171,7 @@ class SessionStorage:
         limit: int = 100,
         is_active: Optional[bool] = None,
         project_id: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> tuple[list[Session], int]:
         """列出会话，返回 (sessions, total_count)
 
@@ -180,6 +182,7 @@ class SessionStorage:
                        - None: 不过滤项目
                        - "none": 只返回未分类的会话（没有project_id）
                        - 其他值: 只返回该项目内的会话
+            search: 搜索关键词，模糊匹配会话名称
         """
         query: dict[str, Any] = {}
         if user_id is not None:
@@ -187,6 +190,9 @@ class SessionStorage:
             query["user_id"] = user_id
         if is_active is not None:
             query["is_active"] = is_active
+
+        if search:
+            query["name"] = {"$regex": re.escape(search), "$options": "i"}
 
         # Project filter
         if project_id == "none":
@@ -227,6 +233,21 @@ class SessionStorage:
             {"$set": {"metadata.project_id": None, "updated_at": datetime.now()}},
         )
         return result.modified_count
+
+    async def delete_by_project(self, project_id: str, user_id: str) -> int:
+        """Delete all sessions in a project.
+
+        Args:
+            project_id: The project ID
+            user_id: The user ID (for ownership verification)
+
+        Returns:
+            Number of deleted sessions
+        """
+        result = await self.collection.delete_many(
+            {"user_id": user_id, "metadata.project_id": project_id},
+        )
+        return result.deleted_count
 
     async def move_to_project(
         self, session_id: str, user_id: str, project_id: Optional[str]

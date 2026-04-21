@@ -21,6 +21,7 @@ import { SessionItem } from "./SessionItem";
 import { ProjectMenu } from "./ProjectMenu";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DynamicIcon } from "../common/DynamicIcon";
+import { shouldAutoExpandProject } from "./autoExpandProject";
 
 export interface ProjectItemHandle {
   refresh: () => Promise<void>;
@@ -44,6 +45,7 @@ interface ProjectItemProps {
   draggingSessionId?: string | null;
   onNewSessionInProject?: (projectId: string) => void;
   forceExpandProjectId?: string | null;
+  onConsumeAutoExpand?: (projectId: string) => void;
 }
 
 export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
@@ -60,6 +62,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       draggingSessionId,
       onNewSessionInProject,
       forceExpandProjectId,
+      onConsumeAutoExpand,
       onUpdateIcon,
       scrollRoot,
     },
@@ -105,10 +108,13 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
 
     // Auto-expand when a new session is created in this project
     useEffect(() => {
-      if (forceExpandProjectId === project.id) {
-        setIsExpanded(true);
+      if (!shouldAutoExpandProject(forceExpandProjectId, project.id)) {
+        return;
       }
-    }, [forceExpandProjectId, project.id]);
+
+      setIsExpanded(true);
+      onConsumeAutoExpand?.(project.id);
+    }, [forceExpandProjectId, onConsumeAutoExpand, project.id]);
 
     // Expose handle to parent
     useImperativeHandle(
@@ -293,7 +299,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               <DynamicIcon
                 name={project.icon}
                 size={18}
-                className="text-stone-500 dark:text-stone-400 fill-current"
+                className="text-stone-500 dark:text-stone-400 fill-current text-[18px]"
               />
             </button>
           )}
@@ -341,7 +347,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
           <div className="ml-3 mt-0.5 flex flex-col gap-px">
             {isLoading ? (
               <div className="flex justify-center py-4">
-                <LoadingSpinner size="sm" />
+                <LoadingSpinner size="sm" color="text-[var(--theme-primary)]" />
               </div>
             ) : sessions.length > 0 ? (
               <>
@@ -364,7 +370,12 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
                 ))}
                 {hasMore && (
                   <div ref={loadMoreRef} className="flex justify-center py-2">
-                    {isLoadingMore && <LoadingSpinner size="xs" />}
+                    {isLoadingMore && (
+                      <LoadingSpinner
+                        size="xs"
+                        color="text-[var(--theme-primary)]"
+                      />
+                    )}
                   </div>
                 )}
               </>

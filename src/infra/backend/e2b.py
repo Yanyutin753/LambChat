@@ -4,7 +4,7 @@
 支持 Firecracker microVM 隔离，~150ms 冷启动。
 
 特性：
-- 原生 Filesystem API：ls_info / read / write / glob_info 直接走 E2B SDK，不经过 shell
+- 原生 Filesystem API：ls / read / write / glob 直接走 E2B SDK，不经过 shell
 - Auto-Pause + Auto-Resume：超时自动暂停（保留状态），下次操作自动恢复
 - Commands streaming：支持 on_stdout/on_stderr 回调实时输出
 - Metadata 标记：创建沙箱时传入 user_id 用于可观测性
@@ -21,6 +21,9 @@ from deepagents.backends.protocol import (
     FileDownloadResponse,
     FileInfo,
     FileUploadResponse,
+    GlobResult,
+    LsResult,
+    ReadResult,
     WriteResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
@@ -43,7 +46,7 @@ class E2BBackend(BaseSandbox):
     使用 e2b Python SDK 执行命令和操作文件。
     所有同步 SDK 调用通过 asyncio.to_thread 在线程池中执行，避免阻塞事件循环。
 
-    文件操作 (ls_info, read, write, glob_info) 使用 E2B 原生 Filesystem API，
+    文件操作 (ls, read, write, glob) 使用 E2B 原生 Filesystem API，
     绕过 shell 命令，性能更好且更安全。
     """
 
@@ -206,7 +209,7 @@ class E2BBackend(BaseSandbox):
             return True
         return False
 
-    def ls_info(self, path: str) -> list[FileInfo]:
+    def ls(self, path: str) -> LsResult:
         """使用 E2B 原生 files.list() 列出目录"""
         try:
             entries = self._sandbox.files.list(path=path)
@@ -218,23 +221,19 @@ class E2BBackend(BaseSandbox):
                 if hasattr(entry, "size"):
                     info["size"] = entry.size
                 result.append(info)
-            return result
+            return LsResult(entries=result)
         except Exception as e:
             logger.warning(f"E2B files.list({path}) failed: {e}, falling back to execute()")
-            return super().ls_info(path)
+            return super().ls(path)
 
-    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
-        """使用 E2B 原生 files.read() 读取文件，支持 offset/limit 行号"""
+    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
+        """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断"""
         try:
             content = self._sandbox.files.read(path=file_path, format="text")
-            lines = content.split("\n")
-            # offset 是 0-indexed 行号，limit 是最大行数
-            selected = lines[offset : offset + limit]
-            # 添加行号，与 BaseSandbox 默认行为一致
-            numbered = []
-            for i, line in enumerate(selected, start=offset + 1):
-                numbered.append(f"{i}\t{line}")
-            return "\n".join(numbered)
+            if offset > 0:
+                lines = content.split("\n")
+                content = "\n".join(lines[offset:])
+            return ReadResult(file_data={"content": content, "encoding": "utf-8"})
         except Exception as e:
             logger.warning(f"E2B files.read({file_path}) failed: {e}, falling back to execute()")
             return super().read(file_path, offset, limit)
@@ -257,7 +256,7 @@ class E2BBackend(BaseSandbox):
             logger.error(f"E2B files.write({file_path}) failed: {e}")
             return WriteResult(path=file_path, error=error)
 
-    def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
+    def glob(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> GlobResult:
         """使用 E2B 原生 files.list() 递归搜索匹配 glob 模式的文件
 
         E2B 没有 glob API，所以用 list 递归列出后在 Python 端过滤。
@@ -266,15 +265,12 @@ class E2BBackend(BaseSandbox):
         try:
             import fnmatch
 
-            # 递归列出目录内容
             entries = self._sandbox.files.list(path=path)
             result: list[FileInfo] = []
 
             def _match_glob(entries_list: list[Any], current_path: str, depth: int) -> None:
                 if depth > _max_depth:
-                    logger.warning(
-                        f"E2B glob_info reached max depth {_max_depth} at {current_path}"
-                    )
+                    logger.warning(f"E2B glob reached max depth {_max_depth} at {current_path}")
                     return
                 for entry in entries_list:
                     full_path = entry.path
@@ -287,7 +283,6 @@ class E2BBackend(BaseSandbox):
                         if hasattr(entry, "size"):
                             info["size"] = entry.size
                         result.append(info)
-                    # 递归进入子目录
                     if is_dir:
                         try:
                             sub_entries = self._sandbox.files.list(path=full_path)
@@ -296,10 +291,10 @@ class E2BBackend(BaseSandbox):
                             pass
 
             _match_glob(entries, path, 0)
-            return result
+            return GlobResult(matches=result)
         except Exception as e:
-            logger.warning(f"E2B glob_info({pattern}) failed: {e}, falling back to execute()")
-            return super().glob_info(pattern, path)
+            logger.warning(f"E2B glob({pattern}) failed: {e}, falling back to execute()")
+            return super().glob(pattern, path)
 
     # =========================================================================
     # File upload / download (already native, no change needed to logic)

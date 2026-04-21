@@ -17,16 +17,28 @@ import {
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { TodoBlock } from "./TodoBlock";
+import { SummaryItem } from "./SummaryItem";
+import type { RevealPreviewRequest } from "./items/revealPreviewData";
+import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
   part,
   isStreaming,
   isLast,
+  allowAutoPreview,
+  activePreview,
+  onOpenPreview,
 }: {
   part: MessagePart;
   isStreaming?: boolean;
   isLast: boolean;
+  allowAutoPreview?: boolean;
+  activePreview?: RevealPreviewRequest | null;
+  onOpenPreview?: (
+    preview: RevealPreviewRequest,
+    source?: RevealPreviewOpenSource,
+  ) => boolean;
 }) {
   const { t } = useTranslation();
 
@@ -61,6 +73,9 @@ export function MessagePartRenderer({
           success={part.success}
           isPending={part.isPending}
           cancelled={part.cancelled}
+          allowAutoPreview={allowAutoPreview}
+          activePreview={activePreview}
+          onOpenPreview={onOpenPreview}
         />
       );
     }
@@ -73,6 +88,9 @@ export function MessagePartRenderer({
           success={part.success}
           isPending={part.isPending}
           cancelled={part.cancelled}
+          allowAutoPreview={allowAutoPreview}
+          activePreview={activePreview}
+          onOpenPreview={onOpenPreview}
         />
       );
     }
@@ -208,7 +226,20 @@ export function MessagePartRenderer({
     );
   }
 
-  // Cancelled block
+  // Summary block
+  if (part.type === "summary") {
+    const panelKey = `summary:${part.agent_id || "root"}:${part.depth || 0}:${
+      part.summary_id || "default"
+    }`;
+    return (
+      <SummaryItem
+        content={part.content}
+        isStreaming={isStreaming && isLast && part.isStreaming}
+        panelKey={panelKey}
+      />
+    );
+  }
+
   if (part.type === "cancelled") {
     return (
       <div

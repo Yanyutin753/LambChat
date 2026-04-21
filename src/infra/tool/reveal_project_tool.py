@@ -475,32 +475,32 @@ async def _execute_command(backend: Any, command: str) -> Optional[str]:
 
 
 async def _list_project_files_via_glob(backend: Any, project_path: str) -> list[str]:
-    """使用 glob_info 递归列出项目文件（适用于非沙箱 backend，效率高于逐级 ls_info）"""
+    """使用 glob 递归列出项目文件（适用于非沙箱 backend，效率高于逐级 ls）"""
     pattern = "**/*"
 
-    # 优先使用 async 版本
-    if hasattr(backend, "aglob_info"):
+    if hasattr(backend, "aglob"):
         try:
-            entries = await backend.aglob_info(pattern, path=project_path)
+            result = await backend.aglob(pattern, path=project_path)
+            entries = result.matches or []
             files = [
                 entry.get("path") if isinstance(entry, dict) else getattr(entry, "path", None)
-                for entry in (entries or [])
+                for entry in entries
             ]
             return [f for f in files if f]
         except Exception as e:
-            logger.debug(f"aglob_info failed for {project_path}: {e}")
+            logger.debug(f"aglob failed for {project_path}: {e}")
 
-    # 回退到 sync 版本
-    if hasattr(backend, "glob_info"):
+    if hasattr(backend, "glob"):
         try:
-            entries = await asyncio.to_thread(backend.glob_info, pattern, project_path)
+            result = await asyncio.to_thread(backend.glob, pattern, project_path)
+            entries = result.matches or []
             files = [
                 entry.get("path") if isinstance(entry, dict) else getattr(entry, "path", None)
-                for entry in (entries or [])
+                for entry in entries
             ]
             return [f for f in files if f]
         except Exception as e:
-            logger.debug(f"glob_info failed for {project_path}: {e}")
+            logger.debug(f"glob failed for {project_path}: {e}")
 
     return []
 
@@ -508,7 +508,7 @@ async def _list_project_files_via_glob(backend: Any, project_path: str) -> list[
 async def _list_project_files_via_backend_api(
     backend: Any, project_path: str
 ) -> tuple[list[str], bool]:
-    """使用 backend 的原生 ls_info 递归列出项目文件（glob 不可用时的兜底方案）"""
+    """使用 backend 的原生 ls 递归列出项目文件（glob 不可用时的兜底方案）"""
     files: set[str] = set()
     pending = [project_path]
     visited: set[str] = set()
@@ -520,26 +520,27 @@ async def _list_project_files_via_backend_api(
             continue
         visited.add(current)
 
-        # 优先使用 async 版本
-        if hasattr(backend, "als_info"):
+        if hasattr(backend, "als"):
             try:
-                entries = await backend.als_info(current)
+                result = await backend.als(current)
+                entries = result.entries or []
             except Exception as e:
-                logger.debug(f"als_info failed for {current}: {e}")
+                logger.debug(f"als failed for {current}: {e}")
                 had_errors = True
                 continue
-        elif hasattr(backend, "ls_info"):
+        elif hasattr(backend, "ls"):
             try:
-                entries = await asyncio.to_thread(backend.ls_info, current)
+                result = await asyncio.to_thread(backend.ls, current)
+                entries = result.entries or []
             except Exception as e:
-                logger.debug(f"ls_info failed for {current}: {e}")
+                logger.debug(f"ls failed for {current}: {e}")
                 had_errors = True
                 continue
         else:
             had_errors = True
             continue
 
-        for entry in entries or []:
+        for entry in entries:
             if isinstance(entry, dict):
                 entry_path = entry.get("path")
                 is_dir = bool(entry.get("is_dir"))
@@ -562,7 +563,7 @@ async def _list_project_files(backend: Any, project_path: str) -> list[str]:
     """递归列出项目目录下的所有文件，根据 backend 类型选择最优策略。
 
     - 沙箱 backend（Daytona/E2B）：shell find 为主，原生 API 补充
-    - 非沙箱 backend（State/Store）：glob_info 为主，递归 ls_info 兜底
+    - 非沙箱 backend（State/Store）：glob 为主，递归 ls 兜底
     """
     if _is_sandbox_backend(backend):
         # 沙箱模式：shell find 最可靠
@@ -587,7 +588,7 @@ async def _list_project_files(backend: Any, project_path: str) -> list[str]:
         )
         return sorted(set(files))
     else:
-        # 非沙箱模式：glob_info 高效递归
+        # 非沙箱模式：glob 高效递归
         glob_files = await _list_project_files_via_glob(backend, project_path)
 
         if glob_files:
@@ -596,7 +597,7 @@ async def _list_project_files(backend: Any, project_path: str) -> list[str]:
             )
             return sorted(glob_files)
 
-        # glob 不可用时回退到递归 ls_info
+        # glob 不可用时回退到递归 ls
         api_files, _ = await _list_project_files_via_backend_api(backend, project_path)
         logger.debug(
             f"_list_project_files({project_path}) [non-sandbox]: ls_fallback={len(api_files)}"
@@ -667,7 +668,7 @@ async def _upload_file(
             if max_size
             else 50 * 1024 * 1024
         )
-        if len(content_bytes) > max_size:
+        if len(content_bytes) > max_size:  # type: ignore[operator]
             logger.info(f"Skipping large file: {rel_path} ({len(content_bytes)} bytes)")
             return None
 

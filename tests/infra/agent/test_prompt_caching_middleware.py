@@ -52,6 +52,67 @@ def test_retag_tools_tags_multiple_tail_tools() -> None:
     assert retagged[2].extras == {"cache_control": {"type": "ephemeral"}}
 
 
+async def test_prompt_caching_middleware_skips_non_anthropic_models() -> None:
+    middleware = PromptCachingMiddleware()
+
+    class _Request:
+        def __init__(self) -> None:
+            self.model = object()
+            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
+            self.tools = [_FakeTool(name="alpha", description="a")]
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.model = kwargs.get("model", self.model)
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            clone.tools = kwargs.get("tools", self.tools)
+            return clone
+
+    async def _handler(request):
+        return request
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert isinstance(result.system_message.content, list)
+    assert "cache_control" not in result.system_message.content[0]
+    assert result.tools[0].extras in (None, {})
+
+
+async def test_prompt_caching_middleware_tags_anthropic_wrapped_models() -> None:
+    middleware = PromptCachingMiddleware()
+
+    class _AnthropicLike:
+        pass
+
+    _AnthropicLike.__module__ = "langchain_anthropic.chat_models"
+
+    class _Binding:
+        def __init__(self) -> None:
+            self.bound = _AnthropicLike()
+
+    class _Request:
+        def __init__(self) -> None:
+            self.model = _Binding()
+            self.system_message = SystemMessage(content=[{"type": "text", "text": "base"}])
+            self.tools = [_FakeTool(name="alpha", description="a")]
+
+        def override(self, **kwargs):
+            clone = _Request()
+            clone.model = kwargs.get("model", self.model)
+            clone.system_message = kwargs.get("system_message", self.system_message)
+            clone.tools = kwargs.get("tools", self.tools)
+            return clone
+
+    async def _handler(request):
+        return request
+
+    result = await middleware.awrap_model_call(_Request(), _handler)
+
+    assert isinstance(result.system_message.content, list)
+    assert result.system_message.content[0]["cache_control"] == {"type": "ephemeral"}
+    assert result.tools[0].extras == {"cache_control": {"type": "ephemeral"}}
+
+
 def test_deferred_manager_returns_discovered_tools_in_sorted_order() -> None:
     manager = DeferredToolManager(
         all_deferred_tools=[
@@ -83,6 +144,22 @@ def test_deferred_prompt_string_is_stably_sorted() -> None:
 
     assert prompt.index("- beta:list") < prompt.index("- alpha:create: alpha create")
     assert prompt.index("- alpha:create: alpha create") < prompt.index("- zeta:lookup: zeta lookup")
+
+
+def test_deferred_prompt_string_survives_prior_stub_cache_access() -> None:
+    manager = DeferredToolManager(
+        all_deferred_tools=[
+            _FakeTool(name="alpha:create", description="alpha create", server="alpha"),
+        ],
+        session_id="session-1",
+    )
+
+    stubs = manager.get_deferred_stubs()
+    prompt = manager.get_deferred_stubs_string()
+
+    assert [stub.name for stub in stubs] == ["alpha:create"]
+    assert "## MCP Tools (Deferred)" in prompt
+    assert "- alpha:create: alpha create" in prompt
 
 
 async def test_section_prompt_middleware_appends_separate_blocks() -> None:

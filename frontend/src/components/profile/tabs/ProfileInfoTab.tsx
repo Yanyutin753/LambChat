@@ -2,13 +2,18 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, Pencil, Check } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { Mail, ExternalLink } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
+import { useSettings } from "../../../hooks/useSettings";
 import { Permission } from "../../../types";
 import { authApi, uploadApi } from "../../../services/api";
 
 export function ProfileInfoTab() {
   const { t } = useTranslation();
   const { user, refreshUser, hasPermission } = useAuth();
+  const { getSettingValue } = useSettings();
+  const adminEmail = getSettingValue("ADMIN_CONTACT_EMAIL") as string | null;
+  const adminUrl = getSettingValue("ADMIN_CONTACT_URL") as string | null;
 
   // Username change state
   const [isEditingUsername, setIsEditingUsername] = useState(false);
@@ -297,6 +302,45 @@ export function ProfileInfoTab() {
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Contact Info */}
+        {(adminEmail || adminUrl) && (
+          <div className="mt-5 pt-5 border-t border-stone-100 dark:border-stone-700/60 space-y-0">
+            <p className="text-xs text-stone-400 dark:text-stone-500 mb-1">
+              {t("about.contactTitle", "Contact")}
+            </p>
+            {adminEmail && (
+              <a
+                href={`mailto:${adminEmail}`}
+                className="flex items-center justify-between py-3.5 border-b border-stone-100 dark:border-stone-700/60 gap-3 group"
+              >
+                <span className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 shrink-0">
+                  <Mail size={14} />
+                  {t("profile.email", "Email")}
+                </span>
+                <span className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                  {adminEmail}
+                </span>
+              </a>
+            )}
+            {adminUrl && (
+              <a
+                href={adminUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between py-3.5 gap-3 group"
+              >
+                <span className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400 shrink-0">
+                  <ExternalLink size={14} />
+                  {t("about.contactSupport", "Support")}
+                </span>
+                <span className="text-sm font-medium text-stone-400 dark:text-stone-500 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                  →
+                </span>
+              </a>
+            )}
           </div>
         )}
       </div>
