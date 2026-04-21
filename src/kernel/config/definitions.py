@@ -985,4 +985,11 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 8,
         "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
     },
+    "NATIVE_MEMORY_RECALL_MIN_SCORE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY,
+        "description": "Minimum relevance score (0.0-1.0) for memory recall results. Memories scoring below this threshold are filtered out to reduce noise. Set to 0.0 to disable filtering.",
+        "default": 0.3,
+        "depends_on": {"key": "MEMORY_PERFORM", "value": "native"},
+    },
 }
