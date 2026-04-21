@@ -18,8 +18,8 @@ dependencies = [
     "langchain-mcp-adapters>=0.1.0", # MCP integration
     "langgraph>=1.0.9",
     "langsmith>=0.2.0",
-    "deepagents>=0.4.0", # Deep Agent framework
-    "deepagents-backends>=0.1.0",
+    "deepagents>=0.5.3", # Deep Agent framework
+    "deepagents-backends>=0.2.0",
     "tiktoken>=0.9.0",
     # Async & Streaming
     "sse-starlette>=2.2.0",
