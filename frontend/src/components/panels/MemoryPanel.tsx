@@ -560,7 +560,7 @@ export function MemoryPanel() {
 
                   {/* Tags */}
                   {memory.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
+                    <div className="my-3 flex flex-wrap gap-1.5">
                       {memory.tags.slice(0, 3).map((tag) => (
                         <span key={tag} className="glass-tag glass-tag--accent">
                           {tag}
