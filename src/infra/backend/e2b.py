@@ -12,8 +12,10 @@
 """
 
 import asyncio
+import base64
 import os
 import shlex
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from deepagents.backends.protocol import (
@@ -226,10 +228,92 @@ class E2BBackend(BaseSandbox):
             logger.warning(f"E2B files.list({path}) failed: {e}, falling back to execute()")
             return super().ls(path)
 
+    _BINARY_EXTENSIONS = frozenset(
+        (
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".gif",
+            ".heic",
+            ".heif",
+            ".bmp",
+            ".ico",
+            ".svg",
+            ".tiff",
+            ".tif",
+            ".avif",
+            ".mp4",
+            ".mpeg",
+            ".mov",
+            ".avi",
+            ".flv",
+            ".mpg",
+            ".webm",
+            ".wmv",
+            ".3gpp",
+            ".mkv",
+            ".wav",
+            ".mp3",
+            ".aiff",
+            ".aac",
+            ".ogg",
+            ".flac",
+            ".m4a",
+            ".opus",
+            ".pdf",
+            ".ppt",
+            ".pptx",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".zip",
+            ".tar",
+            ".gz",
+            ".7z",
+            ".rar",
+            ".bz2",
+            ".exe",
+            ".dll",
+            ".so",
+            ".bin",
+            ".dat",
+            ".woff",
+            ".woff2",
+            ".ttf",
+            ".otf",
+            ".eot",
+        )
+    )
+
+    @staticmethod
+    def _is_likely_binary(content: str) -> bool:
+        """Heuristic: if text read contains null bytes or >30% non-printable chars, treat as binary."""
+        if "\x00" in content:
+            return True
+        sample = content[:4096]
+        if len(sample) < 32:
+            return False
+        non_text = sum(1 for c in sample if ord(c) < 32 and c not in "\t\n\r")
+        return non_text / len(sample) > 0.3
+
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
         """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断"""
         try:
+            # Binary files: read as bytes and base64-encode
+            ext = PurePosixPath(file_path).suffix.lower()
+            if ext in self._BINARY_EXTENSIONS:
+                raw = self._sandbox.files.read(path=file_path, format="bytes")
+                encoded = base64.standard_b64encode(raw).decode("ascii")
+                return ReadResult(file_data={"content": encoded, "encoding": "base64"})
+
             content = self._sandbox.files.read(path=file_path, format="text")
+            # Fallback: detect binary content that wasn't caught by extension
+            if self._is_likely_binary(content):
+                raw = self._sandbox.files.read(path=file_path, format="bytes")
+                encoded = base64.standard_b64encode(raw).decode("ascii")
+                return ReadResult(file_data={"content": encoded, "encoding": "base64"})
             if offset > 0:
                 lines = content.split("\n")
                 content = "\n".join(lines[offset:])
