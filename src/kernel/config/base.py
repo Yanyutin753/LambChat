@@ -247,6 +247,7 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_INLINE_CONTENT_MAX_CHARS: int = 1200
     NATIVE_MEMORY_STORE_NAMESPACE: str = "memories"
     NATIVE_MEMORY_APPEND_MAX_DETAILS: int = 8
+    NATIVE_MEMORY_RECALL_MIN_SCORE: float = 0.3
 
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),

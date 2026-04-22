@@ -677,4 +677,12 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "default": 90,
         "depends_on": "ENABLE_MEMORY",
     },
+    "NATIVE_MEMORY_RECALL_MIN_SCORE": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.MEMORY_STORAGE,
+        "subcategory": "policy",
+        "description": "settingDesc.NATIVE_MEMORY_RECALL_MIN_SCORE",
+        "default": 0.3,
+        "depends_on": "ENABLE_MEMORY",
+    },
 }

@@ -12,6 +12,7 @@
 """
 
 import asyncio
+import base64
 import os
 import shlex
 from typing import TYPE_CHECKING, Any, Callable, Literal
@@ -226,10 +227,58 @@ class E2BBackend(BaseSandbox):
             logger.warning(f"E2B files.list({path}) failed: {e}, falling back to execute()")
             return super().ls(path)
 
+    # magic bytes → MIME
+    _MAGIC: list[tuple[bytes, str]] = [
+        (b"\x89PNG", "image/png"),
+        (b"\xff\xd8", "image/jpeg"),
+        (b"GIF8", "image/gif"),
+        (b"RIFFWEBP", "image/webp"),
+        (b"%PDF-", "application/pdf"),
+    ]
+
+    @staticmethod
+    def _guess_mime_type(path: str, data: bytes) -> str:
+        """根据扩展名 + magic bytes 猜测 MIME 类型"""
+        import mimetypes
+
+        mime, _ = mimetypes.guess_type(path)
+        if mime:
+            return mime
+        head = data[:12]
+        for sig, mt in E2BBackend._MAGIC:
+            if head.startswith(sig):
+                return mt
+        return "application/octet-stream"
+
+    def _read_as_data_uri(self, file_path: str, raw: bytes) -> ReadResult:
+        """将二进制数据包装为 data URI 返回"""
+        mime = self._guess_mime_type(file_path, raw)
+        data_uri = f"data:{mime};base64,{base64.standard_b64encode(raw).decode()}"
+        return ReadResult(file_data={"content": data_uri, "encoding": "data_uri"})
+
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
-        """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断"""
+        """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断
+
+        自动检测二进制文件，返回 data URI 而非裸 base64。
+        """
         try:
+            # 先尝试文本读取
             content = self._sandbox.files.read(path=file_path, format="text")
+
+            # 二进制检测：null bytes 或高比例不可打印字符
+            if "\x00" in content:
+                raw = self._sandbox.files.read(path=file_path, format="bytes")
+                return self._read_as_data_uri(file_path, raw)
+
+            # 长文本且几乎全是 base64 字符 → 可能是裸 base64 的二进制文件
+            stripped = content.strip()
+            if len(stripped) >= 100:
+                sample = stripped[:4096]
+                non_text = sum(1 for c in sample if ord(c) < 32 and c not in "\t\n\r")
+                if non_text / len(sample) > 0.3:
+                    raw = self._sandbox.files.read(path=file_path, format="bytes")
+                    return self._read_as_data_uri(file_path, raw)
+
             if offset > 0:
                 lines = content.split("\n")
                 content = "\n".join(lines[offset:])
