@@ -79,7 +79,11 @@ async def list_servers(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Get all visible MCP servers (system + user's own)"""
-    servers = await storage.get_visible_servers(user.sub)
+    servers = await storage.get_visible_servers(
+        user.sub,
+        is_admin=_is_admin(user),
+        user_roles=user.roles,
+    )
     return MCPServersResponse(servers=servers)
 
 
@@ -200,6 +204,11 @@ async def get_server(
     # Try system server
     system_server = await storage.get_system_server(name)
     if system_server:
+        # Role-based access control: check if user can see this system server
+        if system_server.allowed_roles and not _is_admin(user):
+            if not set(user.roles).intersection(system_server.allowed_roles):
+                raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+
         # Only the creator can see sensitive fields (url, headers, command, env_keys)
         is_creator = (system_server.created_by or system_server.updated_by) == user.sub
         return MCPServerResponse(
@@ -212,6 +221,7 @@ async def get_server(
             env_keys=system_server.env_keys if is_creator else None,
             is_system=True,
             can_edit=False,  # System servers are managed through admin routes
+            allowed_roles=system_server.allowed_roles,
             created_at=system_server.created_at,
             updated_at=system_server.updated_at,
         )
@@ -307,7 +317,7 @@ async def discover_server_tools(
     Connects to the server and lists its available tools with descriptions and parameters.
     This endpoint does NOT use cache - it always probes the server directly.
     """
-    tools, error = await storage.discover_server_tools(name, user.sub)
+    tools, error = await storage.discover_server_tools(name, user.sub, user_roles=user.roles)
 
     return MCPToolDiscoveryResponse(
         server_name=name,
@@ -374,8 +384,8 @@ async def admin_list_servers(
     user: TokenPayload = Depends(require_permissions("mcp:admin")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
-    """Get all MCP servers (admin view - includes all system servers)"""
-    servers = await storage.get_visible_servers(user.sub, is_admin=True)
+    """Get all MCP servers (admin view - includes all system servers, bypasses role filter)"""
+    servers = await storage.get_visible_servers(user.sub, is_admin=True, user_roles=user.roles)
     return MCPServersResponse(servers=servers)
 
 
@@ -401,6 +411,7 @@ async def admin_create_server(
         env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
+        allowed_roles=server.allowed_roles,
         created_at=server.created_at,
         updated_at=server.updated_at,
     )
@@ -470,6 +481,7 @@ async def admin_update_server(
         env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
+        allowed_roles=server.allowed_roles,
         created_at=server.created_at,
         updated_at=server.updated_at,
     )
@@ -575,6 +587,7 @@ async def promote_server(
             env_keys=server.env_keys,
             is_system=True,
             can_edit=True,
+            allowed_roles=server.allowed_roles,
             created_at=server.created_at,
             updated_at=server.updated_at,
         ),

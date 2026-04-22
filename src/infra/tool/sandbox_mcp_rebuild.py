@@ -6,7 +6,20 @@ individual tool operations can share the same rebuild logic.
 
 import json
 import shlex
-from typing import Any
+from typing import Any, Optional
+
+
+async def _resolve_user_roles(user_id: str) -> Optional[list[str]]:
+    """Resolve user's role names from the database."""
+    try:
+        from src.infra.user.storage import UserStorage
+
+        user = await UserStorage().get_by_id(user_id)
+        if user and user.roles:
+            return user.roles
+    except Exception:
+        pass
+    return None
 
 from src.infra.logging import get_logger
 
@@ -58,8 +71,9 @@ async def rebuild_sandbox_mcp(backend: Any, user_id: str) -> None:
         return
     logger.info(f"[Sandbox MCP Rebuild] mcporter version: {version_result.output.strip()}")
 
-    # Get sandbox-transport MCP servers
-    sandbox_servers = await mcp_storage.get_sandbox_servers(user_id)
+    # Get sandbox-transport MCP servers (with role-based filtering)
+    user_roles = await _resolve_user_roles(user_id)
+    sandbox_servers = await mcp_storage.get_sandbox_servers(user_id, user_roles=user_roles)
     logger.info(f"[Sandbox MCP Rebuild] Found {len(sandbox_servers)} sandbox servers")
 
     # Compute the set of server names that *should* be registered

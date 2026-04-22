@@ -544,6 +544,7 @@ export function MCPPanel() {
                   onCancel={handleCancel}
                   isLoading={isLoading}
                   allowedTransports={allowedTransports}
+                  isSystemServer={isCreating ? createAsSystem : !!editingServer?.is_system}
                 />
               </div>
             </div>

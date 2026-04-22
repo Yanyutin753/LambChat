@@ -49,6 +49,7 @@ class MCPServerUpdate(BaseModel):
     headers: Optional[dict[str, str]] = None
     command: Optional[str] = None
     env_keys: Optional[list[str]] = None
+    allowed_roles: Optional[list[str]] = None
 
 
 class SystemMCPServer(MCPServerBase):
@@ -57,6 +58,10 @@ class SystemMCPServer(MCPServerBase):
     is_system: bool = Field(True, description="Always True for system servers")
     disabled_tools: list[str] = Field(
         default_factory=list, description="List of tool names disabled at system level"
+    )
+    allowed_roles: list[str] = Field(
+        default_factory=list,
+        description="Roles allowed to see and use this server. Empty list = all roles.",
     )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
@@ -81,6 +86,10 @@ class MCPServerResponse(MCPServerBase):
 
     is_system: bool = Field(..., description="Whether this is a system server")
     can_edit: bool = Field(..., description="Whether current user can edit this server")
+    allowed_roles: list[str] = Field(
+        default_factory=list,
+        description="Roles allowed to see and use this server. Empty list = all roles.",
+    )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
 

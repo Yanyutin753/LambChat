@@ -135,6 +135,7 @@ class MCPStorage(StorageOperations):
             "command": server.command,
             "env_keys": server.env_keys,
             "is_system": True,
+            "allowed_roles": getattr(server, "allowed_roles", []),
             "created_at": now,
             "updated_at": now,
             "updated_by": admin_user_id,
@@ -180,6 +181,8 @@ class MCPStorage(StorageOperations):
             update_data["command"] = updates.command
         if updates.env_keys is not None:
             update_data["env_keys"] = updates.env_keys
+        if updates.allowed_roles is not None:
+            update_data["allowed_roles"] = updates.allowed_roles
 
         await collection.update_one({"name": name}, {"$set": update_data})
 
@@ -331,7 +334,7 @@ class MCPStorage(StorageOperations):
     # ==========================================
 
     async def discover_server_tools(
-        self, server_name: str, user_id: str
+        self, server_name: str, user_id: str, user_roles: list[str] | None = None
     ) -> tuple[list[dict[str, Any]], Optional[str]]:
         """
         Discover tools available from a specific MCP server.
@@ -347,6 +350,10 @@ class MCPStorage(StorageOperations):
             )
             if not server:
                 server = await self.get_system_server(server_name)
+                # Check role-based access for system servers
+                if server and hasattr(server, "allowed_roles") and server.allowed_roles:
+                    if user_roles is not None and not set(user_roles).intersection(server.allowed_roles):
+                        return [], f"Server '{server_name}' not found"
             if not server:
                 return [], f"Server '{server_name}' not found"
 
@@ -634,6 +641,7 @@ class MCPStorage(StorageOperations):
             env_keys=doc.get("env_keys"),
             is_system=True,
             disabled_tools=doc.get("disabled_tools", []),
+            allowed_roles=doc.get("allowed_roles", []),
             created_at=created_at,
             updated_at=updated_at,
             updated_by=doc.get("updated_by"),
@@ -723,6 +731,7 @@ class MCPStorage(StorageOperations):
             env_keys=doc_copy.get("env_keys"),
             is_system=is_system,
             can_edit=can_edit,
+            allowed_roles=doc_copy.get("allowed_roles", []),
             created_at=created_at,
             updated_at=updated_at,
         )

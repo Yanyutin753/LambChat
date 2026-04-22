@@ -254,7 +254,9 @@ class MCPClientManager:
             # 如果指定了 user_id，获取用户特定的配置
             # 否则只获取系统配置（用于系统级初始化）
             if self._user_id:
-                config = await storage.get_effective_config(self._user_id)
+                # Resolve user's roles for role-based server filtering
+                user_roles = await self._resolve_user_roles(self._user_id)
+                config = await storage.get_effective_config(self._user_id, user_roles=user_roles)
                 logger.info(
                     f"Loaded MCP config for user {self._user_id}: {len(config.get('mcpServers', {}))} servers"
                 )
@@ -277,6 +279,18 @@ class MCPClientManager:
 
             traceback.print_exc()
             return None
+
+    async def _resolve_user_roles(self, user_id: str) -> list[str] | None:
+        """Resolve user's role names from the database."""
+        try:
+            from src.infra.user.storage import UserStorage
+
+            user = await UserStorage().get_by_id(user_id)
+            if user and user.roles:
+                return user.roles
+        except Exception:
+            pass
+        return None
 
     def _load_config_from_file_sync(self) -> Optional[dict]:
         """从文件加载 MCP 配置（同步版本，内部使用）"""

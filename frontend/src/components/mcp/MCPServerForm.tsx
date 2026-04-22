@@ -8,6 +8,7 @@ import type {
   MCPTransport,
 } from "../../types";
 import { EnvKeysSelector } from "./EnvKeysSelector";
+import { RoleSelector } from "./RoleSelector";
 
 interface MCPServerFormProps {
   server?: MCPServerResponse | null;
@@ -15,6 +16,7 @@ interface MCPServerFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   allowedTransports?: Permission[];
+  isSystemServer?: boolean;
 }
 
 interface KeyValuePair {
@@ -40,6 +42,7 @@ export function MCPServerForm({
     Permission.MCP_WRITE_HTTP,
     Permission.MCP_WRITE_SANDBOX,
   ],
+  isSystemServer = false,
 }: MCPServerFormProps) {
   const { t } = useTranslation();
   const isEditing = !!server;
@@ -93,6 +96,9 @@ export function MCPServerForm({
   // Sandbox fields
   const [command, setCommand] = useState(server?.command ?? "");
   const [envKeys, setEnvKeys] = useState<string[]>(server?.env_keys ?? []);
+  const [allowedRoles, setAllowedRoles] = useState<string[]>(
+    server?.allowed_roles ?? [],
+  );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -114,6 +120,7 @@ export function MCPServerForm({
       );
       setCommand(server.command ?? "");
       setEnvKeys(server.env_keys ?? []);
+      setAllowedRoles(server.allowed_roles ?? []);
     } else {
       setName("");
       setTransport("sse");
@@ -122,6 +129,7 @@ export function MCPServerForm({
       setHeaders([]);
       setCommand("");
       setEnvKeys([]);
+      setAllowedRoles([]);
     }
     setErrors({});
   }, [server]);
@@ -156,6 +164,7 @@ export function MCPServerForm({
       name: name.trim(),
       transport,
       enabled,
+      allowed_roles: isSystemServer ? allowedRoles : undefined,
     };
 
     if (isSandbox) {
@@ -272,6 +281,19 @@ export function MCPServerForm({
           {t("mcp.form.enabled")}
         </label>
       </div>
+
+      {/* Allowed Roles (system servers only) */}
+      {isSystemServer && (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
+            {t("mcp.form.allowedRoles")}
+          </label>
+          <p className="mb-2 text-xs text-stone-500 dark:text-stone-400">
+            {t("mcp.form.allowedRolesDescription")}
+          </p>
+          <RoleSelector selectedRoles={allowedRoles} onChange={setAllowedRoles} />
+        </div>
+      )}
 
       {/* ── Sandbox-specific fields ── */}
       {isSandbox && (

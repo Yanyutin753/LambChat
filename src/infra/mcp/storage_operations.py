@@ -137,7 +137,7 @@ class StorageOperations:
     # Combined Operations (for runtime)
     # ==========================================
 
-    async def get_sandbox_servers(self: "MCPStorage", user_id: str) -> list[dict[str, Any]]:  # type: ignore[misc]
+    async def get_sandbox_servers(self: "MCPStorage", user_id: str, user_roles: list[str] | None = None) -> list[dict[str, Any]]:  # type: ignore[misc]
         """Get all enabled sandbox-transport MCP servers for a user (system + user).
 
         Used during sandbox rebuild to re-register mcporter configs.
@@ -148,6 +148,11 @@ class StorageOperations:
         # System sandbox servers
         system_collection = self._get_system_collection()
         async for doc in system_collection.find({"transport": "sandbox", "enabled": True}):
+            # Role-based access control
+            allowed_roles = doc.get("allowed_roles", [])
+            if allowed_roles and user_roles is not None:
+                if not set(user_roles).intersection(allowed_roles):
+                    continue
             servers.append(
                 {
                     "name": doc.get("name", ""),
@@ -171,12 +176,13 @@ class StorageOperations:
 
         return servers
 
-    async def get_effective_config(self: "MCPStorage", user_id: str) -> dict[str, Any]:  # type: ignore[misc]
+    async def get_effective_config(self: "MCPStorage", user_id: str, user_roles: list[str] | None = None) -> dict[str, Any]:  # type: ignore[misc]
         """
         Get effective MCP configuration for a user.
 
         Merges system and user configurations, with user preferences taking precedence.
         Only includes servers that are enabled (after applying user preferences).
+        System servers with allowed_roles are filtered by the user's roles.
         """
         logger = get_logger(__name__)
 
@@ -189,6 +195,18 @@ class StorageOperations:
         system_servers = {}
         async for doc in system_collection.find({}):
             server_name = doc["name"]
+
+            # Role-based access control: filter servers by allowed_roles
+            allowed_roles = doc.get("allowed_roles", [])
+            if allowed_roles and user_roles is not None:
+                # Server has role restrictions — check if user has any matching role
+                if not set(user_roles).intersection(allowed_roles):
+                    logger.debug(
+                        f"[MCP] User {user_id} (roles: {user_roles}) blocked from server "
+                        f"'{server_name}' (allowed: {allowed_roles})"
+                    )
+                    continue
+
             # Check if user has a preference, otherwise use system default
             if server_name in user_preferences:
                 is_enabled = user_preferences[server_name]
@@ -219,11 +237,14 @@ class StorageOperations:
         self: "MCPStorage",
         user_id: str,
         is_admin: bool = False,
+        user_roles: list[str] | None = None,
     ) -> list[MCPServerResponse]:
         """
         Get all MCP servers visible to a user.
 
         Returns system servers (with user preferences applied) + user's own servers.
+        System servers with allowed_roles are filtered — only visible to users with
+        a matching role (admins always see everything).
         For system servers, only the creator (created_by) can see sensitive fields
         (url, headers, command, env_keys) and edit the server.
         """
@@ -235,6 +256,13 @@ class StorageOperations:
         # Get system servers
         system_collection = self._get_system_collection()
         async for doc in system_collection.find({}):
+            # Role-based access control: admins always see everything
+            if not is_admin:
+                allowed_roles = doc.get("allowed_roles", [])
+                if allowed_roles and user_roles is not None:
+                    if not set(user_roles).intersection(allowed_roles):
+                        continue
+
             # Apply user preference if exists, otherwise use system default
             server_name = doc["name"]
             if server_name in user_preferences:
