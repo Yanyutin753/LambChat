@@ -482,6 +482,7 @@ export function MCPPanel() {
             <div
               ref={swipeRef as React.RefObject<HTMLDivElement>}
               className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+              onClick={(e) => e.stopPropagation()}
             >
               {/* Mobile drag handle */}
               <div className="bottom-sheet-handle sm:hidden" />
@@ -544,7 +545,9 @@ export function MCPPanel() {
                   onCancel={handleCancel}
                   isLoading={isLoading}
                   allowedTransports={allowedTransports}
-                  isSystemServer={isCreating ? createAsSystem : !!editingServer?.is_system}
+                  isSystemServer={
+                    isCreating ? createAsSystem : !!editingServer?.is_system
+                  }
                 />
               </div>
             </div>
@@ -566,6 +569,7 @@ export function MCPPanel() {
             <div
               ref={swipeRefImport as React.RefObject<HTMLDivElement>}
               className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="bottom-sheet-handle sm:hidden" />
               <div className="flex items-center justify-between glass-divider px-6 py-4">

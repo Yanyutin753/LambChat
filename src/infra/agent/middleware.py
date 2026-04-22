@@ -8,6 +8,7 @@ import json
 import logging
 import mimetypes
 import os
+import shlex
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
@@ -340,7 +341,7 @@ class MemoryIndexMiddleware(AgentMiddleware):
     Only active when the native backend is selected and the index feature is enabled.
     """
 
-    def __init__(self, *, user_id: str) -> None:
+    def __init__(self, *, user_id: str | None) -> None:
         super().__init__()
         self._user_id = user_id
 
@@ -409,6 +410,76 @@ class SandboxMCPMiddleware(AgentMiddleware):
             new_system_message = _append_system_text_block(request.system_message, prompt)
             request = request.override(system_message=new_system_message)
         return await handler(request)
+
+
+def _extract_mcporter_call_target(command: str) -> str | None:
+    """Extract the target from a mcporter call command."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+
+    for index, token in enumerate(tokens):
+        if token == "mcporter" and index + 2 < len(tokens) and tokens[index + 1] == "call":
+            return tokens[index + 2]
+        if "mcporter call " in token:
+            nested = _extract_mcporter_call_target(token)
+            if nested:
+                return nested
+    return None
+
+
+def _server_from_mcporter_target(target: str) -> str | None:
+    for separator in (".", ":"):
+        if separator in target:
+            server = target.split(separator, 1)[0]
+            return server or None
+    return target or None
+
+
+class MCPQuotaMiddleware(AgentMiddleware):
+    """Enforce quotas for sandbox MCP calls routed through execute/mcporter."""
+
+    def __init__(self, *, user_id: str | None) -> None:
+        super().__init__()
+        self._user_id = user_id
+
+    async def awrap_tool_call(
+        self,
+        request: Any,
+        handler: Callable[[Any], Awaitable[Any]],
+    ) -> Any:
+        tool_name = request.tool_call.get("name", "")
+        tool_args = request.tool_call.get("args", {})
+        if tool_name != "execute" or not isinstance(tool_args, dict):
+            return await handler(request)
+
+        command = tool_args.get("command")
+        if not isinstance(command, str):
+            return await handler(request)
+
+        target = _extract_mcporter_call_target(command)
+        server_name = _server_from_mcporter_target(target) if target else None
+        if not server_name:
+            return await handler(request)
+
+        from src.infra.mcp.quota import (
+            check_and_consume_system_mcp_quota,
+            quota_error_json,
+        )
+
+        quota_result = await check_and_consume_system_mcp_quota(
+            user_id=self._user_id,
+            server_name=server_name,
+        )
+        if quota_result.allowed:
+            return await handler(request)
+
+        return ToolMessage(
+            content=quota_error_json(server_name, quota_result),
+            tool_call_id=request.tool_call.get("id", ""),
+            name=tool_name,
+        )
 
 
 def create_retry_middleware(

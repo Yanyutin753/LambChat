@@ -326,38 +326,6 @@
     "tracing": "Трассировка",
     "user": "Профиль"
   },
-  "subcategories": {
-    "general": "Общие",
-    "display": "Отображение",
-    "contact": "Контакты",
-    "retry": "Повторные попытки",
-    "cache": "Кэш",
-    "title": "Генерация заголовка",
-    "events": "Объединение событий",
-    "daytona": "Daytona",
-    "e2b": "E2B",
-    "mcp": "MCP",
-    "deferred": "Отложенная загрузка",
-    "connection": "Подключение",
-    "langsmith": "LangSmith",
-    "jwt": "JWT токены",
-    "service": "Сервис электронной почты",
-    "turnstile": "Turnstile",
-    "bucket": "Корзина",
-    "limits": "Ограничения",
-    "storage": "Хранилище",
-    "pool": "Пул подключений",
-    "postgres": "PostgreSQL",
-    "registration": "Регистрация",
-    "google": "Google",
-    "github": "GitHub",
-    "apple": "Apple",
-    "api": "API",
-    "index": "Индекс",
-    "rerank": "Переранжирование",
-    "llm": "LLM",
-    "policy": "Политика"
-  },
   "channel": {
     "addFirstInstance": "Добавить первый экземпляр",
     "addInstance": "Добавить экземпляр",
@@ -412,8 +380,6 @@
       "args": "Аргументы",
       "assistant": "Ассистент",
       "cancelled": "Генерация отменена",
-      "summary": "Итог",
-      "openInSidebar": "Открыть в боковой панели",
       "collapse": "Свернуть",
       "complete": "завершено",
       "copied": "Скопировано!",
@@ -429,11 +395,13 @@
       "generating": "Генерация",
       "mermaidError": "Ошибка Mermaid",
       "model": "Модель",
+      "openInSidebar": "Открыть в боковой панели",
       "parameters": "Параметры",
       "result": "Результат",
       "running": "Выполняется...",
       "startTime": "Время начала",
       "subagentProgress": "Прогресс подагента",
+      "summary": "Итог",
       "synthesizing": "Синтезирование результатов из {{count}} подагента(ов)...",
       "thinking": "Мышление",
       "thought": "Мысль",
@@ -544,6 +512,7 @@
     "page": "Стр. {{page}}",
     "permissionRequired": "Требуется разрешение",
     "poweredBy": "Работает на Clivia",
+    "prev": "Назад",
     "previous": "Назад",
     "readMode": "Только чтение",
     "refresh": "Обновить",
@@ -558,8 +527,7 @@
     "search": "Поиск",
     "selectAll": "Выделить всё",
     "showing": "Показано {{start}}–{{end}}",
-    "skip": "Пропустить",
-    "prev": "Назад"
+    "skip": "Пропустить"
   },
   "documents": {
     "ascending": "По возрастанию",
@@ -1004,6 +972,7 @@
     "addNew": "Добавить новый MCP сервер",
     "addServer": "Добавить сервер",
     "card": {
+      "allowedRolesTooltip": "[TODO]mcp.card.allowedRolesTooltip",
       "delete": "Удалить",
       "disable": "Отключить",
       "disableTool": "Отключить инструмент",
@@ -1016,6 +985,7 @@
       "envVarsCount": "{{count}} перем. окруж.",
       "headersCount": "{{count}} заголовок(ов)",
       "noTools": "Инструменты не найдены",
+      "roleCount": "[TODO]mcp.card.roleCount",
       "system": "Системный",
       "systemDisabled": "Системный отключён",
       "toolToggleFailed": "Не удалось переключить инструмент",
@@ -1039,6 +1009,9 @@
     "featureDisabled": "Функция MCP отключена. Обратитесь к администратору для включения.",
     "form": {
       "add": "Добавить",
+      "allRoles": "[TODO]mcp.form.allRoles",
+      "allowedRoles": "[TODO]mcp.form.allowedRoles",
+      "allowedRolesDescription": "[TODO]mcp.form.allowedRolesDescription",
       "args": "Аргументы (через запятую)",
       "argsPlaceholder": "@modelcontextprotocol/server-filesystem, /путь/к/каталогу",
       "cancel": "Отмена",
@@ -1046,6 +1019,7 @@
       "command": "Команда",
       "commandPlaceholder": "npx -y @anthropic/mcp-server-fetch",
       "createServer": "Создать сервер",
+      "dailyLimit": "[TODO]mcp.form.dailyLimit",
       "enabled": "Включён",
       "envKeys": "Переменные окружения",
       "envKeysDescription": "Выберите переменные окружения для внедрения в процесс MCP сервера. Они должны быть предварительно определены в настройках переменных окружения.",
@@ -1058,7 +1032,10 @@
       "noEnvVars": "Нет переменных окружения",
       "noHeaders": "Нет пользовательских заголовков",
       "noMatchingKeys": "Подходящих переменных нет",
+      "noMatchingRoles": "[TODO]mcp.form.noMatchingRoles",
+      "noRoles": "[TODO]mcp.form.noRoles",
       "saveChanges": "Сохранить изменения",
+      "searchRoles": "[TODO]mcp.form.searchRoles",
       "serverName": "Имя сервера",
       "serverNamePlaceholder": "мой-mcp-сервер",
       "serverNameUneditable": "Имя сервера нельзя изменить",
@@ -1067,6 +1044,7 @@
       "transportSse": "SSE (Server-Sent Events)",
       "transportType": "Тип транспорта",
       "transportUneditable": "Тип транспорта нельзя изменить",
+      "unlimited": "[TODO]mcp.form.unlimited",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
@@ -1074,7 +1052,8 @@
         "nameRequired": "Имя обязательно",
         "urlRequired": "URL обязателен для HTTP транспорта"
       },
-      "valuePlaceholder": "значение"
+      "valuePlaceholder": "значение",
+      "weeklyLimit": "[TODO]mcp.form.weeklyLimit"
     },
     "importFromJSON": "Импорт из JSON",
     "importServers": "Импорт MCP серверов",
@@ -1098,6 +1077,33 @@
     "updateSuccess": "MCP сервер успешно обновлён",
     "userServerVisible": "Пользовательский сервер (виден только вам)"
   },
+  "memory": {
+    "accesses": "доступов",
+    "allTypes": "Все типы",
+    "batchDeleteConfirmMessage": "[TODO]memory.batchDeleteConfirmMessage",
+    "batchDeleted": "[TODO]memory.batchDeleted",
+    "deleteConfirm": "Удалить это воспоминание?",
+    "deleteConfirmMessage": "Это действие нельзя отменить.",
+    "deleteError": "Ошибка удаления",
+    "deleted": "Воспоминание удалено",
+    "empty": "Пока нет воспоминаний. ИИ будет автоматически сохранять важную информацию.",
+    "fetchError": "Не удалось загрузить воспоминания",
+    "loading": "Загрузка воспоминаний...",
+    "noResults": "Соответствий не найдено",
+    "searchPlaceholder": "Поиск воспоминаний...",
+    "selectHint": "Выберите воспоминание для просмотра",
+    "subtitle": "Всего {{count}} воспоминаний",
+    "timeAgo": "{{count}}д назад",
+    "timeMonthsAgo": "{{count}}мес назад",
+    "timeWeeksAgo": "{{count}}нед назад",
+    "title": "Пространство памяти",
+    "type": {
+      "feedback": "Обратная связь",
+      "project": "Проект",
+      "reference": "Ссылка",
+      "user": "Пользователь"
+    }
+  },
   "nav": {
     "adminMarketplace": "Администрирование магазина",
     "agents": "Агенты",
@@ -1107,6 +1113,7 @@
     "files": "Файлы",
     "marketplace": "Магазин",
     "mcp": "MCP",
+    "memory": "Пространство памяти",
     "models": "Модели",
     "notifications": "Уведомления",
     "roles": "Роли",
@@ -1114,8 +1121,7 @@
     "skills": "Навыки",
     "systemSettings": "Системные настройки",
     "userSettings": "Управление пользователями",
-    "users": "Пользователи",
-    "memory": "Пространство памяти"
+    "users": "Пользователи"
   },
   "navDesc": {
     "agents": "Настройка и управление ИИ-агентами",
@@ -1124,17 +1130,18 @@
     "feedback": "Просмотр и управление отзывами",
     "marketplace": "Обзор и установка навыков",
     "mcp": "Управление подключениями MCP-серверов",
+    "memory": "Просмотр и управление памятью ИИ",
     "models": "Управление конфигурацией моделей LLM",
     "notifications": "Управление системными объявлениями",
     "roles": "Настройка ролей и разрешений",
     "settings": "Настройки приложения и системы",
     "skills": "Управление и настройка навыков",
-    "users": "Управление учётными записями и доступом",
-    "memory": "Просмотр и управление памятью ИИ"
+    "users": "Управление учётными записями и доступом"
   },
   "notification": {
     "active": "Активно",
     "cancel": "Отмена",
+    "collapse": "Скрыть детали",
     "contentLabel": "Содержание",
     "create": "Создать уведомление",
     "createdSuccess": "Уведомление создано",
@@ -1145,6 +1152,7 @@
     "dismissedSuccess": "Уведомление закрыто",
     "edit": "Редактировать уведомление",
     "endTime": "Время окончания",
+    "expand": "Показать детали",
     "expired": "Истекло",
     "inactive": "Неактивно",
     "isActive": "Активно",
@@ -1161,9 +1169,7 @@
     "typeMaintenance": "Обслуживание",
     "typeSuccess": "Успех",
     "typeWarning": "Внимание",
-    "updatedSuccess": "Уведомление обновлено",
-    "expand": "Показать детали",
-    "collapse": "Скрыть детали"
+    "updatedSuccess": "Уведомление обновлено"
   },
   "passwordInput": {
     "hidePassword": "Скрыть пароль",
@@ -1741,6 +1747,38 @@
     "uploading": "Загрузка...",
     "userSkillVisible": "Пользовательский навык (виден только вам)"
   },
+  "subcategories": {
+    "api": "API",
+    "apple": "Apple",
+    "bucket": "Корзина",
+    "cache": "Кэш",
+    "connection": "Подключение",
+    "contact": "Контакты",
+    "daytona": "Daytona",
+    "deferred": "Отложенная загрузка",
+    "display": "Отображение",
+    "e2b": "E2B",
+    "events": "Объединение событий",
+    "general": "Общие",
+    "github": "GitHub",
+    "google": "Google",
+    "index": "Индекс",
+    "jwt": "JWT токены",
+    "langsmith": "LangSmith",
+    "limits": "Ограничения",
+    "llm": "LLM",
+    "mcp": "MCP",
+    "policy": "Политика",
+    "pool": "Пул подключений",
+    "postgres": "PostgreSQL",
+    "registration": "Регистрация",
+    "rerank": "Переранжирование",
+    "retry": "Повторные попытки",
+    "service": "Сервис электронной почты",
+    "storage": "Хранилище",
+    "title": "Генерация заголовка",
+    "turnstile": "Turnstile"
+  },
   "theme": {
     "switchToDark": "Переключить на тёмную тему",
     "switchToLight": "Переключить на светлую тему"
@@ -1816,31 +1854,6 @@
       "enterPassword": "Пожалуйста, введите пароль",
       "enterUsername": "Пожалуйста, введите имя пользователя",
       "passwordMinLength": "Пароль должен содержать не менее 6 символов"
-    }
-  },
-  "memory": {
-    "title": "Пространство памяти",
-    "subtitle": "Всего {{count}} воспоминаний",
-    "loading": "Загрузка воспоминаний...",
-    "searchPlaceholder": "Поиск воспоминаний...",
-    "empty": "Пока нет воспоминаний. ИИ будет автоматически сохранять важную информацию.",
-    "noResults": "Соответствий не найдено",
-    "fetchError": "Не удалось загрузить воспоминания",
-    "deleted": "Воспоминание удалено",
-    "deleteError": "Ошибка удаления",
-    "deleteConfirm": "Удалить это воспоминание?",
-    "deleteConfirmMessage": "Это действие нельзя отменить.",
-    "selectHint": "Выберите воспоминание для просмотра",
-    "accesses": "доступов",
-    "allTypes": "Все типы",
-    "timeAgo": "{{count}}д назад",
-    "timeWeeksAgo": "{{count}}нед назад",
-    "timeMonthsAgo": "{{count}}мес назад",
-    "type": {
-      "user": "Пользователь",
-      "feedback": "Обратная связь",
-      "project": "Проект",
-      "reference": "Ссылка"
     }
   }
 }

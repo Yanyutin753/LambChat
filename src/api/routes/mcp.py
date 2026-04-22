@@ -222,6 +222,7 @@ async def get_server(
             is_system=True,
             can_edit=False,  # System servers are managed through admin routes
             allowed_roles=system_server.allowed_roles,
+            role_quotas=system_server.role_quotas,
             created_at=system_server.created_at,
             updated_at=system_server.updated_at,
         )
@@ -288,7 +289,12 @@ async def toggle_server(
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Toggle a server's enabled status (user servers: direct toggle; system servers: toggle user preference)"""
-    server = await storage.toggle_server(name, user.sub)
+    server = await storage.toggle_server(
+        name,
+        user.sub,
+        user_roles=user.roles,
+        is_admin=_is_admin(user),
+    )
 
     if not server:
         raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
@@ -317,7 +323,12 @@ async def discover_server_tools(
     Connects to the server and lists its available tools with descriptions and parameters.
     This endpoint does NOT use cache - it always probes the server directly.
     """
-    tools, error = await storage.discover_server_tools(name, user.sub, user_roles=user.roles)
+    tools, error = await storage.discover_server_tools(
+        name,
+        user.sub,
+        user_roles=user.roles,
+        is_admin=_is_admin(user),
+    )
 
     return MCPToolDiscoveryResponse(
         server_name=name,
@@ -344,6 +355,14 @@ async def toggle_tool(
     - level=user: Per-user preference. Works for any server the user can see.
       Sets user_disabled — tool hidden from chat input but visible in preferences (re-enableable).
     """
+    if not await storage.can_access_server(
+        name,
+        user.sub,
+        user_roles=user.roles,
+        is_admin=_is_admin(user),
+    ):
+        raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+
     if data.level == "user":
         # User-level preference: works for any server
         await storage.set_tool_preference(tool_name, name, user.sub, data.enabled)
@@ -412,6 +431,7 @@ async def admin_create_server(
         is_system=True,
         can_edit=True,
         allowed_roles=server.allowed_roles,
+        role_quotas=server.role_quotas,
         created_at=server.created_at,
         updated_at=server.updated_at,
     )
@@ -454,6 +474,8 @@ async def admin_get_server(
         env_keys=server.env_keys,
         is_system=True,
         can_edit=True,
+        allowed_roles=server.allowed_roles,
+        role_quotas=server.role_quotas,
         created_at=server.created_at,
         updated_at=server.updated_at,
     )
@@ -482,6 +504,7 @@ async def admin_update_server(
         is_system=True,
         can_edit=True,
         allowed_roles=server.allowed_roles,
+        role_quotas=server.role_quotas,
         created_at=server.created_at,
         updated_at=server.updated_at,
     )
@@ -588,6 +611,7 @@ async def promote_server(
             is_system=True,
             can_edit=True,
             allowed_roles=server.allowed_roles,
+            role_quotas=server.role_quotas,
             created_at=server.created_at,
             updated_at=server.updated_at,
         ),

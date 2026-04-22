@@ -8,13 +8,16 @@ MCP 客户端管理器
 import asyncio
 import json
 import os
+from collections.abc import Mapping
 from typing import Any, Optional
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from pydantic import PrivateAttr
 
 from src.infra.logging import get_logger
+from src.kernel.schemas.mcp import MCPRoleQuota
 
 logger = get_logger(__name__)
 
@@ -44,11 +47,25 @@ class MCPToolWithRetry(BaseTool):
     包装原始 MCP 工具，在调用失败时自动重试。
     """
 
+    _original_tool: BaseTool = PrivateAttr()
+    _max_retries: int = PrivateAttr(default=MCP_MAX_RETRIES)
+    _retry_delay: float = PrivateAttr(default=MCP_RETRY_DELAY)
+    _user_id: str | None = PrivateAttr(default=None)
+    _server_name: str | None = PrivateAttr(default=None)
+    _user_roles: list[str] = PrivateAttr(default_factory=list)
+    _is_admin: bool = PrivateAttr(default=False)
+    _role_quotas: dict[str, MCPRoleQuota] = PrivateAttr(default_factory=dict)
+
     def __init__(
         self,
         original_tool: BaseTool,
         max_retries: int = MCP_MAX_RETRIES,
         retry_delay: float = MCP_RETRY_DELAY,
+        user_id: str | None = None,
+        server_name: str | None = None,
+        user_roles: list[str] | None = None,
+        is_admin: bool = False,
+        role_quotas: Mapping[str, MCPRoleQuota | dict[str, Any]] | None = None,
     ):
         super().__init__(
             name=original_tool.name,
@@ -58,6 +75,18 @@ class MCPToolWithRetry(BaseTool):
         self._original_tool = original_tool
         self._max_retries = max_retries
         self._retry_delay = retry_delay
+        self._user_id = user_id
+        self._server_name = server_name
+        self._user_roles = list(user_roles or [])
+        self._is_admin = is_admin
+        self._role_quotas = {
+            role_name: quota
+            if isinstance(quota, MCPRoleQuota)
+            else MCPRoleQuota.model_validate(quota)
+            for role_name, quota in (role_quotas or {}).items()
+        }
+        if server_name:
+            object.__setattr__(self, "server", server_name)
 
     def _is_retryable_error(self, error: Exception) -> bool:
         """判断错误是否可重试"""
@@ -115,6 +144,22 @@ class MCPToolWithRetry(BaseTool):
             config: LangChain RunnableConfig（可选）
             **kwargs: 关键字参数
         """
+        if self._role_quotas:
+            from src.infra.mcp.quota import (
+                check_and_consume_mcp_quota,
+                quota_error_json,
+            )
+
+            quota_result = await check_and_consume_mcp_quota(
+                user_id=self._user_id,
+                server_name=self._server_name,
+                user_roles=self._user_roles,
+                role_quotas=self._role_quotas,
+                is_admin=self._is_admin,
+            )
+            if not quota_result.allowed:
+                return quota_error_json(self._server_name or self.name, quota_result)
+
         last_error: Exception | None = None
         for attempt in range(self._max_retries):
             try:
@@ -198,6 +243,10 @@ class MCPClientManager:
         self._client: Optional[MultiServerMCPClient] = None
         self._tools: list[BaseTool] = []
         self._tool_server_map: dict[tuple[str, str], str] = {}
+        self._tool_name_server_map: dict[str, str] = {}
+        self._server_role_quotas: dict[str, dict[str, MCPRoleQuota]] = {}
+        self._user_roles: list[str] = []
+        self._is_admin = False
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -254,9 +303,17 @@ class MCPClientManager:
             # 如果指定了 user_id，获取用户特定的配置
             # 否则只获取系统配置（用于系统级初始化）
             if self._user_id:
-                # Resolve user's roles for role-based server filtering
-                user_roles = await self._resolve_user_roles(self._user_id)
-                config = await storage.get_effective_config(self._user_id, user_roles=user_roles)
+                # Resolve user's MCP access for role-based server filtering
+                from src.infra.mcp.quota import resolve_user_mcp_access
+
+                user_roles, is_admin = await resolve_user_mcp_access(self._user_id)
+                self._user_roles = user_roles
+                self._is_admin = is_admin
+                config = await storage.get_effective_config(
+                    self._user_id,
+                    user_roles=user_roles,
+                    is_admin=is_admin,
+                )
                 logger.info(
                     f"Loaded MCP config for user {self._user_id}: {len(config.get('mcpServers', {}))} servers"
                 )
@@ -279,18 +336,6 @@ class MCPClientManager:
 
             traceback.print_exc()
             return None
-
-    async def _resolve_user_roles(self, user_id: str) -> list[str] | None:
-        """Resolve user's role names from the database."""
-        try:
-            from src.infra.user.storage import UserStorage
-
-            user = await UserStorage().get_by_id(user_id)
-            if user and user.roles:
-                return user.roles
-        except Exception:
-            pass
-        return None
 
     def _load_config_from_file_sync(self) -> Optional[dict]:
         """从文件加载 MCP 配置（同步版本，内部使用）"""
@@ -357,8 +402,16 @@ class MCPClientManager:
         # 转换配置格式以适配 langchain-mcp-adapters
         # Use dict[str, Any] to allow flexible key-value pairs for different transport types
         server_configs: dict[str, dict[str, Any]] = {}
+        self._server_role_quotas.clear()
         for server_name, server_config in mcp_servers.items():
             transport = server_config.get("transport", "streamable_http")
+            role_quotas = server_config.get("role_quotas") or {}
+            self._server_role_quotas[server_name] = {
+                role_name: quota
+                if isinstance(quota, MCPRoleQuota)
+                else MCPRoleQuota.model_validate(quota)
+                for role_name, quota in role_quotas.items()
+            }
 
             if transport in ("sse", "streamable_http"):
                 # HTTP 传输：SSE 或 streamable HTTP
@@ -417,6 +470,7 @@ class MCPClientManager:
         failed_servers: list[str] = []
         # Track which server each tool belongs to: (server_name, raw_tool_name) -> server_name
         self._tool_server_map.clear()
+        self._tool_name_server_map.clear()
 
         for server_name, result in results:
             if isinstance(result, Exception):
@@ -440,6 +494,8 @@ class MCPClientManager:
                     if raw_name.startswith(f"{server_name}:"):
                         raw_name = raw_name[len(server_name) + 1 :]
                     self._tool_server_map[(server_name, raw_name)] = server_name
+                    self._tool_name_server_map[tool.name] = server_name
+                    self._tool_name_server_map[raw_name] = server_name
                 all_tools.extend(result)
                 logger.info(f"[MCP] Loaded {len(result)} tools from server '{server_name}'")
 
@@ -454,6 +510,19 @@ class MCPClientManager:
             )
 
         return all_tools, client
+
+    def _server_for_tool(self, tool: BaseTool) -> str | None:
+        server = getattr(tool, "server", None)
+        if isinstance(server, str) and server:
+            return server
+        name = getattr(tool, "name", "")
+        if name in self._tool_name_server_map:
+            return self._tool_name_server_map[name]
+        if ":" in name:
+            candidate = name.split(":", 1)[0]
+            if candidate in self._server_role_quotas:
+                return candidate
+        return None
 
     async def _connect_server(self, name: str, config: dict) -> None:
         """连接到单个 MCP 服务器（已弃用，由 MultiServerMCPClient 统一管理）"""
@@ -498,7 +567,20 @@ class MCPClientManager:
             logger.info(f"[MCP] Filtered out {len(skipped_tools)} tools: {skipped_tools}")
 
         # 包装工具以添加重试逻辑
-        return [MCPToolWithRetry(tool) for tool in filtered_tools]
+        wrapped_tools: list[BaseTool] = []
+        for tool in filtered_tools:
+            server_name = self._server_for_tool(tool)
+            wrapped_tools.append(
+                MCPToolWithRetry(
+                    tool,
+                    user_id=self._user_id,
+                    server_name=server_name,
+                    user_roles=self._user_roles,
+                    is_admin=self._is_admin,
+                    role_quotas=self._server_role_quotas.get(server_name or "", {}),
+                )
+            )
+        return wrapped_tools
 
     def _is_mcp_retryable_error(self, error: Exception) -> bool:
         """判断 MCP 错误是否可重试"""
@@ -549,6 +631,8 @@ class MCPClientManager:
         self._client = None
         self._tools.clear()
         self._tool_server_map.clear()
+        self._tool_name_server_map.clear()
+        self._server_role_quotas.clear()
         self._initialized = False
 
 

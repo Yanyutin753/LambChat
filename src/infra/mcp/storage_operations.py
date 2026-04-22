@@ -19,6 +19,20 @@ if TYPE_CHECKING:
     from src.infra.mcp.storage import MCPStorage
 
 
+def _can_access_system_server(
+    allowed_roles: list[str] | None,
+    user_roles: list[str] | None,
+    *,
+    is_admin: bool = False,
+) -> bool:
+    """Return whether a user can access a system MCP server."""
+    if is_admin:
+        return True
+    if not allowed_roles:
+        return True
+    return bool(set(user_roles or []).intersection(allowed_roles))
+
+
 class StorageOperations:
     """Combined operations, import/export, promote/demote, and tool discovery for MCPStorage.
 
@@ -61,6 +75,7 @@ class StorageOperations:
             "command": user_server.command,
             "env_keys": user_server.env_keys,
             "is_system": True,
+            "role_quotas": {},
             "created_at": user_server.created_at or now,
             "updated_at": now,
             "updated_by": admin_user_id,
@@ -137,7 +152,12 @@ class StorageOperations:
     # Combined Operations (for runtime)
     # ==========================================
 
-    async def get_sandbox_servers(self: "MCPStorage", user_id: str, user_roles: list[str] | None = None) -> list[dict[str, Any]]:  # type: ignore[misc]
+    async def get_sandbox_servers(  # type: ignore[misc]
+        self: "MCPStorage",
+        user_id: str,
+        user_roles: list[str] | None = None,
+        is_admin: bool = False,
+    ) -> list[dict[str, Any]]:
         """Get all enabled sandbox-transport MCP servers for a user (system + user).
 
         Used during sandbox rebuild to re-register mcporter configs.
@@ -150,9 +170,8 @@ class StorageOperations:
         async for doc in system_collection.find({"transport": "sandbox", "enabled": True}):
             # Role-based access control
             allowed_roles = doc.get("allowed_roles", [])
-            if allowed_roles and user_roles is not None:
-                if not set(user_roles).intersection(allowed_roles):
-                    continue
+            if not _can_access_system_server(allowed_roles, user_roles, is_admin=is_admin):
+                continue
             servers.append(
                 {
                     "name": doc.get("name", ""),
@@ -176,7 +195,12 @@ class StorageOperations:
 
         return servers
 
-    async def get_effective_config(self: "MCPStorage", user_id: str, user_roles: list[str] | None = None) -> dict[str, Any]:  # type: ignore[misc]
+    async def get_effective_config(  # type: ignore[misc]
+        self: "MCPStorage",
+        user_id: str,
+        user_roles: list[str] | None = None,
+        is_admin: bool = False,
+    ) -> dict[str, Any]:
         """
         Get effective MCP configuration for a user.
 
@@ -198,14 +222,12 @@ class StorageOperations:
 
             # Role-based access control: filter servers by allowed_roles
             allowed_roles = doc.get("allowed_roles", [])
-            if allowed_roles and user_roles is not None:
-                # Server has role restrictions — check if user has any matching role
-                if not set(user_roles).intersection(allowed_roles):
-                    logger.debug(
-                        f"[MCP] User {user_id} (roles: {user_roles}) blocked from server "
-                        f"'{server_name}' (allowed: {allowed_roles})"
-                    )
-                    continue
+            if not _can_access_system_server(allowed_roles, user_roles, is_admin=is_admin):
+                logger.debug(
+                    f"[MCP] User {user_id} (roles: {user_roles}) blocked from server "
+                    f"'{server_name}' (allowed: {allowed_roles})"
+                )
+                continue
 
             # Check if user has a preference, otherwise use system default
             if server_name in user_preferences:
@@ -259,9 +281,8 @@ class StorageOperations:
             # Role-based access control: admins always see everything
             if not is_admin:
                 allowed_roles = doc.get("allowed_roles", [])
-                if allowed_roles and user_roles is not None:
-                    if not set(user_roles).intersection(allowed_roles):
-                        continue
+                if not _can_access_system_server(allowed_roles, user_roles):
+                    continue
 
             # Apply user preference if exists, otherwise use system default
             server_name = doc["name"]
@@ -286,8 +307,36 @@ class StorageOperations:
 
         return servers
 
+    async def can_access_server(  # type: ignore[misc]
+        self: "MCPStorage",
+        name: str,
+        user_id: str,
+        user_roles: list[str] | None = None,
+        is_admin: bool = False,
+    ) -> bool:
+        """Return whether a user can access a user-owned or system MCP server."""
+        user_collection = self._get_user_collection()
+        user_doc = await user_collection.find_one({"name": name, "user_id": user_id})
+        if user_doc:
+            return True
+
+        system_collection = self._get_system_collection()
+        system_doc = await system_collection.find_one({"name": name})
+        if not system_doc:
+            return False
+
+        return _can_access_system_server(
+            system_doc.get("allowed_roles", []),
+            user_roles,
+            is_admin=is_admin,
+        )
+
     async def toggle_server(  # type: ignore[misc]
-        self: "MCPStorage", name: str, user_id: str
+        self: "MCPStorage",
+        name: str,
+        user_id: str,
+        user_roles: list[str] | None = None,
+        is_admin: bool = False,
     ) -> Optional[MCPServerResponse]:
         """
         Toggle a server's enabled status.
@@ -324,6 +373,13 @@ class StorageOperations:
         system_doc = await system_collection.find_one({"name": name})
 
         if system_doc:
+            if not _can_access_system_server(
+                system_doc.get("allowed_roles", []),
+                user_roles,
+                is_admin=is_admin,
+            ):
+                return None
+
             # For system servers, toggle user's preference
             # Get current user preference or system default
             preferences = await self._get_user_preferences(user_id)
@@ -416,6 +472,8 @@ class StorageOperations:
                     headers=config.get("headers"),
                     command=config.get("command"),
                     env_keys=config.get("env_keys"),
+                    allowed_roles=config.get("allowed_roles", []) if is_admin else [],
+                    role_quotas=config.get("role_quotas", {}) if is_admin else {},
                 )
 
                 # Check if exists
@@ -441,6 +499,8 @@ class StorageOperations:
                                 headers=server.headers,
                                 command=server.command,
                                 env_keys=server.env_keys,
+                                allowed_roles=server.allowed_roles,
+                                role_quotas=server.role_quotas,
                             ),
                             user_id,
                         )
@@ -491,6 +551,11 @@ class StorageOperations:
         servers = {}
 
         async for doc in system_collection.find({}):
-            servers[doc["name"]] = self._doc_to_config_dict(doc)
+            config = self._doc_to_config_dict(doc)
+            if doc.get("allowed_roles"):
+                config["allowed_roles"] = doc["allowed_roles"]
+            if doc.get("role_quotas"):
+                config["role_quotas"] = doc["role_quotas"]
+            servers[doc["name"]] = config
 
         return {"mcpServers": servers}

@@ -326,38 +326,6 @@
     "tracing": "추적",
     "user": "프로필"
   },
-  "subcategories": {
-    "general": "일반",
-    "display": "표시",
-    "contact": "연락처",
-    "retry": "재시도",
-    "cache": "캐시",
-    "title": "제목 생성",
-    "events": "이벤트 병합",
-    "daytona": "Daytona",
-    "e2b": "E2B",
-    "mcp": "MCP",
-    "deferred": "지연 로딩",
-    "connection": "연결",
-    "langsmith": "LangSmith",
-    "jwt": "JWT 토큰",
-    "service": "이메일 서비스",
-    "turnstile": "Turnstile",
-    "bucket": "버킷",
-    "limits": "제한",
-    "storage": "스토리지",
-    "pool": "연결 풀",
-    "postgres": "PostgreSQL",
-    "registration": "가입",
-    "google": "Google",
-    "github": "GitHub",
-    "apple": "Apple",
-    "api": "API",
-    "index": "인덱스",
-    "rerank": "재순위",
-    "llm": "LLM",
-    "policy": "정책"
-  },
   "channel": {
     "addFirstInstance": "첫 번째 인스턴스 추가",
     "addInstance": "인스턴스 추가",
@@ -412,8 +380,6 @@
       "args": "인수",
       "assistant": "어시스턴트",
       "cancelled": "생성이 취소되었습니다",
-      "summary": "요약",
-      "openInSidebar": "사이드바에서 열기",
       "collapse": "접기",
       "complete": "완료",
       "copied": "복사됨!",
@@ -429,11 +395,13 @@
       "generating": "생성 중",
       "mermaidError": "Mermaid 오류",
       "model": "모델",
+      "openInSidebar": "사이드바에서 열기",
       "parameters": "매개변수",
       "result": "결과",
       "running": "실행 중...",
       "startTime": "시작 시간",
       "subagentProgress": "하위 에이전트 진행률",
+      "summary": "요약",
       "synthesizing": "{{count}}개 하위 에이전트의 결과를 종합하는 중...",
       "thinking": "생각 중",
       "thought": "생각 완료",
@@ -542,6 +510,7 @@
     "page": "{{page}}페이지",
     "permissionRequired": "권한이 필요합니다",
     "poweredBy": "Clivia 제공",
+    "prev": "이전",
     "previous": "이전",
     "readMode": "읽기 전용",
     "refresh": "새로고침",
@@ -556,8 +525,7 @@
     "search": "검색",
     "selectAll": "모두 선택",
     "showing": "{{start}}-{{end}} 표시 중",
-    "skip": "건너뛰기",
-    "prev": "이전"
+    "skip": "건너뛰기"
   },
   "documents": {
     "ascending": "오름차순",
@@ -1002,6 +970,7 @@
     "addNew": "새 MCP 서버 추가",
     "addServer": "서버 추가",
     "card": {
+      "allowedRolesTooltip": "[TODO]mcp.card.allowedRolesTooltip",
       "delete": "삭제",
       "disable": "비활성화",
       "disableTool": "도구 비활성화",
@@ -1014,6 +983,7 @@
       "envVarsCount": "{{count}}개 환경 변수",
       "headersCount": "{{count}}개의 헤더",
       "noTools": "도구를 찾을 수 없습니다",
+      "roleCount": "[TODO]mcp.card.roleCount",
       "system": "시스템",
       "systemDisabled": "시스템 비활성화",
       "toolToggleFailed": "도구 전환 실패",
@@ -1037,6 +1007,9 @@
     "featureDisabled": "MCP 기능이 비활성화되어 있습니다. 관리자에게 문의하여 활성화해 주세요.",
     "form": {
       "add": "추가",
+      "allRoles": "[TODO]mcp.form.allRoles",
+      "allowedRoles": "[TODO]mcp.form.allowedRoles",
+      "allowedRolesDescription": "[TODO]mcp.form.allowedRolesDescription",
       "args": "인수 (쉼표로 구분)",
       "argsPlaceholder": "@modelcontextprotocol/server-filesystem, /path/to/directory",
       "cancel": "취소",
@@ -1044,6 +1017,7 @@
       "command": "명령어",
       "commandPlaceholder": "npx -y @anthropic/mcp-server-fetch",
       "createServer": "서버 생성",
+      "dailyLimit": "[TODO]mcp.form.dailyLimit",
       "enabled": "활성화",
       "envKeys": "환경 변수",
       "envKeysDescription": "이 MCP 서버 프로세스에 주입할 환경 변수를 선택하세요. 환경 변수 설정에서 미리 정의되어 있어야 합니다.",
@@ -1056,7 +1030,10 @@
       "noEnvVars": "환경 변수 없음",
       "noHeaders": "사용자 정의 헤더 없음",
       "noMatchingKeys": "일치하는 변수가 없습니다",
+      "noMatchingRoles": "[TODO]mcp.form.noMatchingRoles",
+      "noRoles": "[TODO]mcp.form.noRoles",
       "saveChanges": "변경 사항 저장",
+      "searchRoles": "[TODO]mcp.form.searchRoles",
       "serverName": "서버 이름",
       "serverNamePlaceholder": "my-mcp-server",
       "serverNameUneditable": "서버 이름은 변경할 수 없습니다",
@@ -1065,6 +1042,7 @@
       "transportSse": "SSE (서버 전송 이벤트)",
       "transportType": "전송 유형",
       "transportUneditable": "전송 유형은 변경할 수 없습니다",
+      "unlimited": "[TODO]mcp.form.unlimited",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
@@ -1072,7 +1050,8 @@
         "nameRequired": "서버 이름은 필수입니다",
         "urlRequired": "HTTP 전송에는 URL이 필요합니다"
       },
-      "valuePlaceholder": "값"
+      "valuePlaceholder": "값",
+      "weeklyLimit": "[TODO]mcp.form.weeklyLimit"
     },
     "importFromJSON": "JSON에서 가져오기",
     "importServers": "MCP 서버 가져오기",
@@ -1096,6 +1075,33 @@
     "updateSuccess": "MCP 서버가 성공적으로 업데이트되었습니다",
     "userServerVisible": "사용자 서버 (나에게만 표시)"
   },
+  "memory": {
+    "accesses": "회 접근",
+    "allTypes": "모든 유형",
+    "batchDeleteConfirmMessage": "[TODO]memory.batchDeleteConfirmMessage",
+    "batchDeleted": "[TODO]memory.batchDeleted",
+    "deleteConfirm": "이 메모리를 삭제하시겠습니까?",
+    "deleteConfirmMessage": "이 작업은 되돌릴 수 없습니다.",
+    "deleteError": "삭제 실패",
+    "deleted": "메모리가 삭제되었습니다",
+    "empty": "아직 메모리가 없습니다. AI가 자동으로 중요한 정보를 저장합니다.",
+    "fetchError": "메모리를 불러오지 못했습니다",
+    "loading": "메모리 로딩 중...",
+    "noResults": "일치하는 메모리 없음",
+    "searchPlaceholder": "메모리 검색...",
+    "selectHint": "메모리를 선택하여 상세 보기",
+    "subtitle": "총 {{count}}개 메모리",
+    "timeAgo": "{{count}}일 전",
+    "timeMonthsAgo": "{{count}}개월 전",
+    "timeWeeksAgo": "{{count}}주 전",
+    "title": "메모리 공간",
+    "type": {
+      "feedback": "피드백",
+      "project": "프로젝트",
+      "reference": "참조",
+      "user": "사용자"
+    }
+  },
   "nav": {
     "adminMarketplace": "관리자 마켓플레이스",
     "agents": "에이전트",
@@ -1105,6 +1111,7 @@
     "files": "파일",
     "marketplace": "마켓플레이스",
     "mcp": "MCP",
+    "memory": "메모리 공간",
     "models": "모델",
     "notifications": "알림",
     "roles": "역할",
@@ -1112,8 +1119,7 @@
     "skills": "스킬",
     "systemSettings": "시스템 설정",
     "userSettings": "사용자 관리",
-    "users": "사용자",
-    "memory": "메모리 공간"
+    "users": "사용자"
   },
   "navDesc": {
     "agents": "AI 에이전트 설정 및 관리",
@@ -1122,17 +1128,18 @@
     "feedback": "사용자 피드백 확인 및 관리",
     "marketplace": "스킬 탐색 및 설치",
     "mcp": "MCP 서버 연결 관리",
+    "memory": "AI 메모리 내용 보기 및 관리",
     "models": "LLM 모델 구성 관리",
     "notifications": "시스템 공지 관리",
     "roles": "역할 및 권한 설정",
     "settings": "앱 및 시스템 설정",
     "skills": "스킬 관리 및 설정",
-    "users": "사용자 계정 및 접근 권한 관리",
-    "memory": "AI 메모리 내용 보기 및 관리"
+    "users": "사용자 계정 및 접근 권한 관리"
   },
   "notification": {
     "active": "활성",
     "cancel": "취소",
+    "collapse": "상세 숨기기",
     "contentLabel": "내용",
     "create": "알림 만들기",
     "createdSuccess": "알림이 생성되었습니다",
@@ -1143,6 +1150,7 @@
     "dismissedSuccess": "알림이 닫혔습니다",
     "edit": "알림 수정",
     "endTime": "종료 시간",
+    "expand": "상세 보기",
     "expired": "만료됨",
     "inactive": "비활성",
     "isActive": "활성화",
@@ -1159,9 +1167,7 @@
     "typeMaintenance": "점검",
     "typeSuccess": "성공",
     "typeWarning": "경고",
-    "updatedSuccess": "알림이 업데이트되었습니다",
-    "expand": "상세 보기",
-    "collapse": "상세 숨기기"
+    "updatedSuccess": "알림이 업데이트되었습니다"
   },
   "passwordInput": {
     "hidePassword": "비밀번호 숨기기",
@@ -1739,6 +1745,38 @@
     "uploading": "업로드 중...",
     "userSkillVisible": "사용자 스킬 (나에게만 표시)"
   },
+  "subcategories": {
+    "api": "API",
+    "apple": "Apple",
+    "bucket": "버킷",
+    "cache": "캐시",
+    "connection": "연결",
+    "contact": "연락처",
+    "daytona": "Daytona",
+    "deferred": "지연 로딩",
+    "display": "표시",
+    "e2b": "E2B",
+    "events": "이벤트 병합",
+    "general": "일반",
+    "github": "GitHub",
+    "google": "Google",
+    "index": "인덱스",
+    "jwt": "JWT 토큰",
+    "langsmith": "LangSmith",
+    "limits": "제한",
+    "llm": "LLM",
+    "mcp": "MCP",
+    "policy": "정책",
+    "pool": "연결 풀",
+    "postgres": "PostgreSQL",
+    "registration": "가입",
+    "rerank": "재순위",
+    "retry": "재시도",
+    "service": "이메일 서비스",
+    "storage": "스토리지",
+    "title": "제목 생성",
+    "turnstile": "Turnstile"
+  },
   "theme": {
     "switchToDark": "다크 모드로 전환",
     "switchToLight": "라이트 모드로 전환"
@@ -1814,31 +1852,6 @@
       "enterPassword": "비밀번호를 입력해주세요",
       "enterUsername": "사용자 이름을 입력해주세요",
       "passwordMinLength": "비밀번호는 6자 이상이어야 합니다"
-    }
-  },
-  "memory": {
-    "title": "메모리 공간",
-    "subtitle": "총 {{count}}개 메모리",
-    "loading": "메모리 로딩 중...",
-    "searchPlaceholder": "메모리 검색...",
-    "empty": "아직 메모리가 없습니다. AI가 자동으로 중요한 정보를 저장합니다.",
-    "noResults": "일치하는 메모리 없음",
-    "fetchError": "메모리를 불러오지 못했습니다",
-    "deleted": "메모리가 삭제되었습니다",
-    "deleteError": "삭제 실패",
-    "deleteConfirm": "이 메모리를 삭제하시겠습니까?",
-    "deleteConfirmMessage": "이 작업은 되돌릴 수 없습니다.",
-    "selectHint": "메모리를 선택하여 상세 보기",
-    "accesses": "회 접근",
-    "allTypes": "모든 유형",
-    "timeAgo": "{{count}}일 전",
-    "timeWeeksAgo": "{{count}}주 전",
-    "timeMonthsAgo": "{{count}}개월 전",
-    "type": {
-      "user": "사용자",
-      "feedback": "피드백",
-      "project": "프로젝트",
-      "reference": "참조"
     }
   }
 }

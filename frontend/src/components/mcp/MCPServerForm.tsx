@@ -5,6 +5,7 @@ import { Permission } from "../../types";
 import type {
   MCPServerResponse,
   MCPServerCreate,
+  MCPRoleQuota,
   MCPTransport,
 } from "../../types";
 import { EnvKeysSelector } from "./EnvKeysSelector";
@@ -25,10 +26,46 @@ interface KeyValuePair {
   value: string;
 }
 
+type RoleQuotaDraft = {
+  daily_limit: number | "";
+  weekly_limit: number | "";
+};
+
 // Simple counter-based ID generator (avoids crypto.randomUUID() browser compat issues)
 let _headerIdCounter = 0;
 function nextHeaderId(): string {
   return `h-${++_headerIdCounter}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function toQuotaDrafts(
+  quotas: Record<string, MCPRoleQuota>,
+): Record<string, RoleQuotaDraft> {
+  return Object.fromEntries(
+    Object.entries(quotas).map(([role, quota]) => [
+      role,
+      {
+        daily_limit: quota.daily_limit ?? "",
+        weekly_limit: quota.weekly_limit ?? "",
+      },
+    ]),
+  );
+}
+
+function serializeRoleQuotas(
+  roles: string[],
+  drafts: Record<string, RoleQuotaDraft>,
+): Record<string, MCPRoleQuota> {
+  const quotas: Record<string, MCPRoleQuota> = {};
+  for (const role of roles) {
+    const quota = drafts[role];
+    if (!quota) continue;
+    if (quota.daily_limit === "" && quota.weekly_limit === "") continue;
+    quotas[role] = {
+      daily_limit: quota.daily_limit === "" ? null : quota.daily_limit,
+      weekly_limit: quota.weekly_limit === "" ? null : quota.weekly_limit,
+    };
+  }
+  return quotas;
 }
 
 export function MCPServerForm({
@@ -99,6 +136,9 @@ export function MCPServerForm({
   const [allowedRoles, setAllowedRoles] = useState<string[]>(
     server?.allowed_roles ?? [],
   );
+  const [roleQuotas, setRoleQuotas] = useState<Record<string, RoleQuotaDraft>>(
+    () => toQuotaDrafts(server?.role_quotas ?? {}),
+  );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -121,6 +161,7 @@ export function MCPServerForm({
       setCommand(server.command ?? "");
       setEnvKeys(server.env_keys ?? []);
       setAllowedRoles(server.allowed_roles ?? []);
+      setRoleQuotas(toQuotaDrafts(server.role_quotas ?? {}));
     } else {
       setName("");
       setTransport("sse");
@@ -130,9 +171,39 @@ export function MCPServerForm({
       setCommand("");
       setEnvKeys([]);
       setAllowedRoles([]);
+      setRoleQuotas({});
     }
     setErrors({});
   }, [server]);
+
+  const handleAllowedRolesChange = (roles: string[]) => {
+    setAllowedRoles(roles);
+    setRoleQuotas((prev) => {
+      const next: Record<string, RoleQuotaDraft> = {};
+      for (const role of roles) {
+        next[role] = prev[role] ?? { daily_limit: "", weekly_limit: "" };
+      }
+      return next;
+    });
+  };
+
+  const updateRoleQuota = (
+    role: string,
+    field: keyof RoleQuotaDraft,
+    value: string,
+  ) => {
+    if (value !== "") {
+      const num = Number(value);
+      if (!Number.isInteger(num) || num < 0) return;
+    }
+    setRoleQuotas((prev) => ({
+      ...prev,
+      [role]: {
+        ...(prev[role] ?? { daily_limit: "", weekly_limit: "" }),
+        [field]: value === "" ? "" : Number(value),
+      },
+    }));
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -165,6 +236,9 @@ export function MCPServerForm({
       transport,
       enabled,
       allowed_roles: isSystemServer ? allowedRoles : undefined,
+      role_quotas: isSystemServer
+        ? serializeRoleQuotas(allowedRoles, roleQuotas)
+        : undefined,
     };
 
     if (isSandbox) {
@@ -291,7 +365,66 @@ export function MCPServerForm({
           <p className="mb-2 text-xs text-stone-500 dark:text-stone-400">
             {t("mcp.form.allowedRolesDescription")}
           </p>
-          <RoleSelector selectedRoles={allowedRoles} onChange={setAllowedRoles} />
+          <RoleSelector
+            selectedRoles={allowedRoles}
+            onChange={handleAllowedRolesChange}
+          />
+          {allowedRoles.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {allowedRoles.map((role) => {
+                const quota = roleQuotas[role] ?? {
+                  daily_limit: "",
+                  weekly_limit: "",
+                };
+                return (
+                  <div
+                    key={role}
+                    className="rounded-lg border border-stone-200 bg-stone-50 p-2 dark:border-stone-700 dark:bg-stone-800/50"
+                  >
+                    <div className="mb-2 text-xs font-medium text-stone-700 dark:text-stone-200">
+                      {role}
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs text-stone-500 dark:text-stone-400">
+                          {t("mcp.form.dailyLimit")}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={quota.daily_limit}
+                          onChange={(e) =>
+                            updateRoleQuota(role, "daily_limit", e.target.value)
+                          }
+                          placeholder={t("mcp.form.unlimited")}
+                          className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-900 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs text-stone-500 dark:text-stone-400">
+                          {t("mcp.form.weeklyLimit")}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={quota.weekly_limit}
+                          onChange={(e) =>
+                            updateRoleQuota(
+                              role,
+                              "weekly_limit",
+                              e.target.value,
+                            )
+                          }
+                          placeholder={t("mcp.form.unlimited")}
+                          className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-900 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

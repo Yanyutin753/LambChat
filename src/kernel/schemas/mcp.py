@@ -34,10 +34,32 @@ class MCPServerBase(BaseModel):
     )
 
 
+class MCPRoleQuota(BaseModel):
+    """Per-role MCP usage quota for a system server."""
+
+    daily_limit: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Daily tool-call limit per user for this role. None = unlimited.",
+    )
+    weekly_limit: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Weekly tool-call limit per user for this role. None = unlimited.",
+    )
+
+
 class MCPServerCreate(MCPServerBase):
     """Schema for creating a new MCP server"""
 
-    pass
+    allowed_roles: list[str] = Field(
+        default_factory=list,
+        description="Roles allowed to see and use this server. Empty list = all roles.",
+    )
+    role_quotas: dict[str, MCPRoleQuota] = Field(
+        default_factory=dict,
+        description="Per-role usage quotas for this system server.",
+    )
 
 
 class MCPServerUpdate(BaseModel):
@@ -50,6 +72,7 @@ class MCPServerUpdate(BaseModel):
     command: Optional[str] = None
     env_keys: Optional[list[str]] = None
     allowed_roles: Optional[list[str]] = None
+    role_quotas: Optional[dict[str, MCPRoleQuota]] = None
 
 
 class SystemMCPServer(MCPServerBase):
@@ -62,6 +85,10 @@ class SystemMCPServer(MCPServerBase):
     allowed_roles: list[str] = Field(
         default_factory=list,
         description="Roles allowed to see and use this server. Empty list = all roles.",
+    )
+    role_quotas: dict[str, MCPRoleQuota] = Field(
+        default_factory=dict,
+        description="Per-role usage quotas for this system server.",
     )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
@@ -89,6 +116,10 @@ class MCPServerResponse(MCPServerBase):
     allowed_roles: list[str] = Field(
         default_factory=list,
         description="Roles allowed to see and use this server. Empty list = all roles.",
+    )
+    role_quotas: dict[str, MCPRoleQuota] = Field(
+        default_factory=dict,
+        description="Per-role usage quotas for this system server.",
     )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")

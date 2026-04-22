@@ -377,10 +377,14 @@ function DeleteConfirmModal({
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
+      <div
+        className="modal-bottom-sheet sm:modal-centered-wrapper"
+        onClick={onClose}
+      >
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="bottom-sheet-handle sm:hidden" />
           {/* Header */}

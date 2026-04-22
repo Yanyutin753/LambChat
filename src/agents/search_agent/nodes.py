@@ -25,6 +25,7 @@ from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
+    MCPQuotaMiddleware,
     PromptCachingMiddleware,
     SandboxMCPMiddleware,
     SectionPromptMiddleware,
@@ -149,6 +150,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     search_base_url = configurable.get("base_url", "")
     subagent_middleware = [
         *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
+        MCPQuotaMiddleware(user_id=context.user_id),
         ToolResultBinaryMiddleware(base_url=search_base_url),
         SubagentActivityMiddleware(backend=backend_factory),
     ]
@@ -177,6 +179,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
+    user_middleware.append(MCPQuotaMiddleware(user_id=context.user_id))
     user_middleware.append(ToolResultBinaryMiddleware(base_url=search_base_url))
     # SandboxMCP: session-stable (30-min cache)
     if sandbox_backend:

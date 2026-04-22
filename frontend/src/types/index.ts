@@ -129,6 +129,7 @@ export type {
   MCPServerCreate,
   MCPServerUpdate,
   MCPServerToggleResponse,
+  MCPRoleQuota,
   MCPImportRequest,
   MCPImportResponse,
   MCPExportResponse,

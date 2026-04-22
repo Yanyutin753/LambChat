@@ -326,38 +326,6 @@
     "tracing": "トレース",
     "user": "プロフィール"
   },
-  "subcategories": {
-    "general": "一般",
-    "display": "表示",
-    "contact": "連絡先",
-    "retry": "リトライ",
-    "cache": "キャッシュ",
-    "title": "タイトル生成",
-    "events": "イベント統合",
-    "daytona": "Daytona",
-    "e2b": "E2B",
-    "mcp": "MCP",
-    "deferred": "遅延読み込み",
-    "connection": "接続",
-    "langsmith": "LangSmith",
-    "jwt": "JWT トークン",
-    "service": "メールサービス",
-    "turnstile": "Turnstile",
-    "bucket": "バケット",
-    "limits": "制限",
-    "storage": "ストレージ",
-    "pool": "接続プール",
-    "postgres": "PostgreSQL",
-    "registration": "登録",
-    "google": "Google",
-    "github": "GitHub",
-    "apple": "Apple",
-    "api": "API",
-    "index": "インデックス",
-    "rerank": "再ランク付け",
-    "llm": "LLM",
-    "policy": "ポリシー"
-  },
   "channel": {
     "addFirstInstance": "最初のインスタンスを追加",
     "addInstance": "インスタンスを追加",
@@ -412,8 +380,6 @@
       "args": "引数",
       "assistant": "アシスタント",
       "cancelled": "生成がキャンセルされました",
-      "summary": "要約",
-      "openInSidebar": "サイドバーで開く",
       "collapse": "折りたたむ",
       "complete": "完了",
       "copied": "コピーしました！",
@@ -429,11 +395,13 @@
       "generating": "生成中",
       "mermaidError": "Mermaidエラー",
       "model": "モデル",
+      "openInSidebar": "サイドバーで開く",
       "parameters": "パラメータ",
       "result": "結果",
       "running": "実行中...",
       "startTime": "開始時刻",
       "subagentProgress": "サブエージェントの進捗",
+      "summary": "要約",
       "synthesizing": "{{count}}件のサブエージェントの結果を統合中...",
       "thinking": "思考中",
       "thought": "思考済み",
@@ -542,6 +510,7 @@
     "page": "{{page}}ページ",
     "permissionRequired": "権限が必要です",
     "poweredBy": "Clivia 搭載",
+    "prev": "前へ",
     "previous": "前へ",
     "readMode": "読み取り専用",
     "refresh": "更新",
@@ -556,8 +525,7 @@
     "search": "検索",
     "selectAll": "すべて選択",
     "showing": "{{start}}〜{{end}}件を表示",
-    "skip": "スキップ",
-    "prev": "前へ"
+    "skip": "スキップ"
   },
   "documents": {
     "ascending": "昇順",
@@ -1002,6 +970,7 @@
     "addNew": "新しいMCPサーバーを追加",
     "addServer": "サーバー追加",
     "card": {
+      "allowedRolesTooltip": "[TODO]mcp.card.allowedRolesTooltip",
       "delete": "削除",
       "disable": "無効化",
       "disableTool": "ツールを無効化",
@@ -1014,6 +983,7 @@
       "envVarsCount": "{{count}}個の環境変数",
       "headersCount": "{{count}}個のヘッダー",
       "noTools": "ツールが見つかりません",
+      "roleCount": "[TODO]mcp.card.roleCount",
       "system": "システム",
       "systemDisabled": "システム無効",
       "toolToggleFailed": "ツールの切り替えに失敗しました",
@@ -1037,6 +1007,9 @@
     "featureDisabled": "MCP機能が無効です。管理者に連絡して有効にしてください。",
     "form": {
       "add": "追加",
+      "allRoles": "[TODO]mcp.form.allRoles",
+      "allowedRoles": "[TODO]mcp.form.allowedRoles",
+      "allowedRolesDescription": "[TODO]mcp.form.allowedRolesDescription",
       "args": "引数（カンマ区切り）",
       "argsPlaceholder": "@modelcontextprotocol/server-filesystem, /path/to/directory",
       "cancel": "キャンセル",
@@ -1044,6 +1017,7 @@
       "command": "コマンド",
       "commandPlaceholder": "npx -y @anthropic/mcp-server-fetch",
       "createServer": "サーバーを作成",
+      "dailyLimit": "[TODO]mcp.form.dailyLimit",
       "enabled": "有効",
       "envKeys": "環境変数",
       "envKeysDescription": "このMCPサーバープロセスに注入する環境変数を選択してください。事前に環境変数設定で定義されている必要があります。",
@@ -1056,7 +1030,10 @@
       "noEnvVars": "環境変数なし",
       "noHeaders": "カスタムヘッダーなし",
       "noMatchingKeys": "一致する変数がありません",
+      "noMatchingRoles": "[TODO]mcp.form.noMatchingRoles",
+      "noRoles": "[TODO]mcp.form.noRoles",
       "saveChanges": "変更を保存",
+      "searchRoles": "[TODO]mcp.form.searchRoles",
       "serverName": "サーバー名",
       "serverNamePlaceholder": "my-mcp-server",
       "serverNameUneditable": "サーバー名は変更できません",
@@ -1065,6 +1042,7 @@
       "transportSse": "SSE（サーバー送信イベント）",
       "transportType": "転送タイプ",
       "transportUneditable": "転送タイプは変更できません",
+      "unlimited": "[TODO]mcp.form.unlimited",
       "url": "URL",
       "urlPlaceholder": "https://example.com/mcp",
       "validation": {
@@ -1072,7 +1050,8 @@
         "nameRequired": "サーバー名は必須です",
         "urlRequired": "HTTP転送にはURLが必要です"
       },
-      "valuePlaceholder": "値"
+      "valuePlaceholder": "値",
+      "weeklyLimit": "[TODO]mcp.form.weeklyLimit"
     },
     "importFromJSON": "JSONからインポート",
     "importServers": "MCPサーバーをインポート",
@@ -1096,6 +1075,33 @@
     "updateSuccess": "MCPサーバーが正常に更新されました",
     "userServerVisible": "ユーザーサーバー（自分のみに表示）"
   },
+  "memory": {
+    "accesses": "回アクセス",
+    "allTypes": "すべてのタイプ",
+    "batchDeleteConfirmMessage": "[TODO]memory.batchDeleteConfirmMessage",
+    "batchDeleted": "[TODO]memory.batchDeleted",
+    "deleteConfirm": "この記憶を削除しますか？",
+    "deleteConfirmMessage": "この操作は元に戻せません。",
+    "deleteError": "削除に失敗しました",
+    "deleted": "記憶を削除しました",
+    "empty": "まだ記憶がありません。AIが重要な情報を自動的に保存します。",
+    "fetchError": "記憶の取得に失敗しました",
+    "loading": "記憶を読み込み中...",
+    "noResults": "一致する記憶がありません",
+    "searchPlaceholder": "記憶を検索...",
+    "selectHint": "記憶を選択して詳細を表示",
+    "subtitle": "合計 {{count}} 件の記憶",
+    "timeAgo": "{{count}}日前",
+    "timeMonthsAgo": "{{count}}ヶ月前",
+    "timeWeeksAgo": "{{count}}週間前",
+    "title": "記憶スペース",
+    "type": {
+      "feedback": "フィードバック",
+      "project": "プロジェクト",
+      "reference": "リファレンス",
+      "user": "ユーザー"
+    }
+  },
   "nav": {
     "adminMarketplace": "管理マーケット",
     "agents": "エージェント",
@@ -1105,6 +1111,7 @@
     "files": "ファイル",
     "marketplace": "マーケットプレイス",
     "mcp": "MCP",
+    "memory": "記憶スペース",
     "models": "モデル",
     "notifications": "お知らせ",
     "roles": "ロール",
@@ -1112,8 +1119,7 @@
     "skills": "スキル",
     "systemSettings": "システム設定",
     "userSettings": "ユーザー管理",
-    "users": "ユーザー",
-    "memory": "記憶スペース"
+    "users": "ユーザー"
   },
   "navDesc": {
     "agents": "AIエージェントの設定と管理",
@@ -1122,17 +1128,18 @@
     "feedback": "ユーザーフィードバックの確認と管理",
     "marketplace": "スキルの発見とインストール",
     "mcp": "MCPサーバー接続の管理",
+    "memory": "AIの記憶内容を表示・管理",
     "models": "LLMモデル設定の管理",
     "notifications": "システムお知らせを管理",
     "roles": "ロールと権限の設定",
     "settings": "アプリとシステムの設定",
     "skills": "スキルの管理と設定",
-    "users": "ユーザーアカウントとアクセスの管理",
-    "memory": "AIの記憶内容を表示・管理"
+    "users": "ユーザーアカウントとアクセスの管理"
   },
   "notification": {
     "active": "アクティブ",
     "cancel": "キャンセル",
+    "collapse": "詳細を隠す",
     "contentLabel": "内容",
     "create": "お知らせ作成",
     "createdSuccess": "お知らせを作成しました",
@@ -1143,6 +1150,7 @@
     "dismissedSuccess": "お知らせを非表示にしました",
     "edit": "お知らせ編集",
     "endTime": "終了時刻",
+    "expand": "詳細を表示",
     "expired": "期限切れ",
     "inactive": "非アクティブ",
     "isActive": "有効",
@@ -1159,9 +1167,7 @@
     "typeMaintenance": "メンテナンス",
     "typeSuccess": "成功",
     "typeWarning": "警告",
-    "updatedSuccess": "お知らせを更新しました",
-    "expand": "詳細を表示",
-    "collapse": "詳細を隠す"
+    "updatedSuccess": "お知らせを更新しました"
   },
   "passwordInput": {
     "hidePassword": "パスワードを隠す",
@@ -1739,6 +1745,38 @@
     "uploading": "アップロード中...",
     "userSkillVisible": "ユーザースキル（自分のみに表示）"
   },
+  "subcategories": {
+    "api": "API",
+    "apple": "Apple",
+    "bucket": "バケット",
+    "cache": "キャッシュ",
+    "connection": "接続",
+    "contact": "連絡先",
+    "daytona": "Daytona",
+    "deferred": "遅延読み込み",
+    "display": "表示",
+    "e2b": "E2B",
+    "events": "イベント統合",
+    "general": "一般",
+    "github": "GitHub",
+    "google": "Google",
+    "index": "インデックス",
+    "jwt": "JWT トークン",
+    "langsmith": "LangSmith",
+    "limits": "制限",
+    "llm": "LLM",
+    "mcp": "MCP",
+    "policy": "ポリシー",
+    "pool": "接続プール",
+    "postgres": "PostgreSQL",
+    "registration": "登録",
+    "rerank": "再ランク付け",
+    "retry": "リトライ",
+    "service": "メールサービス",
+    "storage": "ストレージ",
+    "title": "タイトル生成",
+    "turnstile": "Turnstile"
+  },
   "theme": {
     "switchToDark": "ダークモードに切り替え",
     "switchToLight": "ライトモードに切り替え"
@@ -1814,31 +1852,6 @@
       "enterPassword": "パスワードを入力してください",
       "enterUsername": "ユーザー名を入力してください",
       "passwordMinLength": "パスワードは6文字以上である必要があります"
-    }
-  },
-  "memory": {
-    "title": "記憶スペース",
-    "subtitle": "合計 {{count}} 件の記憶",
-    "loading": "記憶を読み込み中...",
-    "searchPlaceholder": "記憶を検索...",
-    "empty": "まだ記憶がありません。AIが重要な情報を自動的に保存します。",
-    "noResults": "一致する記憶がありません",
-    "fetchError": "記憶の取得に失敗しました",
-    "deleted": "記憶を削除しました",
-    "deleteError": "削除に失敗しました",
-    "deleteConfirm": "この記憶を削除しますか？",
-    "deleteConfirmMessage": "この操作は元に戻せません。",
-    "selectHint": "記憶を選択して詳細を表示",
-    "accesses": "回アクセス",
-    "allTypes": "すべてのタイプ",
-    "timeAgo": "{{count}}日前",
-    "timeWeeksAgo": "{{count}}週間前",
-    "timeMonthsAgo": "{{count}}ヶ月前",
-    "type": {
-      "user": "ユーザー",
-      "feedback": "フィードバック",
-      "project": "プロジェクト",
-      "reference": "リファレンス"
     }
   }
 }
