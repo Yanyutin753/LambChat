@@ -15,7 +15,6 @@ import asyncio
 import base64
 import os
 import shlex
-from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from deepagents.backends.protocol import (
@@ -228,92 +227,58 @@ class E2BBackend(BaseSandbox):
             logger.warning(f"E2B files.list({path}) failed: {e}, falling back to execute()")
             return super().ls(path)
 
-    _BINARY_EXTENSIONS = frozenset(
-        (
-            ".png",
-            ".jpg",
-            ".jpeg",
-            ".webp",
-            ".gif",
-            ".heic",
-            ".heif",
-            ".bmp",
-            ".ico",
-            ".svg",
-            ".tiff",
-            ".tif",
-            ".avif",
-            ".mp4",
-            ".mpeg",
-            ".mov",
-            ".avi",
-            ".flv",
-            ".mpg",
-            ".webm",
-            ".wmv",
-            ".3gpp",
-            ".mkv",
-            ".wav",
-            ".mp3",
-            ".aiff",
-            ".aac",
-            ".ogg",
-            ".flac",
-            ".m4a",
-            ".opus",
-            ".pdf",
-            ".ppt",
-            ".pptx",
-            ".doc",
-            ".docx",
-            ".xls",
-            ".xlsx",
-            ".zip",
-            ".tar",
-            ".gz",
-            ".7z",
-            ".rar",
-            ".bz2",
-            ".exe",
-            ".dll",
-            ".so",
-            ".bin",
-            ".dat",
-            ".woff",
-            ".woff2",
-            ".ttf",
-            ".otf",
-            ".eot",
-        )
-    )
+    # magic bytes → MIME
+    _MAGIC: list[tuple[bytes, str]] = [
+        (b"\x89PNG", "image/png"),
+        (b"\xff\xd8", "image/jpeg"),
+        (b"GIF8", "image/gif"),
+        (b"RIFFWEBP", "image/webp"),
+        (b"%PDF-", "application/pdf"),
+    ]
 
     @staticmethod
-    def _is_likely_binary(content: str) -> bool:
-        """Heuristic: if text read contains null bytes or >30% non-printable chars, treat as binary."""
-        if "\x00" in content:
-            return True
-        sample = content[:4096]
-        if len(sample) < 32:
-            return False
-        non_text = sum(1 for c in sample if ord(c) < 32 and c not in "\t\n\r")
-        return non_text / len(sample) > 0.3
+    def _guess_mime_type(path: str, data: bytes) -> str:
+        """根据扩展名 + magic bytes 猜测 MIME 类型"""
+        import mimetypes
+
+        mime, _ = mimetypes.guess_type(path)
+        if mime:
+            return mime
+        head = data[:12]
+        for sig, mt in E2BBackend._MAGIC:
+            if head.startswith(sig):
+                return mt
+        return "application/octet-stream"
+
+    def _read_as_data_uri(self, file_path: str, raw: bytes) -> ReadResult:
+        """将二进制数据包装为 data URI 返回"""
+        mime = self._guess_mime_type(file_path, raw)
+        data_uri = f"data:{mime};base64,{base64.standard_b64encode(raw).decode()}"
+        return ReadResult(file_data={"content": data_uri, "encoding": "data_uri"})
 
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
-        """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断"""
-        try:
-            # Binary files: read as bytes and base64-encode
-            ext = PurePosixPath(file_path).suffix.lower()
-            if ext in self._BINARY_EXTENSIONS:
-                raw = self._sandbox.files.read(path=file_path, format="bytes")
-                encoded = base64.standard_b64encode(raw).decode("ascii")
-                return ReadResult(file_data={"content": encoded, "encoding": "base64"})
+        """使用 E2B 原生 files.read() 读取文件，middleware 负责行号格式化和截断
 
+        自动检测二进制文件，返回 data URI 而非裸 base64。
+        """
+        try:
+            # 先尝试文本读取
             content = self._sandbox.files.read(path=file_path, format="text")
-            # Fallback: detect binary content that wasn't caught by extension
-            if self._is_likely_binary(content):
+
+            # 二进制检测：null bytes 或高比例不可打印字符
+            if "\x00" in content:
                 raw = self._sandbox.files.read(path=file_path, format="bytes")
-                encoded = base64.standard_b64encode(raw).decode("ascii")
-                return ReadResult(file_data={"content": encoded, "encoding": "base64"})
+                return self._read_as_data_uri(file_path, raw)
+
+            # 长文本且几乎全是 base64 字符 → 可能是裸 base64 的二进制文件
+            stripped = content.strip()
+            if len(stripped) >= 100:
+                sample = stripped[:4096]
+                non_text = sum(1 for c in sample if ord(c) < 32 and c not in "\t\n\r")
+                if non_text / len(sample) > 0.3:
+                    raw = self._sandbox.files.read(path=file_path, format="bytes")
+                    return self._read_as_data_uri(file_path, raw)
+
             if offset > 0:
                 lines = content.split("\n")
                 content = "\n".join(lines[offset:])
