@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { BlockPreviewPortal } from "../../chat/ChatMessage/items/McpBlockPreview";
 import { SessionSidebar } from "../../panels/SessionSidebar";
+import type { SessionSidebarHandle } from "../../panels/SessionSidebar";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { useAgent } from "../../../hooks/useAgent";
 import { useApprovals } from "../../../hooks/useApprovals";
@@ -542,7 +543,15 @@ function ChatAppContent({
 
   const canSendMessage = hasPermission(Permission.CHAT_WRITE);
 
-  useWebSocketNotifications({ sessionId, enabled: isAuthenticated });
+  const sidebarRef = useRef<SessionSidebarHandle>(null);
+
+  useWebSocketNotifications({
+    sessionId,
+    enabled: isAuthenticated,
+    onSessionUnread: (sid, count, projectId) => {
+      sidebarRef.current?.updateSessionUnread(sid, count, projectId);
+    },
+  });
 
   const [sessionName, setSessionName] = useState<string | null>(null);
 
@@ -686,6 +695,7 @@ function ChatAppContent({
       sessionName={sessionName}
       sidebar={
         <SessionSidebar
+          ref={sidebarRef}
           currentSessionId={sessionId}
           onSelectSession={handleSelectSessionAndClose}
           onNewSession={handleNewSessionAndClose}

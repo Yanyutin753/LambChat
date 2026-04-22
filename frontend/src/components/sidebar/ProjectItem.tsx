@@ -22,6 +22,11 @@ import { ProjectMenu } from "./ProjectMenu";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DynamicIcon } from "../common/DynamicIcon";
 import { shouldAutoExpandProject } from "./autoExpandProject";
+import {
+  formatUnreadCount,
+  getUnreadCountForProject,
+  type UnreadBySession,
+} from "./unreadCounts";
 
 export interface ProjectItemHandle {
   refresh: () => Promise<void>;
@@ -46,6 +51,7 @@ interface ProjectItemProps {
   onNewSessionInProject?: (projectId: string) => void;
   forceExpandProjectId?: string | null;
   onConsumeAutoExpand?: (projectId: string) => void;
+  unreadBySession?: UnreadBySession;
 }
 
 export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
@@ -63,6 +69,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       onNewSessionInProject,
       forceExpandProjectId,
       onConsumeAutoExpand,
+      unreadBySession = new Map(),
       onUpdateIcon,
       scrollRoot,
     },
@@ -96,6 +103,11 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       removeSession,
       updateSession,
     } = useProjectSessionList(project.id, scrollRoot);
+    const unreadCount = getUnreadCountForProject({
+      projectId: project.id,
+      loadedSessions: sessions,
+      unreadBySession,
+    });
 
     // Only fetch when expanded (lazy loading)
     const hasLoadedRef = useRef(false);
@@ -324,6 +336,12 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
               </div>
             )}
           </div>
+
+          {!isEditing && unreadCount > 0 && (
+            <span className="inline-flex h-4 min-w-[16px] flex-shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+              {formatUnreadCount(unreadCount)}
+            </span>
+          )}
 
           {/* Menu button - only for custom projects */}
           {!isFavorites && !isEditing && (

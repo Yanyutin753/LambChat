@@ -33,6 +33,11 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def should_increment_unread_for_trace_status(status: str) -> bool:
+    """Return whether a trace terminal status should require user attention."""
+    return status in {"completed", "error"}
+
+
 def _extract_attachment_keys(attachments: Optional[List[Dict[str, Any]]]) -> list[str]:
     """Extract unique storage keys from attachment payloads."""
     if not attachments:
@@ -291,6 +296,16 @@ class Presenter:
                 )
                 self._completed = True
                 logger.debug("Trace completed: %s, status=%s", self.trace_id, status)
+
+                # AI 回复完成或出错时递增未读计数，确保用户下次打开能看到。
+                if should_increment_unread_for_trace_status(status) and self.config.session_id:
+                    try:
+                        from src.infra.session.manager import SessionManager
+
+                        mgr = SessionManager()
+                        await mgr.increment_unread_count(self.config.session_id)
+                    except Exception as e:
+                        logger.warning("Failed to increment unread_count: %s", e)
             except Exception as e:
                 logger.warning("Failed to complete trace %s: %s", self.trace_id, e)
 

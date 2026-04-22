@@ -59,7 +59,7 @@ export const WelcomePage = memo(function WelcomePage({
       className="welcome-root relative flex h-full flex-col items-center justify-center px-4 overflow-hidden"
     >
       {/* Greeting section */}
-      <div className="relative flex flex-col items-center mb-4 sm:mb-8 w-full max-w-[90vw]">
+      <div className="relative flex flex-col items-center mb-4 sm:mb-8 lg:mb-10 w-full max-w-[90vw]">
         {/* App icon (mobile only) */}
         <div className="sm:hidden relative mb-3">
           <img
@@ -71,19 +71,19 @@ export const WelcomePage = memo(function WelcomePage({
 
         {/* Greeting */}
         <h1
-          className="welcome-greeting max-w-[90vw] text-[1.65rem] sm:text-[2rem] md:text-[2.25rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center"
+          className="welcome-greeting max-w-[90vw] text-[1.65rem] sm:text-[2rem] md:text-[2.25rem] xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center"
           style={{ color: "var(--theme-text)" }}
         >
           <img
             src="/icons/icon.svg"
             alt=""
-            className="welcome-icon hidden sm:inline-block size-12 mr-4 align-text-bottom rounded-full"
+            className="welcome-icon hidden sm:inline-block size-12 lg:size-14 mr-4 align-text-bottom rounded-full"
           />
           {greeting}
         </h1>
         {/* Subtle subtitle prompt */}
         <p
-          className="welcome-subtitle mt-2 sm:mt-3 text-sm sm:text-base text-center"
+          className="welcome-subtitle mt-2 sm:mt-3 lg:mt-4 text-sm sm:text-base lg:text-lg text-center"
           style={{ color: "var(--theme-text-secondary)" }}
         >
           {subtitle}
@@ -91,19 +91,22 @@ export const WelcomePage = memo(function WelcomePage({
       </div>
 
       {/* ChatInput centered — the focal point */}
-      <div className="welcome-input w-full max-w-[48rem]">
+      <div className="welcome-input w-full max-w-[48rem] lg:max-w-[52rem] xl:max-w-[56rem]">
         <ChatInput {...chatInputProps} />
       </div>
 
       {/* Suggestions with refresh */}
       {suggestions && suggestions.length > 0 && (
-        <div className="welcome-suggestions relative w-[19rem] sm:max-w-[36rem] sm:w-full px-2 sm:mt-5">
-          <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <div className="welcome-suggestions relative w-[19rem] sm:max-w-[36rem] lg:max-w-[42rem] sm:w-full px-2 sm:mt-5 lg:mt-8">
+          <div className="flex items-center justify-between mb-2 sm:mb-3 lg:mb-4">
             <div
               className="flex items-center gap-1 text-xs sm:text-sm font-medium"
               style={{ color: "var(--theme-text-secondary)" }}
             >
-              <Sparkles size={11} className="opacity-60" />
+              <Sparkles
+                size={11}
+                className="opacity-60 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4"
+              />
               <span>{suggestionsLabel}</span>
             </div>
             {onRefreshSuggestions && (
@@ -117,7 +120,9 @@ export const WelcomePage = memo(function WelcomePage({
               >
                 <RefreshCw
                   size={12}
-                  className={isRefreshing ? "animate-spin" : ""}
+                  className={
+                    isRefreshing ? "animate-spin" : "lg:w-3.5 lg:h-3.5"
+                  }
                 />
                 <span>{refreshLabel}</span>
               </button>
@@ -125,13 +130,13 @@ export const WelcomePage = memo(function WelcomePage({
           </div>
           <div
             key={animKey}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 lg:gap-3"
           >
             {suggestions.map((suggestion, i) => (
               <button
                 key={suggestion.text}
                 onClick={() => handleSuggestionClick(suggestion.text)}
-                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 text-left cursor-pointer transition-all duration-300 overflow-hidden${
+                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 lg:gap-3.5 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 lg:px-5 lg:py-3.5 text-left cursor-pointer transition-all duration-300 overflow-hidden${
                   i >= 2 ? " hidden sm:flex" : ""
                 }`}
                 style={{
@@ -143,7 +148,7 @@ export const WelcomePage = memo(function WelcomePage({
                 {/* Hover shimmer layer */}
                 <span className="welcome-card-shimmer" aria-hidden="true" />
                 <span
-                  className="relative flex items-center justify-center size-6 sm:size-7 rounded-lg text-[13px] sm:text-[15px] shrink-0 transition-transform duration-300 group-hover:scale-110"
+                  className="relative flex items-center justify-center size-6 sm:size-7 lg:size-8 rounded-lg text-[13px] sm:text-[15px] lg:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
                   style={{
                     backgroundColor: "var(--theme-primary-light)",
                     color: "var(--theme-primary)",

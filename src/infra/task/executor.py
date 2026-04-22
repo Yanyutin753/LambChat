@@ -358,6 +358,19 @@ class TaskExecutor:
             if message:
                 notification["data"]["message"] = message
 
+            # 附带最新的 unread_count，让前端实时更新侧边栏
+            try:
+                from src.infra.session.manager import SessionManager
+
+                session = await SessionManager().get_session(session_id)
+                if session:
+                    notification["data"]["unread_count"] = getattr(session, "unread_count", 0)
+                    notification["data"]["project_id"] = (
+                        session.metadata.get("project_id") if session.metadata else None
+                    )
+            except Exception:
+                pass
+
             await manager.send_to_user_with_broadcast(user_id, notification)
             logger.info(
                 f"Task notification sent: user_id={user_id}, session={session_id}, status={status.value}"

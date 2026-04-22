@@ -39,6 +39,7 @@ class Session(SessionBase):
     task_status: Optional[str] = None  # pending, running, completed, failed
     task_error: Optional[str] = None
     completed_at: Optional[datetime] = None
+    unread_count: int = 0
 
     class Config:
         from_attributes = True

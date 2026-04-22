@@ -12,6 +12,8 @@ export interface TaskCompleteNotification {
     run_id: string;
     status: "completed" | "failed";
     message?: string;
+    unread_count?: number;
+    project_id?: string | null;
   };
 }
 

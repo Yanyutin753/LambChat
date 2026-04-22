@@ -20,6 +20,7 @@ export interface BackendSession {
   is_active: boolean;
   name?: string;
   metadata: Record<string, unknown>;
+  unread_count?: number;
 }
 
 // Session list response type
@@ -244,6 +245,15 @@ export const sessionApi = {
     return authFetch(`${API_BASE}/api/sessions/${sessionId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Mark session as read (clear unread count)
+   */
+  async markRead(sessionId: string): Promise<void> {
+    await authFetch(`${API_BASE}/api/sessions/${sessionId}/mark-read`, {
+      method: "POST",
     });
   },
 };

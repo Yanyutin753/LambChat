@@ -234,6 +234,22 @@ class SessionStorage:
         )
         return result.modified_count
 
+    async def increment_unread_count(self, session_id: str) -> bool:
+        """递增会话未读计数"""
+        result = await self.collection.update_one(
+            {"session_id": session_id},
+            {"$inc": {"unread_count": 1}, "$set": {"updated_at": datetime.now()}},
+        )
+        return result.modified_count > 0
+
+    async def mark_read(self, session_id: str) -> bool:
+        """将会话标记为已读（清除未读计数）"""
+        result = await self.collection.update_one(
+            {"session_id": session_id},
+            {"$set": {"unread_count": 0}},
+        )
+        return result.modified_count > 0
+
     async def delete_by_project(self, project_id: str, user_id: str) -> int:
         """Delete all sessions in a project.
 

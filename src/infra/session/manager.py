@@ -152,6 +152,14 @@ class SessionManager:
         """列出会话，返回 (sessions, total_count)"""
         return await self.storage.list_sessions(user_id, skip, limit, is_active, project_id, search)
 
+    async def increment_unread_count(self, session_id: str) -> bool:
+        """递增会话未读计数"""
+        return await self.storage.increment_unread_count(session_id)
+
+    async def mark_read(self, session_id: str) -> bool:
+        """将会话标记为已读"""
+        return await self.storage.mark_read(session_id)
+
     async def deactivate_session(self, session_id: str) -> Optional[Session]:
         """停用会话"""
         return await self.storage.update(

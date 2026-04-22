@@ -274,11 +274,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       processedEventIdsRef.current.clear();
       lastHistoryTimestampRef.current = null;
+      const markReadPromise = sessionApi
+        .markRead(targetSessionId)
+        .catch(() => {});
 
       // Clear approvals before loading new session
       options?.onClearApprovals?.();
 
       try {
+        await markReadPromise;
         const sessionData = await sessionApi.get(targetSessionId);
 
         if (sessionData) {
@@ -437,6 +441,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
           // Return sessionConfig *before* any SSE reconnect so that the
           // caller can immediately restore model selection / agent / config.
+
           return sessionConfig;
         }
       } catch (err) {
@@ -491,6 +496,11 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setError(null);
 
       try {
+        // 用户发送消息时标记当前 session 为已读
+        if (sessionId) {
+          sessionApi.markRead(sessionId).catch(() => {});
+        }
+
         // 获取当前禁用的 skills 和 mcp_tools
         const disabledSkills = options?.getDisabledSkills?.() || [];
         const disabledMcpTools = options?.getDisabledMcpTools?.() || [];

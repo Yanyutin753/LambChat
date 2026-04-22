@@ -3,7 +3,14 @@
  * Each project independently loads its sessions with per-project pagination.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -27,6 +34,12 @@ import { DeleteProjectDialog } from "../common/DeleteProjectDialog";
 import { ProjectItem } from "../sidebar/ProjectItem";
 import type { ProjectItemHandle } from "../sidebar/ProjectItem";
 import { SessionItem } from "../sidebar/SessionItem";
+import {
+  formatUnreadCount,
+  getUnreadCountForUncategorized,
+  mergeUnreadUpdate,
+  type UnreadBySession,
+} from "../sidebar/unreadCounts";
 import { getSessionTitle, groupSessionsByTime } from "./sessionHelpers";
 import { SearchDialog } from "./SearchDialog";
 
@@ -47,21 +60,35 @@ interface SessionSidebarProps {
   onConsumeAutoExpandProjectId?: (projectId: string) => void;
 }
 
-export function SessionSidebar({
-  currentSessionId,
-  onSelectSession,
-  onNewSession,
-  refreshKey,
-  newSession,
-  mobileOpen = false,
-  onMobileClose,
-  isCollapsed: externalCollapsed,
-  onToggleCollapsed,
-  onShowProfile,
-  onSetPendingProjectId,
-  autoExpandProjectId,
-  onConsumeAutoExpandProjectId,
-}: SessionSidebarProps) {
+export interface SessionSidebarHandle {
+  updateSessionUnread: (
+    sessionId: string,
+    unreadCount: number,
+    projectId?: string | null,
+  ) => void;
+}
+
+export const SessionSidebar = forwardRef<
+  SessionSidebarHandle,
+  SessionSidebarProps
+>(function SessionSidebar(
+  {
+    currentSessionId,
+    onSelectSession,
+    onNewSession,
+    refreshKey,
+    newSession,
+    mobileOpen = false,
+    onMobileClose,
+    isCollapsed: externalCollapsed,
+    onToggleCollapsed,
+    onShowProfile,
+    onSetPendingProjectId,
+    autoExpandProjectId,
+    onConsumeAutoExpandProjectId,
+  },
+  ref,
+) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -73,6 +100,9 @@ export function SessionSidebar({
   const [isChatsCollapsed, setIsChatsCollapsed] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const [unreadBySession, setUnreadBySession] = useState<UnreadBySession>(
+    () => new Map(),
+  );
 
   // Track mobile breakpoint to avoid ref conflicts — both sidebars render
   // sessionListContent in the DOM, causing shared refs (scrollEl, loadMoreRef)
@@ -103,6 +133,38 @@ export function SessionSidebar({
 
   // Uncategorized sessions — independent pagination
   const uncategorizedList = useProjectSessionList("none", scrollEl);
+
+  // Handle WebSocket-driven unread count updates
+  const handleSessionUnread = useCallback(
+    (sid: string, count: number, projectId?: string | null) => {
+      setUnreadBySession((prev) =>
+        mergeUnreadUpdate(prev, {
+          sessionId: sid,
+          unreadCount: count,
+          projectId,
+        }),
+      );
+      const session = uncategorizedList.sessions.find((s) => s.id === sid);
+      if (session) {
+        uncategorizedList.updateSession({ ...session, unread_count: count });
+        return;
+      }
+      for (const [, handle] of projectRefs.current) {
+        const s = handle.sessions.find((s) => s.id === sid);
+        if (s) {
+          handle.updateSession({ ...s, unread_count: count });
+          return;
+        }
+      }
+    },
+    [uncategorizedList],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({ updateSessionUnread: handleSessionUnread }),
+    [handleSessionUnread],
+  );
 
   // Project refs for cross-project operations
   const projectRefs = useRef<Map<string, ProjectItemHandle>>(new Map());
@@ -153,6 +215,17 @@ export function SessionSidebar({
           } else {
             uncategorizedList.prependSession(response.session);
           }
+          setUnreadBySession((prev) =>
+            mergeUnreadUpdate(prev, {
+              sessionId,
+              unreadCount: response.session.unread_count ?? 0,
+              projectId:
+                (response.session.metadata?.project_id as
+                  | string
+                  | null
+                  | undefined) ?? null,
+            }),
+          );
         }
       } catch (err) {
         console.error("Failed to move session:", err);
@@ -227,6 +300,14 @@ export function SessionSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
+  // Refresh session lists when user switches sessions (picks up unread_count changes)
+  useEffect(() => {
+    if (!currentSessionId) return;
+    uncategorizedList.refresh();
+    projectRefs.current.forEach((ref) => ref?.refresh());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSessionId]);
+
   // Handle new session from parent — prepend or update in the correct list
   useEffect(() => {
     if (newSession && newSession.id) {
@@ -273,6 +354,7 @@ export function SessionSidebar({
   // ─── Select session helper (mobile close) ───────────────────────
 
   const selectAndClose = (sessionId: string) => {
+    handleSessionUnread(sessionId, 0);
     onSelectSession(sessionId);
     onMobileClose?.();
   };
@@ -444,6 +526,7 @@ export function SessionSidebar({
                       ? touchDrag.draggingSessionId
                       : null
                   }
+                  unreadBySession={unreadBySession}
                 />
               );
             })()}
@@ -484,6 +567,7 @@ export function SessionSidebar({
                   onNewSessionInProject={handleNewSessionInProject}
                   forceExpandProjectId={autoExpandProjectId}
                   onConsumeAutoExpand={onConsumeAutoExpandProjectId}
+                  unreadBySession={unreadBySession}
                 />
               ))}
 
@@ -495,6 +579,10 @@ export function SessionSidebar({
           {/* Uncategorized sessions (by time) */}
           {(() => {
             const rawSessions = uncategorizedList.sessions;
+            const chatsUnreadCount = getUnreadCountForUncategorized({
+              loadedSessions: rawSessions,
+              unreadBySession,
+            });
             const filtered = searchQuery.trim()
               ? rawSessions.filter((s) => {
                   const title = getSessionTitle(s, t).toLowerCase();
@@ -513,9 +601,16 @@ export function SessionSidebar({
                   onClick={() => setIsChatsCollapsed(!isChatsCollapsed)}
                   className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
                 >
-                  <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
-                    {t("sidebar.chats")}
-                  </span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+                      {t("sidebar.chats")}
+                    </span>
+                    {chatsUnreadCount > 0 && (
+                      <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+                        {formatUnreadCount(chatsUnreadCount)}
+                      </span>
+                    )}
+                  </div>
                   <ChevronDown
                     size={14}
                     className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
@@ -782,4 +877,4 @@ export function SessionSidebar({
         )}
     </>
   );
-}
+});

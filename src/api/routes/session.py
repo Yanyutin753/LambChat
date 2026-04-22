@@ -201,6 +201,23 @@ async def delete_session(
     return {"status": "deleted"}
 
 
+@router.post("/{session_id}/mark-read")
+async def mark_session_read(
+    session_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """将会话标记为已读（清除未读计数）"""
+    manager = SessionManager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    verify_session_ownership(session, user)
+
+    await manager.mark_read(session_id)
+    return {"status": "ok"}
+
+
 @router.get("/{session_id}/events")
 async def get_session_events(
     session_id: str,

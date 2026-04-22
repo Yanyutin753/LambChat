@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
@@ -6,20 +6,29 @@ import { Check, X } from "lucide-react";
 import { useWebSocket } from "../../../hooks/useWebSocket";
 import { useBrowserNotification } from "../../../hooks/useBrowserNotification";
 import { sessionApi } from "../../../services/api";
+import { shouldSurfaceTaskNotification } from "./taskNotificationGuards";
 
 interface UseWebSocketNotificationsOptions {
   sessionId: string | null;
   enabled?: boolean;
+  onSessionUnread?: (
+    sessionId: string,
+    unreadCount: number,
+    projectId?: string | null,
+  ) => void;
 }
 
 export function useWebSocketNotifications({
   sessionId,
   enabled = true,
+  onSessionUnread,
 }: UseWebSocketNotificationsOptions) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { requestPermission, notify, isSupported, permission } =
     useBrowserNotification();
+  const onSessionUnreadRef = useRef(onSessionUnread);
+  onSessionUnreadRef.current = onSessionUnread;
 
   // Request notification permission on first interaction
   useEffect(() => {
@@ -32,9 +41,35 @@ export function useWebSocketNotifications({
   useWebSocket({
     enabled,
     onTaskComplete: async (notification: {
-      data: { session_id: string; status: string; message?: string };
+      data: {
+        session_id: string;
+        status: string;
+        message?: string;
+        unread_count?: number;
+        project_id?: string | null;
+      };
     }) => {
-      const { session_id, status, message } = notification.data;
+      const { session_id, status, message, unread_count, project_id } =
+        notification.data;
+
+      // 通知侧边栏更新 unread_count（仅非当前 session）
+      if (session_id !== sessionId && unread_count !== undefined) {
+        onSessionUnreadRef.current?.(session_id, unread_count, project_id);
+      }
+
+      const visibilityState =
+        typeof document === "undefined" ? "visible" : document.visibilityState;
+      const shouldSurface = shouldSurfaceTaskNotification({
+        notificationSessionId: session_id,
+        currentSessionId: sessionId,
+        visibilityState,
+      });
+
+      if (!shouldSurface) {
+        sessionApi.markRead(session_id).catch(() => {});
+        onSessionUnreadRef.current?.(session_id, 0, project_id);
+        return;
+      }
 
       // Fetch session name for notification title
       let sessionName = "";

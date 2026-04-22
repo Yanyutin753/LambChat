@@ -9,6 +9,7 @@
 
 import type { Message, FormField } from "../../types";
 import { authFetch } from "../../services/api/fetch";
+import { sessionApi } from "../../services/api";
 import i18n from "../../i18n";
 import type {
   StreamEvent,
@@ -134,6 +135,11 @@ export function handleStreamEvent(
         ),
       );
       ctx.setConnectionStatus("disconnected");
+      // AI 回复完成，用户正在查看当前 session，立即标记为已读
+      const activeSessionId = ctx.sessionIdRef.current;
+      if (activeSessionId) {
+        sessionApi.markRead(activeSessionId).catch(() => {});
+      }
       return;
     }
 
