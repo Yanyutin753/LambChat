@@ -25,6 +25,7 @@ from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.prompt import DEFAULT_SYSTEM_PROMPT, SANDBOX_SYSTEM_PROMPT
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.middleware import (
+    EnvVarPromptMiddleware,
     MCPQuotaMiddleware,
     PromptCachingMiddleware,
     SandboxMCPMiddleware,
@@ -154,6 +155,8 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         ToolResultBinaryMiddleware(base_url=search_base_url),
         SubagentActivityMiddleware(backend=backend_factory),
     ]
+    if sandbox_backend:
+        subagent_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
     if context.deferred_manager is not None:
         from src.infra.agent.middleware import ToolSearchMiddleware
 
@@ -186,6 +189,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         user_middleware.append(
             SandboxMCPMiddleware(backend=sandbox_backend, user_id=context.user_id or "default")
         )
+        user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
     _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]
     if _prompt_sections:

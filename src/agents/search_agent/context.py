@@ -164,6 +164,12 @@ class SearchAgentContext:
         self.tools.append(transfer_path_tool)
         logger.info("[SearchAgentContext] Added transfer_path tool")
 
+        from src.infra.tool.env_var_tool import get_env_var_tools
+
+        env_var_tools = get_env_var_tools()
+        self.tools.extend(env_var_tools)
+        logger.info(f"[SearchAgentContext] Added {len(env_var_tools)} env var tools")
+
         # Memory 工具（统一接口，自动选择 Hindsight 或 memU 后端）
         if settings.ENABLE_MEMORY:
             try:

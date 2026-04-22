@@ -24,6 +24,7 @@ from langchain.agents.middleware.types import (
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
+from src.infra.tool.env_var_prompt import build_env_var_prompt
 from src.infra.tool.sandbox_mcp_prompt import build_sandbox_mcp_prompt
 from src.kernel.config import settings
 
@@ -406,6 +407,28 @@ class SandboxMCPMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
     ) -> ModelResponse[ResponseT]:
         prompt = await build_sandbox_mcp_prompt(self._backend, self._user_id)
+        if prompt:
+            new_system_message = _append_system_text_block(request.system_message, prompt)
+            request = request.override(system_message=new_system_message)
+        return await handler(request)
+
+
+class EnvVarPromptMiddleware(AgentMiddleware):
+    """Inject configured environment variable keys into the system prompt.
+
+    Only key names are included. Values are never read as plaintext here.
+    """
+
+    def __init__(self, *, user_id: str) -> None:
+        super().__init__()
+        self._user_id = user_id
+
+    async def awrap_model_call(
+        self,
+        request: ModelRequest[ContextT],
+        handler: Callable[[ModelRequest[ContextT]], Awaitable[ModelResponse[ResponseT]]],
+    ) -> ModelResponse[ResponseT]:
+        prompt = await build_env_var_prompt(self._user_id)
         if prompt:
             new_system_message = _append_system_text_block(request.system_message, prompt)
             request = request.override(system_message=new_system_message)
