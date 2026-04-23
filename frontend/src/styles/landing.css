@@ -66,17 +66,47 @@
 /* ── Hero ── */
 .blog-hero {
   background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.4) 100%
-  );
+      180deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.4) 100%
+    ),
+    radial-gradient(
+      ellipse 80% 50% at 70% 15%,
+      rgba(251, 191, 36, 0.05) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 25% 65%,
+      rgba(56, 189, 248, 0.035) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 80% 70%,
+      rgba(232, 121, 249, 0.03) 0%,
+      transparent 50%
+    );
 }
 html.dark .blog-hero {
   background: linear-gradient(
-    180deg,
-    rgba(12, 10, 9, 0) 0%,
-    rgba(12, 10, 9, 0.3) 100%
-  );
+      180deg,
+      rgba(12, 10, 9, 0) 0%,
+      rgba(12, 10, 9, 0.3) 100%
+    ),
+    radial-gradient(
+      ellipse 80% 50% at 70% 15%,
+      rgba(251, 191, 36, 0.035) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 25% 65%,
+      rgba(56, 189, 248, 0.025) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 80% 70%,
+      rgba(232, 121, 249, 0.02) 0%,
+      transparent 50%
+    );
 }
 
 .blog-crosshatch {
@@ -571,4 +601,259 @@ html.dark .blog-nav-scrolled {
   .blog-pulse-dot {
     animation: none !important;
   }
+}
+
+/* ═══════════════════════════════════════════
+   Mesh Gradient Backgrounds & Noise Texture
+   ═══════════════════════════════════════════ */
+
+/* ── Noise Texture Overlay ── */
+.blog-landing-container {
+  position: relative;
+}
+.blog-landing-container::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.018;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+html.dark .blog-landing-container::after {
+  opacity: 0.032;
+}
+
+/* ── Interface Section: Warm Amber & Sky ── */
+.blog-mesh-interface {
+  background-image: radial-gradient(
+      ellipse 80% 60% at 10% 25%,
+      rgba(251, 191, 36, 0.05) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 80% at 90% 75%,
+      rgba(56, 189, 248, 0.035) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 70% 40% at 50% 100%,
+      rgba(251, 146, 60, 0.025) 0%,
+      transparent 60%
+    );
+}
+html.dark .blog-mesh-interface {
+  background-image: radial-gradient(
+      ellipse 80% 60% at 10% 25%,
+      rgba(251, 191, 36, 0.035) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 60% 80% at 90% 75%,
+      rgba(56, 189, 248, 0.025) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 70% 40% at 50% 100%,
+      rgba(251, 146, 60, 0.015) 0%,
+      transparent 60%
+    );
+}
+
+/* ── Features Section: Cool Indigo & Slate ── */
+.blog-mesh-features {
+  background-image: radial-gradient(
+      ellipse 60% 50% at 50% 10%,
+      rgba(99, 102, 241, 0.04) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 70% at 10% 80%,
+      rgba(100, 116, 139, 0.035) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 60% at 90% 50%,
+      rgba(20, 184, 166, 0.03) 0%,
+      transparent 60%
+    );
+}
+html.dark .blog-mesh-features {
+  background-image: radial-gradient(
+      ellipse 60% 50% at 50% 10%,
+      rgba(99, 102, 241, 0.03) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 70% at 10% 80%,
+      rgba(100, 116, 139, 0.025) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 60% at 90% 50%,
+      rgba(20, 184, 166, 0.02) 0%,
+      transparent 60%
+    );
+}
+
+/* ── Architecture Section: Copper & Amber ── */
+.blog-mesh-architecture {
+  background-image: radial-gradient(
+      ellipse 70% 60% at 40% 40%,
+      rgba(251, 191, 36, 0.04) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 85% 20%,
+      rgba(217, 119, 6, 0.035) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 15% 80%,
+      rgba(251, 146, 60, 0.025) 0%,
+      transparent 60%
+    );
+}
+html.dark .blog-mesh-architecture {
+  background-image: radial-gradient(
+      ellipse 70% 60% at 40% 40%,
+      rgba(251, 191, 36, 0.03) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 85% 20%,
+      rgba(217, 119, 6, 0.025) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 15% 80%,
+      rgba(251, 146, 60, 0.015) 0%,
+      transparent 60%
+    );
+}
+
+/* ── Dashboard Section: Violet & Lavender ── */
+.blog-mesh-dashboard {
+  background-image: radial-gradient(
+      ellipse 60% 70% at 85% 15%,
+      rgba(139, 92, 246, 0.04) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 10% 70%,
+      rgba(196, 181, 253, 0.035) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 50% at 50% 50%,
+      rgba(244, 114, 182, 0.02) 0%,
+      transparent 50%
+    );
+}
+html.dark .blog-mesh-dashboard {
+  background-image: radial-gradient(
+      ellipse 60% 70% at 85% 15%,
+      rgba(139, 92, 246, 0.03) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 10% 70%,
+      rgba(196, 181, 253, 0.025) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 40% 50% at 50% 50%,
+      rgba(244, 114, 182, 0.015) 0%,
+      transparent 50%
+    );
+}
+
+/* ── Responsive Section: Rose & Peach ── */
+.blog-mesh-responsive {
+  background-image: radial-gradient(
+      ellipse 70% 50% at 50% 90%,
+      rgba(251, 113, 133, 0.04) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 15% 20%,
+      rgba(253, 186, 116, 0.035) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 40% 40% at 85% 40%,
+      rgba(251, 191, 36, 0.025) 0%,
+      transparent 50%
+    );
+}
+html.dark .blog-mesh-responsive {
+  background-image: radial-gradient(
+      ellipse 70% 50% at 50% 90%,
+      rgba(251, 113, 133, 0.025) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 15% 20%,
+      rgba(253, 186, 116, 0.02) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 40% 40% at 85% 40%,
+      rgba(251, 191, 36, 0.015) 0%,
+      transparent 50%
+    );
+}
+
+/* ── CTA Section: Enhanced Amber & Fuchsia ── */
+.blog-mesh-cta {
+  background-image: radial-gradient(
+      ellipse 60% 50% at 30% 30%,
+      rgba(251, 191, 36, 0.035) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 75% 70%,
+      rgba(232, 121, 249, 0.025) 0%,
+      transparent 60%
+    );
+}
+html.dark .blog-mesh-cta {
+  background-image: radial-gradient(
+      ellipse 60% 50% at 30% 30%,
+      rgba(251, 191, 36, 0.025) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 75% 70%,
+      rgba(232, 121, 249, 0.015) 0%,
+      transparent 60%
+    );
+}
+
+/* ── Footer: Warm Stone ── */
+.blog-mesh-footer {
+  background-image: radial-gradient(
+      ellipse 80% 40% at 30% 0%,
+      rgba(251, 191, 36, 0.02) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 80% 100%,
+      rgba(120, 113, 108, 0.015) 0%,
+      transparent 60%
+    );
+}
+html.dark .blog-mesh-footer {
+  background-image: radial-gradient(
+      ellipse 80% 40% at 30% 0%,
+      rgba(251, 191, 36, 0.015) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 80% 100%,
+      rgba(120, 113, 108, 0.01) 0%,
+      transparent 60%
+    );
 }

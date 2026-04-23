@@ -155,7 +155,7 @@ SYSTEM_PACKAGES = [
 ]
 
 # ============== 资源配额 ==============
-# Hobby 免费计划限制: 8 vCPU, 8GB RAM, 10GB disk
+# Hobby 免费计划限制: 2 vCPU, 2GB RAM, 10GB disk
 CPU_COUNT = 2
 MEMORY_MB = 2024
 # ======================================
@@ -198,10 +198,13 @@ def main():
     template = template.run_cmd("~/.bun/bin/bun install -g mcporter")
     template = template.run_cmd("mkdir -p ~/.mcporter")
 
-    # 安装 Node.js / npx（sandbox MCP 常用 npx 启动 stdio 服务器）
+    # 安装 Node.js 22 / npx（sandbox MCP 常用 npx 启动 stdio 服务器）
     template = template.run_cmd(
         "curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash - && sudo apt-get install -y nodejs && sudo rm -rf /var/lib/apt/lists/*"
     )
+
+    # 安装 opencli（网站转 CLI 工具）
+    template = template.run_cmd("~/.bun/bin/bun install -g @jackwener/opencli")
 
     print("\nBuilding template (this may take a few minutes)...\n")
 

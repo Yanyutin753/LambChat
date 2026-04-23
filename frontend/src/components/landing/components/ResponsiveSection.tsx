@@ -9,7 +9,10 @@ export function ResponsiveSection({ onOpenViewer }: ResponsiveSectionProps) {
   const { t } = useTranslation();
 
   return (
-    <section id="responsive" className="py-20 sm:py-28 lg:py-36 scroll-mt-14">
+    <section
+      id="responsive"
+      className="blog-mesh-responsive py-20 sm:py-28 lg:py-36 scroll-mt-14"
+    >
       <div className="max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto px-5 sm:px-6">
         <SectionHeading
           label={t("landing.sectionLabelResponsive")}

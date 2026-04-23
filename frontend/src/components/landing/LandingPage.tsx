@@ -106,7 +106,10 @@ export function LandingPage() {
   );
 
   return (
-    <div ref={containerRef} className="bg-white dark:bg-stone-950 antialiased">
+    <div
+      ref={containerRef}
+      className="blog-landing-container relative bg-white dark:bg-stone-950 antialiased"
+    >
       {/* Progress bar */}
       <div
         className="landing-progress-bar"

@@ -12,7 +12,7 @@ export function Footer({ onScrollToSection }: FooterProps) {
   const { t } = useTranslation();
 
   return (
-    <footer className="relative border-t border-stone-200/50 dark:border-stone-800/30 bg-stone-50/30 dark:bg-stone-900/15">
+    <footer className="blog-mesh-footer relative border-t border-stone-200/50 dark:border-stone-800/30 bg-stone-50/30 dark:bg-stone-900/15">
       {/* Top accent */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent dark:via-amber-500/25" />
 

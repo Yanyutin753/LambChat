@@ -76,5 +76,6 @@ docs/*
 !docs/images/
 !docs/images/**/
 frontend/src/components/common/DynamicIcon.tsx
-.codex
+.codex/
 claude-code
+.playwright-mcp/

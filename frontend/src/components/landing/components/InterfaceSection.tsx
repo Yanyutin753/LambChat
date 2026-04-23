@@ -13,7 +13,7 @@ export function InterfaceSection({ onOpenViewer }: InterfaceSectionProps) {
   return (
     <section
       id="interface"
-      className="py-20 sm:py-28 lg:py-36 scroll-mt-14 bg-stone-50/50 dark:bg-stone-900/15"
+      className="blog-mesh-interface py-20 sm:py-28 lg:py-36 scroll-mt-14 bg-stone-50/50 dark:bg-stone-900/15"
     >
       <div className="max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto px-5 sm:px-6">
         <SectionHeading
