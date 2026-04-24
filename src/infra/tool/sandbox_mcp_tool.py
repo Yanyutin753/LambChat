@@ -15,7 +15,6 @@ import sys
 from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 from langchain_core.tools import BaseTool, InjectedToolArg, StructuredTool
-from pydantic import BaseModel, Field
 
 from src.infra.tool.sandbox_mcp_utils import build_env_flags
 
@@ -44,35 +43,6 @@ logger = get_logger(__name__)
 
 # mcporter command timeout (seconds)
 _MCPORTER_TIMEOUT = 60
-
-
-# ── Args schemas ────────────────────────────────────────────────
-
-
-class _AddInput(BaseModel):
-    server_name: str = Field(..., description="MCP server name to register")
-    command: str = Field(..., description="stdio command, e.g. 'npx @anthropic/mcp-server-fetch'")
-    env_keys: Optional[str] = Field(
-        None,
-        description="Comma-separated list of environment variable KEY names to inject "
-        "(must be pre-defined in user's environment variables settings)",
-    )
-
-
-class _UpdateInput(BaseModel):
-    server_name: str = Field(..., description="Name of the MCP server to update")
-    command: Optional[str] = Field(
-        None, description="New stdio command (leave unchanged if omitted)"
-    )
-    env_keys: Optional[str] = Field(
-        None,
-        description="Comma-separated list of environment variable KEY names to inject "
-        "(leave unchanged if omitted)",
-    )
-
-
-class _RemoveInput(BaseModel):
-    server_name: str = Field(..., description="MCP server name to remove")
 
 
 # ── MongoDB persistence helpers ───────────────────────────────
@@ -292,7 +262,8 @@ def get_sandbox_mcp_tools() -> list[BaseTool]:
       - sandbox_mcp_remove:   unregister a server (persists to MongoDB)
     """
     return [
-        StructuredTool(
+        StructuredTool.from_function(
+            coroutine=_mcporter_add,
             name="sandbox_mcp_add",
             description=(
                 "Register a new MCP server in the sandbox and persist it to the database. "
@@ -301,30 +272,23 @@ def get_sandbox_mcp_tools() -> list[BaseTool]:
                 "(these must be pre-defined in user's environment variable settings). "
                 "The server will be automatically restored when the sandbox is rebuilt."
             ),
-            args_schema=_AddInput,
-            func=None,
-            coroutine=_mcporter_add,
         ),
-        StructuredTool(
+        StructuredTool.from_function(
+            coroutine=_mcporter_update,
             name="sandbox_mcp_update",
             description=(
                 "Update an existing sandbox MCP server's command or environment variables. "
                 "Provide server_name and optionally the new command and/or env_keys. "
                 "Changes are persisted to the database and applied to the sandbox."
             ),
-            args_schema=_UpdateInput,
-            func=None,
-            coroutine=_mcporter_update,
         ),
-        StructuredTool(
+        StructuredTool.from_function(
+            coroutine=_mcporter_remove,
             name="sandbox_mcp_remove",
             description=(
                 "Remove an MCP server from the sandbox and delete it from the database. "
                 "The server will no longer be restored when the sandbox is rebuilt."
             ),
-            args_schema=_RemoveInput,
-            func=None,
-            coroutine=_mcporter_remove,
         ),
     ]
 

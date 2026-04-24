@@ -10,7 +10,6 @@ import sys
 from typing import TYPE_CHECKING, Annotated, Any
 
 from langchain_core.tools import BaseTool, InjectedToolArg, StructuredTool
-from pydantic import BaseModel, Field
 
 from src.infra.envvar.storage import EnvVarStorage
 from src.infra.tool.backend_utils import get_user_id_from_runtime
@@ -30,29 +29,6 @@ else:
 
 
 _ENV_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-class _ListInput(BaseModel):
-    pass
-
-
-class _SetInput(BaseModel):
-    key: str = Field(
-        ...,
-        description="Environment variable key. Must match ^[A-Za-z_][A-Za-z0-9_]*$.",
-    )
-    value: str = Field(..., description="Environment variable value to store encrypted.")
-
-
-class _DeleteInput(BaseModel):
-    key: str = Field(
-        ...,
-        description="Environment variable key. Must match ^[A-Za-z_][A-Za-z0-9_]*$.",
-    )
-
-
-class _DeleteAllInput(BaseModel):
-    pass
 
 
 def _json(data: dict[str, Any]) -> str:
@@ -162,42 +138,34 @@ async def _env_var_delete_all(runtime: Annotated[ToolRuntime, InjectedToolArg]) 
 def get_env_var_tools() -> list[BaseTool]:
     """Return safe environment variable CRUD tools for the current user."""
     return [
-        StructuredTool(
+        StructuredTool.from_function(
+            coroutine=_env_var_list,
             name="env_var_list",
             description=(
                 "List the current user's saved environment variable keys. "
                 "Values are always masked and plaintext secrets are never returned."
             ),
-            args_schema=_ListInput,
-            func=None,
-            coroutine=_env_var_list,
         ),
-        StructuredTool(
+        StructuredTool.from_function(
+            coroutine=_env_var_set,
             name="env_var_set",
             description=(
                 "Create or update one encrypted environment variable for the current user. "
                 "Use this when configuring sandbox MCP env_keys. The saved value is never "
                 "returned; responses contain only a masked value."
             ),
-            args_schema=_SetInput,
-            func=None,
-            coroutine=_env_var_set,
         ),
-        StructuredTool(
+        StructuredTool.from_function(
+            coroutine=_env_var_delete,
             name="env_var_delete",
             description="Delete one environment variable for the current user by key.",
-            args_schema=_DeleteInput,
-            func=None,
-            coroutine=_env_var_delete,
         ),
-        StructuredTool(
+        StructuredTool.from_function(
+            coroutine=_env_var_delete_all,
             name="env_var_delete_all",
             description=(
                 "Delete all environment variables for the current user. Use only when the "
                 "user explicitly asks to clear all environment variables."
             ),
-            args_schema=_DeleteAllInput,
-            func=None,
-            coroutine=_env_var_delete_all,
         ),
     ]

@@ -96,7 +96,7 @@ def _maybe_append_overflow_hint(prompt: str, total_count: int) -> str:
     return (
         prompt
         + f"> **Note:** Only {_MAX_TOOLS_IN_PROMPT} of {total_count} tools are shown above. "
-        + 'Use `execute(command="mcporter list")` to browse all available tools.\n'
+        + "Use `execute(command=\"mcporter list\")` to browse all available tools.\n"
     )
 
 
@@ -159,6 +159,29 @@ def _format_params(schema: Any) -> str:
     return "Params: " + ", ".join(parts)
 
 
+def _build_example_args(schema: Any) -> str:
+    """Build an example mcporter call args string from inputSchema.
+
+    Example output: "query=<value> limit=<value>"
+    Returns "<args>" if schema has no properties.
+    """
+    if not isinstance(schema, dict):
+        return "<args>"
+
+    properties = schema.get("properties", {})
+    if not properties:
+        return "<args>"
+
+    parts = []
+    for name in properties:
+        if len(parts) >= 4:  # cap at 4 params to keep line short
+            parts.append("...")
+            break
+        parts.append(f"{name}=<value>")
+
+    return " ".join(parts)
+
+
 def _format_tools_list(data: Any) -> tuple[str, int]:
     """Format mcporter list JSON output into a readable prompt section.
 
@@ -206,13 +229,16 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
         'execute(command="mcporter call server.my_tool query=hello")',
         "```",
         "",
-        "**Discovery** — run via `execute`:",
-        "- `mcporter list` — list all servers and tools",
-        "- `mcporter list --schema` — show parameter schemas (check before first use)",
+        "**Discovery — REQUIRED before calling any tool not listed below:**",
+        "- `execute(command=\"mcporter list\")` — list all servers and tools",
+        "- `execute(command=\"mcporter list --schema\")` — show full parameter schemas",
+        "",
+        "You MUST check a tool's schema before calling it for the first time, especially "
+        "tools not listed below. Calling with wrong parameters wastes time and tokens.",
         "",
         "**Invocation** — call via `execute`: `mcporter call server.tool <args>`",
         "- Named args: `mcporter call server.tool key=value` (values with spaces MUST be quoted)",
-        '- JSON payload: `mcporter call server.tool --args \'{"key": "value"}\'` (for complex params)',
+        "- JSON payload: `mcporter call server.tool --args '{\"key\": \"value\"}'` (for complex params)",
         "",
         "Do NOT use `--flag value` syntax — that passes `value` as a positional arg.",
         "",
@@ -267,7 +293,9 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
             if param_line:
                 lines.append(f"  {param_line}")
 
-            lines.append(f'  → use: `execute(command="mcporter call {full_name} <args>")`')
+            # Build example with actual param names from schema
+            example_args = _build_example_args(tool.get("inputSchema"))
+            lines.append(f'  → `execute(command="mcporter call {full_name} {example_args}")`')
 
         lines.append("")
 
