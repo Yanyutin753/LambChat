@@ -472,7 +472,8 @@
     "waitingForUpload": "请等待文件上传完成",
     "welcomeRefresh": "换一批",
     "welcomeSubtitle": "✨ 我能为你做什么？",
-    "welcomeSuggestions": "建议"
+    "welcomeSuggestions": "建议",
+    "outline": "大纲"
   },
   "common": {
     "about": "关于",

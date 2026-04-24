@@ -473,7 +473,8 @@
     "waitingForUpload": "파일 업로드가 완료될 때까지 기다려 주세요",
     "welcomeRefresh": "새로고침",
     "welcomeSubtitle": "무엇을 도와드릴까요?",
-    "welcomeSuggestions": "추천"
+    "welcomeSuggestions": "추천",
+    "outline": "개요"
   },
   "common": {
     "about": "정보",

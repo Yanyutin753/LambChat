@@ -1,11 +1,16 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { ListTree } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
 import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHost";
 import {
   PersistentToolPanelHost,
   closePersistentToolPanel,
+  openPersistentToolPanel,
+  isPersistentToolPanelOpen,
+  updatePersistentToolPanel,
+  type PersistentToolPanelState,
 } from "../../chat/ChatMessage/items/persistentToolPanelState";
 import { ChatInput } from "../../chat/ChatInput";
 import { WelcomePage } from "../../chat/WelcomePage";
@@ -17,6 +22,13 @@ import {
 } from "../../skeletons/ChatSkeletons";
 import { useMessageScroll } from "./useMessageScroll";
 import { getInitialBottomItemLocation } from "./messageScrollUtils";
+import { getAtBottomThresholdPx } from "./messageScrollUtils";
+import {
+  shouldShowMessageOutline,
+  extractMessageOutline,
+} from "./messageOutline";
+import { useActiveOutlineItem } from "./useActiveOutlineItem";
+import { MessageOutlinePanel } from "./MessageOutlinePanel";
 import {
   isSessionRunning,
   shouldShowStreamingFooterSkeleton,
@@ -97,6 +109,7 @@ interface ChatViewProps {
   };
   i18n: { language?: string };
   externalScrollToBottomToken?: string | null;
+  outlineToggleRef?: React.RefObject<(() => void) | null>;
 }
 
 export function ChatView({
@@ -140,6 +153,7 @@ export function ChatView({
   settings,
   i18n,
   externalScrollToBottomToken,
+  outlineToggleRef,
 }: ChatViewProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -166,6 +180,12 @@ export function ChatView({
     ? t(getGreetingKey(), { name: user.username })
     : t(getGreetingKey());
 
+  const showOutline = shouldShowMessageOutline(messages);
+  const outlineItems = useMemo(
+    () => (showOutline ? extractMessageOutline(messages) : []),
+    [messages, showOutline],
+  );
+
   const {
     messagesContainerRef,
     virtuosoRef,
@@ -177,6 +197,75 @@ export function ChatView({
     scrollToBottom,
     scrollToTop,
   } = useMessageScroll(messages, sessionId, externalScrollToBottomToken);
+
+  const activeOutlineId = useActiveOutlineItem(
+    outlineItems,
+    virtuosoScrollerRef,
+  );
+
+  const handleOutlineNavigate = useCallback(
+    (anchorId: string, messageIndex: number) => {
+      virtuosoRef.current?.scrollToIndex({
+        index: messageIndex,
+        behavior: "smooth",
+        align: "start",
+      });
+      // After Virtuoso renders the message, scroll to the specific heading anchor
+      requestAnimationFrame(() => {
+        const el = document.getElementById(anchorId);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+      requestAnimationFrame(() => {
+        closePersistentToolPanel();
+      });
+    },
+    [virtuosoRef],
+  );
+
+  const handleOpenOutline = useCallback(() => {
+    if (isPersistentToolPanelOpen("outline")) {
+      closePersistentToolPanel();
+      return;
+    }
+    openPersistentToolPanel({
+      title: t("chat.outline"),
+      icon: <ListTree size={18} strokeWidth={2} />,
+      status: "idle",
+      panelKey: "outline",
+      children: (
+        <MessageOutlinePanel
+          items={outlineItems}
+          activeId={activeOutlineId}
+          onNavigate={handleOutlineNavigate}
+        />
+      ),
+    });
+  }, [outlineItems, activeOutlineId, handleOutlineNavigate]);
+
+  useEffect(() => {
+    if (outlineToggleRef) {
+      outlineToggleRef.current = showOutline ? handleOpenOutline : null;
+    }
+  }, [outlineToggleRef, showOutline, handleOpenOutline]);
+
+  useEffect(() => {
+    if (!isPersistentToolPanelOpen("outline")) return;
+    updatePersistentToolPanel(
+      (prev: PersistentToolPanelState) => ({
+        ...prev,
+        children: (
+          <MessageOutlinePanel
+            items={outlineItems}
+            activeId={activeOutlineId}
+            onNavigate={handleOutlineNavigate}
+          />
+        ),
+      }),
+      "outline",
+    );
+  }, [outlineItems, activeOutlineId, handleOutlineNavigate]);
 
   const [activePreviewState, setActivePreviewState] =
     useState<ActiveRevealPreviewState | null>(null);
@@ -415,7 +504,7 @@ export function ChatView({
             data={messages}
             computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}
-            atBottomThreshold={isMobileViewport ? 120 : 50}
+            atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
             components={virtuosoComponents}
             itemContent={virtuosoItemContent}
             initialTopMostItemIndex={getInitialBottomItemLocation(
@@ -425,24 +514,27 @@ export function ChatView({
         )}
       </main>
 
+      {/* Right-side floating button cluster */}
       {messages.length > 0 && showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          className="absolute right-3 sm:right-4 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 bottom-36 sm:bottom-48"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            className="w-4 h-4 text-stone-500 dark:text-stone-300"
+        <div className="absolute right-3 sm:right-4 z-50 flex flex-col gap-1.5 bottom-36 sm:bottom-48">
+          <button
+            onClick={scrollToTop}
+            className="flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
           >
-            <path
-              fillRule="evenodd"
-              d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-4 h-4 text-stone-500 dark:text-stone-300"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
       )}
 
       {messages.length > 0 && !isNearBottom && (

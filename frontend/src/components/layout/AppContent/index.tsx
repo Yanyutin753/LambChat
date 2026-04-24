@@ -42,6 +42,7 @@ import { getRestoredModelSelection } from "./sessionState";
 import { ChatView } from "./ChatView";
 import { Header } from "./Header";
 import { TabContent } from "./TabContent";
+import { shouldShowMessageOutline } from "./messageOutline";
 import {
   getAppViewportHeightCssValue,
   shouldUpdateAppViewportHeight,
@@ -80,6 +81,9 @@ interface AppShellProps {
   // Share
   sessionId?: string | null;
   sessionName?: string | null;
+  // Outline
+  showOutlineButton?: boolean;
+  onToggleOutline?: () => void;
 }
 
 function AppShell({
@@ -101,6 +105,8 @@ function AppShell({
   onSelectModel,
   sessionId,
   sessionName,
+  showOutlineButton,
+  onToggleOutline,
 }: AppShellProps) {
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -181,6 +187,8 @@ function AppShell({
             onSelectModel={onSelectModel}
             sessionId={sessionId}
             sessionName={sessionName}
+            showOutlineButton={showOutlineButton}
+            onToggleOutline={onToggleOutline}
           />
 
           {children}
@@ -681,6 +689,11 @@ function ChatAppContent({
     setMobileSidebarOpen(false);
   }, [handleNewSessionWithReset, setMobileSidebarOpen]);
 
+  const outlineToggleRef = useRef<(() => void) | null>(null);
+  const handleToggleOutline = useCallback(() => {
+    outlineToggleRef.current?.();
+  }, []);
+
   return (
     <AppShell
       activeTab="chat"
@@ -699,6 +712,8 @@ function ChatAppContent({
       onSelectModel={handleSelectModel}
       sessionId={sessionId}
       sessionName={sessionName}
+      showOutlineButton={shouldShowMessageOutline(messages)}
+      onToggleOutline={handleToggleOutline}
       sidebar={
         <SessionSidebar
           ref={sidebarRef}
@@ -783,6 +798,7 @@ function ChatAppContent({
           settings={settings || {}}
           i18n={i18n}
           externalScrollToBottomToken={externalScrollToBottomToken}
+          outlineToggleRef={outlineToggleRef}
         />
         <BlockPreviewPortal />
       </>

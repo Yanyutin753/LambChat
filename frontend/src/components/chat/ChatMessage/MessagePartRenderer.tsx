@@ -24,6 +24,8 @@ import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
   part,
+  messageId,
+  partIndex,
   isStreaming,
   isLast,
   allowAutoPreview,
@@ -31,6 +33,8 @@ export function MessagePartRenderer({
   onOpenPreview,
 }: {
   part: MessagePart;
+  messageId?: string;
+  partIndex?: number;
   isStreaming?: boolean;
   isLast: boolean;
   allowAutoPreview?: boolean;
@@ -47,6 +51,14 @@ export function MessagePartRenderer({
       <MarkdownContent
         content={part.content}
         isStreaming={isStreaming && isLast}
+        headingAnchorContext={
+          messageId !== undefined && partIndex !== undefined
+            ? {
+                messageId,
+                partIndex,
+              }
+            : undefined
+        }
       />
     );
   }

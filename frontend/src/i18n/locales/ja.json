@@ -473,7 +473,8 @@
     "waitingForUpload": "ファイルのアップロードが完了するまでお待ちください",
     "welcomeRefresh": "更新",
     "welcomeSubtitle": "何かお手伝いできることはありますか？",
-    "welcomeSuggestions": "おすすめ"
+    "welcomeSuggestions": "おすすめ",
+    "outline": "アウトライン"
   },
   "common": {
     "about": "について",

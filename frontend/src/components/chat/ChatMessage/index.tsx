@@ -28,6 +28,7 @@ import {
 } from "./autoPreviewEligibility";
 import type { RevealPreviewRequest } from "./items/revealPreviewData";
 import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
+import { createMessageAnchorId } from "../../layout/AppContent/messageOutline";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -262,10 +263,17 @@ export const ChatMessage = memo(function ChatMessage({
   // User message: bubble style, right aligned
   if (isUser) {
     return (
-      <UserMessageBubble
-        content={message.content}
-        attachments={message.attachments}
-      />
+      <div
+        id={createMessageAnchorId(message.id)}
+        data-outline-anchor="true"
+        data-outline-id={createMessageAnchorId(message.id)}
+        className="scroll-mt-6"
+      >
+        <UserMessageBubble
+          content={message.content}
+          attachments={message.attachments}
+        />
+      </div>
     );
   }
 
@@ -324,6 +332,8 @@ export const ChatMessage = memo(function ChatMessage({
                 <MessagePartRenderer
                   key={index}
                   part={part}
+                  messageId={message.id}
+                  partIndex={index}
                   isStreaming={message.isStreaming}
                   isLast={index === message.parts!.length - 1}
                   activePreview={activePreview}
@@ -342,6 +352,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <MarkdownContent
                   content={message.content}
                   isStreaming={message.isStreaming}
+                  headingAnchorContext={{ messageId: message.id, partIndex: 0 }}
                 />
               )}
               {message.toolCalls && message.toolCalls.length > 0 && (

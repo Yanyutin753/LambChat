@@ -2,6 +2,8 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
 import {
   forceScrollerToPhysicalBottom,
+  getAtBottomThresholdPx,
+  getAwayFromBottomThresholdPx,
   hasNewOutgoingMessage,
   shouldAutoScrollForMessageUpdate,
   shouldAutoScrollAfterViewportChange,
@@ -32,6 +34,10 @@ export function useMessageScroll(
   const bottomBreathingRoomPx = isMobileViewport
     ? MOBILE_BOTTOM_BREATHING_ROOM_PX
     : DESKTOP_BOTTOM_BREATHING_ROOM_PX;
+  const awayFromBottomThresholdPx = getAwayFromBottomThresholdPx(
+    isMobileViewport,
+    bottomBreathingRoomPx,
+  );
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const virtuosoScrollerRef = useRef<HTMLDivElement>(null);
@@ -79,13 +85,13 @@ export function useMessageScroll(
       footer: messagesEndRef.current,
       preferPhysicalBottom: true,
       intervalMs: isMobileViewport ? 20 : 16,
-      maxAttempts: isMobileViewport ? 8 : 4,
+      maxAttempts: isMobileViewport ? 8 : 15,
       observeLayoutChanges: true,
       resizeObserverTarget:
         virtuosoScrollerRef.current?.firstElementChild ??
         virtuosoScrollerRef.current,
-      maxDurationMs: isMobileViewport ? 240 : 96,
-      settleWindowMs: isMobileViewport ? 96 : 48,
+      maxDurationMs: isMobileViewport ? 240 : 500,
+      settleWindowMs: isMobileViewport ? 96 : 120,
       shouldAbort: () => userScrolledUpRef.current,
       onAutoScroll: () => {
         ignoreProgrammaticScrollUntilRef.current = Date.now() + 80;
@@ -125,7 +131,7 @@ export function useMessageScroll(
       const movedUp = scrollTop < lastScrollTop.value - 2;
       const isAwayFromBottom =
         scrollTop + scroller.clientHeight <
-        scroller.scrollHeight - Math.max(50, bottomBreathingRoomPx);
+        scroller.scrollHeight - awayFromBottomThresholdPx;
 
       if (
         autoScrollActiveRef.current &&
@@ -156,7 +162,7 @@ export function useMessageScroll(
       scroller.removeEventListener("scroll", handleScroll);
       if (timer) clearTimeout(timer);
     };
-  }, [bottomBreathingRoomPx, messages.length]);
+  }, [awayFromBottomThresholdPx, messages.length]);
 
   useEffect(() => {
     if (!isMobileViewport || typeof window === "undefined") {
@@ -257,6 +263,20 @@ export function useMessageScroll(
 
   useEffect(() => {
     const previousMessages = previousMessagesRef.current;
+
+    // Virtuoso's atBottomStateChange is async (rAF), so isNearBottomRef can
+    // be stale after a scroll loop finishes. Bridge the gap with a physical
+    // DOM check so streaming updates don't get dropped.
+    let effectiveIsNearBottom = isNearBottomRef.current;
+    if (!effectiveIsNearBottom && !userScrolledUpRef.current) {
+      const scroller = virtuosoScrollerRef.current;
+      if (scroller) {
+        effectiveIsNearBottom =
+          scroller.scrollTop + scroller.clientHeight >=
+          scroller.scrollHeight - getAtBottomThresholdPx(isMobileViewport);
+      }
+    }
+
     if (hasNewOutgoingMessage(previousMessages, messages)) {
       scrollToBottom();
     } else if (
@@ -265,13 +285,13 @@ export function useMessageScroll(
         nextMessages: messages,
         userScrolledUp: userScrolledUpRef.current,
         autoScrollActive: autoScrollActiveRef.current,
-        isNearBottom: isNearBottomRef.current,
+        isNearBottom: effectiveIsNearBottom,
       })
     ) {
       scrollToBottom();
     }
     previousMessagesRef.current = messages;
-  }, [messages, scrollToBottom]);
+  }, [messages, scrollToBottom, isMobileViewport]);
 
   useEffect(() => {
     if (externalScrollToBottomToken) {

@@ -12,6 +12,7 @@ import {
   Moon,
   Check,
   ChevronLeft,
+  ListTree,
 } from "lucide-react";
 import { ModelSelector } from "../../agent/ModelSelector";
 import { LanguageToggle } from "../../common/LanguageToggle";
@@ -49,6 +50,8 @@ interface HeaderProps {
   onSelectModel?: (modelId: string, modelValue: string) => void;
   sessionId?: string | null;
   sessionName?: string | null;
+  onToggleOutline?: () => void;
+  showOutlineButton?: boolean;
 }
 
 export function Header({
@@ -65,6 +68,8 @@ export function Header({
   onSelectModel,
   sessionId,
   sessionName,
+  onToggleOutline,
+  showOutlineButton,
 }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -233,6 +238,15 @@ export function Header({
 
         {/* Right */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          {showOutlineButton && onToggleOutline && (
+            <button
+              onClick={onToggleOutline}
+              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+              title={t("chat.outline")}
+            >
+              <ListTree size={20} />
+            </button>
+          )}
           {activeTab === "chat" && sidebarCollapsed && (
             <button
               onClick={onNewSession}
@@ -274,6 +288,18 @@ export function Header({
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="py-1">
+                    {showOutlineButton && onToggleOutline && (
+                      <button
+                        onClick={() => {
+                          onToggleOutline();
+                          setMobileMenuOpen(false);
+                        }}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+                      >
+                        <ListTree size={16} className="shrink-0" />
+                        <span className="truncate">{t("chat.outline")}</span>
+                      </button>
+                    )}
                     {activeTab === "chat" && (
                       <button
                         onClick={() => {

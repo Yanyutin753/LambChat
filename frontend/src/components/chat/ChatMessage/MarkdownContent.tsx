@@ -12,17 +12,46 @@ import { getFullUrl } from "../../../services/api/config";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { CodeMirrorViewer } from "../../common/CodeMirrorViewer";
 import { ImageViewer } from "../../common";
+import { createHeadingAnchorId } from "../../layout/AppContent/messageOutline";
 
-// Generate a URL-safe slug from heading text
-function slugify(children: React.ReactNode): string {
-  const text = React.Children.toArray(children)
-    .map((c) => (typeof c === "string" ? c : ""))
-    .join("");
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s\u4e00-\u9fff-]/g, "")
-    .replace(/[\s]+/g, "-");
+function extractNodeText(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map((child) => extractNodeText(child)).join("");
+  }
+
+  if (React.isValidElement<{ children?: React.ReactNode }>(node)) {
+    return extractNodeText(node.props.children);
+  }
+
+  return "";
+}
+
+function getHeadingAnchorId({
+  children,
+  headingAnchorContext,
+}: {
+  children: React.ReactNode;
+  headingAnchorContext?: { messageId: string; partIndex: number };
+}): string {
+  const headingText = extractNodeText(children);
+
+  if (!headingAnchorContext) {
+    return createHeadingAnchorId({
+      messageId: "standalone",
+      partIndex: 0,
+      headingText,
+    });
+  }
+
+  return createHeadingAnchorId({
+    messageId: headingAnchorContext.messageId,
+    partIndex: headingAnchorContext.partIndex,
+    headingText,
+  });
 }
 
 // Code block component with copy button and enhanced styling
@@ -231,9 +260,11 @@ function TableBlock({ children }: { children: React.ReactNode }) {
 export const MarkdownContent = memo(function MarkdownContent({
   content,
   isStreaming,
+  headingAnchorContext,
 }: {
   content: string;
   isStreaming?: boolean;
+  headingAnchorContext?: { messageId: string; partIndex: number };
 }) {
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
 
@@ -245,10 +276,12 @@ export const MarkdownContent = memo(function MarkdownContent({
         components={{
           // Headings with anchor links
           h1: ({ children }) => {
-            const id = slugify(children);
+            const id = getHeadingAnchorId({ children, headingAnchorContext });
             return (
               <h1
                 id={id}
+                data-outline-anchor="true"
+                data-outline-id={id}
                 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mt-4 mb-3 first:mt-0 group/head scroll-mt-4"
               >
                 <a
@@ -261,10 +294,12 @@ export const MarkdownContent = memo(function MarkdownContent({
             );
           },
           h2: ({ children }) => {
-            const id = slugify(children);
+            const id = getHeadingAnchorId({ children, headingAnchorContext });
             return (
               <h2
                 id={id}
+                data-outline-anchor="true"
+                data-outline-id={id}
                 className="text-xl font-bold text-stone-900 dark:text-stone-100 mt-3 mb-2 group/head scroll-mt-4"
               >
                 <a
@@ -277,10 +312,12 @@ export const MarkdownContent = memo(function MarkdownContent({
             );
           },
           h3: ({ children }) => {
-            const id = slugify(children);
+            const id = getHeadingAnchorId({ children, headingAnchorContext });
             return (
               <h3
                 id={id}
+                data-outline-anchor="true"
+                data-outline-id={id}
                 className="text-lg font-semibold text-stone-900 dark:text-stone-100 mt-2 mb-1.5 group/head scroll-mt-4"
               >
                 <a
@@ -293,10 +330,12 @@ export const MarkdownContent = memo(function MarkdownContent({
             );
           },
           h4: ({ children }) => {
-            const id = slugify(children);
+            const id = getHeadingAnchorId({ children, headingAnchorContext });
             return (
               <h4
                 id={id}
+                data-outline-anchor="true"
+                data-outline-id={id}
                 className="text-base font-semibold text-stone-800 dark:text-stone-200 mt-2 mb-1 group/head scroll-mt-4"
               >
                 <a

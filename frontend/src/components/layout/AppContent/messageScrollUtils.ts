@@ -53,6 +53,17 @@ interface ScrollMessageLike {
   role?: string;
 }
 
+export function getAtBottomThresholdPx(isMobileViewport: boolean): number {
+  return isMobileViewport ? 120 : 4;
+}
+
+export function getAwayFromBottomThresholdPx(
+  isMobileViewport: boolean,
+  bottomBreathingRoomPx: number,
+): number {
+  return isMobileViewport ? Math.max(50, bottomBreathingRoomPx) : 16;
+}
+
 export function getInitialBottomItemLocation(
   messageCount: number,
 ): { index: number; align: "end" } | undefined {

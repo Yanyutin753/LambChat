@@ -475,7 +475,8 @@
     "waitingForUpload": "Пожалуйста, дождитесь завершения загрузки файла",
     "welcomeRefresh": "Обновить",
     "welcomeSubtitle": "Чем могу помочь?",
-    "welcomeSuggestions": "Предложения"
+    "welcomeSuggestions": "Предложения",
+    "outline": "Оглавление"
   },
   "common": {
     "about": "О программе",

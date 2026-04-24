@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   forceScrollerToPhysicalBottom,
   forceVirtuosoToBottom,
+  getAtBottomThresholdPx,
+  getAwayFromBottomThresholdPx,
   getInitialBottomItemLocation,
   hasNewOutgoingMessage,
   shouldAutoScrollForMessageUpdate,
@@ -50,6 +52,13 @@ test("initializes history at the bottom edge of the latest message", () => {
   });
 
   assert.equal(getInitialBottomItemLocation(0), undefined);
+});
+
+test("uses a much tighter bottom threshold on desktop than on mobile", () => {
+  assert.equal(getAtBottomThresholdPx(false), 4);
+  assert.equal(getAtBottomThresholdPx(true), 120);
+  assert.equal(getAwayFromBottomThresholdPx(false, 16), 16);
+  assert.equal(getAwayFromBottomThresholdPx(true, 96), 96);
 });
 
 test("falls back to the footer sentinel when Virtuoso handles are unavailable", () => {

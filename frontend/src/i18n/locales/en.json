@@ -472,7 +472,8 @@
     "waitingForUpload": "Please wait for file upload to complete",
     "welcomeRefresh": "Refresh",
     "welcomeSubtitle": "What can I do for you?",
-    "welcomeSuggestions": "Suggestions"
+    "welcomeSuggestions": "Suggestions",
+    "outline": "Outline"
   },
   "common": {
     "about": "About",

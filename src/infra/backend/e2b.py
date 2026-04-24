@@ -350,14 +350,24 @@ class E2BBackend(BaseSandbox):
             entries = self._sandbox.files.list(path=search_path)
             result: list[FileInfo] = []
 
+            visited: set[str] = set()
+            _skip_prefixes = ("/proc", "/sys", "/dev")
+
             def _match_glob(entries_list: list[Any], current_path: str, depth: int) -> None:
                 if depth > _max_depth:
                     logger.warning(f"E2B glob reached max depth {_max_depth} at {current_path}")
                     return
+                if current_path in visited:
+                    return
+                visited.add(current_path)
                 for entry in entries_list:
                     full_path = entry.path
+                    if any(full_path.startswith(p) for p in _skip_prefixes):
+                        continue
                     name = os.path.basename(full_path)
                     is_dir = self._is_entry_dir(entry)
+                    if is_dir and full_path != current_path and os.path.islink(full_path):
+                        continue
                     if fnmatch.fnmatch(name, pattern):
                         info: FileInfo = {"path": full_path}
                         if is_dir:

@@ -60,3 +60,76 @@ def test_e2b_glob_scopes_root_search_to_work_dir() -> None:
 
     assert files_api.calls[0] == "/home/user"
     assert result["matches"] == [{"path": "/home/user/project/app.py", "size": 42}]
+
+
+def test_e2b_glob_skips_sys_dev_proc_dirs() -> None:
+    files_api = _FakeFilesAPI(
+        {
+            "/home/user": [
+                SimpleNamespace(path="/proc/1/cwd", is_dir=True, size=0),
+                SimpleNamespace(path="/sys/kernel", is_dir=True, size=0),
+                SimpleNamespace(path="/dev/null", is_dir=False, size=0),
+                SimpleNamespace(path="/home/user/normal.txt", is_dir=False, size=5),
+            ],
+        }
+    )
+    backend = E2BBackend(sandbox=_FakeE2BSandbox(files_api))
+
+    result = backend.glob("*", path="/")
+
+    assert [m["path"] for m in result["matches"]] == ["/home/user/normal.txt"]
+
+
+def test_e2b_glob_skips_symlink_dirs() -> None:
+    import os
+
+    original_islink = os.path.islink
+
+    def _patched_islink(path: str) -> bool:
+        if path == "/home/user/link_dir":
+            return True
+        return original_islink(path)
+
+    os.path.islink = _patched_islink
+    try:
+        files_api = _FakeFilesAPI(
+            {
+                "/home/user": [
+                    SimpleNamespace(path="/home/user/link_dir", is_dir=True, size=0),
+                    SimpleNamespace(path="/home/user/real_dir", is_dir=True, size=0),
+                    SimpleNamespace(path="/home/user/file.txt", is_dir=False, size=3),
+                ],
+                "/home/user/real_dir": [
+                    SimpleNamespace(path="/home/user/real_dir/inner.py", is_dir=False, size=10),
+                ],
+            }
+        )
+        backend = E2BBackend(sandbox=_FakeE2BSandbox(files_api))
+
+        result = backend.glob("*", path="/")
+
+        matched_paths = [m["path"] for m in result["matches"]]
+        assert "/home/user/link_dir" not in matched_paths
+        assert "/home/user/real_dir/inner.py" in matched_paths
+    finally:
+        os.path.islink = original_islink
+
+
+def test_e2b_glob_no_infinite_loop_on_visited_paths() -> None:
+    files_api = _FakeFilesAPI(
+        {
+            "/home/user": [
+                SimpleNamespace(path="/home/user/a", is_dir=True, size=0),
+            ],
+            "/home/user/a": [
+                SimpleNamespace(path="/home/user/a/file.txt", is_dir=False, size=1),
+                SimpleNamespace(path="/home/user", is_dir=True, size=0),
+            ],
+        }
+    )
+    backend = E2BBackend(sandbox=_FakeE2BSandbox(files_api))
+
+    result = backend.glob("*", path="/")
+
+    assert len(files_api.calls) < 20  # would blow up without visited guard
+    assert any(m["path"] == "/home/user/a/file.txt" for m in result["matches"])
