@@ -96,7 +96,7 @@ def _maybe_append_overflow_hint(prompt: str, total_count: int) -> str:
     return (
         prompt
         + f"> **Note:** Only {_MAX_TOOLS_IN_PROMPT} of {total_count} tools are shown above. "
-        + "Use `execute(command=\"mcporter list\")` to browse all available tools.\n"
+        + 'Use `execute(command="mcporter list")` to browse all available tools.\n'
     )
 
 
@@ -230,15 +230,15 @@ def _format_tools_list(data: Any) -> tuple[str, int]:
         "```",
         "",
         "**Discovery — REQUIRED before calling any tool not listed below:**",
-        "- `execute(command=\"mcporter list\")` — list all servers and tools",
-        "- `execute(command=\"mcporter list --schema\")` — show full parameter schemas",
+        '- `execute(command="mcporter list")` — list all servers and tools',
+        '- `execute(command="mcporter list --schema")` — show full parameter schemas',
         "",
         "You MUST check a tool's schema before calling it for the first time, especially "
         "tools not listed below. Calling with wrong parameters wastes time and tokens.",
         "",
         "**Invocation** — call via `execute`: `mcporter call server.tool <args>`",
         "- Named args: `mcporter call server.tool key=value` (values with spaces MUST be quoted)",
-        "- JSON payload: `mcporter call server.tool --args '{\"key\": \"value\"}'` (for complex params)",
+        '- JSON payload: `mcporter call server.tool --args \'{"key": "value"}\'` (for complex params)',
         "",
         "Do NOT use `--flag value` syntax — that passes `value` as a positional arg.",
         "",
