@@ -43,6 +43,7 @@ interface StartVirtuosoScrollToBottomOptions {
   // Kept for compatibility with older callers. Settling must still require
   // the physical scroll bottom, otherwise the user can still drag lower.
   bottomOffsetPx?: number;
+  keepAliveWhile?: () => boolean;
   shouldAbort?: () => boolean;
   onAutoScroll?: () => void;
   onComplete?: (reason: "settled" | "aborted" | "max-attempts") => void;
@@ -55,6 +56,13 @@ interface ScrollMessageLike {
 
 export function getAtBottomThresholdPx(isMobileViewport: boolean): number {
   return isMobileViewport ? 120 : 4;
+}
+
+export function getAutoScrollResumeThresholdPx(
+  isMobileViewport: boolean,
+  bottomBreathingRoomPx: number,
+): number {
+  return isMobileViewport ? Math.max(120, bottomBreathingRoomPx) : 48;
 }
 
 export function getAwayFromBottomThresholdPx(
@@ -98,18 +106,20 @@ export function shouldAutoScrollForMessageUpdate({
   userScrolledUp,
   autoScrollActive,
   isNearBottom,
+  shouldMaintainStreamLock = false,
 }: {
   previousMessages: ScrollMessageLike[];
   nextMessages: ScrollMessageLike[];
   userScrolledUp: boolean;
   autoScrollActive: boolean;
   isNearBottom: boolean;
+  shouldMaintainStreamLock?: boolean;
 }): boolean {
   if (userScrolledUp || nextMessages.length === 0) {
     return false;
   }
 
-  if (!autoScrollActive && !isNearBottom) {
+  if (!autoScrollActive && !isNearBottom && !shouldMaintainStreamLock) {
     return false;
   }
 
@@ -133,7 +143,7 @@ export function shouldAutoScrollForMessageUpdate({
   // streaming update for the same assistant message. Repeated restarts cause
   // visible scroll jitter when message height is still changing.
   if (latestContinued) {
-    return !autoScrollActive && isNearBottom;
+    return !autoScrollActive && (isNearBottom || shouldMaintainStreamLock);
   }
 
   return false;
@@ -239,6 +249,7 @@ export function startVirtuosoScrollToBottom({
   observeLayoutChanges = false,
   resizeObserverFactory,
   resizeObserverTarget,
+  keepAliveWhile,
   shouldAbort,
   onAutoScroll,
   onComplete,
@@ -252,8 +263,10 @@ export function startVirtuosoScrollToBottom({
   let attempts = 0;
   let lastKnownScrollHeight = scroller.scrollHeight;
   let lastHeightChangeAt = Date.now();
+  let startedAt = Date.now();
   let finished = false;
   let resizeObserver: ResizeObserverLike | null = null;
+  let keepAliveActive = false;
   const finish = (reason: "settled" | "aborted" | "max-attempts") => {
     if (finished) return;
     finished = true;
@@ -283,8 +296,14 @@ export function startVirtuosoScrollToBottom({
   // extra scrollTo calls gives it time to settle at the true bottom.
   const minAttemptsBeforeSettling = 5;
   const stableHeightWindowMs = settleWindowMs ?? Math.max(intervalMs * 4, 120);
-  const maxScrollWindowMs = maxDurationMs ?? intervalMs * maxAttempts;
-  const startedAt = Date.now();
+  const maxScrollWindowMs =
+    maxDurationMs ?? Math.max(intervalMs * maxAttempts, stableHeightWindowMs);
+  const resetSettleBudget = () => {
+    attempts = 0;
+    lastKnownScrollHeight = scroller.scrollHeight;
+    lastHeightChangeAt = Date.now();
+    startedAt = Date.now();
+  };
 
   if (observeLayoutChanges) {
     const createResizeObserver =
@@ -320,12 +339,36 @@ export function startVirtuosoScrollToBottom({
   }
 
   const timer = setInterval(() => {
-    attempts += 1;
-
     if (shouldAbort?.()) {
       finish("aborted");
       return;
     }
+
+    const shouldKeepAlive = keepAliveWhile?.() === true;
+    if (shouldKeepAlive) {
+      keepAliveActive = true;
+
+      if (scroller.scrollHeight !== lastKnownScrollHeight) {
+        lastKnownScrollHeight = scroller.scrollHeight;
+        lastHeightChangeAt = Date.now();
+        scroll();
+        return;
+      }
+
+      const isAtBottom =
+        scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
+      if (!isAtBottom) {
+        scroll();
+      }
+      return;
+    }
+
+    if (keepAliveActive) {
+      keepAliveActive = false;
+      resetSettleBudget();
+    }
+
+    attempts += 1;
 
     if (scroller.scrollHeight !== lastKnownScrollHeight) {
       lastKnownScrollHeight = scroller.scrollHeight;

@@ -1,8 +1,9 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import type { VirtuosoHandle } from "react-virtuoso";
+import type { Message } from "../../../types";
 import {
   forceScrollerToPhysicalBottom,
-  getAtBottomThresholdPx,
+  getAutoScrollResumeThresholdPx,
   getAwayFromBottomThresholdPx,
   hasNewOutgoingMessage,
   shouldAutoScrollForMessageUpdate,
@@ -23,7 +24,7 @@ interface UseMessageScrollReturn {
 }
 
 export function useMessageScroll(
-  messages: { id: string }[],
+  messages: Pick<Message, "id" | "role" | "isStreaming">[],
   sessionId?: string | null,
   externalScrollToBottomToken?: string | null,
 ): UseMessageScrollReturn {
@@ -35,6 +36,10 @@ export function useMessageScroll(
     ? MOBILE_BOTTOM_BREATHING_ROOM_PX
     : DESKTOP_BOTTOM_BREATHING_ROOM_PX;
   const awayFromBottomThresholdPx = getAwayFromBottomThresholdPx(
+    isMobileViewport,
+    bottomBreathingRoomPx,
+  );
+  const autoScrollResumeThresholdPx = getAutoScrollResumeThresholdPx(
     isMobileViewport,
     bottomBreathingRoomPx,
   );
@@ -55,6 +60,16 @@ export function useMessageScroll(
   const userScrolledUpRef = useRef(false);
   const autoScrollActiveRef = useRef(false);
   const ignoreProgrammaticScrollUntilRef = useRef(0);
+  const streamLockActiveRef = useRef(false);
+  const streamingAssistantActiveRef = useRef(false);
+
+  const latestMessage = messages[messages.length - 1];
+  const hasStreamingAssistantMessage =
+    latestMessage?.role === "assistant" && latestMessage.isStreaming === true;
+
+  useEffect(() => {
+    streamingAssistantActiveRef.current = hasStreamingAssistantMessage;
+  }, [hasStreamingAssistantMessage]);
 
   const handleVirtuosoAtBottomChange = useCallback((atBottom: boolean) => {
     cancelAnimationFrame(rafRef.current);
@@ -73,6 +88,9 @@ export function useMessageScroll(
   const scrollToBottom = useCallback(() => {
     userScrolledUpRef.current = false;
     autoScrollActiveRef.current = true;
+    if (streamingAssistantActiveRef.current) {
+      streamLockActiveRef.current = true;
+    }
     forceScrollerToPhysicalBottom({
       scroller: virtuosoScrollerRef.current,
       footer: messagesEndRef.current,
@@ -92,6 +110,8 @@ export function useMessageScroll(
         virtuosoScrollerRef.current,
       maxDurationMs: isMobileViewport ? 240 : 500,
       settleWindowMs: isMobileViewport ? 96 : 120,
+      keepAliveWhile: () =>
+        streamLockActiveRef.current && streamingAssistantActiveRef.current,
       shouldAbort: () => userScrolledUpRef.current,
       onAutoScroll: () => {
         ignoreProgrammaticScrollUntilRef.current = Date.now() + 80;
@@ -105,6 +125,7 @@ export function useMessageScroll(
   const scrollToTop = useCallback(() => {
     userScrolledUpRef.current = true;
     autoScrollActiveRef.current = false;
+    streamLockActiveRef.current = false;
     virtuosoRef.current?.scrollTo({
       top: 0,
       behavior: "auto",
@@ -141,12 +162,14 @@ export function useMessageScroll(
       ) {
         userScrolledUpRef.current = true;
         autoScrollActiveRef.current = false;
+        streamLockActiveRef.current = false;
       }
 
       if (dt < 300 && dScroll > 30 && scrollTop > 200) {
         setShowScrollTop(true);
         userScrolledUpRef.current = true;
         autoScrollActiveRef.current = false;
+        streamLockActiveRef.current = false;
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => setShowScrollTop(false), 3000);
       } else if (scrollTop < 200) {
@@ -263,6 +286,7 @@ export function useMessageScroll(
 
   useEffect(() => {
     const previousMessages = previousMessagesRef.current;
+    const shouldMaintainStreamLock = streamLockActiveRef.current;
 
     // Virtuoso's atBottomStateChange is async (rAF), so isNearBottomRef can
     // be stale after a scroll loop finishes. Bridge the gap with a physical
@@ -273,7 +297,7 @@ export function useMessageScroll(
       if (scroller) {
         effectiveIsNearBottom =
           scroller.scrollTop + scroller.clientHeight >=
-          scroller.scrollHeight - getAtBottomThresholdPx(isMobileViewport);
+          scroller.scrollHeight - autoScrollResumeThresholdPx;
       }
     }
 
@@ -286,12 +310,23 @@ export function useMessageScroll(
         userScrolledUp: userScrolledUpRef.current,
         autoScrollActive: autoScrollActiveRef.current,
         isNearBottom: effectiveIsNearBottom,
+        shouldMaintainStreamLock,
       })
     ) {
       scrollToBottom();
     }
+
+    if (!hasStreamingAssistantMessage) {
+      streamLockActiveRef.current = false;
+    }
+
     previousMessagesRef.current = messages;
-  }, [messages, scrollToBottom, isMobileViewport]);
+  }, [
+    messages,
+    scrollToBottom,
+    autoScrollResumeThresholdPx,
+    hasStreamingAssistantMessage,
+  ]);
 
   useEffect(() => {
     if (externalScrollToBottomToken) {

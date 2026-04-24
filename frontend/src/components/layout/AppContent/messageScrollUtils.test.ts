@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   forceScrollerToPhysicalBottom,
   forceVirtuosoToBottom,
+  getAutoScrollResumeThresholdPx,
   getAtBottomThresholdPx,
   getAwayFromBottomThresholdPx,
   getInitialBottomItemLocation,
@@ -57,6 +58,8 @@ test("initializes history at the bottom edge of the latest message", () => {
 test("uses a much tighter bottom threshold on desktop than on mobile", () => {
   assert.equal(getAtBottomThresholdPx(false), 4);
   assert.equal(getAtBottomThresholdPx(true), 120);
+  assert.equal(getAutoScrollResumeThresholdPx(false, 16), 48);
+  assert.equal(getAutoScrollResumeThresholdPx(true, 96), 120);
   assert.equal(getAwayFromBottomThresholdPx(false, 16), 16);
   assert.equal(getAwayFromBottomThresholdPx(true, 96), 96);
 });
@@ -375,6 +378,62 @@ test("keeps bottom locked when observed layout changes", async () => {
   assert.equal(disconnected, true);
 });
 
+test("keeps the resize observer alive past the normal time budget while a streaming lock is active", async () => {
+  let resizeCallback: () => void = () => {
+    assert.fail("resize observer was not registered");
+  };
+  let disconnected = false;
+  let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
+  let keepStreamingLock = true;
+  const scroller = {
+    scrollTop: 400,
+    clientHeight: 100,
+    scrollHeight: 500,
+  };
+  const virtuoso = {
+    scrollTo: () => {
+      scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
+    },
+  };
+
+  startVirtuosoScrollToBottom({
+    virtuoso,
+    scroller,
+    intervalMs: 5,
+    maxAttempts: 8,
+    maxDurationMs: 60,
+    settleWindowMs: 10,
+    observeLayoutChanges: true,
+    keepAliveWhile: () => keepStreamingLock,
+    resizeObserverFactory: (callback) => {
+      resizeCallback = callback;
+      return {
+        observe: () => undefined,
+        disconnect: () => {
+          disconnected = true;
+        },
+      };
+    },
+    onComplete: (reason) => {
+      completionReason = reason;
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(completionReason, null);
+  assert.equal(disconnected, false);
+
+  scroller.scrollHeight = 700;
+  resizeCallback();
+  assert.equal(scroller.scrollTop, 600);
+
+  keepStreamingLock = false;
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.equal(completionReason, "settled");
+  assert.equal(disconnected, true);
+});
+
 test("does not auto-scroll on viewport changes when the list is not scrollable", () => {
   assert.equal(
     shouldAutoScrollAfterViewportChange({
@@ -527,6 +586,30 @@ test("starts a bottom-lock run when a streaming assistant message continues near
       userScrolledUp: false,
       autoScrollActive: false,
       isNearBottom: true,
+      shouldMaintainStreamLock: false,
+    }),
+    true,
+  );
+});
+
+test("resumes bottom-lock for a streaming assistant update while the stream lock is still active", () => {
+  const previousMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+  const nextMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: false,
+      autoScrollActive: false,
+      isNearBottom: false,
+      shouldMaintainStreamLock: true,
     }),
     true,
   );
@@ -549,6 +632,30 @@ test("does not restart bottom-lock while a streaming assistant update is already
       userScrolledUp: false,
       autoScrollActive: true,
       isNearBottom: false,
+      shouldMaintainStreamLock: true,
+    }),
+    false,
+  );
+});
+
+test("does not resume auto-scroll after stream lock is released when the view is no longer near bottom", () => {
+  const previousMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+  const nextMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: false,
+      autoScrollActive: false,
+      isNearBottom: false,
+      shouldMaintainStreamLock: false,
     }),
     false,
   );
