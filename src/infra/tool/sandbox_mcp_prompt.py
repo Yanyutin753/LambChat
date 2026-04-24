@@ -172,7 +172,7 @@ def _build_example_args(schema: Any) -> str:
     if not properties:
         return "<args>"
 
-    parts = []
+    parts: list[str] = []
     for name in properties:
         if len(parts) >= 4:  # cap at 4 params to keep line short
             parts.append("...")

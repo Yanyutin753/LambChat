@@ -1,4 +1,4 @@
-.PHONY: help install dev build clean docker-up docker-down docker-logs docker-build test lint format check-all frontend-dev frontend-build frontend-install
+.PHONY: help install dev build clean docker-up docker-down docker-logs docker-build test lint typecheck format check-all frontend-dev frontend-build frontend-install
 
 # 默认目标
 help:
@@ -28,9 +28,10 @@ help:
 	@echo ""
 	@echo "代码质量:"
 	@echo "  make lint             - 运行 Ruff 代码检查"
+	@echo "  make typecheck        - 运行 mypy 类型检查"
 	@echo "  make format           - 格式化代码"
 	@echo "  make test             - 运行测试"
-	@echo "  make check-all        - 运行所有检查（lint + test）"
+	@echo "  make check-all        - 运行所有检查（lint + typecheck + test）"
 	@echo ""
 	@echo "清理:"
 	@echo "  make clean            - 清理缓存和临时文件"
@@ -100,6 +101,10 @@ lint:
 	@echo "🔍 运行代码检查..."
 	uv run ruff check .
 
+typecheck:
+	@echo "🔎 运行类型检查..."
+	uv run mypy src/
+
 format:
 	@echo "✨ 格式化代码..."
 	uv run ruff format .
@@ -108,7 +113,7 @@ test:
 	@echo "🧪 运行测试..."
 	uv run pytest
 
-check-all: lint test
+check-all: lint typecheck test
 	@echo "✅ 所有检查通过"
 
 # 清理
