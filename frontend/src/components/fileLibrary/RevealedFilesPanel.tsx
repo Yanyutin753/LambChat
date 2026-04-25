@@ -11,7 +11,10 @@ import { Toolbar } from "./components/Toolbar";
 import { SessionGroup } from "./components/SessionGroup";
 import { EmptyState } from "./components/EmptyState";
 import type { SortOrder, ViewMode } from "./types";
-import type { ExternalNavigationState } from "../layout/AppContent/externalNavigationState";
+import {
+  buildExternalNavigationPreviewRequest,
+  type ExternalNavigationState,
+} from "../layout/AppContent/externalNavigationState";
 
 export function RevealedFilesPanel() {
   const { t } = useTranslation();
@@ -71,6 +74,7 @@ export function RevealedFilesPanel() {
         traceId: file.trace_id,
         source: file.source,
       },
+      targetPreview: buildExternalNavigationPreviewRequest(file),
     }),
     [],
   );

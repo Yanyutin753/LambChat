@@ -42,6 +42,7 @@ interface ShouldLoadSessionFromUrlChangeInput {
   isLoading: boolean;
   isNewSession: boolean;
   isInternalNavigation: boolean;
+  initialUrlSyncPending?: boolean;
 }
 
 export function isChatPath(pathname: string): boolean {
@@ -85,6 +86,28 @@ export function getSessionRouteSyncAction({
   return null;
 }
 
+export function getInitialUrlSyncCompletionAction({
+  activeTab,
+  pathname,
+  browserPathname,
+  externalNavigate,
+}: Pick<
+  SessionRouteSyncActionInput,
+  "activeTab" | "pathname" | "browserPathname" | "externalNavigate"
+>): SessionRouteSyncAction | null {
+  const effectivePathname = browserPathname ?? pathname;
+
+  if (activeTab !== "chat" || !externalNavigate) {
+    return null;
+  }
+
+  if (!isChatPath(effectivePathname)) {
+    return null;
+  }
+
+  return { type: "clear-external-state", path: effectivePathname };
+}
+
 export function shouldLoadSessionFromUrlChange({
   activeTab,
   sessionId,
@@ -92,6 +115,7 @@ export function shouldLoadSessionFromUrlChange({
   isLoading,
   isNewSession,
   isInternalNavigation,
+  initialUrlSyncPending = false,
 }: ShouldLoadSessionFromUrlChangeInput): boolean {
   if (activeTab !== "chat") {
     return false;
@@ -102,6 +126,10 @@ export function shouldLoadSessionFromUrlChange({
   }
 
   if (isLoading || sessionId === urlSessionId) {
+    return false;
+  }
+
+  if (initialUrlSyncPending) {
     return false;
   }
 
@@ -130,6 +158,7 @@ export function useSessionSync({
   const isLoadingRef = useRef(false);
   // Track when a new session is being created to prevent loading stale history
   const isNewSessionRef = useRef(false);
+  const initialUrlSyncPendingRef = useRef(false);
   const selectSessionRequestIdRef = useRef(0);
   // Track a single sync delay timeout for cleanup on unmount
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,6 +203,7 @@ export function useSessionSync({
 
     if (urlSessionId && !isSyncingRef.current) {
       isSyncingRef.current = true;
+      initialUrlSyncPendingRef.current = true;
       loadHistory(urlSessionId)
         .then((config) => {
           if (config && onConfigRestoredRef.current) {
@@ -181,6 +211,21 @@ export function useSessionSync({
           }
         })
         .finally(() => {
+          initialUrlSyncPendingRef.current = false;
+          const action = getInitialUrlSyncCompletionAction({
+            activeTab,
+            pathname: locationPathRef.current,
+            browserPathname:
+              typeof window !== "undefined"
+                ? window.location.pathname
+                : undefined,
+            externalNavigate: shouldResetExternalNavigateFlag(
+              locationStateRef.current as ExternalNavigationState | null,
+            ),
+          });
+          if (action?.type === "clear-external-state") {
+            navigate(action.path, { replace: true, state: null });
+          }
           scheduleSyncReset();
         });
     }
@@ -221,6 +266,7 @@ export function useSessionSync({
         isLoading: isLoadingRef.current,
         isNewSession: isNewSessionRef.current,
         isInternalNavigation: isInternalNavRef.current,
+        initialUrlSyncPending: initialUrlSyncPendingRef.current,
       })
     ) {
       return;

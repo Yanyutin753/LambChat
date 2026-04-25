@@ -40,6 +40,7 @@ class RequestContext:
     session_id: Optional[str] = None
     run_id: Optional[str] = None
     user_id: Optional[str] = None
+    trace_id: Optional[str] = None
 
 
 class TraceContext:
@@ -67,6 +68,7 @@ class TraceContext:
     _session_id: ContextVar[Optional[str]] = ContextVar("session_id", default=None)
     _run_id: ContextVar[Optional[str]] = ContextVar("run_id", default=None)
     _user_id: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
+    _request_trace_id: ContextVar[Optional[str]] = ContextVar("request_trace_id", default=None)
 
     @classmethod
     def set(
@@ -134,6 +136,7 @@ class TraceContext:
         session_id: Optional[str] = None,
         run_id: Optional[str] = None,
         user_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
     ) -> None:
         """
         设置请求上下文
@@ -151,6 +154,8 @@ class TraceContext:
             cls._run_id.set(run_id)
         if user_id is not None:
             cls._user_id.set(user_id)
+        if trace_id is not None:
+            cls._request_trace_id.set(trace_id)
 
     @classmethod
     def get_request_context(cls) -> RequestContext:
@@ -164,6 +169,7 @@ class TraceContext:
             session_id=cls._session_id.get(),
             run_id=cls._run_id.get(),
             user_id=cls._user_id.get(),
+            trace_id=cls._request_trace_id.get(),
         )
 
     @classmethod
@@ -172,6 +178,7 @@ class TraceContext:
         cls._session_id.set(None)
         cls._run_id.set(None)
         cls._user_id.set(None)
+        cls._request_trace_id.set(None)
 
     @classmethod
     def get_session_id(cls) -> Optional[str]:

@@ -93,10 +93,17 @@ class TaskExecutor:
             logger.info(
                 f"[TaskManager] Setting TraceContext: session_id={session_id}, run_id={run_id}"
             )
+            current_trace = TraceContext.get()
+            TraceContext.set(
+                trace_id=presenter.trace_id,
+                span_id=current_trace.span_id,
+                parent_span_id=current_trace.parent_span_id,
+            )
             TraceContext.set_request_context(
                 session_id=session_id,
                 run_id=run_id,
                 user_id=user_id,
+                trace_id=presenter.trace_id,
             )
 
             await presenter._ensure_trace()
@@ -174,6 +181,7 @@ class TaskExecutor:
             await TaskCancellation.clear_interrupt(run_id)
             # 清除请求上下文，防止 contextvars 泄漏到后续任务
             TraceContext.clear_request_context()
+            TraceContext.clear()
 
     async def _handle_cancelled_error(
         self,

@@ -39,6 +39,7 @@ class RevealedFileStorage:
     async def _ensure_indexes(self):
         try:
             c = self.collection
+            existing_indexes = await c.index_information()
             await c.create_index(
                 [("user_id", 1), ("created_at", -1)],
                 name="user_created_at_idx",
@@ -49,15 +50,20 @@ class RevealedFileStorage:
                 name="user_file_type_idx",
                 background=True,
             )
+            # Migrate away from the old name-based unique key so users can keep
+            # multiple same-named reveals from different sessions/runs.
+            if "user_name_source_unique_idx" in existing_indexes:
+                await c.drop_index("user_name_source_unique_idx")
+
             # Remove duplicates before creating the unique index.
-            # Keep the latest document per (user_id, file_name, source) and
+            # Keep the latest document per (user_id, file_key, source) and
             # delete the rest so the unique index can be built.
             pipeline = [
                 {
                     "$group": {
                         "_id": {
                             "user_id": "$user_id",
-                            "file_name": "$file_name",
+                            "file_key": "$file_key",
                             "source": "$source",
                         },
                         "ids": {"$push": "$_id"},
@@ -73,13 +79,13 @@ class RevealedFileStorage:
                     logger.info(
                         f"Removed {len(ids_to_remove)} duplicate(s) for "
                         f"user_id={group['_id']['user_id']}, "
-                        f"file_name={group['_id']['file_name']}, "
+                        f"file_key={group['_id']['file_key']}, "
                         f"source={group['_id']['source']}"
                     )
 
             await c.create_index(
-                [("user_id", 1), ("file_name", 1), ("source", 1)],
-                name="user_name_source_unique_idx",
+                [("user_id", 1), ("file_key", 1), ("source", 1)],
+                name="user_key_source_unique_idx",
                 unique=True,
                 background=True,
             )
@@ -110,9 +116,9 @@ class RevealedFileStorage:
         trace_id: str,
         data: Dict[str, Any],
     ) -> None:
-        """Upsert a record, deduplicating by user_id + file_name + source.
+        """Upsert a record, deduplicating by user_id + file_key + source.
 
-        If a record with the same name and source already exists, update its
+        If a record with the same file key and source already exists, update its
         content fields and reset *created_at* so the entry bubbles to the top
         of time-sorted lists.  Preserves ``is_favorite`` on the existing doc.
         """
@@ -143,7 +149,7 @@ class RevealedFileStorage:
             await self.collection.update_one(
                 {
                     "user_id": user_id,
-                    "file_name": file_name,
+                    "file_key": file_key,
                     "source": source,
                 },
                 {"$set": set_fields},
@@ -151,6 +157,21 @@ class RevealedFileStorage:
             )
         except Exception as e:
             logger.warning(f"Failed to upsert revealed file record by name: {e}")
+
+    @staticmethod
+    def _serialize_item(item: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize MongoDB records for API responses."""
+        normalized = dict(item)
+
+        if normalized.get("file_type") != "project":
+            normalized.pop("project_meta", None)
+
+        if "_id" in normalized:
+            normalized["id"] = str(normalized.pop("_id"))
+        if "created_at" in normalized and isinstance(normalized["created_at"], datetime):
+            normalized["created_at"] = normalized["created_at"].isoformat()
+
+        return normalized
 
     async def _search_session_ids(self, search: str) -> list[str]:
         """Find session IDs whose name matches the search term."""
@@ -235,12 +256,7 @@ class RevealedFileStorage:
             sort_key = "created_at"
 
         total = await self.collection.count_documents(query)
-        cursor = (
-            self.collection.find(query, {"project_meta": 0})
-            .sort(sort_key, sort_dir)
-            .skip(skip)
-            .limit(limit)
-        )
+        cursor = self.collection.find(query).sort(sort_key, sort_dir).skip(skip).limit(limit)
         items = await cursor.to_list(length=limit)
 
         # Enrich with session_name from sessions collection
@@ -258,13 +274,15 @@ class RevealedFileStorage:
             ).to_list(length=len(session_ids))
             session_names = {s["session_id"]: s.get("name") for s in sessions}
 
-        for item in items:
-            item["session_name"] = session_names.get(item.get("session_id"))
-            # Convert ObjectId and datetime for JSON serialization
-            if "_id" in item:
-                item["id"] = str(item.pop("_id"))
-            if "created_at" in item and isinstance(item["created_at"], datetime):
-                item["created_at"] = item["created_at"].isoformat()
+        items = [
+            self._serialize_item(
+                {
+                    **item,
+                    "session_name": session_names.get(item.get("session_id")),
+                }
+            )
+            for item in items
+        ]
 
         return {"items": items, "total": total, "skip": skip, "limit": limit}
 
@@ -443,7 +461,7 @@ class RevealedFileStorage:
         else:
             file_sort = [("session_id", 1), ("created_at", file_sort_dir)]
 
-        files_cursor = self.collection.find(file_query, {"project_meta": 0}).sort(file_sort)
+        files_cursor = self.collection.find(file_query).sort(file_sort)
         raw_files = await files_cursor.to_list(length=500)
 
         # Enrich with session names
@@ -462,13 +480,15 @@ class RevealedFileStorage:
         files_by_session: Dict[str, list] = {sid: [] for sid in session_ids}
         for item in raw_files:
             sid = item.get("session_id")
-            item["session_name"] = name_map.get(sid)
-            if "_id" in item:
-                item["id"] = str(item.pop("_id"))
-            if "created_at" in item and isinstance(item["created_at"], datetime):
-                item["created_at"] = item["created_at"].isoformat()
             if sid in files_by_session:
-                files_by_session[sid].append(item)
+                files_by_session[sid].append(
+                    self._serialize_item(
+                        {
+                            **item,
+                            "session_name": name_map.get(sid),
+                        }
+                    )
+                )
 
         count_map = {r["_id"]: r["file_count"] for r in session_results}
         sessions_list = []

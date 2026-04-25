@@ -47,9 +47,10 @@ interface StartVirtuosoScrollToBottomOptions {
   shouldAbort?: () => boolean;
   onAutoScroll?: () => void;
   onComplete?: (reason: "settled" | "aborted" | "max-attempts") => void;
+  resetBudgetOnLayoutChange?: boolean;
 }
 
-interface ScrollMessageLike {
+export interface ScrollMessageLike {
   id: string;
   role?: string;
 }
@@ -70,6 +71,14 @@ export function getAwayFromBottomThresholdPx(
   bottomBreathingRoomPx: number,
 ): number {
   return isMobileViewport ? Math.max(50, bottomBreathingRoomPx) : 16;
+}
+
+export function getMessageListFooterSpacerClass(
+  isMobileViewport: boolean,
+): string {
+  return isMobileViewport
+    ? "h-[calc(1.5rem+env(safe-area-inset-bottom))]"
+    : "h-8";
 }
 
 export function getInitialBottomItemLocation(
@@ -108,6 +117,7 @@ export function shouldAutoScrollForMessageUpdate({
   isNearBottom,
   isLoadingHistory = false,
   shouldMaintainStreamLock = false,
+  manualDetachActive = false,
 }: {
   previousMessages: ScrollMessageLike[];
   nextMessages: ScrollMessageLike[];
@@ -116,6 +126,7 @@ export function shouldAutoScrollForMessageUpdate({
   isNearBottom: boolean;
   isLoadingHistory?: boolean;
   shouldMaintainStreamLock?: boolean;
+  manualDetachActive?: boolean;
 }): boolean {
   if (userScrolledUp || nextMessages.length === 0 || isLoadingHistory) {
     return false;
@@ -146,10 +157,46 @@ export function shouldAutoScrollForMessageUpdate({
   // streaming update for the same assistant message. Repeated restarts cause
   // visible scroll jitter when message height is still changing.
   if (latestContinued) {
-    return !autoScrollActive && (isNearBottom || shouldMaintainStreamLock);
+    return (
+      !manualDetachActive &&
+      !autoScrollActive &&
+      (isNearBottom || shouldMaintainStreamLock)
+    );
   }
 
   return false;
+}
+
+export function shouldStopAutoScrollOnUserScroll({
+  isMobileViewport,
+  autoScrollActive,
+  programmaticScroll,
+  movedUp,
+  isAwayFromBottom,
+  deltaScrollPx,
+  scrollTop,
+}: {
+  isMobileViewport: boolean;
+  autoScrollActive: boolean;
+  programmaticScroll: boolean;
+  movedUp: boolean;
+  isAwayFromBottom: boolean;
+  deltaScrollPx: number;
+  scrollTop: number;
+}): boolean {
+  if (!autoScrollActive || programmaticScroll || !movedUp) {
+    return false;
+  }
+
+  if (isAwayFromBottom) {
+    return true;
+  }
+
+  if (!isMobileViewport) {
+    return false;
+  }
+
+  return deltaScrollPx > 6 && scrollTop >= 0;
 }
 
 export function shouldAutoScrollAfterViewportChange({
@@ -256,9 +303,10 @@ export function startVirtuosoScrollToBottom({
   shouldAbort,
   onAutoScroll,
   onComplete,
+  resetBudgetOnLayoutChange = observeLayoutChanges,
 }: StartVirtuosoScrollToBottomOptions): () => void {
   if (!virtuoso || !scroller) {
-    forceVirtuosoToBottom({ virtuoso, footer });
+    forceVirtuosoToBottom({ virtuoso, scroller, footer });
     onComplete?.("settled");
     return () => undefined;
   }
@@ -307,6 +355,15 @@ export function startVirtuosoScrollToBottom({
     lastHeightChangeAt = Date.now();
     startedAt = Date.now();
   };
+  const noteLayoutChange = () => {
+    if (resetBudgetOnLayoutChange && !keepAliveActive) {
+      resetSettleBudget();
+      return;
+    }
+
+    lastKnownScrollHeight = scroller.scrollHeight;
+    lastHeightChangeAt = Date.now();
+  };
 
   if (observeLayoutChanges) {
     const createResizeObserver =
@@ -333,8 +390,7 @@ export function startVirtuosoScrollToBottom({
           return;
         }
 
-        lastKnownScrollHeight = scroller.scrollHeight;
-        lastHeightChangeAt = Date.now();
+        noteLayoutChange();
         scroll();
       });
       resizeObserver.observe(resizeObserverTarget ?? scroller);
@@ -374,8 +430,7 @@ export function startVirtuosoScrollToBottom({
     attempts += 1;
 
     if (scroller.scrollHeight !== lastKnownScrollHeight) {
-      lastKnownScrollHeight = scroller.scrollHeight;
-      lastHeightChangeAt = Date.now();
+      noteLayoutChange();
     }
 
     const isAtBottom =

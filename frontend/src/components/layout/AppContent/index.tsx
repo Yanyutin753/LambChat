@@ -34,6 +34,7 @@ import { useWebSocketNotifications } from "./useWebSocketNotifications";
 import { useAgentOptions } from "./useAgentOptions";
 import { useSessionSync } from "./useSessionSync";
 import {
+  getExternalNavigationPreviewRequest,
   getExternalNavigationTargetFile,
   shouldScrollToBottomAfterExternalNavigation,
 } from "./externalNavigationState";
@@ -577,6 +578,9 @@ function ChatAppContent({
   const externalNavigationTargetFile = getExternalNavigationTargetFile(
     location.state,
   );
+  const externalNavigationPreviewRequest = getExternalNavigationPreviewRequest(
+    location.state,
+  );
   const externalScrollToBottom = shouldScrollToBottomAfterExternalNavigation(
     location.state,
   );
@@ -861,6 +865,7 @@ function ChatAppContent({
           i18n={i18n}
           externalNavigationToken={externalNavigationToken}
           externalNavigationTargetFile={externalNavigationTargetFile}
+          externalNavigationPreview={externalNavigationPreviewRequest}
           externalNavigationTargetRunId={externalNavigationTargetRunId}
           externalNavigationTargetRunPending={
             externalNavigationTargetRunPending

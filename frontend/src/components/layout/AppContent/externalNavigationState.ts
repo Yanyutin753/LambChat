@@ -1,4 +1,6 @@
 import type { RevealedFileItem } from "../../../services/api";
+import { getFullUrl } from "../../../services/api/config";
+import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
 
 export interface ExternalNavigationTargetFile {
   fileId?: string;
@@ -13,6 +15,7 @@ export interface ExternalNavigationState {
   externalNavigate?: boolean;
   scrollToBottom?: boolean;
   targetFile?: ExternalNavigationTargetFile | null;
+  targetPreview?: RevealPreviewRequest | null;
 }
 
 export function shouldResetExternalNavigateFlag(
@@ -50,4 +53,67 @@ export function getExternalNavigationTargetFile(
     !!targetFile.fileName?.trim();
 
   return hasMatchableField ? targetFile : null;
+}
+
+export function buildExternalNavigationPreviewRequest(
+  file: Pick<
+    RevealedFileItem,
+    | "id"
+    | "file_key"
+    | "file_name"
+    | "file_size"
+    | "url"
+    | "source"
+    | "original_path"
+    | "project_meta"
+  >,
+): RevealPreviewRequest | null {
+  if (file.source === "reveal_project") {
+    const projectMeta = file.project_meta;
+    if (!projectMeta?.files) {
+      return null;
+    }
+
+    return {
+      kind: "project",
+      previewKey: `external-project:${file.id}`,
+      project: {
+        version: 2,
+        name: file.file_name,
+        path: file.original_path ?? undefined,
+        template: projectMeta.template,
+        entry: projectMeta.entry,
+        fileCount:
+          projectMeta.file_count ?? Object.keys(projectMeta.files).length,
+        files: Object.fromEntries(
+          Object.entries(projectMeta.files).map(([path, entry]) => [
+            path,
+            {
+              ...entry,
+              is_binary: entry.is_binary ?? false,
+            },
+          ]),
+        ),
+      },
+    };
+  }
+
+  return {
+    kind: "file",
+    previewKey: `external-file:${file.id}`,
+    filePath: file.original_path?.trim() || file.file_name,
+    s3Key: file.file_key || undefined,
+    signedUrl: getFullUrl(file.url),
+    fileSize: file.file_size,
+  };
+}
+
+export function getExternalNavigationPreviewRequest(
+  locationState: ExternalNavigationState | null | undefined,
+): RevealPreviewRequest | null {
+  if (locationState?.externalNavigate !== true) {
+    return null;
+  }
+
+  return locationState.targetPreview ?? null;
 }

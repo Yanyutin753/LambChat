@@ -315,39 +315,46 @@ class BaseGraphAgent(ABC):
         logger.info(
             f"[Agent] Setting TraceContext: session_id={session_id}, run_id={presenter.run_id}"
         )
-        TraceContext.set_request_context(
-            session_id=session_id,
-            run_id=presenter.run_id,
-            user_id=user_id,
-        )
-
-        # 确保 trace 在数据库中创建（绑定 user_id）
-        await presenter._ensure_trace()
-
-        # 发送元数据（由 manager.py 保存）
-        meta_evt = presenter.metadata()
-        yield meta_evt
-
-        # 构建 config，注入 presenter
-        config: RunnableConfig = {
-            "configurable": {
-                "thread_id": session_id,
-                "presenter": presenter,
-                **kwargs,
-            },
-            "recursion_limit": self.recursion_limit,
-        }
-
-        # 初始状态
-        initial_state = {
-            "input": message,
-            "session_id": session_id,
-            "messages": [],
-            "context": kwargs,
-            "attachments": kwargs.get("attachments", []),
-        }
-
         try:
+            current_trace = TraceContext.get()
+            TraceContext.set(
+                trace_id=presenter.trace_id,
+                span_id=current_trace.span_id,
+                parent_span_id=current_trace.parent_span_id,
+            )
+            TraceContext.set_request_context(
+                session_id=session_id,
+                run_id=presenter.run_id,
+                user_id=user_id,
+                trace_id=presenter.trace_id,
+            )
+
+            # 确保 trace 在数据库中创建（绑定 user_id）
+            await presenter._ensure_trace()
+
+            # 发送元数据（由 manager.py 保存）
+            meta_evt = presenter.metadata()
+            yield meta_evt
+
+            # 构建 config，注入 presenter
+            config: RunnableConfig = {
+                "configurable": {
+                    "thread_id": session_id,
+                    "presenter": presenter,
+                    **kwargs,
+                },
+                "recursion_limit": self.recursion_limit,
+            }
+
+            # 初始状态
+            initial_state = {
+                "input": message,
+                "session_id": session_id,
+                "messages": [],
+                "context": kwargs,
+                "attachments": kwargs.get("attachments", []),
+            }
+
             # 导入中断检查函数
             from src.infra.task.manager import (
                 BackgroundTaskManager,
@@ -434,6 +441,25 @@ class BaseGraphAgent(ABC):
                 # Flush pending chunks and clear event_processor memory
                 await event_processor.finalize()
 
+            # 发送 token 使用统计
+            if event_processor.total_input_tokens > 0 or event_processor.total_output_tokens > 0:
+                agent_options = kwargs.get("agent_options") or {}
+                await presenter.emit(
+                    presenter.present_token_usage(
+                        input_tokens=event_processor.total_input_tokens,
+                        output_tokens=event_processor.total_output_tokens,
+                        total_tokens=event_processor.total_tokens
+                        or event_processor.total_input_tokens + event_processor.total_output_tokens,
+                        cache_creation_tokens=event_processor.total_cache_creation_tokens,
+                        cache_read_tokens=event_processor.total_cache_read_tokens,
+                        model_id=agent_options.get("model_id"),
+                        model=agent_options.get("model"),
+                    )
+                )
+
+            # 发送完成
+            yield presenter.done()
+
         except asyncio.CancelledError:
             # 任务被取消，yield 队列中剩余的事件（由 manager.py 保存）
             try:
@@ -454,25 +480,9 @@ class BaseGraphAgent(ABC):
             raise
 
         # 其他异常（TaskInterruptedError, Exception）直接抛给 manager.py 处理
-
-        # 发送 token 使用统计
-        if event_processor.total_input_tokens > 0 or event_processor.total_output_tokens > 0:
-            agent_options = kwargs.get("agent_options") or {}
-            await presenter.emit(
-                presenter.present_token_usage(
-                    input_tokens=event_processor.total_input_tokens,
-                    output_tokens=event_processor.total_output_tokens,
-                    total_tokens=event_processor.total_tokens
-                    or event_processor.total_input_tokens + event_processor.total_output_tokens,
-                    cache_creation_tokens=event_processor.total_cache_creation_tokens,
-                    cache_read_tokens=event_processor.total_cache_read_tokens,
-                    model_id=agent_options.get("model_id"),
-                    model=agent_options.get("model"),
-                )
-            )
-
-        # 发送完成
-        yield presenter.done()
+        finally:
+            TraceContext.clear_request_context()
+            TraceContext.clear()
 
     async def invoke(self, message: str, session_id: str = str(uuid.uuid4()), **kwargs) -> str:
         """非流式执行，返回最终结果"""

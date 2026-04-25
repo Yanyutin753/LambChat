@@ -458,7 +458,7 @@ async def reveal_file(
             req_ctx = TraceContext.get_request_context()
             user_id = req_ctx.user_id or get_user_id_from_runtime(runtime)
             session_id = req_ctx.session_id
-            trace_id = TraceContext.get().trace_id
+            trace_id = req_ctx.trace_id or TraceContext.get().trace_id
 
             # Look up session's project_id
             session_project_id = None

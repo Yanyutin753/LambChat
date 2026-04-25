@@ -18,6 +18,28 @@ export interface RevealedFileItem {
   original_path: string | null;
   created_at: string;
   is_favorite: boolean;
+  project_meta?: {
+    template:
+      | "react"
+      | "vue"
+      | "vanilla"
+      | "static"
+      | "angular"
+      | "svelte"
+      | "solid"
+      | "nextjs";
+    entry?: string;
+    file_count?: number;
+    files: Record<
+      string,
+      {
+        url: string;
+        size: number;
+        is_binary?: boolean;
+        content_type?: string;
+      }
+    >;
+  } | null;
 }
 
 export interface RevealedFileListResponse {

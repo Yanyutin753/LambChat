@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  getInitialUrlSyncCompletionAction,
   getSessionRouteSyncAction,
   shouldLoadSessionFromUrlChange,
 } from "./useSessionSync.ts";
@@ -59,5 +60,34 @@ test("loads the target session when external navigation lands on chat from an em
       isInternalNavigation: false,
     }),
     true,
+  );
+});
+
+test("does not trigger a second url-change load while the initial url sync is still pending", () => {
+  assert.equal(
+    shouldLoadSessionFromUrlChange({
+      activeTab: "chat",
+      sessionId: null,
+      urlSessionId: "session-123",
+      isLoading: false,
+      isNewSession: false,
+      isInternalNavigation: false,
+      initialUrlSyncPending: true,
+    }),
+    false,
+  );
+});
+
+test("clears external navigation state after the initial url sync finishes on chat", () => {
+  assert.deepEqual(
+    getInitialUrlSyncCompletionAction({
+      activeTab: "chat",
+      pathname: "/chat/session-123",
+      externalNavigate: true,
+    }),
+    {
+      type: "clear-external-state",
+      path: "/chat/session-123",
+    },
   );
 });

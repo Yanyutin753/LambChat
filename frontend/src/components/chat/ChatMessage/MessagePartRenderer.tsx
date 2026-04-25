@@ -84,7 +84,10 @@ export function MessagePartRenderer({
     // Detect reveal_file tool, use dedicated component
     if (part.name === "reveal_file") {
       return (
-        <div id={toolPartAnchorId} className="scroll-mt-6">
+        <div
+          id={toolPartAnchorId}
+          className="scroll-mt-6 rounded-xl transition-[box-shadow] duration-300 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/80 data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(245,158,11,0.25)] dark:data-[external-navigation-highlighted=true]:ring-amber-400/60 dark:data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(251,191,36,0.12)]"
+        >
           <FileRevealItem
             args={part.args}
             result={part.result}
@@ -101,7 +104,10 @@ export function MessagePartRenderer({
     // Detect reveal_project tool, use dedicated component
     if (part.name === "reveal_project") {
       return (
-        <div id={toolPartAnchorId} className="scroll-mt-6">
+        <div
+          id={toolPartAnchorId}
+          className="scroll-mt-6 rounded-2xl transition-[box-shadow] duration-300 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/80 data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(245,158,11,0.25)] dark:data-[external-navigation-highlighted=true]:ring-amber-400/60 dark:data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(251,191,36,0.12)]"
+        >
           <ProjectRevealItem
             args={part.args}
             result={part.result}
@@ -204,6 +210,7 @@ export function MessagePartRenderer({
       <ThinkingBlock
         content={part.content}
         isStreaming={isStreaming && isLast && part.isStreaming}
+        panelKey={part.thinking_id}
       />
     );
   }

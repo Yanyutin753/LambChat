@@ -21,8 +21,11 @@ import {
   ChatSkeletonMessagesOnly,
 } from "../../skeletons/ChatSkeletons";
 import { useMessageScroll } from "./useMessageScroll";
-import { getInitialBottomItemLocation } from "./messageScrollUtils";
-import { getAtBottomThresholdPx } from "./messageScrollUtils";
+import {
+  getAtBottomThresholdPx,
+  getInitialBottomItemLocation,
+  getMessageListFooterSpacerClass,
+} from "./messageScrollUtils";
 import {
   shouldShowMessageOutline,
   extractMessageOutline,
@@ -112,6 +115,7 @@ interface ChatViewProps {
   i18n: { language?: string };
   externalNavigationToken?: string | null;
   externalNavigationTargetFile?: ExternalNavigationTargetFile | null;
+  externalNavigationPreview?: RevealPreviewRequest | null;
   externalNavigationTargetRunId?: string | null;
   externalNavigationTargetRunPending?: boolean;
   externalScrollToBottom?: boolean;
@@ -161,6 +165,7 @@ export function ChatView({
   i18n,
   externalNavigationToken,
   externalNavigationTargetFile,
+  externalNavigationPreview,
   externalNavigationTargetRunId,
   externalNavigationTargetRunPending,
   externalScrollToBottom,
@@ -293,6 +298,7 @@ export function ChatView({
     useState<ActiveRevealPreviewState | null>(null);
   const activePreviewStateRef = useRef<ActiveRevealPreviewState | null>(null);
   const dismissedPreviewKeysRef = useRef<Set<string>>(new Set());
+  const handledExternalPreviewTokenRef = useRef<string | null>(null);
   const activePreview = activePreviewState?.request ?? null;
 
   useEffect(() => {
@@ -345,6 +351,23 @@ export function ChatView({
     closePersistentToolPanel();
   }, [sessionId]);
 
+  useEffect(() => {
+    if (
+      !externalNavigationToken ||
+      !externalNavigationPreview ||
+      handledExternalPreviewTokenRef.current === externalNavigationToken
+    ) {
+      return;
+    }
+
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      return;
+    }
+
+    handledExternalPreviewTokenRef.current = externalNavigationToken;
+    handleOpenPreview(externalNavigationPreview, "auto");
+  }, [externalNavigationToken, externalNavigationPreview, handleOpenPreview]);
+
   const latestAutoPreview = useMemo(
     () => getLatestAutoPreviewTarget(messages),
     [messages],
@@ -386,7 +409,7 @@ export function ChatView({
           )}
           <div
             ref={messagesEndRef}
-            className="h-[calc(5rem+env(safe-area-inset-bottom))] sm:h-8"
+            className={getMessageListFooterSpacerClass(isMobileViewport)}
           />
         </>
       ),

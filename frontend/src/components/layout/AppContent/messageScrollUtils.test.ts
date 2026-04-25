@@ -6,8 +6,10 @@ import {
   getAutoScrollResumeThresholdPx,
   getAtBottomThresholdPx,
   getAwayFromBottomThresholdPx,
+  getMessageListFooterSpacerClass,
   getInitialBottomItemLocation,
   hasNewOutgoingMessage,
+  shouldStopAutoScrollOnUserScroll,
   shouldAutoScrollForMessageUpdate,
   shouldAutoScrollAfterViewportChange,
   startVirtuosoScrollToBottom,
@@ -64,6 +66,14 @@ test("uses a much tighter bottom threshold on desktop than on mobile", () => {
   assert.equal(getAwayFromBottomThresholdPx(true, 96), 96);
 });
 
+test("keeps the mobile footer spacer compact so history loads can settle near the latest message", () => {
+  assert.equal(
+    getMessageListFooterSpacerClass(true),
+    "h-[calc(1.5rem+env(safe-area-inset-bottom))]",
+  );
+  assert.equal(getMessageListFooterSpacerClass(false), "h-8");
+});
+
 test("falls back to the footer sentinel when Virtuoso handles are unavailable", () => {
   let called = false;
   const footer = {
@@ -78,6 +88,31 @@ test("falls back to the footer sentinel when Virtuoso handles are unavailable", 
   stop();
 
   assert.equal(called, true);
+});
+
+test("forwards scroller to the physical-bottom fallback when Virtuoso is temporarily unavailable", () => {
+  const scroller = {
+    scrollTop: 0,
+    clientHeight: 100,
+    scrollHeight: 640,
+  };
+  const footer = {
+    scrollIntoView: (args?: {
+      behavior?: "auto" | "smooth";
+      block?: ScrollLogicalPosition;
+    }) => {
+      return args;
+    },
+  };
+
+  const stop = startVirtuosoScrollToBottom({
+    virtuoso: null,
+    scroller,
+    footer,
+  });
+  stop();
+
+  assert.equal(scroller.scrollTop, scroller.scrollHeight);
 });
 
 test("forces the physical bottom by scrolling the footer sentinel into view", () => {
@@ -434,6 +469,58 @@ test("keeps the resize observer alive past the normal time budget while a stream
   assert.equal(disconnected, true);
 });
 
+test("extends the settle window when observed layout changes keep arriving during history finalize", async () => {
+  let resizeCallback: () => void = () => {
+    assert.fail("resize observer was not registered");
+  };
+  let completionReason: "settled" | "aborted" | "max-attempts" | null = null;
+  const scroller = {
+    scrollTop: 400,
+    clientHeight: 100,
+    scrollHeight: 500,
+  };
+  const virtuoso = {
+    scrollTo: () => {
+      scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
+    },
+  };
+
+  startVirtuosoScrollToBottom({
+    virtuoso,
+    scroller,
+    intervalMs: 5,
+    maxAttempts: 80,
+    maxDurationMs: 40,
+    settleWindowMs: 30,
+    observeLayoutChanges: true,
+    onComplete: (reason) => {
+      completionReason = reason;
+    },
+    resizeObserverFactory: (callback) => {
+      resizeCallback = callback;
+      return {
+        observe: () => undefined,
+        disconnect: () => undefined,
+      };
+    },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  scroller.scrollHeight = 700;
+  resizeCallback();
+
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  scroller.scrollHeight = 900;
+  resizeCallback();
+
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(completionReason, null);
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.equal(completionReason, "settled");
+  assert.equal(scroller.scrollTop, 800);
+});
+
 test("does not auto-scroll on viewport changes when the list is not scrollable", () => {
   assert.equal(
     shouldAutoScrollAfterViewportChange({
@@ -575,6 +662,79 @@ test("does not auto-scroll when multiple messages are appended at once", () => {
   );
 });
 
+test("treats an early upward mobile user scroll during active follow as an immediate detach", () => {
+  assert.equal(
+    shouldStopAutoScrollOnUserScroll({
+      isMobileViewport: true,
+      autoScrollActive: true,
+      programmaticScroll: false,
+      movedUp: true,
+      isAwayFromBottom: false,
+      deltaScrollPx: 18,
+      scrollTop: 260,
+    }),
+    true,
+  );
+});
+
+test("treats an early upward mobile user scroll as a detach even in short transcripts", () => {
+  assert.equal(
+    shouldStopAutoScrollOnUserScroll({
+      isMobileViewport: true,
+      autoScrollActive: true,
+      programmaticScroll: false,
+      movedUp: true,
+      isAwayFromBottom: false,
+      deltaScrollPx: 12,
+      scrollTop: 80,
+    }),
+    true,
+  );
+});
+
+test("does not stop auto-scroll for programmatic or tiny upward adjustments", () => {
+  assert.equal(
+    shouldStopAutoScrollOnUserScroll({
+      isMobileViewport: true,
+      autoScrollActive: true,
+      programmaticScroll: true,
+      movedUp: true,
+      isAwayFromBottom: true,
+      deltaScrollPx: 40,
+      scrollTop: 260,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldStopAutoScrollOnUserScroll({
+      isMobileViewport: true,
+      autoScrollActive: true,
+      programmaticScroll: false,
+      movedUp: true,
+      isAwayFromBottom: false,
+      deltaScrollPx: 1,
+      scrollTop: 260,
+    }),
+    false,
+  );
+});
+
+test("does not treat that same early upward scroll as a detach on desktop", () => {
+  assert.equal(
+    shouldStopAutoScrollOnUserScroll({
+      isMobileViewport: false,
+      autoScrollActive: true,
+      programmaticScroll: false,
+      movedUp: true,
+      isAwayFromBottom: false,
+      deltaScrollPx: 18,
+      scrollTop: 260,
+    }),
+    false,
+  );
+});
+
 test("auto-scrolls appended assistant messages only while the view is bottom-anchored", () => {
   const previousMessages = [{ id: "1", role: "user" }];
   const nextMessages = [
@@ -669,6 +829,30 @@ test("does not restart bottom-lock while a streaming assistant update is already
       autoScrollActive: true,
       isNearBottom: false,
       shouldMaintainStreamLock: true,
+    }),
+    false,
+  );
+});
+
+test("does not allow detached mobile streaming to restart bottom-lock automatically", () => {
+  const previousMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+  const nextMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: false,
+      autoScrollActive: false,
+      isNearBottom: false,
+      shouldMaintainStreamLock: true,
+      manualDetachActive: true,
     }),
     false,
   );

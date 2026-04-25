@@ -122,6 +122,7 @@ function buildSubagentPanelState(data: SubagentPanelData) {
   };
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function openSubagentPanelByAgentId(agentId: string): boolean {
   const data = subagentDataStore.get(agentId);
   if (!data) {
@@ -312,84 +313,65 @@ function formatTimestamp(ts: number): string {
   return `${YY}-${MM}-${DD} ${hh}:${mm}:${ss}`;
 }
 
-// Thinking Block - thinking process display (ChatGPT style)
+// Thinking Block - pill button, content in sidebar panel
 export function ThinkingBlock({
   content,
   isStreaming,
-  isPending,
-  success,
-  hasResult,
+  panelKey,
 }: {
   content: string;
   isStreaming?: boolean;
-  isPending?: boolean;
-  success?: boolean;
-  hasResult?: boolean;
+  panelKey?: string;
 }) {
   const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(false);
+
+  const status: CollapsibleStatus = isStreaming ? "loading" : "success";
+
+  useEffect(() => {
+    if (!isPersistentToolPanelOpen(panelKey)) return;
+    updatePersistentToolPanel(
+      (prev) => ({
+        ...prev,
+        status,
+        children: (
+          <div className="p-3 sm:p-4">
+            <MarkdownContent content={content} isStreaming={isStreaming} />
+          </div>
+        ),
+      }),
+      panelKey,
+    );
+  }, [content, isStreaming, panelKey, status]);
 
   return (
-    <div className="my-1">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={clsx(
-          "inline-flex items-center gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
-          "transition-colors bg-stone-200 dark:bg-stone-700",
-          "text-stone-600 dark:text-stone-300",
-          "hover:bg-stone-300 dark:hover:bg-stone-600 cursor-pointer",
-        )}
-      >
-        {/* Status indicator */}
-        {isPending ? (
-          <LoadingSpinner
-            size="sm"
-            className="shrink-0"
-            color="text-[var(--theme-primary)]"
-          />
-        ) : success ? (
-          <CheckCircle size={12} className="shrink-0" />
-        ) : hasResult ? (
-          <XCircle size={12} className="shrink-0" />
-        ) : null}
-
-        {/* Thinking icon */}
+    <CollapsiblePill
+      status={status}
+      icon={
         <Brain
           size={12}
           className="shrink-0 text-stone-500 dark:text-stone-400"
         />
-
-        <span className="font-mono">
-          {isStreaming || isPending
-            ? t("chat.message.thinking")
-            : t("chat.message.thought")}
-        </span>
-        {isStreaming && (
-          <span className="flex items-center gap-[2px] ml-1">
-            <span className="w-0.5 h-1 bg-stone-500 dark:bg-stone-400 rounded-full animate-[wave_0.6s_ease-in-out_infinite]" />
-            <span className="w-0.5 h-1.5 bg-stone-500 dark:bg-stone-400 rounded-full animate-[wave_0.6s_ease-in-out_infinite_0.1s]" />
-            <span className="w-0.5 h-1 bg-stone-500 dark:bg-stone-400 rounded-full animate-[wave_0.6s_ease-in-out_infinite_0.2s]" />
-          </span>
-        )}
-        <ChevronRight
-          size={12}
-          className={clsx(
-            "shrink-0 transition-transform duration-200 text-stone-500 dark:text-stone-400",
-            isExpanded && "rotate-90",
-          )}
-        />
-      </button>
-
-      {isExpanded && (
-        <div className="mt-1 animate-[fade-in_150ms_ease-out]">
-          <div className="ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600">
-            <div className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed pl-1 pt-2">
+      }
+      label={
+        isStreaming ? t("chat.message.thinking") : t("chat.message.thought")
+      }
+      variant="thinking"
+      animatedDots={isStreaming}
+      expandable={!!content}
+      onPanelOpen={() => {
+        openPersistentToolPanel({
+          title: t("chat.message.thought"),
+          icon: <Brain size={16} />,
+          status,
+          panelKey,
+          children: (
+            <div className="p-3 sm:p-4">
               <MarkdownContent content={content} isStreaming={isStreaming} />
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          ),
+        });
+      }}
+    />
   );
 }
 

@@ -5,7 +5,7 @@ import type {
 } from "../../../types";
 import { reconstructMessagesFromEvents } from "../../../hooks/useAgent/historyLoader";
 
-const MAX_NOTIFICATION_SUMMARY_LENGTH = 30;
+const MAX_NOTIFICATION_SUMMARY_LENGTH = 20;
 
 export interface TaskNotificationCopy {
   title: string;
