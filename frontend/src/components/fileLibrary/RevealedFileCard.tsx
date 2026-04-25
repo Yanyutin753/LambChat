@@ -5,7 +5,7 @@ import { ListCard } from "./components/ListCard";
 interface RevealedFileCardProps {
   file: RevealedFileItem;
   onPreview: (file: RevealedFileItem) => void;
-  onGoToSession: (sessionId: string) => void;
+  onGoToSession: (sessionId: string, file?: RevealedFileItem) => void;
   onToggleFavorite: (file: RevealedFileItem) => void;
   viewMode?: "grid" | "list";
 }

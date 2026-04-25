@@ -20,6 +20,7 @@ import { TodoBlock } from "./TodoBlock";
 import { SummaryItem } from "./SummaryItem";
 import type { RevealPreviewRequest } from "./items/revealPreviewData";
 import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
+import { createToolPartAnchorId } from "../../layout/AppContent/useMessageScroll";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({
@@ -45,6 +46,10 @@ export function MessagePartRenderer({
   ) => boolean;
 }) {
   const { t } = useTranslation();
+  const toolPartAnchorId =
+    messageId !== undefined && partIndex !== undefined
+      ? createToolPartAnchorId(messageId, partIndex)
+      : undefined;
 
   if (part.type === "text") {
     return (
@@ -79,31 +84,35 @@ export function MessagePartRenderer({
     // Detect reveal_file tool, use dedicated component
     if (part.name === "reveal_file") {
       return (
-        <FileRevealItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          allowAutoPreview={allowAutoPreview}
-          activePreview={activePreview}
-          onOpenPreview={onOpenPreview}
-        />
+        <div id={toolPartAnchorId} className="scroll-mt-6">
+          <FileRevealItem
+            args={part.args}
+            result={part.result}
+            success={part.success}
+            isPending={part.isPending}
+            cancelled={part.cancelled}
+            allowAutoPreview={allowAutoPreview}
+            activePreview={activePreview}
+            onOpenPreview={onOpenPreview}
+          />
+        </div>
       );
     }
     // Detect reveal_project tool, use dedicated component
     if (part.name === "reveal_project") {
       return (
-        <ProjectRevealItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          allowAutoPreview={allowAutoPreview}
-          activePreview={activePreview}
-          onOpenPreview={onOpenPreview}
-        />
+        <div id={toolPartAnchorId} className="scroll-mt-6">
+          <ProjectRevealItem
+            args={part.args}
+            result={part.result}
+            success={part.success}
+            isPending={part.isPending}
+            cancelled={part.cancelled}
+            allowAutoPreview={allowAutoPreview}
+            activePreview={activePreview}
+            onOpenPreview={onOpenPreview}
+          />
+        </div>
       );
     }
     // Detect edit_file tool, use dedicated component

@@ -1,0 +1,19 @@
+/* React Flow controls theme override — uses CSS vars that switch per light/dark */
+.outline-flow-controls {
+  border-color: var(--theme-border) !important;
+  background: var(--theme-bg-card) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+  border-radius: 8px !important;
+}
+
+.outline-flow-controls button {
+  background: var(--theme-bg-card) !important;
+  border-color: var(--theme-border) !important;
+  color: var(--theme-text-secondary) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.outline-flow-controls button:hover {
+  background: var(--theme-primary-light) !important;
+}

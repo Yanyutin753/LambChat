@@ -7,7 +7,7 @@ interface FileContextMenuProps {
   menu: { x: number; y: number; file: RevealedFileItem } | null;
   menuRef: React.RefObject<HTMLDivElement | null>;
   file: RevealedFileItem;
-  onGoToSession: (sessionId: string) => void;
+  onGoToSession: (sessionId: string, file?: RevealedFileItem) => void;
   onToggleFavorite: (file: RevealedFileItem) => void;
 }
 
@@ -32,7 +32,7 @@ export function FileContextMenu({
     {
       icon: MessageSquare,
       label: t("fileLibrary.context.goToSession"),
-      action: () => onGoToSession(file.session_id),
+      action: () => onGoToSession(file.session_id, file),
     },
     {
       icon: Star,

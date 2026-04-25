@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
 import { RevealedFileCard } from "../RevealedFileCard";
 import { VISIBLE_FILES_PER_SESSION } from "../constants";
+import { getSessionNavigationTarget } from "../utils";
 import type { ViewMode } from "../types";
 
 interface SessionGroupProps {
@@ -11,7 +12,7 @@ interface SessionGroupProps {
   sessionId: string;
   files: RevealedFileItem[];
   onPreview: (file: RevealedFileItem) => void;
-  onGoToSession: (sessionId: string) => void;
+  onGoToSession: (sessionId: string, file?: RevealedFileItem) => void;
   onToggleFavorite: (file: RevealedFileItem) => void;
   viewMode: ViewMode;
 }
@@ -27,6 +28,7 @@ export function SessionGroup({
 }: SessionGroupProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const navigationTarget = getSessionNavigationTarget(files);
   const visibleFiles = expanded
     ? files
     : files.slice(0, VISIBLE_FILES_PER_SESSION);
@@ -44,7 +46,9 @@ export function SessionGroup({
       <div className="flex items-center justify-between gap-2 pt-4 md:pt-5">
         <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={() => onGoToSession(sessionId)}
+            onClick={() =>
+              onGoToSession(sessionId, navigationTarget ?? undefined)
+            }
             className="min-w-0 truncate text-[14px] md:text-[15px] font-semibold leading-[22px] text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-white text-left transition-colors"
           >
             {sessionName}

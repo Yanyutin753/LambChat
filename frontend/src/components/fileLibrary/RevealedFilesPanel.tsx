@@ -11,6 +11,7 @@ import { Toolbar } from "./components/Toolbar";
 import { SessionGroup } from "./components/SessionGroup";
 import { EmptyState } from "./components/EmptyState";
 import type { SortOrder, ViewMode } from "./types";
+import type { ExternalNavigationState } from "../layout/AppContent/externalNavigationState";
 
 export function RevealedFilesPanel() {
   const { t } = useTranslation();
@@ -59,20 +60,39 @@ export function RevealedFilesPanel() {
     sort_order: sortOrder,
   });
 
+  const buildFileNavigationState = useCallback(
+    (file: RevealedFileItem): ExternalNavigationState => ({
+      externalNavigate: true,
+      targetFile: {
+        fileId: file.id,
+        fileKey: file.file_key,
+        fileName: file.file_name,
+        originalPath: file.original_path,
+        source: file.source,
+      },
+    }),
+    [],
+  );
+
   /* ── Handlers ── */
   const handlePreview = useCallback(
     (file: RevealedFileItem) => {
       if (file.file_type === "project") {
-        navigate(`/chat/${file.session_id}`);
+        navigate(`/chat/${file.session_id}`, {
+          state: buildFileNavigationState(file),
+        });
         return;
       }
       setPreviewFile(file);
     },
-    [navigate],
+    [buildFileNavigationState, navigate],
   );
   const handleGoToSession = useCallback(
-    (sessionId: string) => navigate(`/chat/${sessionId}`),
-    [navigate],
+    (sessionId: string, file?: RevealedFileItem) =>
+      navigate(`/chat/${sessionId}`, {
+        state: file ? buildFileNavigationState(file) : null,
+      }),
+    [buildFileNavigationState, navigate],
   );
   const handlePreviewClose = useCallback(() => setPreviewFile(null), []);
 

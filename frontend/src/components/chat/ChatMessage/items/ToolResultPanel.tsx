@@ -344,7 +344,7 @@ export function ToolResultPanel({
         isSidebar && !isMobile && !panelClass
           ? {
               maxWidth: `${sidebarWidth}%`,
-              minWidth: "min(320px, 80vw)",
+              minWidth: "min(400px, 80vw)",
               ...(animateIn ? {} : { transform: "translateX(100%)" }),
             }
           : !animateIn && !panelClass && !isCenter

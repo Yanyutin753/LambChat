@@ -43,3 +43,9 @@ export function buildMeta(
   parts.push(formatTimeAgo(t, file.created_at));
   return parts.join(" \u00B7 ");
 }
+
+export function getSessionNavigationTarget(
+  files: RevealedFileItem[],
+): RevealedFileItem | null {
+  return files[0] ?? null;
+}

@@ -33,7 +33,10 @@ import { useDragAndDrop } from "./useDragAndDrop";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
 import { useAgentOptions } from "./useAgentOptions";
 import { useSessionSync } from "./useSessionSync";
-import { shouldScrollToBottomAfterExternalNavigation } from "./externalNavigationState";
+import {
+  getExternalNavigationTargetFile,
+  shouldScrollToBottomAfterExternalNavigation,
+} from "./externalNavigationState";
 import {
   reconcileCurrentModelSelection,
   resolveDefaultModelSelection,
@@ -564,8 +567,14 @@ function ChatAppContent({
   });
 
   const [sessionName, setSessionName] = useState<string | null>(null);
-  const externalScrollToBottomToken =
-    shouldScrollToBottomAfterExternalNavigation(location.state)
+  const externalNavigationTargetFile = getExternalNavigationTargetFile(
+    location.state,
+  );
+  const externalScrollToBottom = shouldScrollToBottomAfterExternalNavigation(
+    location.state,
+  );
+  const externalNavigationToken =
+    externalNavigationTargetFile || externalScrollToBottom
       ? location.key
       : null;
 
@@ -797,7 +806,9 @@ function ChatAppContent({
           onAttachmentsChange={setPageDragAttachments}
           settings={settings || {}}
           i18n={i18n}
-          externalScrollToBottomToken={externalScrollToBottomToken}
+          externalNavigationToken={externalNavigationToken}
+          externalNavigationTargetFile={externalNavigationTargetFile}
+          externalScrollToBottom={externalScrollToBottom}
           outlineToggleRef={outlineToggleRef}
         />
         <BlockPreviewPortal />

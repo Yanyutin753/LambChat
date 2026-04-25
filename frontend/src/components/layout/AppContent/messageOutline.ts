@@ -13,6 +13,15 @@ export type MessageOutlineItem =
   | {
       id: string;
       anchorId: string;
+      kind: "assistant-message";
+      label: string;
+      level: 1;
+      messageId: string;
+      messageIndex: number;
+    }
+  | {
+      id: string;
+      anchorId: string;
       kind: "assistant-heading";
       label: string;
       level: 1 | 2 | 3;
@@ -20,8 +29,9 @@ export type MessageOutlineItem =
       messageIndex: number;
     };
 
-const USER_MESSAGE_THRESHOLD = 3;
+const USER_MESSAGE_THRESHOLD = 0;
 const USER_SUMMARY_MAX_LENGTH = 25;
+const ASSISTANT_SUMMARY_MAX_LENGTH = 40;
 const HEADING_PATTERN = /^(?: {0,3})(#{1,3})[ \t]+(.+?)\s*#*\s*$/gm;
 const FENCED_CODE_BLOCK_PATTERN = /```[\s\S]*?```/g;
 
@@ -92,6 +102,19 @@ export function extractMessageOutline(
       return;
     }
 
+    const label = summarizeAssistantMessage(message);
+    if (label) {
+      outline.push({
+        id: `assistant:${message.id}`,
+        anchorId: createMessageAnchorId(message.id),
+        kind: "assistant-message",
+        label,
+        level: 1,
+        messageId: message.id,
+        messageIndex,
+      });
+    }
+
     getAssistantTextBlocks(message).forEach(({ content, partIndex }) => {
       extractMarkdownHeadings(content).forEach(({ level, text }) => {
         outline.push({
@@ -129,6 +152,23 @@ function summarizeUserMessage(message: Message): string {
   }
 
   return `${firstLine.slice(0, USER_SUMMARY_MAX_LENGTH - 1)}…`;
+}
+
+function summarizeAssistantMessage(message: Message): string {
+  const text = getAssistantTextBlocks(message)
+    .map((b) => b.content)
+    .join("\n");
+
+  const cleaned = text
+    .replace(FENCED_CODE_BLOCK_PATTERN, "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)[0];
+
+  if (!cleaned) return "";
+
+  if (cleaned.length <= ASSISTANT_SUMMARY_MAX_LENGTH) return cleaned;
+  return `${cleaned.slice(0, ASSISTANT_SUMMARY_MAX_LENGTH - 1)}…`;
 }
 
 function resolveUserMessageText(message: Message): string {

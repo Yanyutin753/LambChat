@@ -55,6 +55,7 @@ import {
   type ActiveRevealPreviewState,
   type RevealPreviewOpenSource,
 } from "../../chat/ChatMessage/items/revealPreviewState";
+import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 
 interface ChatViewProps {
   messages: Message[];
@@ -108,7 +109,9 @@ interface ChatViewProps {
     settings?: { frontend?: Array<{ key: string; value: unknown }> };
   };
   i18n: { language?: string };
-  externalScrollToBottomToken?: string | null;
+  externalNavigationToken?: string | null;
+  externalNavigationTargetFile?: ExternalNavigationTargetFile | null;
+  externalScrollToBottom?: boolean;
   outlineToggleRef?: React.RefObject<(() => void) | null>;
 }
 
@@ -152,7 +155,9 @@ export function ChatView({
   onAttachmentsChange,
   settings,
   i18n,
-  externalScrollToBottomToken,
+  externalNavigationToken,
+  externalNavigationTargetFile,
+  externalScrollToBottom,
   outlineToggleRef,
 }: ChatViewProps) {
   const { t } = useTranslation();
@@ -196,7 +201,14 @@ export function ChatView({
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,
-  } = useMessageScroll(messages, sessionId, externalScrollToBottomToken);
+  } = useMessageScroll(
+    messages,
+    sessionId,
+    externalNavigationToken,
+    externalNavigationTargetFile,
+    externalScrollToBottom,
+    isLoading,
+  );
 
   const activeOutlineId = useActiveOutlineItem(
     outlineItems,
@@ -229,11 +241,13 @@ export function ChatView({
       closePersistentToolPanel();
       return;
     }
+    const isMobile = window.innerWidth < 640;
     openPersistentToolPanel({
       title: t("chat.outline"),
       icon: <ListTree size={18} strokeWidth={2} />,
       status: "idle",
       panelKey: "outline",
+      viewMode: isMobile ? "center" : "sidebar",
       children: (
         <MessageOutlinePanel
           items={outlineItems}

@@ -539,6 +539,23 @@ test("allows bulk history loads to bottom-lock when the latest message is assist
   );
 });
 
+test("does not auto-scroll non-assistant bulk history updates just because the list grew", () => {
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages: [{ id: "1", role: "user" }],
+      nextMessages: [
+        { id: "1", role: "user" },
+        { id: "2", role: "assistant" },
+        { id: "3", role: "user" },
+      ],
+      userScrolledUp: false,
+      autoScrollActive: false,
+      isNearBottom: false,
+    }),
+    false,
+  );
+});
+
 test("auto-scrolls appended assistant messages only while the view is bottom-anchored", () => {
   const previousMessages = [{ id: "1", role: "user" }];
   const nextMessages = [
