@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createToolPartAnchorId,
   findMessageIndexForExternalNavigation,
+  findRevealPartIndexInMessage,
   findMessageIndexForRunId,
   scrollElementIntoViewWithRetries,
   shouldArmPendingHistoryScroll,
@@ -157,6 +158,42 @@ test("finds the latest message for a resolved run id", () => {
 
   assert.equal(findMessageIndexForRunId(messages, "run-2"), 2);
   assert.equal(findMessageIndexForRunId(messages, "run-9"), -1);
+});
+
+test("finds the matching reveal part inside an already resolved run message", () => {
+  const message = {
+    parts: [
+      {
+        type: "tool" as const,
+        name: "reveal_file",
+        args: { path: "/tmp/first.txt" },
+        result: {
+          key: "revealed/first",
+          name: "first.txt",
+          _meta: { path: "/tmp/first.txt" },
+        },
+      },
+      {
+        type: "tool" as const,
+        name: "reveal_file",
+        args: { path: "/tmp/second.txt" },
+        result: {
+          key: "revealed/second",
+          name: "second.txt",
+          _meta: { path: "/tmp/second.txt" },
+        },
+      },
+    ],
+  };
+
+  assert.equal(
+    findRevealPartIndexInMessage(message, {
+      fileKey: "revealed/second",
+      originalPath: "/tmp/second.txt",
+      source: "reveal_file",
+    }),
+    1,
+  );
 });
 
 test("waits until history loading completes before triggering the final bottom scroll", () => {

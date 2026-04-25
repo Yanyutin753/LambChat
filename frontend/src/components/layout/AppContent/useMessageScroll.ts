@@ -281,6 +281,29 @@ export function findMessageIndexForExternalNavigation(
   return null;
 }
 
+export function findRevealPartIndexInMessage(
+  message: Pick<Message, "parts"> | null | undefined,
+  targetFile: ExternalNavigationTargetFile | null | undefined,
+): number {
+  if (!message?.parts?.length || !targetFile) {
+    return -1;
+  }
+
+  for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex--) {
+    const part = message.parts[partIndex];
+    const matched =
+      targetFile.source === "reveal_project"
+        ? matchesRevealProjectPart(part, targetFile)
+        : matchesRevealFilePart(part, targetFile);
+
+    if (matched) {
+      return partIndex;
+    }
+  }
+
+  return -1;
+}
+
 export function useMessageScroll(
   messages: Pick<Message, "id" | "role" | "isStreaming" | "parts" | "runId">[],
   sessionId?: string | null,
@@ -719,14 +742,21 @@ export function useMessageScroll(
         runMessageIndex !== -1
           ? runMessageIndex
           : contentMatch?.messageIndex ?? -1;
+      const matchedPartIndex =
+        runMessageIndex !== -1
+          ? findRevealPartIndexInMessage(
+              messages[resolvedMessageIndex],
+              pendingExternalNavigation.targetFile,
+            )
+          : contentMatch?.partIndex ?? -1;
       const fallbackMessageAnchorId = createMessageAnchorId(
         messages[resolvedMessageIndex]!.id,
       );
       const anchorId =
-        contentMatch && runMessageIndex === -1
+        matchedPartIndex !== -1
           ? createToolPartAnchorId(
-              messages[contentMatch.messageIndex]!.id,
-              contentMatch.partIndex,
+              messages[resolvedMessageIndex]!.id,
+              matchedPartIndex,
             )
           : fallbackMessageAnchorId;
 
