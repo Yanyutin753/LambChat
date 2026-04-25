@@ -12,6 +12,13 @@ import {
   startVirtuosoScrollToBottom,
 } from "./messageScrollUtils";
 import { parseProjectRevealSummary } from "../../chat/ChatMessage/items/revealPreviewData";
+import { openSubagentPanelByAgentId } from "../../chat/ChatMessage/SubagentBlocks";
+import { isPersistentToolPanelOpen } from "../../chat/ChatMessage/items/persistentToolPanelState";
+import {
+  createSubagentAnchorOwnerId,
+  createSubagentPanelKey,
+  createToolPartAnchorId,
+} from "../../chat/ChatMessage/messagePartAnchors";
 import { createMessageAnchorId } from "./messageOutline";
 
 interface UseMessageScrollReturn {
@@ -31,7 +38,14 @@ type AutoScrollMode = "default" | "history-finalize";
 export interface ExternalNavigationMatch {
   messageIndex: number;
   partIndex: number;
+  anchorId?: string;
+  subagentChain?: string[];
 }
+
+type MessageWithOptionalId = Pick<Message, "parts"> &
+  Partial<Pick<Message, "id">>;
+type MessageWithOptionalIdAndRun = MessageWithOptionalId &
+  Pick<Message, "runId">;
 
 export function findMessageIndexForRunId(
   messages: Pick<Message, "runId">[],
@@ -50,31 +64,67 @@ export function findMessageIndexForRunId(
   return -1;
 }
 
-export function createToolPartAnchorId(
-  messageId: string,
-  partIndex: number,
-): string {
-  return `tool-part:${messageId}:${partIndex}`;
-}
+export { createSubagentAnchorOwnerId, createToolPartAnchorId };
 
 interface ScrollElementIntoViewWithRetriesOptions {
   getElement: () => {
     scrollIntoView: (args?: ScrollIntoViewOptions) => void;
+    getBoundingClientRect?: () => DOMRect | { top: number };
+  } | null;
+  getScroller?: () => {
+    scrollTop: number;
+    clientHeight: number;
+    scrollHeight: number;
+    getBoundingClientRect: () => DOMRect | { top: number };
   } | null;
   schedule?: (callback: () => void) => number;
   cancelSchedule?: (handle: number) => void;
   maxAttempts?: number;
+  topOffsetPx?: number;
+  tolerancePx?: number;
+  settleAttempts?: number;
+}
+
+export function alignElementInScroller({
+  scroller,
+  element,
+  topOffsetPx,
+}: {
+  scroller: {
+    scrollTop: number;
+    clientHeight: number;
+    scrollHeight: number;
+    getBoundingClientRect: () => DOMRect | { top: number };
+  };
+  element: {
+    getBoundingClientRect: () => DOMRect | { top: number };
+  };
+  topOffsetPx: number;
+}): number {
+  const scrollerRect = scroller.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  const delta = elementRect.top - scrollerRect.top - topOffsetPx;
+  const maxScrollTop = Math.max(
+    0,
+    scroller.scrollHeight - scroller.clientHeight,
+  );
+  return Math.min(maxScrollTop, Math.max(0, scroller.scrollTop + delta));
 }
 
 export function scrollElementIntoViewWithRetries({
   getElement,
+  getScroller,
   schedule = (callback) => requestAnimationFrame(callback),
   cancelSchedule = (handle) => cancelAnimationFrame(handle),
   maxAttempts = 12,
+  topOffsetPx = 24,
+  tolerancePx = 6,
+  settleAttempts = 2,
 }: ScrollElementIntoViewWithRetriesOptions): () => void {
   let cancelled = false;
   let handle = 0;
   let attempt = 0;
+  let settledCount = 0;
 
   const tryScroll = () => {
     if (cancelled) {
@@ -83,8 +133,34 @@ export function scrollElementIntoViewWithRetries({
 
     const element = getElement();
     if (element) {
-      element.scrollIntoView({ behavior: "auto", block: "start" });
-      return;
+      const scroller = getScroller?.();
+      const measureElement = element.getBoundingClientRect;
+      if (scroller && measureElement) {
+        const currentScrollTop = scroller.scrollTop;
+        const nextScrollTop = alignElementInScroller({
+          scroller,
+          element: {
+            getBoundingClientRect: measureElement,
+          },
+          topOffsetPx,
+        });
+        const delta = Math.abs(nextScrollTop - currentScrollTop);
+
+        if (delta <= tolerancePx) {
+          settledCount += 1;
+          if (settledCount >= settleAttempts) {
+            return;
+          }
+        } else {
+          settledCount = 0;
+          scroller.scrollTop = nextScrollTop;
+        }
+      } else {
+        element.scrollIntoView({ behavior: "auto", block: "start" });
+        return;
+      }
+    } else {
+      settledCount = 0;
     }
 
     attempt += 1;
@@ -131,6 +207,36 @@ export function shouldFinalizeHistoryLoadScroll({
   messageCount,
 }: ShouldFinalizeHistoryLoadScrollOptions): boolean {
   return pendingHistoryScroll && !isLoadingHistory && messageCount > 0;
+}
+
+export function shouldKeepExternalNavigationPending({
+  runMessageIndex,
+  matchedPartIndex,
+}: {
+  runMessageIndex: number;
+  matchedPartIndex: number;
+}): boolean {
+  return runMessageIndex !== -1 && matchedPartIndex === -1;
+}
+
+function ensureSubagentPanelsOpen(subagentChain: string[] | undefined): void {
+  if (!subagentChain?.length) {
+    return;
+  }
+
+  const deepestAgentId = subagentChain[subagentChain.length - 1];
+  if (
+    deepestAgentId &&
+    isPersistentToolPanelOpen(createSubagentPanelKey(deepestAgentId))
+  ) {
+    return;
+  }
+
+  for (const agentId of subagentChain) {
+    if (!openSubagentPanelByAgentId(agentId)) {
+      break;
+    }
+  }
 }
 
 function parseRevealFileResult(
@@ -244,8 +350,70 @@ function matchesRevealProjectPart(
   );
 }
 
+interface RevealPartMatch {
+  partIndex: number;
+  anchorId?: string;
+  subagentChain?: string[];
+}
+
+function findRevealPartMatchInParts(
+  parts: NonNullable<Message["parts"]>,
+  targetFile: ExternalNavigationTargetFile,
+  anchorOwnerId?: string,
+  subagentChain: string[] = [],
+): RevealPartMatch | null {
+  for (let partIndex = parts.length - 1; partIndex >= 0; partIndex--) {
+    const part = parts[partIndex];
+    const matched =
+      targetFile.source === "reveal_project"
+        ? matchesRevealProjectPart(part, targetFile)
+        : matchesRevealFilePart(part, targetFile);
+
+    if (matched) {
+      return {
+        partIndex,
+        ...(anchorOwnerId
+          ? {
+              anchorId: createToolPartAnchorId(anchorOwnerId, partIndex),
+            }
+          : {}),
+        ...(subagentChain.length > 0
+          ? {
+              subagentChain: [...subagentChain],
+            }
+          : {}),
+      };
+    }
+
+    if (part.type === "subagent" && part.parts?.length) {
+      const nestedMatch = findRevealPartMatchInParts(
+        part.parts,
+        targetFile,
+        createSubagentAnchorOwnerId(part.agent_id),
+        [...subagentChain, part.agent_id],
+      );
+      if (nestedMatch) {
+        return nestedMatch;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function findRevealPartMatchInMessage(
+  message: MessageWithOptionalId | null | undefined,
+  targetFile: ExternalNavigationTargetFile | null | undefined,
+): RevealPartMatch | null {
+  if (!message?.parts?.length || !targetFile) {
+    return null;
+  }
+
+  return findRevealPartMatchInParts(message.parts, targetFile, message.id);
+}
+
 export function findMessageIndexForExternalNavigation(
-  messages: Pick<Message, "parts">[],
+  messages: MessageWithOptionalId[],
   targetFile: ExternalNavigationTargetFile | null | undefined,
 ): ExternalNavigationMatch | null {
   if (!targetFile) {
@@ -257,24 +425,15 @@ export function findMessageIndexForExternalNavigation(
     messageIndex >= 0;
     messageIndex--
   ) {
-    const parts = messages[messageIndex]?.parts;
-    if (!parts?.length) {
-      continue;
-    }
-
-    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex--) {
-      const part = parts[partIndex];
-      const matched =
-        targetFile.source === "reveal_project"
-          ? matchesRevealProjectPart(part, targetFile)
-          : matchesRevealFilePart(part, targetFile);
-
-      if (matched) {
-        return {
-          messageIndex,
-          partIndex,
-        };
-      }
+    const partMatch = findRevealPartMatchInMessage(
+      messages[messageIndex],
+      targetFile,
+    );
+    if (partMatch) {
+      return {
+        messageIndex,
+        ...partMatch,
+      };
     }
   }
 
@@ -282,26 +441,43 @@ export function findMessageIndexForExternalNavigation(
 }
 
 export function findRevealPartIndexInMessage(
-  message: Pick<Message, "parts"> | null | undefined,
+  message: MessageWithOptionalId | null | undefined,
   targetFile: ExternalNavigationTargetFile | null | undefined,
 ): number {
-  if (!message?.parts?.length || !targetFile) {
-    return -1;
+  return findRevealPartMatchInMessage(message, targetFile)?.partIndex ?? -1;
+}
+
+export function findExternalNavigationMatchForRunId(
+  messages: MessageWithOptionalIdAndRun[],
+  targetRunId: string | null | undefined,
+  targetFile: ExternalNavigationTargetFile | null | undefined,
+): ExternalNavigationMatch | null {
+  if (!targetRunId || !targetFile) {
+    return null;
   }
 
-  for (let partIndex = message.parts.length - 1; partIndex >= 0; partIndex--) {
-    const part = message.parts[partIndex];
-    const matched =
-      targetFile.source === "reveal_project"
-        ? matchesRevealProjectPart(part, targetFile)
-        : matchesRevealFilePart(part, targetFile);
+  for (
+    let messageIndex = messages.length - 1;
+    messageIndex >= 0;
+    messageIndex--
+  ) {
+    if (messages[messageIndex]?.runId !== targetRunId) {
+      continue;
+    }
 
-    if (matched) {
-      return partIndex;
+    const partMatch = findRevealPartMatchInMessage(
+      messages[messageIndex],
+      targetFile,
+    );
+    if (partMatch) {
+      return {
+        messageIndex,
+        ...partMatch,
+      };
     }
   }
 
-  return -1;
+  return null;
 }
 
 export function useMessageScroll(
@@ -711,12 +887,17 @@ export function useMessageScroll(
         return;
       }
 
+      const runMatch = findExternalNavigationMatchForRunId(
+        messages,
+        externalNavigationTargetRunId,
+        pendingExternalNavigation.targetFile,
+      );
       const runMessageIndex = findMessageIndexForRunId(
         messages,
         externalNavigationTargetRunId,
       );
       const contentMatch =
-        runMessageIndex === -1
+        !runMatch && runMessageIndex === -1
           ? findMessageIndexForExternalNavigation(
               messages,
               pendingExternalNavigation.targetFile,
@@ -730,7 +911,6 @@ export function useMessageScroll(
         return;
       }
 
-      pendingExternalNavigationRef.current = null;
       userScrolledUpRef.current = true;
       autoScrollActiveRef.current = false;
       streamLockActiveRef.current = false;
@@ -739,26 +919,34 @@ export function useMessageScroll(
       anchorScrollCleanupRef.current?.();
 
       const resolvedMessageIndex =
-        runMessageIndex !== -1
+        runMatch?.messageIndex ??
+        (runMessageIndex !== -1
           ? runMessageIndex
-          : contentMatch?.messageIndex ?? -1;
-      const matchedPartIndex =
-        runMessageIndex !== -1
-          ? findRevealPartIndexInMessage(
+          : contentMatch?.messageIndex ?? -1);
+      const resolvedMatch =
+        runMatch ??
+        (runMessageIndex !== -1
+          ? findRevealPartMatchInMessage(
               messages[resolvedMessageIndex],
               pendingExternalNavigation.targetFile,
             )
-          : contentMatch?.partIndex ?? -1;
+          : contentMatch);
+      const matchedPartIndex = resolvedMatch?.partIndex ?? -1;
+      const shouldKeepPending = shouldKeepExternalNavigationPending({
+        runMessageIndex,
+        matchedPartIndex,
+      });
+
+      if (!shouldKeepPending) {
+        pendingExternalNavigationRef.current = null;
+      }
       const fallbackMessageAnchorId = createMessageAnchorId(
         messages[resolvedMessageIndex]!.id,
       );
-      const anchorId =
-        matchedPartIndex !== -1
-          ? createToolPartAnchorId(
-              messages[resolvedMessageIndex]!.id,
-              matchedPartIndex,
-            )
-          : fallbackMessageAnchorId;
+      const exactAnchorId = resolvedMatch?.anchorId;
+      const subagentChain = resolvedMatch?.subagentChain;
+      const shouldTargetExactElement =
+        matchedPartIndex !== -1 && typeof exactAnchorId === "string";
 
       anchorScrollCleanupRef.current = scrollElementIntoViewWithRetries({
         getElement: () => {
@@ -768,11 +956,22 @@ export function useMessageScroll(
             behavior: "auto",
           });
 
-          return (
-            document.getElementById(anchorId) ||
-            document.getElementById(fallbackMessageAnchorId)
-          );
+          ensureSubagentPanelsOpen(subagentChain);
+
+          if (shouldTargetExactElement) {
+            return document.getElementById(exactAnchorId);
+          }
+
+          return document.getElementById(fallbackMessageAnchorId);
         },
+        getScroller:
+          shouldTargetExactElement && !subagentChain?.length
+            ? () => virtuosoScrollerRef.current
+            : undefined,
+        topOffsetPx: 20,
+        tolerancePx: 4,
+        settleAttempts: 3,
+        maxAttempts: subagentChain?.length ? 36 : 24,
       });
       return;
     }

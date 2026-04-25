@@ -281,6 +281,7 @@ async def get_session_events(
 async def get_session_runs(
     session_id: str,
     limit: int = Query(50, description="最大返回数量"),
+    trace_id: Optional[str] = Query(None, description="精确 trace ID 过滤"),
     user: TokenPayload = Depends(get_current_user_required),
 ):
     """
@@ -302,44 +303,44 @@ async def get_session_runs(
 
     verify_session_ownership(session, user)
 
-    # 获取traces基本信息
     dual_writer = get_dual_writer()
-    traces = await dual_writer.list_traces(session_id=session_id, limit=limit)
-
-    # 获取trace_storage来查询用户消息
     trace_storage = get_trace_storage()
 
-    # 转换为 run 摘要格式
-    runs = []
-    for trace in traces:
+    async def build_run_summary(trace: dict[str, Any]) -> dict[str, Any]:
         run_id = trace.get("run_id")
-        trace_id = trace.get("trace_id")
-        # 查询该run的第一个用户消息
+        current_trace_id = trace.get("trace_id")
         user_message = None
-        if run_id and trace_id:
-            events = await trace_storage.get_trace_events(trace_id=trace_id)
+        if run_id and current_trace_id:
+            events = await trace_storage.get_trace_events(trace_id=current_trace_id)
             for event in events:
                 if event.get("event_type") == "user:message":
                     data = event.get("data", {})
                     user_message = data.get("content") or data.get("message") or ""
                     if user_message:
-                        # 截断过长消息
                         if len(user_message) > 20:
                             user_message = user_message[:17] + "..."
                         break
 
-        runs.append(
-            {
-                "run_id": run_id,
-                "trace_id": trace.get("trace_id"),
-                "agent_id": trace.get("agent_id"),
-                "started_at": trace.get("started_at"),
-                "completed_at": trace.get("completed_at"),
-                "status": trace.get("status"),
-                "event_count": trace.get("event_count", 0),
-                "user_message": user_message,
-            }
-        )
+        return {
+            "run_id": run_id,
+            "trace_id": trace.get("trace_id"),
+            "agent_id": trace.get("agent_id"),
+            "started_at": trace.get("started_at"),
+            "completed_at": trace.get("completed_at"),
+            "status": trace.get("status"),
+            "event_count": trace.get("event_count", 0),
+            "user_message": user_message,
+        }
+
+    if trace_id:
+        trace = await dual_writer.get_trace(trace_id)
+        traces = [trace] if trace and trace.get("session_id") == session_id else []
+    else:
+        traces = await dual_writer.list_traces(session_id=session_id, limit=limit)
+
+    runs = []
+    for trace in traces:
+        runs.append(await build_run_summary(trace))
 
     return {
         "session_id": session_id,

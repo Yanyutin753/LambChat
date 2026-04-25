@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  alignElementInScroller,
   createToolPartAnchorId,
+  createSubagentAnchorOwnerId,
   findMessageIndexForExternalNavigation,
   findRevealPartIndexInMessage,
   findMessageIndexForRunId,
   scrollElementIntoViewWithRetries,
   shouldArmPendingHistoryScroll,
+  shouldKeepExternalNavigationPending,
   shouldFinalizeHistoryLoadScroll,
 } from "./useMessageScroll.ts";
 
@@ -81,6 +84,51 @@ test("finds reveal_project tool blocks by original project path", () => {
   );
 });
 
+test("finds reveal_file tool blocks nested inside a subagent panel", () => {
+  const messages = [
+    {
+      parts: [
+        {
+          type: "subagent" as const,
+          agent_id: "agent-1",
+          agent_name: "worker",
+          input: "inspect file",
+          depth: 1,
+          parts: [
+            {
+              type: "tool" as const,
+              name: "reveal_file",
+              args: { path: "/tmp/nested.txt" },
+              result: {
+                key: "revealed/nested",
+                name: "nested.txt",
+                _meta: { path: "/tmp/nested.txt" },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  assert.deepEqual(
+    findMessageIndexForExternalNavigation(messages, {
+      fileKey: "revealed/nested",
+      originalPath: "/tmp/nested.txt",
+      source: "reveal_file",
+    }),
+    {
+      messageIndex: 0,
+      partIndex: 0,
+      anchorId: createToolPartAnchorId(
+        createSubagentAnchorOwnerId("agent-1"),
+        0,
+      ),
+      subagentChain: ["agent-1"],
+    },
+  );
+});
+
 test("creates stable tool part anchor ids", () => {
   assert.equal(createToolPartAnchorId("message-1", 3), "tool-part:message-1:3");
 });
@@ -151,6 +199,27 @@ test("retries anchor scrolling until the target element appears", async () => {
 
   assert.equal(scrolled, 1);
   assert.equal(attempts, 3);
+});
+
+test("aligns the target component relative to the virtuoso scroller", () => {
+  const scroller = {
+    scrollTop: 400,
+    clientHeight: 500,
+    scrollHeight: 2000,
+    getBoundingClientRect: () => ({ top: 100 }),
+  };
+  const element = {
+    getBoundingClientRect: () => ({ top: 360 }),
+  };
+
+  assert.equal(
+    alignElementInScroller({
+      scroller,
+      element,
+      topOffsetPx: 20,
+    }),
+    640,
+  );
 });
 
 test("finds the latest message for a resolved run id", () => {
@@ -269,6 +338,32 @@ test("arms the history finalize scroll only once per loading cycle", () => {
       isLoadingHistory: true,
       sessionId: null,
       historyScrollArmed: false,
+    }),
+    false,
+  );
+});
+
+test("keeps external navigation pending when the run is known but the reveal part is not ready yet", () => {
+  assert.equal(
+    shouldKeepExternalNavigationPending({
+      runMessageIndex: 3,
+      matchedPartIndex: -1,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldKeepExternalNavigationPending({
+      runMessageIndex: 3,
+      matchedPartIndex: 1,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldKeepExternalNavigationPending({
+      runMessageIndex: -1,
+      matchedPartIndex: -1,
     }),
     false,
   );

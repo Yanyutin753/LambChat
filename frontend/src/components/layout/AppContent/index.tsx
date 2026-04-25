@@ -606,7 +606,9 @@ function ChatAppContent({
   }, [sessionId]);
 
   useEffect(() => {
-    if (!sessionId || !externalNavigationTargetFile?.traceId) {
+    const targetTraceId = externalNavigationTargetFile?.traceId ?? undefined;
+
+    if (!sessionId || !targetTraceId) {
       setExternalNavigationTargetRunId(null);
       setExternalNavigationTargetRunPending(false);
       return;
@@ -618,15 +620,15 @@ function ChatAppContent({
     const resolveTargetRunId = async () => {
       try {
         const { sessionApi } = await import("../../../services/api");
-        const response = await sessionApi.getRuns(sessionId);
+        const response = await sessionApi.getRuns(sessionId, {
+          trace_id: targetTraceId,
+        });
         if (cancelled) {
           return;
         }
 
         const matchedRun =
-          response.runs.find(
-            (run) => run.trace_id === externalNavigationTargetFile.traceId,
-          ) ?? null;
+          response.runs.find((run) => run.trace_id === targetTraceId) ?? null;
         setExternalNavigationTargetRunId(matchedRun?.run_id ?? null);
         setExternalNavigationTargetRunPending(false);
       } catch (err) {

@@ -20,7 +20,7 @@ import { TodoBlock } from "./TodoBlock";
 import { SummaryItem } from "./SummaryItem";
 import type { RevealPreviewRequest } from "./items/revealPreviewData";
 import type { RevealPreviewOpenSource } from "./items/revealPreviewState";
-import { createToolPartAnchorId } from "../../layout/AppContent/useMessageScroll";
+import { createToolPartAnchorId } from "./messagePartAnchors";
 
 // Render single message part (shared by main agent and subagent)
 export function MessagePartRenderer({

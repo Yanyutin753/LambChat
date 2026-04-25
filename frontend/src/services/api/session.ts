@@ -32,6 +32,29 @@ export interface SessionListResponse {
   has_more: boolean;
 }
 
+export interface SessionRunsQuery {
+  limit?: number;
+  trace_id?: string;
+}
+
+export function buildSessionRunsUrl(
+  sessionId: string,
+  options?: SessionRunsQuery,
+): string {
+  const searchParams = new URLSearchParams();
+  if (options?.limit) {
+    searchParams.set("limit", String(options.limit));
+  }
+  if (options?.trace_id) {
+    searchParams.set("trace_id", options.trace_id);
+  }
+
+  const queryString = searchParams.toString();
+  return `${API_BASE}/api/sessions/${sessionId}/runs${
+    queryString ? `?${queryString}` : ""
+  }`;
+}
+
 export const sessionApi = {
   /**
    * List all sessions with pagination
@@ -105,8 +128,9 @@ export const sessionApi = {
    */
   async getRuns(
     sessionId: string,
+    options?: SessionRunsQuery,
   ): Promise<{ session_id: string; runs: RunSummary[]; count: number }> {
-    return authFetch(`${API_BASE}/api/sessions/${sessionId}/runs`);
+    return authFetch(buildSessionRunsUrl(sessionId, options));
   },
 
   /**

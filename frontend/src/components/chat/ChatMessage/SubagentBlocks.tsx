@@ -23,6 +23,10 @@ import type { MessagePart } from "../../../types";
 import { MarkdownContent } from "./MarkdownContent";
 import { MessagePartRenderer } from "./MessagePartRenderer";
 import {
+  createSubagentAnchorOwnerId,
+  createSubagentPanelKey,
+} from "./messagePartAnchors";
+import {
   openPersistentToolPanel,
   updatePersistentToolPanel,
   isPersistentToolPanelOpen,
@@ -75,6 +79,72 @@ function useSubagentPanelData(agentId: string): SubagentPanelData | undefined {
   }, []);
 
   return subagentDataStore.get(agentId);
+}
+
+function formatSubagentName(agentName: string): string {
+  return agentName
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function buildSubagentPanelState(data: SubagentPanelData) {
+  const effectiveStatus =
+    data.status ||
+    (data.isPending ? "running" : data.success ? "complete" : "error");
+  const timestamp = data.completedAt ?? data.startedAt;
+  const elapsed = data.completedAt
+    ? getElapsedTime(data.startedAt, data.completedAt)
+    : null;
+  const panelStatus: CollapsibleStatus =
+    effectiveStatus === "running"
+      ? "loading"
+      : effectiveStatus === "complete"
+        ? "success"
+        : effectiveStatus === "error"
+          ? "error"
+          : effectiveStatus === "cancelled"
+            ? "cancelled"
+            : "idle";
+  const subtitle = [
+    timestamp ? formatTimestamp(timestamp) : undefined,
+    elapsed || undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    effectiveStatus,
+    panelStatus,
+    subtitle: subtitle || undefined,
+    panelKey: createSubagentPanelKey(data.agentId),
+    formattedAgentName: formatSubagentName(data.agentName),
+  };
+}
+
+export function openSubagentPanelByAgentId(agentId: string): boolean {
+  const data = subagentDataStore.get(agentId);
+  if (!data) {
+    return false;
+  }
+
+  const { panelStatus, subtitle, panelKey, formattedAgentName } =
+    buildSubagentPanelState(data);
+
+  if (isPersistentToolPanelOpen(panelKey)) {
+    return true;
+  }
+
+  openPersistentToolPanel({
+    title: formattedAgentName,
+    icon: <Users size={16} />,
+    status: panelStatus,
+    subtitle,
+    panelKey,
+    children: <SubagentPanelContent agentId={agentId} />,
+  });
+
+  return true;
 }
 
 // ==========================================
@@ -169,6 +239,8 @@ function SubagentPanelContent({ agentId }: { agentId: string }) {
               <MessagePartRenderer
                 key={index}
                 part={part}
+                messageId={createSubagentAnchorOwnerId(agentId)}
+                partIndex={index}
                 isStreaming={data.isPending}
                 isLast={index === data.parts!.length - 1}
               />
@@ -347,34 +419,26 @@ export function SubagentBlock({
   status?: "pending" | "running" | "complete" | "error" | "cancelled";
   error?: string;
 }) {
-  const effectiveStatus =
-    status || (isPending ? "running" : success ? "complete" : "error");
-
-  // Only show elapsed time when completedAt is available
+  const {
+    effectiveStatus,
+    panelStatus,
+    subtitle,
+    panelKey,
+    formattedAgentName,
+  } = buildSubagentPanelState({
+    agentId: agent_id,
+    agentName: agent_name,
+    input,
+    result,
+    success,
+    error,
+    isPending,
+    parts,
+    startedAt,
+    completedAt,
+    status,
+  });
   const elapsed = completedAt ? getElapsedTime(startedAt, completedAt) : null;
-
-  const formattedAgentName = agent_name
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-
-  const panelStatus: CollapsibleStatus =
-    effectiveStatus === "running"
-      ? "loading"
-      : effectiveStatus === "complete"
-        ? "success"
-        : effectiveStatus === "error"
-          ? "error"
-          : effectiveStatus === "cancelled"
-            ? "cancelled"
-            : "idle";
-
-  const panelKey = `subagent-${agent_id}`;
-
-  const ts = completedAt ?? startedAt;
-  const subtitle = [ts ? formatTimestamp(ts) : undefined, elapsed || undefined]
-    .filter(Boolean)
-    .join(" · ");
 
   // Keep sidebar panel data in sync
   useEffect(() => {
@@ -398,7 +462,7 @@ export function SubagentBlock({
         (prev) => ({
           ...prev,
           status: panelStatus,
-          subtitle: subtitle || undefined,
+          subtitle,
         }),
         panelKey,
       );
@@ -412,7 +476,7 @@ export function SubagentBlock({
         title: formattedAgentName,
         icon: <Users size={16} />,
         status: panelStatus,
-        subtitle: subtitle || undefined,
+        subtitle,
         panelKey,
         children: <SubagentPanelContent agentId={agent_id} />,
         auto: true,
@@ -447,7 +511,7 @@ export function SubagentBlock({
       title: formattedAgentName,
       icon: <Users size={16} />,
       status: panelStatus,
-      subtitle: subtitle || undefined,
+      subtitle,
       panelKey,
       children: <SubagentPanelContent agentId={agent_id} />,
     });

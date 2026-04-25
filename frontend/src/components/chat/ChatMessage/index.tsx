@@ -294,7 +294,12 @@ export const ChatMessage = memo(function ChatMessage({
 
   // Assistant message: left layout
   return (
-    <div className="group w-full animate-[fade-in_0.3s_ease-out]">
+    <div
+      id={createMessageAnchorId(message.id)}
+      data-outline-anchor="true"
+      data-outline-id={createMessageAnchorId(message.id)}
+      className="group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6"
+    >
       <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6 mb-3 sm:mb-4">
         {/* Content */}
         <div className="min-w-0 min-h-0">

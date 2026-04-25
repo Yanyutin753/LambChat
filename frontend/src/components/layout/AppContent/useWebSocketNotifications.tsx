@@ -8,6 +8,7 @@ import { useBrowserNotification } from "../../../hooks/useBrowserNotification";
 import { sessionApi } from "../../../services/api";
 import { shouldSurfaceTaskNotification } from "./taskNotificationGuards";
 import { buildTaskNotificationCopy } from "./taskNotificationContent";
+import { isMobileDevice } from "../../../utils/mobile";
 
 interface UseWebSocketNotificationsOptions {
   sessionId: string | null;
@@ -162,7 +163,8 @@ export function useWebSocketNotifications({
           </div>
         ),
         {
-          duration: Infinity,
+          duration: isMobileDevice() ? 5_000 : 10_000,
+          position: "top-right",
           style: {
             background: "transparent",
             padding: 0,
