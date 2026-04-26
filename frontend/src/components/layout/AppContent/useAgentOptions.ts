@@ -147,17 +147,35 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
   const currentAgentOptions =
     normalizeAgentOptions(currentAgentInfo?.options) || {};
 
+  // Preserve user-chosen option values when agents data refreshes
+  // (e.g., tab visibility change triggers fetchAgents). Only override with
+  // defaults for keys the user hasn't explicitly changed.
+  const userOverridesRef = useRef<Record<string, boolean | string | number>>({});
+
   useEffect(() => {
     const options = normalizeAgentOptions(
       agents.find((a) => a.id === currentAgent)?.options,
     );
+    const restored = pendingRestoredOptionsRef.current;
     const nextValues = buildAgentOptionValues(
       options,
-      pendingRestoredOptionsRef.current || undefined,
+      restored || undefined,
     );
 
     pendingRestoredOptionsRef.current = null;
-    setAgentOptionValues(nextValues);
+
+    if (restored) {
+      // Full restore from session metadata — reset overrides
+      userOverridesRef.current = { ...nextValues };
+      setAgentOptionValues(nextValues);
+    } else {
+      // Agents refreshed — keep user overrides, only add new defaults
+      setAgentOptionValues((prev) => {
+        const merged = { ...nextValues, ...prev, ...userOverridesRef.current };
+        userOverridesRef.current = merged;
+        return merged;
+      });
+    }
   }, [currentAgent, agents]);
 
   useEffect(() => {
@@ -182,6 +200,7 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
 
   const handleToggleAgentOption = useCallback(
     (key: string, value: boolean | string | number) => {
+      userOverridesRef.current[key] = value;
       setAgentOptionValues((prev) => ({ ...prev, [key]: value }));
     },
     [],
