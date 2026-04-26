@@ -336,6 +336,7 @@ function ChatAppContent({
     currentAgentOptions,
     handleToggleAgentOption,
     restoreAgentOptions,
+    resetAgentOptionDefaults,
   } = useAgentOptions(agents, currentAgent);
 
   // 对话级别的配置管理（独立于全局配置）
@@ -386,17 +387,19 @@ function ChatAppContent({
     }
   }, [availableModels, currentModelId, currentModelValue, defaultModel]);
 
-  // Sync currentModel → sessionConfig.agentOptions so the UI and backend data
-  // always agree.  Covers: init, preference change, defaultModel change, new-session
-  // reset, and session restore — all in one place.
+  // Sync currentModel → useAgentOptions + useSessionConfig so the UI and backend
+  // data always agree.  Covers: init, preference change, defaultModel change,
+  // new-session reset, and session restore — all in one place.
   useEffect(() => {
     if (currentModelValue) {
+      handleToggleAgentOption("model", currentModelValue);
       setSessionAgentOption("model", currentModelValue);
     }
     if (currentModelId) {
+      handleToggleAgentOption("model_id", currentModelId);
       setSessionAgentOption("model_id", currentModelId);
     }
-  }, [currentModelValue, currentModelId, setSessionAgentOption]);
+  }, [currentModelValue, currentModelId, handleToggleAgentOption, setSessionAgentOption]);
 
   const handleSelectModel = useCallback(
     (modelId: string, modelValue: string) => {
@@ -713,23 +716,19 @@ function ChatAppContent({
 
     handleNewSession();
     resetToDefaults();
-    isSessionRestoredRef.current = false;
+
+    // Reset useAgentOptions to defaults so agent options (thinking level etc.)
+    // revert to their default values for the new session
+    resetAgentOptionDefaults();
 
     setCurrentModelId(nextSelection.modelId);
     setCurrentModelValue(nextSelection.modelValue);
-
-    if (nextSelection.modelValue) {
-      setSessionAgentOption("model", nextSelection.modelValue);
-    }
-    if (nextSelection.modelId) {
-      setSessionAgentOption("model_id", nextSelection.modelId);
-    }
   }, [
     availableModels,
     defaultModel,
     handleNewSession,
     resetToDefaults,
-    setSessionAgentOption,
+    resetAgentOptionDefaults,
   ]);
 
   const handleMobileClose = useCallback(
