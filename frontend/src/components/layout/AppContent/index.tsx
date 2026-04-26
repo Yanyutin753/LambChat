@@ -407,9 +407,13 @@ function ChatAppContent({
   );
 
   // 同步 sessionConfig 到 ref，供 useAgent 使用
+  // agentOptions 来自 useAgentOptions（唯一 source of truth），不依赖 useSessionConfig
   useEffect(() => {
-    sessionConfigRef.current = sessionConfig;
-  }, [sessionConfig]);
+    sessionConfigRef.current = {
+      ...sessionConfig,
+      agentOptions: agentOptionValues,
+    };
+  }, [sessionConfig, agentOptionValues]);
 
   // Compute effective tools: apply session-level MCP tool overrides (blacklist)
   const effectiveTools = useMemo(() => {
@@ -534,21 +538,6 @@ function ChatAppContent({
     [effectiveSkills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
-  // Effective agent option toggle: update both local state and session config
-  const effectiveToggleAgentOption = useCallback(
-    (key: string, value: boolean | string | number) => {
-      handleToggleAgentOption(key, value);
-      setSessionAgentOption(key, value);
-      // Keep model state in sync when changed via agent option toggle
-      if (key === "model" && typeof value === "string") {
-        setCurrentModelValue(value);
-      }
-      if (key === "model_id" && typeof value === "string") {
-        setCurrentModelId(value);
-      }
-    },
-    [handleToggleAgentOption, setSessionAgentOption],
-  );
 
   // Compute effective counts
   const effectiveEnabledToolsCount = useMemo(
@@ -854,8 +843,8 @@ function ChatAppContent({
           totalSkillsCount={skills.length}
           enableSkills={enableSkills}
           agentOptions={currentAgentOptions}
-          agentOptionValues={sessionConfig.agentOptions}
-          onToggleAgentOption={effectiveToggleAgentOption}
+          agentOptionValues={agentOptionValues}
+          onToggleAgentOption={handleToggleAgentOption}
           agents={agents}
           currentAgent={currentAgent}
           onSelectAgent={switchAgent}
