@@ -102,19 +102,10 @@ export function useSessionConfig(
   options: UseSessionConfigOptions,
 ): UseSessionConfigReturn {
   // Track the latest default agent options (derived from agent definitions + stored thinking preference)
-  // This is the source of truth for what "defaults" means right now.
-  // Use JSON serialization for stable dependency tracking — avoids infinite re-sync loops
-  // caused by new object references on every render.
   const defaultAgentOptionsRef = useRef<
     Record<string, boolean | string | number>
   >({});
-  const defaultAgentOptionsJsonRef = useRef("");
-  const rawDefaults = options.getDefaultAgentOptions();
-  const rawDefaultsJson = JSON.stringify(rawDefaults);
-  if (rawDefaultsJson !== defaultAgentOptionsJsonRef.current) {
-    defaultAgentOptionsJsonRef.current = rawDefaultsJson;
-    defaultAgentOptionsRef.current = rawDefaults;
-  }
+  defaultAgentOptionsRef.current = options.getDefaultAgentOptions();
 
   // 对话级别的配置状态
   // 优先从 localStorage 恢复（跨路由持久化），否则用默认值
@@ -131,37 +122,21 @@ export function useSessionConfig(
     };
   });
 
-  // 记录是否已经初始化（避免重复初始化）
-  const initializedRef = useRef(!!loadPersistedConfig());
-
-  // Whether the current config was restored from a session's saved metadata.
-  // When true, the re-sync effect must NOT overwrite agentOptions with defaults,
-  // because the session had its own specific thinking level / model choice.
-  const isRestoredRef = useRef(false);
-
   // Re-sync agentOptions defaults when they change (e.g., user changes default thinking preference).
   // agentOptions are never persisted to localStorage, so they must always be re-derived.
-  // Skipped when config was restored from a session — that session's specific options take precedence.
-  useEffect(() => {
-    if (initializedRef.current && isRestoredRef.current) return;
+  // IMPORTANT: Only re-sync on initial render. After that, effectiveToggleAgentOption
+  // in the parent handles both useAgentOptions and useSessionConfig atomically.
+  // A periodic re-sync would race with user choices because the ref captures stale values.
+  const initializedRef = useRef(false);
 
+  if (!initializedRef.current) {
+    initializedRef.current = true;
     const nextAgentOptions = defaultAgentOptionsRef.current;
-    if (initializedRef.current) {
-      setConfig((prev) => ({
-        ...prev,
-        agentOptions: nextAgentOptions,
-      }));
-    } else {
-      const defaults = {
-        disabledSkills: options.getDefaultDisabledSkills?.() || [],
-        disabledMcpTools: options.getDefaultDisabledMcpTools?.() || [],
-        agentOptions: nextAgentOptions,
-      };
-      setConfig(defaults);
-      persistConfig(defaults);
-      initializedRef.current = true;
-    }
-  }, [defaultAgentOptionsJsonRef.current]);
+    setConfig((prev) => ({
+      ...prev,
+      agentOptions: nextAgentOptions,
+    }));
+  }
 
   // Persist to localStorage whenever config changes
   useEffect(() => {
@@ -246,7 +221,6 @@ export function useSessionConfig(
 
   // Reset to defaults (new conversation)
   const resetToDefaults = useCallback(() => {
-    isRestoredRef.current = false;
     const defaults = {
       disabledSkills: options.getDefaultDisabledSkills?.() || [],
       disabledMcpTools: options.getDefaultDisabledMcpTools?.() || [],
@@ -261,7 +235,6 @@ export function useSessionConfig(
     (sessionConfig: SessionConfig) => {
       console.log("[useSessionConfig] Restoring config:", sessionConfig);
 
-      isRestoredRef.current = true;
       const restored = {
         disabledSkills: sessionConfig.disabled_skills || [],
         // disabled_tools is a legacy field (pre-split); treat as disabled_mcp_tools if present
