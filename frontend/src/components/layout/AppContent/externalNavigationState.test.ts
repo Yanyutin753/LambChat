@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildExternalNavigationStateForFile,
   buildExternalNavigationPreviewRequest,
   getExternalNavigationPreviewRequest,
   getExternalNavigationTargetFile,
@@ -103,6 +104,67 @@ test("builds a file preview request for external navigation", () => {
       s3Key: "revealed/file-1",
       signedUrl: "/api/upload/file/revealed/file-1",
       fileSize: 128,
+    },
+  );
+});
+
+test("does not auto-open preview for externally opened image files", () => {
+  assert.deepEqual(
+    buildExternalNavigationStateForFile({
+      id: "file-image-1",
+      file_key: "revealed/file-image-1",
+      file_name: "diagram.png",
+      file_size: 256,
+      url: "/api/upload/file/revealed/file-image-1",
+      source: "reveal_file",
+      original_path: "/tmp/diagram.png",
+      trace_id: "",
+      project_meta: null,
+    }),
+    {
+      externalNavigate: true,
+      targetFile: {
+        fileId: "file-image-1",
+        fileKey: "revealed/file-image-1",
+        fileName: "diagram.png",
+        originalPath: "/tmp/diagram.png",
+        source: "reveal_file",
+      },
+      targetPreview: null,
+    },
+  );
+});
+
+test("keeps auto-open preview for non-image external navigation files", () => {
+  assert.deepEqual(
+    buildExternalNavigationStateForFile({
+      id: "file-text-1",
+      file_key: "revealed/file-text-1",
+      file_name: "notes.txt",
+      file_size: 64,
+      url: "/api/upload/file/revealed/file-text-1",
+      source: "reveal_file",
+      original_path: "/tmp/notes.txt",
+      trace_id: "",
+      project_meta: null,
+    }),
+    {
+      externalNavigate: true,
+      targetFile: {
+        fileId: "file-text-1",
+        fileKey: "revealed/file-text-1",
+        fileName: "notes.txt",
+        originalPath: "/tmp/notes.txt",
+        source: "reveal_file",
+      },
+      targetPreview: {
+        kind: "file",
+        previewKey: "external-file:file-text-1",
+        filePath: "/tmp/notes.txt",
+        s3Key: "revealed/file-text-1",
+        signedUrl: "/api/upload/file/revealed/file-text-1",
+        fileSize: 64,
+      },
     },
   );
 });

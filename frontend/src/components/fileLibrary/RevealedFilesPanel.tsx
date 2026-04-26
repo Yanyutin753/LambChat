@@ -12,7 +12,7 @@ import { SessionGroup } from "./components/SessionGroup";
 import { EmptyState } from "./components/EmptyState";
 import type { SortOrder, ViewMode } from "./types";
 import {
-  buildExternalNavigationPreviewRequest,
+  buildExternalNavigationStateForFile,
   type ExternalNavigationState,
 } from "../layout/AppContent/externalNavigationState";
 
@@ -64,18 +64,8 @@ export function RevealedFilesPanel() {
   });
 
   const buildFileNavigationState = useCallback(
-    (file: RevealedFileItem): ExternalNavigationState => ({
-      externalNavigate: true,
-      targetFile: {
-        fileId: file.id,
-        fileKey: file.file_key,
-        fileName: file.file_name,
-        originalPath: file.original_path,
-        traceId: file.trace_id,
-        source: file.source,
-      },
-      targetPreview: buildExternalNavigationPreviewRequest(file),
-    }),
+    (file: RevealedFileItem): ExternalNavigationState =>
+      buildExternalNavigationStateForFile(file),
     [],
   );
 

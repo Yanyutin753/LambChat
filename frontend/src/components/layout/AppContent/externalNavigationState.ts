@@ -1,6 +1,7 @@
 import type { RevealedFileItem } from "../../../services/api";
 import { getFullUrl } from "../../../services/api/config";
 import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
+import { getFileExtension, isImageFile } from "../../documents/utils";
 
 export interface ExternalNavigationTargetFile {
   fileId?: string;
@@ -122,13 +123,49 @@ export function buildExternalNavigationPreviewRequest(
     };
   }
 
+  const filePath = file.original_path?.trim() || file.file_name;
+
   return {
     kind: "file",
     previewKey: `external-file:${file.id}`,
-    filePath: file.original_path?.trim() || file.file_name,
+    filePath,
     s3Key: file.file_key || undefined,
     signedUrl: getFullUrl(file.url),
     fileSize: file.file_size,
+  };
+}
+
+export function buildExternalNavigationStateForFile(
+  file: Pick<
+    RevealedFileItem,
+    | "id"
+    | "file_key"
+    | "file_name"
+    | "file_size"
+    | "url"
+    | "source"
+    | "original_path"
+    | "project_meta"
+    | "trace_id"
+  >,
+): ExternalNavigationState {
+  const filePath = file.original_path?.trim() || file.file_name;
+  const isImageNavigationTarget =
+    file.source !== "reveal_project" && isImageFile(getFileExtension(filePath));
+
+  return {
+    externalNavigate: true,
+    targetFile: {
+      fileId: file.id,
+      fileKey: file.file_key,
+      fileName: file.file_name,
+      originalPath: file.original_path,
+      source: file.source,
+      ...(file.trace_id ? { traceId: file.trace_id } : {}),
+    },
+    targetPreview: isImageNavigationTarget
+      ? null
+      : buildExternalNavigationPreviewRequest(file),
   };
 }
 
