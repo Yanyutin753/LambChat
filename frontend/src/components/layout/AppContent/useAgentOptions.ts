@@ -187,6 +187,14 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
     [],
   );
 
+  // Reset to agent defaults (for new session)
+  const resetAgentOptionDefaults = useCallback(() => {
+    const options = normalizeAgentOptions(
+      agents.find((a) => a.id === currentAgent)?.options,
+    );
+    setAgentOptionValues(buildAgentOptionValues(options));
+  }, [agents, currentAgent]);
+
   // 从外部恢复配置
   const restoreAgentOptions = useCallback(
     (options: Record<string, boolean | string | number>) => {
@@ -202,5 +210,6 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
     currentAgentOptions,
     handleToggleAgentOption,
     restoreAgentOptions,
+    resetAgentOptionDefaults,
   };
 }
