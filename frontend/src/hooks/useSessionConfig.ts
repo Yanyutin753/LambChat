@@ -103,10 +103,18 @@ export function useSessionConfig(
 ): UseSessionConfigReturn {
   // Track the latest default agent options (derived from agent definitions + stored thinking preference)
   // This is the source of truth for what "defaults" means right now.
+  // Use JSON serialization for stable dependency tracking — avoids infinite re-sync loops
+  // caused by new object references on every render.
   const defaultAgentOptionsRef = useRef<
     Record<string, boolean | string | number>
-  >(options.getDefaultAgentOptions());
-  defaultAgentOptionsRef.current = options.getDefaultAgentOptions();
+  >({});
+  const defaultAgentOptionsJsonRef = useRef("");
+  const rawDefaults = options.getDefaultAgentOptions();
+  const rawDefaultsJson = JSON.stringify(rawDefaults);
+  if (rawDefaultsJson !== defaultAgentOptionsJsonRef.current) {
+    defaultAgentOptionsJsonRef.current = rawDefaultsJson;
+    defaultAgentOptionsRef.current = rawDefaults;
+  }
 
   // 对话级别的配置状态
   // 优先从 localStorage 恢复（跨路由持久化），否则用默认值
@@ -153,7 +161,7 @@ export function useSessionConfig(
       persistConfig(defaults);
       initializedRef.current = true;
     }
-  }, [defaultAgentOptionsRef.current]);
+  }, [defaultAgentOptionsJsonRef.current]);
 
   // Persist to localStorage whenever config changes
   useEffect(() => {
