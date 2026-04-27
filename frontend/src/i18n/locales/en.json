@@ -448,9 +448,9 @@
     "requestFailed": "Failed to load session",
     "sandbox": {
       "error": "initialization failed",
-      "initializing": "initializing environment...",
+      "initializing": "initializing environment",
       "name": "Sandbox",
-      "ready": "ready"
+      "ready": "sandbox ready"
     },
     "sandboxInitFailed": "Sandbox initialization failed",
     "send": "Send message",

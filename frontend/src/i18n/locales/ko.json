@@ -449,9 +449,9 @@
     "requestFailed": "세션 로드에 실패했습니다",
     "sandbox": {
       "error": "초기화 실패",
-      "initializing": "환경 초기화 중...",
+      "initializing": "환경 초기화 중",
       "name": "샌드박스",
-      "ready": "환경 준비 완료"
+      "ready": "샌드박스 준비 완료"
     },
     "sandboxInitFailed": "샌드박스 초기화에 실패했습니다",
     "send": "메시지 보내기",

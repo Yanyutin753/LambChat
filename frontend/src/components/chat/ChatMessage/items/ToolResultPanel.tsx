@@ -125,8 +125,7 @@ export function ToolResultPanel({
   const [internalIsFullscreen, setInternalIsFullscreen] = useState(false);
 
   // Allow external control of viewMode, but default to internal state
-  const effectiveViewMode =
-    externalViewMode ?? (isMobile ? "center" : internalViewMode);
+  const effectiveViewMode = externalViewMode ?? internalViewMode;
   const effectiveIsFullscreen = externalIsFullscreen ?? internalIsFullscreen;
   const isFullscreen = effectiveIsFullscreen;
   const viewMode = effectiveViewMode;

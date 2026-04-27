@@ -449,9 +449,9 @@
     "requestFailed": "セッションの読み込みに失敗しました",
     "sandbox": {
       "error": "初期化に失敗しました",
-      "initializing": "環境を初期化中...",
+      "initializing": "環境を初期化中",
       "name": "サンドボックス",
-      "ready": "準備完了"
+      "ready": "サンドボックス準備完了"
     },
     "sandboxInitFailed": "サンドボックスの初期化に失敗しました",
     "send": "メッセージを送信",

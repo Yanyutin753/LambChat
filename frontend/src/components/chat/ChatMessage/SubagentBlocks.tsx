@@ -601,9 +601,16 @@ export function SandboxItem({
     <CollapsiblePill
       status={pillStatus}
       icon={<Box size={12} className="shrink-0 opacity-50" />}
-      label={t("chat.sandbox.name")}
+      label={
+        status === "starting"
+          ? t("chat.sandbox.initializing")
+          : status === "ready"
+            ? t("chat.sandbox.ready")
+            : t("chat.sandbox.name")
+      }
       expandable={!!hasDetails}
       onExpandChange={setIsExpanded}
+      animatedDots={status === "starting"}
     >
       {isExpanded && hasDetails && (
         <div className="mt-1 ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600 max-h-40 overflow-y-auto">

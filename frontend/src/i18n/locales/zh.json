@@ -448,9 +448,9 @@
     "requestFailed": "加载会话失败",
     "sandbox": {
       "error": "初始化失败",
-      "initializing": "正在初始化环境...",
+      "initializing": "正在初始化环境",
       "name": "沙箱",
-      "ready": "环境已就绪"
+      "ready": "沙箱已就绪"
     },
     "sandboxInitFailed": "沙箱初始化失败",
     "send": "发送消息",
