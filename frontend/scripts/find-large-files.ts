@@ -14,8 +14,9 @@ async function findLargeFiles(
   pattern: string,
   cwd: string,
   label: string,
+  ignore?: string | string[],
 ): Promise<{ file: string; lines: number }[]> {
-  const files = await glob(pattern, { cwd, absolute: true });
+  const files = await glob(pattern, { cwd, absolute: true, ignore });
   const results: { file: string; lines: number }[] = [];
 
   for (const file of files) {
@@ -52,6 +53,7 @@ async function main() {
     "**/*.{ts,tsx,js,jsx}",
     FRONTEND_SRC,
     "Frontend",
+    "**/*.test.{ts,tsx,js,jsx}",
   );
 
   const backendResults = await findLargeFiles(

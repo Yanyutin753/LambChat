@@ -10,7 +10,8 @@ import {
   Check,
   Download,
   Maximize2,
-  Minimize2,
+  Expand,
+  Shrink,
   Eye,
   Code2,
   PanelRight,
@@ -24,6 +25,7 @@ import {
 
 // Import utilities
 import {
+  formatFileSize as formatFileSizeUtil,
   getFileExtension,
   isBinaryFile,
   isImageFile,
@@ -39,6 +41,7 @@ import {
   isPreviewableFile,
   isExcalidrawFile,
   isVideoFile,
+  isAudioFile,
   getFileTypeInfo,
   detectLanguage,
 } from "./utils";
@@ -87,9 +90,11 @@ interface DocumentPreviewProps {
   signedUrl?: string; // Pre-signed URL (if available, skips getSignedUrl call)
   fileSize?: number; // File size in bytes
   imageUrl?: string; // Direct image URL for previewing image attachments
+  mimeType?: string; // MIME type for consistent icon/color with AttachmentCard
   initialLine?: number; // Scroll to and highlight this line in code files
   onClose: () => void;
   onUserInteraction?: () => void;
+  registryKey?: string;
 }
 
 export default function DocumentPreview({
@@ -99,9 +104,11 @@ export default function DocumentPreview({
   signedUrl,
   fileSize,
   imageUrl: externalImageUrl,
+  mimeType,
   initialLine,
   onClose,
   onUserInteraction,
+  registryKey,
 }: DocumentPreviewProps) {
   const { t } = useTranslation();
   const [data, setData] = useState<{ content: string; path: string } | null>(
@@ -117,6 +124,7 @@ export default function DocumentPreview({
   const [htmlUrl, setHtmlUrl] = useState<string | null>(null);
   const [htmlContent, setHtmlContent] = useState<string>("");
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [docUrl, setDocUrl] = useState<string | null>(null);
   const [arrayBuffer, setArrayBuffer] = useState<ArrayBuffer | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -152,6 +160,7 @@ export default function DocumentPreview({
   const previewable = isPreviewableFile(ext);
   const excalidrawFile = isExcalidrawFile(ext);
   const videoFile = isVideoFile(ext);
+  const audioFile = isAudioFile(ext);
 
   // Memoize language detection for performance
   const language = useMemo(() => detectLanguage(fileName), [fileName]);
@@ -195,6 +204,7 @@ export default function DocumentPreview({
     setHtmlUrl(null);
     setHtmlContent("");
     setVideoUrl(null);
+    setAudioUrl(null);
     setArrayBuffer(null);
     setExcalidrawData("");
     setResolvedUrl(null);
@@ -256,6 +266,14 @@ export default function DocumentPreview({
           // 视频文件直接使用签名 URL
           if (videoFile) {
             setVideoUrl(url);
+            setData({ content: "", path });
+            setLoading(false);
+            return;
+          }
+
+          // 音频文件直接使用签名 URL
+          if (audioFile) {
+            setAudioUrl(url);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -405,7 +423,7 @@ export default function DocumentPreview({
     }
   };
 
-  const fileInfo = getFileTypeInfo(fileName);
+  const fileInfo = getFileTypeInfo(fileName, mimeType);
   const Icon = fileInfo.icon;
 
   const isSidebar = viewMode === "sidebar";
@@ -421,7 +439,9 @@ export default function DocumentPreview({
     <ToolResultPanel
       open={true}
       onClose={onClose}
+      registryKey={registryKey}
       viewMode={isMobile ? "center" : viewMode}
+      isFullscreen={isFullscreen}
       overlayClass={
         isSidebar ? undefined : "sm:items-center sm:justify-center bg-black/70"
       }
@@ -447,25 +467,27 @@ export default function DocumentPreview({
         </div>
       }
       customHeader={
-        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-stone-200 dark:border-[#333] whitespace-nowrap overflow-hidden">
+        <div className="flex items-center gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-stone-200 dark:border-[#333] whitespace-nowrap overflow-hidden">
           <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} />
           <div className="flex-1 min-w-0 overflow-hidden">
             <h3
-              className="font-bold text-stone-900 dark:text-stone-100 text-sm sm:text-base"
+              className="text-[13px] sm:text-sm font-medium text-stone-800 dark:text-stone-100 truncate"
               title={fileName}
             >
-              <span className="block truncate">{fileName}</span>
+              {fileName}
             </h3>
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-stone-500 dark:text-stone-400">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-stone-400 dark:text-stone-500 mt-0.5">
               {codeFile && (
                 <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-[#2d2d30] font-mono text-xs sm:text-xs shrink-0">
                   {language}
                 </span>
               )}
               <span className="text-xs sm:text-xs truncate">
-                {!hasTextContent
-                  ? t("documents.binary")
-                  : t("documents.chars", { count: displaySize })}
+                {hasTextContent
+                  ? t("documents.chars", { count: displaySize })
+                  : fileSize
+                    ? formatFileSizeUtil(fileSize)
+                    : fileInfo.label}
               </span>
             </div>
           </div>
@@ -500,7 +522,12 @@ export default function DocumentPreview({
               onClick={(e) => {
                 e.stopPropagation();
                 onUserInteraction?.();
-                setViewMode(isSidebar ? "center" : "sidebar");
+                if (isSidebar) {
+                  setViewMode("center");
+                } else {
+                  setViewMode("sidebar");
+                  if (isFullscreen) setIsFullscreen(false);
+                }
               }}
               className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               title={
@@ -510,7 +537,12 @@ export default function DocumentPreview({
               }
             >
               {isSidebar ? (
-                <Maximize2 size={16} />
+                <>
+                  <Maximize2 size={16} />
+                  <span className="hidden xl:inline">
+                    {t("documents.centerView", "居中")}
+                  </span>
+                </>
               ) : (
                 <>
                   <PanelRight size={16} />
@@ -518,34 +550,39 @@ export default function DocumentPreview({
                 </>
               )}
             </button>
-            {!isSidebar && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUserInteraction?.();
-                  setIsFullscreen(!isFullscreen);
-                }}
-                className="hidden sm:flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
-                title={
-                  isFullscreen
-                    ? t("documents.exitFullscreen")
-                    : t("documents.fullscreen")
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUserInteraction?.();
+                if (!isFullscreen && isSidebar) {
+                  setViewMode("center");
                 }
-              >
-                {isFullscreen ? (
-                  <>
-                    <Minimize2 size={16} />
-                    {!isSidebar && <span>{t("documents.exitFullscreen")}</span>}
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 size={16} />
-                    {!isSidebar && <span>{t("documents.fullscreen")}</span>}
-                  </>
-                )}
-              </button>
-            )}
+                setIsFullscreen(!isFullscreen);
+              }}
+              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+              title={
+                isFullscreen
+                  ? t("documents.exitFullscreen")
+                  : t("documents.fullscreen")
+              }
+            >
+              {isFullscreen ? (
+                <>
+                  <Shrink size={16} />
+                  <span className="hidden xl:inline">
+                    {t("documents.exitFullscreen")}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Expand size={16} />
+                  <span className="hidden xl:inline">
+                    {t("documents.fullscreen")}
+                  </span>
+                </>
+              )}
+            </button>
             {(data?.content ||
               s3Key ||
               signedUrl ||
@@ -641,7 +678,7 @@ export default function DocumentPreview({
             </p>
           </div>
         </div>
-      ) : binaryFile && !imageFile && !pdfFile && !videoFile ? (
+      ) : binaryFile && !imageFile && !pdfFile && !videoFile && !audioFile ? (
         <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4 px-4">
           <div
             className={`flex items-center justify-center w-20 h-20 rounded-2xl ${fileInfo.bg}`}
@@ -692,6 +729,19 @@ export default function DocumentPreview({
               <track kind="captions" />
               {t("documents.videoNotSupported")}
             </video>
+          </div>
+        </div>
+      ) : audioFile && audioUrl ? (
+        <div className="flex items-center justify-center h-full min-h-[400px] p-4 sm:p-8">
+          <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-6">
+            <div
+              className={`flex items-center justify-center w-20 h-20 rounded-2xl ${fileInfo.bg}`}
+            >
+              <Icon size={36} className={fileInfo.color} />
+            </div>
+            <audio controls className="w-full" src={audioUrl}>
+              {t("documents.audioNotSupported", "您的浏览器不支持音频播放")}
+            </audio>
           </div>
         </div>
       ) : pptFile && (pptUrl || pptxBuffer) ? (

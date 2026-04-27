@@ -869,6 +869,26 @@ test("does not allow detached mobile streaming to restart bottom-lock automatica
   );
 });
 
+test("does not auto-scroll a newly appended assistant message while detached", () => {
+  const previousMessages = [{ id: "1", role: "user" }];
+  const nextMessages = [
+    { id: "1", role: "user" },
+    { id: "2", role: "assistant" },
+  ];
+
+  assert.equal(
+    shouldAutoScrollForMessageUpdate({
+      previousMessages,
+      nextMessages,
+      userScrolledUp: false,
+      autoScrollActive: false,
+      isNearBottom: true,
+      manualDetachActive: true,
+    }),
+    false,
+  );
+});
+
 test("does not resume auto-scroll after stream lock is released when the view is no longer near bottom", () => {
   const previousMessages = [
     { id: "1", role: "user" },

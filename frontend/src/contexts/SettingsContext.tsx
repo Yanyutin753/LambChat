@@ -128,7 +128,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (cleanedPinnedIds.length === pinnedModelIds.length) return;
     setPinnedModelIds(cleanedPinnedIds);
     modelApi.updatePinnedModelIds(cleanedPinnedIds).catch(() => {});
-  }, [cleanedPinnedIds.length, pinnedModelIds.length]);
+  }, [cleanedPinnedIds, pinnedModelIds.length]);
 
   // 从 DB 读取模型
   const availableModels = useMemo(() => {

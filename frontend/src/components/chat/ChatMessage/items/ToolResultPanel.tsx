@@ -7,7 +7,17 @@ import {
   useLayoutEffect,
 } from "react";
 import { createPortal } from "react-dom";
-import { X, CheckCircle, XCircle, Ban } from "lucide-react";
+import {
+  X,
+  CheckCircle,
+  XCircle,
+  Ban,
+  Maximize2,
+  PanelRight,
+  Expand,
+  Shrink,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../../common";
 
 import { useSwipeToClose } from "../../../../hooks/useSwipeToClose";
@@ -30,6 +40,10 @@ interface ToolResultPanelProps {
   children: React.ReactNode;
   /** "sidebar" (default) = right side panel; "center" = fullscreen overlay */
   viewMode?: "sidebar" | "center";
+  /** Controlled fullscreen state. When provided, the built-in fullscreen button is shown. */
+  isFullscreen?: boolean;
+  /** Callback when fullscreen state changes */
+  onFullscreenChange?: (fullscreen: boolean) => void;
   /** Extra action buttons rendered in sidebar header, between title and close */
   headerActions?: React.ReactNode;
   /** Custom header replacing the default one (rendered outside scroll area) */
@@ -44,6 +58,10 @@ interface ToolResultPanelProps {
   panelElementRef?: React.Ref<HTMLDivElement>;
   /** Called when the user explicitly manipulates the panel UI */
   onUserInteraction?: () => void;
+  /** Stable logical key to survive remounts without closing the same panel */
+  registryKey?: string;
+  /** Hide the built-in center/fullscreen buttons in the default header */
+  hideViewToggle?: boolean;
 }
 
 const statusConfig: Record<
@@ -85,7 +103,9 @@ export function ToolResultPanel({
   status = "idle",
   subtitle,
   children,
-  viewMode = "sidebar",
+  viewMode: externalViewMode,
+  isFullscreen: externalIsFullscreen,
+  onFullscreenChange,
   headerActions,
   customHeader,
   footer,
@@ -93,9 +113,66 @@ export function ToolResultPanel({
   panelClass,
   panelElementRef,
   onUserInteraction,
+  registryKey,
+  hideViewToggle = false,
 }: ToolResultPanelProps) {
+  const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [animateIn, setAnimateIn] = useState(false);
+  const [internalViewMode, setInternalViewMode] = useState<
+    "sidebar" | "center"
+  >("sidebar");
+  const [internalIsFullscreen, setInternalIsFullscreen] = useState(false);
+
+  // Allow external control of viewMode, but default to internal state
+  const effectiveViewMode =
+    externalViewMode ?? (isMobile ? "center" : internalViewMode);
+  const effectiveIsFullscreen = externalIsFullscreen ?? internalIsFullscreen;
+  const isFullscreen = effectiveIsFullscreen;
+  const viewMode = effectiveViewMode;
+
+  const handleToggleViewMode = useCallback(() => {
+    onUserInteraction?.();
+    if (externalViewMode) return; // externally controlled
+    setInternalViewMode((v) => {
+      if (v === "center") {
+        // Switching to sidebar: auto-exit fullscreen
+        if (isFullscreen) {
+          if (onFullscreenChange) onFullscreenChange(false);
+          else if (externalIsFullscreen === undefined)
+            setInternalIsFullscreen(false);
+        }
+      }
+      return v === "sidebar" ? "center" : "sidebar";
+    });
+  }, [
+    onUserInteraction,
+    externalViewMode,
+    isFullscreen,
+    onFullscreenChange,
+    externalIsFullscreen,
+  ]);
+
+  const handleToggleFullscreen = useCallback(() => {
+    onUserInteraction?.();
+    const next = !isFullscreen;
+    if (onFullscreenChange) {
+      onFullscreenChange(next);
+    } else if (externalIsFullscreen === undefined) {
+      setInternalIsFullscreen(next);
+    }
+    // Auto-switch to center when entering fullscreen from sidebar
+    if (next && viewMode === "sidebar" && !externalViewMode) {
+      setInternalViewMode("center");
+    }
+  }, [
+    onUserInteraction,
+    isFullscreen,
+    onFullscreenChange,
+    externalIsFullscreen,
+    viewMode,
+    externalViewMode,
+  ]);
 
   // Double-rAF: first frame paints the panel off-screen (translate-y-full),
   // second frame kicks off the slide-in animation.  This guarantees zero
@@ -125,6 +202,7 @@ export function ToolResultPanel({
   );
   const panelRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
+  const mobileDragHandleRef = useRef<HTMLDivElement>(null);
   const isResizing = useRef(false);
   const justResized = useRef(false);
   const resizeCaptureRef = useRef<HTMLDivElement | null>(null);
@@ -206,10 +284,12 @@ export function ToolResultPanel({
   // Register as the active panel (singleton — closes any previous panel)
   useEffect(() => {
     if (!open) return;
-    return registerToolPanel(panelOwnerRef.current, () =>
-      latestOnCloseRef.current(),
+    return registerToolPanel(
+      panelOwnerRef.current,
+      () => latestOnCloseRef.current(),
+      registryKey,
     );
-  }, [open]);
+  }, [open, registryKey]);
 
   // Cleanup drag resize resources (used on mouseup and on unmount)
   const cleanupResize = useCallback((indicator: HTMLDivElement | null) => {
@@ -294,6 +374,7 @@ export function ToolResultPanel({
   const sheetRef = useSwipeToClose({
     onClose,
     enabled: open && isMobile,
+    dragHandleRef: mobileDragHandleRef,
   });
 
   if (!open) return null;
@@ -309,7 +390,11 @@ export function ToolResultPanel({
         panelClass
           ? panelClass
           : isCenter
-            ? "overflow-hidden h-full relative"
+            ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${
+                isFullscreen
+                  ? "w-full max-w-none"
+                  : "sm:max-w-3xl lg:max-w-4xl sm:h-[80vh] sm:rounded-2xl sm:my-auto"
+              }`
             : isMobile
               ? `max-h-[92vh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] ${
                   animateIn
@@ -384,7 +469,10 @@ export function ToolResultPanel({
           {/* Mobile drag handle — sidebar mode only */}
           {isMobile && isSidebar && (
             <div className="flex justify-center pt-2 pb-1">
-              <div className="w-9 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
+              <div
+                ref={mobileDragHandleRef}
+                className="w-9 h-1 rounded-full bg-stone-300 dark:bg-stone-600"
+              />
             </div>
           )}
           {hasCustomHeader ? (
@@ -432,6 +520,70 @@ export function ToolResultPanel({
 
               {/* Extra header actions */}
               {headerActions}
+
+              {/* Center / Fullscreen toggles */}
+              {!hideViewToggle && (
+                <div className="flex items-center gap-0.5 shrink-0 overflow-x-auto scrollbar-none">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleViewMode();
+                    }}
+                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                    title={
+                      isSidebar
+                        ? t("documents.centerView", "Center view")
+                        : t("documents.sidebarView", "Sidebar view")
+                    }
+                  >
+                    {isSidebar ? (
+                      <>
+                        <Maximize2 size={14} />
+                        <span className="hidden xl:inline">
+                          {t("documents.centerView", "居中")}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <PanelRight size={14} />
+                        <span className="hidden sm:inline">
+                          {t("documents.sidebarView", "侧边栏")}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleFullscreen();
+                    }}
+                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                    title={
+                      isFullscreen
+                        ? t("documents.exitFullscreen", "退出全屏")
+                        : t("documents.fullscreen", "全屏")
+                    }
+                  >
+                    {isFullscreen ? (
+                      <>
+                        <Shrink size={14} />
+                        <span className="hidden xl:inline">
+                          {t("documents.exitFullscreen", "退出全屏")}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Expand size={14} />
+                        <span className="hidden xl:inline">
+                          {t("documents.fullscreen", "全屏")}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* Close */}
               <button
@@ -484,7 +636,9 @@ export function ToolResultPanel({
         overlayClass
           ? overlayClass
           : isCenter
-            ? "bg-stone-900"
+            ? isFullscreen
+              ? "bg-black/80"
+              : "sm:items-center sm:justify-center bg-black/70"
             : isMobile
               ? "bg-black/50 items-end justify-end"
               : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"

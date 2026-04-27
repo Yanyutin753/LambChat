@@ -18,10 +18,6 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
     }
   }, [content]);
 
-  const toggleSource = () => {
-    setShowSource(!showSource);
-  };
-
   if (loading) {
     return (
       <div className="h-full w-full flex flex-col bg-white dark:bg-stone-900">
@@ -38,43 +34,39 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
   return (
     <div className="h-full w-full flex flex-col bg-white dark:bg-stone-900">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-stone-900 border-b border-stone-200 dark:border-stone-700 shrink-0">
-        {/* Status */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-stone-50 dark:bg-stone-900 border-b border-stone-200 dark:border-stone-700 shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-stone-500 dark:text-stone-400">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+          <span className="text-xs text-stone-500 dark:text-stone-400">
             {t("documents.htmlDocument")}
           </span>
-          <span className="text-xs text-stone-400 dark:text-stone-500">
-            ({t("documents.chars", { count: content.length })})
+          <span className="text-[11px] text-stone-400 dark:text-stone-500 tabular-nums">
+            {content.length.toLocaleString()} chars
           </span>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 bg-stone-100 dark:bg-stone-800 rounded-md p-0.5">
           <button
-            onClick={toggleSource}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              showSource
-                ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
-                : "hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 dark:text-stone-400"
+            onClick={() => setShowSource(false)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all ${
+              !showSource
+                ? "bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-200 shadow-sm"
+                : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
             }`}
-            title={
-              showSource
-                ? t("documents.previewMode")
-                : t("documents.viewSource")
-            }
           >
-            {showSource ? (
-              <>
-                <Eye size={14} />
-                <span>{t("documents.preview")}</span>
-              </>
-            ) : (
-              <>
-                <Code size={14} />
-                <span>{t("documents.source")}</span>
-              </>
-            )}
+            <Eye size={13} />
+            <span>{t("documents.preview")}</span>
+          </button>
+          <button
+            onClick={() => setShowSource(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-all ${
+              showSource
+                ? "bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-200 shadow-sm"
+                : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
+            }`}
+          >
+            <Code size={13} />
+            <span>{t("documents.source")}</span>
           </button>
         </div>
       </div>
@@ -82,11 +74,10 @@ const HtmlPreview = memo(function HtmlPreview({ content }: HtmlPreviewProps) {
       {/* HTML content */}
       <div className="flex-1 overflow-hidden">
         {showSource ? (
-          <pre className="w-full h-full overflow-auto p-4 text-sm bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-mono">
+          <pre className="w-full h-full overflow-auto p-4 text-[13px] leading-relaxed bg-[#fafafa] dark:bg-[#1e1e1e] text-stone-700 dark:text-stone-300 font-mono">
             <code>{content}</code>
           </pre>
         ) : (
-          // 使用 sandboxed iframe 隔离 CSS，同时允许 JavaScript 和外部资源
           <iframe
             srcDoc={content}
             title={t("documents.htmlDocument")}

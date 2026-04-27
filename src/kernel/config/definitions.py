@@ -5,7 +5,12 @@ from __future__ import annotations
 from src.kernel.config._definitions_extra import EXTRA_SETTING_DEFINITIONS
 
 # Re-export for convenience
-from src.kernel.schemas.setting import JsonSchema, JsonSchemaField, SettingCategory, SettingType
+from src.kernel.schemas.setting import (
+    JsonSchema,
+    JsonSchemaField,
+    SettingCategory,
+    SettingType,
+)
 
 # ============================================
 # Setting metadata definitions - single source of truth
@@ -42,7 +47,10 @@ SETTING_DEFINITIONS: dict[str, dict] = {
             ],
             "ja": [
                 {"icon": "🐍", "text": "PythonのHello Worldスクリプトを作成"},
-                {"icon": "📁", "text": "ワークスペースディレクトリのファイルを一覧表示"},
+                {
+                    "icon": "📁",
+                    "text": "ワークスペースディレクトリのファイルを一覧表示",
+                },
                 {"icon": "📄", "text": "README.mdファイルを読む"},
                 {"icon": "🔧", "text": "シェルスクリプトを書くのを手伝って"},
             ],
@@ -445,6 +453,37 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.DEFERRED_TOOL_SEARCH_LIMIT",
         "default": 25,
         "depends_on": "ENABLE_DEFERRED_TOOL_LOADING",
+    },
+    # ============================================
+    # Audio Transcription Settings
+    # ============================================
+    "ENABLE_AUDIO_TRANSCRIPTION": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.AUDIO_TRANSCRIPTION,
+        "description": "settingDesc.ENABLE_AUDIO_TRANSCRIPTION",
+        "default": False,
+    },
+    "AUDIO_TRANSCRIPTION_API_KEY": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.AUDIO_TRANSCRIPTION,
+        "description": "settingDesc.AUDIO_TRANSCRIPTION_API_KEY",
+        "default": "",
+        "is_sensitive": True,
+        "depends_on": "ENABLE_AUDIO_TRANSCRIPTION",
+    },
+    "AUDIO_TRANSCRIPTION_BASE_URL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.AUDIO_TRANSCRIPTION,
+        "description": "settingDesc.AUDIO_TRANSCRIPTION_BASE_URL",
+        "default": "",
+        "depends_on": "ENABLE_AUDIO_TRANSCRIPTION",
+    },
+    "AUDIO_TRANSCRIPTION_MODEL": {
+        "type": SettingType.STRING,
+        "category": SettingCategory.AUDIO_TRANSCRIPTION,
+        "description": "settingDesc.AUDIO_TRANSCRIPTION_MODEL",
+        "default": "gpt-4o-mini-transcribe",
+        "depends_on": "ENABLE_AUDIO_TRANSCRIPTION",
     },
     # ============================================
     # MongoDB Settings

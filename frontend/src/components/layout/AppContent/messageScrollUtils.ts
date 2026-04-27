@@ -154,7 +154,7 @@ export function shouldAutoScrollForMessageUpdate({
     previousLatestMessage?.role === "assistant";
 
   if (latestChanged) {
-    return appendedMessageCount === 1;
+    return !manualDetachActive && appendedMessageCount === 1;
   }
 
   // Keep the existing bottom-lock loop running, but don't restart it on every

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Code2, Download, Maximize } from "lucide-react";
+import { Code2, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import DocumentPreview from "../../../documents/DocumentPreview";
 import ProjectPreview from "../../../documents/previews/ProjectPreview";
@@ -30,11 +30,13 @@ function ProjectRevealPreviewPanel({
   openInFullscreen = false,
   onClose,
   onUserInteraction,
+  registryKey,
 }: {
   project: ParsedProjectRevealData;
   openInFullscreen?: boolean;
   onClose: () => void;
   onUserInteraction?: () => void;
+  registryKey?: string;
 }) {
   const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
@@ -183,6 +185,7 @@ function ProjectRevealPreviewPanel({
     <ToolResultPanel
       open={true}
       onClose={onClose}
+      registryKey={registryKey}
       title={project.name || t("project.untitled")}
       icon={<Code2 size={16} />}
       status="success"
@@ -192,39 +195,29 @@ function ProjectRevealPreviewPanel({
         count: project.fileCount,
       })}`}
       viewMode={isMobile ? "center" : viewMode}
+      isFullscreen={isBrowserFullscreen}
+      onFullscreenChange={(fs) => {
+        if (fs) {
+          void enterBrowserFullscreen();
+        } else {
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          }
+        }
+      }}
       panelElementRef={panelElementRef}
       onUserInteraction={onUserInteraction}
       headerActions={
-        <>
-          {!isBrowserFullscreen && (
-            <button
-              onClick={() => {
-                onUserInteraction?.();
-                void enterBrowserFullscreen();
-              }}
-              className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-              title={t("documents.fullscreen")}
-            >
-              <Maximize
-                size={15}
-                className="text-stone-400 dark:text-stone-500"
-              />
-            </button>
-          )}
-          <button
-            onClick={() =>
-              exportProjectZip(filesForPreview, project.name, binaryFiles)
-            }
-            className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-            title={t("project.exportZip")}
-            disabled={!loadedFiles || loadingError}
-          >
-            <Download
-              size={15}
-              className="text-stone-400 dark:text-stone-500"
-            />
-          </button>
-        </>
+        <button
+          onClick={() =>
+            exportProjectZip(filesForPreview, project.name, binaryFiles)
+          }
+          className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
+          title={t("project.exportZip")}
+          disabled={!loadedFiles || loadingError}
+        >
+          <Download size={15} className="text-stone-400 dark:text-stone-500" />
+        </button>
       }
     >
       {loadingError ? (
@@ -279,6 +272,7 @@ export function RevealPreviewHost({
         fileSize={preview.fileSize}
         onClose={onClose}
         onUserInteraction={onUserInteraction}
+        registryKey={`reveal-preview:${preview.previewKey}`}
       />
     );
   }
@@ -289,6 +283,7 @@ export function RevealPreviewHost({
       openInFullscreen={preview.openInFullscreen}
       onClose={onClose}
       onUserInteraction={onUserInteraction}
+      registryKey={`reveal-preview:${preview.previewKey}`}
     />
   );
 }

@@ -88,6 +88,7 @@ export function PersistentToolPanelHost() {
     <ToolResultPanel
       open={true}
       onClose={close}
+      registryKey={`persistent:${panel.panelKey ?? panel.title}`}
       title={panel.title}
       icon={panel.icon}
       status={panel.status}

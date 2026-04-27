@@ -4,10 +4,9 @@ import { Copy, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AttachmentCard, ImageViewer } from "../../common";
 import type { MessageAttachment } from "../../../types";
-import DocumentPreview from "../../documents/DocumentPreview";
-import { DelayedUnmount } from "../../common/DelayedUnmount";
 import { getFullUrl } from "../../../services/api";
 import { MarkdownContent } from "./MarkdownContent";
+import { openAttachmentPreview } from "../attachmentPreviewStore";
 
 // User message bubble component (with copy function, supports markdown rendering) - ChatGPT style
 export function UserMessageBubble({
@@ -19,8 +18,6 @@ export function UserMessageBubble({
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
-  const [previewAttachment, setPreviewAttachment] =
-    useState<MessageAttachment | null>(null);
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
 
   const handleCopy = async () => {
@@ -50,7 +47,7 @@ export function UserMessageBubble({
                 if (isImage && attachment.url) {
                   setImageViewerSrc(getFullUrl(attachment.url) ?? null);
                 } else {
-                  setPreviewAttachment(attachment);
+                  openAttachmentPreview(attachment, "user-message");
                 }
               }}
             />
@@ -108,23 +105,6 @@ export function UserMessageBubble({
           </div>
         </div>
       </div>
-
-      {/* File preview modal */}
-      <DelayedUnmount show={!!previewAttachment}>
-        {previewAttachment && (
-          <DocumentPreview
-            path={previewAttachment.name}
-            s3Key={previewAttachment.key}
-            fileSize={previewAttachment.size}
-            onClose={() => setPreviewAttachment(null)}
-            imageUrl={
-              previewAttachment.type === "image"
-                ? getFullUrl(previewAttachment.url)
-                : undefined
-            }
-          />
-        )}
-      </DelayedUnmount>
 
       {/* Image viewer for direct image preview */}
       {imageViewerSrc && (

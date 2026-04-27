@@ -1,5 +1,7 @@
 """WebSocket 速率限制（基于 Redis）"""
 
+from redis.asyncio import Redis
+
 from src.infra.logging import get_logger
 from src.infra.storage.redis import create_redis_client
 
@@ -12,7 +14,7 @@ class WebSocketRateLimiter:
     def __init__(self, max_failures: int = 5, window_seconds: int = 300):
         self.max_failures = max_failures
         self.window_seconds = window_seconds
-        self._redis = None
+        self._redis: Redis | None = None
 
     def _get_redis(self):
         if self._redis is None:

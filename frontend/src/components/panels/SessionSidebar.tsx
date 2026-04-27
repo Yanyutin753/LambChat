@@ -11,7 +11,6 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -44,6 +43,7 @@ import { isSessionFavorite } from "../sidebar/sessionFavorites";
 import { getSessionTitle, groupSessionsByTime } from "./sessionHelpers";
 import { SearchDialog } from "./SearchDialog";
 import { ShareDialog } from "../share/ShareDialog";
+import { NewProjectModal } from "./NewProjectModal";
 
 interface SessionSidebarProps {
   currentSessionId: string | null;
@@ -111,10 +111,6 @@ export const SessionSidebar = forwardRef<
   >(null);
   const [shareDialogSessionName, setShareDialogSessionName] = useState("");
 
-  // Track mobile breakpoint to avoid ref conflicts — both sidebars render
-  // sessionListContent in the DOM, causing shared refs (scrollEl, loadMoreRef)
-  // to be called twice. The desktop element wins (last call), breaking the
-  // IntersectionObserver on mobile.
   const [isMobile, setIsMobile] = useState(
     () => window.matchMedia("(max-width: 639px)").matches,
   );
@@ -138,10 +134,8 @@ export const SessionSidebar = forwardRef<
 
   // ─── Hooks ──────────────────────────────────────────────────────
 
-  // Uncategorized sessions — independent pagination
   const uncategorizedList = useProjectSessionList("none", scrollEl);
 
-  // Handle WebSocket-driven unread count updates
   const handleSessionUnread = useCallback(
     (
       sid: string,
@@ -177,7 +171,6 @@ export const SessionSidebar = forwardRef<
     [handleSessionUnread],
   );
 
-  // Project refs for cross-project operations
   const projectRefs = useRef<Map<string, ProjectItemHandle>>(new Map());
   const lastAppliedNewSessionKeyRef = useRef<string | null>(null);
 
@@ -203,8 +196,6 @@ export const SessionSidebar = forwardRef<
   const { projects } = projectManager;
   const projectCount = projects.length;
 
-  // Touch drag — sessions array is now distributed, pass empty (touch drag
-  // only works on uncategorized sessions in the sidebar)
   const handleMoveSession = useCallback(
     async (sessionId: string, projectId: string | null) => {
       try {
@@ -212,7 +203,6 @@ export const SessionSidebar = forwardRef<
         if (response.session) {
           const favorite = isSessionFavorite(response.session);
 
-          // Remove from every list before re-inserting into the right places.
           for (const [, handle] of projectRefs.current) {
             handle.removeSession(sessionId);
           }
@@ -365,7 +355,6 @@ export const SessionSidebar = forwardRef<
     if (!sessionId) return;
     try {
       await sessionApi.delete(sessionId);
-      // Remove from all lists
       for (const [, handle] of projectRefs.current) {
         handle.removeSession(sessionId);
       }
@@ -382,20 +371,17 @@ export const SessionSidebar = forwardRef<
 
   // ─── Effects ────────────────────────────────────────────────────
 
-  // Auto-expand projects section when a new session is created in a project
   useEffect(() => {
     if (autoExpandProjectId) {
       setIsProjectsCollapsed(false);
     }
   }, [autoExpandProjectId]);
 
-  // Load projects on mount / refresh
   useEffect(() => {
     projectManager.loadProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
-  // Soft-refresh session lists when user switches sessions (picks up unread_count changes without resetting scroll)
   useEffect(() => {
     if (!currentSessionId) return;
     uncategorizedList.softRefresh();
@@ -403,7 +389,6 @@ export const SessionSidebar = forwardRef<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSessionId]);
 
-  // Handle new session from parent — prepend or update in the correct list
   useEffect(() => {
     if (newSession && newSession.id) {
       const sessionKey = [
@@ -514,7 +499,7 @@ export const SessionSidebar = forwardRef<
             <path
               fillRule="evenodd"
               clipRule="evenodd"
-              d="M8.85719 3H15.1428C16.2266 2.99999 17.1007 2.99998 17.8086 3.05782C18.5375 3.11737 19.1777 3.24318 19.77 3.54497C20.7108 4.02433 21.4757 4.78924 21.955 5.73005C22.2568 6.32234 22.3826 6.96253 22.4422 7.69138C22.5 8.39925 22.5 9.27339 22.5 10.3572V13.6428C22.5 14.7266 22.5 15.6008 22.4422 16.3086C22.3826 17.0375 22.2568 17.6777 21.955 18.27C21.4757 19.2108 20.7108 19.9757 19.77 20.455C19.1777 20.7568 18.5375 20.8826 17.8086 20.9422C17.1008 21 16.2266 21 15.1428 21H8.85717C7.77339 21 6.89925 21 6.19138 20.9422C5.46253 20.8826 4.82234 20.7568 4.23005 20.455C3.28924 19.9757 2.52433 19.2108 2.04497 18.27C1.74318 17.6777 1.61737 17.0375 1.55782 16.3086C1.49998 15.6007 1.49999 14.7266 1.5 13.6428V10.3572C1.49999 9.27341 1.49998 8.39926 1.55782 7.69138C1.61737 6.46253 1.74318 6.32234 2.04497 5.73005C2.52433 4.78924 3.28924 4.02433 4.23005 3.54497C4.82234 3.24318 5.46253 3.11737 6.19138 3.05782C6.89926 2.99998 7.77341 2.99999 8.85719 3ZM6.35424 5.05118C5.74907 5.10062 5.40138 5.19279 5.13803 5.32698C4.57354 5.6146 4.1146 6.07354 3.82698 6.63803C3.69279 6.90138 3.60062 7.24907 3.55118 7.85424C3.50078 8.47108 3.5 9.26339 3.5 10.4V13.6C3.5 14.7366 3.50078 15.5289 3.55118 16.1458C3.60062 16.7509 3.69279 17.0986 3.82698 17.362C4.1146 17.9265 4.57354 18.3854 5.13803 18.673C5.40138 18.8072 5.74907 18.8994 6.35424 18.9488C6.97108 18.9992 7.76339 19 8.9 19H9.5V5H8.9C7.76339 5 6.97108 5.00078 6.35424 5.05118ZM11.5 5V19H15.1C16.2366 19 17.0289 18.9992 17.6458 18.9488C18.2509 18.8994 18.5986 18.8072 18.862 18.673C19.4265 18.3854 19.8854 17.9265 20.173 17.362C20.3072 17.0986 20.3994 16.7509 20.4488 16.1458C20.4992 15.5289 20.5 14.7366 20.5 13.6V10.4C20.5 9.26339 20.4992 8.47108 20.4488 7.85424C20.3994 7.24907 20.3072 6.90138 20.173 6.63803C19.8854 6.07354 19.4265 5.6146 18.862 5.32698C18.5986 5.19279 18.2509 5.10062 17.6458 5.05118C17.0289 5.00078 16.2366 5 15.1 5H11.5ZM5 8.5C5 7.94772 5.44772 7.5 6 7.5H7C7.55229 7.5 8 7.94772 8 8.5C8 9.05229 7.55229 9.5 7 9.5H6C5.44772 9.5 5 9.05229 5 8.5ZM5 12C5 11.4477 5.44772 11 6 11H7C7.55229 11 8 11.4477 8 12C8 12.5523 7.55229 13 7 13H6C5.44772 13 5 12.5523 5 12Z"
+              d="M8.85719 3H15.1428C16.2266 2.99999 17.1007 2.99998 17.8086 3.05782C18.5375 3.11737 19.1777 3.24318 19.77 3.54497C20.7108 4.02433 21.4757 4.78924 21.955 5.73005C22.2568 6.32234 22.3826 6.96253 22.4422 7.69138C22.5 8.39925 22.5 9.27339 22.5 10.3572V13.6428c0 1.0838 0 1.958-.0578 2.6658-.0596.7289-.1854 1.3691-.4872 1.9612-.4794.9408-1.2443 1.7057-2.185 2.185-.6073.3018-1.2475.4276-1.9764.4872C17.1008 21 16.2266 21 15.1428 21H8.85717c-1.08378 0-1.95792 0-2.66579-.0578-.72885-.0596-1.36904-.1854-1.96133-.4872-.94081-.4794-1.70572-1.2443-2.18508-2.185-.30179-.6073-.4276-1.2475-.48715-1.9764C1.49998 15.6007 1.49999 14.7266 1.5 13.6428V10.3572c0-1.08379 0-1.95794.05782-2.66582.05955-.72885.18536-1.36904.48715-1.96133.47936-.94081 1.24427-1.70572 2.18508-2.18508.59229-.30179 1.23248-.4276 1.96133-.48715C6.89926 2.99998 7.77341 2.99999 8.85719 3ZM6.35424 5.05118c-.60517.04944-.95286.14161-1.21621.2758-.56449.28762-1.02343.74656-1.31105 1.31105-.13419.26335-.22636.61104-.2758 1.21621C3.50078 8.47108 3.5 9.26339 3.5 10.4v3.2c0 1.1366.00078 1.9289.05118 2.5458.04944.6051.14161.9528.2758 1.2162.28762.5645.74656 1.0234 1.31105 1.311.26335.1342.61104.2264 1.21621.2758C6.97108 18.9992 7.76339 19 8.9 19h.6V5h-.6c-1.13661 0-1.92892.00078-2.54576.05118ZM11.5 5v14h3.6c1.1366 0 1.9289-.0008 2.5458-.0512.6051-.0494.9528-.1416 1.2162-.2758.5645-.2876 1.0234-.7466 1.311-1.311.1342-.2634.2264-.6111.2758-1.2162.0494-.6169.05-1.4092.05-2.5458V10.4c0-1.13661-.0008-1.92892-.0512-2.54576-.0494-.60517-.1416-.95286-.2758-1.21621-.2876-.56449-.7466-1.02343-1.311-1.31105-.2634-.13419-.6111-.22636-1.2162-.2758C17.0289 5.00078 16.2366 5 15.1 5h-3.6ZM5 8.5C5 7.94772 5.44772 7.5 6 7.5h1c.55228 0 1 .44772 1 1S7.55228 9.5 7 9.5H6c-.55228 0-1-.44772-1-1Zm0 3.5c0-.5523.44772-1 1-1h1c.55228 0 1 .4477 1 1s-.44772 1-1 1H6c-.55228 0-1-.4477-1-1Z"
               fill="currentColor"
             />
           </svg>
@@ -523,7 +508,6 @@ export const SessionSidebar = forwardRef<
 
       {/* Action buttons */}
       <div className="flex flex-col gap-px px-2 py-2 space-y-1">
-        {/* New chat button */}
         <button
           onClick={onNewSession}
           className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm font-medium text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 focus:outline-none transition-colors"
@@ -532,7 +516,6 @@ export const SessionSidebar = forwardRef<
           <span>{t("sidebar.newChat")}</span>
         </button>
 
-        {/* Search button */}
         <button
           onClick={() => setIsSearchOpen(true)}
           className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 focus:outline-none transition-colors group"
@@ -546,7 +529,6 @@ export const SessionSidebar = forwardRef<
           </kbd>
         </button>
 
-        {/* File library button */}
         <button
           onClick={() => navigate("/files")}
           className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 focus:outline-none transition-colors"
@@ -565,7 +547,6 @@ export const SessionSidebar = forwardRef<
           setIsScrolled(e.currentTarget.scrollTop > 100);
         }}
       >
-        {/* Scroll to top button */}
         {isScrolled && (
           <button
             onClick={() =>
@@ -598,7 +579,6 @@ export const SessionSidebar = forwardRef<
             />
           </div>
 
-          {/* New project button */}
           {!isProjectsCollapsed && (
             <button
               onClick={() => projectManager.setShowNewProjectModal(true)}
@@ -693,7 +673,6 @@ export const SessionSidebar = forwardRef<
                 />
               ))}
 
-          {/* Divider */}
           {!isProjectsCollapsed && (
             <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
           )}
@@ -718,7 +697,6 @@ export const SessionSidebar = forwardRef<
             const groupedUncategorized = groupSessionsByTime(filtered, t);
             return (
               <>
-                {/* Chats section header */}
                 <div
                   onClick={() => setIsChatsCollapsed(!isChatsCollapsed)}
                   className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
@@ -796,7 +774,6 @@ export const SessionSidebar = forwardRef<
                         </div>
                       ))
                     )}
-                    {/* Infinite scroll sentinel for uncategorized */}
                     {uncategorizedList.hasMore && (
                       <div
                         ref={uncategorizedList.loadMoreRef}
@@ -859,7 +836,6 @@ export const SessionSidebar = forwardRef<
 
   return (
     <>
-      {/* Mobile backdrop — always rendered for smooth opacity transition */}
       <div
         className={`fixed inset-0 z-[60] bg-black/40 sm:hidden transition-opacity duration-300 ease-in-out ${
           mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -867,7 +843,6 @@ export const SessionSidebar = forwardRef<
         onClick={onMobileClose}
       />
 
-      {/* Mobile sidebar — always rendered for smooth transform transition */}
       <div
         className={`rounded-r-lg fixed inset-y-0 left-0 z-[70] w-64 flex flex-col sm:hidden bg-[var(--theme-bg-sidebar)] transition-transform duration-300 ease-in-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -876,14 +851,12 @@ export const SessionSidebar = forwardRef<
         {isMobile ? sessionListContent : <div className="flex-1" />}
       </div>
 
-      {/* Desktop sidebar — only render content on desktop to avoid ref conflicts */}
       {!isCollapsed && (
         <div className="hidden h-full w-64 flex-col rounded-r-lg border-r border-stone-200/60 dark:border-stone-800/60 sm:flex">
           {!isMobile ? sessionListContent : <div className="flex-1" />}
         </div>
       )}
 
-      {/* Mobile drag indicator */}
       {touchDrag.dragIndicatorPos && (
         <div
           className="fixed z-[100] pointer-events-none px-3 py-1.5 rounded-lg bg-stone-700 dark:bg-stone-200 text-white dark:text-stone-800 text-xs shadow-lg max-w-[200px] truncate"
@@ -896,7 +869,6 @@ export const SessionSidebar = forwardRef<
         </div>
       )}
 
-      {/* Search Dialog */}
       {isSearchOpen && (
         <SearchDialog
           isOpen={isSearchOpen}
@@ -908,7 +880,6 @@ export const SessionSidebar = forwardRef<
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         isOpen={deleteConfirm.isOpen}
         title={t("sidebar.deleteSession")}
@@ -920,7 +891,6 @@ export const SessionSidebar = forwardRef<
         variant="danger"
       />
 
-      {/* Delete Project Confirmation Dialog */}
       <DeleteProjectDialog
         isOpen={deleteProjectConfirm.isOpen}
         projectName={deleteProjectConfirm.projectName}
@@ -934,82 +904,21 @@ export const SessionSidebar = forwardRef<
         }
       />
 
-      {/* New Project Modal */}
-      {projectManager.showNewProjectModal &&
-        createPortal(
-          <div className="fixed inset-0 z-[300] flex items-center justify-center">
-            <div
-              className="absolute inset-0 bg-black/40"
-              onClick={() => projectManager.setShowNewProjectModal(false)}
-            />
-            <div className="relative bg-white dark:bg-stone-800 rounded-xl shadow-2xl p-5 w-[90vw] max-w-md space-y-3">
-              <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-100">
-                {t("sidebar.newProject")}
-              </h3>
-              <p className="text-xs text-stone-400 dark:text-stone-500">
-                {t("sidebar.projectHint")}
-              </p>
+      {projectManager.showNewProjectModal && (
+        <NewProjectModal
+          icon={projectManager.newProjectIcon}
+          name={projectManager.newProjectName}
+          onIconChange={projectManager.setNewProjectIcon}
+          onNameChange={projectManager.setNewProjectName}
+          onCreate={projectManager.handleCreateProject}
+          onClose={() => {
+            projectManager.setShowNewProjectModal(false);
+            projectManager.setNewProjectName("");
+            projectManager.setNewProjectIcon("📁");
+          }}
+        />
+      )}
 
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-stone-200 dark:border-stone-600 bg-stone-50 dark:bg-stone-700/50 focus-within:ring-2 focus-within:ring-stone-400/50 focus-within:border-stone-300 dark:focus-within:border-stone-500 transition-all">
-                <input
-                  type="text"
-                  value={projectManager.newProjectIcon}
-                  onChange={(e) =>
-                    projectManager.setNewProjectIcon(e.target.value)
-                  }
-                  placeholder={t("sidebar.projectName")}
-                  className="w-8 text-sm bg-transparent text-stone-500 dark:text-stone-400 placeholder-stone-400 focus:outline-none"
-                />
-                <div className="w-px h-5 bg-stone-300 dark:bg-stone-600" />
-                <input
-                  ref={(el) => {
-                    if (el) el.focus();
-                  }}
-                  type="text"
-                  value={projectManager.newProjectName}
-                  onChange={(e) =>
-                    projectManager.setNewProjectName(e.target.value)
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      projectManager.handleCreateProject();
-                      projectManager.setShowNewProjectModal(false);
-                    }
-                    if (e.key === "Escape") {
-                      projectManager.setShowNewProjectModal(false);
-                      projectManager.setNewProjectName("");
-                    }
-                  }}
-                  placeholder={t("sidebar.projectName")}
-                  className="flex-1 text-sm bg-transparent text-stone-700 dark:text-stone-200 placeholder-stone-400 focus:outline-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  onClick={() => {
-                    projectManager.setShowNewProjectModal(false);
-                    projectManager.setNewProjectName("");
-                    projectManager.setNewProjectIcon("📁");
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-stone-600 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 transition-all"
-                >
-                  {t("common.cancel")}
-                </button>
-                <button
-                  onClick={() => {
-                    projectManager.handleCreateProject();
-                    projectManager.setShowNewProjectModal(false);
-                  }}
-                  disabled={!projectManager.newProjectName.trim()}
-                  className="px-4 py-2 text-sm font-medium bg-stone-700 dark:bg-stone-200 text-white dark:text-stone-900 rounded-lg hover:bg-stone-800 dark:hover:bg-stone-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  {t("common.create")}
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
       <ShareDialog
         isOpen={shareDialogSessionId !== null}
         onClose={() => setShareDialogSessionId(null)}

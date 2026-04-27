@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { clsx } from "clsx";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -93,112 +93,127 @@ export function FileRevealItem({
   const [imageViewerSrc, setImageViewerSrc] = useState<string | null>(null);
   const [mediaLoaded, setMediaLoaded] = useState(false);
 
-  let filePath = "";
-  let description = "";
-  let s3Key = "";
-  let s3Url = "";
-  let fileSize: number | undefined = undefined;
-  let error = "";
+  const parsed = useMemo(() => {
+    let filePath = "";
+    let description = "";
+    let s3Key = "";
+    let s3Url = "";
+    let fileSize: number | undefined;
+    let error = "";
 
-  if (result) {
-    try {
-      let parsed: FileRevealResult;
-
-      if (typeof result === "object") {
-        parsed = result as unknown as FileRevealResult;
-      } else {
-        let jsonStr = result;
-        const contentMatch = result.match(/content='(.+?)'(\s|$)/);
-        if (contentMatch) {
-          jsonStr = contentMatch[1].replace(/\\'/g, "'");
-        }
-        parsed = JSON.parse(jsonStr);
-      }
-
-      if ("key" in parsed && "url" in parsed) {
-        s3Key = parsed.key;
-        s3Url = getFullUrl(parsed.url) || "";
-        fileSize = parsed.size;
-        if (parsed._meta) {
-          filePath = parsed._meta.path;
-          description = parsed._meta.description || "";
+    if (result) {
+      try {
+        let r: FileRevealResult;
+        if (typeof result === "object") {
+          r = result as unknown as FileRevealResult;
         } else {
-          filePath = parsed.name;
+          let jsonStr = result;
+          const m = result.match(/content='(.+?)'(\s|$)/);
+          if (m) jsonStr = m[1].replace(/\\'/g, "'");
+          r = JSON.parse(jsonStr);
         }
-      } else if (parsed.type === "file_reveal" && "file" in parsed) {
-        filePath = parsed.file.path;
-        description = parsed.file.description || "";
-        s3Key = parsed.file.s3_key || "";
-        fileSize = parsed.file.size;
-        error = parsed.file.error || "";
+        if ("key" in r && "url" in r) {
+          s3Key = r.key;
+          s3Url = getFullUrl(r.url) || "";
+          fileSize = r.size;
+          if (r._meta) {
+            filePath = r._meta.path;
+            description = r._meta.description || "";
+          } else {
+            filePath = r.name;
+          }
+        } else if (r.type === "file_reveal" && "file" in r) {
+          filePath = r.file.path;
+          description = r.file.description || "";
+          s3Key = r.file.s3_key || "";
+          fileSize = r.file.size;
+          error = r.file.error || "";
+        }
+      } catch {
+        filePath = (args.path as string) || "";
+        description = (args.description as string) || "";
       }
-    } catch {
+    } else {
       filePath = (args.path as string) || "";
       description = (args.description as string) || "";
     }
-  } else {
-    filePath = (args.path as string) || "";
-    description = (args.description as string) || "";
-  }
 
-  const fileName = filePath.split("/").pop() || filePath;
-  const fileInfo = getFileTypeInfo(filePath);
+    return { filePath, description, s3Key, s3Url, fileSize, error };
+  }, [result, args.path, args.description]);
+
+  const fileName = parsed.filePath.split("/").pop() || parsed.filePath;
+  const fileInfo = getFileTypeInfo(parsed.filePath);
   const FileIcon = fileInfo.icon;
   const color = fileInfo.color;
   const bg = fileInfo.bg;
   const isImage = fileInfo.category === "image";
   const isVideo = fileInfo.category === "video";
-  const canPreview = isImage || isVideo;
+  const isAudio = fileInfo.category === "audio";
+  const canPreview = isImage || isVideo || isAudio;
   const previewAutoOpenKey = getFileRevealAutoOpenKey({
-    s3Key,
-    s3Url,
-    filePath,
+    s3Key: parsed.s3Key,
+    s3Url: parsed.s3Url,
+    filePath: parsed.filePath,
   });
   const isPreviewOpen =
     activePreview?.kind === "file" &&
     activePreview.previewKey === previewAutoOpenKey;
 
+  const previewRequest = useMemo(
+    (): RevealPreviewRequest | null =>
+      previewAutoOpenKey
+        ? {
+            kind: "file",
+            previewKey: previewAutoOpenKey,
+            filePath: parsed.filePath,
+            s3Key: parsed.s3Key || undefined,
+            signedUrl: parsed.s3Url || undefined,
+            fileSize: parsed.fileSize,
+          }
+        : null,
+    [
+      previewAutoOpenKey,
+      parsed.filePath,
+      parsed.s3Key,
+      parsed.s3Url,
+      parsed.fileSize,
+    ],
+  );
+
+  const openPreview = useCallback(
+    (source: RevealPreviewOpenSource) => {
+      if (!previewAutoOpenKey || !previewRequest) return;
+      onOpenPreview?.(previewRequest, source);
+    },
+    [previewAutoOpenKey, onOpenPreview, previewRequest],
+  );
+
   // Auto-open sidebar preview on desktop when file is ready
   useEffect(() => {
     const decision = shouldAutoOpenFileRevealPreview({
       success,
-      filePath,
+      filePath: parsed.filePath,
       isImage,
       showPreview: isPreviewOpen,
       isDesktop: window.innerWidth >= 640,
       allowAutoPreview,
       previewKey: previewAutoOpenKey,
     });
-    if (!decision || !previewAutoOpenKey) {
-      return;
-    }
+    if (!decision) return;
 
-    const opened = onOpenPreview?.(
-      {
-        kind: "file",
-        previewKey: previewAutoOpenKey,
-        filePath,
-        s3Key: s3Key || undefined,
-        signedUrl: s3Url || undefined,
-        fileSize,
-      },
-      "auto",
-    );
-
+    const opened = previewRequest && onOpenPreview?.(previewRequest, "auto");
     if (opened) {
       markFileRevealPreviewAutoOpened(previewAutoOpenKey);
     }
   }, [
     success,
-    filePath,
+    parsed.filePath,
     isImage,
     isPreviewOpen,
     allowAutoPreview,
     previewAutoOpenKey,
     onOpenPreview,
-    s3Key,
-    s3Url,
-    fileSize,
+    previewRequest,
   ]);
 
   if (isPending) {
@@ -211,9 +226,9 @@ export function FileRevealItem({
           <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
             {fileName}
           </div>
-          {description && (
+          {parsed.description && (
             <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
-              {description}
+              {parsed.description}
             </div>
           )}
         </div>
@@ -234,9 +249,9 @@ export function FileRevealItem({
           <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
             {fileName}
           </div>
-          {description && (
+          {parsed.description && (
             <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
-              {description}
+              {parsed.description}
             </div>
           )}
         </div>
@@ -247,7 +262,7 @@ export function FileRevealItem({
     );
   }
 
-  if (error) {
+  if (parsed.error) {
     return (
       <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
         <div className={`p-2.5 rounded-lg bg-red-100 dark:bg-red-900/30`}>
@@ -258,7 +273,7 @@ export function FileRevealItem({
             {fileName}
           </div>
           <div className="text-xs text-red-500 dark:text-red-400 truncate mt-0.5">
-            {error}
+            {parsed.error}
           </div>
         </div>
       </div>
@@ -275,7 +290,7 @@ export function FileRevealItem({
         />
       )}
 
-      {canPreview && s3Url && success ? (
+      {canPreview && parsed.s3Url && success ? (
         <div
           className={clsx(
             "w-full rounded-xl border overflow-hidden transition-colors transition-shadow",
@@ -283,68 +298,69 @@ export function FileRevealItem({
             "hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600",
           )}
         >
-          <div
-            className="relative group cursor-pointer"
-            style={{ aspectRatio: isImage ? "16/10" : "16/9" }}
-            onClick={() => isImage && setImageViewerSrc(s3Url)}
-          >
-            {!mediaLoaded && (
-              <div className="absolute inset-0">
-                <MediaSkeleton />
-              </div>
-            )}
-            {isImage ? (
-              <img
-                src={s3Url}
-                alt={fileName}
-                className="absolute inset-0 w-full h-full object-cover z-[1]"
-                loading="lazy"
-                onLoad={() => setMediaLoaded(true)}
-                onError={() => setMediaLoaded(true)}
+          {isAudio ? (
+            <div className="px-4 py-4">
+              <audio
+                controls
+                className="w-full"
+                src={parsed.s3Url}
+                preload="metadata"
               />
-            ) : (
-              s3Url && (
-                <video
-                  src={s3Url}
-                  controls
-                  preload="metadata"
-                  className="w-full h-full bg-black relative z-[1]"
-                  playsInline
-                  onLoadedData={() => setMediaLoaded(true)}
-                  onCanPlay={() => setMediaLoaded(true)}
+            </div>
+          ) : (
+            <div
+              className="relative group cursor-pointer"
+              style={{ aspectRatio: isImage ? "16/10" : "16/9" }}
+              onClick={() => isImage && setImageViewerSrc(parsed.s3Url)}
+            >
+              {!mediaLoaded && (
+                <div className="absolute inset-0">
+                  <MediaSkeleton />
+                </div>
+              )}
+              {isImage ? (
+                <img
+                  src={parsed.s3Url}
+                  alt={fileName}
+                  className="absolute inset-0 w-full h-full object-cover z-[1]"
+                  loading="lazy"
+                  onLoad={() => setMediaLoaded(true)}
                   onError={() => setMediaLoaded(true)}
                 />
-              )
-            )}
-            {isImage && (
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-white/90 dark:bg-stone-800/90 shadow-lg">
-                  <ExternalLink
-                    size={16}
-                    className="text-stone-600 dark:text-stone-300"
+              ) : (
+                parsed.s3Url && (
+                  <video
+                    src={parsed.s3Url}
+                    controls
+                    preload="metadata"
+                    className="w-full h-full bg-black relative z-[1]"
+                    playsInline
+                    onLoadedData={() => setMediaLoaded(true)}
+                    onCanPlay={() => setMediaLoaded(true)}
+                    onError={() => setMediaLoaded(true)}
                   />
+                )
+              )}
+              {isImage && (
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-white/90 dark:bg-stone-800/90 shadow-lg">
+                    <ExternalLink
+                      size={16}
+                      className="text-stone-600 dark:text-stone-300"
+                    />
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           <div
-            className="flex items-center gap-2 px-3 py-2 bg-stone-50 dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-700"
+            className={clsx(
+              "flex items-center gap-2 px-3 py-2 bg-stone-50 dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-700",
+              isAudio && "border-t-0",
+            )}
             onClick={() => {
-              if (!isImage) {
-                if (!previewAutoOpenKey) return;
-                onOpenPreview?.(
-                  {
-                    kind: "file",
-                    previewKey: previewAutoOpenKey,
-                    filePath,
-                    s3Key: s3Key || undefined,
-                    signedUrl: s3Url || undefined,
-                    fileSize,
-                  },
-                  "manual",
-                );
-              }
+              if (!isImage && !isAudio) openPreview("manual");
             }}
           >
             <div className={`p-1.5 rounded-md shrink-0 ${bg}`}>
@@ -353,9 +369,9 @@ export function FileRevealItem({
             <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate flex-1">
               {fileName}
             </span>
-            {description && (
+            {parsed.description && (
               <span className="text-xs text-stone-400 dark:text-stone-500 truncate max-w-[200px]">
-                {description}
+                {parsed.description}
               </span>
             )}
           </div>
@@ -363,22 +379,11 @@ export function FileRevealItem({
       ) : (
         <button
           onClick={() => {
-            if (!filePath || !success) return;
-            if (isImage && s3Url) {
-              setImageViewerSrc(s3Url);
+            if (!parsed.filePath || !success) return;
+            if (isImage && parsed.s3Url) {
+              setImageViewerSrc(parsed.s3Url);
             } else {
-              if (!previewAutoOpenKey) return;
-              onOpenPreview?.(
-                {
-                  kind: "file",
-                  previewKey: previewAutoOpenKey,
-                  filePath,
-                  s3Key: s3Key || undefined,
-                  signedUrl: s3Url || undefined,
-                  fileSize,
-                },
-                "manual",
-              );
+              openPreview("manual");
             }
           }}
           className={clsx(
@@ -387,7 +392,7 @@ export function FileRevealItem({
               ? "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600 hover:scale-[1.005]"
               : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 opacity-70",
           )}
-          disabled={!filePath || !success}
+          disabled={!parsed.filePath || !success}
         >
           <div className={`p-2.5 rounded-lg shrink-0 ${bg}`}>
             <FileIcon size={20} className={color} />
@@ -397,14 +402,14 @@ export function FileRevealItem({
             <div className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
               {fileName}
             </div>
-            {description && (
+            {parsed.description && (
               <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-1">
-                {description}
+                {parsed.description}
               </div>
             )}
           </div>
 
-          {success && filePath && (
+          {success && parsed.filePath && (
             <div className="shrink-0 p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
               <ExternalLink size={16} />
             </div>

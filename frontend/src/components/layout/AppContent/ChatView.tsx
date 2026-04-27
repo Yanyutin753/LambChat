@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ListTree } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
+import { AttachmentPreviewHost } from "../../chat/AttachmentPreviewHost";
 import { RevealPreviewHost } from "../../chat/ChatMessage/items/RevealPreviewHost";
 import {
   PersistentToolPanelHost,
@@ -59,6 +60,12 @@ import {
   type ActiveRevealPreviewState,
   type RevealPreviewOpenSource,
 } from "../../chat/ChatMessage/items/revealPreviewState";
+import {
+  getActiveRevealPreviewState,
+  setActiveRevealPreviewState,
+  subscribeActiveRevealPreviewState,
+  updateActiveRevealPreviewState,
+} from "../../chat/ChatMessage/items/activeRevealPreviewStore";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 import { shouldOpenExternalNavigationPreview } from "./externalNavigationState";
 
@@ -309,9 +316,10 @@ export function ChatView({
     );
   }, [outlineItems, activeOutlineId, handleOutlineNavigate]);
 
-  const [activePreviewState, setActivePreviewState] =
-    useState<ActiveRevealPreviewState | null>(null);
-  const activePreviewStateRef = useRef<ActiveRevealPreviewState | null>(null);
+  const [, forcePreviewRender] = useState(0);
+  const activePreviewStateRef = useRef<ActiveRevealPreviewState | null>(
+    getActiveRevealPreviewState(),
+  );
   const dismissedPreviewKeysRef = useRef<Set<string>>(new Set());
   const handledExternalPreviewRef = useRef<{
     token: string | null;
@@ -321,11 +329,16 @@ export function ChatView({
     sessionId: null,
   });
   const externalPreviewActiveRef = useRef(false);
-  const activePreview = activePreviewState?.request ?? null;
+  const activePreview = activePreviewStateRef.current?.request ?? null;
 
   useEffect(() => {
-    activePreviewStateRef.current = activePreviewState;
-  }, [activePreviewState]);
+    const syncPreviewState = () => {
+      activePreviewStateRef.current = getActiveRevealPreviewState();
+      forcePreviewRender((count) => count + 1);
+    };
+
+    return subscribeActiveRevealPreviewState(syncPreviewState);
+  }, []);
 
   const handleOpenPreview = useCallback(
     (
@@ -352,7 +365,9 @@ export function ChatView({
         dismissedPreviewKeysRef.current.delete(preview.previewKey);
       }
 
-      setActivePreviewState(createActiveRevealPreviewState(preview, source));
+      setActiveRevealPreviewState(
+        createActiveRevealPreviewState(preview, source),
+      );
       return true;
     },
     [],
@@ -364,18 +379,20 @@ export function ChatView({
       dismissedPreviewKeysRef.current.add(currentPreview.request.previewKey);
     }
     externalPreviewActiveRef.current = false;
-    setActivePreviewState(null);
+    setActiveRevealPreviewState(null);
   }, []);
 
   const handlePreviewInteraction = useCallback(() => {
-    setActivePreviewState((current) => markRevealPreviewInteracted(current));
+    updateActiveRevealPreviewState((current) =>
+      markRevealPreviewInteracted(current),
+    );
   }, []);
 
   useEffect(() => {
     dismissedPreviewKeysRef.current.clear();
     clearFileRevealAutoOpenState();
     clearProjectRevealAutoOpenState();
-    setActivePreviewState(null);
+    setActiveRevealPreviewState(null);
     externalPreviewActiveRef.current = false;
     closePersistentToolPanel();
   }, [sessionId]);
@@ -667,6 +684,7 @@ export function ChatView({
         onClose={() => handleClosePreview(true)}
         onUserInteraction={handlePreviewInteraction}
       />
+      <AttachmentPreviewHost />
       <PersistentToolPanelHost />
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}

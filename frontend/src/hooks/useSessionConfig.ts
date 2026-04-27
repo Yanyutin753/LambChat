@@ -231,26 +231,21 @@ export function useSessionConfig(
   }, [options]);
 
   // Restore config from session metadata
-  const restoreConfig = useCallback(
-    (sessionConfig: SessionConfig) => {
-      console.log("[useSessionConfig] Restoring config:", sessionConfig);
+  const restoreConfig = useCallback((sessionConfig: SessionConfig) => {
+    console.log("[useSessionConfig] Restoring config:", sessionConfig);
 
-      const restored = {
-        disabledSkills: sessionConfig.disabled_skills || [],
-        // disabled_tools is a legacy field (pre-split); treat as disabled_mcp_tools if present
-        disabledMcpTools:
-          sessionConfig.disabled_mcp_tools ??
-          sessionConfig.disabled_tools ??
-          [],
-        agentOptions:
-          normalizeAgentOptionValues(sessionConfig.agent_options) ||
-          defaultAgentOptionsRef.current,
-      };
-      setConfig(restored);
-      persistConfig(restored);
-    },
-    [options],
-  );
+    const restored = {
+      disabledSkills: sessionConfig.disabled_skills || [],
+      // disabled_tools is a legacy field (pre-split); treat as disabled_mcp_tools if present
+      disabledMcpTools:
+        sessionConfig.disabled_mcp_tools ?? sessionConfig.disabled_tools ?? [],
+      agentOptions:
+        normalizeAgentOptionValues(sessionConfig.agent_options) ||
+        defaultAgentOptionsRef.current,
+    };
+    setConfig(restored);
+    persistConfig(restored);
+  }, []);
 
   // Check if skill is enabled (not in disabled list)
   const isSkillEnabled = useCallback(

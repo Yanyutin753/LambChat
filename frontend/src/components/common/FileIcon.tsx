@@ -16,9 +16,9 @@ export function FileIcon({
 }: FileIconProps) {
   return (
     <div
-      className={`flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 ${bg}`}
+      className={`flex items-center justify-center size-10 rounded-lg shrink-0 ${bg}`}
     >
-      <Icon size={20} className={`sm:w-[22px] sm:h-[22px] ${color}`} />
+      <Icon size={18} className={color} />
     </div>
   );
 }
@@ -51,7 +51,7 @@ export function PreviewHeader({
     <div
       className={`flex items-center ${
         isSidebar
-          ? "gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4"
+          ? "gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3"
           : "gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3"
       } border-b border-stone-200 dark:border-stone-700/80 shrink-0 ${
         isSidebar
@@ -67,8 +67,10 @@ export function PreviewHeader({
       >
         <h3
           className={`${
-            isSidebar ? "font-bold text-sm sm:text-base" : "font-medium text-sm"
-          } text-stone-900 dark:text-stone-100 truncate`}
+            isSidebar
+              ? "text-[13px] sm:text-sm font-medium"
+              : "font-medium text-sm"
+          } text-stone-800 dark:text-stone-100 truncate`}
           title={title}
         >
           {title}
@@ -77,7 +79,7 @@ export function PreviewHeader({
           <p
             className={`text-xs ${
               isSidebar ? "" : "hidden sm:block"
-            } text-stone-500 dark:text-stone-400 mt-0.5`}
+            } text-stone-400 dark:text-stone-500 mt-0.5`}
           >
             {subtitle}
           </p>

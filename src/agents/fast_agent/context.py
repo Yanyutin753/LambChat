@@ -14,6 +14,7 @@ from src.agents.core.tool_filter import (
 )
 from src.infra.logging import get_logger
 from src.infra.skill.manager import SkillManager
+from src.infra.tool.audio_transcribe_tool import get_audio_transcribe_tool
 from src.infra.tool.human_tool import get_human_tool
 from src.infra.tool.mcp_global import get_global_mcp_tools
 from src.infra.tool.reveal_file_tool import get_reveal_file_tool
@@ -160,6 +161,11 @@ class FastAgentContext:
         transfer_path_tool = get_transfer_path_tool()
         self.tools.append(transfer_path_tool)
         logger.info("[FastAgentContext] Added transfer_path tool")
+
+        if settings.ENABLE_AUDIO_TRANSCRIPTION:
+            audio_transcribe_tool = get_audio_transcribe_tool()
+            self.tools.append(audio_transcribe_tool)
+            logger.info("[FastAgentContext] Added audio_transcribe tool")
 
         from src.infra.tool.env_var_tool import get_env_var_tools
 

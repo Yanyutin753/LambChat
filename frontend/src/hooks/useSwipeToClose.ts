@@ -2,13 +2,14 @@
  * Hook for swipe-to-close gesture on mobile bottom sheets
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, type RefObject } from "react";
 
 interface UseSwipeToCloseOptions {
   onClose: () => void;
   enabled?: boolean;
   threshold?: number; // Distance in pixels to trigger close
   velocityThreshold?: number; // Velocity to trigger close
+  dragHandleRef?: RefObject<HTMLElement | null>;
 }
 
 export function useSwipeToClose({
@@ -16,6 +17,7 @@ export function useSwipeToClose({
   enabled = true,
   threshold = 100,
   velocityThreshold = 0.5,
+  dragHandleRef,
 }: UseSwipeToCloseOptions) {
   const startY = useRef<number>(0);
   const currentY = useRef<number>(0);
@@ -26,21 +28,35 @@ export function useSwipeToClose({
   onCloseRef.current = onClose;
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleTouchStart = useCallback((e: TouchEvent) => {
-    if (!elementRef.current) return;
+  const handleTouchStart = useCallback(
+    (e: TouchEvent) => {
+      if (!elementRef.current) return;
 
-    const touch = e.touches[0];
-    const rect = elementRef.current.getBoundingClientRect();
-    const relativeY = touch.clientY - rect.top;
+      if (dragHandleRef?.current) {
+        const target = e.target;
+        if (
+          !(target instanceof Node) ||
+          !dragHandleRef.current.contains(target)
+        ) {
+          return;
+        }
+      } else {
+        const touch = e.touches[0];
+        const rect = elementRef.current.getBoundingClientRect();
+        const relativeY = touch.clientY - rect.top;
 
-    // Only handle if touch starts near the top (first 60px for drag handle area)
-    if (relativeY > 60) return;
+        // Only handle if touch starts near the top (first 60px for drag handle area)
+        if (relativeY > 60) return;
+      }
 
-    startY.current = touch.clientY;
-    currentY.current = touch.clientY;
-    startTime.current = Date.now();
-    isDragging.current = true;
-  }, []);
+      const touch = e.touches[0];
+      startY.current = touch.clientY;
+      currentY.current = touch.clientY;
+      startTime.current = Date.now();
+      isDragging.current = true;
+    },
+    [dragHandleRef],
+  );
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (!isDragging.current || !elementRef.current) return;

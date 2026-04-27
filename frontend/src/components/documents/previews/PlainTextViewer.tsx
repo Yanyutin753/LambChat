@@ -19,39 +19,45 @@ const PlainTextViewer = memo(function PlainTextViewer({
 
   const isTruncated = content.split("\n").length > MAX_LINES;
 
-  // Calculate line number width based on max line count
   const lineCount = lines.length;
   const lineNumberWidth =
-    lineCount >= 1000
-      ? "4rem" // ~4 digits
-      : lineCount >= 100
-        ? "3rem" // ~3 digits
-        : "2rem"; // ~2 digits
+    lineCount >= 10000
+      ? "4.5rem"
+      : lineCount >= 1000
+        ? "3.5rem"
+        : lineCount >= 100
+          ? "2.5rem"
+          : "2rem";
 
   return (
-    <div className="h-full overflow-auto bg-stone-100 dark:bg-[#282c34] p-4 sm:p-6">
+    <div className="h-full overflow-auto bg-[#fafafa] dark:bg-[#1e1e1e]">
       <pre
-        className="text-xs sm:text-sm leading-relaxed font-mono m-0"
+        className="text-xs sm:text-[13px] leading-[1.65] font-mono m-0 select-text"
         style={{
           fontFamily:
-            'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+            'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
         }}
       >
         {lines.map((line, i) => (
-          <div key={i} className="flex">
+          <div
+            key={i}
+            className={`flex ${
+              i % 2 === 1 ? "bg-[#f5f5f5] dark:bg-[#252526]" : ""
+            }`}
+          >
             <span
-              className="select-none shrink-0 text-right pr-4 border-r border-stone-300 dark:border-stone-600 text-stone-400 dark:text-stone-600"
-              style={{ width: lineNumberWidth }}
+              className="select-none shrink-0 text-right pr-4 text-[11px] leading-[1.65] border-r border-stone-200 dark:border-stone-700/60 text-stone-400 dark:text-stone-600"
+              style={{ width: lineNumberWidth, minWidth: lineNumberWidth }}
             >
               {i + 1}
             </span>
-            <span className="whitespace-pre text-stone-800 dark:text-stone-200 ml-4">
-              {line}
+            <span className="whitespace-pre text-stone-700 dark:text-stone-300 pl-4">
+              {line || " "}
             </span>
           </div>
         ))}
         {isTruncated && (
-          <div className="mt-2 text-stone-400 dark:text-stone-500 text-xs">
+          <div className="mt-2 pl-4 text-stone-400 dark:text-stone-500 text-xs">
             ... ({MAX_LINES} lines shown)
           </div>
         )}

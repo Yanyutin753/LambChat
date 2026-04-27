@@ -6,6 +6,8 @@ import asyncio
 import uuid
 from typing import Any, Callable, Optional, cast
 
+from redis.asyncio import Redis
+
 from src.infra.channel.base import UserChannelManager
 from src.infra.channel.channel_storage import ChannelStorage
 from src.infra.channel.feishu.channel import FEISHU_AVAILABLE, FeishuChannel
@@ -45,7 +47,7 @@ class FeishuChannelManager(UserChannelManager):
         self._active_app_ids: dict[str, str] = {}  # app_id -> channel_key
         self._instance_id = uuid.uuid4().hex
         self._lease_tasks: dict[str, asyncio.Task] = {}
-        self._lease_redis = None
+        self._lease_redis: Redis | None = None
 
     @classmethod
     def get_instance(cls) -> "FeishuChannelManager":

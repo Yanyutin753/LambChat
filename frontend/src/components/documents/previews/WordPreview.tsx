@@ -79,33 +79,44 @@ const wordContentStyles = `
     width: 100%;
     margin: 1rem 0;
     border-collapse: collapse;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-size: 0.8125rem;
   }
   .word-preview-content th {
-    background: #f9fafb;
-    padding: 0.75rem 1rem;
+    background: #f3f4f6;
+    padding: 0.5rem 0.75rem;
     text-align: left;
     font-weight: 600;
-    border-bottom: 2px solid #e5e7eb;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    border: 1px solid #d1d5db;
+    color: #374151;
   }
   .dark .word-preview-content th {
     background: #1f2937;
-    border-bottom-color: #374151;
+    border-color: #374151;
+    color: #9ca3af;
   }
   .word-preview-content td {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid #e5e7eb;
+    color: #1f2937;
   }
   .dark .word-preview-content td {
-    border-bottom-color: #374151;
+    border-color: #374151;
+    color: #d1d5db;
   }
-  .word-preview-content tr:hover td {
+  .word-preview-content tr:nth-child(even) td {
     background: #f9fafb;
   }
+  .dark .word-preview-content tr:nth-child(even) td {
+    background: rgba(31, 41, 55, 0.5);
+  }
+  .word-preview-content tr:hover td {
+    background: #eff6ff;
+  }
   .dark .word-preview-content tr:hover td {
-    background: #1f2937;
+    background: rgba(59, 130, 246, 0.08);
   }
   .word-preview-content img {
     max-width: 100%;
@@ -319,14 +330,15 @@ const WordPreview = memo(function WordPreview({
   }
 
   return (
-    <div className="h-full overflow-auto bg-white dark:bg-stone-900">
-      <div className="max-w-4xl mx-auto">
-        {/* Document content */}
-        <div className="px-6 py-4 pb-8">
-          <div
-            className={`word-preview-content ${isDark ? "dark" : ""}`}
-            dangerouslySetInnerHTML={{ __html: processedHtml }}
-          />
+    <div className="h-full overflow-auto bg-stone-200 dark:bg-stone-950 py-6">
+      <div className="max-w-[816px] mx-auto">
+        <div className="bg-white dark:bg-stone-900 shadow-lg rounded-sm border border-stone-300/60 dark:border-stone-700/60">
+          <div className="px-16 py-12 min-h-[1056px]">
+            <div
+              className={`word-preview-content ${isDark ? "dark" : ""}`}
+              dangerouslySetInnerHTML={{ __html: processedHtml }}
+            />
+          </div>
         </div>
       </div>
     </div>

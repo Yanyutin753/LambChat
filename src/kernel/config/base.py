@@ -255,6 +255,12 @@ class Settings(BaseSettings):
     NATIVE_MEMORY_APPEND_MAX_DETAILS: int = 8
     NATIVE_MEMORY_RECALL_MIN_SCORE: float = 0.3
 
+    # Audio transcription tool settings
+    ENABLE_AUDIO_TRANSCRIPTION: bool = False
+    AUDIO_TRANSCRIPTION_API_KEY: str = ""
+    AUDIO_TRANSCRIPTION_BASE_URL: str = ""
+    AUDIO_TRANSCRIPTION_MODEL: str = "gpt-4o-mini-transcribe"
+
     model_config = {
         "env_file": str(PROJECT_ROOT / ".env"),
         "env_file_encoding": "utf-8",
