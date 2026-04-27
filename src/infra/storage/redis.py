@@ -14,30 +14,55 @@ from src.infra.storage.base import StorageBase
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
+_UNSET = object()
+
+
+def _redis_pool_kwargs(*, socket_timeout: Any = _UNSET) -> dict[str, Any]:
+    kwargs = {
+        "password": settings.REDIS_PASSWORD,
+        "encoding": "utf-8",
+        "decode_responses": True,
+        "max_connections": 50,
+        "socket_timeout": 10,
+        "socket_connect_timeout": 5,
+        "retry_on_timeout": True,
+    }
+    if socket_timeout is not _UNSET:
+        kwargs["socket_timeout"] = socket_timeout
+    return kwargs
 
 
 @lru_cache
+def get_redis_connection_pool():
+    """Get the shared Redis connection pool for this process."""
+    return redis.ConnectionPool.from_url(settings.REDIS_URL, **_redis_pool_kwargs())
+
+
+def create_redis_client(*, isolated_pool: bool = False, socket_timeout: Any = _UNSET) -> Redis:
+    """Create a Redis client with the project's standard connection settings."""
+    if isolated_pool:
+        return Redis(
+            connection_pool=redis.ConnectionPool.from_url(
+                settings.REDIS_URL,
+                **_redis_pool_kwargs(socket_timeout=socket_timeout),
+            ),
+            auto_close_connection_pool=True,
+        )
+    return Redis(connection_pool=get_redis_connection_pool())
+
+
 def get_redis_client() -> Redis:
-    """获取 Redis 客户端（单例），配置连接池和超时"""
-    return redis.from_url(
-        settings.REDIS_URL,
-        password=settings.REDIS_PASSWORD,
-        encoding="utf-8",
-        decode_responses=True,
-        max_connections=50,
-        socket_timeout=10,
-        socket_connect_timeout=5,
-        retry_on_timeout=True,
-    )
+    """Get a Redis client backed by the shared connection pool."""
+    return create_redis_client()
 
 
 async def close_redis_client() -> None:
     """关闭 Redis 连接池"""
     try:
-        client = get_redis_client()
-        await client.aclose()
-        get_redis_client.cache_clear()
-        logger.info("Redis client closed")
+        pool = get_redis_connection_pool()
+        await pool.aclose()
+        get_redis_connection_pool.cache_clear()
+        logger.info("Redis connection pool closed")
     except Exception as e:
         logger.warning(f"Error closing Redis client: {e}")
 

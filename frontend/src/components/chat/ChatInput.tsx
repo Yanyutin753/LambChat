@@ -276,6 +276,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
+  const mobileSheetRef = useRef<HTMLDivElement>(null);
 
   // Get label with i18n support
   const label = option.label_key ? t(option.label_key) : option.label;
@@ -294,7 +295,8 @@ const AgentOptionButton = memo(function AgentOptionButton({
       const target = event.target as Node;
       if (
         dropdownRef.current?.contains(target) ||
-        portalRef.current?.contains(target)
+        portalRef.current?.contains(target) ||
+        mobileSheetRef.current?.contains(target)
       ) {
         return;
       }
@@ -375,6 +377,7 @@ const AgentOptionButton = memo(function AgentOptionButton({
             <>
               {/* Mobile: bottom sheet modal */}
               <div
+                ref={mobileSheetRef}
                 className="sm:hidden fixed inset-0 z-[9999] flex flex-col justify-end"
                 onClick={() => setShowDropdown(false)}
               >

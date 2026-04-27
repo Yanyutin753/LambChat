@@ -8,6 +8,7 @@ import {
   getAwayFromBottomThresholdPx,
   getMessageListFooterSpacerClass,
   getInitialBottomItemLocation,
+  getMessageListSessionKey,
   hasNewOutgoingMessage,
   shouldStopAutoScrollOnUserScroll,
   shouldAutoScrollForMessageUpdate,
@@ -55,6 +56,16 @@ test("initializes history at the bottom edge of the latest message", () => {
   });
 
   assert.equal(getInitialBottomItemLocation(0), undefined);
+});
+
+test("changes the message list key when switching sessions", () => {
+  assert.equal(getMessageListSessionKey("session-a"), "session-a");
+  assert.equal(getMessageListSessionKey("session-b"), "session-b");
+  assert.notEqual(
+    getMessageListSessionKey("session-a"),
+    getMessageListSessionKey("session-b"),
+  );
+  assert.equal(getMessageListSessionKey(null), "__new_session__");
 });
 
 test("uses a much tighter bottom threshold on desktop than on mobile", () => {
@@ -720,7 +731,7 @@ test("does not stop auto-scroll for programmatic or tiny upward adjustments", ()
   );
 });
 
-test("does not treat that same early upward scroll as a detach on desktop", () => {
+test("treats that same early upward scroll as a detach on desktop too", () => {
   assert.equal(
     shouldStopAutoScrollOnUserScroll({
       isMobileViewport: false,
@@ -731,7 +742,7 @@ test("does not treat that same early upward scroll as a detach on desktop", () =
       deltaScrollPx: 18,
       scrollTop: 260,
     }),
-    false,
+    true,
   );
 });
 

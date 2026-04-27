@@ -46,6 +46,7 @@ from src.api.routes.agent import model as agent_model
 from src.frontend_resolution import resolve_frontend_target
 from src.infra.local_filesystem import ensure_local_filesystem_dirs
 from src.infra.logging import get_logger, setup_logging
+from src.infra.runtime_services import start_runtime_services, stop_runtime_services
 from src.kernel.config import initialize_settings, settings
 
 logger = get_logger(__name__)
@@ -124,23 +125,9 @@ async def lifespan(app: FastAPI):
     await task_manager.cleanup_stale_tasks()
     logger.info("Stale tasks cleaned up")
 
-    # 启动 Redis pub/sub 监听器（支持分布式任务取消）
-    await task_manager.start_pubsub_listener()
-    logger.info("Task pub/sub listener started")
-
-    # 启动 Settings pub/sub 监听器（支持分布式设置同步）
-    from src.infra.settings.pubsub import get_settings_pubsub
-
-    settings_pubsub = get_settings_pubsub()
-    await settings_pubsub.start_listener()
-    logger.info("Settings pub/sub listener started")
-
-    # 启动 ModelConfig pub/sub 监听器（支持分布式模型配置同步）
-    from src.infra.llm.pubsub import get_model_config_pubsub
-
-    model_config_pubsub = get_model_config_pubsub()
-    await model_config_pubsub.start_listener()
-    logger.info("ModelConfig pub/sub listener started")
+    # 启动分布式运行时监听器（任务/设置/模型/记忆/WebSocket）
+    await start_runtime_services()
+    logger.info("Runtime distributed listeners started")
 
     # 预加载模型列表到内存缓存（确保 async 上下文中也能拿到 API key）
     try:
@@ -150,13 +137,6 @@ async def lifespan(app: FastAPI):
         logger.info("Models preloaded into memory cache")
     except Exception as e:
         logger.warning(f"Failed to preload models: {e}")
-
-    # 启动 Memory pub/sub 监听器（支持分布式记忆缓存失效）
-    from src.infra.memory.distributed import get_memory_pubsub
-
-    memory_pubsub = get_memory_pubsub()
-    await memory_pubsub.start_listener()
-    logger.info("Memory pub/sub listener started")
 
     # 初始化内置 skills
     from src.infra.skill import init_skill_indexes
@@ -220,32 +200,9 @@ async def lifespan(app: FastAPI):
         # 标记所有运行中的任务为失败
         task_manager = get_task_manager()
 
-        # 先停止 pub/sub 监听器，再关闭任务
-        await task_manager.stop_pubsub_listener()
-        logger.info("Task pub/sub listener stopped")
-
-        # 停止 Settings pub/sub 监听器
-        from src.infra.settings.pubsub import get_settings_pubsub
-
-        settings_pubsub = get_settings_pubsub()
-        await settings_pubsub.stop_listener()
-        logger.info("Settings pub/sub listener stopped")
-
-        # 停止 ModelConfig pub/sub 监听器
-        from src.infra.llm.pubsub import get_model_config_pubsub
-
-        model_config_pubsub = get_model_config_pubsub()
-        await model_config_pubsub.stop_listener()
-        logger.info("ModelConfig pub/sub listener stopped")
-
-        # 停止 Memory pub/sub 监听器 + 关闭 memory backend
-        from src.infra.memory.distributed import get_memory_pubsub
-        from src.infra.memory.tools import shutdown as memory_shutdown
-
-        memory_pubsub = get_memory_pubsub()
-        await memory_pubsub.stop_listener()
-        await memory_shutdown()
-        logger.info("Memory pub/sub listener stopped, backend closed")
+        # 先停止分布式运行时监听器，再关闭任务
+        await stop_runtime_services()
+        logger.info("Runtime distributed listeners stopped")
 
         await task_manager.shutdown()
         logger.info("Background tasks marked as failed")

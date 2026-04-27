@@ -9,10 +9,8 @@ import asyncio
 import json
 from typing import Any, Callable, Dict, Optional
 
-from redis.asyncio.client import PubSub
-
 from src.infra.logging import get_logger
-from src.infra.storage.redis import get_redis_client
+from src.infra.pubsub_hub import get_pubsub_hub
 
 from .constants import CANCEL_CHANNEL
 
@@ -36,8 +34,8 @@ class TaskPubSub:
         """
         self._lock = lock
         self._tasks = tasks
-        self._pubsub_task: Optional[asyncio.Task] = None
-        self._pubsub: Optional["PubSub"] = None  # Redis pubsub object for cleanup
+        self._subscription_token: Optional[str] = None
+        self._on_message: Optional[Callable[[Dict[str, Any]], None]] = None
         self._running = False
 
     async def start_listener(
@@ -55,32 +53,18 @@ class TaskPubSub:
         if self._running:
             return
 
+        self._on_message = on_message
+        hub = get_pubsub_hub()
+        self._subscription_token = hub.subscribe(
+            CANCEL_CHANNEL,
+            self._handle_hub_message,
+        )
+        await hub.start()
         self._running = True
+        logger.info(f"Started listening on Redis channel: {CANCEL_CHANNEL}")
 
-        async def listener():
-            try:
-                redis_client = get_redis_client()
-                self._pubsub = redis_client.pubsub()
-                await self._pubsub.subscribe(CANCEL_CHANNEL)
-                logger.info(f"Started listening on Redis channel: {CANCEL_CHANNEL}")
-
-                async for message in self._pubsub.listen():
-                    if not self._running:
-                        break
-
-                    if message["type"] == "message":
-                        await self._handle_cancel_message(message, on_message)
-
-            except asyncio.CancelledError:
-                logger.info("Pub/sub listener cancelled")
-            except Exception as e:
-                logger.error(f"Pub/sub listener error: {e}")
-            finally:
-                await self._cleanup()
-                self._running = False
-                logger.info("Pub/sub listener stopped")
-
-        self._pubsub_task = asyncio.create_task(listener())
+    async def _handle_hub_message(self, message: Dict[str, Any]) -> None:
+        await self._handle_cancel_message(message, self._on_message)
 
     async def _handle_cancel_message(
         self,
@@ -148,17 +132,6 @@ class TaskPubSub:
         except Exception as e:
             logger.error(f"Error processing cancel message: {e}")
 
-    async def _cleanup(self) -> None:
-        """清理 pubsub 连接"""
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(CANCEL_CHANNEL)
-                await self._pubsub.close()
-            except Exception as e:
-                logger.warning(f"Failed to close pubsub connection: {e}")
-            finally:
-                self._pubsub = None
-
     async def stop_listener(self) -> None:
         """
         停止 Redis pub/sub 监听器
@@ -166,24 +139,13 @@ class TaskPubSub:
         应在应用关闭时调用
         """
         self._running = False
+        self._on_message = None
 
-        # Close pubsub connection first to stop listening
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(CANCEL_CHANNEL)
-                await self._pubsub.close()
-            except Exception as e:
-                logger.warning(f"Failed to close pubsub connection: {e}")
-            finally:
-                self._pubsub = None
-
-        # Cancel the listener task
-        if self._pubsub_task and not self._pubsub_task.done():
-            self._pubsub_task.cancel()
-            try:
-                await self._pubsub_task
-            except asyncio.CancelledError:
-                pass
+        if self._subscription_token:
+            hub = get_pubsub_hub()
+            hub.unsubscribe(self._subscription_token)
+            self._subscription_token = None
+            await hub.stop_if_idle()
 
         logger.info("Pub/sub listener stopped")
 

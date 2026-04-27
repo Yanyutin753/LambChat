@@ -337,12 +337,14 @@ class BaseGraphAgent(ABC):
             yield meta_evt
 
             # 构建 config，注入 presenter
+            langsmith_metadata = await presenter.build_langsmith_metadata()
             config: RunnableConfig = {
                 "configurable": {
                     "thread_id": session_id,
                     "presenter": presenter,
                     **kwargs,
                 },
+                "metadata": langsmith_metadata,
                 "recursion_limit": self.recursion_limit,
             }
 

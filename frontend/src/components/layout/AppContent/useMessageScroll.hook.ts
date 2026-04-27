@@ -26,9 +26,13 @@ import {
 } from "./useMessageScroll.externalNavigation";
 import {
   createMessageScrollFollowState,
+  getMessageScrollSessionResetState,
   getMessageUpdateScrollAction,
+  shouldResetMessageScrollStateForSessionChange,
   getNextMessageScrollFollowStateForAtBottomChange,
   getNextMessageScrollFollowStateForBottomScroll,
+  getNextMessageScrollFollowStateForUserGesture,
+  getNextMessageScrollFollowStateForUserIntent,
   getNextMessageScrollFollowStateForUserScroll,
   shouldArmPendingHistoryScroll,
   shouldFinalizeHistoryLoadScroll,
@@ -90,6 +94,7 @@ export function useMessageScroll(
     targetFile: ExternalNavigationTargetFile | null;
     scrollToBottom: boolean;
   } | null>(null);
+  const previousSessionIdRef = useRef(sessionId);
   const previousMessagesRef = useRef(messages);
   const isNearBottomRef = useRef(true);
 
@@ -115,6 +120,45 @@ export function useMessageScroll(
   useEffect(() => {
     isLoadingHistoryRef.current = isLoadingHistory;
   }, [isLoadingHistory]);
+
+  useEffect(() => {
+    const previousSessionId = previousSessionIdRef.current;
+    if (previousSessionId === sessionId) {
+      return;
+    }
+
+    previousSessionIdRef.current = sessionId;
+    if (
+      !shouldResetMessageScrollStateForSessionChange({
+        previousSessionId,
+        sessionId,
+        messageCount: messages.length,
+      })
+    ) {
+      return;
+    }
+
+    const resetState = getMessageScrollSessionResetState();
+
+    cancelAnimationFrame(rafRef.current);
+    cancelAnimationFrame(viewportResizeRafRef.current);
+    scrollCleanupRef.current?.();
+    scrollCleanupRef.current = null;
+
+    userScrolledUpRef.current = resetState.userScrolledUp;
+    autoScrollActiveRef.current = resetState.autoScrollActive;
+    streamLockActiveRef.current = resetState.streamLockActive;
+    manualDetachFromStreamRef.current = resetState.manualDetachFromStream;
+    pendingHistoryScrollRef.current = resetState.pendingHistoryScroll;
+    historyScrollArmedRef.current = resetState.historyScrollArmed;
+    ignoreProgrammaticScrollUntilRef.current = 0;
+    isNearBottomRef.current = resetState.isNearBottom;
+    previousMessagesRef.current = messages;
+    historyLoadActiveRef.current = isLoadingHistory;
+
+    setIsNearBottom(resetState.isNearBottom);
+    setShowScrollTop(resetState.showScrollTop);
+  }, [isLoadingHistory, messages, sessionId]);
 
   const handleVirtuosoAtBottomChange = useCallback((atBottom: boolean) => {
     cancelAnimationFrame(rafRef.current);
@@ -144,17 +188,28 @@ export function useMessageScroll(
       options?: { clearManualDetachFromStream?: boolean },
     ) => {
       const isHistoryFinalizeMode = mode === "history-finalize";
-      const nextFollowState = getNextMessageScrollFollowStateForBottomScroll({
-        state: createMessageScrollFollowState({
-          userScrolledUp: userScrolledUpRef.current,
-          autoScrollActive: autoScrollActiveRef.current,
-          streamLockActive: streamLockActiveRef.current,
-          manualDetachFromStream: manualDetachFromStreamRef.current,
-        }),
-        streamingAssistantActive: streamingAssistantActiveRef.current,
-        clearManualDetachFromStream:
-          options?.clearManualDetachFromStream ?? false,
+      const currentFollowState = createMessageScrollFollowState({
+        userScrolledUp: userScrolledUpRef.current,
+        autoScrollActive: autoScrollActiveRef.current,
+        streamLockActive: streamLockActiveRef.current,
+        manualDetachFromStream: manualDetachFromStreamRef.current,
       });
+      const clearManualDetachFromStream =
+        options?.clearManualDetachFromStream ?? false;
+      const nextFollowState = getNextMessageScrollFollowStateForBottomScroll({
+        state: currentFollowState,
+        streamingAssistantActive: streamingAssistantActiveRef.current,
+        clearManualDetachFromStream,
+      });
+
+      if (
+        nextFollowState === currentFollowState &&
+        currentFollowState.manualDetachFromStream &&
+        !clearManualDetachFromStream
+      ) {
+        return;
+      }
+
       userScrolledUpRef.current = nextFollowState.userScrolledUp;
       autoScrollActiveRef.current = nextFollowState.autoScrollActive;
       streamLockActiveRef.current = nextFollowState.streamLockActive;
@@ -233,7 +288,54 @@ export function useMessageScroll(
 
     const lastScrollTop = { value: 0 };
     const lastScrollTime = { value: 0 };
+    let touchStartY: number | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const applyFollowState = (
+      nextFollowState: ReturnType<
+        typeof getNextMessageScrollFollowStateForUserScroll
+      >,
+    ) => {
+      const stoppedAutoScroll =
+        nextFollowState.autoScrollActive !== autoScrollActiveRef.current;
+      userScrolledUpRef.current = nextFollowState.userScrolledUp;
+      autoScrollActiveRef.current = nextFollowState.autoScrollActive;
+      streamLockActiveRef.current = nextFollowState.streamLockActive;
+      manualDetachFromStreamRef.current =
+        nextFollowState.manualDetachFromStream;
+      if (stoppedAutoScroll) {
+        pendingHistoryScrollRef.current = false;
+      }
+    };
+
+    const detachFromUserGesture = (
+      transition: (args: {
+        state: ReturnType<typeof createMessageScrollFollowState>;
+        isMobileViewport: boolean;
+        streamingAssistantActive: boolean;
+      }) => ReturnType<typeof createMessageScrollFollowState>,
+    ) => {
+      const currentState = createMessageScrollFollowState({
+        userScrolledUp: userScrolledUpRef.current,
+        autoScrollActive: autoScrollActiveRef.current,
+        streamLockActive: streamLockActiveRef.current,
+        manualDetachFromStream: manualDetachFromStreamRef.current,
+      });
+      const nextFollowState = transition({
+        state: currentState,
+        isMobileViewport,
+        streamingAssistantActive: streamingAssistantActiveRef.current,
+      });
+
+      if (nextFollowState === currentState) {
+        return;
+      }
+
+      applyFollowState(nextFollowState);
+      ignoreProgrammaticScrollUntilRef.current = 0;
+      scrollCleanupRef.current?.();
+      scrollCleanupRef.current = null;
+    };
 
     const handleScroll = () => {
       const now = Date.now();
@@ -263,16 +365,7 @@ export function useMessageScroll(
         deltaScrollPx: upwardScrollPx,
         scrollTop,
       });
-      const stoppedAutoScroll =
-        nextFollowState.autoScrollActive !== autoScrollActiveRef.current;
-      userScrolledUpRef.current = nextFollowState.userScrolledUp;
-      autoScrollActiveRef.current = nextFollowState.autoScrollActive;
-      streamLockActiveRef.current = nextFollowState.streamLockActive;
-      manualDetachFromStreamRef.current =
-        nextFollowState.manualDetachFromStream;
-      if (stoppedAutoScroll) {
-        pendingHistoryScrollRef.current = false;
-      }
+      applyFollowState(nextFollowState);
 
       if (dt < 300 && dScroll > 30 && scrollTop > 200) {
         setShowScrollTop(true);
@@ -290,9 +383,53 @@ export function useMessageScroll(
       lastScrollTime.value = now;
     };
 
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? null;
+      detachFromUserGesture(getNextMessageScrollFollowStateForUserIntent);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!isMobileViewport || touchStartY === null) {
+        return;
+      }
+
+      const currentTouchY = event.touches[0]?.clientY;
+      if (typeof currentTouchY !== "number") {
+        return;
+      }
+
+      const upwardGestureDeltaPx = touchStartY - currentTouchY;
+      if (upwardGestureDeltaPx <= 6) {
+        return;
+      }
+
+      detachFromUserGesture(getNextMessageScrollFollowStateForUserGesture);
+      touchStartY = currentTouchY;
+    };
+
+    const resetTouchTracking = () => {
+      touchStartY = null;
+    };
+
     scroller.addEventListener("scroll", handleScroll, { passive: true });
+    scroller.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    scroller.addEventListener("touchmove", handleTouchMove, {
+      passive: true,
+    });
+    scroller.addEventListener("touchend", resetTouchTracking, {
+      passive: true,
+    });
+    scroller.addEventListener("touchcancel", resetTouchTracking, {
+      passive: true,
+    });
     return () => {
       scroller.removeEventListener("scroll", handleScroll);
+      scroller.removeEventListener("touchstart", handleTouchStart);
+      scroller.removeEventListener("touchmove", handleTouchMove);
+      scroller.removeEventListener("touchend", resetTouchTracking);
+      scroller.removeEventListener("touchcancel", resetTouchTracking);
       if (timer) clearTimeout(timer);
     };
   }, [awayFromBottomThresholdPx, isMobileViewport, messages.length]);

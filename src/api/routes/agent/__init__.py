@@ -81,7 +81,7 @@ BUILTIN_TOOLS = [
     ),
     ToolInfo(
         name="grep",
-        description="在文件中搜索内容",
+        description="在文件中搜索内容；避免全局搜索，先缩小路径范围再搜",
         category="sandbox",
         parameters=[
             ToolParamInfo(

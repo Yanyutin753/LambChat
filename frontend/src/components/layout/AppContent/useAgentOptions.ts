@@ -134,6 +134,36 @@ export function buildAgentOptionValues(
   };
 }
 
+export type AgentOptionSyncMode = "restore" | "reset" | "preserve" | "skip";
+
+export function getAgentOptionSyncMode({
+  currentAgentId,
+  previousAgentId,
+  optionsJson,
+  previousOptionsJson,
+  hasPendingRestoredOptions,
+}: {
+  currentAgentId: string;
+  previousAgentId?: string;
+  optionsJson: string;
+  previousOptionsJson: string;
+  hasPendingRestoredOptions: boolean;
+}): AgentOptionSyncMode {
+  if (hasPendingRestoredOptions) {
+    return "restore";
+  }
+
+  if (!previousAgentId || previousAgentId !== currentAgentId) {
+    return "reset";
+  }
+
+  if (optionsJson === previousOptionsJson) {
+    return "skip";
+  }
+
+  return "preserve";
+}
+
 export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
   const [agentOptionValues, setAgentOptionValues] = useState<
     Record<string, boolean | string | number>
@@ -142,6 +172,9 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
     string,
     boolean | string | number
   > | null>(null);
+  // Track serialized agent options to avoid rebuilding on every agents ref change
+  const prevAgentOptionsJsonRef = useRef<string>("");
+  const prevAgentIdRef = useRef<string | undefined>(undefined);
 
   const currentAgentInfo = agents.find((a) => a.id === currentAgent);
   const currentAgentOptions =
@@ -151,13 +184,48 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
     const options = normalizeAgentOptions(
       agents.find((a) => a.id === currentAgent)?.options,
     );
-    const nextValues = buildAgentOptionValues(
-      options,
-      pendingRestoredOptionsRef.current || undefined,
-    );
+    const optionsJson = JSON.stringify(options);
+    const syncMode = getAgentOptionSyncMode({
+      currentAgentId: currentAgent,
+      previousAgentId: prevAgentIdRef.current,
+      optionsJson,
+      previousOptionsJson: prevAgentOptionsJsonRef.current,
+      hasPendingRestoredOptions: pendingRestoredOptionsRef.current !== null,
+    });
 
-    pendingRestoredOptionsRef.current = null;
-    setAgentOptionValues(nextValues);
+    prevAgentIdRef.current = currentAgent;
+    const prevJson = prevAgentOptionsJsonRef.current;
+    prevAgentOptionsJsonRef.current = optionsJson;
+
+    if (syncMode === "skip") {
+      return;
+    }
+
+    if (syncMode === "restore" && pendingRestoredOptionsRef.current) {
+      const nextValues = buildAgentOptionValues(
+        options,
+        pendingRestoredOptionsRef.current,
+      );
+      pendingRestoredOptionsRef.current = null;
+      setAgentOptionValues(nextValues);
+      return;
+    }
+
+    if (syncMode === "reset" || !prevJson) {
+      setAgentOptionValues(buildAgentOptionValues(options));
+      return;
+    }
+
+    setAgentOptionValues((prev) => {
+      const rebuilt = buildAgentOptionValues(options);
+      for (const key of Object.keys(prev)) {
+        if (key in rebuilt) {
+          (rebuilt as Record<string, boolean | string | number>)[key] =
+            prev[key];
+        }
+      }
+      return rebuilt;
+    });
   }, [currentAgent, agents]);
 
   useEffect(() => {
@@ -165,7 +233,14 @@ export function useAgentOptions(agents: AgentInfo[], currentAgent: string) {
       const options = normalizeAgentOptions(
         agents.find((a) => a.id === currentAgent)?.options,
       );
-      setAgentOptionValues(buildAgentOptionValues(options));
+      // Only update the thinking level default; preserve all other user selections.
+      setAgentOptionValues((prev) => ({
+        ...buildAgentOptionValues(options),
+        // Keep non-thinking user selections intact
+        ...Object.fromEntries(
+          Object.entries(prev).filter(([k]) => k !== "enable_thinking"),
+        ),
+      }));
     };
 
     window.addEventListener(

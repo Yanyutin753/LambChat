@@ -11,9 +11,12 @@ import {
   findRevealPartIndexInMessage,
   findMessageIndexForRunId,
   focusElementForExternalNavigation,
+  getMessageScrollSessionResetState,
   getMessageUpdateScrollAction,
   getNextMessageScrollFollowStateForAtBottomChange,
   getNextMessageScrollFollowStateForBottomScroll,
+  getNextMessageScrollFollowStateForUserGesture,
+  getNextMessageScrollFollowStateForUserIntent,
   getNextMessageScrollFollowStateForUserScroll,
   highlightElementForExternalNavigation,
   scrollElementIntoViewWithRetries,
@@ -42,6 +45,19 @@ test("clears the user-scrolled flag when virtuoso reports bottom reached", () =>
       manualDetachFromStream: true,
     },
   );
+});
+
+test("resets follow and history state when switching sessions", () => {
+  assert.deepEqual(getMessageScrollSessionResetState(), {
+    userScrolledUp: false,
+    autoScrollActive: false,
+    streamLockActive: false,
+    manualDetachFromStream: false,
+    pendingHistoryScroll: false,
+    historyScrollArmed: false,
+    isNearBottom: true,
+    showScrollTop: false,
+  });
 });
 
 test("finds the latest reveal_file tool block for a file target", () => {
@@ -812,6 +828,65 @@ test("marks the active mobile stream as manually detached on the first intention
   assert.equal(nextState.userScrolledUp, true);
   assert.equal(nextState.autoScrollActive, false);
   assert.equal(nextState.streamLockActive, false);
+});
+
+test("detaches the active mobile stream immediately on an explicit upward touch gesture", () => {
+  const nextState = getNextMessageScrollFollowStateForUserGesture({
+    state: {
+      userScrolledUp: false,
+      autoScrollActive: true,
+      streamLockActive: true,
+      manualDetachFromStream: false,
+    },
+    isMobileViewport: true,
+    streamingAssistantActive: true,
+  });
+
+  assert.equal(nextState.userScrolledUp, true);
+  assert.equal(nextState.autoScrollActive, false);
+  assert.equal(nextState.streamLockActive, false);
+  assert.equal(nextState.manualDetachFromStream, true);
+});
+
+test("detaches the active mobile stream immediately when the user starts touching the scroller", () => {
+  const nextState = getNextMessageScrollFollowStateForUserIntent({
+    state: {
+      userScrolledUp: false,
+      autoScrollActive: true,
+      streamLockActive: true,
+      manualDetachFromStream: false,
+    },
+    isMobileViewport: true,
+    streamingAssistantActive: true,
+  });
+
+  assert.equal(nextState.userScrolledUp, true);
+  assert.equal(nextState.autoScrollActive, false);
+  assert.equal(nextState.streamLockActive, false);
+  assert.equal(nextState.manualDetachFromStream, true);
+});
+
+test("detaches the active desktop stream on the first slight upward scroll", () => {
+  const nextState = getNextMessageScrollFollowStateForUserScroll({
+    state: {
+      userScrolledUp: false,
+      autoScrollActive: true,
+      streamLockActive: true,
+      manualDetachFromStream: false,
+    },
+    isMobileViewport: false,
+    streamingAssistantActive: true,
+    programmaticScroll: false,
+    movedUp: true,
+    isAwayFromBottom: false,
+    deltaScrollPx: 12,
+    scrollTop: 260,
+  });
+
+  assert.equal(nextState.userScrolledUp, true);
+  assert.equal(nextState.autoScrollActive, false);
+  assert.equal(nextState.streamLockActive, false);
+  assert.equal(nextState.manualDetachFromStream, false);
 });
 
 test("does not re-arm streaming follow mode while mobile detach lock is active", () => {

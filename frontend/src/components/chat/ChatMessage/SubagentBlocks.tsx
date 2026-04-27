@@ -32,53 +32,24 @@ import {
   isPersistentToolPanelOpen,
 } from "./items/persistentToolPanelState";
 import {
+  subagentPanelStore,
+  type SubagentPanelData,
+} from "./subagentPanelStore";
+import {
   isNearSubagentPanelBottom,
   shouldAutoScrollSubagentPanel,
 } from "./subagentPanelScroll";
 import { shouldAutoOpenSubagentPanel } from "./subagentPanelControl";
-
-// ==========================================
-// Reactive subagent panel data store
-// ==========================================
-
-interface SubagentPanelData {
-  agentId: string;
-  agentName: string;
-  input: string;
-  result?: string;
-  success?: boolean;
-  error?: string;
-  isPending?: boolean;
-  parts?: MessagePart[];
-  startedAt?: number;
-  completedAt?: number;
-  status?: "pending" | "running" | "complete" | "error" | "cancelled";
-}
-
-const subagentDataStore = new Map<string, SubagentPanelData>();
-const subagentDataListeners = new Set<() => void>();
-
-function emitSubagentDataChange() {
-  subagentDataListeners.forEach((fn) => fn());
-}
-
-function setSubagentPanelData(data: SubagentPanelData) {
-  subagentDataStore.set(data.agentId, data);
-  emitSubagentDataChange();
-}
 
 function useSubagentPanelData(agentId: string): SubagentPanelData | undefined {
   const [, forceRender] = useState(0);
 
   useEffect(() => {
     const listener = () => forceRender((n) => n + 1);
-    subagentDataListeners.add(listener);
-    return () => {
-      subagentDataListeners.delete(listener);
-    };
-  }, []);
+    return subagentPanelStore.subscribe(agentId, listener);
+  }, [agentId]);
 
-  return subagentDataStore.get(agentId);
+  return subagentPanelStore.get(agentId);
 }
 
 function formatSubagentName(agentName: string): string {
@@ -124,7 +95,7 @@ function buildSubagentPanelState(data: SubagentPanelData) {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function openSubagentPanelByAgentId(agentId: string): boolean {
-  const data = subagentDataStore.get(agentId);
+  const data = subagentPanelStore.get(agentId);
   if (!data) {
     return false;
   }
@@ -424,7 +395,7 @@ export function SubagentBlock({
 
   // Keep sidebar panel data in sync
   useEffect(() => {
-    setSubagentPanelData({
+    subagentPanelStore.set({
       agentId: agent_id,
       agentName: agent_name,
       input,
@@ -484,7 +455,7 @@ export function SubagentBlock({
 
   useEffect(() => {
     return () => {
-      subagentDataStore.delete(agent_id);
+      subagentPanelStore.delete(agent_id);
     };
   }, [agent_id]);
 

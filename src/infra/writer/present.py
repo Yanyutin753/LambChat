@@ -150,11 +150,9 @@ class Presenter:
                 logger.warning("Failed to init dual_writer: %s", e)
         return self._dual_writer
 
-    async def _build_trace_metadata(self) -> Dict[str, Any]:
-        """Build trace metadata, enriching it with non-sensitive user identity when available."""
-        metadata: Dict[str, Any] = {
-            "agent_name": self.config.agent_name,
-        }
+    async def _build_identity_metadata(self) -> Dict[str, Any]:
+        """Build non-sensitive user identity metadata for tracing systems."""
+        metadata: Dict[str, Any] = {}
 
         if not self.config.user_id:
             return metadata
@@ -171,6 +169,21 @@ class Presenter:
         except Exception as e:
             logger.debug("Failed to enrich trace metadata for user %s: %s", self.config.user_id, e)
 
+        return metadata
+
+    async def _build_trace_metadata(self) -> Dict[str, Any]:
+        """Build trace metadata, enriching it with non-sensitive user identity when available."""
+        metadata: Dict[str, Any] = {
+            "agent_name": self.config.agent_name,
+        }
+        metadata.update(await self._build_identity_metadata())
+        return metadata
+
+    async def build_langsmith_metadata(self) -> Dict[str, Any]:
+        """Build metadata that should be attached to LangSmith runs."""
+        metadata = await self._build_identity_metadata()
+        if self.config.agent_name:
+            metadata["agent_name"] = self.config.agent_name
         return metadata
 
     async def _ensure_trace(self):

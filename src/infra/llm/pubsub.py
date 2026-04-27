@@ -7,22 +7,17 @@ All other instances subscribe and clear their local LLM client cache.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import uuid
 from typing import Any, Optional
 
-from redis.asyncio.client import PubSub
-
 from src.infra.logging import get_logger
+from src.infra.pubsub_hub import get_pubsub_hub
 from src.infra.storage.redis import get_redis_client
 
 from ..task.constants import MODEL_CONFIG_CHANNEL
 
 logger = get_logger(__name__)
-
-# Maximum reconnect delay (seconds)
-_MAX_RECONNECT_DELAY = 30
 
 
 class ModelConfigPubSub:
@@ -34,8 +29,7 @@ class ModelConfigPubSub:
     """
 
     def __init__(self):
-        self._pubsub_task: Optional[asyncio.Task] = None
-        self._pubsub: Optional["PubSub"] = None
+        self._subscription_token: Optional[str] = None
         self._running = False
         # Unique ID for this instance — used to skip self-published messages
         self._instance_id: str = uuid.uuid4().hex[:8]
@@ -52,45 +46,16 @@ class ModelConfigPubSub:
         if self._running:
             return
 
+        hub = get_pubsub_hub()
+        self._subscription_token = hub.subscribe(
+            MODEL_CONFIG_CHANNEL,
+            self._handle_message,
+        )
+        await hub.start()
         self._running = True
-
-        async def listener():
-            delay = 1
-            while self._running:
-                try:
-                    redis_client = get_redis_client()
-                    self._pubsub = redis_client.pubsub()
-                    await self._pubsub.subscribe(MODEL_CONFIG_CHANNEL)
-                    logger.info(
-                        f"ModelConfig pub/sub listening on channel: {MODEL_CONFIG_CHANNEL} (instance={self._instance_id})"
-                    )
-                    delay = 1  # reset on successful connection
-
-                    async for message in self._pubsub.listen():
-                        if not self._running:
-                            break
-
-                        if message["type"] == "message":
-                            await self._handle_message(message)
-
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"ModelConfig pub/sub listener error: {e}")
-                    if not self._running:
-                        break
-                    # Clean up old pubsub connection before reconnecting
-                    await self._cleanup()
-                    # Auto-reconnect with exponential backoff
-                    logger.info(f"ModelConfig pub/sub reconnecting in {delay}s...")
-                    await asyncio.sleep(delay)
-                    delay = min(delay * 2, _MAX_RECONNECT_DELAY)
-
-            await self._cleanup()
-            self._running = False
-            logger.info("ModelConfig pub/sub listener stopped")
-
-        self._pubsub_task = asyncio.create_task(listener())
+        logger.info(
+            f"ModelConfig pub/sub listening on channel: {MODEL_CONFIG_CHANNEL} (instance={self._instance_id})"
+        )
 
     async def _handle_message(self, message: dict[str, Any]) -> None:
         """Handle an incoming model config change message."""
@@ -118,17 +83,6 @@ class ModelConfigPubSub:
         except Exception as e:
             logger.error(f"[ModelConfigPubSub] Error handling message: {e}")
 
-    async def _cleanup(self) -> None:
-        """Unsubscribe and close the pub/sub connection."""
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(MODEL_CONFIG_CHANNEL)
-                await self._pubsub.close()
-            except Exception as e:
-                logger.warning(f"[ModelConfigPubSub] Cleanup error: {e}")
-            finally:
-                self._pubsub = None
-
     async def stop_listener(self) -> None:
         """Stop the model config pub/sub listener.
 
@@ -136,14 +90,11 @@ class ModelConfigPubSub:
         """
         self._running = False
 
-        if self._pubsub_task and not self._pubsub_task.done():
-            self._pubsub_task.cancel()
-            try:
-                await self._pubsub_task
-            except asyncio.CancelledError:
-                pass
-        # _cleanup() is called by the listener coroutine on exit,
-        # so we don't need to unsubscribe/close here to avoid double-close.
+        if self._subscription_token:
+            hub = get_pubsub_hub()
+            hub.unsubscribe(self._subscription_token)
+            self._subscription_token = None
+            await hub.stop_if_idle()
 
         logger.info("ModelConfig pub/sub listener stopped")
 

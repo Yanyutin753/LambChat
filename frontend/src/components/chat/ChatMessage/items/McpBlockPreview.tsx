@@ -12,46 +12,21 @@ import { createPortal } from "react-dom";
 import { MarkdownContent } from "../MarkdownContent";
 import type { McpContentBlock, McpMultiModalResult } from "./toolUtils";
 import { isMarkdownText, extractText } from "./toolUtils";
-import { ToolResultPanel, closeCurrentToolPanel } from "./ToolResultPanel";
-
-// ── Module-level store for block preview (survives parent unmount) ──
-
-interface BlockPreviewData {
-  type: "image" | "file" | "text";
-  src?: string;
-  text?: string;
-  url?: string;
-  fileName?: string;
-}
-
-const _listeners = new Set<() => void>();
-let _current: BlockPreviewData | null = null;
-
-function _emit() {
-  _listeners.forEach((fn) => fn());
-}
-
-function openBlockPreview(data: BlockPreviewData) {
-  closeCurrentToolPanel();
-  _current = data;
-  _emit();
-}
-
-function closeBlockPreview() {
-  _current = null;
-  _emit();
-}
+import { ToolResultPanel } from "./ToolResultPanel";
+import {
+  closeBlockPreview,
+  getBlockPreview,
+  openBlockPreview,
+  subscribeBlockPreview,
+} from "./blockPreviewStore";
 
 function useBlockPreview() {
   const [, setCount] = useState(0);
   useEffect(() => {
     const fn = () => setCount((c) => c + 1);
-    _listeners.add(fn);
-    return () => {
-      _listeners.delete(fn);
-    };
+    return subscribeBlockPreview(fn);
   }, []);
-  return { preview: _current, close: closeBlockPreview };
+  return { preview: getBlockPreview(), close: closeBlockPreview };
 }
 
 /** Standalone portal — render once at app level, survives any component tree changes */
@@ -152,8 +127,9 @@ export function McpBlockPreview({ block }: { block: McpContentBlock }) {
         <img
           src={src}
           alt={t("chat.message.toolOutput")}
-          className={`max-w-full max-h-48 rounded-md border border-stone-200 dark:border-stone-700 cursor-pointer hover:opacity-80 transition-opacity${!loaded ? " hidden" : ""
-            }`}
+          className={`max-w-full max-h-48 rounded-md border border-stone-200 dark:border-stone-700 cursor-pointer hover:opacity-80 transition-opacity${
+            !loaded ? " hidden" : ""
+          }`}
           onClick={() => {
             if (src) openBlockPreview({ type: "image", src });
           }}

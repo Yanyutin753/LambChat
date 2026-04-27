@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from src.infra.logging import get_logger
+from src.infra.storage.redis import create_redis_client
 from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, ValidationError
 from src.kernel.schemas.role import Role, RoleCreate, RoleLimits, RoleUpdate
@@ -20,13 +21,15 @@ logger = get_logger(__name__)
 _ROLE_OBJ_CACHE_PREFIX = "role:obj:"
 _ROLE_OBJ_VERSION_PREFIX = "role:obj_ver:"
 _ROLE_OBJ_CACHE_TTL = 300  # 5 分钟
+_role_cache_redis = None
 
 
 async def _get_redis():
-    """延迟获取 Redis 客户端，避免模块级循环导入。"""
-    from src.infra.storage.redis import get_redis_client
-
-    return get_redis_client()
+    """Get a dedicated Redis client for role cache operations."""
+    global _role_cache_redis
+    if _role_cache_redis is None:
+        _role_cache_redis = create_redis_client(isolated_pool=True)
+    return _role_cache_redis
 
 
 def _role_to_cache_dict(role: Role) -> dict:

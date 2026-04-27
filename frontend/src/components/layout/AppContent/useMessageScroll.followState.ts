@@ -17,6 +17,14 @@ export interface MessageScrollFollowState {
   manualDetachFromStream: boolean;
 }
 
+export interface MessageScrollSessionResetState
+  extends MessageScrollFollowState {
+  pendingHistoryScroll: boolean;
+  historyScrollArmed: boolean;
+  isNearBottom: boolean;
+  showScrollTop: boolean;
+}
+
 export function createMessageScrollFollowState(
   overrides: Partial<MessageScrollFollowState> = {},
 ): MessageScrollFollowState {
@@ -27,6 +35,60 @@ export function createMessageScrollFollowState(
     manualDetachFromStream: false,
     ...overrides,
   };
+}
+
+export function getMessageScrollSessionResetState(): MessageScrollSessionResetState {
+  return {
+    ...createMessageScrollFollowState(),
+    pendingHistoryScroll: false,
+    historyScrollArmed: false,
+    isNearBottom: true,
+    showScrollTop: false,
+  };
+}
+
+export function shouldResetMessageScrollStateForSessionChange({
+  previousSessionId,
+  sessionId,
+  messageCount,
+}: {
+  previousSessionId?: string | null;
+  sessionId?: string | null;
+  messageCount: number;
+}): boolean {
+  if (previousSessionId === sessionId) {
+    return false;
+  }
+
+  if (previousSessionId == null && sessionId && messageCount > 0) {
+    return false;
+  }
+
+  return true;
+}
+
+export function getNextMessageListSessionKey({
+  previousSessionId,
+  sessionId,
+  messageCount,
+  previousKey,
+}: {
+  previousSessionId?: string | null;
+  sessionId?: string | null;
+  messageCount: number;
+  previousKey: string;
+}): string {
+  if (
+    !shouldResetMessageScrollStateForSessionChange({
+      previousSessionId,
+      sessionId,
+      messageCount,
+    })
+  ) {
+    return previousKey;
+  }
+
+  return sessionId ?? "__new_session__";
 }
 
 export function getNextMessageScrollFollowStateForAtBottomChange({
@@ -67,6 +129,53 @@ export function getNextMessageScrollFollowStateForBottomScroll({
     manualDetachFromStream: clearManualDetachFromStream
       ? false
       : state.manualDetachFromStream,
+  };
+}
+
+export function getNextMessageScrollFollowStateForUserIntent({
+  state,
+  isMobileViewport,
+  streamingAssistantActive,
+}: {
+  state: MessageScrollFollowState;
+  isMobileViewport: boolean;
+  streamingAssistantActive: boolean;
+}): MessageScrollFollowState {
+  if (!isMobileViewport || !state.autoScrollActive) {
+    return state;
+  }
+
+  return {
+    ...state,
+    userScrolledUp: true,
+    autoScrollActive: false,
+    streamLockActive: false,
+    manualDetachFromStream:
+      state.manualDetachFromStream || streamingAssistantActive,
+  };
+}
+
+export function getNextMessageScrollFollowStateForUserGesture({
+  state,
+  isMobileViewport,
+  streamingAssistantActive,
+}: {
+  state: MessageScrollFollowState;
+  isMobileViewport: boolean;
+  streamingAssistantActive: boolean;
+}): MessageScrollFollowState {
+  if (!state.autoScrollActive) {
+    return state;
+  }
+
+  return {
+    ...state,
+    userScrolledUp: true,
+    autoScrollActive: false,
+    streamLockActive: false,
+    manualDetachFromStream:
+      state.manualDetachFromStream ||
+      (isMobileViewport && streamingAssistantActive),
   };
 }
 

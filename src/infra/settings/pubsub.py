@@ -10,22 +10,16 @@ Includes:
 - Instance ID filtering to skip self-published messages
 """
 
-import asyncio
 import json
 import uuid
 from typing import Any, Dict, Optional
 
-from redis.asyncio.client import PubSub
-
 from src.infra.logging import get_logger
-from src.infra.storage.redis import get_redis_client
+from src.infra.pubsub_hub import get_pubsub_hub
 
 from ..task.constants import SETTINGS_CHANNEL
 
 logger = get_logger(__name__)
-
-# Maximum reconnect delay (seconds)
-_MAX_RECONNECT_DELAY = 30
 
 
 class SettingsPubSub:
@@ -37,8 +31,7 @@ class SettingsPubSub:
     """
 
     def __init__(self):
-        self._pubsub_task: Optional[asyncio.Task] = None
-        self._pubsub: Optional["PubSub"] = None
+        self._subscription_token: Optional[str] = None
         self._running = False
         # Unique ID for this instance — used to skip self-published messages
         self._instance_id: str = uuid.uuid4().hex[:8]
@@ -55,43 +48,16 @@ class SettingsPubSub:
         if self._running:
             return
 
+        hub = get_pubsub_hub()
+        self._subscription_token = hub.subscribe(
+            SETTINGS_CHANNEL,
+            self._handle_message,
+        )
+        await hub.start()
         self._running = True
-
-        async def listener():
-            delay = 1
-            while self._running:
-                try:
-                    redis_client = get_redis_client()
-                    self._pubsub = redis_client.pubsub()
-                    await self._pubsub.subscribe(SETTINGS_CHANNEL)
-                    logger.info(
-                        f"Settings pub/sub listening on channel: {SETTINGS_CHANNEL} (instance={self._instance_id})"
-                    )
-                    delay = 1  # reset on successful connection
-
-                    async for message in self._pubsub.listen():
-                        if not self._running:
-                            break
-
-                        if message["type"] == "message":
-                            await self._handle_message(message)
-
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error(f"Settings pub/sub listener error: {e}")
-                    if not self._running:
-                        break
-                    # Auto-reconnect with exponential backoff
-                    logger.info(f"Settings pub/sub reconnecting in {delay}s...")
-                    await asyncio.sleep(delay)
-                    delay = min(delay * 2, _MAX_RECONNECT_DELAY)
-
-            await self._cleanup()
-            self._running = False
-            logger.info("Settings pub/sub listener stopped")
-
-        self._pubsub_task = asyncio.create_task(listener())
+        logger.info(
+            f"Settings pub/sub listening on channel: {SETTINGS_CHANNEL} (instance={self._instance_id})"
+        )
 
     async def _handle_message(self, message: Dict[str, Any]) -> None:
         """Handle an incoming settings change message."""
@@ -117,17 +83,6 @@ class SettingsPubSub:
         except Exception as e:
             logger.error(f"[SettingsPubSub] Error handling message: {e}")
 
-    async def _cleanup(self) -> None:
-        """Unsubscribe and close the pub/sub connection."""
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(SETTINGS_CHANNEL)
-                await self._pubsub.close()
-            except Exception as e:
-                logger.warning(f"[SettingsPubSub] Cleanup error: {e}")
-            finally:
-                self._pubsub = None
-
     async def stop_listener(self) -> None:
         """Stop the settings pub/sub listener.
 
@@ -135,21 +90,11 @@ class SettingsPubSub:
         """
         self._running = False
 
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(SETTINGS_CHANNEL)
-                await self._pubsub.close()
-            except Exception as e:
-                logger.warning(f"[SettingsPubSub] Stop error: {e}")
-            finally:
-                self._pubsub = None
-
-        if self._pubsub_task and not self._pubsub_task.done():
-            self._pubsub_task.cancel()
-            try:
-                await self._pubsub_task
-            except asyncio.CancelledError:
-                pass
+        if self._subscription_token:
+            hub = get_pubsub_hub()
+            hub.unsubscribe(self._subscription_token)
+            self._subscription_token = None
+            await hub.stop_if_idle()
 
         logger.info("Settings pub/sub listener stopped")
 

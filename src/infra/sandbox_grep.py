@@ -7,6 +7,25 @@ import shlex
 from deepagents.backends.protocol import ExecuteResponse, GrepMatch
 
 _DEFAULT_GREP_TIMEOUT = 30
+_EXCLUDED_GLOB_PATTERNS = (
+    "!node_modules/**",
+    "!.git/**",
+    "!dist/**",
+    "!build/**",
+    "!.venv/**",
+    "!venv/**",
+    "!__pycache__/**",
+)
+_EXCLUDED_GREP_DIRECTORIES = (
+    "node_modules",
+    ".git",
+    "dist",
+    "build",
+    ".venv",
+    "venv",
+    "__pycache__",
+)
+_EXCLUDED_GREP_FILES = ("*.tsbuildinfo",)
 
 
 def get_sandbox_grep_timeout(settings_obj: object) -> int:
@@ -20,11 +39,27 @@ def get_sandbox_grep_timeout(settings_obj: object) -> int:
 
 
 def build_grep_command(pattern: str, path: str | None = None, glob: str | None = None) -> str:
-    """Build a literal recursive grep command."""
+    """Build a literal recursive grep command optimized for large code repositories."""
     search_path = shlex.quote(path or ".")
     pattern_escaped = shlex.quote(pattern)
-    include_clause = f"--include={shlex.quote(glob)} " if glob else ""
-    return f"grep -rHnF {include_clause}-e {pattern_escaped} {search_path} 2>/dev/null || true"
+    rg_globs = [glob, *_EXCLUDED_GLOB_PATTERNS] if glob else list(_EXCLUDED_GLOB_PATTERNS)
+    rg_glob_clause = " ".join(f"--glob {shlex.quote(item)}" for item in rg_globs)
+    grep_include_clause = f"--include={shlex.quote(glob)} " if glob else ""
+    grep_exclude_dir_clause = " ".join(
+        f"--exclude-dir={shlex.quote(directory)}" for directory in _EXCLUDED_GREP_DIRECTORIES
+    )
+    grep_exclude_file_clause = " ".join(
+        f"--exclude={shlex.quote(file_name)}" for file_name in _EXCLUDED_GREP_FILES
+    )
+    rg_command = (
+        "rg --fixed-strings --line-number --with-filename --no-heading --color never "
+        f"{rg_glob_clause} {pattern_escaped} {search_path}"
+    )
+    grep_command = (
+        f"grep -rHnF {grep_include_clause}{grep_exclude_dir_clause} {grep_exclude_file_clause} "
+        f"-e {pattern_escaped} {search_path} 2>/dev/null"
+    )
+    return f"(command -v rg >/dev/null 2>&1 && {rg_command}) || {grep_command} || true"
 
 
 def parse_grep_response(result: ExecuteResponse, timeout: int) -> list[GrepMatch] | str:

@@ -5,6 +5,7 @@ import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 import { isMobileDevice } from "../../../../utils/mobile";
 import { ToolResultPanel } from "./ToolResultPanel";
 import { closeCurrentToolPanel } from "./toolPanelRegistry";
+import { createSingletonStore } from "./createSingletonStore";
 
 export interface PersistentToolPanelState {
   title: string;
@@ -24,19 +25,19 @@ export interface PersistentToolPanelState {
   auto?: boolean;
 }
 
-const listeners = new Set<() => void>();
-let currentPanel: PersistentToolPanelState | null = null;
+const panelStore = createSingletonStore<PersistentToolPanelState | null>(null);
 let panelOpen = false;
 
-function emit() {
-  listeners.forEach((listener) => listener());
+export function getPersistentToolPanelState(): PersistentToolPanelState | null {
+  return panelStore.get();
 }
 
-export function getPersistentToolPanelState(): PersistentToolPanelState | null {
-  return currentPanel;
+export function subscribePersistentToolPanel(listener: () => void): () => void {
+  return panelStore.subscribe(listener);
 }
 
 export function isPersistentToolPanelOpen(panelKey?: string): boolean {
+  const currentPanel = panelStore.get();
   if (!panelKey) return panelOpen;
   return !!currentPanel && currentPanel.panelKey === panelKey;
 }
@@ -44,26 +45,24 @@ export function isPersistentToolPanelOpen(panelKey?: string): boolean {
 export function openPersistentToolPanel(panel: PersistentToolPanelState): void {
   if (panel.auto && isMobileDevice()) return;
   closeCurrentToolPanel();
-  currentPanel = panel;
+  panelStore.set(panel);
   panelOpen = true;
-  emit();
 }
 
 export function updatePersistentToolPanel(
   updater: (prev: PersistentToolPanelState) => PersistentToolPanelState,
   panelKey?: string,
 ): void {
+  const currentPanel = panelStore.get();
   if (!currentPanel) return;
   if (panelKey && currentPanel.panelKey !== panelKey) return;
-  currentPanel = updater(currentPanel);
-  emit();
+  panelStore.set(updater(currentPanel));
 }
 
 export function closePersistentToolPanel(): void {
-  if (!currentPanel) return;
-  currentPanel = null;
+  if (!panelStore.get()) return;
+  panelStore.set(null);
   panelOpen = false;
-  emit();
 }
 
 function usePersistentToolPanel() {
@@ -71,14 +70,11 @@ function usePersistentToolPanel() {
 
   useEffect(() => {
     const listener = () => forceRender((count) => count + 1);
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
+    return subscribePersistentToolPanel(listener);
   }, []);
 
   return {
-    panel: currentPanel,
+    panel: panelStore.get(),
     close: closePersistentToolPanel,
   };
 }

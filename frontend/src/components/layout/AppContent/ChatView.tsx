@@ -26,6 +26,7 @@ import {
   getInitialBottomItemLocation,
   getMessageListFooterSpacerClass,
 } from "./messageScrollUtils";
+import { getNextMessageListSessionKey } from "./useMessageScroll";
 import {
   shouldShowMessageOutline,
   extractMessageOutline,
@@ -223,6 +224,19 @@ export function ChatView({
     externalScrollToBottom,
     isLoadingHistory,
   );
+  const previousSessionIdRef = useRef<string | null | undefined>(sessionId);
+  const messageListSessionKeyRef = useRef(sessionId ?? "__new_session__");
+
+  useEffect(() => {
+    const previousSessionId = previousSessionIdRef.current;
+    messageListSessionKeyRef.current = getNextMessageListSessionKey({
+      previousSessionId,
+      sessionId,
+      messageCount: messages.length,
+      previousKey: messageListSessionKeyRef.current,
+    });
+    previousSessionIdRef.current = sessionId;
+  }, [messages.length, sessionId]);
 
   const activeOutlineId = useActiveOutlineItem(
     outlineItems,
@@ -583,6 +597,7 @@ export function ChatView({
           )
         ) : (
           <Virtuoso
+            key={messageListSessionKeyRef.current}
             ref={virtuosoRef}
             className="dark:divide-stone-800 overflow-x-hidden"
             data={messages}

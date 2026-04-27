@@ -13,11 +13,16 @@ from typing import Dict, Optional, Set
 from fastapi import WebSocket
 
 from src.infra.logging import get_logger
+from src.infra.pubsub_hub import get_pubsub_hub
+from src.infra.storage.redis import create_redis_client
 
 logger = get_logger(__name__)
 
-# Redis channel for WebSocket broadcast
-WS_BROADCAST_CHANNEL = "ws:broadcast"
+# Redis key/channel design for distributed WebSocket delivery
+WS_ROUTE_PREFIX = "ws:route"
+WS_DELIVERY_CHANNEL_PREFIX = "ws:deliver"
+WS_ROUTE_TTL_SECONDS = 60
+WS_ROUTE_REFRESH_INTERVAL = 20
 
 
 class ConnectionManager:
@@ -32,10 +37,11 @@ class ConnectionManager:
         # user_id -> Set[WebSocket]
         self._connections: Dict[str, Set[WebSocket]] = {}
         self._lock = asyncio.Lock()
-        self._pubsub_task: Optional[asyncio.Task] = None
-        self._pubsub = None
+        self._subscription_token: Optional[str] = None
+        self._route_refresh_tasks: dict[str, asyncio.Task] = {}
         self._running = False
         self._instance_id = uuid.uuid4().hex
+        self._redis = None
 
     async def connect(self, websocket: WebSocket, user_id: str, accept: bool = True) -> None:
         """用户连接 WebSocket
@@ -51,17 +57,23 @@ class ConnectionManager:
             if user_id not in self._connections:
                 self._connections[user_id] = set()
             self._connections[user_id].add(websocket)
-        logger.info(
-            f"WebSocket connected: user_id={user_id}, total={len(self._connections[user_id])}"
-        )
+            connection_count = len(self._connections[user_id])
+            if connection_count == 1:
+                self._ensure_route_refresh_task(user_id)
+        await self._sync_route_registration(user_id, connection_count)
+        logger.info(f"WebSocket connected: user_id={user_id}, total={connection_count}")
 
     async def disconnect(self, websocket: WebSocket, user_id: str) -> None:
         """用户断开 WebSocket"""
         async with self._lock:
+            connection_count = 0
             if user_id in self._connections:
                 self._connections[user_id].discard(websocket)
-                if not self._connections[user_id]:
+                connection_count = len(self._connections[user_id])
+                if connection_count == 0:
                     del self._connections[user_id]
+                    self._stop_route_refresh_task(user_id)
+        await self._sync_route_registration(user_id, connection_count)
         logger.info(f"WebSocket disconnected: user_id={user_id}")
 
     async def broadcast(self, message: dict) -> int:
@@ -114,51 +126,17 @@ class ConnectionManager:
         if self._running:
             return
 
+        hub = get_pubsub_hub()
+        self._subscription_token = hub.subscribe(
+            self._delivery_channel(self._instance_id),
+            self._handle_pubsub_message,
+        )
+        await hub.start()
         self._running = True
-
-        async def listener():
-            try:
-                from src.infra.storage.redis import get_redis_client
-
-                redis_client = get_redis_client()
-                self._pubsub = redis_client.pubsub()
-                await self._pubsub.subscribe(WS_BROADCAST_CHANNEL)
-                logger.info(
-                    f"WebSocket: Started listening on Redis channel: {WS_BROADCAST_CHANNEL}"
-                )
-
-                async for message in self._pubsub.listen():
-                    if not self._running:
-                        break
-
-                    if message["type"] == "message":
-                        try:
-                            data = json.loads(message["data"])
-                            await self._handle_broadcast_message(data)
-                        except json.JSONDecodeError:
-                            logger.warning(
-                                f"Invalid WebSocket broadcast message: {message['data']}"
-                            )
-                        except Exception as e:
-                            logger.error(f"Error processing WebSocket broadcast: {e}")
-
-            except asyncio.CancelledError:
-                logger.info("WebSocket pub/sub listener cancelled")
-            except Exception as e:
-                logger.error(f"WebSocket pub/sub listener error: {e}")
-            finally:
-                if self._pubsub:
-                    try:
-                        await self._pubsub.unsubscribe(WS_BROADCAST_CHANNEL)
-                        await self._pubsub.close()
-                    except Exception as e:
-                        logger.warning(f"Failed to close WebSocket pubsub: {e}")
-                    finally:
-                        self._pubsub = None
-                self._running = False
-                logger.info("WebSocket pub/sub listener stopped")
-
-        self._pubsub_task = asyncio.create_task(listener())
+        logger.info(
+            "WebSocket: Started listening on Redis channel: %s",
+            self._delivery_channel(self._instance_id),
+        )
 
     async def stop_pubsub_listener(self) -> None:
         """
@@ -167,36 +145,34 @@ class ConnectionManager:
         应在应用关闭时调用
         """
         self._running = False
+        self._cancel_all_route_refresh_tasks()
+        await self._remove_all_route_registrations()
+        await self._close_redis()
 
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(WS_BROADCAST_CHANNEL)
-                await self._pubsub.close()
-            except Exception as e:
-                logger.warning(f"Failed to close WebSocket pubsub: {e}")
-            finally:
-                self._pubsub = None
-
-        if self._pubsub_task and not self._pubsub_task.done():
-            self._pubsub_task.cancel()
-            try:
-                await self._pubsub_task
-            except asyncio.CancelledError:
-                pass
+        if self._subscription_token:
+            hub = get_pubsub_hub()
+            hub.unsubscribe(self._subscription_token)
+            self._subscription_token = None
+            await hub.stop_if_idle()
 
         logger.info("WebSocket pub/sub listener stopped")
 
+    async def _handle_pubsub_message(self, message: dict) -> None:
+        try:
+            data = json.loads(message["data"])
+            await self._handle_broadcast_message(data)
+        except json.JSONDecodeError:
+            logger.warning(f"Invalid WebSocket broadcast message: {message['data']}")
+        except Exception as e:
+            logger.error(f"Error processing WebSocket broadcast: {e}")
+
     async def _handle_broadcast_message(self, data: dict) -> int:
         """Handle a WebSocket broadcast payload received from Redis."""
-        if data.get("source_instance_id") == self._instance_id:
-            return 0
-
         user_id = data.get("user_id")
         msg_content = data.get("message")
         if not user_id or not msg_content:
             return 0
 
-        # Only deliver locally here; rebroadcasting would create a loop.
         return await self._send_to_user_local(user_id, msg_content)
 
     async def _send_to_user_local(self, user_id: str, message: dict) -> int:
@@ -239,39 +215,107 @@ class ConnectionManager:
 
     async def send_to_user_with_broadcast(self, user_id: str, message: dict) -> int:
         """
-        向指定用户发送消息（支持分布式广播）
-
-        先在本地发送，然后通过 Redis 广播到其他实例。
+        向指定用户发送消息（支持分布式定向投递）
 
         Args:
             user_id: 用户 ID
             message: 消息内容
 
         Returns:
-            本地成功发送的连接数
+            发布到的实例通道数量
         """
-        # 本地发送
-        sent_count = await self._send_to_user_local(user_id, message)
-
-        # 广播到其他实例
         try:
-            from src.infra.storage.redis import get_redis_client
-
-            redis_client = get_redis_client()
-            await redis_client.publish(
-                WS_BROADCAST_CHANNEL,
-                json.dumps(
-                    {
-                        "user_id": user_id,
-                        "message": message,
-                        "source_instance_id": self._instance_id,
-                    }
-                ),
+            redis_client = self._get_redis()
+            route_keys = await redis_client.keys(f"{WS_ROUTE_PREFIX}:{user_id}:*")
+            payload = json.dumps(
+                {
+                    "user_id": user_id,
+                    "message": message,
+                    "source_instance_id": self._instance_id,
+                }
             )
-        except Exception as e:
-            logger.warning(f"Failed to broadcast WebSocket message: {e}")
 
-        return sent_count
+            published = 0
+            for route_key in sorted(route_keys):
+                instance_id = route_key.rsplit(":", 1)[-1]
+                await redis_client.publish(self._delivery_channel(instance_id), payload)
+                published += 1
+
+            # Fallback for edge cases where local connections exist but Redis route has
+            # not been registered yet (for example after a transient Redis error).
+            if published == 0:
+                return await self._send_to_user_local(user_id, message)
+            return published
+        except Exception as e:
+            logger.warning(f"Failed to route WebSocket message: {e}")
+            return await self._send_to_user_local(user_id, message)
+
+    @staticmethod
+    def _delivery_channel(instance_id: str) -> str:
+        return f"{WS_DELIVERY_CHANNEL_PREFIX}:{instance_id}"
+
+    def _route_key(self, user_id: str) -> str:
+        return f"{WS_ROUTE_PREFIX}:{user_id}:{self._instance_id}"
+
+    async def _sync_route_registration(self, user_id: str, connection_count: int) -> None:
+        try:
+            redis_client = self._get_redis()
+            route_key = self._route_key(user_id)
+            if connection_count > 0:
+                await redis_client.set(route_key, str(connection_count), ex=WS_ROUTE_TTL_SECONDS)
+            else:
+                await redis_client.delete(route_key)
+        except Exception as e:
+            logger.warning("Failed to sync WebSocket route for user %s: %s", user_id, e)
+
+    def _get_redis(self):
+        if self._redis is None:
+            self._redis = create_redis_client(isolated_pool=True)
+        return self._redis
+
+    async def _close_redis(self) -> None:
+        if self._redis is None:
+            return
+        try:
+            await self._redis.aclose()
+        except Exception as e:
+            logger.warning("Failed to close WebSocket Redis client: %s", e)
+        finally:
+            self._redis = None
+
+    def _ensure_route_refresh_task(self, user_id: str) -> None:
+        if user_id in self._route_refresh_tasks:
+            return
+
+        async def _refresh_loop() -> None:
+            try:
+                while True:
+                    await asyncio.sleep(WS_ROUTE_REFRESH_INTERVAL)
+                    async with self._lock:
+                        connection_count = len(self._connections.get(user_id, set()))
+                    if connection_count <= 0:
+                        return
+                    await self._sync_route_registration(user_id, connection_count)
+            except asyncio.CancelledError:
+                pass
+
+        self._route_refresh_tasks[user_id] = asyncio.create_task(_refresh_loop())
+
+    def _stop_route_refresh_task(self, user_id: str) -> None:
+        task = self._route_refresh_tasks.pop(user_id, None)
+        if task and not task.done():
+            task.cancel()
+
+    def _cancel_all_route_refresh_tasks(self) -> None:
+        for user_id in list(self._route_refresh_tasks.keys()):
+            self._stop_route_refresh_task(user_id)
+
+    async def _remove_all_route_registrations(self) -> None:
+        user_ids = list(self._connections.keys())
+        if not user_ids:
+            return
+        for user_id in user_ids:
+            await self._sync_route_registration(user_id, 0)
 
 
 # Singleton instance

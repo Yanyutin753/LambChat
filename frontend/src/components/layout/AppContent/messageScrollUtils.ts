@@ -94,6 +94,10 @@ export function getInitialBottomItemLocation(
   };
 }
 
+export function getMessageListSessionKey(sessionId?: string | null): string {
+  return sessionId ?? "__new_session__";
+}
+
 export function hasNewOutgoingMessage(
   previousMessages: ScrollMessageLike[],
   nextMessages: ScrollMessageLike[],
@@ -168,13 +172,11 @@ export function shouldAutoScrollForMessageUpdate({
 }
 
 export function shouldStopAutoScrollOnUserScroll({
-  isMobileViewport,
   autoScrollActive,
   programmaticScroll,
   movedUp,
   isAwayFromBottom,
   deltaScrollPx,
-  scrollTop,
 }: {
   isMobileViewport: boolean;
   autoScrollActive: boolean;
@@ -192,11 +194,7 @@ export function shouldStopAutoScrollOnUserScroll({
     return true;
   }
 
-  if (!isMobileViewport) {
-    return false;
-  }
-
-  return deltaScrollPx > 6 && scrollTop >= 0;
+  return deltaScrollPx > 6;
 }
 
 export function shouldAutoScrollAfterViewportChange({

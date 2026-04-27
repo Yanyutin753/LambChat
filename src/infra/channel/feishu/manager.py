@@ -2,16 +2,29 @@
 Feishu channel manager for managing multiple user bot connections.
 """
 
+import asyncio
+import uuid
 from typing import Any, Callable, Optional, cast
 
 from src.infra.channel.base import UserChannelManager
 from src.infra.channel.channel_storage import ChannelStorage
 from src.infra.channel.feishu.channel import FEISHU_AVAILABLE, FeishuChannel
 from src.infra.logging import get_logger
+from src.infra.storage.redis import create_redis_client
 from src.kernel.schemas.channel import ChannelType
 from src.kernel.schemas.feishu import FeishuConfig, FeishuGroupPolicy
 
 logger = get_logger(__name__)
+_FEISHU_LEASE_PREFIX = "feishu:lease"
+_FEISHU_LEASE_TTL_SECONDS = 60
+_FEISHU_LEASE_REFRESH_INTERVAL = 20
+_RELEASE_LEASE_LUA = """
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+    return redis.call("DEL", KEYS[1])
+else
+    return 0
+end
+"""
 
 
 class FeishuChannelManager(UserChannelManager):
@@ -30,6 +43,9 @@ class FeishuChannelManager(UserChannelManager):
         self._message_handler: Optional[Callable] = message_handler
         # Track active app_ids to prevent duplicate bot connections
         self._active_app_ids: dict[str, str] = {}  # app_id -> channel_key
+        self._instance_id = uuid.uuid4().hex
+        self._lease_tasks: dict[str, asyncio.Task] = {}
+        self._lease_redis = None
 
     @classmethod
     def get_instance(cls) -> "FeishuChannelManager":
@@ -105,6 +121,9 @@ class FeishuChannelManager(UserChannelManager):
             except Exception as e:
                 logger.error(f"Error stopping Feishu client for user {user_id}: {e}")
 
+        self._cancel_all_lease_tasks()
+        await self._release_all_leases()
+        await self._close_lease_redis()
         self._channels.clear()
         self._active_app_ids.clear()
         await self._storage.close()
@@ -127,6 +146,14 @@ class FeishuChannelManager(UserChannelManager):
                 )
                 return False
 
+        if not await self._acquire_lease(app_id):
+            logger.info(
+                "[Feishu] Lease for app_id=%s is held by another instance, skipping '%s'",
+                app_id,
+                channel_key,
+            )
+            return False
+
         if channel_key in self._channels:
             await self._channels[channel_key].stop()
             # Clean up old app_id tracking
@@ -140,7 +167,9 @@ class FeishuChannelManager(UserChannelManager):
         if success:
             self._channels[channel_key] = client
             self._active_app_ids[app_id] = channel_key
+            self._ensure_lease_refresh_task(app_id)
             return True
+        await self._release_lease(app_id)
         return False
 
     async def reload_user(self, user_id: str, instance_id: Optional[str] = None) -> bool:
@@ -161,6 +190,8 @@ class FeishuChannelManager(UserChannelManager):
                     del self._active_app_ids[old_app_id]
                 await self._channels[channel_key].stop()
                 del self._channels[channel_key]
+                if old_app_id:
+                    await self._release_lease(old_app_id)
                 logger.info(f"Stopped Feishu client for {channel_key}")
 
             # Check if there's still config for this instance
@@ -183,6 +214,8 @@ class FeishuChannelManager(UserChannelManager):
                     del self._active_app_ids[old_app_id]
                 await self._channels[key].stop()
                 del self._channels[key]
+                if old_app_id:
+                    await self._release_lease(old_app_id)
 
         # Start all enabled clients
         for config_dict in feishu_configs:
@@ -244,6 +277,90 @@ class FeishuChannelManager(UserChannelManager):
         """Check if a user's Feishu bot is connected."""
         channel = self._find_channel(user_id, instance_id)
         return channel is not None and channel._running
+
+    @staticmethod
+    def _lease_key(app_id: str) -> str:
+        return f"{_FEISHU_LEASE_PREFIX}:{app_id}"
+
+    async def _acquire_lease(self, app_id: str) -> bool:
+        try:
+            redis = self._get_lease_redis()
+            claimed = await redis.set(
+                self._lease_key(app_id),
+                self._instance_id,
+                nx=True,
+                ex=_FEISHU_LEASE_TTL_SECONDS,
+            )
+            return bool(claimed)
+        except Exception as e:
+            logger.warning("[Feishu] Failed to acquire lease for app_id=%s: %s", app_id, e)
+            return True
+
+    def _ensure_lease_refresh_task(self, app_id: str) -> None:
+        if app_id in self._lease_tasks:
+            return
+
+        async def _refresh() -> None:
+            try:
+                redis = self._get_lease_redis()
+                while True:
+                    await asyncio.sleep(_FEISHU_LEASE_REFRESH_INTERVAL)
+                    if app_id not in self._active_app_ids:
+                        return
+                    refreshed = await redis.set(
+                        self._lease_key(app_id),
+                        self._instance_id,
+                        xx=True,
+                        ex=_FEISHU_LEASE_TTL_SECONDS,
+                    )
+                    if not refreshed:
+                        logger.warning(
+                            "[Feishu] Lost lease refresh for app_id=%s on instance=%s",
+                            app_id,
+                            self._instance_id,
+                        )
+                        return
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.warning("[Feishu] Lease refresh failed for app_id=%s: %s", app_id, e)
+
+        self._lease_tasks[app_id] = asyncio.create_task(_refresh())
+
+    async def _release_lease(self, app_id: str) -> None:
+        task = self._lease_tasks.pop(app_id, None)
+        if task and not task.done():
+            task.cancel()
+        try:
+            redis = self._get_lease_redis()
+            await redis.eval(_RELEASE_LEASE_LUA, 1, self._lease_key(app_id), self._instance_id)
+        except Exception as e:
+            logger.warning("[Feishu] Failed to release lease for app_id=%s: %s", app_id, e)
+
+    def _cancel_all_lease_tasks(self) -> None:
+        for app_id in list(self._lease_tasks.keys()):
+            task = self._lease_tasks.pop(app_id, None)
+            if task and not task.done():
+                task.cancel()
+
+    async def _release_all_leases(self) -> None:
+        for app_id in list(self._active_app_ids.keys()):
+            await self._release_lease(app_id)
+
+    def _get_lease_redis(self):
+        if self._lease_redis is None:
+            self._lease_redis = create_redis_client(isolated_pool=True)
+        return self._lease_redis
+
+    async def _close_lease_redis(self) -> None:
+        if self._lease_redis is None:
+            return
+        try:
+            await self._lease_redis.aclose()
+        except Exception as e:
+            logger.warning("[Feishu] Failed to close lease redis client: %s", e)
+        finally:
+            self._lease_redis = None
 
 
 # Global instance

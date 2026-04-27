@@ -25,6 +25,7 @@
     border-color 0.3s,
     background-color 0.3s,
     color 0.3s;
+  touch-action: manipulation;
 }
 .chat-tool-btn:hover {
   border-color: color-mix(in srgb, #fbbf24 40%, transparent);

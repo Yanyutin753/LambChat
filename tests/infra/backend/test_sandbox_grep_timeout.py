@@ -32,6 +32,10 @@ daytona_module = _load_module_from_path(
 e2b_module = _load_module_from_path("test_e2b_backend_module", "src/infra/backend/e2b.py")
 DaytonaBackend = daytona_module.DaytonaBackend
 E2BBackend = e2b_module.E2BBackend
+sandbox_grep_module = _load_module_from_path(
+    "test_sandbox_grep_module", "src/infra/sandbox_grep.py"
+)
+build_grep_command = sandbox_grep_module.build_grep_command
 
 
 class _FakeDaytonaProcess:
@@ -72,6 +76,25 @@ class _FakeE2BSandbox:
 def test_sandbox_grep_timeout_setting_defaults_to_30_seconds() -> None:
     assert SETTING_DEFINITIONS["SANDBOX_GREP_TIMEOUT"]["default"] == 30
     assert hasattr(settings, "SANDBOX_GREP_TIMEOUT")
+
+
+def test_build_grep_command_prefers_rg_and_excludes_large_directories() -> None:
+    command = build_grep_command("needle", path="/workspace")
+
+    assert "command -v rg >/dev/null 2>&1" in command
+    assert "rg --fixed-strings --line-number --with-filename --no-heading --color never" in command
+    assert "--glob '!node_modules/**'" in command
+    assert "--glob '!.git/**'" in command
+    assert "--glob '!dist/**'" in command
+    assert "--glob '!build/**'" in command
+    assert "--glob '!.venv/**'" in command
+    assert "/workspace" in command
+
+
+def test_build_grep_command_passes_user_glob_to_rg() -> None:
+    command = build_grep_command("needle", path="/workspace", glob="*.py")
+
+    assert "--glob '*.py'" in command
 
 
 def test_daytona_backend_grep_uses_configured_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

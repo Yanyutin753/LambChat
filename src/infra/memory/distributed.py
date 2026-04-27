@@ -8,12 +8,12 @@ lock prevents concurrent consolidation across instances.
 Follows the same pub/sub pattern as SettingsPubSub.
 """
 
-import asyncio
 import json
 import uuid
 from typing import Any, Dict, Optional
 
 from src.infra.logging import get_logger
+from src.infra.pubsub_hub import get_pubsub_hub
 from src.infra.storage.redis import get_redis_client
 
 logger = get_logger(__name__)
@@ -35,10 +35,6 @@ CONSOLIDATION_LOCK_KEY = "memory:consolidation_lock:{user_id}"
 CONSOLIDATION_LOCK_TTL = 120  # seconds
 AUTO_CAPTURE_LOCK_KEY = "memory:auto_capture_lock:{user_id}"
 AUTO_CAPTURE_LOCK_TTL = 30  # seconds
-
-# Maximum reconnect delay (seconds)
-_MAX_RECONNECT_DELAY = 30
-
 
 # ============================================================================
 # Publisher helpers (called from NativeMemoryBackend)
@@ -131,8 +127,7 @@ class MemoryPubSub:
     """
 
     def __init__(self):
-        self._pubsub_task: Optional[asyncio.Task] = None
-        self._pubsub: Optional[Any] = None
+        self._subscription_token: Optional[str] = None
         self._running = False
         self._instance_id: str = uuid.uuid4().hex[:8]
 
@@ -145,43 +140,18 @@ class MemoryPubSub:
         if self._running:
             return
 
+        hub = get_pubsub_hub()
+        self._subscription_token = hub.subscribe(
+            MEMORY_INVALIDATION_CHANNEL,
+            self._handle_message,
+        )
+        await hub.start()
         self._running = True
-
-        async def listener():
-            delay = 1
-            while self._running:
-                try:
-                    redis_client = get_redis_client()
-                    self._pubsub = redis_client.pubsub()
-                    await self._pubsub.subscribe(MEMORY_INVALIDATION_CHANNEL)
-                    logger.info(
-                        "[MemoryPubSub] Listening on channel: %s (instance=%s)",
-                        MEMORY_INVALIDATION_CHANNEL,
-                        self._instance_id,
-                    )
-                    delay = 1
-
-                    async for message in self._pubsub.listen():
-                        if not self._running:
-                            break
-                        if message["type"] == "message":
-                            await self._handle_message(message)
-
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    logger.error("[MemoryPubSub] Listener error: %s", e)
-                    if not self._running:
-                        break
-                    logger.info("[MemoryPubSub] Reconnecting in %ds...", delay)
-                    await asyncio.sleep(delay)
-                    delay = min(delay * 2, _MAX_RECONNECT_DELAY)
-
-            await self._cleanup()
-            self._running = False
-            logger.info("[MemoryPubSub] Listener stopped")
-
-        self._pubsub_task = asyncio.create_task(listener())
+        logger.info(
+            "[MemoryPubSub] Listening on channel: %s (instance=%s)",
+            MEMORY_INVALIDATION_CHANNEL,
+            self._instance_id,
+        )
 
     async def _handle_message(self, message: Dict[str, Any]) -> None:
         """Invalidate local index cache for the user mentioned in the message."""
@@ -208,28 +178,15 @@ class MemoryPubSub:
         except Exception as e:
             logger.debug("[MemoryPubSub] Error handling message: %s", e)
 
-    async def _cleanup(self) -> None:
-        if self._pubsub:
-            try:
-                await self._pubsub.unsubscribe(MEMORY_INVALIDATION_CHANNEL)
-                await self._pubsub.close()
-            except Exception as e:
-                logger.warning("[MemoryPubSub] Cleanup error: %s", e)
-            finally:
-                self._pubsub = None
-
     async def stop_listener(self) -> None:
         """Stop the memory pub/sub listener."""
         self._running = False
 
-        if self._pubsub_task and not self._pubsub_task.done():
-            self._pubsub_task.cancel()
-            try:
-                await self._pubsub_task
-            except asyncio.CancelledError:
-                pass
-
-        # _cleanup is handled by listener()'s finally block
+        if self._subscription_token:
+            hub = get_pubsub_hub()
+            hub.unsubscribe(self._subscription_token)
+            self._subscription_token = None
+            await hub.stop_if_idle()
 
     @property
     def is_running(self) -> bool:

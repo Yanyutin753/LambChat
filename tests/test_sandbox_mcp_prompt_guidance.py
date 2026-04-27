@@ -1,3 +1,6 @@
+import importlib.util
+from pathlib import Path
+
 import pytest
 
 from src.infra.tool.deferred_manager import DeferredToolManager
@@ -9,6 +12,16 @@ from src.infra.tool.sandbox_mcp_prompt import (
     _maybe_append_overflow_hint,
 )
 from src.infra.tool.tool_search_tool import ToolSearchTool
+
+
+def _load_module_from_path(module_name: str, relative_path: str):
+    path = Path(__file__).parents[1] / relative_path
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 class _FakeTool:
@@ -182,6 +195,45 @@ def test_sandbox_mcp_prompt_requires_schema_inspection_before_first_call() -> No
     assert "before the first `mcporter call`" in prompt
     assert "must inspect its parameters via `execute`" in prompt
     assert "`mcporter list --schema`" in prompt
+
+
+def test_sandbox_mcp_prompt_discourages_repo_wide_grep_searches() -> None:
+    prompt, total = _format_tools_list(
+        {
+            "servers": [
+                {
+                    "name": "playwright",
+                    "status": "ok",
+                    "tools": [
+                        {
+                            "name": "screenshot",
+                            "description": "Take a screenshot.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                                "required": ["url"],
+                            },
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    assert total == 1
+    assert "avoid repo-wide searches" in prompt
+    assert "use `ls` or `glob` first" in prompt
+    assert "narrow `path` before `grep`" in prompt
+
+
+def test_builtin_grep_tool_description_discourages_global_search() -> None:
+    route_source = (Path(__file__).parents[1] / "src/api/routes/agent/__init__.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'name="grep"' in route_source
+    assert "避免全局搜索" in route_source
+    assert "先缩小路径范围" in route_source
 
 
 def test_deferred_manager_applies_disabled_mcp_tools() -> None:

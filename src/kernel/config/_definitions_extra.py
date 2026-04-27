@@ -233,6 +233,13 @@ EXTRA_SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.LOCAL_STORAGE_PATH",
         "default": "./uploads",
     },
+    "ENABLE_LOCAL_FILESYSTEM_FALLBACK": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.FILE_UPLOAD,
+        "subcategory": "storage",
+        "description": "settingDesc.ENABLE_LOCAL_FILESYSTEM_FALLBACK",
+        "default": True,
+    },
     "FILE_UPLOAD_MAX_SIZE_IMAGE": {
         "type": SettingType.NUMBER,
         "category": SettingCategory.FILE_UPLOAD,

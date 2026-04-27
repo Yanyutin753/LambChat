@@ -19,10 +19,15 @@ export {
 
 export {
   createMessageScrollFollowState,
+  getNextMessageListSessionKey,
+  getMessageScrollSessionResetState,
   getMessageUpdateScrollAction,
   getNextMessageScrollFollowStateForAtBottomChange,
   getNextMessageScrollFollowStateForBottomScroll,
+  getNextMessageScrollFollowStateForUserGesture,
+  getNextMessageScrollFollowStateForUserIntent,
   getNextMessageScrollFollowStateForUserScroll,
+  shouldResetMessageScrollStateForSessionChange,
   shouldArmPendingHistoryScroll,
   shouldFinalizeHistoryLoadScroll,
 } from "./useMessageScroll.followState";

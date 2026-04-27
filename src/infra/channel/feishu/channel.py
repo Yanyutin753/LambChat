@@ -22,12 +22,15 @@ from src.infra.channel.feishu.utils import (
     extract_share_card_content,
 )
 from src.infra.logging import get_logger
+from src.infra.storage.redis import get_redis_client
 from src.kernel.schemas.channel import ChannelCapability, ChannelType
 from src.kernel.schemas.feishu import FeishuConfig, FeishuGroupPolicy
 
 logger = get_logger(__name__)
 
 FEISHU_AVAILABLE = importlib.util.find_spec("lark_oapi") is not None
+_PROCESSED_MESSAGE_TTL_SECONDS = 15 * 60
+_PROCESSED_MESSAGE_CACHE_MAX = 1000
 
 
 class FeishuChannel(FeishuSenderMixin, BaseChannel):
@@ -446,13 +449,8 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
 
             # Deduplication check
             message_id = message.message_id
-            if message_id in self._processed_message_ids:
+            if not await self._mark_message_processed(message_id):
                 return
-            self._processed_message_ids[message_id] = None
-
-            # Trim cache
-            while len(self._processed_message_ids) > 1000:
-                self._processed_message_ids.popitem(last=False)
 
             # Skip bot messages
             if sender.sender_type == "bot":
@@ -564,3 +562,34 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
 
         except Exception as e:
             logger.error(f"Error processing Feishu message for user {self.config.user_id}: {e}")
+
+    async def _mark_message_processed(self, message_id: str) -> bool:
+        """Mark a message as processed using local cache plus Redis NX dedupe."""
+        if message_id in self._processed_message_ids:
+            return False
+
+        redis_claimed = True
+        try:
+            redis_client = get_redis_client()
+            redis_claimed = bool(
+                await redis_client.set(
+                    f"feishu:processed:{message_id}",
+                    self.config.instance_id or self.config.user_id,
+                    nx=True,
+                    ex=_PROCESSED_MESSAGE_TTL_SECONDS,
+                )
+            )
+        except Exception as e:
+            logger.warning(
+                "Feishu distributed dedupe unavailable for message %s: %s",
+                message_id,
+                e,
+            )
+
+        if not redis_claimed:
+            return False
+
+        self._processed_message_ids[message_id] = None
+        while len(self._processed_message_ids) > _PROCESSED_MESSAGE_CACHE_MAX:
+            self._processed_message_ids.popitem(last=False)
+        return True

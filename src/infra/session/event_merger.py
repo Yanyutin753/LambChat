@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from src.infra.logging import get_logger
-from src.infra.storage.redis import get_redis_client
+from src.infra.storage.redis import create_redis_client
 from src.kernel.config import settings
 
 logger = get_logger(__name__)
@@ -80,7 +80,7 @@ class EventMerger:
         self.trace_storage = trace_storage
         self._running = False
         self._task: Optional[asyncio.Task] = None
-        self._redis = get_redis_client()
+        self._redis = None
         self._lock_value: Optional[str] = None  # 锁的唯一标识
 
     def start(self):
@@ -88,7 +88,10 @@ class EventMerger:
         if self._running:
             return
         self._running = True
-        self._redis = get_redis_client()
+        if self._redis is None:
+            # Use an isolated Redis pool for merger locks so background
+            # lock traffic does not contend with long-lived shared listeners.
+            self._redis = create_redis_client(isolated_pool=True)
         self._task = asyncio.create_task(self._merge_loop())
         self._task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
         logger.info("EventMerger started with distributed lock support")
@@ -102,6 +105,9 @@ class EventMerger:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        if self._redis is not None:
+            await self._redis.aclose()
+            self._redis = None
         logger.info("EventMerger stopped")
 
     async def _merge_loop(self):
@@ -146,7 +152,7 @@ class EventMerger:
         这样可以确保只有持有锁的实例才能释放锁。
         """
         if not self._redis:
-            return True  # 如果没有 Redis，直接执行
+            self._redis = create_redis_client(isolated_pool=True)
 
         try:
             import uuid

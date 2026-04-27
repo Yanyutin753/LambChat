@@ -41,6 +41,7 @@ from src.infra.tool.backend_utils import (
     get_base_url_from_runtime,
     get_user_id_from_runtime,
 )
+from src.kernel.config import settings
 
 logger = get_logger(__name__)
 
@@ -98,6 +99,11 @@ def get_mime_type(filename: str) -> str:
 def _is_sandbox_backend(backend: Any) -> bool:
     """判断 backend 是否为沙箱类型（支持 shell 命令执行）"""
     return hasattr(backend, "execute") or hasattr(backend, "aexecute")
+
+
+def _local_filesystem_fallback_enabled() -> bool:
+    """Whether non-sandbox reveal flows may read from the process filesystem."""
+    return bool(getattr(settings, "ENABLE_LOCAL_FILESYSTEM_FALLBACK", True))
 
 
 async def _get_storage():
@@ -256,7 +262,11 @@ async def _upload_local_resource(
             abs_path = os.path.normpath(os.path.join(file_dir, local_path))
 
         content = await _download_file_from_backend(backend, abs_path)
-        if content is None and not _is_sandbox_backend(backend):
+        if (
+            content is None
+            and not _is_sandbox_backend(backend)
+            and _local_filesystem_fallback_enabled()
+        ):
             content = await _read_file_from_filesystem(abs_path)
         if content is None:
             return None
@@ -396,7 +406,11 @@ async def reveal_file(
         file_content = await _download_file_from_backend(backend, file_path)
 
         # 非沙箱模式兜底：backend 下载失败时尝试直接读取本地文件系统
-        if file_content is None and not _is_sandbox_backend(backend):
+        if (
+            file_content is None
+            and not _is_sandbox_backend(backend)
+            and _local_filesystem_fallback_enabled()
+        ):
             logger.info(
                 f"[reveal_file] Backend download failed, trying filesystem fallback for {file_path}"
             )
