@@ -51,16 +51,19 @@ async def _require_owned_or_public_admin_assistant(
     return AssistantResponse.model_validate(assistant.model_dump())
 
 
-@router.get("/", response_model=list[AssistantResponse])
+@router.get("", response_model=list[AssistantResponse])
 async def list_assistants(
     scope: str = Query("public", pattern="^(public|mine|all)$"),
     search: str | None = Query(None),
     tags: str | None = Query(None),
+    category: str | None = Query(None),
     user: TokenPayload = Depends(get_current_user_required),
     manager: AssistantManager = Depends(get_assistant_manager),
 ) -> list[AssistantResponse]:
     tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()] if tags else None
-    items = await manager.list_assistants(user.sub, scope=scope, search=search, tags=tag_list)
+    items = await manager.list_assistants(
+        user.sub, scope=scope, search=search, tags=tag_list, category=category
+    )
     return [AssistantResponse.model_validate(item.model_dump()) for item in items]
 
 
@@ -78,7 +81,7 @@ async def get_assistant(
     return AssistantResponse.model_validate(assistant.model_dump())
 
 
-@router.post("/", response_model=AssistantResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AssistantResponse, status_code=status.HTTP_201_CREATED)
 async def create_assistant(
     data: AssistantCreate,
     user: TokenPayload = Depends(get_current_user_required),

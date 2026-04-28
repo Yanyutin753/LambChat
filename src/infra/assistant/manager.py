@@ -21,6 +21,7 @@ class AssistantManager:
         scope: str = "public",
         search: str | None = None,
         tags: list[str] | None = None,
+        category: str | None = None,
     ) -> list[AssistantRecord]:
         public_items = await self.storage.list_public_assistants()
         private_items = await self.storage.list_user_assistants(user_id)
@@ -32,6 +33,8 @@ class AssistantManager:
         else:
             items = public_items
 
+        if category:
+            items = [item for item in items if item.category == category]
         if search:
             needle = search.lower()
             items = [

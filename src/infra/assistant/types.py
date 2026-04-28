@@ -27,6 +27,7 @@ class AssistantRecord(BaseModel):
     created_by: str | None = None
     is_active: bool = True
     tags: list[str] = Field(default_factory=list)
+    category: str = "general"
     avatar_url: str | None = None
     cloned_from_assistant_id: str | None = None
     version: str = "1.0.0"
@@ -47,6 +48,7 @@ class AssistantCreate(BaseModel):
     description: str = ""
     scope: AssistantScope = AssistantScope.PRIVATE
     tags: list[str] = Field(default_factory=list)
+    category: str = "general"
     avatar_url: str | None = None
     version: str = "1.0.0"
     bound_skill_names: list[str] = Field(default_factory=list)
@@ -63,6 +65,7 @@ class AssistantUpdate(BaseModel):
     description: str | None = None
     system_prompt: str | None = None
     tags: list[str] | None = None
+    category: str | None = None
     avatar_url: str | None = None
     is_active: bool | None = None
     version: str | None = None

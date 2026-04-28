@@ -20,10 +20,11 @@ class _FakeAssistantManager:
         scope: str,
         search: str | None = None,
         tags: list[str] | None = None,
+        category: str | None = None,
     ):
         from src.infra.assistant.types import AssistantRecord
 
-        del user_id, search, tags
+        del user_id, search, tags, category
         items = [
             AssistantRecord(
                 assistant_id="public-1",
@@ -130,6 +131,15 @@ def _load_assistant_routes_module():
     return module
 
 
+def test_assistant_collection_routes_use_empty_root_path() -> None:
+    assistant_routes = _load_assistant_routes_module()
+
+    route_paths = {route.path for route in assistant_routes.router.routes}
+
+    assert "" in route_paths
+    assert "/" not in route_paths
+
+
 @pytest.mark.asyncio
 async def test_list_assistants_returns_public_items() -> None:
     assistant_routes = _load_assistant_routes_module()
@@ -140,6 +150,7 @@ async def test_list_assistants_returns_public_items() -> None:
         scope="public",
         search=None,
         tags=None,
+        category=None,
         user=SimpleNamespace(sub="user-1", roles=["user"]),
         manager=manager,
     )
