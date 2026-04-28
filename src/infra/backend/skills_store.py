@@ -115,16 +115,23 @@ class SkillsStoreBackend(BackendProtocol):
     - 匹配：glob("*.md", "/skills/my-skill/")
     """
 
-    def __init__(self, user_id: str, runtime: Any = None):
+    def __init__(
+        self,
+        user_id: str,
+        runtime: Any = None,
+        disabled_skills: Optional[list[str]] = None,
+    ):
         """
         初始化 Skills Store Backend
 
         Args:
             user_id: 用户 ID，用于获取用户可见的 skills
             runtime: ToolRuntime 实例（可选，用于获取 presenter 发送事件）
+            disabled_skills: 会话级禁用的 skills（可选）
         """
         self._user_id = user_id
         self._runtime = runtime
+        self._disabled_skills = disabled_skills
         # 使用缓存的 SkillStorage 实例
         self._storage: Optional[SkillStorage] = None
 
@@ -198,6 +205,39 @@ class SkillsStoreBackend(BackendProtocol):
             return match.group(1)
         return None
 
+    def _get_disabled_skill_names(self) -> set[str]:
+        """获取当前会话禁用的 skill 名称集合。"""
+        if self._disabled_skills is not None:
+            return {str(name) for name in self._disabled_skills}
+
+        if not self._runtime or not hasattr(self._runtime, "config"):
+            return set()
+
+        try:
+            configurable = self._runtime.config.get("configurable", {})
+            disabled_skills = configurable.get("disabled_skills") or []
+            if isinstance(disabled_skills, list):
+                return {str(name) for name in disabled_skills}
+        except Exception:
+            pass
+
+        return set()
+
+    def _is_skill_visible(self, skill_name: str) -> bool:
+        """检查 skill 是否在当前会话中可见。"""
+        return skill_name not in self._get_disabled_skill_names()
+
+    @staticmethod
+    def _skill_not_found_error(skill_name: str) -> str:
+        return f"Skill '{skill_name}' not found"
+
+    def _filter_effective_skills(self, skills: dict[str, Any]) -> dict[str, Any]:
+        """过滤当前会话禁用的 skills。"""
+        disabled = self._get_disabled_skill_names()
+        if not disabled:
+            return skills
+        return {name: data for name, data in skills.items() if name not in disabled}
+
     # ==========================================
     # 读取操作
     # ==========================================
@@ -236,6 +276,8 @@ class SkillsStoreBackend(BackendProtocol):
             )
 
         skill_name, file_name = parsed
+        if not self._is_skill_visible(skill_name):
+            return ReadResult(error=self._skill_not_found_error(skill_name))
         storage = await self._get_storage()
 
         try:
@@ -292,6 +334,8 @@ class SkillsStoreBackend(BackendProtocol):
             )
 
         skill_name, file_name = parsed
+        if not self._is_skill_visible(skill_name):
+            return WriteResult(error=f"Skill '{skill_name}' is disabled for this conversation")
 
         # 校验 skill name 格式
         if not SKILL_NAME_PATTERN.match(skill_name):
@@ -377,6 +421,8 @@ class SkillsStoreBackend(BackendProtocol):
             return EditResult(error=f"Invalid skills path: {file_path}")
 
         skill_name, file_name = parsed
+        if not self._is_skill_visible(skill_name):
+            return EditResult(error=self._skill_not_found_error(skill_name))
         storage = await self._get_storage()
 
         try:
@@ -468,7 +514,7 @@ class SkillsStoreBackend(BackendProtocol):
         try:
             if self._is_skills_root(path):
                 effective_skills = await storage.get_effective_skills(self._user_id)
-                skills = effective_skills.get("skills", {})
+                skills = self._filter_effective_skills(effective_skills.get("skills", {}))
                 logger.info(
                     f"[Skills ls] user={self._user_id}, found {len(skills)} effective skills: {list(skills.keys())}"
                 )
@@ -524,6 +570,8 @@ class SkillsStoreBackend(BackendProtocol):
 
     async def _get_skill_file_paths(self, storage, skill_name: str) -> list[str]:
         """获取 skill 文件路径"""
+        if not self._is_skill_visible(skill_name):
+            return []
         paths = await storage.list_skill_file_paths(skill_name, user_id=self._user_id)
         return paths or []
 
@@ -614,6 +662,15 @@ class SkillsStoreBackend(BackendProtocol):
                     )
                 continue
 
+            if not self._is_skill_visible(skill_name):
+                for original_path, _ in items:
+                    results.append(
+                        FileDownloadResponse(
+                            path=original_path, content=None, error="file_not_found"
+                        )
+                    )
+                continue
+
             files = files_map.get((skill_name, self._user_id), {})
 
             for original_path, file_name in items:
@@ -677,6 +734,10 @@ class SkillsStoreBackend(BackendProtocol):
                     results.append(FileUploadResponse(path=path, error="invalid_path"))
                     continue
 
+                if not self._is_skill_visible(skill_name):
+                    results.append(FileUploadResponse(path=path, error="permission_denied"))
+                    continue
+
                 storage = await self._get_storage()
                 try:
                     from src.infra.skill.binary import guess_mime_type
@@ -731,7 +792,7 @@ class SkillsStoreBackend(BackendProtocol):
             if self._is_skills_root(normalized_path):
                 # Search across all skills
                 effective_skills = await storage.get_effective_skills(self._user_id)
-                skills = effective_skills.get("skills", {})
+                skills = self._filter_effective_skills(effective_skills.get("skills", {}))
                 skill_keys = [(name, self._user_id) for name in skills]
                 all_files = await storage.batch_get_skill_files(skill_keys)
                 matches = self._grep_across_skills(pattern, glob, all_files)
@@ -765,6 +826,9 @@ class SkillsStoreBackend(BackendProtocol):
         file_paths: list[str],
     ) -> GrepResult:
         """在单个 skill 的指定文件中搜索"""
+        if not self._is_skill_visible(skill_name):
+            return GrepResult(matches=[])
+
         if not file_paths:
             return GrepResult(matches=[])
 
@@ -842,7 +906,7 @@ class SkillsStoreBackend(BackendProtocol):
         try:
             if self._is_skills_root(normalized_path):
                 effective_skills = await storage.get_effective_skills(self._user_id)
-                skills = effective_skills.get("skills", {})
+                skills = self._filter_effective_skills(effective_skills.get("skills", {}))
                 entries: list[FileInfo] = []
                 for skill_name in skills:
                     if fnmatch.fnmatch(skill_name, pattern):
@@ -907,15 +971,24 @@ class SkillsStoreBackend(BackendProtocol):
             return count
 
 
-def create_skills_backend(user_id: str, runtime: Any = None) -> SkillsStoreBackend:
+def create_skills_backend(
+    user_id: str,
+    runtime: Any = None,
+    disabled_skills: Optional[list[str]] = None,
+) -> SkillsStoreBackend:
     """
     创建 Skills Store Backend
 
     Args:
         user_id: 用户 ID
         runtime: ToolRuntime 实例（可选）
+        disabled_skills: 会话级禁用的 skills（可选）
 
     Returns:
         SkillsStoreBackend 实例
     """
-    return SkillsStoreBackend(user_id=user_id, runtime=runtime)
+    return SkillsStoreBackend(
+        user_id=user_id,
+        runtime=runtime,
+        disabled_skills=disabled_skills,
+    )
