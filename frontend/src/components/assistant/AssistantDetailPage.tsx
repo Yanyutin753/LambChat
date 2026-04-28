@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Clipboard,
   Globe,
-  Info,
   Lightbulb,
   Lock,
   Package,
