@@ -109,6 +109,20 @@ function MarketplacePage() {
   return <AppContent key="marketplace" activeTab="marketplace" />;
 }
 
+function AssistantsPage() {
+  usePageTitle("nav.assistants", undefined, {
+    description: "nav.assistants",
+  });
+  return <AppContent key="assistants" activeTab="assistants" />;
+}
+
+function AssistantDetailRoute() {
+  usePageTitle("nav.assistantDetail", undefined, {
+    description: "navDesc.assistants",
+  });
+  return <AppContent key="assistant-detail" activeTab="assistant-detail" />;
+}
+
 function UsersPage() {
   usePageTitle("nav.users", undefined, { description: "navDesc.users" });
   return <AppContent key="users" activeTab="users" />;
@@ -255,6 +269,22 @@ function App() {
                   toastMessage={t("errors.noPermission")}
                 >
                   <SkillsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/assistants"
+              element={
+                <ProtectedRoute>
+                  <AssistantsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/assistants/:assistantId"
+              element={
+                <ProtectedRoute>
+                  <AssistantDetailRoute />
                 </ProtectedRoute>
               }
             />

@@ -2,6 +2,7 @@ export type TabType =
   | "chat"
   | "skills"
   | "marketplace"
+  | "assistants"
   | "users"
   | "roles"
   | "settings"
@@ -12,4 +13,5 @@ export type TabType =
   | "models"
   | "files"
   | "notifications"
-  | "memory";
+  | "memory"
+  | "assistant-detail";

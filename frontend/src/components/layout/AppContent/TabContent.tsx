@@ -1,6 +1,8 @@
 import { Suspense, lazy } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Loading } from "../../common";
 import type { TabType } from "./types";
+import type { Assistant } from "../../../types";
 
 const SkillsPanel = lazy(() =>
   import("../../panels/SkillsPanel").then((m) => ({ default: m.SkillsPanel })),
@@ -8,6 +10,11 @@ const SkillsPanel = lazy(() =>
 const MarketplacePanel = lazy(() =>
   import("../../panels/MarketplacePanel").then((m) => ({
     default: m.MarketplacePanel,
+  })),
+);
+const AssistantsPanel = lazy(() =>
+  import("../../panels/AssistantsPanel").then((m) => ({
+    default: m.AssistantsPanel,
   })),
 );
 const UsersPanel = lazy(() =>
@@ -57,6 +64,11 @@ const MemoryPanel = lazy(() =>
     default: m.MemoryPanel,
   })),
 );
+const AssistantDetailPage = lazy(() =>
+  import("../../assistant/AssistantDetailPage").then((m) => ({
+    default: m.AssistantDetailPage,
+  })),
+);
 
 const panelMap: Record<
   string,
@@ -64,6 +76,7 @@ const panelMap: Record<
 > = {
   skills: SkillsPanel,
   marketplace: MarketplacePanel,
+  assistants: AssistantsPanel,
   users: UsersPanel,
   roles: RolesPanel,
   settings: SettingsPanel,
@@ -85,8 +98,51 @@ function PanelLoader() {
   );
 }
 
+function AssistantDetailWrapper() {
+  const { assistantId } = useParams<{ assistantId: string }>();
+  const navigate = useNavigate();
+
+  const handleBack = () => navigate("/assistants");
+  const handleViewAssistant = (id: string) => navigate(`/assistants/${id}`);
+  const handleStartChat = (assistant: Assistant) => {
+    localStorage.setItem(
+      "lambchat_pending_assistant_selection",
+      JSON.stringify({
+        assistantId: assistant.assistant_id,
+        assistantName: assistant.name,
+        assistantPromptSnapshot: assistant.system_prompt,
+        avatarUrl: assistant.avatar_url ?? null,
+      }),
+    );
+    navigate("/chat");
+  };
+
+  if (!assistantId) return null;
+
+  return (
+    <Suspense fallback={<PanelLoader />}>
+      <AssistantDetailPage
+        assistantId={assistantId}
+        onBack={handleBack}
+        onStartChat={handleStartChat}
+        onViewAssistant={handleViewAssistant}
+      />
+    </Suspense>
+  );
+}
+
 export function TabContent({ activeTab }: { activeTab: TabType }) {
   if (activeTab === "chat") return null;
+
+  if (activeTab === "assistant-detail") {
+    return (
+      <main className="flex-1 overflow-hidden">
+        <div className="mx-auto max-w-3xl xl:max-w-5xl w-full h-full flex flex-col">
+          <AssistantDetailWrapper />
+        </div>
+      </main>
+    );
+  }
 
   const Panel = panelMap[activeTab];
   if (!Panel) return null;
