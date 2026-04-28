@@ -42,6 +42,7 @@ import {
   reconcileCurrentModelSelection,
   resolveDefaultModelSelection,
 } from "./modelSelection";
+import { getRestoredAssistantSelection } from "./assistantState";
 import { getRestoredModelSelection } from "./sessionState";
 import { ChatView } from "./ChatView";
 import { Header } from "./Header";
@@ -51,6 +52,7 @@ import {
   getAppViewportHeightCssValue,
   shouldUpdateAppViewportHeight,
 } from "./appViewport";
+import type { AssistantSelection } from "../../../types";
 
 interface AppContentProps {
   activeTab: TabType;
@@ -82,6 +84,9 @@ interface AppShellProps {
     | null;
   currentModelId?: string;
   onSelectModel?: (modelId: string, modelValue: string) => void;
+  currentAssistantId?: string;
+  currentAssistantName?: string;
+  onSelectAssistant?: (selection: AssistantSelection) => void;
   // Share
   sessionId?: string | null;
   sessionName?: string | null;
@@ -107,6 +112,9 @@ function AppShell({
   availableModels,
   currentModelId,
   onSelectModel,
+  currentAssistantId,
+  currentAssistantName,
+  onSelectAssistant,
   sessionId,
   sessionName,
   showOutlineButton,
@@ -189,6 +197,9 @@ function AppShell({
             availableModels={availableModels}
             currentModelId={currentModelId}
             onSelectModel={onSelectModel}
+            currentAssistantId={currentAssistantId}
+            currentAssistantName={currentAssistantName}
+            onSelectAssistant={onSelectAssistant}
             sessionId={sessionId}
             sessionName={sessionName}
             showOutlineButton={showOutlineButton}
@@ -261,6 +272,10 @@ function ChatAppContent({
     disabledSkills: [] as string[],
     disabledMcpTools: [] as string[],
     agentOptions: {} as Record<string, boolean | string | number>,
+    assistantId: "",
+    assistantName: "",
+    assistantPromptSnapshot: "",
+    assistantAvatarUrl: null as string | null,
   });
 
   // 先初始化 useAgent 获取 agents 和 currentAgent
@@ -302,6 +317,11 @@ function ChatAppContent({
     getDisabledSkills: () => sessionConfigRef.current.disabledSkills,
     getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
     getAgentOptions: () => sessionConfigRef.current.agentOptions,
+    getAssistantSelection: () => ({
+      assistantId: sessionConfigRef.current.assistantId,
+      assistantName: sessionConfigRef.current.assistantName,
+      assistantPromptSnapshot: sessionConfigRef.current.assistantPromptSnapshot,
+    }),
     onSkillAdded: (
       skillName: string,
       _description: string,
@@ -345,6 +365,7 @@ function ChatAppContent({
     toggleSkill: toggleSessionSkill,
     toggleMcpTool: toggleSessionMcpTool,
     setAgentOption: setSessionAgentOption,
+    setAssistantSelection,
     resetToDefaults,
     restoreConfig: restoreSessionConfig,
   } = useSessionConfig({
@@ -399,7 +420,12 @@ function ChatAppContent({
       handleToggleAgentOption("model_id", currentModelId);
       setSessionAgentOption("model_id", currentModelId);
     }
-  }, [currentModelValue, currentModelId, handleToggleAgentOption, setSessionAgentOption]);
+  }, [
+    currentModelValue,
+    currentModelId,
+    handleToggleAgentOption,
+    setSessionAgentOption,
+  ]);
 
   const handleSelectModel = useCallback(
     (modelId: string, modelValue: string) => {
@@ -415,6 +441,7 @@ function ChatAppContent({
     sessionConfigRef.current = {
       ...sessionConfig,
       agentOptions: agentOptionValues,
+      assistantAvatarUrl: sessionConfig.assistantAvatarUrl ?? null,
     };
   }, [sessionConfig, agentOptionValues]);
 
@@ -541,7 +568,6 @@ function ChatAppContent({
     [effectiveSkills, sessionConfig.disabledSkills, toggleSessionSkill],
   );
 
-
   // Compute effective counts
   const effectiveEnabledToolsCount = useMemo(
     () => effectiveTools.filter((t) => t.enabled).length,
@@ -665,6 +691,9 @@ function ChatAppContent({
       disabled_skills?: string[];
       disabled_mcp_tools?: string[];
       disabled_tools?: string[];
+      assistant_id?: string;
+      assistant_name?: string;
+      assistant_prompt_snapshot?: string;
     }) => {
       console.log("[AppContent] Restoring session config:", config);
 
@@ -681,6 +710,8 @@ function ChatAppContent({
       // 使用 useSessionConfig 恢复对话级配置
       restoreSessionConfig(config);
 
+      setAssistantSelection(getRestoredAssistantSelection(config));
+
       // 恢复 agent options 到 useAgentOptions
       if (config.agent_options) {
         restoreAgentOptions(config.agent_options);
@@ -694,7 +725,12 @@ function ChatAppContent({
         }
       }
     },
-    [restoreSessionConfig, restoreAgentOptions, switchAgent],
+    [
+      restoreSessionConfig,
+      restoreAgentOptions,
+      setAssistantSelection,
+      switchAgent,
+    ],
   );
 
   const { handleSelectSession, handleNewSession } = useSessionSync({
@@ -752,6 +788,24 @@ function ChatAppContent({
     outlineToggleRef.current?.();
   }, []);
 
+  // Apply pending assistant selection from assistant detail page "Start Chat"
+  useEffect(() => {
+    const pending = localStorage.getItem(
+      "lambchat_pending_assistant_selection",
+    );
+    if (pending) {
+      localStorage.removeItem("lambchat_pending_assistant_selection");
+      try {
+        const selection: AssistantSelection = JSON.parse(pending);
+        if (selection.assistantId) {
+          setAssistantSelection(selection);
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, [setAssistantSelection]);
+
   return (
     <AppShell
       activeTab="chat"
@@ -768,6 +822,9 @@ function ChatAppContent({
       availableModels={filteredModels}
       currentModelId={currentModelId}
       onSelectModel={handleSelectModel}
+      currentAssistantId={sessionConfig.assistantId}
+      currentAssistantName={sessionConfig.assistantName}
+      onSelectAssistant={setAssistantSelection}
       sessionId={sessionId}
       sessionName={sessionName}
       showOutlineButton={shouldShowMessageOutline(messages)}
@@ -865,6 +922,9 @@ function ChatAppContent({
           }
           externalScrollToBottom={externalScrollToBottom}
           outlineToggleRef={outlineToggleRef}
+          assistantId={sessionConfig.assistantId || undefined}
+          assistantName={sessionConfig.assistantName || undefined}
+          assistantAvatarUrl={sessionConfig.assistantAvatarUrl}
         />
         <BlockPreviewPortal />
       </>
