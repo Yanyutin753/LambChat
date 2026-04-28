@@ -90,7 +90,7 @@ export const WelcomePage = memo(function WelcomePage({
       </div>
 
       {/* ChatInput centered — the focal point */}
-      <div className="welcome-input w-[24rem] sm:w-full sm:max-w-[44rem] 2xl:max-w-[54rem]">
+      <div className="welcome-input w-[23rem] sm:w-full sm:max-w-[44rem] 2xl:max-w-[54rem]">
         <ChatInput {...chatInputProps} className="mx-auto w-full px-2" />
       </div>
 
