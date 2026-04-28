@@ -15,12 +15,18 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import get_trace_storage
+from src.infra.storage.redis import get_redis_client
+from src.infra.user.storage import UserStorage
+from src.infra.writer.present import Presenter, PresenterConfig
+from src.kernel.schemas.session import SessionUpdate
 
 from .cancellation import TaskCancellation
+from .concurrency import ConcurrencyResult, get_concurrency_limiter, get_registered_executor
 from .exceptions import TaskInterruptedError
 from .executor import TaskExecutor
 from .heartbeat import TaskHeartbeat
 from .pubsub import TaskPubSub
+from .recovery_texts import build_recovery_message, normalize_recovery_language
 from .status import TaskStatus
 
 # 重导出供外部使用
@@ -32,6 +38,9 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+
+RECOVERY_LOCK_PREFIX = "task:recovery:"
+RECOVERY_LOCK_TTL_SECONDS = 300
 
 
 def _generate_run_id() -> str:
@@ -63,7 +72,7 @@ class BackgroundTaskManager:
         self._heartbeat = TaskHeartbeat()
         self._cancellation = TaskCancellation(self._lock, self._tasks)
         self._pubsub = TaskPubSub(self._lock, self._tasks)
-        self._executor = None  # Lazy init in submit
+        self._executor: Optional[TaskExecutor] = None  # Lazy init in submit
 
     @property
     def storage(self) -> SessionStorage:
@@ -71,6 +80,323 @@ class BackgroundTaskManager:
         if self._storage is None:
             self._storage = SessionStorage()
         return self._storage
+
+    def _ensure_executor(self) -> TaskExecutor:
+        """Ensure a task executor exists for local dispatch and recovery."""
+        if self._executor is None:
+            self._executor = TaskExecutor(self.storage, self._run_info, self._heartbeat)
+        return self._executor
+
+    async def _get_preferred_language(self, user_id: Optional[str], session: Any) -> str:
+        """Resolve the preferred language for recovery messages."""
+        if user_id:
+            try:
+                user = await UserStorage().get_by_id(user_id)
+                metadata = getattr(user, "metadata", None) or {}
+                language = metadata.get("language")
+                if language:
+                    return normalize_recovery_language(str(language))
+            except Exception as e:
+                logger.warning("Failed to load user language for recovery: %s", e)
+
+        session_metadata = getattr(session, "metadata", None) or {}
+        return normalize_recovery_language(session_metadata.get("language"))
+
+    async def _get_user_roles(self, user_id: Optional[str]) -> list[str]:
+        """Load the user's current roles for distributed concurrency decisions."""
+        if not user_id:
+            return []
+        try:
+            user = await UserStorage().get_by_id(user_id)
+            return list(getattr(user, "roles", None) or [])
+        except Exception as e:
+            logger.warning("Failed to load user roles for recovery: %s", e)
+            return []
+
+    async def _mark_run_failed(self, run_id: str, reason: str, session: Any) -> None:
+        """Mark a stale run and its trace as failed before recovery."""
+        executor = self._ensure_executor()
+        await executor._update_session_status(
+            session.id,
+            TaskStatus.FAILED,
+            reason,
+            run_id=run_id,
+        )
+        await self.storage.update(
+            session.id,
+            SessionUpdate(
+                metadata={
+                    "task_recoverable": True,
+                    "task_error_code": "server_restart",
+                    "interrupted_run_id": run_id,
+                }
+            ),
+        )
+        try:
+            trace_storage = get_trace_storage()
+            cursor = (
+                trace_storage.collection.find({"run_id": run_id}, {"trace_id": 1, "_id": 0})
+                .sort("started_at", -1)
+                .limit(1)
+            )
+            traces = await cursor.to_list(length=1)
+            if traces:
+                await trace_storage.complete_trace(
+                    traces[0]["trace_id"],
+                    status="error",
+                    metadata={"error": reason, "error_code": "server_restart"},
+                )
+        except Exception as e:
+            logger.warning("Failed to mark trace failed for run %s: %s", run_id, e)
+
+    async def _mark_run_recoverable_failure(
+        self,
+        session_id: str,
+        run_id: str,
+        error_message: str,
+        error_code: str = "server_restart",
+    ) -> None:
+        """Persist a failed task state that is eligible for automatic recovery."""
+        executor = self._ensure_executor()
+        await executor._update_session_status(
+            session_id,
+            TaskStatus.FAILED,
+            error_message,
+            run_id=run_id,
+        )
+        await self.storage.update(
+            session_id,
+            SessionUpdate(
+                metadata={
+                    "task_recoverable": True,
+                    "task_error_code": error_code,
+                    "interrupted_run_id": run_id,
+                }
+            ),
+        )
+
+    async def _submit_recovery_run(
+        self,
+        session: Any,
+        source_run_id: str,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """Submit a new run that resumes the session from the latest checkpoint."""
+        session_metadata = getattr(session, "metadata", None) or {}
+        executor_key = session_metadata.get("executor_key") or "agent_stream"
+        executor_fn = get_registered_executor(str(executor_key))
+        if executor_fn is None:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": f"恢复失败：未找到执行器 {executor_key}",
+            }
+
+        language = await self._get_preferred_language(session.user_id, session)
+        recovery_message = build_recovery_message(reason, language)
+        agent_id = str(session_metadata.get("agent_id") or getattr(session, "agent_id", "search"))
+        new_run_id = _generate_run_id()
+        recovery_trace = Presenter(
+            PresenterConfig(
+                session_id=session.id,
+                agent_id=agent_id,
+                user_id=session.user_id,
+                run_id=new_run_id,
+                enable_storage=False,
+            )
+        )
+        recovery_trace_id = recovery_trace.trace_id
+        user_roles = await self._get_user_roles(session.user_id)
+        limiter = get_concurrency_limiter()
+        task_context = {
+            "executor_key": executor_key,
+            "agent_id": agent_id,
+            "message": recovery_message,
+            "disabled_tools": session_metadata.get("disabled_tools") or None,
+            "agent_options": session_metadata.get("agent_options") or None,
+            "attachments": None,
+            "trace_id": recovery_trace_id,
+            "user_message_written": True,
+            "disabled_skills": session_metadata.get("disabled_skills") or None,
+            "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or None,
+        }
+
+        concurrency_result = await limiter.claim_recovery_slot(
+            user_id=session.user_id,
+            roles=user_roles,
+            old_run_id=source_run_id,
+            new_run_id=new_run_id,
+            session_id=session.id,
+            task_context=task_context,
+        )
+
+        if concurrency_result.result == ConcurrencyResult.REJECTED_QUEUE:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": "恢复失败：当前恢复队列已满",
+            }
+
+        if concurrency_result.result == ConcurrencyResult.STARTED:
+            try:
+                await self.submit(
+                    session_id=session.id,
+                    agent_id=agent_id,
+                    message=recovery_message,
+                    user_id=session.user_id,
+                    executor=executor_fn,
+                    disabled_tools=session_metadata.get("disabled_tools") or None,
+                    agent_options=session_metadata.get("agent_options") or None,
+                    attachments=None,
+                    run_id=new_run_id,
+                    project_id=session_metadata.get("project_id"),
+                    disabled_skills=session_metadata.get("disabled_skills") or None,
+                    disabled_mcp_tools=session_metadata.get("disabled_mcp_tools") or None,
+                    session_name=getattr(session, "name", None),
+                )
+            except Exception:
+                await limiter.release(session.user_id, new_run_id, dequeue=False)
+                raise
+        else:
+            executor = self._ensure_executor()
+            await executor.ensure_session(
+                session.id,
+                agent_id,
+                session.user_id,
+                project_id=session_metadata.get("project_id"),
+                session_name=getattr(session, "name", None),
+            )
+            await executor._update_session_status(
+                session.id,
+                TaskStatus.PENDING,
+                run_id=new_run_id,
+            )
+            trace_presenter = Presenter(
+                PresenterConfig(
+                    session_id=session.id,
+                    agent_id=agent_id,
+                    user_id=session.user_id,
+                    run_id=new_run_id,
+                    trace_id=recovery_trace_id,
+                    enable_storage=True,
+                )
+            )
+            await trace_presenter._ensure_trace()
+            await trace_presenter.emit_user_message(recovery_message)
+            self._run_info[new_run_id] = {
+                "session_id": session.id,
+                "agent_id": agent_id,
+                "user_id": session.user_id,
+                "trace_id": recovery_trace_id,
+                "user_message_written": True,
+            }
+
+        await self.storage.update(
+            session.id,
+            SessionUpdate(
+                metadata={
+                    "current_run_id": new_run_id,
+                    "agent_id": agent_id,
+                    "executor_key": executor_key,
+                    "agent_options": session_metadata.get("agent_options") or {},
+                    "disabled_tools": session_metadata.get("disabled_tools") or [],
+                    "disabled_skills": session_metadata.get("disabled_skills") or [],
+                    "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or [],
+                    "language": language,
+                    "project_id": session_metadata.get("project_id"),
+                    "recovery_of_run_id": source_run_id,
+                    "recovery_reason": reason,
+                    "recovery_requested_at": datetime.now().isoformat(),
+                    "task_recoverable": False,
+                    "task_error_code": None,
+                }
+            ),
+        )
+
+        return {
+            "success": True,
+            "run_id": new_run_id,
+            "resumed_from_run_id": source_run_id,
+            "message": "任务恢复已开始"
+            if concurrency_result.result == ConcurrencyResult.STARTED
+            else "任务恢复已加入队列",
+        }
+
+    async def _resume_interrupted_run(
+        self,
+        session: Any,
+        source_run_id: str,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """Resume an interrupted run in a distributed-safe way."""
+        if not source_run_id:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": None,
+                "message": "没有可恢复的任务",
+            }
+
+        redis_client = get_redis_client()
+        lock_key = f"{RECOVERY_LOCK_PREFIX}{session.id}:{source_run_id}"
+        acquired = await redis_client.set(
+            lock_key,
+            datetime.now().isoformat(),
+            ex=RECOVERY_LOCK_TTL_SECONDS,
+            nx=True,
+        )
+        if not acquired:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": "恢复任务已在其他实例中启动",
+            }
+
+        try:
+            session_metadata = getattr(session, "metadata", None) or {}
+            current_run_id = session_metadata.get("current_run_id")
+            if current_run_id and str(current_run_id) != str(source_run_id):
+                await self._release_recovery_lock(lock_key)
+                return {
+                    "success": False,
+                    "run_id": None,
+                    "resumed_from_run_id": source_run_id,
+                    "message": "该任务已由其他恢复流程接管",
+                }
+
+            await self._mark_run_failed(
+                source_run_id,
+                "Task interrupted (instance unavailable)",
+                session,
+            )
+            return await self._submit_recovery_run(session, source_run_id, reason)
+        except Exception as e:
+            await self._release_recovery_lock(lock_key)
+            logger.error("Failed to resume interrupted run %s: %s", source_run_id, e)
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": f"恢复任务失败: {e}",
+            }
+
+    async def _load_session_record(self, raw_session: dict[str, Any]) -> Any | None:
+        """Load a normalized session model from a raw MongoDB session document."""
+        session_id = raw_session.get("session_id") or str(raw_session.get("_id"))
+        session = await self.storage.get_by_session_id(session_id)
+        if session is not None:
+            return session
+        return await self.storage.get_by_id(session_id)
+
+    async def _release_recovery_lock(self, lock_key: str) -> None:
+        """Release a distributed recovery lock when immediate retry is safe."""
+        try:
+            await get_redis_client().delete(lock_key)
+        except Exception as e:
+            logger.warning("Failed to release recovery lock %s: %s", lock_key, e)
 
     async def submit(
         self,
@@ -106,15 +432,14 @@ class BackgroundTaskManager:
             (run_id, trace_id) 元组
         """
         # 确保 executor 已初始化
-        if self._executor is None:
-            self._executor = TaskExecutor(self.storage, self._run_info, self._heartbeat)
+        task_executor = self._ensure_executor()
 
         # 生成 run_id
         run_id = run_id or _generate_run_id()
 
         async with self._lock:
             # 确保 session 记录存在
-            await self._executor.ensure_session(
+            await task_executor.ensure_session(
                 session_id,
                 agent_id,
                 user_id,
@@ -123,13 +448,13 @@ class BackgroundTaskManager:
             )
 
             # 更新 MongoDB session 状态（包含 current_run_id）
-            await self._executor._update_session_status(
+            await task_executor._update_session_status(
                 session_id, TaskStatus.PENDING, run_id=run_id
             )
 
             # 创建后台任务
             task = asyncio.create_task(
-                self._executor.run_task(
+                task_executor.run_task(
                     session_id,
                     run_id,
                     agent_id,
@@ -340,6 +665,61 @@ class BackgroundTaskManager:
             "message": "取消失败",
         }
 
+    async def resume_session(
+        self,
+        session_id: str,
+        reason: str = "manual_resume",
+    ) -> Dict[str, Any]:
+        """Resume the current interrupted run for a session."""
+        session = await self.storage.get_by_session_id(session_id)
+        if not session:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": None,
+                "message": "会话不存在",
+            }
+
+        session_metadata = session.metadata or {}
+        source_run_id = session_metadata.get("current_run_id")
+        task_status = session_metadata.get("task_status")
+        if not source_run_id:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": None,
+                "message": "没有可恢复的任务",
+            }
+
+        if task_status == TaskStatus.COMPLETED.value:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": "当前任务已经完成，无需恢复",
+            }
+
+        if (
+            session_metadata.get("task_recoverable") is False
+            or session_metadata.get("task_error_code") == "cancelled"
+        ):
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": "该任务已被用户取消，不能恢复",
+            }
+
+        if await self._heartbeat.check_exists(str(source_run_id)):
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": "任务仍在其他实例运行中",
+            }
+
+        return await self._resume_interrupted_run(session, str(source_run_id), reason)
+
     async def cancel_run(
         self, run_id: str, publish: bool = True, user_id: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -460,10 +840,11 @@ class BackgroundTaskManager:
 
             cleaned_count = 0
             for session in running_sessions:
-                session_id = session.get("_id")
+                session_model = await self._load_session_record(session)
+                if session_model is None:
+                    continue
+                session_id = session_model.id
                 run_id = session.get("metadata", {}).get("current_run_id")
-                user_id = session.get("user_id")
-
                 if not run_id:
                     continue
 
@@ -480,19 +861,24 @@ class BackgroundTaskManager:
                 logger.warning(
                     f"Cleaning up stale RUNNING task (no heartbeat): session={session_id}, run_id={run_id}"
                 )
-                if self._executor is None:
-                    self._executor = TaskExecutor(self.storage, self._run_info, self._heartbeat)
-                await self._executor._update_session_status(
-                    session_id,
-                    TaskStatus.FAILED,
-                    "Task interrupted (instance unavailable)",
-                    run_id=run_id,
+                recovery_result = await self._resume_interrupted_run(
+                    session=session_model,
+                    source_run_id=run_id,
+                    reason="server_restart",
                 )
-                if user_id:
-                    try:
-                        await limiter.release(user_id, run_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to release concurrency slot for stale task: {e}")
+                if recovery_result.get("success"):
+                    logger.info(
+                        "Recovered stale RUNNING task: session=%s, old_run=%s, new_run=%s",
+                        session_id,
+                        run_id,
+                        recovery_result.get("run_id"),
+                    )
+                else:
+                    logger.warning(
+                        "Failed to auto-recover stale RUNNING task %s: %s",
+                        run_id,
+                        recovery_result.get("message"),
+                    )
                 cleaned_count += 1
 
             # 清理 PENDING 状态但心跳超时的任务（被分派后 executor 崩溃，状态未更新）
@@ -502,7 +888,10 @@ class BackgroundTaskManager:
             pending_sessions = await cursor.to_list(length=1000)
 
             for session in pending_sessions:
-                session_id = str(session.get("_id"))
+                session_model = await self._load_session_record(session)
+                if session_model is None:
+                    continue
+                session_id = session_model.id
                 run_id = session.get("metadata", {}).get("current_run_id")
                 user_id = session.get("user_id")
 
@@ -530,18 +919,77 @@ class BackgroundTaskManager:
                     f"Cleaning up stale PENDING task (in active set, no heartbeat): "
                     f"session={session_id}, run_id={run_id}"
                 )
-                if self._executor is None:
-                    self._executor = TaskExecutor(self.storage, self._run_info, self._heartbeat)
-                await self._executor._update_session_status(
-                    session_id,
-                    TaskStatus.FAILED,
-                    "Task interrupted (instance unavailable)",
-                    run_id=run_id,
+                recovery_result = await self._resume_interrupted_run(
+                    session=session_model,
+                    source_run_id=run_id,
+                    reason="server_restart",
                 )
-                try:
-                    await limiter.release(user_id, run_id)
-                except Exception as e:
-                    logger.warning(f"Failed to release concurrency slot for stale task: {e}")
+                if recovery_result.get("success"):
+                    logger.info(
+                        "Recovered stale PENDING task: session=%s, old_run=%s, new_run=%s",
+                        session_id,
+                        run_id,
+                        recovery_result.get("run_id"),
+                    )
+                else:
+                    logger.warning(
+                        "Failed to auto-recover stale PENDING task %s: %s",
+                        run_id,
+                        recovery_result.get("message"),
+                    )
+                cleaned_count += 1
+
+            # 清理 FAILED 但可恢复的任务（优雅关闭后重启）
+            cursor = self.storage.collection.find(
+                {
+                    "metadata.task_status": TaskStatus.FAILED.value,
+                    "metadata.task_recoverable": True,
+                    "metadata.task_error_code": "server_restart",
+                }
+            )
+            failed_recoverable_sessions = await cursor.to_list(length=1000)
+
+            for session in failed_recoverable_sessions:
+                session_model = await self._load_session_record(session)
+                if session_model is None:
+                    continue
+                session_id = session_model.id
+                run_id = session.get("metadata", {}).get("current_run_id")
+                if not run_id:
+                    continue
+
+                heartbeat_exists = await self._heartbeat.check_exists(run_id)
+                if heartbeat_exists:
+                    logger.debug(
+                        "Recoverable failed task still has heartbeat: session=%s, run_id=%s",
+                        session_id,
+                        run_id,
+                    )
+                    continue
+
+                logger.warning(
+                    "Recovering failed-but-recoverable task: session=%s, run_id=%s",
+                    session_id,
+                    run_id,
+                )
+                recovery_result = await self._resume_interrupted_run(
+                    session=session_model,
+                    source_run_id=run_id,
+                    reason="server_restart",
+                )
+                if recovery_result.get("success"):
+                    logger.info(
+                        "Recovered failed task: session=%s, old_run=%s, new_run=%s",
+                        session_id,
+                        run_id,
+                        recovery_result.get("run_id"),
+                    )
+                else:
+                    logger.warning(
+                        "Failed to auto-recover failed task %s: %s",
+                        run_id,
+                        recovery_result.get("message"),
+                    )
                 cleaned_count += 1
 
             if cleaned_count > 0:
@@ -613,7 +1061,10 @@ class BackgroundTaskManager:
             abandoned = 0
 
             for session in pending_sessions:
-                session_id = str(session.get("_id"))
+                session_model = await self._load_session_record(session)
+                if session_model is None:
+                    continue
+                session_id = session_model.id
                 run_id = session.get("metadata", {}).get("current_run_id")
                 user_id = session.get("user_id")
 
@@ -661,17 +1112,27 @@ class BackgroundTaskManager:
                             f"Abandoned queued task (no queue entry, no active, no heartbeat): "
                             f"session={session_id}, run_id={run_id}"
                         )
-                        if self._executor is None:
-                            self._executor = TaskExecutor(
-                                self.storage, self._run_info, self._heartbeat
-                            )
-                        await self._executor._update_session_status(
-                            session_id,
-                            TaskStatus.FAILED,
-                            "Task abandoned (server restarted while queued)",
-                            run_id=run_id,
+                        recovery_result = await self._resume_interrupted_run(
+                            session=session_model,
+                            source_run_id=run_id,
+                            reason="server_restart",
                         )
-                        abandoned += 1
+                        if recovery_result.get("success"):
+                            logger.info(
+                                "Recovered abandoned queued task: session=%s, old_run=%s, new_run=%s",
+                                session_id,
+                                run_id,
+                                recovery_result.get("run_id"),
+                            )
+                        else:
+                            executor = self._ensure_executor()
+                            await executor._update_session_status(
+                                session_id,
+                                TaskStatus.FAILED,
+                                "Task abandoned (server restarted while queued)",
+                                run_id=run_id,
+                            )
+                            abandoned += 1
 
             if replayed > 0:
                 logger.info(f"Replayed {replayed} queued tasks on startup")
@@ -706,17 +1167,16 @@ class BackgroundTaskManager:
                     if info:
                         session_id = info.get("session_id")
                         if session_id:
-                            await self._executor._update_session_status(
+                            await self._mark_run_recoverable_failure(
                                 session_id,
-                                TaskStatus.FAILED,
+                                run_id,
                                 "Server shutdown",
-                                run_id=run_id,
                             )
                         # 释放 Redis 并发槽位
                         user_id = info.get("user_id")
                         if user_id:
                             try:
-                                await limiter.release(user_id, run_id)
+                                await limiter.release(user_id, run_id, dequeue=False)
                             except Exception as e:
                                 logger.warning(
                                     f"Failed to release concurrency slot on shutdown: {e}"

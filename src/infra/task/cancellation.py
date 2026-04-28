@@ -12,8 +12,10 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from src.infra.logging import get_logger
+from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import get_trace_storage
 from src.infra.storage.redis import get_redis_client
+from src.kernel.schemas.session import SessionUpdate
 
 from .constants import CANCEL_CHANNEL, INTERRUPT_PREFIX
 from .exceptions import TaskInterruptedError
@@ -132,6 +134,19 @@ class TaskCancellation:
                     logger.info(f"User cancel event recorded: user_id={user_id}, run_id={run_id}")
                 except Exception as e:
                     logger.warning(f"Failed to record user cancel event: {e}")
+            if session_id:
+                try:
+                    await SessionStorage().update(
+                        session_id,
+                        SessionUpdate(
+                            metadata={
+                                "task_recoverable": False,
+                                "task_error_code": "cancelled",
+                            }
+                        ),
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to persist cancel recovery metadata: {e}")
 
         # 4. 调用 agent.close(run_id) 取消 graph 执行
         if run_info:

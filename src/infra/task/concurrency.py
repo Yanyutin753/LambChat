@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -26,6 +27,9 @@ from src.infra.task.constants import HEARTBEAT_TIMEOUT
 logger = logging.getLogger(__name__)
 
 QUEUE_TIMEOUT = 300  # 5 minutes max wait in queue
+USER_LOCK_TTL = 5
+USER_LOCK_WAIT_SECONDS = 5.0
+USER_LOCK_POLL_INTERVAL = 0.05
 
 # ---------------------------------------------------------------------------
 # Executor registry — maps string keys to callables so queued tasks can be
@@ -95,6 +99,10 @@ class UserConcurrencyLimiter:
     def _queue_key(user_id: str) -> str:
         return f"chat:queue:{user_id}"
 
+    @staticmethod
+    def _lock_key(user_id: str) -> str:
+        return f"chat:lock:{user_id}"
+
     async def get_user_limits(self, roles: list[str]) -> Tuple[Optional[int], Optional[int]]:
         """Get effective concurrency limits from user's roles (most permissive wins).
 
@@ -144,6 +152,114 @@ class UserConcurrencyLimiter:
         except Exception as e:
             logger.warning(f"Failed to cleanup stale active entries: {e}")
 
+    async def _acquire_user_lock(self, user_id: str) -> tuple[str, str]:
+        """Acquire a short-lived per-user Redis mutex for distributed-safe slot updates."""
+        lock_key = self._lock_key(user_id)
+        token = uuid.uuid4().hex
+        deadline = time.monotonic() + USER_LOCK_WAIT_SECONDS
+
+        while time.monotonic() < deadline:
+            acquired = await self.redis.set(lock_key, token, ex=USER_LOCK_TTL, nx=True)
+            if acquired:
+                return lock_key, token
+            await asyncio.sleep(USER_LOCK_POLL_INTERVAL)
+
+        raise TimeoutError(f"Timed out acquiring concurrency lock for user {user_id}")
+
+    async def _release_user_lock(self, lock_key: str, token: str) -> None:
+        """Release a per-user Redis mutex if we still own it."""
+        try:
+            current = await self.redis.get(lock_key)
+        except Exception:
+            current = None
+        if current is None or current == token:
+            try:
+                await self.redis.delete(lock_key)
+            except Exception as e:
+                logger.warning(f"Failed to release concurrency lock {lock_key}: {e}")
+
+    async def _queue_task_locked(
+        self,
+        user_id: str,
+        run_id: str,
+        session_id: str,
+        task_context: Optional[Dict[str, Any]],
+        max_concurrent: Optional[int],
+        active_count: int,
+        max_queued: Optional[int],
+    ) -> ConcurrencyResponse:
+        """Queue a task while holding the per-user lock."""
+        if max_queued is not None:
+            queue_length = await self.redis.llen(self._queue_key(user_id))
+            if queue_length >= max_queued:
+                return ConcurrencyResponse(
+                    result=ConcurrencyResult.REJECTED_QUEUE,
+                    max_concurrent=max_concurrent or 0,
+                    active_count=active_count,
+                    queue_length=queue_length,
+                )
+
+        entry = json.dumps(
+            {
+                "run_id": run_id,
+                "session_id": session_id,
+                "user_id": user_id,
+                "queued_at": time.time(),
+                "task_context": task_context or {},
+            }
+        )
+        await self.redis.rpush(self._queue_key(user_id), entry)
+        queue_length = await self.redis.llen(self._queue_key(user_id))
+        logger.info(
+            f"Task queued: user={user_id}, run={run_id}, position={queue_length}, "
+            f"active={active_count}/{max_concurrent}"
+        )
+        return ConcurrencyResponse(
+            result=ConcurrencyResult.QUEUED,
+            queue_position=queue_length,
+            max_concurrent=max_concurrent or 0,
+            active_count=active_count,
+            queue_length=queue_length,
+        )
+
+    async def _acquire_locked(
+        self,
+        user_id: str,
+        roles: list[str],
+        run_id: str,
+        session_id: str,
+        task_context: Optional[Dict[str, Any]] = None,
+    ) -> ConcurrencyResponse:
+        """Try to acquire a slot while holding the per-user lock."""
+        max_concurrent, max_queued = await self.get_user_limits(roles)
+
+        if max_concurrent is None:
+            return ConcurrencyResponse(result=ConcurrencyResult.STARTED)
+
+        await self._cleanup_stale_active(user_id)
+        active_count = await self._get_active_count(user_id)
+
+        if active_count < max_concurrent:
+            await self.redis.zadd(
+                self._active_key(user_id),
+                {run_id: time.time()},
+            )
+            return ConcurrencyResponse(
+                result=ConcurrencyResult.STARTED,
+                max_concurrent=max_concurrent,
+                active_count=active_count + 1,
+            )
+
+        return await self._queue_task_locked(
+            user_id=user_id,
+            run_id=run_id,
+            session_id=session_id,
+            task_context=task_context,
+            max_concurrent=max_concurrent,
+            active_count=active_count,
+            max_queued=max_queued,
+        )
+
     async def acquire(
         self,
         user_id: str,
@@ -154,79 +270,31 @@ class UserConcurrencyLimiter:
     ) -> ConcurrencyResponse:
         """Try to acquire a concurrency slot for a task."""
         try:
-            max_concurrent, max_queued = await self.get_user_limits(roles)
-
-            # No limit configured — allow immediately
-            if max_concurrent is None:
-                return ConcurrencyResponse(result=ConcurrencyResult.STARTED)
-
-            # Cleanup stale entries first (crashed workers)
-            await self._cleanup_stale_active(user_id)
-
-            # Check current active count (only entries with recent heartbeats)
-            active_count = await self._get_active_count(user_id)
-
-            if active_count < max_concurrent:
-                # Slot available — add to sorted set with current timestamp
-                await self.redis.zadd(
-                    self._active_key(user_id),
-                    {run_id: time.time()},
+            lock_key, token = await self._acquire_user_lock(user_id)
+            try:
+                return await self._acquire_locked(
+                    user_id=user_id,
+                    roles=roles,
+                    run_id=run_id,
+                    session_id=session_id,
+                    task_context=task_context,
                 )
-                return ConcurrencyResponse(
-                    result=ConcurrencyResult.STARTED,
-                    max_concurrent=max_concurrent,
-                    active_count=active_count + 1,
-                )
-
-            # Active limit reached — try to queue
-            if max_queued is not None:
-                queue_length = await self.redis.llen(self._queue_key(user_id))
-                if queue_length >= max_queued:
-                    return ConcurrencyResponse(
-                        result=ConcurrencyResult.REJECTED_QUEUE,
-                        max_concurrent=max_concurrent,
-                        active_count=active_count,
-                        queue_length=queue_length,
-                    )
-
-            # Add to queue with full context and timestamp for timeout cleanup
-            entry = json.dumps(
-                {
-                    "run_id": run_id,
-                    "session_id": session_id,
-                    "user_id": user_id,
-                    "queued_at": time.time(),
-                    "task_context": task_context or {},
-                }
-            )
-            await self.redis.rpush(self._queue_key(user_id), entry)
-
-            queue_length = await self.redis.llen(self._queue_key(user_id))
-            logger.info(
-                f"Task queued: user={user_id}, run={run_id}, position={queue_length}, "
-                f"active={active_count}/{max_concurrent}"
-            )
-            return ConcurrencyResponse(
-                result=ConcurrencyResult.QUEUED,
-                queue_position=queue_length,
-                max_concurrent=max_concurrent,
-                active_count=active_count,
-                queue_length=queue_length,
-            )
-
+            finally:
+                await self._release_user_lock(lock_key, token)
         except Exception as e:
             logger.error(f"Concurrency limiter error (fail-open): {e}")
             return ConcurrencyResponse(result=ConcurrencyResult.STARTED)
 
-    async def release(self, user_id: str, run_id: str) -> None:
+    async def release(self, user_id: str, run_id: str, dequeue: bool = True) -> None:
         """Release a concurrency slot and trigger next queued task."""
         try:
-            # Remove from active sorted set
-            await self.redis.zrem(self._active_key(user_id), run_id)
-
-            # Try to pop next task from queue
-            await self._try_dequeue_next(user_id)
-
+            lock_key, token = await self._acquire_user_lock(user_id)
+            try:
+                await self.redis.zrem(self._active_key(user_id), run_id)
+                if dequeue:
+                    await self._try_dequeue_next_locked(user_id)
+            finally:
+                await self._release_user_lock(lock_key, token)
         except Exception as e:
             logger.error(f"Concurrency release error: {e}")
 
@@ -244,12 +312,23 @@ class UserConcurrencyLimiter:
         except Exception as e:
             logger.warning(f"Failed to refresh concurrency entry: {e}")
 
-    async def _try_dequeue_next(self, user_id: str, depth: int = 0) -> None:
+    async def _try_dequeue_next(self, user_id: str) -> None:
         """Try to dequeue next valid (non-expired) task from queue."""
-        if depth >= 20:
-            return
         try:
-            queue_key = self._queue_key(user_id)
+            lock_key, token = await self._acquire_user_lock(user_id)
+            try:
+                await self._try_dequeue_next_locked(user_id)
+            finally:
+                await self._release_user_lock(lock_key, token)
+        except Exception as e:
+            logger.error(f"Dequeue error: {e}")
+
+    async def _try_dequeue_next_locked(self, user_id: str) -> None:
+        """Try to dequeue the next queued task while holding the per-user lock."""
+        queue_key = self._queue_key(user_id)
+        attempts = 0
+        while attempts < 20:
+            attempts += 1
             entry = await self.redis.lpop(queue_key)
             if entry is None:
                 return
@@ -257,36 +336,94 @@ class UserConcurrencyLimiter:
             data = json.loads(entry)
             if time.time() - data.get("queued_at", 0) > QUEUE_TIMEOUT:
                 logger.info(f"Discarding expired queued task: run={data.get('run_id')}")
-                await self._try_dequeue_next(user_id, depth + 1)
-                return
+                continue
 
             run_id = data["run_id"]
             session_id = data["session_id"]
 
-            # Check if we still have capacity (another release might have started one)
             max_concurrent, _ = await self.get_user_limits_from_cache(user_id)
             if max_concurrent is not None:
                 await self._cleanup_stale_active(user_id)
                 active_count = await self._get_active_count(user_id)
                 if active_count >= max_concurrent:
-                    # No slot available, put it back at the front
                     await self.redis.lpush(queue_key, entry)
                     return
 
-            # Add to active set and dispatch
             await self.redis.zadd(self._active_key(user_id), {run_id: time.time()})
             logger.info(f"Task dequeued: user={user_id}, run={run_id}")
             await self._dispatch_queued_task(user_id, run_id, session_id, data)
-
-        except Exception as e:
-            logger.error(f"Dequeue error: {e}")
+            return
 
     async def get_user_limits_from_cache(self, user_id: str) -> Tuple[Optional[int], Optional[int]]:
         """Get limits (cache not implemented, delegates to get_user_limits with empty roles).
 
         Used internally when we don't have role info — falls back to defaults.
         """
-        return 5, 10
+        from src.infra.user.storage import UserStorage
+
+        try:
+            user = await UserStorage().get_by_id(user_id)
+            roles = getattr(user, "roles", None) or []
+            return await self.get_user_limits(roles)
+        except Exception as e:
+            logger.warning(f"Failed to load user limits for {user_id}, using defaults: {e}")
+            return 5, 10
+
+    async def claim_recovery_slot(
+        self,
+        user_id: str,
+        roles: list[str],
+        old_run_id: str,
+        new_run_id: str,
+        session_id: str,
+        task_context: Optional[Dict[str, Any]] = None,
+    ) -> ConcurrencyResponse:
+        """Claim a slot for recovery by swapping the old run or queueing safely."""
+        try:
+            lock_key, token = await self._acquire_user_lock(user_id)
+            try:
+                max_concurrent, max_queued = await self.get_user_limits(roles)
+                active_key = self._active_key(user_id)
+
+                if max_concurrent is None:
+                    if old_run_id:
+                        await self.redis.zrem(active_key, old_run_id)
+                    await self.redis.zadd(active_key, {new_run_id: time.time()})
+                    return ConcurrencyResponse(result=ConcurrencyResult.STARTED)
+
+                await self._cleanup_stale_active(user_id)
+                if await self.redis.zscore(active_key, old_run_id) is not None:
+                    await self.redis.zrem(active_key, old_run_id)
+                    await self.redis.zadd(active_key, {new_run_id: time.time()})
+                    return ConcurrencyResponse(
+                        result=ConcurrencyResult.STARTED,
+                        max_concurrent=max_concurrent,
+                        active_count=await self._get_active_count(user_id),
+                    )
+
+                active_count = await self._get_active_count(user_id)
+                if active_count < max_concurrent:
+                    await self.redis.zadd(active_key, {new_run_id: time.time()})
+                    return ConcurrencyResponse(
+                        result=ConcurrencyResult.STARTED,
+                        max_concurrent=max_concurrent,
+                        active_count=active_count + 1,
+                    )
+
+                return await self._queue_task_locked(
+                    user_id=user_id,
+                    run_id=new_run_id,
+                    session_id=session_id,
+                    task_context=task_context,
+                    max_concurrent=max_concurrent,
+                    active_count=active_count,
+                    max_queued=max_queued,
+                )
+            finally:
+                await self._release_user_lock(lock_key, token)
+        except Exception as e:
+            logger.error(f"Recovery slot claim error (fail-open): {e}")
+            return ConcurrencyResponse(result=ConcurrencyResult.STARTED)
 
     async def _dispatch_queued_task(
         self,
@@ -437,6 +574,8 @@ class UserConcurrencyLimiter:
                                     metadata={
                                         "task_status": TaskStatus.FAILED.value,
                                         "task_error": "Task cancelled by user",
+                                        "task_error_code": "cancelled",
+                                        "task_recoverable": False,
                                         "current_run_id": run_id,
                                     }
                                 ),

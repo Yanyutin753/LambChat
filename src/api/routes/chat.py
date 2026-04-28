@@ -9,11 +9,12 @@ import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
+from src.api.routes.auth.utils import _get_language
 from src.api.routes.session import verify_session_ownership
 from src.infra.logging import get_logger
 from src.infra.session.manager import SessionManager
@@ -33,16 +34,22 @@ async def _update_session_config(
     run_id: str,
     agent_id: str,
     request: AgentRequest,
+    language: str,
 ) -> None:
     """Update session metadata with conversation configuration."""
     session_manager = SessionManager()
     conversation_config = {
         "current_run_id": run_id,
         "agent_id": agent_id,
+        "executor_key": "agent_stream",
         "agent_options": request.agent_options or {},
+        "disabled_tools": request.disabled_tools or [],
         "disabled_skills": request.disabled_skills or [],
         "disabled_mcp_tools": request.disabled_mcp_tools or [],
+        "language": language,
     }
+    if request.project_id:
+        conversation_config["project_id"] = request.project_id
     await session_manager.update_session(
         session_id,
         SessionUpdate(metadata=conversation_config),
@@ -94,6 +101,7 @@ register_executor("agent_stream", _execute_agent_stream)
 @router.post("/stream")
 async def chat_stream(
     request: AgentRequest,
+    http_request: Request,
     agent_id: str = "search",
     user: TokenPayload = Depends(require_permissions("chat:write")),
 ):
@@ -127,6 +135,7 @@ async def chat_stream(
             verify_session_ownership(existing_session, user)
 
     task_manager = get_task_manager()
+    preferred_language = _get_language(http_request)
 
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
@@ -232,7 +241,13 @@ async def chat_stream(
         }
 
         # 更新 session metadata，存储完整的对话配置（排队状态）
-        await _update_session_config(session_id, run_id, agent_id, request)
+        await _update_session_config(
+            session_id,
+            run_id,
+            agent_id,
+            request,
+            preferred_language,
+        )
 
         return {
             "session_id": session_id,
@@ -259,7 +274,13 @@ async def chat_stream(
     )
 
     # 更新 session metadata，存储完整的对话配置
-    await _update_session_config(session_id, run_id, agent_id, request)
+    await _update_session_config(
+        session_id,
+        run_id,
+        agent_id,
+        request,
+        preferred_language,
+    )
 
     return {
         "session_id": session_id,
@@ -414,3 +435,21 @@ async def cancel_session(
             logger.warning(f"Failed to remove from queue: {e}")
 
     return result
+
+
+@router.post("/sessions/{session_id}/resume")
+async def resume_session(
+    session_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """
+    Resume an interrupted task from the latest checkpoint for this session.
+    """
+    session_manager = SessionManager()
+    session = await session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_ownership(session, user)
+
+    task_manager = get_task_manager()
+    return await task_manager.resume_session(session_id)

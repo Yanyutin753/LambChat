@@ -157,7 +157,7 @@ SYSTEM_PACKAGES = [
 # ============== 资源配额 ==============
 # Hobby 免费计划限制: 2 vCPU, 2GB RAM, 10GB disk
 CPU_COUNT = 2
-MEMORY_MB = 2024
+MEMORY_MB = 4096
 # ======================================
 
 

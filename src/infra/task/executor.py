@@ -409,13 +409,20 @@ class TaskExecutor:
     ) -> None:
         """更新 session 状态"""
         try:
-            metadata = {"task_status": status.value}
+            metadata: Dict[str, Any] = {"task_status": status.value}
             if error:
                 metadata["task_error"] = error
+            else:
+                metadata["task_error"] = None
             if run_id:
                 metadata["current_run_id"] = run_id
             if status == TaskStatus.COMPLETED:
                 metadata["completed_at"] = datetime.now().isoformat()
+                metadata["task_recoverable"] = False
+                metadata["task_error_code"] = None
+            elif status in {TaskStatus.PENDING, TaskStatus.RUNNING}:
+                metadata["task_recoverable"] = False
+                metadata["task_error_code"] = None
 
             await self._storage.update(
                 session_id,
