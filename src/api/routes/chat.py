@@ -16,6 +16,7 @@ from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.session import verify_session_ownership
+from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.logging import get_logger
 from src.infra.session.manager import SessionManager
 from src.infra.task.concurrency import register_executor
@@ -126,6 +127,10 @@ async def chat_stream(
     from src.infra.task.manager import _generate_run_id
 
     session_id = request.session_id or str(uuid.uuid4())
+    formatted_message = format_user_message_with_timestamp(
+        request.message,
+        request.user_timezone,
+    )
 
     # 如果用户传入了 session_id，验证所有权
     if request.session_id:
@@ -163,7 +168,7 @@ async def chat_stream(
     task_context = {
         "executor_key": "agent_stream",
         "agent_id": agent_id,
-        "message": request.message,
+        "message": formatted_message,
         "disabled_tools": request.disabled_tools,
         "agent_options": request.agent_options,
         "attachments": attachments_data,
@@ -225,7 +230,7 @@ async def chat_stream(
         )
         await presenter._ensure_trace()
         await presenter.emit_user_message(
-            request.message,
+            formatted_message,
             attachments=[a.model_dump() for a in request.attachments]
             if request.attachments
             else None,
@@ -261,7 +266,7 @@ async def chat_stream(
     _, _ = await task_manager.submit(
         session_id=session_id,
         agent_id=agent_id,
-        message=request.message,
+        message=formatted_message,
         user_id=user.sub,
         executor=_execute_agent_stream,
         disabled_tools=request.disabled_tools,

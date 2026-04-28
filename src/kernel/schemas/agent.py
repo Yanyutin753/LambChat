@@ -41,6 +41,9 @@ class AgentRequest(BaseModel):
     disabled_mcp_tools: Optional[list[str]] = Field(
         None, description="MCP tools to disable for this conversation"
     )
+    user_timezone: Optional[str] = Field(
+        None, description="User IANA timezone for timestamping chat messages"
+    )
     attachments: Optional[list[AttachmentSchema]] = Field(None, description="File attachments")
     context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
     project_id: Optional[str] = Field(None, description="Project ID to assign to new session")
