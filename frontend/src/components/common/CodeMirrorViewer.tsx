@@ -128,9 +128,9 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
       viewRef.current = view;
       // Scroll to the highlighted start line after mount
       if (highlightLineRange) {
-        const targetLine = Math.min(
-          highlightLineRange.from,
-          view.state.doc.lines,
+        const targetLine = Math.max(
+          1,
+          Math.min(highlightLineRange.from, view.state.doc.lines),
         );
         const line = view.state.doc.line(targetLine);
         view.dispatch({
@@ -145,7 +145,10 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !highlightLineRange) return;
-    const targetLine = Math.min(highlightLineRange.from, view.state.doc.lines);
+    const targetLine = Math.max(
+      1,
+      Math.min(highlightLineRange.from, view.state.doc.lines),
+    );
     const line = view.state.doc.line(targetLine);
     view.dispatch({
       effects: EditorView.scrollIntoView(line.from, { y: "center" }),

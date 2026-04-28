@@ -95,10 +95,13 @@ const ReadFileItem = memo(function ReadFileItem({
             filePath={filePath}
             lineNumbers={true}
             fontSize="0.8rem"
-            startLine={offset ?? 1}
+            startLine={Math.max(1, offset ?? 1)}
             highlightLineRange={
               offset !== undefined || limit !== undefined
-                ? { from: offset ?? 1, to: (offset ?? 1) + (limit ?? 0) }
+                ? {
+                    from: Math.max(1, offset ?? 1),
+                    to: Math.max(1, offset ?? 1) + (limit ?? 0),
+                  }
                 : undefined
             }
           />

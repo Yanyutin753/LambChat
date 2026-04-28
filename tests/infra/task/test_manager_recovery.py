@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.infra.task import manager as task_manager_module
+from src.infra.task import recovery as recovery_module
 from src.infra.task.manager import BackgroundTaskManager
 
 
@@ -116,9 +116,9 @@ async def test_resume_session_submits_localized_recovery_message(
         if False:
             yield None
 
-    monkeypatch.setattr(task_manager_module, "get_redis_client", lambda: redis)
-    monkeypatch.setattr(task_manager_module, "UserStorage", _FakeUserStorage)
-    monkeypatch.setattr(task_manager_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
+    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
     monkeypatch.setattr(manager, "submit", _fake_submit)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
 
@@ -323,12 +323,16 @@ async def test_resume_interrupted_run_releases_lock_after_failed_recovery(
     async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
         return None
 
-    async def _fake_submit_recovery_run(*args, **kwargs):
+    async def _fake_submit_recovery_run(self, *args, **kwargs):
         raise RuntimeError("submit failed")
 
-    monkeypatch.setattr(task_manager_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
-    monkeypatch.setattr(manager, "_submit_recovery_run", _fake_submit_recovery_run)
+    monkeypatch.setattr(
+        recovery_module.TaskRecoveryService,
+        "submit_recovery_run",
+        _fake_submit_recovery_run,
+    )
 
     result = await manager._resume_interrupted_run(session, "run-old", "manual_resume")
 
@@ -355,7 +359,7 @@ async def test_resume_interrupted_run_skips_when_session_already_points_to_new_r
     async def _fake_mark_failed(*args, **kwargs):
         mark_failed_calls.append((args, kwargs))
 
-    monkeypatch.setattr(task_manager_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
 
     result = await manager._resume_interrupted_run(session, "run-old", "server_restart")
@@ -450,7 +454,7 @@ async def test_submit_recovery_run_reuses_trace_for_queued_recovery(
             task_context,
         ):
             captured_task_context.update(task_context)
-            return SimpleNamespace(result=task_manager_module.ConcurrencyResult.QUEUED)
+            return SimpleNamespace(result=recovery_module.ConcurrencyResult.QUEUED)
 
     class _FakeExecutor:
         async def ensure_session(self, *args, **kwargs):
@@ -480,10 +484,10 @@ async def test_submit_recovery_run_reuses_trace_for_queued_recovery(
         if False:
             yield None
 
-    monkeypatch.setattr(task_manager_module, "Presenter", _FakePresenter)
-    monkeypatch.setattr(task_manager_module, "UserStorage", _FakeUserStorage)
-    monkeypatch.setattr(task_manager_module, "get_concurrency_limiter", lambda: _FakeLimiter())
-    monkeypatch.setattr(task_manager_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "Presenter", _FakePresenter)
+    monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
+    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
     manager._executor = _FakeExecutor()
 
     result = await manager._submit_recovery_run(session, "run-old", "server_restart")

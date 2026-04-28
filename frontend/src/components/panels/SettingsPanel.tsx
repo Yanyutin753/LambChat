@@ -477,7 +477,11 @@ export function SettingsPanel() {
           {/* Category List */}
           <nav className="flex-1 overflow-y-auto px-3 py-2">
             {CATEGORY_ORDER.map((category) => {
-              const count = settings?.settings[category]?.length ?? 0;
+              const categoryItems = settings?.settings[category] ?? [];
+              const visibleCount = categoryItems.filter((s) =>
+                isSettingVisible(s),
+              ).length;
+              if (visibleCount === 0) return null;
               const isActive = activeCategory === category;
               return (
                 <button
@@ -492,7 +496,7 @@ export function SettingsPanel() {
                   <span className="flex items-center justify-between">
                     {CATEGORY_LABELS[category]}
                     <span className="ml-2 text-[11px] tabular-nums opacity-40">
-                      {count}
+                      {visibleCount}
                     </span>
                   </span>
                 </button>
