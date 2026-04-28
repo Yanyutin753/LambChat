@@ -18,6 +18,7 @@ from src.api.middleware.tracing import TracingMiddleware
 from src.api.middleware.user_context import UserContextMiddleware
 from src.api.routes import (
     agent,
+    assistant,
     auth,
     channels,
     chat,
@@ -142,6 +143,11 @@ async def lifespan(app: FastAPI):
     from src.infra.skill import init_skill_indexes
 
     await init_skill_indexes()
+
+    from src.infra.assistant import get_assistant_storage
+
+    await get_assistant_storage().ensure_indexes()
+    logger.info("AssistantStorage indexes initialized")
 
     # 初始化 TraceStorage（创建索引 + 启动事件合并器）
     from src.infra.session.trace_storage import get_trace_storage
@@ -309,6 +315,7 @@ def create_app() -> FastAPI:
     app.include_router(user.router, prefix="/api/users", tags=["Users"])
     app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
     app.include_router(session.router, prefix="/api/sessions", tags=["Sessions"])
+    app.include_router(assistant.router, prefix="/api/assistants", tags=["Assistants"])
     app.include_router(project.router, prefix="/api/projects", tags=["Projects"])
     app.include_router(share.router, prefix="/api/share", tags=["Share"])
     app.include_router(skill.router, prefix="/api/skills", tags=["Skills"])

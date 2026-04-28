@@ -34,6 +34,7 @@ from src.infra.agent.middleware import (
     create_retry_middleware,
 )
 from src.infra.agent.middleware_subagent import SubagentActivityMiddleware
+from src.infra.assistant.prompt import build_assistant_prompt_sections
 from src.infra.backend import (
     create_persistent_backend_factory,
     create_sandbox_backend_factory,
@@ -70,6 +71,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
 
     # 获取 agent_options
     agent_options = configurable.get("agent_options") or {}
+    assistant_prompt = configurable.get("assistant_prompt", "")
     selected_model = agent_options.get("model")  # Per-request model override
     model_id = agent_options.get("model_id")  # Model config ID for specific channel/provider
     thinking_config = build_thinking_config(agent_options)
@@ -191,7 +193,13 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         )
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
-    _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]
+    _prompt_sections = list(
+        build_assistant_prompt_sections(
+            assistant_prompt=assistant_prompt,
+            skills_prompt=skills_prompt,
+            memory_guide=memory_guide,
+        )
+    )
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:

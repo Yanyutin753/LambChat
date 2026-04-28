@@ -83,12 +83,18 @@ def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setitem(
         sys.modules,
         "src.kernel.schemas.user",
-        SimpleNamespace(TokenPayload=object),
+        SimpleNamespace(
+            TokenPayload=object,
+            User=object,
+            UserCreate=object,
+            UserInDB=object,
+            UserUpdate=object,
+        ),
     )
     monkeypatch.setitem(
         sys.modules,
         "src.infra.session.dual_writer",
-        SimpleNamespace(get_dual_writer=lambda: None),
+        SimpleNamespace(DualEventWriter=object, get_dual_writer=lambda: None),
     )
     monkeypatch.setitem(
         sys.modules,

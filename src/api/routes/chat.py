@@ -16,6 +16,7 @@ from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.session import verify_session_ownership
+from src.infra.assistant import AssistantManager
 from src.infra.logging import get_logger
 from src.infra.session.manager import SessionManager
 from src.infra.task.concurrency import register_executor
@@ -35,6 +36,7 @@ async def _update_session_config(
     agent_id: str,
     request: AgentRequest,
     language: str,
+    assistant_metadata: dict[str, str] | None = None,
 ) -> None:
     """Update session metadata with conversation configuration."""
     session_manager = SessionManager()
@@ -50,10 +52,23 @@ async def _update_session_config(
     }
     if request.project_id:
         conversation_config["project_id"] = request.project_id
+    if assistant_metadata:
+        conversation_config.update(assistant_metadata)
     await session_manager.update_session(
         session_id,
         SessionUpdate(metadata=conversation_config),
     )
+
+
+def _coerce_assistant_metadata(metadata: object) -> dict[str, str]:
+    if not isinstance(metadata, dict):
+        return {}
+    result: dict[str, str] = {}
+    for key in ("assistant_id", "assistant_name", "assistant_prompt_snapshot"):
+        value = metadata.get(key)
+        if isinstance(value, str) and value:
+            result[key] = value
+    return result
 
 
 async def _execute_agent_stream(
@@ -128,6 +143,7 @@ async def chat_stream(
     session_id = request.session_id or str(uuid.uuid4())
 
     # 如果用户传入了 session_id，验证所有权
+    existing_session = None
     if request.session_id:
         session_manager = SessionManager()
         existing_session = await session_manager.get_session(session_id)
@@ -136,6 +152,23 @@ async def chat_stream(
 
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
+    assistant_manager = AssistantManager()
+    existing_assistant_metadata = _coerce_assistant_metadata(
+        existing_session.metadata if existing_session else None
+    )
+    selected_assistant_id = request.assistant_id or existing_assistant_metadata.get("assistant_id")
+    (
+        assistant_prompt,
+        resolved_assistant_update,
+    ) = await assistant_manager.resolve_session_prompt_snapshot(
+        existing_session.metadata if existing_session and existing_session.metadata else {},
+        selected_assistant_id,
+    )
+    effective_assistant_metadata = (
+        resolved_assistant_update if resolved_assistant_update else existing_assistant_metadata
+    )
+    if request.assistant_id and not assistant_prompt and not effective_assistant_metadata:
+        raise HTTPException(status_code=404, detail="Assistant not found")
 
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
@@ -160,12 +193,16 @@ async def chat_stream(
     )
     trace_id = _pre_presenter.trace_id
 
+    request_agent_options = dict(request.agent_options or {})
+    if assistant_prompt:
+        request_agent_options["_assistant_prompt"] = assistant_prompt
+
     task_context = {
         "executor_key": "agent_stream",
         "agent_id": agent_id,
         "message": request.message,
         "disabled_tools": request.disabled_tools,
-        "agent_options": request.agent_options,
+        "agent_options": request_agent_options,
         "attachments": attachments_data,
         "trace_id": trace_id,
         "user_message_written": True,
@@ -247,6 +284,7 @@ async def chat_stream(
             agent_id,
             request,
             preferred_language,
+            assistant_metadata=effective_assistant_metadata,
         )
 
         return {
@@ -265,7 +303,7 @@ async def chat_stream(
         user_id=user.sub,
         executor=_execute_agent_stream,
         disabled_tools=request.disabled_tools,
-        agent_options=request.agent_options,
+        agent_options=request_agent_options,
         attachments=attachments_data,
         run_id=run_id,
         project_id=request.project_id,
@@ -280,6 +318,7 @@ async def chat_stream(
         agent_id,
         request,
         preferred_language,
+        assistant_metadata=effective_assistant_metadata,
     )
 
     return {

@@ -155,6 +155,7 @@ class FastAgent(BaseGraphAgent):
                 "presenter": presenter,
                 "context": context,
                 "agent_options": agent_options,
+                "assistant_prompt": kwargs.get("assistant_prompt", ""),
                 "disabled_skills": disabled_skills,
                 "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),
