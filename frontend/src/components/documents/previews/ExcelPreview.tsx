@@ -265,7 +265,7 @@ const ExcelPreview = memo(function ExcelPreview({
       {/* Spreadsheet grid */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-auto relative overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x"
+        className="flex-1 overflow-auto relative overscroll-x-contain [-webkit-overflow-scrolling:touch]"
       >
         <table className="border-collapse w-max min-w-full text-[13px]">
           {/* Column headers row */}
