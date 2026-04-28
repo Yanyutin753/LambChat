@@ -75,6 +75,7 @@ export interface ChatInputProps {
       | MessageAttachment[]
       | ((prev: MessageAttachment[]) => MessageAttachment[]),
   ) => void;
+  className?: string;
 }
 
 export const ChatInput = memo(function ChatInput({
@@ -111,6 +112,7 @@ export const ChatInput = memo(function ChatInput({
   onSelectAgent,
   attachments: externalAttachments,
   onAttachmentsChange: externalOnAttachmentsChange,
+  className,
 }: ChatInputProps) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
@@ -415,7 +417,7 @@ export const ChatInput = memo(function ChatInput({
     >
       <form
         onSubmit={handleSubmit}
-        className="mx-auto max-w-3xl xl:max-w-5xl px-2"
+        className={className ?? "mx-auto max-w-3xl xl:max-w-5xl px-2"}
       >
         <div
           onDragOver={handleDragOver}

@@ -67,6 +67,8 @@ import {
   updateActiveRevealPreviewState,
 } from "../../chat/ChatMessage/items/activeRevealPreviewStore";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
+import { isFileLink } from "../../documents/utils";
+import { getFullUrl } from "../../../services/api/config";
 import { shouldOpenExternalNavigationPreview } from "./externalNavigationState";
 
 interface ChatViewProps {
@@ -387,6 +389,41 @@ export function ChatView({
       markRevealPreviewInteracted(current),
     );
   }, []);
+
+  // Fallback: intercept file links anywhere in the chat area (covers MCP blocks, subagent panels, etc.)
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("a[href]");
+      if (!target) return;
+      const href = (target as HTMLAnchorElement).getAttribute("href");
+      if (!href) return;
+
+      const fileLinkInfo = isFileLink(href);
+      if (!fileLinkInfo.isFile) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const fullUrl = getFullUrl(href) || href;
+      setActiveRevealPreviewState(
+        createActiveRevealPreviewState(
+          {
+            kind: "file",
+            previewKey: fullUrl,
+            filePath: fileLinkInfo.fileName,
+            signedUrl: fullUrl,
+          },
+          "manual",
+        ),
+      );
+    };
+
+    container.addEventListener("click", handleClick, true);
+    return () => container.removeEventListener("click", handleClick, true);
+  }, [messagesContainerRef]);
 
   useEffect(() => {
     dismissedPreviewKeysRef.current.clear();

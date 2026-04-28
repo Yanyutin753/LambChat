@@ -113,10 +113,10 @@ const wordContentStyles = `
     background: rgba(31, 41, 55, 0.5);
   }
   .word-preview-content tr:hover td {
-    background: #eff6ff;
+    background: #f5f5f4;
   }
   .dark .word-preview-content tr:hover td {
-    background: rgba(59, 130, 246, 0.08);
+    background: rgba(120, 113, 108, 0.08);
   }
   .word-preview-content img {
     max-width: 100%;

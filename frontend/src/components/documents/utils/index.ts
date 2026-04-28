@@ -24,7 +24,9 @@ export {
   isCodeFile,
   isMarkdownFile,
   isExcalidrawFile,
+  isFileLink,
 } from "./fileTypeChecks";
+export type { FileLinkInfo } from "./fileTypeChecks";
 
 // File type map and types
 export {

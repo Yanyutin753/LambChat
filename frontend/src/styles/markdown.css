@@ -242,6 +242,15 @@
   color: #d6d3d1;
 }
 
+/* Thinking content - muted stone tones */
+.markdown-preview.thinking-content {
+  color: #78716c;
+  font-size: 0.9em;
+}
+.dark .markdown-preview.thinking-content {
+  color: #a8a29e;
+}
+
 /* Mermaid diagram styles */
 .mermaid-diagram {
   max-width: 100%;

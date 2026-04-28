@@ -305,7 +305,7 @@ export function ThinkingBlock({
         ...prev,
         status,
         children: (
-          <div className="p-3 sm:p-4">
+          <div className="p-3 sm:p-4 [&_.markdown-preview]:thinking-content">
             <MarkdownContent content={content} isStreaming={isStreaming} />
           </div>
         ),
@@ -336,7 +336,7 @@ export function ThinkingBlock({
           status,
           panelKey,
           children: (
-            <div className="p-3 sm:p-4">
+            <div className="p-3 sm:p-4 [&_.markdown-preview]:thinking-content">
               <MarkdownContent content={content} isStreaming={isStreaming} />
             </div>
           ),

@@ -121,6 +121,96 @@ export function isHtmlFile(ext: string): boolean {
   return ext === "html" || ext === "htm";
 }
 
+const FILE_LINK_EXTENSIONS = new Set([
+  // Images
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "svg",
+  "webp",
+  "bmp",
+  "ico",
+  // Documents
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "csv",
+  "ppt",
+  "pptx",
+  // Web
+  "html",
+  "htm",
+  // Code / text
+  "js",
+  "ts",
+  "jsx",
+  "tsx",
+  "py",
+  "java",
+  "cpp",
+  "c",
+  "h",
+  "css",
+  "json",
+  "xml",
+  "txt",
+  "vue",
+  "go",
+  "rs",
+  "rb",
+  "php",
+  "yaml",
+  "yml",
+  "toml",
+  "ini",
+  "cfg",
+  "sh",
+  "bash",
+  "zsh",
+  "md",
+  "markdown",
+  // Diagrams
+  "excalidraw",
+  "exdraw",
+  // Media
+  "mp4",
+  "webm",
+  "mov",
+  "avi",
+  "mkv",
+  "mp3",
+  "wav",
+  "ogg",
+  "flac",
+  "aac",
+  "m4a",
+]);
+
+export interface FileLinkInfo {
+  isFile: boolean;
+  fileName: string;
+}
+
+export function isFileLink(href: string): FileLinkInfo {
+  try {
+    const url = new URL(href, window.location.origin);
+    const pathname = url.pathname;
+    const lastSegment = pathname.split("/").pop() || "";
+    const dotIndex = lastSegment.lastIndexOf(".");
+    if (dotIndex < 1) return { isFile: false, fileName: "" };
+    const ext = lastSegment.slice(dotIndex + 1).toLowerCase();
+    if (FILE_LINK_EXTENSIONS.has(ext)) {
+      return { isFile: true, fileName: lastSegment };
+    }
+  } catch {
+    // invalid URL, ignore
+  }
+  return { isFile: false, fileName: "" };
+}
+
 // Check if file type is supported for preview
 export function isPreviewableFile(ext: string): boolean {
   return (

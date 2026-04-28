@@ -520,9 +520,9 @@ export function ToolResultPanel({
               {/* Extra header actions */}
               {headerActions}
 
-              {/* Center / Fullscreen toggles */}
+              {/* Center / Fullscreen / Close */}
               {!hideViewToggle && (
-                <div className="flex items-center gap-0.5 shrink-0 overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-0.5 shrink-0">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -581,21 +581,40 @@ export function ToolResultPanel({
                       </>
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClose();
+                    }}
+                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                    aria-label="Close"
+                    title={t("common.close", "Close")}
+                  >
+                    <X size={14} />
+                    <span className="hidden xl:inline">
+                      {t("common.close", "关闭")}
+                    </span>
+                  </button>
                 </div>
               )}
-
-              {/* Close */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onClose();
-                }}
-                className="flex items-center justify-center size-10 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 active:bg-stone-200 dark:active:bg-stone-700 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors duration-150 active:scale-95 cursor-pointer shrink-0"
-                aria-label="Close"
-              >
-                <X size={16} className="sm:w-[18px] sm:h-[18px]" />
-              </button>
+              {hideViewToggle && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                  }}
+                  className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  aria-label="Close"
+                  title={t("common.close", "Close")}
+                >
+                  <X size={14} />
+                  <span className="hidden xl:inline">
+                    {t("common.close", "关闭")}
+                  </span>
+                </button>
+              )}
             </div>
           )}
         </div>

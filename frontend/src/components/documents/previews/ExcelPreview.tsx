@@ -1,5 +1,38 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+
+function useScrollIndicator(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+) {
+  const [progress, setProgress] = useState(0);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  const update = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const overflow = el.scrollWidth > el.clientWidth;
+    setHasOverflow(overflow);
+    if (overflow) {
+      const max = el.scrollWidth - el.clientWidth;
+      setProgress(max > 0 ? el.scrollLeft / max : 0);
+    }
+  }, [containerRef]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [containerRef, update]);
+
+  return { progress, hasOverflow };
+}
 
 interface ExcelPreviewProps {
   arrayBuffer: ArrayBuffer;
@@ -40,6 +73,8 @@ const ExcelPreview = memo(function ExcelPreview({
     row: number;
     col: number;
   } | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { progress, hasOverflow } = useScrollIndicator(scrollContainerRef);
 
   useEffect(() => {
     const parseExcel = async () => {
@@ -228,20 +263,23 @@ const ExcelPreview = memo(function ExcelPreview({
       </div>
 
       {/* Spreadsheet grid */}
-      <div className="flex-1 overflow-auto relative">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-auto relative overscroll-x-contain [-webkit-overflow-scrolling:touch] touch-pan-x"
+      >
         <table className="border-collapse w-max min-w-full text-[13px]">
           {/* Column headers row */}
           <thead>
             <tr className="sticky top-0 z-10">
               {/* Top-left corner */}
-              <th className="sticky left-0 z-20 w-10 min-w-[2.5rem] max-w-[2.5rem] px-0 py-0 text-center text-[11px] text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none" />
+              <th className="sticky left-0 z-20 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-[11px] text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none" />
               {/* Column letters */}
               {Array.from({ length: totalCols }, (_, i) => (
                 <th
                   key={i}
-                  className={`min-w-[80px] h-6 px-0 py-0 text-center text-[11px] font-normal text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none leading-6 ${
+                  className={`min-w-[60px] sm:min-w-[80px] h-6 px-0 py-0 text-center text-[11px] font-normal text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none leading-6 ${
                     hoveredCell?.col === i
-                      ? "bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                      ? "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300"
                       : ""
                   }`}
                 >
@@ -261,7 +299,7 @@ const ExcelPreview = memo(function ExcelPreview({
                 <tr key={rawRowIndex}>
                   {/* Row number */}
                   <td
-                    className={`sticky left-0 z-10 w-10 min-w-[2.5rem] max-w-[2.5rem] px-0 py-0 text-center text-[11px] bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none tabular-nums leading-6 ${
+                    className={`sticky left-0 z-10 w-8 sm:w-10 min-w-[2rem] sm:min-w-[2.5rem] max-w-[2rem] sm:max-w-[2.5rem] px-0 py-0 text-center text-[11px] bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 select-none tabular-nums leading-6 touch-none ${
                       isHeader
                         ? "text-stone-400 dark:text-stone-500"
                         : isRowHovered
@@ -288,9 +326,9 @@ const ExcelPreview = memo(function ExcelPreview({
                           key={colIndex}
                           onMouseEnter={() => handleCellHover(0, colIndex)}
                           onMouseLeave={handleCellLeave}
-                          className={`min-h-[24px] min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-300 dark:border-stone-600 whitespace-nowrap text-left font-semibold text-stone-700 dark:text-stone-300 bg-stone-50 dark:bg-stone-800/60 ${
+                          className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-300 dark:border-stone-600 whitespace-nowrap text-left font-semibold text-stone-700 dark:text-stone-300 bg-stone-50 dark:bg-stone-800/60 ${
                             isCellHovered
-                              ? "!outline outline-2 outline-blue-500 dark:outline-blue-400 outline-offset-[-1px] bg-blue-50/60 dark:bg-blue-900/25 !border-blue-400 dark:!border-blue-500"
+                              ? "!outline outline-2 outline-stone-500 dark:outline-stone-400 outline-offset-[-1px] bg-stone-100/60 dark:bg-stone-800/40 !border-stone-400 dark:!border-stone-500"
                               : ""
                           }`}
                         >
@@ -306,13 +344,13 @@ const ExcelPreview = memo(function ExcelPreview({
                           handleCellHover(rawRowIndex - 1, colIndex)
                         }
                         onMouseLeave={handleCellLeave}
-                        className={`min-h-[24px] min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-200 dark:border-stone-700/80 whitespace-nowrap ${
+                        className={`min-h-[24px] min-w-[60px] sm:min-w-[80px] px-2 py-0 text-[13px] leading-6 border border-stone-200 dark:border-stone-700/80 whitespace-nowrap text-stone-800 dark:text-stone-200 ${
                           num
                             ? "text-right tabular-nums font-mono"
                             : "text-left"
                         } ${
                           isCellHovered
-                            ? "!outline outline-2 outline-blue-500 dark:outline-blue-400 outline-offset-[-1px] bg-blue-50/60 dark:bg-blue-900/25 !border-blue-400 dark:!border-blue-500"
+                            ? "!outline outline-2 outline-stone-500 dark:outline-stone-400 outline-offset-[-1px] bg-stone-100/60 dark:bg-stone-800/40 !border-stone-400 dark:!border-stone-500"
                             : isRowHovered
                               ? "bg-stone-50/70 dark:bg-stone-800/30"
                               : ""
@@ -334,6 +372,20 @@ const ExcelPreview = memo(function ExcelPreview({
             <p className="text-sm">{t("documents.noData") || "No data"}</p>
           </div>
         )}
+
+        {/* Scroll progress indicator */}
+        {hasOverflow && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 z-30 pointer-events-none">
+            <div className="h-full bg-stone-300/40 dark:bg-stone-600/40" />
+            <div
+              className="absolute top-0 h-full bg-stone-400 dark:bg-stone-500 transition-[left] duration-75"
+              style={{
+                width: `${Math.max(10, (1 - progress) * 100)}%`,
+                left: `${progress * 100}%`,
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Status bar */}
@@ -348,7 +400,7 @@ const ExcelPreview = memo(function ExcelPreview({
         </span>
         <div className="flex items-center gap-3">
           {hoveredCell && (
-            <span className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono">
+            <span className="px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 font-mono">
               {colLabel(hoveredCell.col)}
               {hoveredCell.row + 1}
             </span>

@@ -13,6 +13,9 @@ import { MermaidDiagram } from "./MermaidDiagram";
 import { CodeMirrorViewer } from "../../common/CodeMirrorViewer";
 import { ImageViewer } from "../../common";
 import { createHeadingAnchorId } from "../../layout/AppContent/messageOutline";
+import { isFileLink } from "../../documents/utils";
+import { setActiveRevealPreviewState } from "./items/activeRevealPreviewStore";
+import { createActiveRevealPreviewState } from "./items/revealPreviewState";
 
 function extractNodeText(node: React.ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -378,16 +381,47 @@ export const MarkdownContent = memo(function MarkdownContent({
             </blockquote>
           ),
           // Links with hover effects
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            if (href) {
+              const fileLinkInfo = isFileLink(href);
+              if (fileLinkInfo.isFile) {
+                return (
+                  <a
+                    href={href}
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors cursor-pointer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const fullUrl = getFullUrl(href) || href;
+                      setActiveRevealPreviewState(
+                        createActiveRevealPreviewState(
+                          {
+                            kind: "file",
+                            previewKey: fullUrl,
+                            filePath: fileLinkInfo.fileName,
+                            signedUrl: fullUrl,
+                          },
+                          "manual",
+                        ),
+                      );
+                    }}
+                  >
+                    {children}
+                  </a>
+                );
+              }
+            }
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition-colors"
+              >
+                {children}
+              </a>
+            );
+          },
           // Horizontal rule
           hr: () => (
             <hr className="my-4 border-0 h-px bg-gradient-to-r from-transparent via-stone-300 to-transparent dark:via-stone-600" />

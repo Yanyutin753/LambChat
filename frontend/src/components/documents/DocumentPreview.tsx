@@ -641,7 +641,7 @@ export default function DocumentPreview({
               className="flex items-center justify-center w-9 h-9 sm:w-9 sm:h-9 rounded-xl hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               aria-label={t("common.close")}
             >
-              <X size={20} className="text-stone-500 dark:text-stone-400" />
+              <X size={16} className="text-stone-500 dark:text-stone-400" />
             </button>
           </div>
         </div>
