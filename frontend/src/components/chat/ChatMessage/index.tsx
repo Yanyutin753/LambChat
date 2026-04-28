@@ -73,6 +73,8 @@ interface ChatMessageProps {
     preview: RevealPreviewRequest,
     source?: RevealPreviewOpenSource,
   ) => boolean;
+  assistantName?: string;
+  assistantAvatarUrl?: string | null;
 }
 
 // Token usage statistics button component - ChatGPT style
@@ -247,6 +249,8 @@ export const ChatMessage = memo(function ChatMessage({
   activePreview,
   latestAutoPreview,
   onOpenPreview,
+  assistantName,
+  assistantAvatarUrl,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const { availableModels } = useSettingsContext();
@@ -304,19 +308,18 @@ export const ChatMessage = memo(function ChatMessage({
         {/* Content */}
         <div className="min-w-0 min-h-0">
           {/* Header: Avatar + Role label + Stop button */}
-          <div className="mb-3 flex items-center gap-2">
-            <AssistantAvatar className="size-6 shrink-0 rounded-full" />
-            <span
-              className="text-base sm:text-lg font-semibold tracking-tight font-serif"
-              style={{ color: "var(--theme-text)" }}
-            >
-              {t("chat.message.assistant")}
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="shrink-0 overflow-hidden rounded-full ring-1 ring-stone-200/60 dark:ring-stone-700/50">
+              <AssistantAvatar
+                className="size-7 rounded-full"
+                avatarUrl={assistantAvatarUrl}
+              />
+            </div>
+            <span className="text-[15px] sm:text-base font-semibold tracking-tight font-serif text-stone-800 dark:text-stone-100">
+              {assistantName || t("chat.message.assistant")}
             </span>
             {message.timestamp && (
-              <span
-                className="text-xs ml-2 mt-0.5 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                style={{ color: "var(--theme-text-secondary)" }}
-              >
+              <span className="text-xs ml-1.5 mt-px tabular-nums opacity-0 transition-opacity duration-200 group-hover:opacity-100 text-stone-400 dark:text-stone-500">
                 {new Date(message.timestamp).toLocaleString([], {
                   year: "numeric",
                   month: "2-digit",

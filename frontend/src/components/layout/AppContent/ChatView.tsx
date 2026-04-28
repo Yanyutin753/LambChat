@@ -1,6 +1,6 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { ListTree } from "lucide-react";
+import { ListTree, Sparkles, X } from "lucide-react";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
 import { AttachmentPreviewHost } from "../../chat/AttachmentPreviewHost";
@@ -38,6 +38,10 @@ import {
   isSessionRunning,
   shouldShowStreamingFooterSkeleton,
 } from "./sessionState";
+import {
+  getAssistantIndicatorName,
+  hasActiveAssistantSelection,
+} from "./assistantState";
 import type {
   Message,
   PendingApproval,
@@ -131,6 +135,10 @@ interface ChatViewProps {
   externalNavigationTargetRunPending?: boolean;
   externalScrollToBottom?: boolean;
   outlineToggleRef?: React.RefObject<(() => void) | null>;
+  // Current assistant selection for message rendering
+  assistantId?: string;
+  assistantName?: string;
+  assistantAvatarUrl?: string | null;
 }
 
 export function ChatView({
@@ -181,6 +189,9 @@ export function ChatView({
   externalNavigationTargetRunPending,
   externalScrollToBottom,
   outlineToggleRef,
+  assistantId,
+  assistantName,
+  assistantAvatarUrl,
 }: ChatViewProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -206,6 +217,20 @@ export function ChatView({
   const greeting = user?.username
     ? t(getGreetingKey(), { name: user.username })
     : t(getGreetingKey());
+  const assistantSelectionActive = hasActiveAssistantSelection({
+    assistantId: assistantId || "",
+    assistantPromptSnapshot: "",
+  });
+  const assistantIndicatorName = getAssistantIndicatorName({
+    assistantId: assistantId || "",
+    assistantName: assistantName || "",
+  });
+  const [assistantBannerDismissed, setAssistantBannerDismissed] =
+    useState(false);
+
+  useEffect(() => {
+    setAssistantBannerDismissed(false);
+  }, [sessionId, assistantId, assistantName, assistantAvatarUrl]);
 
   const showOutline = shouldShowMessageOutline(messages);
   const outlineItems = useMemo(
@@ -537,6 +562,8 @@ export function ChatView({
         activePreview={activePreview}
         latestAutoPreview={latestAutoPreview}
         onOpenPreview={handleOpenPreview}
+        assistantName={assistantName}
+        assistantAvatarUrl={assistantAvatarUrl}
       />
     ),
     [
@@ -547,6 +574,8 @@ export function ChatView({
       activePreview,
       latestAutoPreview,
       handleOpenPreview,
+      assistantName,
+      assistantAvatarUrl,
     ],
   );
 
@@ -623,6 +652,49 @@ export function ChatView({
     onAttachmentsChange,
   };
 
+  const assistantBanner =
+    assistantSelectionActive && !assistantBannerDismissed ? (
+      <div className="mx-auto mb-2 w-full max-w-3xl px-2 xl:max-w-5xl">
+        <div className="flex items-center justify-between rounded-2xl border border-stone-200/80 bg-white/90 px-3 py-2 shadow-sm dark:border-stone-700/60 dark:bg-stone-900/85">
+          <div className="flex min-w-0 items-center gap-2 text-sm text-stone-600 dark:text-stone-300">
+            <div className="shrink-0 pl-0.5">
+              {assistantAvatarUrl ? (
+                <img
+                  src={assistantAvatarUrl}
+                  alt={assistantIndicatorName}
+                  className="size-5 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex size-5 items-center justify-center rounded-full bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-300">
+                  <Sparkles size={12} />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 truncate">
+              <span>
+                {t("assistants.currentConversation", {
+                  defaultValue: "Current assistant:",
+                })}
+              </span>{" "}
+              <strong className="font-semibold text-stone-900 dark:text-stone-100">
+                {assistantIndicatorName}
+              </strong>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAssistantBannerDismissed(true)}
+            className="ml-3 inline-flex shrink-0 items-center rounded-full p-1 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+            aria-label={t("assistants.dismissActiveIndicator", {
+              defaultValue: "Dismiss assistant indicator",
+            })}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+    ) : null;
+
   return (
     <>
       <main
@@ -645,6 +717,7 @@ export function ChatView({
               suggestions={displaySuggestions}
               canSendMessage={canSendMessage}
               onSendMessage={onSendMessage}
+              chatInputHeader={assistantBanner}
               chatInputProps={chatInputProps}
               onRefreshSuggestions={refreshSuggestions}
             />
@@ -725,6 +798,7 @@ export function ChatView({
       <PersistentToolPanelHost />
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
+      {messages.length > 0 && assistantBanner}
       {messages.length > 0 && <ChatInput {...chatInputProps} />}
     </>
   );

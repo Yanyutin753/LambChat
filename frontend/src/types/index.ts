@@ -96,6 +96,19 @@ export type {
 } from "./session";
 
 // ============================================
+// Assistant Types
+// ============================================
+export type {
+  Assistant,
+  AssistantCreate,
+  AssistantUpdate,
+  AssistantScope,
+  AssistantListScope,
+  AssistantSelection,
+} from "./assistant";
+export { EMPTY_ASSISTANT_SELECTION } from "./assistant";
+
+// ============================================
 // Authentication & Authorization Types
 // ============================================
 export {

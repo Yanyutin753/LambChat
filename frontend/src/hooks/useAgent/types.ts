@@ -114,6 +114,11 @@ export interface UseAgentOptions {
   getDisabledSkills?: () => string[];
   getDisabledMcpTools?: () => string[];
   getAgentOptions?: () => Record<string, boolean | string | number>;
+  getAssistantSelection?: () => {
+    assistantId: string;
+    assistantName: string;
+    assistantPromptSnapshot: string;
+  };
   onSkillAdded?: (
     skillName: string,
     description: string,
@@ -216,6 +221,9 @@ export interface SessionConfig {
   disabled_tools?: string[];
   disabled_skills?: string[];
   disabled_mcp_tools?: string[];
+  assistant_id?: string;
+  assistant_name?: string;
+  assistant_prompt_snapshot?: string;
 }
 
 // Backend session type (simplified)

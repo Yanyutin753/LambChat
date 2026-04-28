@@ -16,7 +16,8 @@ from src.agents.core.base import AgentFactory
 from src.api.deps import get_current_user_required, require_permissions
 from src.api.routes.auth.utils import _get_language
 from src.api.routes.session import verify_session_ownership
-from src.infra.assistant import AssistantManager
+from src.infra.assistant import AssistantManager, build_runtime_assistant_prompt_summary
+from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.logging import get_logger
 from src.infra.session.manager import SessionManager
 from src.infra.task.concurrency import register_executor
@@ -141,6 +142,10 @@ async def chat_stream(
     from src.infra.task.manager import _generate_run_id
 
     session_id = request.session_id or str(uuid.uuid4())
+    formatted_message = format_user_message_with_timestamp(
+        request.message,
+        request.user_timezone,
+    )
 
     # 如果用户传入了 session_id，验证所有权
     existing_session = None
@@ -156,7 +161,14 @@ async def chat_stream(
     existing_assistant_metadata = _coerce_assistant_metadata(
         existing_session.metadata if existing_session else None
     )
-    selected_assistant_id = request.assistant_id or existing_assistant_metadata.get("assistant_id")
+    assistant_id_provided = "assistant_id" in request.model_fields_set
+    requested_assistant_id = (
+        request.assistant_id.strip() if isinstance(request.assistant_id, str) else None
+    )
+    if assistant_id_provided:
+        selected_assistant_id = requested_assistant_id or None
+    else:
+        selected_assistant_id = existing_assistant_metadata.get("assistant_id")
     (
         assistant_prompt,
         resolved_assistant_update,
@@ -165,10 +177,33 @@ async def chat_stream(
         selected_assistant_id,
     )
     effective_assistant_metadata = (
-        resolved_assistant_update if resolved_assistant_update else existing_assistant_metadata
+        resolved_assistant_update
+        if resolved_assistant_update
+        else (
+            {}
+            if assistant_id_provided and not selected_assistant_id
+            else existing_assistant_metadata
+        )
     )
-    if request.assistant_id and not assistant_prompt and not effective_assistant_metadata:
+    if requested_assistant_id and not assistant_prompt and not effective_assistant_metadata:
         raise HTTPException(status_code=404, detail="Assistant not found")
+
+    assistant_prompt_source = "none"
+    if assistant_prompt:
+        if resolved_assistant_update:
+            assistant_prompt_source = "live_lookup_snapshot"
+        elif existing_assistant_metadata.get("assistant_prompt_snapshot"):
+            assistant_prompt_source = "session_snapshot"
+        else:
+            assistant_prompt_source = "runtime_config"
+    logger.info(
+        "[Chat] Assistant prompt resolved: %s",
+        build_runtime_assistant_prompt_summary(
+            assistant_name=effective_assistant_metadata.get("assistant_name", ""),
+            assistant_prompt=assistant_prompt or "",
+            source=assistant_prompt_source,
+        ),
+    )
 
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
@@ -200,7 +235,7 @@ async def chat_stream(
     task_context = {
         "executor_key": "agent_stream",
         "agent_id": agent_id,
-        "message": request.message,
+        "message": formatted_message,
         "disabled_tools": request.disabled_tools,
         "agent_options": request_agent_options,
         "attachments": attachments_data,
@@ -262,7 +297,7 @@ async def chat_stream(
         )
         await presenter._ensure_trace()
         await presenter.emit_user_message(
-            request.message,
+            formatted_message,
             attachments=[a.model_dump() for a in request.attachments]
             if request.attachments
             else None,
@@ -299,7 +334,7 @@ async def chat_stream(
     _, _ = await task_manager.submit(
         session_id=session_id,
         agent_id=agent_id,
-        message=request.message,
+        message=formatted_message,
         user_id=user.sub,
         executor=_execute_agent_stream,
         disabled_tools=request.disabled_tools,

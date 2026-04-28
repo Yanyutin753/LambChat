@@ -34,7 +34,10 @@ from src.infra.agent.middleware import (
     create_retry_middleware,
 )
 from src.infra.agent.middleware_subagent import SubagentActivityMiddleware
-from src.infra.assistant.prompt import build_assistant_prompt_sections
+from src.infra.assistant.prompt import (
+    build_assistant_prompt_sections,
+    build_system_prompt_with_assistant,
+)
 from src.infra.backend import (
     create_persistent_backend_factory,
     create_sandbox_backend_factory,
@@ -110,6 +113,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     )
     backend_init_time = time.time() - backend_start
     logger.debug(f"[Agent] Backend init: {backend_init_time * 1000:.3f}ms")
+
+    # 构建系统提示（将 assistant preset 直接并入 base system prompt，提升 KV cache 命中）
+    system_prompt = build_system_prompt_with_assistant(system_prompt, assistant_prompt)
 
     # 构建 skills 提示（使用预加载的 skills，避免重复数据库查询）
     skills_prompt = ""
@@ -194,11 +200,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
     _prompt_sections = list(
-        build_assistant_prompt_sections(
-            assistant_prompt=assistant_prompt,
-            skills_prompt=skills_prompt,
-            memory_guide=memory_guide,
-        )
+        build_assistant_prompt_sections(skills_prompt=skills_prompt, memory_guide=memory_guide)
     )
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))

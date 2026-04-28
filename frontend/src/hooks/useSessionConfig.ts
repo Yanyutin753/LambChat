@@ -16,6 +16,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { SessionConfig } from "./useAgent/types";
 import { normalizeAgentOptionValues } from "../components/layout/AppContent/useAgentOptions";
+import { EMPTY_ASSISTANT_SELECTION, type AssistantSelection } from "../types";
 
 const STORAGE_KEY = "lambchat_session_config";
 
@@ -26,6 +27,10 @@ export interface SessionConfigState {
   disabledMcpTools: string[];
   // Agent options
   agentOptions: Record<string, boolean | string | number>;
+  assistantId: string;
+  assistantName: string;
+  assistantPromptSnapshot: string;
+  assistantAvatarUrl?: string | null;
 }
 
 export interface UseSessionConfigOptions {
@@ -38,7 +43,11 @@ export interface UseSessionConfigOptions {
 /** Read persisted config from localStorage, returns null if not found or invalid */
 function loadPersistedConfig(): Pick<
   SessionConfigState,
-  "disabledSkills" | "disabledMcpTools"
+  | "disabledSkills"
+  | "disabledMcpTools"
+  | "assistantId"
+  | "assistantName"
+  | "assistantPromptSnapshot"
 > | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -51,6 +60,14 @@ function loadPersistedConfig(): Pick<
       return {
         disabledSkills: parsed.disabledSkills,
         disabledMcpTools: parsed.disabledMcpTools,
+        assistantId:
+          typeof parsed.assistantId === "string" ? parsed.assistantId : "",
+        assistantName:
+          typeof parsed.assistantName === "string" ? parsed.assistantName : "",
+        assistantPromptSnapshot:
+          typeof parsed.assistantPromptSnapshot === "string"
+            ? parsed.assistantPromptSnapshot
+            : "",
       };
     }
   } catch {
@@ -61,7 +78,14 @@ function loadPersistedConfig(): Pick<
 
 /** Persist config to localStorage */
 function persistConfig(
-  state: Pick<SessionConfigState, "disabledSkills" | "disabledMcpTools">,
+  state: Pick<
+    SessionConfigState,
+    | "disabledSkills"
+    | "disabledMcpTools"
+    | "assistantId"
+    | "assistantName"
+    | "assistantPromptSnapshot"
+  >,
 ) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -83,6 +107,7 @@ export interface UseSessionConfigReturn {
   setDisabledSkills: (skills: string[]) => void;
   setDisabledMcpTools: (tools: string[]) => void;
   setAgentOptions: (options: Record<string, boolean | string | number>) => void;
+  setAssistantSelection: (selection: AssistantSelection) => void;
 
   // 重置为默认配置
   resetToDefaults: () => void;
@@ -119,6 +144,9 @@ export function useSessionConfig(
         options.getDefaultDisabledMcpTools?.() ??
         [],
       agentOptions: options.getDefaultAgentOptions(),
+      assistantId: persisted?.assistantId ?? "",
+      assistantName: persisted?.assistantName ?? "",
+      assistantPromptSnapshot: persisted?.assistantPromptSnapshot ?? "",
     };
   });
 
@@ -143,8 +171,17 @@ export function useSessionConfig(
     persistConfig({
       disabledSkills: config.disabledSkills,
       disabledMcpTools: config.disabledMcpTools,
+      assistantId: config.assistantId,
+      assistantName: config.assistantName,
+      assistantPromptSnapshot: config.assistantPromptSnapshot,
     });
-  }, [config.disabledSkills, config.disabledMcpTools]);
+  }, [
+    config.disabledSkills,
+    config.disabledMcpTools,
+    config.assistantId,
+    config.assistantName,
+    config.assistantPromptSnapshot,
+  ]);
 
   // Toggle skill (add/remove from disabled list)
   const toggleSkill = useCallback((skillName: string) => {
@@ -219,12 +256,23 @@ export function useSessionConfig(
     [],
   );
 
+  const setAssistantSelection = useCallback((selection: AssistantSelection) => {
+    setConfig((prev) => ({
+      ...prev,
+      assistantId: selection.assistantId,
+      assistantName: selection.assistantName,
+      assistantPromptSnapshot: selection.assistantPromptSnapshot,
+      assistantAvatarUrl: selection.avatarUrl ?? null,
+    }));
+  }, []);
+
   // Reset to defaults (new conversation)
   const resetToDefaults = useCallback(() => {
     const defaults = {
       disabledSkills: options.getDefaultDisabledSkills?.() || [],
       disabledMcpTools: options.getDefaultDisabledMcpTools?.() || [],
       agentOptions: defaultAgentOptionsRef.current,
+      ...EMPTY_ASSISTANT_SELECTION,
     };
     setConfig(defaults);
     persistConfig(defaults);
@@ -242,6 +290,18 @@ export function useSessionConfig(
       agentOptions:
         normalizeAgentOptionValues(sessionConfig.agent_options) ||
         defaultAgentOptionsRef.current,
+      assistantId:
+        typeof sessionConfig.assistant_id === "string"
+          ? sessionConfig.assistant_id
+          : "",
+      assistantName:
+        typeof sessionConfig.assistant_name === "string"
+          ? sessionConfig.assistant_name
+          : "",
+      assistantPromptSnapshot:
+        typeof sessionConfig.assistant_prompt_snapshot === "string"
+          ? sessionConfig.assistant_prompt_snapshot
+          : "",
     };
     setConfig(restored);
     persistConfig(restored);
@@ -271,6 +331,7 @@ export function useSessionConfig(
     setDisabledSkills,
     setDisabledMcpTools,
     setAgentOptions,
+    setAssistantSelection,
     resetToDefaults,
     restoreConfig,
     isSkillEnabled,

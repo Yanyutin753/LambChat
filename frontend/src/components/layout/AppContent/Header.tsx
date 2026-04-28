@@ -15,6 +15,7 @@ import {
   ListTree,
 } from "lucide-react";
 import { ModelSelector } from "../../agent/ModelSelector";
+import { AssistantSelector } from "../../assistant/AssistantSelector";
 import { LanguageToggle } from "../../common/LanguageToggle";
 import { ThemeToggle } from "../../common/ThemeToggle";
 import { UserMenu } from "../UserMenu";
@@ -28,6 +29,7 @@ import { NotificationDialog } from "../../notification/NotificationDialog";
 import { Permission } from "../../../types";
 import type { TabType } from "./types";
 import type { Project } from "../../../types";
+import type { AssistantSelection } from "../../../types";
 
 interface HeaderProps {
   activeTab: TabType;
@@ -49,6 +51,9 @@ interface HeaderProps {
     | null;
   currentModelId?: string;
   onSelectModel?: (modelId: string, modelValue: string) => void;
+  currentAssistantId?: string;
+  currentAssistantName?: string;
+  onSelectAssistant?: (selection: AssistantSelection) => void;
   sessionId?: string | null;
   sessionName?: string | null;
   onToggleOutline?: () => void;
@@ -67,6 +72,9 @@ export function Header({
   availableModels,
   currentModelId,
   onSelectModel,
+  currentAssistantId,
+  currentAssistantName,
+  onSelectAssistant,
   sessionId,
   sessionName,
   onToggleOutline,
@@ -182,6 +190,14 @@ export function Header({
                     onSelectModel={onSelectModel}
                   />
                 )}
+
+              {onSelectAssistant && (
+                <AssistantSelector
+                  currentAssistantId={currentAssistantId || ""}
+                  currentAssistantName={currentAssistantName || ""}
+                  onSelectAssistant={onSelectAssistant}
+                />
+              )}
 
               {currentProjectId &&
                 (() => {

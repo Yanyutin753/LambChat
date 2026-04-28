@@ -18,6 +18,7 @@ import {
   Cpu,
   Bell,
   Brain,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -147,6 +148,12 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       label: t("nav.marketplace"),
       icon: ShoppingBag,
       show: canReadMarketplace,
+    },
+    {
+      path: "/assistants",
+      label: t("nav.assistants", { defaultValue: "Assistants" }),
+      icon: Sparkles,
+      show: true,
     },
     { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
     {

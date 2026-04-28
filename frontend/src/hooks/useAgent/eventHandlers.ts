@@ -291,8 +291,12 @@ function handleUserMessage(
   eventTimestamp: string | undefined,
   ctx: EventHandlerContext,
 ): void {
+  const extractOptimisticContent = (content: string): string | null => {
+    const match = content.match(/^\[[^\]]+\]\s([\s\S]*)$/);
+    return match ? match[1] : null;
+  };
   const userContent = data.content || "";
-  const userAttachments = convertAttachments(data.attachments);
+  const userAttachments = convertAttachments(data.attachments) || [];
 
   if (userContent) {
     ctx.setMessages((prev) => {
@@ -310,6 +314,28 @@ function handleUserMessage(
         (m) => m.role === "user" && m.content === userContent,
       );
       if (existingUserMsg) return prev;
+
+      const optimisticContent = extractOptimisticContent(userContent);
+      if (optimisticContent) {
+        for (let index = prev.length - 1; index >= 0; index -= 1) {
+          const candidate = prev[index];
+          if (
+            candidate?.role === "user" &&
+            candidate.content === optimisticContent
+          ) {
+            const updatedMessages = [...prev];
+            updatedMessages[index] = {
+              ...candidate,
+              content: userContent,
+              attachments:
+                userAttachments.length > 0
+                  ? userAttachments
+                  : candidate.attachments,
+            };
+            return updatedMessages;
+          }
+        }
+      }
 
       const newUserMessage: Message = {
         id: crypto.randomUUID(),

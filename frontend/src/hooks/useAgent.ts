@@ -313,6 +313,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             disabled_mcp_tools:
               (sessionData.metadata?.disabled_mcp_tools as string[]) ||
               undefined,
+            assistant_id:
+              (sessionData.metadata?.assistant_id as string) || undefined,
+            assistant_name:
+              (sessionData.metadata?.assistant_name as string) || undefined,
+            assistant_prompt_snapshot:
+              (sessionData.metadata?.assistant_prompt_snapshot as string) ||
+              undefined,
           };
 
           // 并行发起 events、status 和 feedback 请求，减少串行等待时间
@@ -513,6 +520,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           ...options?.getAgentOptions?.(),
           ...agentOptions,
         };
+        const assistantSelection = options?.getAssistantSelection?.();
+        const assistantId = assistantSelection?.assistantId ?? "";
 
         const submitData = (await sessionApi.submitChat(
           currentAgent,
@@ -523,6 +532,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           pendingProjectIdRef.current ?? undefined,
           disabledSkills,
           disabledMcpTools,
+          assistantId,
         )) as {
           session_id: string;
           run_id: string;
@@ -561,6 +571,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           if (projectId) {
             conversationConfig.project_id = projectId;
           }
+          if (assistantId) {
+            conversationConfig.assistant_id = assistantId;
+            conversationConfig.assistant_name =
+              assistantSelection?.assistantName || assistantId;
+            conversationConfig.assistant_prompt_snapshot =
+              assistantSelection?.assistantPromptSnapshot || "";
+          }
 
           const newSession: BackendSession = {
             id: newSessionId,
@@ -592,14 +609,24 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         } else if (sessionId && newRunId) {
           // 更新现有 session 的 metadata
           const conversationConfig: Record<string, unknown> = {
-            ...((newlyCreatedSession?.metadata as Record<string, unknown>) ||
-              {}),
             current_run_id: newRunId,
             agent_id: currentAgent,
             agent_options: fullAgentOptions,
             disabled_skills: disabledSkills,
             disabled_mcp_tools: disabledMcpTools,
           };
+          const effectiveProjectId =
+            pendingProjectIdRef.current ?? currentProjectId ?? undefined;
+          if (effectiveProjectId) {
+            conversationConfig.project_id = effectiveProjectId;
+          }
+          if (assistantId) {
+            conversationConfig.assistant_id = assistantId;
+            conversationConfig.assistant_name =
+              assistantSelection?.assistantName || assistantId;
+            conversationConfig.assistant_prompt_snapshot =
+              assistantSelection?.assistantPromptSnapshot || "";
+          }
 
           setNewlyCreatedSession((prev) =>
             prev
@@ -667,6 +694,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       createSSEContext,
       newlyCreatedSession?.metadata,
       options,
+      currentProjectId,
     ],
   );
 

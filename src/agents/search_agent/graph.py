@@ -25,6 +25,7 @@ from src.agents.core.base import BaseGraphAgent, GraphBuilder, register_agent
 from src.agents.search_agent.context import SearchAgentContext
 from src.agents.search_agent.nodes import agent_node
 from src.agents.search_agent.state import SearchAgentState
+from src.infra.assistant.prompt import resolve_runtime_assistant_prompt
 
 # 设置用户上下文，供 backend 使用
 from src.infra.backend.context import set_user_context
@@ -166,6 +167,10 @@ class SearchAgent(BaseGraphAgent):
         # 构建 config
         agent_options = kwargs.get("agent_options", {})
         logger.info(f"[SearchAgent] agent_options: {agent_options}")
+        assistant_prompt = resolve_runtime_assistant_prompt(
+            assistant_prompt=kwargs.get("assistant_prompt", ""),
+            agent_options=agent_options,
+        )
 
         config: RunnableConfig = {
             "configurable": {
@@ -173,7 +178,7 @@ class SearchAgent(BaseGraphAgent):
                 "presenter": presenter,
                 "context": context,
                 "agent_options": agent_options,
-                "assistant_prompt": kwargs.get("assistant_prompt", ""),
+                "assistant_prompt": assistant_prompt,
                 "disabled_tools": disabled_tools,
                 "disabled_skills": disabled_skills,
                 "disabled_mcp_tools": disabled_mcp_tools,

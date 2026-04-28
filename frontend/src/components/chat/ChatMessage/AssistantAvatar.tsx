@@ -1,45 +1,61 @@
 import { useState, useEffect } from "react";
 
-const ICON_SRC = "/icons/icon.svg";
-let cachedDataUrl: string | null = null;
-let pending: Promise<string> | null = null;
+const DEFAULT_ICON_SRC = "/icons/icon.svg";
+let cachedDefaultDataUrl: string | null = null;
+let pendingDefault: Promise<string> | null = null;
 
-function loadDataUrl(): Promise<string> {
-  if (cachedDataUrl) return Promise.resolve(cachedDataUrl);
-  if (pending) return pending;
-  pending = fetch(ICON_SRC)
+function loadDefaultDataUrl(): Promise<string> {
+  if (cachedDefaultDataUrl) return Promise.resolve(cachedDefaultDataUrl);
+  if (pendingDefault) return pendingDefault;
+  pendingDefault = fetch(DEFAULT_ICON_SRC)
     .then((r) => r.text())
     .then((svg) => {
-      cachedDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+      cachedDefaultDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
         svg,
       )}`;
-      pending = null;
-      return cachedDataUrl;
+      pendingDefault = null;
+      return cachedDefaultDataUrl;
     })
     .catch(() => {
-      pending = null;
-      return ICON_SRC;
+      pendingDefault = null;
+      return DEFAULT_ICON_SRC;
     });
-  return pending;
+  return pendingDefault;
 }
 
-// Pre-fetch on module load
-loadDataUrl();
+loadDefaultDataUrl();
 
-export function AssistantAvatar({ className }: { className?: string }) {
-  const [src, setSrc] = useState(ICON_SRC);
+interface AssistantAvatarProps {
+  className?: string;
+  avatarUrl?: string | null;
+  size?: number;
+}
+
+export function AssistantAvatar({
+  className,
+  avatarUrl,
+  size = 28,
+}: AssistantAvatarProps) {
+  const [defaultSrc, setDefaultSrc] = useState(DEFAULT_ICON_SRC);
 
   useEffect(() => {
-    loadDataUrl().then(setSrc);
+    loadDefaultDataUrl().then(setDefaultSrc);
   }, []);
+
+  const src = avatarUrl || defaultSrc;
 
   return (
     <img
       src={src}
       alt="Assistant"
-      width={28}
-      height={28}
+      width={size}
+      height={size}
       className={className}
+      onError={(e) => {
+        if (avatarUrl) {
+          (e.target as HTMLImageElement).src = defaultSrc;
+        }
+      }}
     />
   );
 }

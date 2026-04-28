@@ -30,7 +30,10 @@ from src.infra.agent.middleware import (
     create_retry_middleware,
 )
 from src.infra.agent.middleware_subagent import SubagentActivityMiddleware
-from src.infra.assistant.prompt import build_assistant_prompt_sections
+from src.infra.assistant.prompt import (
+    build_assistant_prompt_sections,
+    build_system_prompt_with_assistant,
+)
 from src.infra.backend.deepagent import create_persistent_backend_factory
 from src.infra.llm.client import LLMClient
 from src.infra.logging import get_logger
@@ -92,6 +95,9 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     tenant_id = context.user_id or "default"
     assistant_id = f"assistant-{tenant_id}"
 
+    # 构建系统提示（将 assistant preset 直接并入 base system prompt，提升 KV cache 命中）
+    system_prompt = build_system_prompt_with_assistant(FAST_SYSTEM_PROMPT, assistant_prompt)
+
     # 构建 skills 提示
     skills_prompt = ""
     if settings.ENABLE_SKILLS and context.skills:
@@ -105,9 +111,6 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
 
     # 构建记忆系统提示
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
-
-    # 构建系统提示（skills/memory_guide 由 SectionPromptMiddleware 在请求时注入）
-    system_prompt = FAST_SYSTEM_PROMPT
 
     # 创建 backend（无沙箱，PostgreSQL 或 MongoDB 由 store 决定）
     backend_start = time.time()
@@ -178,11 +181,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
     _prompt_sections = list(
-        build_assistant_prompt_sections(
-            assistant_prompt=assistant_prompt,
-            skills_prompt=skills_prompt,
-            memory_guide=memory_guide,
-        )
+        build_assistant_prompt_sections(skills_prompt=skills_prompt, memory_guide=memory_guide)
     )
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))

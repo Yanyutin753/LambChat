@@ -37,6 +37,53 @@ export interface SessionRunsQuery {
   trace_id?: string;
 }
 
+function getBrowserTimezone(): string | undefined {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return typeof timezone === "string" && timezone.trim() ? timezone : undefined;
+}
+
+export function buildSubmitChatBody({
+  message,
+  sessionId,
+  agentOptions,
+  attachments,
+  projectId,
+  disabledSkills,
+  disabledMcpTools,
+  assistantId,
+  userTimezone,
+}: {
+  message: string;
+  sessionId?: string;
+  agentOptions?: Record<string, boolean | string | number>;
+  attachments?: MessageAttachment[];
+  projectId?: string;
+  disabledSkills?: string[];
+  disabledMcpTools?: string[];
+  assistantId?: string;
+  userTimezone?: string;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    message,
+    session_id: sessionId,
+    agent_options: agentOptions,
+    attachments,
+    disabled_skills: disabledSkills,
+    disabled_mcp_tools: disabledMcpTools,
+  };
+
+  if (assistantId !== undefined) {
+    body.assistant_id = assistantId;
+  }
+  if (userTimezone) {
+    body.user_timezone = userTimezone;
+  }
+  if (projectId) {
+    body.project_id = projectId;
+  }
+  return body;
+}
+
 export function buildSessionRunsUrl(
   sessionId: string,
   options?: SessionRunsQuery,
@@ -225,23 +272,24 @@ export const sessionApi = {
     projectId?: string,
     disabledSkills?: string[],
     disabledMcpTools?: string[],
+    assistantId?: string,
   ): Promise<{
     session_id: string;
     run_id: string;
     trace_id: string;
     status: string;
   }> {
-    const body: Record<string, unknown> = {
+    const body = buildSubmitChatBody({
       message,
-      session_id: sessionId,
-      agent_options: agentOptions,
+      sessionId,
+      agentOptions,
       attachments,
-      disabled_skills: disabledSkills,
-      disabled_mcp_tools: disabledMcpTools,
-    };
-    if (projectId) {
-      body.project_id = projectId;
-    }
+      projectId,
+      disabledSkills,
+      disabledMcpTools,
+      assistantId,
+      userTimezone: getBrowserTimezone(),
+    });
     return authFetch(`${API_BASE}/api/chat/stream?agent_id=${agentId}`, {
       method: "POST",
       body: JSON.stringify(body),

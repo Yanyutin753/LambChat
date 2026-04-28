@@ -19,6 +19,7 @@ from src.agents.core.base import BaseGraphAgent, GraphBuilder, register_agent
 from src.agents.fast_agent.context import FastAgentContext
 from src.agents.fast_agent.nodes import fast_agent_node
 from src.agents.fast_agent.state import FastAgentState
+from src.infra.assistant.prompt import resolve_runtime_assistant_prompt
 from src.infra.backend.context import set_user_context
 from src.infra.logging import get_logger
 from src.infra.task.manager import TaskInterruptedError
@@ -148,6 +149,10 @@ class FastAgent(BaseGraphAgent):
         # 构建 config
         agent_options = kwargs.get("agent_options", {})
         logger.info(f"[FastAgent] agent_options: {agent_options}")
+        assistant_prompt = resolve_runtime_assistant_prompt(
+            assistant_prompt=kwargs.get("assistant_prompt", ""),
+            agent_options=agent_options,
+        )
 
         config: RunnableConfig = {
             "configurable": {
@@ -155,7 +160,7 @@ class FastAgent(BaseGraphAgent):
                 "presenter": presenter,
                 "context": context,
                 "agent_options": agent_options,
-                "assistant_prompt": kwargs.get("assistant_prompt", ""),
+                "assistant_prompt": assistant_prompt,
                 "disabled_skills": disabled_skills,
                 "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),

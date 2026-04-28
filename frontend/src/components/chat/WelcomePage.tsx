@@ -1,3 +1,4 @@
+import type * as React from "react";
 import { memo, useState, useCallback, useRef } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { ChatInput } from "./ChatInput";
@@ -18,6 +19,7 @@ interface WelcomePageProps {
   canSendMessage: boolean;
   onSendMessage: (content: string) => void;
   chatInputProps: ChatInputProps;
+  chatInputHeader?: React.ReactNode;
   onRefreshSuggestions?: () => void;
 }
 
@@ -30,6 +32,7 @@ export const WelcomePage = memo(function WelcomePage({
   canSendMessage,
   onSendMessage,
   chatInputProps,
+  chatInputHeader,
   onRefreshSuggestions,
 }: WelcomePageProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -91,6 +94,7 @@ export const WelcomePage = memo(function WelcomePage({
 
       {/* ChatInput centered — the focal point */}
       <div className="welcome-input w-[24rem] sm:w-full sm:max-w-[44rem] 2xl:max-w-[54rem]">
+        {chatInputHeader}
         <ChatInput {...chatInputProps} className="mx-auto w-full px-2" />
       </div>
 
