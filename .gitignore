@@ -79,3 +79,6 @@ frontend/src/components/common/DynamicIcon.tsx
 .codex/
 claude-code
 .playwright-mcp/
+
+# YubbChat (external project, not part of this repo)
+YubbChat/
