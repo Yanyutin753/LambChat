@@ -276,11 +276,9 @@ export function SessionItem({
           )}
         </div>
 
-        {/* Unread badge - hidden when session is active (user is viewing it) */}
+        {/* Unread dot - hidden when session is active (user is viewing it) */}
         {!isEditing && !isActive && (session.unread_count ?? 0) > 0 && (
-          <span className="flex-shrink-0 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium leading-none animate-[scale-in_0.2s_ease-out]">
-            {(session.unread_count ?? 0) > 99 ? "99+" : session.unread_count}
-          </span>
+          <div className="shrink-0 rounded-full bg-blue-500 h-2 w-2" />
         )}
 
         {/* Menu button */}
