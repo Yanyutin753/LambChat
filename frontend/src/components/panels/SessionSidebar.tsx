@@ -495,10 +495,10 @@ export const SessionSidebar = forwardRef<
             setIsCollapsed(true);
             onMobileClose?.();
           }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors cursor-w-resize rtl:cursor-e-resize"
           title={t("sidebar.collapseSidebar")}
         >
-          <PanelLeftClose size={18} />
+          <PanelLeftClose size={20} />
         </button>
       </div>
 
@@ -884,43 +884,43 @@ export const SessionSidebar = forwardRef<
           <div className="flex h-11 items-center justify-center w-full">
             <button
               onClick={() => setIsCollapsed(false)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2 cursor-e-resize rtl:cursor-w-resize"
               aria-label={t("sidebar.expandSidebar")}
             >
-              <PanelLeftOpen size={18} />
+              <PanelLeftOpen size={20} />
             </button>
           </div>
 
           <div className="mt-4 flex flex-col items-center w-full gap-0.5">
             <button
               onClick={onNewSession}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2"
               aria-label={t("sidebar.newChat")}
             >
-              <MessageSquarePlus size={18} />
+              <MessageSquarePlus size={20} />
             </button>
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2"
               aria-label={t("sidebar.searchSessions")}
             >
-              <Search size={18} />
+              <Search size={20} />
             </button>
             <button
               onClick={() => setIsCollapsed(false)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2"
               aria-label={t("sidebar.recentChats")}
             >
-              <Clock size={18} />
+              <Clock size={20} />
             </button>
           </div>
 
           <div className="pointer-events-none flex-grow" />
 
-          <div className="mb-1 flex items-center justify-center w-full">
+          <div className="mb-1 flex items-center justify-center w-full px-2">
             <button
               onClick={onShowProfile}
-              className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden transition-colors"
+              className="flex h-9 w-full items-center justify-center rounded-lg overflow-hidden transition-colors gap-2 pe-1.5"
               aria-label={t("sidebar.expandSidebar")}
             >
               {user?.avatar_url && !imgError ? (
