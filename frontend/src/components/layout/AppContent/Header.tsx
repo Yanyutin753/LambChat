@@ -15,8 +15,6 @@ import {
   ListTree,
 } from "lucide-react";
 import { ModelSelector } from "../../agent/ModelSelector";
-import { LanguageToggle } from "../../common/LanguageToggle";
-import { ThemeToggle } from "../../common/ThemeToggle";
 import { UserMenu } from "../UserMenu";
 import { ShareDialog } from "../../share/ShareDialog";
 import { useAuth } from "../../../hooks/useAuth";
@@ -31,7 +29,6 @@ import type { Project } from "../../../types";
 
 interface HeaderProps {
   activeTab: TabType;
-  sidebarCollapsed: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
   currentProjectId: string | null;
   projectManager: { projects: Project[] };
@@ -56,7 +53,6 @@ interface HeaderProps {
 
 export function Header({
   activeTab,
-  sidebarCollapsed,
   setMobileSidebarOpen,
   currentProjectId,
   projectManager,
@@ -80,6 +76,12 @@ export function Header({
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [activeNotifCount, setActiveNotifCount] = useState(0);
+
+  const getMenuPosition = useCallback(() => {
+    const rect = mobileMenuBtnRef.current?.getBoundingClientRect();
+    if (!rect) return { top: 52, right: 12 };
+    return { top: rect.bottom + 4, right: window.innerWidth - rect.right };
+  }, []);
 
   const refreshNotifCount = useCallback(() => {
     notificationApi
@@ -219,36 +221,8 @@ export function Header({
 
         {/* Right */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          {showOutlineButton && onToggleOutline && (
-            <button
-              onClick={onToggleOutline}
-              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
-              title={t("chat.outline")}
-            >
-              <ListTree size={20} />
-            </button>
-          )}
-          {activeTab === "chat" && sidebarCollapsed && (
-            <button
-              onClick={onNewSession}
-              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
-              title={t("sidebar.newChat")}
-            >
-              <MessageSquarePlus size={20} />
-            </button>
-          )}
-          {showShareButton && (
-            <button
-              onClick={() => setShareDialogOpen(true)}
-              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
-              title={t("share.title")}
-            >
-              <Share2 size={20} />
-            </button>
-          )}
-
-          {/* Mobile overflow menu */}
-          <div className="relative sm:hidden">
+          {/* Overflow menu (unified for all screen sizes) */}
+          <div className="relative">
             <button
               ref={mobileMenuBtnRef}
               onClick={() => setMobileMenuOpen((v) => !v)}
@@ -261,8 +235,10 @@ export function Header({
               createPortal(
                 <div
                   ref={mobileMenuPanelRef}
-                  className="fixed z-[301] right-3 top-[52px] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+                  className="fixed z-[301] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
                   style={{
+                    top: getMenuPosition().top,
+                    right: getMenuPosition().right,
                     backgroundColor: "var(--theme-bg-card)",
                     borderColor: "var(--theme-border)",
                   }}
@@ -277,7 +253,9 @@ export function Header({
                         }}
                         className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                       >
-                        <ListTree size={16} className="shrink-0" />
+                        <span className="flex items-center justify-center w-5 shrink-0">
+                          <ListTree size={16} />
+                        </span>
                         <span className="truncate">{t("chat.outline")}</span>
                       </button>
                     )}
@@ -289,7 +267,9 @@ export function Header({
                         }}
                         className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                       >
-                        <MessageSquarePlus size={16} className="shrink-0" />
+                        <span className="flex items-center justify-center w-5 shrink-0">
+                          <MessageSquarePlus size={16} />
+                        </span>
                         <span className="truncate">{t("sidebar.newChat")}</span>
                       </button>
                     )}
@@ -301,11 +281,9 @@ export function Header({
                         }}
                         className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                       >
-                        <Share2
-                          size={16}
-                          strokeWidth={1.8}
-                          className="shrink-0"
-                        />
+                        <span className="flex items-center justify-center w-5 shrink-0">
+                          <Share2 size={16} strokeWidth={1.8} />
+                        </span>
                         <span className="truncate">{t("share.title")}</span>
                       </button>
                     )}
@@ -316,7 +294,9 @@ export function Header({
                       }}
                       className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                     >
-                      <Bell size={16} className="shrink-0" />
+                      <span className="flex items-center justify-center w-5 shrink-0">
+                        <Bell size={16} />
+                      </span>
                       <span className="truncate">{t("nav.notifications")}</span>
                       {activeNotifCount > 0 && (
                         <span className="ml-auto flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white leading-none">
@@ -333,14 +313,18 @@ export function Header({
                     >
                       {theme === "light" ? (
                         <>
-                          <Moon size={16} className="shrink-0" />
+                          <span className="flex items-center justify-center w-5 shrink-0">
+                            <Moon size={16} />
+                          </span>
                           <span className="truncate">
                             {t("theme.switchToDark")}
                           </span>
                         </>
                       ) : (
                         <>
-                          <Sun size={16} className="shrink-0" />
+                          <span className="flex items-center justify-center w-5 shrink-0">
+                            <Sun size={16} />
+                          </span>
                           <span className="truncate">
                             {t("theme.switchToLight")}
                           </span>
@@ -351,7 +335,9 @@ export function Header({
                       onClick={() => setLangMenuOpen(true)}
                       className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                     >
-                      <Languages size={16} className="shrink-0" />
+                      <span className="flex items-center justify-center w-5 shrink-0">
+                        <Languages size={16} />
+                      </span>
                       <span className="truncate">{t("common.language")}</span>
                     </button>
                   </div>
@@ -363,8 +349,10 @@ export function Header({
           {langMenuOpen &&
             createPortal(
               <div
-                className="fixed z-[302] right-3 top-[52px] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
+                className="fixed z-[302] w-56 rounded-xl shadow-xl border overflow-hidden animate-scale-in"
                 style={{
+                  top: getMenuPosition().top,
+                  right: getMenuPosition().right,
                   backgroundColor: "var(--theme-bg-card)",
                   borderColor: "var(--theme-border)",
                 }}
@@ -420,20 +408,6 @@ export function Header({
               document.body,
             )}
 
-          <LanguageToggle className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors" />
-          <ThemeToggle className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors" />
-          <button
-            onClick={() => setNotifDialogOpen(true)}
-            className="relative hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
-            title={t("nav.notifications")}
-          >
-            <Bell size={20} />
-            {activeNotifCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white leading-none">
-                {activeNotifCount > 99 ? "99+" : activeNotifCount}
-              </span>
-            )}
-          </button>
           <UserMenu onShowProfile={onShowProfile} />
         </div>
       </header>

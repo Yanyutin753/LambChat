@@ -428,7 +428,7 @@ export function ToolResultPanel({
         isSidebar && !isMobile && !panelClass
           ? {
               maxWidth: `${sidebarWidth}%`,
-              minWidth: "min(400px, 80vw)",
+              minWidth: "min(25vw, 400px)",
               ...(animateIn ? {} : { transform: "translateX(100%)" }),
             }
           : !animateIn && !panelClass && !isCenter
@@ -477,7 +477,7 @@ export function ToolResultPanel({
           {hasCustomHeader ? (
             customHeader
           ) : (
-            <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 shrink-0 whitespace-nowrap">
+            <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 shrink-0 overflow-hidden">
               {/* Status + Icon */}
               <div
                 className={`flex items-center justify-center size-10 rounded-xl shrink-0 ${cfg.bg}`}
@@ -522,7 +522,7 @@ export function ToolResultPanel({
 
               {/* Center / Fullscreen / Close */}
               {!hideViewToggle && (
-                <div className="flex items-center gap-0.5 shrink-0">
+                <div className="flex items-center gap-0.5 shrink min-w-0 overflow-hidden">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -539,14 +539,14 @@ export function ToolResultPanel({
                     {isSidebar ? (
                       <>
                         <Maximize2 size={14} />
-                        <span className="hidden xl:inline">
+                        <span className="hidden xl:inline truncate min-w-0">
                           {t("documents.centerView", "居中")}
                         </span>
                       </>
                     ) : (
                       <>
                         <PanelRight size={14} />
-                        <span className="hidden sm:inline">
+                        <span className="hidden sm:inline truncate min-w-0">
                           {t("documents.sidebarView", "侧边栏")}
                         </span>
                       </>
@@ -568,14 +568,14 @@ export function ToolResultPanel({
                     {isFullscreen ? (
                       <>
                         <Shrink size={14} />
-                        <span className="hidden xl:inline">
+                        <span className="hidden xl:inline truncate min-w-0">
                           {t("documents.exitFullscreen", "退出全屏")}
                         </span>
                       </>
                     ) : (
                       <>
                         <Expand size={14} />
-                        <span className="hidden xl:inline">
+                        <span className="hidden xl:inline truncate min-w-0">
                           {t("documents.fullscreen", "全屏")}
                         </span>
                       </>
@@ -592,7 +592,7 @@ export function ToolResultPanel({
                     title={t("common.close", "Close")}
                   >
                     <X size={14} />
-                    <span className="hidden xl:inline">
+                    <span className="hidden xl:inline truncate min-w-0">
                       {t("common.close", "关闭")}
                     </span>
                   </button>

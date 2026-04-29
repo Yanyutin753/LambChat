@@ -149,6 +149,8 @@ class FastAgent(BaseGraphAgent):
         agent_options = kwargs.get("agent_options", {})
         logger.info(f"[FastAgent] agent_options: {agent_options}")
 
+        langsmith_metadata = await presenter.build_langsmith_metadata()
+
         config: RunnableConfig = {
             "configurable": {
                 "thread_id": session_id,
@@ -159,6 +161,7 @@ class FastAgent(BaseGraphAgent):
                 "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),
             },
+            "metadata": langsmith_metadata,
             "recursion_limit": settings.SESSION_MAX_RUNS_PER_SESSION,
         }
 

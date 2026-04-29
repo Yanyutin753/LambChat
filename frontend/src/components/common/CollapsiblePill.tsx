@@ -202,11 +202,11 @@ export function CollapsiblePill({
     .join(" ");
 
   return (
-    <div className="my-1 min-w-0">
+    <div className="my-1 min-w-0 max-w-full">
       <button
         onClick={handleToggle}
         className={clsx(
-          "inline-flex items-center gap-2 px-2.5 py-2 rounded-full text-xs font-medium",
+          "inline-flex items-center gap-2 px-2.5 py-2 rounded-full text-xs font-medium max-w-full",
           "transition-colors",
           getButtonStyles(status, variant),
           canExpand && "cursor-pointer",
@@ -217,7 +217,7 @@ export function CollapsiblePill({
         {icon}
         <span
           className={clsx(
-            "font-mono truncate max-w-[200px] sm:max-w-[400px]",
+            "font-mono truncate min-w-0",
             animatedDots && "typing-dots",
           )}
         >

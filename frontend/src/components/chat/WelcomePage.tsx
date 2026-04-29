@@ -70,7 +70,7 @@ export const WelcomePage = memo(function WelcomePage({
 
         {/* Greeting */}
         <h1
-          className="welcome-greeting max-w-[90vw] text-[1.65rem] sm:text-[2rem] md:text-[2.25rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center"
+          className="welcome-greeting max-w-[90vw] text-[1.65rem] sm:text-[2rem] md:text-[2.25rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
           style={{ color: "var(--theme-text)" }}
         >
           <img
@@ -82,7 +82,7 @@ export const WelcomePage = memo(function WelcomePage({
         </h1>
         {/* Subtle subtitle prompt */}
         <p
-          className="welcome-subtitle mt-2 sm:mt-3 2xl:mt-4 text-sm sm:text-base 2xl:text-lg text-center"
+          className="welcome-subtitle mt-2 sm:mt-3 2xl:mt-4 text-sm sm:text-base 2xl:text-lg text-center font-serif"
           style={{ color: "var(--theme-text-secondary)" }}
         >
           {subtitle}
@@ -96,10 +96,10 @@ export const WelcomePage = memo(function WelcomePage({
 
       {/* Suggestions with refresh */}
       {suggestions && suggestions.length > 0 && (
-        <div className="welcome-suggestions relative w-[19rem] sm:max-w-[32rem] 2xl:max-w-[42rem] sm:w-full px-2 sm:px-4 sm:mt-5 2xl:mt-8">
+        <div className="welcome-suggestions relative w-[19rem] sm:max-w-[32rem] 2xl:max-w-[42rem] sm:w-full px-2 sm:px-4 sm:mt-5 2xl:mt-6">
           <div className="flex items-center justify-between mb-2 sm:mb-3 2xl:mb-4">
             <div
-              className="flex items-center gap-1 text-xs sm:text-sm font-medium"
+              className="flex items-center gap-1 text-xs sm:text-sm font-medium font-serif"
               style={{ color: "var(--theme-text-secondary)" }}
             >
               <Sparkles
@@ -111,7 +111,7 @@ export const WelcomePage = memo(function WelcomePage({
             {onRefreshSuggestions && (
               <button
                 onClick={handleRefresh}
-                className="welcome-refresh-btn flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] font-medium transition-all duration-300 cursor-pointer"
+                className="welcome-refresh-btn flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
                 style={{
                   color: "var(--theme-text-secondary)",
                   backgroundColor: "transparent",
@@ -135,7 +135,7 @@ export const WelcomePage = memo(function WelcomePage({
               <button
                 key={suggestion.text}
                 onClick={() => handleSuggestionClick(suggestion.text)}
-                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 2xl:gap-3.5 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 2xl:px-5 2xl:py-3.5 text-left cursor-pointer transition-all duration-300 overflow-hidden${
+                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 2xl:gap-3.5 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 text-left cursor-pointer transition-all duration-300 overflow-hidden${
                   i >= 2 ? " hidden sm:flex" : ""
                 }`}
                 style={{

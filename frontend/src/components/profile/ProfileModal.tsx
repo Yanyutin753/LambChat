@@ -10,8 +10,10 @@ import {
   Wrench,
   Cpu,
   Scale,
+  LogOut,
 } from "lucide-react";
 import { useVersion } from "../../hooks/useVersion";
+import { useAuth } from "../../hooks/useAuth";
 
 import { APP_NAME } from "../../constants";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
@@ -48,6 +50,7 @@ export function ProfileModal({
   versionInfo,
 }: ProfileModalProps) {
   const { t } = useTranslation();
+  const { logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
     | "info"
@@ -223,6 +226,16 @@ export function ProfileModal({
                 </button>
               );
             })}
+            <button
+              onClick={() => {
+                logout();
+                onCloseProfileModal();
+              }}
+              className="relative shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              <LogOut size={14} />
+              {t("auth.logout")}
+            </button>
           </div>
         </div>
 
@@ -282,6 +295,18 @@ export function ProfileModal({
                 </button>
               );
             })}
+            <div className="!mt-3 pt-3 border-t border-stone-200/80 dark:border-stone-700/50">
+              <button
+                onClick={() => {
+                  logout();
+                  onCloseProfileModal();
+                }}
+                className="w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium transition-all text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent"
+              >
+                <LogOut size={15} className="opacity-70" />
+                {t("auth.logout")}
+              </button>
+            </div>
           </div>
 
           {/* Right content */}

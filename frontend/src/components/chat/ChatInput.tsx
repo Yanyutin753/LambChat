@@ -20,6 +20,7 @@ import {
 import { AgentOptionButton } from "./AgentOptionButton";
 import { turndown, cleanPastedHtml } from "./chatInputTurndown";
 import { PASTE_TEXT_THRESHOLD } from "./chatInputConstants";
+import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import type {
   ToolState,
   ToolCategory,
@@ -116,6 +117,7 @@ export const ChatInput = memo(function ChatInput({
 }: ChatInputProps) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
+  const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
   const [internalAttachments, setInternalAttachments] = useState<
     MessageAttachment[]
   >([]);
@@ -477,7 +479,7 @@ export const ChatInput = memo(function ChatInput({
             </div>
           )}
 
-          <div className="px-2.5 py-2 flex items-start gap-2">
+          <div className="px-2.5 pt-2 flex items-start gap-2">
             <textarea
               ref={textareaRef}
               value={input}
@@ -501,53 +503,44 @@ export const ChatInput = memo(function ChatInput({
                 attachments={attachments}
                 onAttachmentsChange={setAttachments}
               />
-              <div className="flex items-center gap-2 overflow-x-auto overflow-y-hidden scrollbar-none flex-1">
-                {onToggleTool && onToggleCategory && onToggleAll && (
-                  <ToolSelector
-                    tools={tools}
-                    onToggleTool={onToggleTool}
-                    onToggleCategory={onToggleCategory}
-                    onToggleAll={onToggleAll}
-                    enabledCount={enabledToolsCount}
-                    totalCount={totalToolsCount}
-                  />
-                )}
-                {enableSkills &&
-                  onToggleSkill &&
-                  onToggleSkillCategory &&
-                  onToggleAllSkills && (
-                    <SkillSelector
-                      skills={skills}
-                      onToggleSkill={onToggleSkill}
-                      onToggleCategory={onToggleSkillCategory}
-                      onToggleAll={onToggleAllSkills}
-                      pendingSkillNames={pendingSkillNames}
-                      isMutating={skillsMutating}
-                      enabledCount={enabledSkillsCount}
-                      totalCount={totalSkillsCount}
-                    />
-                  )}
-                <AgentModeSelector
-                  agents={agents}
-                  currentAgent={currentAgent || ""}
-                  onSelectAgent={onSelectAgent}
-                />
-                {agentOptions &&
-                  onToggleAgentOption &&
-                  Object.keys(agentOptions).length > 0 && (
-                    <>
-                      {Object.entries(agentOptions).map(([key, option]) => (
-                        <AgentOptionButton
-                          key={key}
-                          optionKey={key}
-                          option={option}
-                          value={agentOptionValues[key] ?? option.default}
-                          onChange={(value) => onToggleAgentOption(key, value)}
-                        />
-                      ))}
-                    </>
-                  )}
-              </div>
+              <FeatureMenu
+                activePanel={activePanel}
+                onOpen={setActivePanel}
+                enabledToolsCount={enabledToolsCount}
+                totalToolsCount={totalToolsCount}
+                enabledSkillsCount={enabledSkillsCount}
+                totalSkillsCount={totalSkillsCount}
+                hasAgentSelector={agents.length > 1 && !!onSelectAgent}
+                hasThinkingOption={
+                  !!(
+                    agentOptions &&
+                    onToggleAgentOption &&
+                    Object.keys(agentOptions).length > 0
+                  )
+                }
+                thinkingLabel={
+                  agentOptions
+                    ? Object.entries(agentOptions)
+                        .filter(
+                          ([, opt]) => opt.options && opt.options.length > 0,
+                        )
+                        .map(([, opt]) => {
+                          const val =
+                            agentOptionValues[
+                              Object.keys(agentOptions).find(
+                                (k) => agentOptions[k] === opt,
+                              )!
+                            ] ?? opt.default;
+                          const selected = opt.options?.find(
+                            (o) => o.value === val,
+                          );
+                          return selected?.label_key
+                            ? t(selected.label_key)
+                            : selected?.label || String(val);
+                        })[0]
+                    : undefined
+                }
+              />
             </div>
 
             <div className="self-end flex space-x-1.5 flex-shrink-0">
@@ -616,9 +609,63 @@ export const ChatInput = memo(function ChatInput({
         </div>
       </form>
 
+      {/* Controlled selectors — modals only, triggered by FeatureMenu */}
+      {onToggleTool && onToggleCategory && onToggleAll && (
+        <ToolSelector
+          tools={tools}
+          onToggleTool={onToggleTool}
+          onToggleCategory={onToggleCategory}
+          onToggleAll={onToggleAll}
+          enabledCount={enabledToolsCount}
+          totalCount={totalToolsCount}
+          isOpen={activePanel === "tools"}
+          onOpenChange={(open) => setActivePanel(open ? "tools" : null)}
+        />
+      )}
+      {enableSkills &&
+        onToggleSkill &&
+        onToggleSkillCategory &&
+        onToggleAllSkills && (
+          <SkillSelector
+            skills={skills}
+            onToggleSkill={onToggleSkill}
+            onToggleCategory={onToggleSkillCategory}
+            onToggleAll={onToggleAllSkills}
+            pendingSkillNames={pendingSkillNames}
+            isMutating={skillsMutating}
+            enabledCount={enabledSkillsCount}
+            totalCount={totalSkillsCount}
+            isOpen={activePanel === "skills"}
+            onOpenChange={(open) => setActivePanel(open ? "skills" : null)}
+          />
+        )}
+      <AgentModeSelector
+        agents={agents}
+        currentAgent={currentAgent || ""}
+        onSelectAgent={onSelectAgent}
+        isOpen={activePanel === "agent"}
+        onOpenChange={(open) => setActivePanel(open ? "agent" : null)}
+      />
+      {agentOptions &&
+        onToggleAgentOption &&
+        Object.keys(agentOptions).length > 0 &&
+        Object.entries(agentOptions)
+          .filter(([, opt]) => opt.options && opt.options.length > 0)
+          .map(([key, option]) => (
+            <AgentOptionButton
+              key={key}
+              optionKey={key}
+              option={option}
+              value={agentOptionValues[key] ?? option.default}
+              onChange={(value) => onToggleAgentOption(key, value)}
+              isOpen={activePanel === "thinking"}
+              onOpenChange={(open) => setActivePanel(open ? "thinking" : null)}
+            />
+          ))}
+
       <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-3 px-2 justify-center">
         <span
-          className="text-xs"
+          className="text-xs font-serif"
           style={{ color: "var(--theme-text-secondary)" }}
         >
           {localStorage.getItem("newlineModifier") === "ctrl"

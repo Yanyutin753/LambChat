@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -63,12 +63,20 @@ const NotFoundPage = lazy(() =>
 function ChatPage() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const [sessionName, setSessionName] = useState<string | null>(null);
+  const prevSessionIdRef = useRef<string | null>(null);
 
   // Fetch session name when sessionId changes
   useEffect(() => {
     if (!sessionId) {
       setSessionName(null);
+      prevSessionIdRef.current = null;
       return;
+    }
+
+    // Reset only when switching to a different session
+    if (sessionId !== prevSessionIdRef.current) {
+      setSessionName(null);
+      prevSessionIdRef.current = sessionId;
     }
 
     const fetchSessionName = async () => {
@@ -76,17 +84,30 @@ function ChatPage() {
         const session = await sessionApi.get(sessionId);
         if (session?.name) {
           setSessionName(session.name);
-        } else {
-          setSessionName(null);
         }
       } catch (err) {
         console.warn("[ChatPage] Failed to fetch session:", err);
-        setSessionName(null);
       }
     };
 
     fetchSessionName();
   }, [sessionId]);
+
+  // Poll for session name after initial load (handles race with generate-title)
+  useEffect(() => {
+    if (!sessionId || sessionName) return;
+
+    const delay = setTimeout(() => {
+      sessionApi
+        .get(sessionId)
+        .then((session) => {
+          if (session?.name) setSessionName(session.name);
+        })
+        .catch(() => {});
+    }, 3000);
+
+    return () => clearTimeout(delay);
+  }, [sessionId, sessionName]);
 
   // Use session name if available, otherwise use default "nav.chat"
   usePageTitle(sessionName || "nav.chat", undefined, {

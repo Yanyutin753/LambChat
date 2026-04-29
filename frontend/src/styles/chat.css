@@ -39,3 +39,109 @@
   background: color-mix(in srgb, #fbbf24 10%, transparent);
   color: #fbbf24;
 }
+
+/* Feature menu dropdown */
+.feature-menu-dropdown {
+  border-radius: 12px;
+  border: 1px solid var(--theme-border);
+  padding: 5px;
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.1),
+    0 8px 10px -6px rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(12px);
+  animation: feature-menu-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes feature-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Feature menu item */
+.feature-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  font-weight: 450;
+  line-height: 1;
+  color: var(--theme-text);
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+.feature-menu-item:hover {
+  background: color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
+}
+.feature-menu-item:active {
+  transform: scale(0.98);
+  background: color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
+}
+.feature-menu-item[data-active] {
+  background: color-mix(in srgb, var(--theme-primary) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--theme-primary);
+}
+.feature-menu-item[data-active] .feature-menu-icon {
+  background: color-mix(in srgb, var(--theme-primary) 15%, transparent);
+  color: var(--theme-primary);
+}
+
+/* Feature menu icon container */
+.feature-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
+  color: var(--theme-text-secondary);
+  flex-shrink: 0;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.feature-menu-item:hover .feature-menu-icon {
+  background: color-mix(in srgb, var(--theme-text-secondary) 12%, transparent);
+  color: var(--theme-text);
+}
+
+/* Feature menu badge */
+.feature-menu-badge {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--theme-text-secondary);
+  background: color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
+  padding: 3px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* Feature menu divider */
+.feature-menu-divider {
+  height: 1px;
+  margin: 4px 12px;
+  background: var(--theme-border);
+}
+
+/* Feature menu trigger chevron */
+.feature-menu-chevron {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.feature-menu-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}

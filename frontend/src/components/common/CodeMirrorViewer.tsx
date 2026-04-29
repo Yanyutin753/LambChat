@@ -6,7 +6,7 @@ import {
   Decoration,
   DecorationSet,
   ViewUpdate,
-  WidgetType,
+  lineNumbers as cmLineNumbers,
 } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
@@ -189,52 +189,13 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   }, [language, filePath, fontSize, maxHeight, isDark, highlightLineRange]);
 
   // Build line number offset if startLine is provided
-  // We pass it via basicSetup replacement — since @uiw/react-codemirror doesn't
-  // support line number offset directly, we handle it via theme gutter element style
-  // Actually, we use a ViewPlugin to replace gutter element text content
   const lineOffsetExtensions = useMemo(() => {
     if (startLine === undefined || startLine <= 1) return [];
     const lineOffset = startLine - 1;
     return [
-      EditorView.theme({
-        ".cm-lineNumbers .cm-gutterElement": {
-          // Line number offset is handled by prepending to display
-        },
+      cmLineNumbers({
+        formatNumber: (n: number) => String(n + lineOffset),
       }),
-      ViewPlugin.fromClass(
-        class {
-          decorations: DecorationSet;
-          constructor(view: EditorView) {
-            this.decorations = this.build(view);
-          }
-          update(update: ViewUpdate) {
-            if (update.docChanged || update.viewportChanged) {
-              this.decorations = this.build(update.view);
-            }
-          }
-          build(view: EditorView): DecorationSet {
-            const builder = new RangeSetBuilder<Decoration>();
-            const count = view.state.doc.lines;
-            for (let i = 1; i <= count; i++) {
-              const line = view.state.doc.line(i);
-              const deco = Decoration.widget({
-                widget: new (class extends WidgetType {
-                  toDOM() {
-                    const span = document.createElement("span");
-                    span.textContent = String(i + lineOffset);
-                    return span;
-                  }
-                })(),
-                side: -1,
-                block: false,
-              });
-              builder.add(line.from, line.from, deco);
-            }
-            return builder.finish();
-          }
-        },
-        { decorations: (v) => v.decorations },
-      ),
     ];
   }, [startLine]);
 
@@ -246,7 +207,7 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
         extensions={[...extensions, ...lineOffsetExtensions]}
         onCreateEditor={handleCreateEditor}
         basicSetup={{
-          lineNumbers,
+          lineNumbers: !startLine || startLine <= 1 ? lineNumbers : false,
           highlightActiveLineGutter: false,
           highlightActiveLine: false,
           foldGutter: false,

@@ -278,10 +278,10 @@ export function SessionItem({
 
         {/* Unread dot - hidden when session is active (user is viewing it) */}
         {!isEditing && !isActive && (session.unread_count ?? 0) > 0 && (
-          <div className="shrink-0 rounded-full bg-blue-500 h-2 w-2" />
+          <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+            {session.unread_count}
+          </span>
         )}
-
-        {/* Menu button */}
         {!isEditing && (
           <button
             ref={menuButtonRef}

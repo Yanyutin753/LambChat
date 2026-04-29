@@ -61,7 +61,6 @@ interface AppShellProps {
   showProfileModal: boolean;
   onCloseProfileModal: () => void;
   versionInfo: VersionInfo | null;
-  sidebarCollapsed: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
   currentProjectId: string | null;
   projectManager: { projects: Project[] };
@@ -94,7 +93,6 @@ function AppShell({
   showProfileModal,
   onCloseProfileModal,
   versionInfo,
-  sidebarCollapsed,
   setMobileSidebarOpen,
   currentProjectId,
   projectManager,
@@ -177,7 +175,6 @@ function AppShell({
         <div className="relative z-0 flex flex-1 min-w-0 flex-col overflow-hidden">
           <Header
             activeTab={activeTab}
-            sidebarCollapsed={sidebarCollapsed}
             setMobileSidebarOpen={setMobileSidebarOpen}
             currentProjectId={currentProjectId}
             projectManager={projectManager}
@@ -609,10 +606,9 @@ function ChatAppContent({
       try {
         const { sessionApi } = await import("../../../services/api");
         const session = await sessionApi.get(sessionId);
-        setSessionName(session?.name || null);
+        if (session?.name) setSessionName(session.name);
       } catch (err) {
         console.warn("[AppContent] Failed to fetch session:", err);
-        setSessionName(null);
       }
     };
 
@@ -771,7 +767,6 @@ function ChatAppContent({
       showProfileModal={showProfileModal}
       onCloseProfileModal={onCloseProfileModal}
       versionInfo={versionInfo}
-      sidebarCollapsed={sidebarCollapsed}
       setMobileSidebarOpen={setMobileSidebarOpen}
       currentProjectId={currentProjectId}
       projectManager={projectManager}
@@ -929,7 +924,6 @@ function NonChatAppContent({
       showProfileModal={showProfileModal}
       onCloseProfileModal={onCloseProfileModal}
       versionInfo={versionInfo}
-      sidebarCollapsed={sidebarCollapsed}
       setMobileSidebarOpen={setMobileSidebarOpen}
       currentProjectId={null}
       projectManager={{ projects: [] }}
@@ -956,7 +950,7 @@ function NonChatAppContent({
 export function AppContent({ activeTab }: AppContentProps) {
   const { versionInfo } = useVersion();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const handleCloseProfileModal = useCallback(

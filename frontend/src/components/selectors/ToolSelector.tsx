@@ -26,6 +26,8 @@ interface ToolSelectorProps {
   isLoading?: boolean;
   enabledCount: number;
   totalCount: number;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const categoryIcons: Record<ToolCategory, typeof Bot> = {
@@ -43,10 +45,14 @@ export function ToolSelector({
   onToggleAll,
   enabledCount,
   totalCount,
+  isOpen: externalIsOpen,
+  onOpenChange: externalOnOpenChange,
 }: ToolSelectorProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = externalIsOpen ?? internalOpen;
+  const setIsOpen = externalOnOpenChange ?? setInternalOpen;
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<
     Set<ToolCategory>
@@ -402,7 +408,28 @@ export function ToolSelector({
     </div>
   );
 
-  // 空状态：没有工具时显示禁用状态的图标
+  // When controlled externally, only render the modal — no trigger button
+  if (externalOnOpenChange) {
+    return isOpen
+      ? createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
+              onClick={() => setIsOpen(false)}
+            />
+            <div
+              className="fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
+              onClick={() => setIsOpen(false)}
+            >
+              <ModalContent />
+            </div>
+          </>,
+          document.body,
+        )
+      : null;
+  }
+
+  // 空状态：没有工具时显示禁用状态的图标（仅非外部控制模式）
   if (totalCount === 0) {
     return (
       <div className="relative" onClick={(e) => e.stopPropagation()}>

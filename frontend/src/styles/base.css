@@ -72,7 +72,7 @@ select:-webkit-autofill:active {
   --theme-primary-hover: #57534e; /* stone-600 */
   --theme-primary-light: #f5f5f4; /* stone-100 */
   --theme-ring: #78716c; /* stone-500 */
-  --theme-bg: #fafaf9; /* stone-50 */
+  --theme-bg: #f5f5f4; /* stone-100 */
   --theme-bg-card: #ffffff;
   --theme-bg-sidebar: #f5f5f4; /* stone-100 */
   --theme-border: #e7e5e4; /* stone-200 */
@@ -88,7 +88,7 @@ select:-webkit-autofill:active {
   --theme-primary-hover: #d6d3d1; /* stone-300 */
   --theme-primary-light: #292524; /* stone-800 */
   --theme-ring: #a8a29e; /* stone-400 */
-  --theme-bg: #0c0a09; /* stone-950 */
+  --theme-bg: #151210; /* closer to sidebar */
   --theme-bg-card: #1c1917; /* stone-900 */
   --theme-bg-sidebar: #171412; /* stone-950 variant */
   --theme-border: #44403c; /* stone-700 */
@@ -160,65 +160,12 @@ html.allow-scroll #root {
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* ── Sidebar scroll effects ── */
-.sidebar-scroll-fade-top {
-  pointer-events: none;
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  height: 40px;
-  z-index: 40;
-  opacity: 0;
-  transition: opacity var(--sidebar-transition-duration) ease-out;
-  background: var(--theme-bg-sidebar);
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(0, 0, 0, 0.28) 56%,
-    rgba(0, 0, 0, 0.62) 84%,
-    black 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    180deg,
-    transparent 0%,
-    rgba(0, 0, 0, 0.28) 56%,
-    rgba(0, 0, 0, 0.62) 84%,
-    black 100%
-  );
-}
-
-.sidebar-scroll-fade-top.is-scrolled {
-  opacity: 1;
-}
-
-.sidebar-scroll-fade-bottom {
-  pointer-events: none;
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: 40px;
-  z-index: 40;
-  background: var(--theme-bg-sidebar);
-  mask-image: linear-gradient(
-    0deg,
-    transparent 0%,
-    rgba(0, 0, 0, 0.28) 56%,
-    rgba(0, 0, 0, 0.62) 84%,
-    black 100%
-  );
-  -webkit-mask-image: linear-gradient(
-    0deg,
-    transparent 0%,
-    rgba(0, 0, 0, 0.28) 56%,
-    rgba(0, 0, 0, 0.62) 84%,
-    black 100%
-  );
-}
+/* ── Sidebar scroll effects (disabled — solid-color overlays cause truncation) ── */
 
 /* ── Sidebar transition ── */
 .sidebar-panel {
   transition:
-    width 150ms ease-[steps(1, start)],
+    width 150ms steps(1, start),
     opacity 150ms ease-linear;
 }
 

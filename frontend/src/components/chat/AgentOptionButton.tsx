@@ -10,6 +10,8 @@ interface AgentOptionButtonProps {
   option: AgentOption;
   value: boolean | string | number;
   onChange: (value: boolean | string | number) => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const AgentOptionButton = memo(function AgentOptionButton({
@@ -17,9 +19,15 @@ export const AgentOptionButton = memo(function AgentOptionButton({
   option,
   value,
   onChange,
+  isOpen: externalIsOpen,
+  onOpenChange: externalOnOpenChange,
 }: AgentOptionButtonProps) {
   const { t } = useTranslation();
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [internalShow, setInternalShow] = useState(false);
+  const showDropdown = externalOnOpenChange
+    ? externalIsOpen ?? false
+    : internalShow;
+  const setShowDropdown = externalOnOpenChange ?? setInternalShow;
   const dropdownRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
   const mobileSheetRef = useRef<HTMLDivElement>(null);
@@ -32,7 +40,7 @@ export const AgentOptionButton = memo(function AgentOptionButton({
   const IconComponent = option.icon ? ICON_MAP[option.icon] : null;
 
   useEffect(() => {
-    if (!showDropdown) return;
+    if (!showDropdown || externalOnOpenChange) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -48,7 +56,97 @@ export const AgentOptionButton = memo(function AgentOptionButton({
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showDropdown]);
+  }, [showDropdown, externalOnOpenChange, setShowDropdown]);
+
+  if (externalOnOpenChange) {
+    if (option.type === "boolean") return null;
+    const options = option.options;
+    if (options && options.length > 0) {
+      return showDropdown
+        ? createPortal(
+            <>
+              <div
+                className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
+                onClick={() => setShowDropdown(false)}
+              />
+              <div
+                className="fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
+                onClick={() => setShowDropdown(false)}
+              >
+                <div
+                  className="sm:rounded-2xl rounded-t-2xl shadow-2xl px-4 pt-3 pb-6 sm:pb-4 animate-in fade-in slide-in-from-bottom-4 sm:scale-in-95 sm:slide-in-from-bottom-0 duration-200 sm:w-[28rem] sm:max-w-[90vw]"
+                  style={{
+                    background: "var(--theme-bg-card)",
+                    maxHeight: "60vh",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    className="mx-auto mb-3 w-9 h-1 rounded-full sm:hidden"
+                    style={{ background: "var(--theme-border)" }}
+                  />
+                  <div
+                    className="text-sm font-medium mb-3"
+                    style={{ color: "var(--theme-text)" }}
+                  >
+                    {description}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {options.map((opt) => {
+                      const isActive = opt.value === value;
+                      const optColor =
+                        THINKING_LEVEL_COLOR[String(opt.value)] ??
+                        THINKING_LEVEL_COLOR.off;
+                      return (
+                        <button
+                          key={String(opt.value)}
+                          type="button"
+                          onClick={() => {
+                            onChange(opt.value);
+                            setShowDropdown(false);
+                          }}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors text-left cursor-pointer active:scale-[0.98]"
+                          style={{
+                            background: isActive
+                              ? `color-mix(in srgb, ${optColor.text} 12%, transparent)`
+                              : "transparent",
+                            color: isActive
+                              ? optColor.text
+                              : "var(--theme-text)",
+                          }}
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{
+                              background: isActive
+                                ? optColor.text
+                                : "var(--theme-border)",
+                            }}
+                          />
+                          {opt.label_key
+                            ? t(opt.label_key)
+                            : opt.label || String(opt.value)}
+                          {isActive && (
+                            <span
+                              className="ml-auto text-xs"
+                              style={{ color: optColor.text }}
+                            >
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </>,
+            document.body,
+          )
+        : null;
+    }
+    return null;
+  }
 
   if (option.type === "boolean") {
     const isActive = value === true;

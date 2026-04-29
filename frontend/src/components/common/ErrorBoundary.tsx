@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <h1 className="text-xl font-bold text-stone-900 dark:text-stone-100 font-serif tracking-tight mb-2">
               {t("errorBoundary.title")}
             </h1>
-            <p className="text-sm text-stone-500 dark:text-stone-400 leading-relaxed mb-6">
+            <p className="text-sm text-stone-500 dark:text-stone-400 leading-relaxed mb-6 break-words">
               {this.state.error?.message || t("errorBoundary.unexpectedError")}
             </p>
             <button

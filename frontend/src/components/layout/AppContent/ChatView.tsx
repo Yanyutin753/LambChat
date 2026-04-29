@@ -658,6 +658,7 @@ export function ChatView({
             computeItemKey={(_, message) => message.id}
             atBottomStateChange={handleVirtuosoAtBottomChange}
             atBottomThreshold={getAtBottomThresholdPx(isMobileViewport)}
+            followOutput={"smooth"}
             components={virtuosoComponents}
             itemContent={virtuosoItemContent}
             initialTopMostItemIndex={getInitialBottomItemLocation(

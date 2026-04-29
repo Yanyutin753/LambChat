@@ -119,6 +119,7 @@ export interface UseAgentOptions {
     description: string,
     filesCount: number,
   ) => void;
+  onStreamDone?: () => void;
 }
 
 // Subagent tracking item

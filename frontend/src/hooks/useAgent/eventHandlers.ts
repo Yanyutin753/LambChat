@@ -140,6 +140,7 @@ export function handleStreamEvent(
       if (activeSessionId) {
         sessionApi.markRead(activeSessionId).catch(() => {});
       }
+      ctx.options?.onStreamDone?.();
       return;
     }
 

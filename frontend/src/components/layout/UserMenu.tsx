@@ -6,18 +6,12 @@ import {
   MessageSquare,
   Package,
   LogOut,
-  Users,
-  Shield,
   Settings,
   Server,
-  Star,
   MessageCircle,
-  Bot,
+  Brain,
   User,
   ShoppingBag,
-  Cpu,
-  Bell,
-  Brain,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -55,20 +49,9 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
   const canReadMarketplace =
     hasAnyPermission([Permission.MARKETPLACE_READ]) && enableSkills;
-  const canManageUsers = hasAnyPermission([
-    Permission.USER_READ,
-    Permission.USER_WRITE,
-  ]);
-  const canManageRoles = hasAnyPermission([Permission.ROLE_MANAGE]);
-  const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
-  const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
-  const canManageAgents = hasAnyPermission([Permission.AGENT_READ]);
-  const canManageModels = hasAnyPermission([Permission.MODEL_ADMIN]);
-  const canManageNotifications = hasAnyPermission([
-    Permission.NOTIFICATION_MANAGE,
-  ]);
+  const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
 
   // Reactive mobile detection
   useEffect(() => {
@@ -163,63 +146,10 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     },
   ];
 
-  const userSettingsItems = [
-    {
-      path: "/users",
-      label: t("nav.users"),
-      icon: Users,
-      show: canManageUsers,
-    },
-    {
-      path: "/roles",
-      label: t("nav.roles"),
-      icon: Shield,
-      show: canManageRoles,
-    },
-    {
-      path: "/agents",
-      label: t("nav.agents"),
-      icon: Bot,
-      show: canManageAgents,
-    },
-    {
-      path: "/models",
-      label: t("nav.models"),
-      icon: Cpu,
-      show: canManageModels,
-    },
-  ];
-
-  const systemSettingsItems = [
-    {
-      path: "/feedback",
-      label: t("nav.feedback"),
-      icon: Star,
-      show: canViewFeedback,
-    },
-    {
-      path: "/notifications",
-      label: t("nav.notifications"),
-      icon: Bell,
-      show: canManageNotifications,
-    },
-    {
-      path: "/settings",
-      label: t("nav.systemSettings"),
-      icon: Settings,
-      show: canManageSettings,
-    },
-  ];
-
   const visibleNav = navItems.filter((i) => i.show);
-  const visibleUser = userSettingsItems.filter((i) => i.show);
-  const visibleSys = systemSettingsItems.filter((i) => i.show);
 
   const menuItemClass =
     "flex w-full items-center gap-3 px-3 py-1.5 sm:py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] active:scale-[0.98]";
-
-  const dividerClass =
-    "mx-3 my-0.5 sm:my-1 border-t border-[var(--theme-border)]";
 
   const renderNavItem = (item: {
     path: string;
@@ -263,47 +193,55 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
       {/* Navigation */}
       {visibleNav.length > 0 && <div>{visibleNav.map(renderNavItem)}</div>}
 
-      {/* User Management */}
-      {visibleUser.length > 0 && (
-        <div>
-          {visibleNav.length > 0 && <div className={dividerClass} />}
-          {visibleUser.map(renderNavItem)}
-        </div>
+      {/* System Settings (only settings page remains here for quick access) */}
+      {canManageSettings && (
+        <button
+          type="button"
+          className={`${menuItemClass} ${
+            location.pathname === "/settings"
+              ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)]"
+              : ""
+          }`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            beginSessionSelectionGuard("/settings");
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            beginSessionSelectionGuard("/settings");
+            setShowMenu(false);
+            requestAnimationFrame(() => {
+              navigate("/settings");
+            });
+          }}
+        >
+          <Settings size={16} strokeWidth={1.8} />
+          <span>{t("nav.systemSettings")}</span>
+        </button>
       )}
 
-      {/* System */}
-      {visibleSys.length > 0 && (
-        <div>
-          {(visibleNav.length > 0 || visibleUser.length > 0) && (
-            <div className={dividerClass} />
-          )}
-          {visibleSys.map(renderNavItem)}
-        </div>
-      )}
-
-      {/* Bottom actions */}
-      <div className="border-t border-[var(--theme-border)] mt-0.5 sm:mt-1">
-        <button
-          onClick={() => {
-            onShowProfile();
-            setShowMenu(false);
-          }}
-          className={menuItemClass}
-        >
-          <User size={16} strokeWidth={1.8} />
-          <span>{t("users.user")}</span>
-        </button>
-        <button
-          onClick={() => {
-            logout();
-            setShowMenu(false);
-          }}
-          className={`${menuItemClass} text-red-500/70 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10`}
-        >
-          <LogOut size={16} strokeWidth={1.8} />
-          <span className="flex-1">{t("auth.logout")}</span>
-        </button>
-      </div>
+      <button
+        onClick={() => {
+          onShowProfile();
+          setShowMenu(false);
+        }}
+        className={menuItemClass}
+      >
+        <User size={16} strokeWidth={1.8} />
+        <span>{t("users.user")}</span>
+      </button>
+      <button
+        onClick={() => {
+          logout();
+          setShowMenu(false);
+        }}
+        className={`${menuItemClass} text-red-500/70 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10`}
+      >
+        <LogOut size={16} strokeWidth={1.8} />
+        <span className="flex-1">{t("auth.logout")}</span>
+      </button>
     </>
   );
 
@@ -323,7 +261,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="flex size-5 items-center justify-center bg-gradient-to-br from-stone-500 to-stone-700 rounded-full">
+            <div className="flex size-5 items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full">
               <span className="text-xs font-semibold text-white">
                 {user?.username?.charAt(0).toUpperCase() || "U"}
               </span>

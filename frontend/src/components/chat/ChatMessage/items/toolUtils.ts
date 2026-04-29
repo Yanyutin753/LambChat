@@ -39,9 +39,9 @@ export function isMarkdownText(text: string): boolean {
   return false;
 }
 
-// 去除 cat -n 格式的行号前缀 (如 "  201\tcontent" 或 "201→content")
+// 去除 cat -n 格式的行号前缀 (如 "  201\tcontent"、"201→content"、continuation markers "  201.1\t...")
 export function stripLineNumbers(text: string): string {
-  return text.replace(/^\s*\d+[→\t]/gm, "");
+  return text.replace(/^\s*\d+(?:\.\d+)?[→\t]/gm, "");
 }
 
 // 从工具结果中提取纯文本（兼容 LangChain 原生格式）
