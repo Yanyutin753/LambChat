@@ -78,6 +78,9 @@ select:-webkit-autofill:active {
   --theme-border: #e7e5e4; /* stone-200 */
   --theme-text: #1c1917; /* stone-900 */
   --theme-text-secondary: #78716c; /* stone-500 */
+  --sidebar-width: 16rem;
+  --sidebar-rail-width: 3.25rem;
+  --sidebar-transition-duration: 150ms;
 }
 
 .dark {
@@ -155,4 +158,78 @@ html.allow-scroll #root {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Sidebar scroll effects ── */
+.sidebar-scroll-fade-top {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 40px;
+  z-index: 40;
+  opacity: 0;
+  transition: opacity var(--sidebar-transition-duration) ease-out;
+  background: var(--theme-bg-sidebar);
+  mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.28) 56%,
+    rgba(0, 0, 0, 0.62) 84%,
+    black 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.28) 56%,
+    rgba(0, 0, 0, 0.62) 84%,
+    black 100%
+  );
+}
+
+.sidebar-scroll-fade-top.is-scrolled {
+  opacity: 1;
+}
+
+.sidebar-scroll-fade-bottom {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 40px;
+  z-index: 40;
+  background: var(--theme-bg-sidebar);
+  mask-image: linear-gradient(
+    0deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.28) 56%,
+    rgba(0, 0, 0, 0.62) 84%,
+    black 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    0deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.28) 56%,
+    rgba(0, 0, 0, 0.62) 84%,
+    black 100%
+  );
+}
+
+/* ── Sidebar transition ── */
+.sidebar-panel {
+  transition:
+    width 150ms ease-[steps(1, start)],
+    opacity 150ms ease-linear;
+}
+
+.sidebar-panel[data-collapsed="true"] {
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sidebar-panel[data-collapsed="false"] {
+  width: var(--sidebar-width);
+  opacity: 1;
 }
