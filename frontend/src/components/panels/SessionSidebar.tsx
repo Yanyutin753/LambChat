@@ -896,21 +896,21 @@ export const SessionSidebar = forwardRef<
           <div className="flex flex-col items-center w-full gap-px">
             <button
               onClick={onNewSession}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-[9px]"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2"
               aria-label={t("sidebar.newChat")}
             >
               <MessageSquarePlus size={18} />
             </button>
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-[9px]"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2"
               aria-label={t("sidebar.searchSessions")}
             >
               <Search size={18} />
             </button>
             <button
               onClick={() => setIsCollapsed(false)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-[9px]"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2"
               aria-label={t("sidebar.recentChats")}
             >
               <Clock size={18} />
