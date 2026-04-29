@@ -854,10 +854,31 @@ export const SessionSidebar = forwardRef<
       </div>
 
       {/* Desktop: always render sidebar container */}
-      <div className="hidden sm:flex h-full relative">
-        {/* Collapsed rail */}
+      <div
+        className="hidden sm:flex h-full relative shrink-0 overflow-hidden transition-[width] duration-150 ease-[steps(1,start)]"
+        style={{
+          width: isCollapsed
+            ? "var(--sidebar-rail-width)"
+            : "var(--sidebar-width)",
+        }}
+      >
+        {/* Full sidebar panel */}
+        <div
+          className={`h-full w-[--sidebar-width] bg-[var(--theme-bg-sidebar)] border-r border-stone-200/60 dark:border-stone-800/60 transition-opacity duration-150 ease-linear overflow-x-clip overflow-y-auto text-clip whitespace-nowrap ${
+            isCollapsed ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+          inert={isCollapsed || undefined}
+        >
+          {!isMobile ? sessionListContent : <div className="flex-1" />}
+        </div>
+
+        {/* Collapsed rail — absolute overlay on top of panel */}
         <nav
-          className="flex h-full w-[--sidebar-rail-width] flex-col items-start bg-transparent pb-1.5 shrink-0 select-none"
+          className={`absolute inset-0 flex h-full w-[--sidebar-rail-width] flex-col items-start bg-transparent pb-1.5 select-none transition-opacity duration-150 ease-[steps(1,end)] ${
+            isCollapsed
+              ? "opacity-100 pointer-events-auto"
+              : "pointer-events-none opacity-0"
+          }`}
           aria-label={t("sidebarView")}
         >
           <div className="flex h-11 items-center justify-center w-full">
@@ -920,21 +941,6 @@ export const SessionSidebar = forwardRef<
             </button>
           </div>
         </nav>
-
-        {/* Full sidebar panel */}
-        <div
-          className="sidebar-panel h-full overflow-hidden bg-[var(--theme-bg-sidebar)] border-r border-stone-200/60 dark:border-stone-800/60"
-          data-collapsed={isCollapsed ? "true" : "false"}
-          inert={isCollapsed || undefined}
-          style={{ width: isCollapsed ? 0 : "var(--sidebar-width)" }}
-        >
-          <div
-            className="h-full flex flex-col overflow-hidden"
-            style={{ width: "var(--sidebar-width)" }}
-          >
-            {!isMobile ? sessionListContent : <div className="flex-1" />}
-          </div>
-        </div>
       </div>
 
       {touchDrag.dragIndicatorPos && (
