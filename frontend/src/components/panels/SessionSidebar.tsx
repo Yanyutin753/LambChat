@@ -892,8 +892,8 @@ export const SessionSidebar = forwardRef<
             </button>
           </div>
 
-          {/* Action icons — align with expanded sidebar action buttons (px-2 + px-[9px]) */}
-          <div className="flex flex-col items-center w-full gap-px">
+          {/* Action icons — gap matches expanded sidebar header pb-1 + action py-2 */}
+          <div className="mt-3 flex flex-col items-center w-full gap-px">
             <button
               onClick={onNewSession}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors mx-2"
