@@ -914,6 +914,7 @@ export const SessionSidebar = forwardRef<
         <div
           className="sidebar-panel h-full overflow-hidden bg-[var(--theme-bg-sidebar)] border-r border-stone-200/60 dark:border-stone-800/60"
           data-collapsed={isCollapsed ? "true" : "false"}
+          inert={isCollapsed || undefined}
           style={{ width: isCollapsed ? 0 : "var(--sidebar-width)" }}
         >
           <div
