@@ -3,6 +3,7 @@ import { X, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import type { MessageAttachment } from "../../types";
+import { getFullUrl } from "../../services/api";
 import {
   getFileTypeInfo,
   formatFileSize as formatFileSizeUtil,
@@ -107,7 +108,7 @@ export const AttachmentCard = memo(function AttachmentCard({
             <Loader2 size={18} className={clsx(iconColor, "animate-spin")} />
           ) : isImage ? (
             <img
-              src={attachment.url}
+              src={getFullUrl(attachment.url)}
               alt={attachment.name}
               className="w-full h-full object-cover"
             />
@@ -210,7 +211,7 @@ export const AttachmentCard = memo(function AttachmentCard({
         ) : isImage ? (
           <>
             <img
-              src={attachment.url}
+              src={getFullUrl(attachment.url)}
               alt={attachment.name}
               className="w-full h-full object-cover"
             />
