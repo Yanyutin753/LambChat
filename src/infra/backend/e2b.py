@@ -18,7 +18,11 @@ import shlex
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from deepagents.backends.sandbox import BaseSandbox
-from deepagents.backends.utils import create_file_data, format_read_response
+from deepagents.backends.utils import (
+    create_file_data,
+    format_content_with_line_numbers,
+    slice_read_response,
+)
 
 from src.infra.backend.protocol_compat import (
     ExecuteResponse,
@@ -51,7 +55,10 @@ _DEFAULT_TIMEOUT = 30 * 60
 def _render_text_read(content: str, offset: int, limit: int) -> str:
     if not content:
         return ""
-    return format_read_response(create_file_data(content), offset, limit)
+    sliced = slice_read_response(create_file_data(content), offset, limit)
+    if isinstance(sliced, ReadResult):
+        return str(sliced)
+    return format_content_with_line_numbers(sliced, start_line=offset + 1)
 
 
 class E2BBackend(BaseSandbox):

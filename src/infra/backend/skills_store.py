@@ -15,7 +15,11 @@ Skills Store Backend
 import fnmatch
 from typing import TYPE_CHECKING, Any, Optional
 
-from deepagents.backends.utils import create_file_data, format_read_response
+from deepagents.backends.utils import (
+    create_file_data,
+    format_content_with_line_numbers,
+    slice_read_response,
+)
 
 from src.infra.backend._skills_path_utils import (
     SKILL_NAME_PATTERN,
@@ -59,7 +63,10 @@ logger = get_logger(__name__)
 def _render_text_read(content: str, offset: int, limit: int) -> str:
     if not content:
         return ""
-    return format_read_response(create_file_data(content), offset, limit)
+    sliced = slice_read_response(create_file_data(content), offset, limit)
+    if isinstance(sliced, ReadResult):
+        return str(sliced)
+    return format_content_with_line_numbers(sliced, start_line=offset + 1)
 
 
 class SkillsStoreBackend(BackendProtocol):
