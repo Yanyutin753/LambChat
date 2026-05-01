@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 
 from deepagents.backends.protocol import (
     BackendProtocol,
@@ -46,7 +46,7 @@ if _UPSTREAM_IS_DATACLASS:
                     )
                 else:
                     self.rendered_content = str(
-                        (self.file_data or {}).get("content", "")
+                        (self.file_data or {}).get("content", "")  # type: ignore[call-overload]
                     )
 
         # Allow ``str(result)`` to return the rendered content.
@@ -75,7 +75,7 @@ else:
                     )
                 else:
                     rendered_content = str(
-                        (self.file_data or {}).get("content", "")
+                        (file_data or {}).get("content", "")  # type: ignore[call-overload]
                     )
 
             obj = str.__new__(cls, rendered_content)

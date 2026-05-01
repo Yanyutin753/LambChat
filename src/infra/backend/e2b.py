@@ -58,7 +58,7 @@ def _render_text_read(content: str, offset: int, limit: int) -> str:
     sliced = slice_read_response(create_file_data(content), offset, limit)
     if isinstance(sliced, ReadResult):
         return str(sliced)
-    return format_content_with_line_numbers(sliced, start_line=offset + 1)
+    return format_content_with_line_numbers(sliced, start_line=offset + 1)  # type: ignore[arg-type]
 
 
 class E2BBackend(BaseSandbox):
