@@ -60,10 +60,9 @@ async def test_hub_uses_one_pubsub_connection_for_multiple_channels(
     create_calls: list[tuple[bool, object]] = []
     monkeypatch.setattr(
         "src.infra.pubsub_hub.create_redis_client",
-        lambda isolated_pool=False, socket_timeout=object(): create_calls.append(
-            (isolated_pool, socket_timeout)
-        )
-        or fake_redis,
+        lambda isolated_pool=False, socket_timeout=object(): (
+            create_calls.append((isolated_pool, socket_timeout)) or fake_redis
+        ),
     )
 
     hub = RedisPubSubHub()

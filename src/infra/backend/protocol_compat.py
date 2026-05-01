@@ -40,9 +40,7 @@ if _UPSTREAM_IS_DATACLASS:
             if self.rendered_content is None:
                 if self.error is not None:
                     self.rendered_content = (
-                        self.error
-                        if self.error.startswith("Error:")
-                        else f"Error: {self.error}"
+                        self.error if self.error.startswith("Error:") else f"Error: {self.error}"
                     )
                 else:
                     self.rendered_content = str(
@@ -68,11 +66,7 @@ else:
         ) -> "ReadResult":
             if rendered_content is None:
                 if error is not None:
-                    rendered_content = (
-                        error
-                        if error.startswith("Error:")
-                        else f"Error: {error}"
-                    )
+                    rendered_content = error if error.startswith("Error:") else f"Error: {error}"
                 else:
                     rendered_content = str(
                         (file_data or {}).get("content", "")  # type: ignore[call-overload]
