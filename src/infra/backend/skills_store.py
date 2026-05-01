@@ -15,7 +15,7 @@ Skills Store Backend
 import fnmatch
 from typing import TYPE_CHECKING, Any, Optional
 
-from deepagents.backends.utils import create_file_data, format_read_response
+from deepagents.backends.utils import create_file_data, slice_read_response as format_read_response
 
 from src.infra.backend._skills_path_utils import (
     SKILL_NAME_PATTERN,
