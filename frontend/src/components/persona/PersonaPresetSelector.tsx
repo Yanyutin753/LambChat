@@ -101,7 +101,7 @@ export function PersonaPresetSelector({
         </div>
 
         <div className="space-y-3 border-b px-5 py-3 border-stone-200/70 dark:border-stone-700/70">
-          <div className="flex items-center gap-2">
+          <div className="inline-grid grid-cols-2 gap-2">
             {canManagePresets && onManagePresets && (
               <button
                 type="button"
