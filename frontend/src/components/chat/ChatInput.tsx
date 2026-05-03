@@ -164,8 +164,6 @@ export const ChatInput = memo(function ChatInput({
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const resizeRafRef = useRef<number>(0);
-  const personaChipRef = useRef<HTMLSpanElement>(null);
-  const [personaChipWidth, setPersonaChipWidth] = useState(0);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem("chatInputHistory");
@@ -184,16 +182,21 @@ export const ChatInput = memo(function ChatInput({
     return { avatar: preset.avatar, primaryTag: preset.tags[0] || "" };
   }, [selectedPersonaPresetId, personaPresets]);
 
-  useEffect(() => {
-    const el = personaChipRef.current;
-    if (!el) {
-      setPersonaChipWidth(0);
-      return;
-    }
-    const ro = new ResizeObserver(() => setPersonaChipWidth(el.offsetWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [selectedPersonaName]);
+  const CategoryIcon = personaAvatar
+    ? getCategoryIcon(personaAvatar.primaryTag) ?? Sparkles
+    : Sparkles;
+
+  const personaChipWidth = useMemo(() => {
+    if (!selectedPersonaName) return 0;
+    if (typeof document === "undefined") return 0;
+    const canvas = document.createElement("canvas").getContext("2d");
+    if (!canvas) return 0;
+    const fontFamily = getComputedStyle(document.documentElement).fontFamily;
+    canvas.font = `600 15px ${fontFamily}`;
+    const textWidth = canvas.measureText(selectedPersonaName).width;
+    // pl(4px) + icon(20px, if avatar) + gap(6px) + text + extra spacing(4px)
+    return 4 + (personaAvatar ? 20 + 6 : 0) + textWidth + 4;
+  }, [selectedPersonaName, personaAvatar]);
 
   const attachments = externalAttachments ?? internalAttachments;
   const setAttachments = externalOnAttachmentsChange ?? setInternalAttachments;
@@ -540,8 +543,7 @@ export const ChatInput = memo(function ChatInput({
             <div className="relative">
               {selectedPersonaName && (
                 <span
-                  ref={personaChipRef}
-                  className="absolute top-0 left-0 pt-[10px] pl-1 cursor-pointer select-none inline-flex items-center gap-2 z-10 pointer-events-auto"
+                  className="absolute top-0 left-0 pt-[10px] pl-1 cursor-pointer select-none inline-flex items-center gap-1.5 z-10 pointer-events-auto"
                   onClick={() => setActivePanel("persona")}
                   title={selectedPersonaName}
                 >
@@ -564,23 +566,20 @@ export const ChatInput = memo(function ChatInput({
                           }}
                         />
                       ) : (
-                        (() => {
-                          const Icon =
-                            getCategoryIcon(personaAvatar.primaryTag) ||
-                            Sparkles;
-                          return (
-                            <Icon
-                              size={12}
-                              className="text-[var(--theme-primary)]"
-                            />
-                          );
-                        })()
+                        <CategoryIcon
+                          size={12}
+                          className="text-[var(--theme-primary)]"
+                        />
                       )}
                     </span>
                   )}
                   <span
                     className="whitespace-nowrap font-semibold text-blue-600 dark:text-blue-400"
-                    style={{ fontSize: "15px", lineHeight: 1.625 }}
+                    style={{
+                      fontSize: "15px",
+                      lineHeight: 1.625,
+                      fontFamily: "inherit",
+                    }}
                   >
                     {selectedPersonaName}
                   </span>
@@ -600,7 +599,7 @@ export const ChatInput = memo(function ChatInput({
                 className="bg-transparent outline-none w-full pt-[10px] resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[52px]"
                 style={{
                   color: "var(--theme-text)",
-                  paddingLeft: personaChipWidth > 0 ? personaChipWidth + 8 : 4,
+                  paddingLeft: personaChipWidth > 0 ? personaChipWidth + 4 : 4,
                 }}
                 rows={1}
               />
