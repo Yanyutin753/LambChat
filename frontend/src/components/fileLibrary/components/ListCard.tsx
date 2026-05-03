@@ -1,11 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
-import { getFullUrl } from "../../../services/api";
 import { getFileTypeInfo } from "../../documents/utils";
 import { useContextMenu } from "../hooks/useContextMenu";
-import { buildMeta } from "../utils";
+import { buildFileCardPreview, buildMeta } from "../utils";
 import { FileContextMenu } from "./FileContextMenu";
+import { FileCardPreview } from "./FileCardPreview";
 
 interface ListCardProps {
   file: RevealedFileItem;
@@ -23,8 +23,7 @@ export function ListCard({
   const { t } = useTranslation();
   const fileInfo = getFileTypeInfo(file.file_name, file.mime_type || undefined);
   const FileIcon = fileInfo.icon;
-  const isProject = file.file_type === "project";
-  const isImage = !isProject && file.file_type === "image" && file.url;
+  const cardPreview = buildFileCardPreview(file);
   const meta = buildMeta(file, t);
   const ctx = useContextMenu();
 
@@ -37,33 +36,9 @@ export function ListCard({
       >
         {/* Icon / thumbnail */}
         <div className="shrink-0">
-          {isImage ? (
-            <div className="w-10 h-10 rounded-lg overflow-hidden ring-1 ring-stone-200/50 dark:ring-stone-700/40">
-              <img
-                src={getFullUrl(file.url!)}
-                alt={file.file_name}
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          ) : (
-            <div
-              className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                isProject
-                  ? "bg-violet-50 dark:bg-violet-500/10 ring-1 ring-violet-200/50 dark:ring-violet-500/20"
-                  : fileInfo.bg
-              }`}
-            >
-              <FileIcon
-                size={17}
-                className={
-                  isProject
-                    ? "text-violet-500 dark:text-violet-400"
-                    : fileInfo.color
-                }
-              />
-            </div>
-          )}
+          <div className="h-11 w-[78px] overflow-hidden rounded-lg ring-1 ring-stone-200/50 dark:ring-stone-700/40">
+            <FileCardPreview preview={cardPreview} icon={FileIcon} compact />
+          </div>
         </div>
 
         {/* Name + meta */}

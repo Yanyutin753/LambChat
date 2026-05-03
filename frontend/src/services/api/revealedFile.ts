@@ -1,5 +1,24 @@
 import { authFetch } from "./fetch";
 
+export interface RevealedFileCardPreview {
+  kind:
+    | "image"
+    | "text"
+    | "code"
+    | "markdown"
+    | "project"
+    | "document"
+    | "fallback";
+  title?: string | null;
+  subtitle?: string | null;
+  text?: string | null;
+  lines?: string[] | null;
+  language?: string | null;
+  image_url?: string | null;
+  badge?: string | null;
+  accent?: string | null;
+}
+
 export interface RevealedFileItem {
   id: string;
   file_key: string;
@@ -18,6 +37,7 @@ export interface RevealedFileItem {
   original_path: string | null;
   created_at: string;
   is_favorite: boolean;
+  card_preview?: RevealedFileCardPreview | null;
   project_meta?: {
     template:
       | "react"

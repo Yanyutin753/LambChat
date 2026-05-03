@@ -1,13 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import type { RevealedFileItem } from "../../../services/api";
-import { getFullUrl } from "../../../services/api";
 import { getFileTypeInfo } from "../../documents/utils";
-import { CodeMirrorViewer } from "../../common/CodeMirrorViewer";
-import { useCodePreview } from "../hooks/useCodePreview";
 import { useContextMenu } from "../hooks/useContextMenu";
-import { buildMeta } from "../utils";
+import { buildFileCardPreview, buildMeta } from "../utils";
 import { FileContextMenu } from "./FileContextMenu";
+import { FileCardPreview } from "./FileCardPreview";
 
 interface GridCardProps {
   file: RevealedFileItem;
@@ -26,9 +24,7 @@ export function GridCard({
   const fileInfo = getFileTypeInfo(file.file_name, file.mime_type || undefined);
   const FileIcon = fileInfo.icon;
   const isProject = file.file_type === "project";
-  const isImage = !isProject && file.file_type === "image" && file.url;
-  const isCode = !isProject && file.file_type === "code";
-  const codePreview = useCodePreview(file);
+  const cardPreview = buildFileCardPreview(file);
   const meta = buildMeta(file, t);
   const ctx = useContextMenu();
 
@@ -75,35 +71,7 @@ export function GridCard({
 
         {/* Preview area */}
         <div className="aspect-[16/9] overflow-hidden relative bg-stone-50/80 dark:bg-stone-800/20">
-          {isImage ? (
-            <img
-              src={getFullUrl(file.url!)}
-              alt={file.file_name}
-              className="max-h-full max-w-full h-full w-full object-cover transition-transform duration-300 group-hover/card:scale-[1.02]"
-              loading="lazy"
-            />
-          ) : isCode && codePreview ? (
-            <div className="w-full h-full overflow-hidden">
-              <CodeMirrorViewer
-                value={codePreview}
-                filePath={file.file_name}
-                lineNumbers={false}
-                fontSize="11px"
-              />
-            </div>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <FileIcon
-                size={32}
-                strokeWidth={1.2}
-                className={
-                  isProject
-                    ? "text-violet-300 dark:text-violet-600"
-                    : fileInfo.color || "text-stone-300 dark:text-stone-600"
-                }
-              />
-            </div>
-          )}
+          <FileCardPreview preview={cardPreview} icon={FileIcon} />
         </div>
 
         {/* Meta footer */}
