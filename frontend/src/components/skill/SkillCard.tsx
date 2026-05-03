@@ -72,14 +72,14 @@ export function SkillCard({
       {selectionMode && onSelect && (
         <div
           className={`absolute top-3 right-3 z-10 transition-all duration-200 ${
-            selected ? "scale-110" : "scale-90 group-hover:scale-100"
+            selected ? "scale-110" : "sm:scale-90 sm:group-hover:scale-100"
           }`}
         >
           <Checkbox
             size="lg"
             checked={selected}
             onChange={() => onSelect(skill.name)}
-            className="shadow-sm opacity-0 group-hover:opacity-100"
+            className="shadow-sm sm:opacity-0 sm:group-hover:opacity-100"
           />
         </div>
       )}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { BlockPreviewPortal } from "../../chat/ChatMessage/items/McpBlockPreview";
 import { SessionSidebar } from "../../panels/SessionSidebar";
 import type { SessionSidebarHandle } from "../../panels/SessionSidebar";
@@ -60,6 +60,7 @@ export function ChatAppContent({
 }: ChatAppContentProps) {
   const { t, i18n } = useTranslation();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { enableSkills, settings, availableModels, defaultModel } =
     useSettingsContext();
   const { hasPermission, isAuthenticated } = useAuth();
@@ -223,6 +224,29 @@ export function ChatAppContent({
   );
 
   const isSessionRestoredRef = useRef(false);
+
+  // Restore persona from localStorage when navigating from /persona page
+  useEffect(() => {
+    const personaId = searchParams.get("persona");
+    if (!personaId) return;
+    setSearchParams(
+      (prev) => {
+        prev.delete("persona");
+        return prev;
+      },
+      { replace: true },
+    );
+    try {
+      const raw = localStorage.getItem("lambchat_session_config");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed.personaPresetId === personaId && parsed.personaSnapshot) {
+        setPersonaPreset(personaId, parsed.personaSnapshot);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [searchParams, setSearchParams, setPersonaPreset]);
 
   useEffect(() => {
     if (isSessionRestoredRef.current) return;

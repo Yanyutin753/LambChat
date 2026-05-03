@@ -1788,6 +1788,10 @@
     "uploading": "Uploading...",
     "userSkillVisible": "User Skill (only visible to you)"
   },
+  "skillsHub": {
+    "subtitle": "Manage local skills and explore the marketplace",
+    "title": "Skills"
+  },
   "subcategories": {
     "api": "API",
     "apple": "Apple",
@@ -1916,5 +1920,47 @@
       "enterUsername": "Please enter username",
       "passwordMinLength": "Password must be at least 6 characters"
     }
+  },
+  "personaPresets": {
+    "useSuccess": "Switched to persona \"{{name}}\"",
+    "clearSuccess": "Current persona cleared",
+    "copySuccess": "Persona \"{{name}}\" copied",
+    "updateSuccess": "Persona \"{{name}}\" updated",
+    "createSuccess": "Persona \"{{name}}\" created",
+    "deleteSuccess": "Persona \"{{name}}\" deleted",
+    "confirmDelete": "Delete Persona",
+    "confirmDeleteMessage": "Are you sure you want to delete persona \"{{name}}\"? This action cannot be undone.",
+    "all": "All",
+    "official": "Official",
+    "mine": "My Personas",
+    "title": "Persona Plaza",
+    "subtitle": "Choose a persona to start chatting",
+    "search": "Search persona name, description...",
+    "tags": "Tags",
+    "createMine": "Create My Persona",
+    "publishOfficial": "Publish Official Persona",
+    "noMatch": "No matching personas",
+    "empty": "No persona presets available",
+    "tryOtherFilters": "Try different search criteria",
+    "emptyHint": "Admins can create official persona presets",
+    "clearFilters": "Clear Filters",
+    "using": "In Use",
+    "published": "Published",
+    "archived": "Archived",
+    "draft": "Draft",
+    "usageCount": "uses",
+    "clear": "Clear Persona",
+    "use": "Use",
+    "copy": "Copy to My Personas",
+    "edit": "Edit",
+    "editOfficial": "Edit Official Persona",
+    "editMine": "Edit My Persona",
+    "scope": "Scope",
+    "status": "Status",
+    "name": "Name",
+    "description": "Description",
+    "systemPrompt": "System Prompt",
+    "tagsInput": "Tags",
+    "skillsInput": "Skills"
   }
 }

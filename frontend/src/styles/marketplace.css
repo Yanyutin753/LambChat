@@ -79,6 +79,34 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-primary) 8%, transparent);
 }
 
+/* Avatar ring (replaces icon-ring when avatar is present) */
+.mp-card__avatar-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
+  background: var(--theme-bg-card);
+  position: relative;
+}
+
+.mp-card__avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mp-card__avatar-ring > svg {
+  position: relative;
+  z-index: 0;
+}
+
 /* Status pill on banner */
 .mp-card__status-pill {
   display: inline-flex;

@@ -227,6 +227,11 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "管理全局角色预设",
         "description": "创建、发布、归档和删除全局角色预设",
     },
+    # Notification
+    Permission.NOTIFICATION_MANAGE.value: {
+        "label": "管理通知",
+        "description": "创建、编辑、删除系统通知公告",
+    },
     # Environment Variables
     Permission.ENVVAR_READ.value: {
         "label": "读取环境变量",
@@ -360,6 +365,12 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.PERSONA_PRESET_READ.value,
             Permission.PERSONA_PRESET_WRITE.value,
             Permission.PERSONA_PRESET_ADMIN.value,
+        ],
+    },
+    {
+        "name": "通知公告",
+        "permissions": [
+            Permission.NOTIFICATION_MANAGE.value,
         ],
     },
     {

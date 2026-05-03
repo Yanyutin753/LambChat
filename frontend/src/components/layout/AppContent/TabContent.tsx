@@ -1,12 +1,9 @@
 import { Suspense, lazy } from "react";
 import type { TabType } from "./types";
 
-const SkillsPanel = lazy(() =>
-  import("../../panels/SkillsPanel").then((m) => ({ default: m.SkillsPanel })),
-);
-const MarketplacePanel = lazy(() =>
-  import("../../panels/MarketplacePanel").then((m) => ({
-    default: m.MarketplacePanel,
+const SkillsHubPanel = lazy(() =>
+  import("../../panels/SkillsHubPanel").then((m) => ({
+    default: m.SkillsHubPanel,
   })),
 );
 const UsersPanel = lazy(() =>
@@ -66,8 +63,8 @@ const panelMap: Record<
   string,
   React.LazyExoticComponent<React.ComponentType>
 > = {
-  skills: SkillsPanel,
-  marketplace: MarketplacePanel,
+  skills: SkillsHubPanel,
+  marketplace: SkillsHubPanel,
   users: UsersPanel,
   roles: RolesPanel,
   settings: SettingsPanel,

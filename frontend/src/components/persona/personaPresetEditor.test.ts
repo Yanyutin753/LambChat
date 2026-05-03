@@ -7,6 +7,7 @@ import type { PersonaPreset } from "../../types";
 const draft = {
   name: "Planner",
   description: "Plan carefully",
+  avatar: "",
   system_prompt: "Plan first.",
   tags: ["planning"],
   skill_names: ["planner"],
@@ -20,6 +21,7 @@ test("builds published global payload for new official preset", () => {
     }),
     {
       ...draft,
+      avatar: null,
       scope: "global",
       visibility: "public",
       status: "published",
@@ -35,6 +37,7 @@ test("builds draft private payload for new user preset", () => {
     }),
     {
       ...draft,
+      avatar: null,
       scope: "user",
       visibility: "private",
       status: "draft",
@@ -64,7 +67,7 @@ test("preserves user preset updates without admin-only fields", () => {
       scope: "user",
       status: "published",
     }),
-    draft,
+    { ...draft, avatar: null },
   );
 });
 
@@ -92,6 +95,7 @@ test("includes status when updating an official preset", () => {
     }),
     {
       ...draft,
+      avatar: null,
       visibility: "public",
       status: "published",
     },

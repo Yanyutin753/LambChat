@@ -5,7 +5,7 @@ import {
   MoreHorizontal,
   FolderOpen,
   UserRound,
-  ShoppingBag,
+  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_NAME } from "../../../constants";
@@ -23,7 +23,7 @@ interface SidebarRailProps {
   onOpenRecentChats: () => void;
   onOpenFileLibrary: () => void;
   onOpenPersonaPlaza: () => void;
-  onOpenMarketplace: () => void;
+  onOpenSkills: () => void;
   hasMoreMenuItems: boolean;
   onToggleMoreMenu: () => void;
   moreMenuBtnRef: React.RefObject<HTMLButtonElement | null>;
@@ -41,7 +41,7 @@ export function SidebarRail({
   onOpenRecentChats,
   onOpenFileLibrary,
   onOpenPersonaPlaza,
-  onOpenMarketplace,
+  onOpenSkills,
   hasMoreMenuItems,
   onToggleMoreMenu,
   moreMenuBtnRef,
@@ -121,12 +121,12 @@ export function SidebarRail({
         </button>
         <button
           type="button"
-          onClick={onOpenMarketplace}
+          onClick={onOpenSkills}
           className={railBtn}
-          title={t("nav.marketplace", "商店")}
-          aria-label={t("nav.marketplace", "商店")}
+          title={t("nav.skills", "Skills")}
+          aria-label={t("nav.skills", "Skills")}
         >
-          <ShoppingBag size={20} />
+          <Sparkles size={20} />
         </button>
         <button
           type="button"

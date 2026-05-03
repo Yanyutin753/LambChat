@@ -12,7 +12,11 @@ import { GithubImportModal } from "./GithubImportModal";
 import { BatchActionBar } from "./BatchActionBar";
 import { PublishDialog } from "./PublishDialog";
 
-export function SkillsPanel() {
+interface SkillsPanelProps {
+  embedded?: boolean;
+}
+
+export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
   const { t } = useTranslation();
   const { enableSkills } = useSettingsContext();
   const { hasAnyPermission } = useAuth();
@@ -46,6 +50,7 @@ export function SkillsPanel() {
   return (
     <div className="skill-theme-shell flex h-full min-h-0 flex-col">
       <SkillsList
+        embedded={embedded}
         searchQuery={actions.searchQuery}
         setSearchQuery={actions.setSearchQuery}
         selectedTags={actions.selectedTags}

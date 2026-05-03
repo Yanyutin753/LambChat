@@ -15,9 +15,21 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { Users, Shield, Bot, Cpu, Star, Bell, Settings } from "lucide-react";
+import {
+  Users,
+  Shield,
+  Bot,
+  Cpu,
+  Star,
+  Bell,
+  Settings,
+  Server,
+  Brain,
+  MessageCircle,
+} from "lucide-react";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import { useProjectSessionList } from "../../hooks/useSession";
 import { useProjectManager } from "../../hooks/useProjectManager";
@@ -110,6 +122,7 @@ export const SessionSidebar = forwardRef<
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [moreMenuPosition, setMoreMenuPosition] = useState({ top: 0, left: 0 });
   const { hasAnyPermission } = useAuth();
+  const { enableMemory } = useSettingsContext();
 
   const canManageUsers = hasAnyPermission([
     Permission.USER_READ,
@@ -123,6 +136,30 @@ export const SessionSidebar = forwardRef<
     Permission.NOTIFICATION_MANAGE,
   ]);
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
+  const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
+  const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
+  const canReadMemory = enableMemory;
+  const moreMenuFeatureItems = [
+    {
+      path: "/mcp",
+      label: t("nav.mcp"),
+      icon: Server,
+      show: canReadMCP,
+    },
+    {
+      path: "/channels",
+      label: t("nav.channels"),
+      icon: MessageCircle,
+      show: canReadChannels,
+    },
+    {
+      path: "/memory",
+      label: t("nav.memory"),
+      icon: Brain,
+      show: canReadMemory,
+    },
+  ];
+
   const moreMenuUserItems = [
     {
       path: "/users",
@@ -172,6 +209,7 @@ export const SessionSidebar = forwardRef<
   ];
 
   const hasMoreMenuItems =
+    moreMenuFeatureItems.some((i) => i.show) ||
     moreMenuUserItems.some((i) => i.show) ||
     moreMenuSysItems.some((i) => i.show);
 
@@ -673,6 +711,7 @@ export const SessionSidebar = forwardRef<
         )}
 
         <MobileMoreMenuSheet
+          featureItems={moreMenuFeatureItems}
           userItems={moreMenuUserItems}
           sysItems={moreMenuSysItems}
           isOpen={isMoreMenuOpen}
@@ -760,7 +799,7 @@ export const SessionSidebar = forwardRef<
             onOpenRecentChats={() => setIsRecentChatsOpen(true)}
             onOpenFileLibrary={() => navigate("/files")}
             onOpenPersonaPlaza={() => navigate("/persona")}
-            onOpenMarketplace={() => navigate("/marketplace")}
+            onOpenSkills={() => navigate("/skills")}
             hasMoreMenuItems={hasMoreMenuItems}
             onToggleMoreMenu={() => {
               setIsMoreMenuOpen((prev) => !prev);
@@ -852,6 +891,7 @@ export const SessionSidebar = forwardRef<
 
       {!isMobile && (
         <DesktopMoreMenu
+          featureItems={moreMenuFeatureItems}
           userItems={moreMenuUserItems}
           sysItems={moreMenuSysItems}
           isOpen={isMoreMenuOpen}

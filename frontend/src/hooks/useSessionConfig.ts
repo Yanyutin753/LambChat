@@ -41,7 +41,7 @@ export interface UseSessionConfigOptions {
 /** Read persisted config from localStorage, returns null if not found or invalid */
 function loadPersistedConfig(): Pick<
   SessionConfigState,
-  "disabledSkills" | "disabledMcpTools"
+  "disabledSkills" | "disabledMcpTools" | "personaPresetId" | "personaSnapshot"
 > | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -54,6 +54,8 @@ function loadPersistedConfig(): Pick<
       return {
         disabledSkills: parsed.disabledSkills,
         disabledMcpTools: parsed.disabledMcpTools,
+        personaPresetId: parsed.personaPresetId ?? null,
+        personaSnapshot: parsed.personaSnapshot ?? null,
       };
     }
   } catch {
@@ -64,7 +66,13 @@ function loadPersistedConfig(): Pick<
 
 /** Persist config to localStorage */
 function persistConfig(
-  state: Pick<SessionConfigState, "disabledSkills" | "disabledMcpTools">,
+  state: Pick<
+    SessionConfigState,
+    | "disabledSkills"
+    | "disabledMcpTools"
+    | "personaPresetId"
+    | "personaSnapshot"
+  >,
 ) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -124,8 +132,8 @@ export function useSessionConfig(
         options.getDefaultDisabledMcpTools?.() ??
         [],
       agentOptions: options.getDefaultAgentOptions(),
-      personaPresetId: null,
-      personaSnapshot: null,
+      personaPresetId: persisted?.personaPresetId ?? null,
+      personaSnapshot: persisted?.personaSnapshot ?? null,
     };
   });
 
@@ -150,6 +158,8 @@ export function useSessionConfig(
     persistConfig({
       disabledSkills: config.disabledSkills,
       disabledMcpTools: config.disabledMcpTools,
+      personaPresetId: config.personaPresetId,
+      personaSnapshot: config.personaSnapshot,
     });
   }, [config.disabledSkills, config.disabledMcpTools]);
 

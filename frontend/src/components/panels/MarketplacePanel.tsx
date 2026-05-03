@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
-import { X, ShoppingBag, Plus, RotateCw, Tag, ChevronDown } from "lucide-react";
+import {
+  X,
+  ShoppingBag,
+  Plus,
+  RotateCw,
+  Search,
+  Tag,
+  ChevronDown,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
@@ -14,7 +22,11 @@ import type { SkillResponse, SkillCreate } from "../../types";
 import { SkillCard } from "./MarketplacePanel/SkillCard";
 import { SkillPreviewModal } from "./MarketplacePanel/SkillPreviewModal";
 
-export function MarketplacePanel() {
+interface MarketplacePanelProps {
+  embedded?: boolean;
+}
+
+export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
   const { t } = useTranslation();
   const { hasAnyPermission } = useAuth();
   const {
@@ -248,111 +260,139 @@ export function MarketplacePanel() {
 
   const hasActiveFilters = selectedTags.length > 0 || searchQuery.length > 0;
 
+  const filterMenu = tags.length > 0 && (
+    <div className="relative shrink-0" data-filter-menu>
+      <button
+        type="button"
+        onClick={() => setIsFilterOpen((prev) => !prev)}
+        className={`btn-secondary h-10 px-3 ${
+          selectedTags.length > 0
+            ? "border-[var(--theme-primary)] text-[var(--theme-text)]"
+            : ""
+        }`}
+      >
+        <Tag size={14} />
+        <span className="hidden sm:inline">{t("adminMarketplace.tags")}</span>
+        {selectedTags.length > 0 && (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[11px]">
+            {selectedTags.length}
+          </span>
+        )}
+        <ChevronDown
+          size={14}
+          className={`transition-transform ${isFilterOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+      {isFilterOpen && (
+        <div className="skill-filter-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border  p-3 shadow-lg">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]">
+              {t("adminMarketplace.tags")}
+            </p>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-xs text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
+              >
+                {t("marketplace.clearFilters")}
+              </button>
+            )}
+          </div>
+          <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+            {tags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className={`skill-tag-chip ${
+                  selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const headerActions = (
+    <>
+      {canWrite && (
+        <button onClick={handleCreate} className="btn-primary h-10">
+          <Plus size={16} />
+          <span className="hidden sm:inline">
+            {t("marketplace.createAndPublish")}
+          </span>
+        </button>
+      )}
+      <button
+        onClick={() => fetchSkills()}
+        className="btn-secondary h-10"
+        title={t("common.refresh")}
+      >
+        <RotateCw size={16} />
+      </button>
+    </>
+  );
+
   if (isLoading) {
-    return <MarketplacePanelSkeleton />;
+    return embedded ? (
+      <div className="[&_.panel-header]:hidden">
+        <MarketplacePanelSkeleton />
+      </div>
+    ) : (
+      <MarketplacePanelSkeleton />
+    );
   }
 
   return (
     <div className="skill-theme-shell flex h-full min-h-0 flex-col">
-      {/* Header */}
-      <PanelHeader
-        className="skill-panel-header"
-        title={t("marketplace.title")}
-        subtitle={t("marketplace.subtitle")}
-        icon={
-          <ShoppingBag
-            size={18}
-            className="text-stone-600 dark:text-stone-400"
-          />
-        }
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
-        searchPlaceholder={t("marketplace.searchPlaceholder")}
-        searchAccessory={
-          tags.length > 0 ? (
-            <div className="relative shrink-0" data-filter-menu>
-              <button
-                type="button"
-                onClick={() => setIsFilterOpen((prev) => !prev)}
-                className={`btn-secondary h-10 px-3 ${
-                  selectedTags.length > 0
-                    ? "border-[var(--theme-primary)] text-[var(--theme-text)]"
-                    : ""
-                }`}
-              >
-                <Tag size={14} />
-                <span className="hidden sm:inline">
-                  {t("adminMarketplace.tags")}
-                </span>
-                {selectedTags.length > 0 && (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[11px]">
-                    {selectedTags.length}
-                  </span>
-                )}
-                <ChevronDown
-                  size={14}
-                  className={`transition-transform ${
-                    isFilterOpen ? "rotate-180" : ""
-                  }`}
+      {embedded && (
+        <div className="skill-panel-header">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search
+                  size={18}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
                 />
-              </button>
-              {isFilterOpen && (
-                <div className="skill-filter-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border  p-3 shadow-lg">
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]">
-                      {t("adminMarketplace.tags")}
-                    </p>
-                    {hasActiveFilters && (
-                      <button
-                        type="button"
-                        onClick={clearFilters}
-                        className="text-xs text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
-                      >
-                        {t("marketplace.clearFilters")}
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
-                    {tags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => toggleTag(tag)}
-                        className={`skill-tag-chip ${
-                          selectedTags.includes(tag)
-                            ? "skill-tag-chip--active"
-                            : ""
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="panel-search h-10"
+                  placeholder={t("marketplace.searchPlaceholder")}
+                />
+              </div>
+              {filterMenu}
             </div>
-          ) : null
-        }
-        actions={
-          <>
-            {canWrite && (
-              <button onClick={handleCreate} className="btn-primary">
-                <Plus size={16} />
-                <span className="hidden sm:inline">
-                  {t("marketplace.createAndPublish")}
-                </span>
-              </button>
-            )}
-            <button
-              onClick={() => fetchSkills()}
-              className="btn-secondary"
-              title={t("common.refresh")}
-            >
-              <RotateCw size={16} />
-            </button>
-          </>
-        }
-      />
+            <div className="flex flex-wrap items-center gap-2">
+              {headerActions}
+            </div>
+          </div>
+        </div>
+      )}
+      {!embedded && (
+        <PanelHeader
+          className="skill-panel-header"
+          title={t("marketplace.title")}
+          subtitle={t("marketplace.subtitle")}
+          icon={
+            <ShoppingBag
+              size={18}
+              className="text-stone-600 dark:text-stone-400"
+            />
+          }
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder={t("marketplace.searchPlaceholder")}
+          searchAccessory={filterMenu}
+          actions={headerActions}
+        />
+      )}
 
       {/* Error */}
       {error && (

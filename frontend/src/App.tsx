@@ -277,7 +277,10 @@ function App() {
               path="/skills"
               element={
                 <ProtectedRoute
-                  permissions={[Permission.SKILL_READ]}
+                  permissions={[
+                    Permission.SKILL_READ,
+                    Permission.MARKETPLACE_READ,
+                  ]}
                   redirectTo="/chat"
                   showToast
                   toastMessage={t("errors.noPermission")}
@@ -290,7 +293,10 @@ function App() {
               path="/marketplace"
               element={
                 <ProtectedRoute
-                  permissions={[Permission.MARKETPLACE_READ]}
+                  permissions={[
+                    Permission.SKILL_READ,
+                    Permission.MARKETPLACE_READ,
+                  ]}
                   redirectTo="/chat"
                   showToast
                   toastMessage={t("errors.noPermission")}

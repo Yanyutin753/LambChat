@@ -8,6 +8,7 @@ import type {
 export interface PersonaPresetEditorDraft {
   name: string;
   description: string;
+  avatar: string;
   system_prompt: string;
   tags: string[];
   skill_names: string[];
@@ -36,6 +37,7 @@ export function buildPersonaPresetPayload(
   const base = {
     name: draft.name,
     description: draft.description,
+    avatar: draft.avatar || null,
     system_prompt: draft.system_prompt,
     tags: draft.tags,
     skill_names: draft.skill_names,

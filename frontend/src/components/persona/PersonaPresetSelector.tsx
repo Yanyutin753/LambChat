@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, Settings2, UserRound, X } from "lucide-react";
+import { Search, Settings2, UserRound, X, Sparkles, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import {
+  getCategoryIcon,
+  nameToGradient,
+} from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
 
 interface PersonaPresetSelectorProps {
@@ -198,88 +202,148 @@ export function PersonaPresetSelector({
               {t("personaPresets.empty", "暂无角色预设")}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {filtered.map((preset) => {
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {filtered.map((preset, index) => {
                 const selected = selectedPresetId === preset.id;
+                const gradient = nameToGradient(preset.name);
+                const primaryTag = preset.tags[0];
+                const CategoryIcon = primaryTag
+                  ? getCategoryIcon(primaryTag)
+                  : Sparkles;
                 return (
                   <div
                     key={preset.id}
-                    className="rounded-lg border p-4"
-                    style={{
-                      borderColor: selected
-                        ? "var(--theme-primary)"
-                        : "var(--theme-border)",
-                    }}
+                    className="pps-card group flex h-full flex-col overflow-hidden rounded-xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3
-                          className="truncate text-sm font-semibold"
-                          style={{ color: "var(--theme-text)" }}
-                        >
-                          {preset.name}
-                        </h3>
-                        <p
-                          className="mt-1 line-clamp-2 text-xs leading-5"
-                          style={{ color: "var(--theme-text-secondary)" }}
-                        >
-                          {preset.description || preset.system_prompt}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-stone-100 px-2 py-1 text-[11px] text-stone-500 dark:bg-stone-800">
-                        {preset.scope === "global"
-                          ? t("personaPresets.official", "官方")
-                          : t("personaPresets.mine", "我的")}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {preset.tags.slice(0, 4).map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500 dark:bg-stone-800"
-                        >
-                          {tag}
+                    {/* Gradient Banner */}
+                    <div
+                      className="pps-card__banner relative h-10 shrink-0"
+                      style={{
+                        background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
+                      }}
+                    >
+                      {selected && (
+                        <span className="pps-card__status-badge">
+                          {t("personaPresets.using", "使用中")}
                         </span>
-                      ))}
+                      )}
                     </div>
 
-                    <div className="mt-4 flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={isMutating}
-                        onClick={async () => {
-                          const snapshot = await onUsePreset(preset);
-                          if (snapshot) onOpenChange(false);
-                        }}
-                        className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50"
-                        style={{
-                          background: selected
-                            ? "var(--theme-primary-light)"
-                            : "var(--theme-primary)",
-                          color: selected
-                            ? "var(--theme-primary)"
-                            : "var(--theme-bg)",
-                        }}
+                    {/* Card Body */}
+                    <div className="flex flex-1 flex-col p-3.5 pt-4">
+                      {/* Title row */}
+                      <div className="flex items-start gap-2.5">
+                        <div className="pps-card__avatar shrink-0">
+                          {preset.avatar ? (
+                            <img
+                              src={preset.avatar}
+                              alt=""
+                              className="pps-card__avatar-img"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display =
+                                  "none";
+                              }}
+                            />
+                          ) : null}
+                          <CategoryIcon
+                            size={16}
+                            className="pps-card__avatar-icon"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3
+                            className="truncate text-sm font-semibold leading-tight"
+                            style={{ color: "var(--theme-text)" }}
+                          >
+                            {preset.name}
+                          </h3>
+                          <div
+                            className="mt-1 flex items-center gap-1.5 text-[11px]"
+                            style={{ color: "var(--theme-text-secondary)" }}
+                          >
+                            <span>
+                              {preset.scope === "global"
+                                ? t("personaPresets.official", "官方")
+                                : t("personaPresets.mine", "我的")}
+                            </span>
+                            {preset.usage_count > 0 && (
+                              <>
+                                <span
+                                  className="inline-block h-0.5 w-0.5 rounded-full"
+                                  style={{ background: "var(--theme-border)" }}
+                                />
+                                <span>
+                                  {preset.usage_count}
+                                  {t("personaPresets.usageCount", "次使用")}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <p
+                        className="mt-2.5 text-[13px] leading-relaxed line-clamp-2"
+                        style={{ color: "var(--theme-text-secondary)" }}
                       >
-                        {selected
-                          ? t("personaPresets.using", "使用中")
-                          : t("personaPresets.use", "使用")}
-                      </button>
-                      {preset.scope === "global" && (
+                        {preset.description || preset.system_prompt}
+                      </p>
+
+                      {/* Tags */}
+                      {preset.tags.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1">
+                          {preset.tags.slice(0, 3).map((tag) => (
+                            <span key={tag} className="pps-card__tag">
+                              {tag}
+                            </span>
+                          ))}
+                          {preset.tags.length > 3 && (
+                            <span className="pps-card__tag pps-card__tag--more">
+                              +{preset.tags.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex-1" />
+
+                      {/* Actions */}
+                      <div
+                        className="mt-3 flex items-center gap-1.5 border-t pt-3"
+                        style={{ borderColor: "var(--theme-border)" }}
+                      >
                         <button
                           type="button"
                           disabled={isMutating}
-                          onClick={() => onCopyPreset(preset)}
-                          className="rounded-lg border px-3 py-1.5 text-xs disabled:opacity-50"
-                          style={{
-                            borderColor: "var(--theme-border)",
-                            color: "var(--theme-text-secondary)",
+                          onClick={async () => {
+                            const snapshot = await onUsePreset(preset);
+                            if (snapshot) onOpenChange(false);
                           }}
+                          className={`pps-card__action ${
+                            selected
+                              ? "pps-card__action--active"
+                              : "pps-card__action--primary"
+                          }`}
                         >
-                          {t("personaPresets.copy", "复制")}
+                          <Sparkles size={13} />
+                          {selected
+                            ? t("personaPresets.using", "使用中")
+                            : t("personaPresets.use", "使用")}
                         </button>
-                      )}
+                        {preset.scope === "global" && (
+                          <button
+                            type="button"
+                            disabled={isMutating}
+                            onClick={() => onCopyPreset(preset)}
+                            className="pps-card__action pps-card__action--ghost"
+                          >
+                            <Copy size={13} />
+                            {t("personaPresets.copy", "复制")}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

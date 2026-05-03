@@ -7,9 +7,11 @@ interface MoreMenuItem {
   label: string;
   icon: LucideIcon;
   show: boolean;
+  matchPaths?: string[];
 }
 
 interface DesktopMoreMenuProps {
+  featureItems?: MoreMenuItem[];
   userItems: MoreMenuItem[];
   sysItems: MoreMenuItem[];
   isOpen: boolean;
@@ -19,6 +21,7 @@ interface DesktopMoreMenuProps {
 }
 
 export function DesktopMoreMenu({
+  featureItems = [],
   userItems,
   sysItems,
   isOpen,
@@ -31,8 +34,30 @@ export function DesktopMoreMenu({
 
   if (!isOpen) return null;
 
+  const visibleFeature = featureItems.filter((i) => i.show);
   const visibleUser = userItems.filter((i) => i.show);
   const visibleSys = sysItems.filter((i) => i.show);
+
+  const renderItem = (item: MoreMenuItem) => (
+    <button
+      key={item.path}
+      type="button"
+      className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] active:scale-[0.98] ${
+        (item.matchPaths ?? [item.path]).includes(location.pathname)
+          ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)]"
+          : ""
+      }`}
+      onClick={() => {
+        onClose();
+        navigate(item.path);
+      }}
+    >
+      <item.icon size={16} strokeWidth={1.8} />
+      <span>{item.label}</span>
+    </button>
+  );
+
+  const hasPrev = visibleFeature.length > 0 || visibleUser.length > 0;
 
   return createPortal(
     <div
@@ -44,51 +69,21 @@ export function DesktopMoreMenu({
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      {visibleFeature.length > 0 && <div>{visibleFeature.map(renderItem)}</div>}
       {visibleUser.length > 0 && (
         <div>
-          {visibleUser.map((item) => (
-            <button
-              key={item.path}
-              type="button"
-              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] active:scale-[0.98] ${
-                location.pathname === item.path
-                  ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)]"
-                  : ""
-              }`}
-              onClick={() => {
-                onClose();
-                navigate(item.path);
-              }}
-            >
-              <item.icon size={16} strokeWidth={1.8} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {visibleFeature.length > 0 && (
+            <div className="mx-3 my-1 border-t border-[var(--theme-border)]" />
+          )}
+          {visibleUser.map(renderItem)}
         </div>
       )}
       {visibleSys.length > 0 && (
         <div>
-          {visibleUser.length > 0 && (
+          {hasPrev && (
             <div className="mx-3 my-1 border-t border-[var(--theme-border)]" />
           )}
-          {visibleSys.map((item) => (
-            <button
-              key={item.path}
-              type="button"
-              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)] active:scale-[0.98] ${
-                location.pathname === item.path
-                  ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)]"
-                  : ""
-              }`}
-              onClick={() => {
-                onClose();
-                navigate(item.path);
-              }}
-            >
-              <item.icon size={16} strokeWidth={1.8} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {visibleSys.map(renderItem)}
         </div>
       )}
     </div>,

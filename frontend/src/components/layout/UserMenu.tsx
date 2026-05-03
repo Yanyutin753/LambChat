@@ -4,14 +4,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   MessageSquare,
-  Package,
+  Sparkles,
   LogOut,
   Settings,
   Server,
   MessageCircle,
   Brain,
   User,
-  ShoppingBag,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSettingsContext } from "../../contexts/SettingsContext";
@@ -49,6 +48,7 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     hasAnyPermission([Permission.SKILL_READ]) && enableSkills;
   const canReadMarketplace =
     hasAnyPermission([Permission.MARKETPLACE_READ]) && enableSkills;
+  const canReadAnySkills = canReadSkills || canReadMarketplace;
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
@@ -122,14 +122,9 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     {
       path: "/skills",
       label: t("nav.skills"),
-      icon: Package,
-      show: canReadSkills,
-    },
-    {
-      path: "/marketplace",
-      label: t("nav.marketplace"),
-      icon: ShoppingBag,
-      show: canReadMarketplace,
+      icon: Sparkles,
+      show: canReadAnySkills,
+      matchPaths: ["/skills", "/marketplace"],
     },
     { path: "/mcp", label: t("nav.mcp"), icon: Server, show: canReadMCP },
     {
@@ -155,12 +150,13 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     path: string;
     label: string;
     icon: React.ElementType;
+    matchPaths?: string[];
   }) => (
     <button
       key={item.path}
       type="button"
       className={`${menuItemClass} ${
-        location.pathname === item.path
+        (item.matchPaths ?? [item.path]).includes(location.pathname)
           ? "bg-[var(--theme-primary-light)] text-[var(--theme-text)]"
           : ""
       }`}

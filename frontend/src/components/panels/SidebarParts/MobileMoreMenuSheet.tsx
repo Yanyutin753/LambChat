@@ -8,9 +8,11 @@ interface MoreMenuItem {
   label: string;
   icon: LucideIcon;
   show: boolean;
+  matchPaths?: string[];
 }
 
 interface MobileMoreMenuSheetProps {
+  featureItems?: MoreMenuItem[];
   userItems: MoreMenuItem[];
   sysItems: MoreMenuItem[];
   isOpen: boolean;
@@ -20,6 +22,7 @@ interface MobileMoreMenuSheetProps {
 }
 
 export function MobileMoreMenuSheet({
+  featureItems = [],
   userItems,
   sysItems,
   isOpen,
@@ -32,8 +35,26 @@ export function MobileMoreMenuSheet({
 
   if (!isOpen) return null;
 
+  const visibleFeature = featureItems.filter((i) => i.show);
   const visibleUser = userItems.filter((i) => i.show);
   const visibleSys = sysItems.filter((i) => i.show);
+
+  const renderItem = (item: MoreMenuItem) => (
+    <button
+      key={item.path}
+      type="button"
+      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+      onClick={() => {
+        onClose();
+        navigate(item.path);
+      }}
+    >
+      <item.icon size={16} />
+      <span>{item.label}</span>
+    </button>
+  );
+
+  const hasPrev = visibleFeature.length > 0 || visibleUser.length > 0;
 
   return (
     <>
@@ -63,37 +84,15 @@ export function MobileMoreMenuSheet({
           </button>
         </div>
         <div className="px-2 pb-4">
-          {visibleUser.map((item) => (
-            <button
-              key={item.path}
-              type="button"
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
-              onClick={() => {
-                onClose();
-                navigate(item.path);
-              }}
-            >
-              <item.icon size={16} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {visibleFeature.map(renderItem)}
+          {visibleFeature.length > 0 && hasPrev && (
+            <div className="h-px bg-stone-200 dark:bg-stone-700 my-1.5" />
+          )}
+          {visibleUser.map(renderItem)}
           {visibleUser.length > 0 && visibleSys.length > 0 && (
             <div className="h-px bg-stone-200 dark:bg-stone-700 my-1.5" />
           )}
-          {visibleSys.map((item) => (
-            <button
-              key={item.path}
-              type="button"
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
-              onClick={() => {
-                onClose();
-                navigate(item.path);
-              }}
-            >
-              <item.icon size={16} />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {visibleSys.map(renderItem)}
         </div>
       </div>
     </>

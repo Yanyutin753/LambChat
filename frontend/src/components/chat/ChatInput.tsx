@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback, memo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import toast from "react-hot-toast";
-import { ArrowUp, Square, Ban, Lock, FileText } from "lucide-react";
+import { ArrowUp, Square, Ban, Lock, FileText, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ToolSelector } from "../selectors/ToolSelector";
@@ -23,6 +23,7 @@ import { turndown, cleanPastedHtml } from "./chatInputTurndown";
 import { PASTE_TEXT_THRESHOLD } from "./chatInputConstants";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
+import { getCategoryIcon } from "../panels/MarketplacePanel/constants";
 import type {
   ToolState,
   ToolCategory,
@@ -163,6 +164,8 @@ export const ChatInput = memo(function ChatInput({
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const resizeRafRef = useRef<number>(0);
+  const personaChipRef = useRef<HTMLSpanElement>(null);
+  const [personaChipWidth, setPersonaChipWidth] = useState(0);
   const [history, setHistory] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem("chatInputHistory");
@@ -173,6 +176,24 @@ export const ChatInput = memo(function ChatInput({
   });
   const historyIndexRef = useRef(-1);
   const draftRef = useRef("");
+
+  const personaAvatar = useMemo(() => {
+    if (!selectedPersonaPresetId) return null;
+    const preset = personaPresets.find((p) => p.id === selectedPersonaPresetId);
+    if (!preset) return null;
+    return { avatar: preset.avatar, primaryTag: preset.tags[0] || "" };
+  }, [selectedPersonaPresetId, personaPresets]);
+
+  useEffect(() => {
+    const el = personaChipRef.current;
+    if (!el) {
+      setPersonaChipWidth(0);
+      return;
+    }
+    const ro = new ResizeObserver(() => setPersonaChipWidth(el.offsetWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectedPersonaName]);
 
   const attachments = externalAttachments ?? internalAttachments;
   const setAttachments = externalOnAttachmentsChange ?? setInternalAttachments;
@@ -515,32 +536,75 @@ export const ChatInput = memo(function ChatInput({
             </div>
           )}
 
-          <div className="px-2.5 pt-1 flex items-start gap-2">
-            {selectedPersonaName && (
-              <span
-                className="shrink-0 pt-2.5 pl-1 cursor-pointer whitespace-nowrap select-none truncate font-semibold leading-relaxed text-blue-600 dark:text-blue-400"
-                style={{ maxWidth: "25%", fontSize: "15px" }}
-                onClick={() => setActivePanel("persona")}
-                title={selectedPersonaName}
-              >
-                {selectedPersonaName}
-              </span>
-            )}
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onFocus={scheduleTextareaResize}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder={
-                canSend ? t("chat.placeholder") : t("chat.noPermission")
-              }
-              disabled={disabled || !canSend}
-              className="bg-transparent outline-none flex-1 pt-2.5 px-1 resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[52px]"
-              style={{ color: "var(--theme-text)" }}
-              rows={1}
-            />
+          <div className="px-2.5 pt-1">
+            <div className="relative">
+              {selectedPersonaName && (
+                <span
+                  ref={personaChipRef}
+                  className="absolute top-0 left-0 pt-[10px] pl-1 cursor-pointer select-none inline-flex items-center gap-2 z-10 pointer-events-auto"
+                  onClick={() => setActivePanel("persona")}
+                  title={selectedPersonaName}
+                >
+                  {personaAvatar && (
+                    <span
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-[var(--theme-border)] overflow-hidden shrink-0"
+                      style={{
+                        background:
+                          "color-mix(in srgb, var(--theme-primary-light) 50%, var(--theme-bg-card))",
+                      }}
+                    >
+                      {personaAvatar.avatar ? (
+                        <img
+                          src={personaAvatar.avatar}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                      ) : (
+                        (() => {
+                          const Icon =
+                            getCategoryIcon(personaAvatar.primaryTag) ||
+                            Sparkles;
+                          return (
+                            <Icon
+                              size={12}
+                              className="text-[var(--theme-primary)]"
+                            />
+                          );
+                        })()
+                      )}
+                    </span>
+                  )}
+                  <span
+                    className="whitespace-nowrap font-semibold text-blue-600 dark:text-blue-400"
+                    style={{ fontSize: "15px", lineHeight: 1.625 }}
+                  >
+                    {selectedPersonaName}
+                  </span>
+                </span>
+              )}
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onFocus={scheduleTextareaResize}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                placeholder={
+                  canSend ? t("chat.placeholder") : t("chat.noPermission")
+                }
+                disabled={disabled || !canSend}
+                className="bg-transparent outline-none w-full pt-[10px] resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[52px]"
+                style={{
+                  color: "var(--theme-text)",
+                  paddingLeft: personaChipWidth > 0 ? personaChipWidth + 8 : 4,
+                }}
+                rows={1}
+              />
+            </div>
           </div>
 
           <div className="flex justify-between pt-3 pb-3 px-2 mx-0.5 max-w-full">
