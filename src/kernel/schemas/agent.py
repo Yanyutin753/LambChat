@@ -6,6 +6,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.kernel.schemas.message import ToolCall
+from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 
 
 class AttachmentSchema(BaseModel):
@@ -37,6 +38,16 @@ class AgentRequest(BaseModel):
     )
     disabled_skills: Optional[list[str]] = Field(
         None, description="Skills to disable for this conversation"
+    )
+    enabled_skills: Optional[list[str]] = Field(
+        None, description="Skills to explicitly enable for this conversation"
+    )
+    persona_preset_id: Optional[str] = Field(None, description="Persona preset ID")
+    persona_snapshot: Optional[PersonaPresetSnapshot] = Field(
+        None, description="Resolved persona preset snapshot"
+    )
+    persona_system_prompt: Optional[str] = Field(
+        None, description="Resolved persona system prompt for runtime injection"
     )
     disabled_mcp_tools: Optional[list[str]] = Field(
         None, description="MCP tools to disable for this conversation"

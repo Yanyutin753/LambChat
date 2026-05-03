@@ -46,6 +46,7 @@ class FastAgentContext:
         user_id: Optional[str] = None,
         disabled_tools: Optional[List[str]] = None,
         disabled_skills: Optional[List[str]] = None,
+        enabled_skills: Optional[List[str]] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
     ):
         self.session_id = session_id
@@ -53,12 +54,24 @@ class FastAgentContext:
         self.user_id = user_id
         self.disabled_tools = disabled_tools
         self.disabled_skills = disabled_skills
+        self.enabled_skills = enabled_skills
         self.disabled_mcp_tools = disabled_mcp_tools
         self.mcp_manager: Optional[MCPClientManager] = None
         self._mcp_loaded: bool = False
         self.tools: List[Any] = []
         self.skills: List[dict] = []
         self.deferred_manager: Optional["DeferredToolManager"] = None
+
+    def apply_skill_filters(self) -> None:
+        """Apply whitelist/blacklist filters to loaded skills."""
+        if self.enabled_skills is not None:
+            enabled_set = set(self.enabled_skills)
+            self.skills = [s for s in self.skills if s.get("name") in enabled_set]
+            return
+
+        if self.disabled_skills:
+            disabled_set = set(self.disabled_skills)
+            self.skills = [s for s in self.skills if s.get("name") not in disabled_set]
 
     async def get_tools(self) -> List[Any]:
         """获取所有工具（懒加载 MCP 工具）"""
@@ -211,10 +224,13 @@ class FastAgentContext:
                     if skill_dict.get("enabled", True):
                         self.skills.append(skill_dict)
 
-                # Filter skills by disabled_skills blacklist if provided
-                if self.disabled_skills:
-                    disabled_set = set(self.disabled_skills)
-                    self.skills = [s for s in self.skills if s.get("name") not in disabled_set]
+                before_count = len(self.skills)
+                self.apply_skill_filters()
+                if self.enabled_skills is not None:
+                    logger.info(
+                        f"[FastAgentContext] Applied enabled_skills whitelist, {len(self.skills)}/{before_count} remaining"
+                    )
+                elif self.disabled_skills:
                     logger.info(
                         f"[FastAgentContext] Filtered out {len(self.disabled_skills)} disabled skills, {len(self.skills)} remaining"
                     )

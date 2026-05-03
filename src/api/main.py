@@ -29,6 +29,7 @@ from src.api.routes import (
     mcp,
     memory,
     notification,
+    persona_preset,
     project,
     revealed_file,
     role,
@@ -380,6 +381,11 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
     app.include_router(user.router, prefix="/api/users", tags=["Users"])
     app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
+    app.include_router(
+        persona_preset.router,
+        prefix="/api/persona-presets",
+        tags=["Persona Presets"],
+    )
     app.include_router(session.router, prefix="/api/sessions", tags=["Sessions"])
     app.include_router(project.router, prefix="/api/projects", tags=["Projects"])
     app.include_router(share.router, prefix="/api/share", tags=["Share"])

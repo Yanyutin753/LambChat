@@ -183,6 +183,13 @@ function FilesPage() {
   return <AppContent key="files" activeTab="files" />;
 }
 
+function PersonaPage() {
+  usePageTitle("personaPresets.title", undefined, {
+    description: "personaPresets.subtitle",
+  });
+  return <AppContent key="persona" activeTab="persona" />;
+}
+
 function NotificationsPage() {
   usePageTitle("nav.notifications", undefined, {
     description: "nav.notifications",
@@ -383,6 +390,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ModelsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/persona"
+              element={
+                <ProtectedRoute>
+                  <PersonaPage />
                 </ProtectedRoute>
               }
             />

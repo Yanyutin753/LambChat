@@ -16,7 +16,7 @@ interface ViewerToolbarProps {
 export function ViewerToolbar({
   scale,
   minScale = 0.1,
-  maxScale = 10,
+  maxScale = 20,
   onZoomIn,
   onZoomOut,
   onRotateLeft,

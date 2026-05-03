@@ -51,6 +51,15 @@ if _UPSTREAM_IS_DATACLASS:
         def __str__(self) -> str:
             return self.rendered_content or ""
 
+        def __contains__(self, item: object) -> bool:
+            return item in str(self)
+
+        def __iter__(self):
+            return iter(str(self))
+
+        def __len__(self) -> int:
+            return len(str(self))
+
 else:
 
     class ReadResult(str, _UpstreamReadResult):  # type: ignore[no-redef]
@@ -78,6 +87,28 @@ else:
             return obj
 
 
+def is_read_result(value: object) -> bool:
+    """Return True for both upstream and compatibility-layer read results."""
+    return isinstance(value, _UpstreamReadResult)
+
+
+def read_result_to_string(value: object) -> str:
+    """Render upstream or compatibility-layer read results as user-facing text."""
+    if not is_read_result(value):
+        return str(value)
+
+    error = getattr(value, "error", None)
+    if error:
+        return error if str(error).startswith("Error:") else f"Error: {error}"
+
+    rendered = getattr(value, "rendered_content", None)
+    if rendered is not None:
+        return str(rendered)
+
+    file_data = getattr(value, "file_data", None) or {}
+    return str(file_data.get("content", ""))
+
+
 # Re-export upstream protocol types so that mypy treats our aliases as
 # identical to the ones used in BaseSandbox / BackendProtocol signatures.
 __all__ = [
@@ -93,4 +124,6 @@ __all__ = [
     "LsResult",
     "ReadResult",
     "WriteResult",
+    "is_read_result",
+    "read_result_to_string",
 ]

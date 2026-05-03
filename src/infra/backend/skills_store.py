@@ -49,6 +49,8 @@ from src.infra.backend.protocol_compat import (
     LsResult,
     ReadResult,
     WriteResult,
+    is_read_result,
+    read_result_to_string,
 )
 from src.infra.logging import get_logger
 from src.infra.skill.binary import is_binary_file, parse_binary_ref
@@ -60,12 +62,13 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def _render_text_read(content: str, offset: int, limit: int) -> str:
+def _slice_text_read(content: str, offset: int, limit: int) -> str | ReadResult:
     if not content:
         return ""
     sliced = slice_read_response(create_file_data(content), offset, limit)
-    if isinstance(sliced, ReadResult):
-        return str(sliced)
+    if is_read_result(sliced):
+        error = getattr(sliced, "error", None)
+        return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
     return format_content_with_line_numbers(sliced, start_line=offset + 1)  # type: ignore[arg-type]
 
 
@@ -201,14 +204,20 @@ class SkillsStoreBackend(BackendProtocol):
                     f"\nThis is a binary file stored in object storage. "
                     f"Access it via the URL above."
                 )
+                rendered = _slice_text_read(desc, offset, limit)
+                if is_read_result(rendered):
+                    return rendered
                 return ReadResult(
                     file_data={"content": desc, "encoding": "utf-8"},
-                    rendered_content=_render_text_read(desc, offset, limit),
+                    rendered_content=rendered,
                 )
 
+            rendered = _slice_text_read(content, offset, limit)
+            if is_read_result(rendered):
+                return rendered
             return ReadResult(
                 file_data={"content": content, "encoding": "utf-8"},
-                rendered_content=_render_text_read(content, offset, limit),
+                rendered_content=rendered,
             )
 
         except Exception as e:

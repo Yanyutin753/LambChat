@@ -10,12 +10,14 @@ import { useApprovals } from "../../../hooks/useApprovals";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTools } from "../../../hooks/useTools";
 import { useSkills } from "../../../hooks/useSkills";
+import { usePersonaPresets } from "../../../hooks/usePersonaPresets";
 import { useProjectManager } from "../../../hooks/useProjectManager";
 import { useSessionConfig } from "../../../hooks/useSessionConfig";
 import {
   Permission,
   type ToolCategory,
   type SkillSource,
+  type PersonaPreset,
 } from "../../../types";
 import { useDragAndDrop } from "./useDragAndDrop";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
@@ -89,10 +91,23 @@ export function ChatAppContent({
     fetchSkills,
   } = useSkills({ enabled: enableSkills });
 
+  const canReadPersonaPresets = hasPermission(Permission.PERSONA_PRESET_READ);
+  const {
+    presets: personaPresets,
+    isLoading: personaPresetsLoading,
+    isMutating: personaPresetsMutating,
+    usePreset: activatePersonaPreset,
+    copyPreset: copyPersonaPreset,
+    createPreset: createPersonaPreset,
+    updatePreset: updatePersonaPreset,
+  } = usePersonaPresets({ enabled: canReadPersonaPresets });
+
   const projectManager = useProjectManager();
 
   const sessionConfigRef = useRef({
     disabledSkills: [] as string[],
+    enabledSkills: undefined as string[] | undefined,
+    personaPresetId: null as string | null,
     disabledMcpTools: [] as string[],
     agentOptions: {} as Record<string, boolean | string | number>,
   });
@@ -133,6 +148,8 @@ export function ChatAppContent({
     },
     getEnabledTools: getDisabledToolNames,
     getDisabledSkills: () => sessionConfigRef.current.disabledSkills,
+    getEnabledSkills: () => sessionConfigRef.current.enabledSkills,
+    getPersonaPresetId: () => sessionConfigRef.current.personaPresetId,
     getDisabledMcpTools: () => sessionConfigRef.current.disabledMcpTools,
     getAgentOptions: () => sessionConfigRef.current.agentOptions,
     onSkillAdded: (
@@ -187,6 +204,8 @@ export function ChatAppContent({
     toggleSkill: toggleSessionSkill,
     toggleMcpTool: toggleSessionMcpTool,
     setAgentOption: setSessionAgentOption,
+    setPersonaPreset,
+    clearPersonaPreset,
     resetToDefaults,
     restoreConfig: restoreSessionConfig,
   } = useSessionConfig({
@@ -251,9 +270,51 @@ export function ChatAppContent({
   useEffect(() => {
     sessionConfigRef.current = {
       ...sessionConfig,
+      enabledSkills: sessionConfig.personaSnapshot
+        ? sessionConfig.personaSnapshot.skill_names
+        : undefined,
+      personaPresetId: sessionConfig.personaPresetId,
       agentOptions: agentOptionValues,
     };
   }, [sessionConfig, agentOptionValues]);
+
+  const handleUsePersonaPreset = useCallback(
+    async (preset: PersonaPreset) => {
+      const snapshot = await activatePersonaPreset(preset.id);
+      if (snapshot) {
+        setPersonaPreset(preset.id, snapshot);
+      }
+      return snapshot;
+    },
+    [activatePersonaPreset, setPersonaPreset],
+  );
+
+  const handleCopyPersonaPreset = useCallback(
+    async (preset: PersonaPreset) => {
+      await copyPersonaPreset(preset.id);
+    },
+    [copyPersonaPreset],
+  );
+
+  const handleSavePersonaPreset = useCallback(
+    async (
+      preset: PersonaPreset | null,
+      data: {
+        name: string;
+        description: string;
+        system_prompt: string;
+        tags: string[];
+        skill_names: string[];
+      },
+    ) => {
+      if (preset) {
+        await updatePersonaPreset(preset.id, data);
+      } else {
+        await createPersonaPreset(data);
+      }
+    },
+    [createPersonaPreset, updatePersonaPreset],
+  );
 
   const effectiveTools = useMemo(() => {
     const sessionDisabled = new Set(sessionConfig.disabledMcpTools);
@@ -266,6 +327,13 @@ export function ChatAppContent({
 
   const effectiveSkills = useMemo(() => {
     if (skillsLoading) return skills;
+    const whitelist = sessionConfig.personaSnapshot?.skill_names;
+    if (whitelist && whitelist.length > 0) {
+      const enabledSet = new Set(whitelist);
+      return skills
+        .filter((s) => s.enabled && enabledSet.has(s.name))
+        .map((s) => ({ ...s, enabled: true }));
+    }
     const sessionDisabled = new Set(sessionConfig.disabledSkills);
     return skills
       .filter((s) => s.enabled)
@@ -273,7 +341,12 @@ export function ChatAppContent({
         ...s,
         enabled: s.enabled && !sessionDisabled.has(s.name),
       }));
-  }, [skills, sessionConfig.disabledSkills, skillsLoading]);
+  }, [
+    skills,
+    sessionConfig.disabledSkills,
+    sessionConfig.personaSnapshot,
+    skillsLoading,
+  ]);
 
   const effectiveToggleTool = useCallback(
     (toolName: string) => {
@@ -487,6 +560,10 @@ export function ChatAppContent({
       agent_id?: string;
       agent_options?: Record<string, boolean | string | number>;
       disabled_skills?: string[];
+      enabled_skills?: string[];
+      persona_preset_id?: string;
+      persona_preset_name?: string;
+      persona_snapshot?: import("../../../types").PersonaPresetSnapshot;
       disabled_mcp_tools?: string[];
       disabled_tools?: string[];
     }) => {
@@ -654,6 +731,15 @@ export function ChatAppContent({
           enabledSkillsCount={effectiveSkills.length}
           totalSkillsCount={skills.length}
           enableSkills={enableSkills}
+          personaPresets={personaPresets}
+          selectedPersonaPresetId={sessionConfig.personaPresetId}
+          selectedPersonaName={sessionConfig.personaSnapshot?.name || null}
+          personaPresetsLoading={personaPresetsLoading}
+          personaPresetsMutating={personaPresetsMutating}
+          onUsePersonaPreset={handleUsePersonaPreset}
+          onCopyPersonaPreset={handleCopyPersonaPreset}
+          onSavePersonaPreset={handleSavePersonaPreset}
+          onClearPersonaPreset={clearPersonaPreset}
           agentOptions={currentAgentOptions}
           agentOptionValues={agentOptionValues}
           onToggleAgentOption={handleToggleAgentOption}

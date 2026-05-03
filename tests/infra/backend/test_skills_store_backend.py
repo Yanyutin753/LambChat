@@ -111,6 +111,15 @@ async def test_skills_store_backend_reads_disabled_skills_from_runtime_config() 
     assert [_field(entry, "path") for entry in _field(result, "entries")] == ["/visible/"]
 
 
+async def test_skills_store_backend_read_reports_offset_past_eof() -> None:
+    backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])
+    backend._storage = _FakeSkillStorage()
+
+    result = await backend.aread("/skills/visible/SKILL.md", offset=400, limit=100)
+
+    assert _field(result, "error") == "Line offset 400 exceeds file length (1 lines)"
+
+
 async def test_skills_store_backend_sync_read_rejects_running_event_loop() -> None:
     backend = SkillsStoreBackend(user_id="user-1", disabled_skills=[])
     backend._storage = _FakeSkillStorage()

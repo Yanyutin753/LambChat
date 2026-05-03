@@ -192,3 +192,27 @@ html.allow-scroll #root {
   width: var(--sidebar-width);
   opacity: 1;
 }
+
+/* Sidebar navigation button — theme-aware hover */
+.sidebar-nav-btn {
+  color: var(--theme-text-secondary);
+}
+.sidebar-nav-btn:hover {
+  background-color: var(
+    --glass-bg-subtle,
+    color-mix(in srgb, var(--theme-bg) 80%, white)
+  );
+  color: var(--theme-text);
+}
+
+/* Sidebar rail button — theme-aware hover */
+.sidebar-rail-btn {
+  color: var(--theme-text-secondary);
+}
+.sidebar-rail-btn:hover {
+  background-color: var(
+    --glass-bg-subtle,
+    color-mix(in srgb, var(--theme-bg) 80%, white)
+  );
+  color: var(--theme-text);
+}

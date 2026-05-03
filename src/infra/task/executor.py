@@ -63,6 +63,8 @@ class TaskExecutor:
         existing_trace_id: Optional[str] = None,
         user_message_written: bool = False,
         disabled_skills: Optional[List[str]] = None,
+        enabled_skills: Optional[List[str]] = None,
+        persona_system_prompt: Optional[str] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
         display_message: Optional[str] = None,
     ) -> None:
@@ -153,6 +155,8 @@ class TaskExecutor:
                 agent_options=agent_options,
                 attachments=attachments,
                 disabled_skills=disabled_skills,
+                enabled_skills=enabled_skills,
+                persona_system_prompt=persona_system_prompt,
                 disabled_mcp_tools=disabled_mcp_tools,
             ):
                 await presenter.save_event(event)

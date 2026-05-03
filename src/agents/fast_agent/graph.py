@@ -131,6 +131,7 @@ class FastAgent(BaseGraphAgent):
         # 创建并初始化 FastAgentContext
         disabled_tools = kwargs.get("disabled_tools")
         disabled_skills = kwargs.get("disabled_skills")
+        enabled_skills = kwargs.get("enabled_skills")
         disabled_mcp_tools = kwargs.get("disabled_mcp_tools")
         context = FastAgentContext(
             session_id=session_id,
@@ -138,6 +139,7 @@ class FastAgent(BaseGraphAgent):
             user_id=user_id,
             disabled_tools=disabled_tools,
             disabled_skills=disabled_skills,
+            enabled_skills=enabled_skills,
             disabled_mcp_tools=disabled_mcp_tools,
         )
         await context.setup()
@@ -158,6 +160,8 @@ class FastAgent(BaseGraphAgent):
                 "context": context,
                 "agent_options": agent_options,
                 "disabled_skills": disabled_skills,
+                "enabled_skills": enabled_skills,
+                "persona_system_prompt": kwargs.get("persona_system_prompt"),
                 "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),
             },

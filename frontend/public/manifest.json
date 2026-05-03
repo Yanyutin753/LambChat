@@ -1,10 +1,12 @@
 {
+  "id": "/",
   "name": "LambChat - AI Agent Platform",
   "short_name": "LambChat",
   "description": "A pluggable, multi-tenant AI conversation system. Skills + MCP dual-engine driven, modular by design. SSE streaming, multi-modal document processing, JWT/RBAC auth, and GitHub-synced Skills.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
@@ -17,7 +19,7 @@
       "src": "/icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-192.png",
@@ -51,9 +53,34 @@
       "description": "Start a new chat session",
       "url": "/chat",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Skills",
+      "short_name": "Skills",
+      "description": "Open the LambChat skills workspace",
+      "url": "/skills",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Marketplace",
+      "short_name": "Market",
+      "description": "Browse LambChat marketplace skills",
+      "url": "/marketplace",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ],
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "/images/social-preview.png",
+      "sizes": "1280x640",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "LambChat AI agent workspace"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
   "related_applications": [],
   "protocol_handlers": []
 }

@@ -38,8 +38,30 @@ test("includes user_timezone in the submit chat body when available", () => {
       agent_options: undefined,
       attachments: undefined,
       disabled_skills: undefined,
+      enabled_skills: undefined,
+      persona_preset_id: undefined,
       disabled_mcp_tools: undefined,
       user_timezone: "Asia/Shanghai",
+    },
+  );
+});
+
+test("includes persona preset fields in the submit chat body", () => {
+  assert.deepEqual(
+    buildSubmitChatBody({
+      message: "hello",
+      personaPresetId: "preset-1",
+      enabledSkills: ["planning"],
+    }),
+    {
+      message: "hello",
+      session_id: undefined,
+      agent_options: undefined,
+      attachments: undefined,
+      disabled_skills: undefined,
+      enabled_skills: ["planning"],
+      persona_preset_id: "preset-1",
+      disabled_mcp_tools: undefined,
     },
   );
 });

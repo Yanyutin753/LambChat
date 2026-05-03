@@ -161,6 +161,8 @@ class BackgroundTaskManager:
         run_id: Optional[str] = None,
         project_id: Optional[str] = None,
         disabled_skills: Optional[List[str]] = None,
+        enabled_skills: Optional[List[str]] = None,
+        persona_system_prompt: Optional[str] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
         session_name: Optional[str] = None,
         display_message: Optional[str] = None,
@@ -216,6 +218,8 @@ class BackgroundTaskManager:
                     agent_options,
                     attachments,
                     disabled_skills=disabled_skills,
+                    enabled_skills=enabled_skills,
+                    persona_system_prompt=persona_system_prompt,
                     disabled_mcp_tools=disabled_mcp_tools,
                     display_message=display_message,
                 )

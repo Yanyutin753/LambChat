@@ -34,6 +34,8 @@ from src.infra.backend.protocol_compat import (
     LsResult,
     ReadResult,
     WriteResult,
+    is_read_result,
+    read_result_to_string,
 )
 from src.infra.logging import get_logger
 from src.infra.sandbox_grep import (
@@ -52,12 +54,13 @@ logger = get_logger(__name__)
 _DEFAULT_TIMEOUT = 30 * 60
 
 
-def _render_text_read(content: str, offset: int, limit: int) -> str:
+def _slice_text_read(content: str, offset: int, limit: int) -> str | ReadResult:
     if not content:
         return ""
     sliced = slice_read_response(create_file_data(content), offset, limit)
-    if isinstance(sliced, ReadResult):
-        return str(sliced)
+    if is_read_result(sliced):
+        error = getattr(sliced, "error", None)
+        return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
     return format_content_with_line_numbers(sliced, start_line=offset + 1)  # type: ignore[arg-type]
 
 
@@ -337,9 +340,12 @@ class E2BBackend(BaseSandbox):
                     raw = self._sandbox.files.read(path=file_path, format="bytes")
                     return self._read_as_data_uri(file_path, raw)
 
+            rendered = _slice_text_read(content, offset, limit)
+            if is_read_result(rendered):
+                return rendered
             return ReadResult(
                 file_data={"content": content, "encoding": "utf-8"},
-                rendered_content=_render_text_read(content, offset, limit),
+                rendered_content=rendered,
             )
         except Exception as e:
             logger.warning(f"E2B files.read({file_path}) failed: {e}, falling back to execute()")

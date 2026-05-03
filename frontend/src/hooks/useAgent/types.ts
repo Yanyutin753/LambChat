@@ -4,6 +4,7 @@ import type {
   ConnectionStatus,
   FormField,
   MessageAttachment,
+  PersonaPresetSnapshot,
 } from "../../types";
 
 // Event types from backend
@@ -112,6 +113,8 @@ export interface UseAgentOptions {
   onClearApprovals?: () => void;
   getEnabledTools?: () => string[];
   getDisabledSkills?: () => string[];
+  getEnabledSkills?: () => string[] | undefined;
+  getPersonaPresetId?: () => string | null;
   getDisabledMcpTools?: () => string[];
   getAgentOptions?: () => Record<string, boolean | string | number>;
   onSkillAdded?: (
@@ -216,6 +219,10 @@ export interface SessionConfig {
   agent_options?: Record<string, boolean | string | number>;
   disabled_tools?: string[];
   disabled_skills?: string[];
+  enabled_skills?: string[];
+  persona_preset_id?: string;
+  persona_preset_name?: string;
+  persona_snapshot?: PersonaPresetSnapshot;
   disabled_mcp_tools?: string[];
 }
 

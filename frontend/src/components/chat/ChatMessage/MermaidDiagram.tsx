@@ -559,7 +559,7 @@ function MermaidViewer({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const MIN_SCALE = 0.1;
-  const MAX_SCALE = 10;
+  const MAX_SCALE = 20;
   const SCALE_STEP = 0.25;
 
   // Ref to read current position/scale inside native event listeners

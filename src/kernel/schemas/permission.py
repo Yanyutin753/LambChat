@@ -214,6 +214,19 @@ PERMISSION_METADATA: dict[str, dict[str, str]] = {
         "label": "管理商店",
         "description": "管理技能商店（激活/停用/删除任意技能）",
     },
+    # Persona Preset
+    Permission.PERSONA_PRESET_READ.value: {
+        "label": "浏览角色预设",
+        "description": "查看角色广场和自己的角色预设",
+    },
+    Permission.PERSONA_PRESET_WRITE.value: {
+        "label": "管理个人角色预设",
+        "description": "创建、编辑、删除自己的角色预设副本",
+    },
+    Permission.PERSONA_PRESET_ADMIN.value: {
+        "label": "管理全局角色预设",
+        "description": "创建、发布、归档和删除全局角色预设",
+    },
     # Environment Variables
     Permission.ENVVAR_READ.value: {
         "label": "读取环境变量",
@@ -339,6 +352,14 @@ PERMISSION_GROUPS_CONFIG: list[PermissionGroupConfig] = [
             Permission.MARKETPLACE_READ.value,
             Permission.MARKETPLACE_PUBLISH.value,
             Permission.MARKETPLACE_ADMIN.value,
+        ],
+    },
+    {
+        "name": "角色预设",
+        "permissions": [
+            Permission.PERSONA_PRESET_READ.value,
+            Permission.PERSONA_PRESET_WRITE.value,
+            Permission.PERSONA_PRESET_ADMIN.value,
         ],
     },
     {

@@ -461,6 +461,8 @@ class UserConcurrencyLimiter:
                 agent_options = task_ctx.get("agent_options")
                 attachments = task_ctx.get("attachments")
                 disabled_skills = task_ctx.get("disabled_skills")
+                enabled_skills = task_ctx.get("enabled_skills")
+                persona_system_prompt = task_ctx.get("persona_system_prompt")
                 disabled_mcp_tools = task_ctx.get("disabled_mcp_tools")
             else:
                 # Legacy fallback: context in process memory (single-worker)
@@ -477,6 +479,8 @@ class UserConcurrencyLimiter:
                 agent_options = pending.get("agent_options")
                 attachments = pending.get("attachments")
                 disabled_skills = pending.get("disabled_skills")
+                enabled_skills = pending.get("enabled_skills")
+                persona_system_prompt = pending.get("persona_system_prompt")
                 disabled_mcp_tools = pending.get("disabled_mcp_tools")
 
             # --- Create and run the background task ---
@@ -506,6 +510,8 @@ class UserConcurrencyLimiter:
                         if task_ctx
                         else False,
                         disabled_skills=disabled_skills,
+                        enabled_skills=enabled_skills,
+                        persona_system_prompt=persona_system_prompt,
                         disabled_mcp_tools=disabled_mcp_tools,
                         display_message=task_ctx.get("display_message") if task_ctx else None,
                     )

@@ -149,6 +149,7 @@ class SearchAgent(BaseGraphAgent):
         # 创建并初始化 SearchAgentContext
         disabled_tools = kwargs.get("disabled_tools")
         disabled_skills = kwargs.get("disabled_skills")
+        enabled_skills = kwargs.get("enabled_skills")
         disabled_mcp_tools = kwargs.get("disabled_mcp_tools")
         context = SearchAgentContext(
             session_id=session_id,
@@ -156,6 +157,7 @@ class SearchAgent(BaseGraphAgent):
             user_id=user_id,
             disabled_tools=disabled_tools,
             disabled_skills=disabled_skills,
+            enabled_skills=enabled_skills,
             disabled_mcp_tools=disabled_mcp_tools,
         )
         await context.setup()
@@ -177,6 +179,8 @@ class SearchAgent(BaseGraphAgent):
                 "agent_options": agent_options,
                 "disabled_tools": disabled_tools,
                 "disabled_skills": disabled_skills,
+                "enabled_skills": enabled_skills,
+                "persona_system_prompt": kwargs.get("persona_system_prompt"),
                 "disabled_mcp_tools": disabled_mcp_tools,
                 "base_url": kwargs.get("base_url", ""),  # 传递 base_url 给工具使用
             },

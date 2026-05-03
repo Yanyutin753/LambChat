@@ -19,6 +19,7 @@ from src.agents.core.node_utils import (
     emit_token_usage,
     resolve_fallback_model,
 )
+from src.agents.core.persona import build_persona_prompt_section
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
 from src.agents.core.thinking import build_thinking_config
 from src.agents.search_agent.context import SearchAgentContext
@@ -109,7 +110,9 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
     backend_init_time = time.time() - backend_start
     logger.debug(f"[Agent] Backend init: {backend_init_time * 1000:.3f}ms")
 
-    # 构建 skills 提示（使用预加载的 skills，避免重复数据库查询）
+    # 构建 persona + skills 提示（使用预加载的 skills，避免重复数据库查询）
+    persona_prompt = build_persona_prompt_section(configurable.get("persona_system_prompt"))
+
     skills_prompt = ""
     if settings.ENABLE_SKILLS and context.skills:
         try:
@@ -191,7 +194,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
         )
         user_middleware.append(EnvVarPromptMiddleware(user_id=context.user_id or "default"))
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
-    _prompt_sections = [s for s in (skills_prompt, memory_guide) if s]
+    _prompt_sections = [s for s in (persona_prompt, skills_prompt, memory_guide) if s]
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:
@@ -234,6 +237,7 @@ async def agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str,
             "backend": backend_factory,
             "context": context,  # 传递 context 以便工具访问 user_id
             "disabled_skills": configurable.get("disabled_skills"),
+            "enabled_skills": configurable.get("enabled_skills"),
             "base_url": configurable.get("base_url", ""),  # 传递 base_url 给工具使用
             "presenter": presenter,  # 传递 presenter 给工具调用
         },

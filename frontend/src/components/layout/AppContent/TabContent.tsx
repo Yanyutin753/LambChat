@@ -56,6 +56,11 @@ const MemoryPanel = lazy(() =>
     default: m.MemoryPanel,
   })),
 );
+const PersonaPlazaPanel = lazy(() =>
+  import("../../persona/PersonaPlazaPanel").then((m) => ({
+    default: m.PersonaPlazaPanel,
+  })),
+);
 
 const panelMap: Record<
   string,
@@ -72,6 +77,7 @@ const panelMap: Record<
   agents: AgentConfigPanel,
   models: ModelPanel,
   files: RevealedFilesPage,
+  persona: PersonaPlazaPanel,
   notifications: NotificationPanel,
   memory: MemoryPanel,
 };

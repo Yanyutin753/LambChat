@@ -36,7 +36,7 @@ export function ListCard({
       >
         {/* Icon / thumbnail */}
         <div className="shrink-0">
-          <div className="h-11 w-[78px] overflow-hidden rounded-lg ring-1 ring-stone-200/50 dark:ring-stone-700/40">
+          <div className="h-10 w-10 overflow-hidden rounded-lg ring-1 ring-stone-200/50 dark:ring-stone-700/40">
             <FileCardPreview preview={cardPreview} icon={FileIcon} compact />
           </div>
         </div>

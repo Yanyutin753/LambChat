@@ -342,28 +342,35 @@ export function Toolbar({
             {/* View toggle */}
             <div className="hidden md:block">
               <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 h-8 p-px">
-                {(["grid", "list"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => onViewModeChange(mode)}
-                    className={`relative z-10 flex items-center justify-center w-8 h-full rounded-md transition-colors duration-200 ${
-                      viewMode === mode
-                        ? "text-stone-800 dark:text-stone-100"
-                        : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300"
-                    }`}
-                  >
-                    <span className="relative z-10">
-                      {mode === "grid" ? (
-                        <LayoutGrid size={15} />
-                      ) : (
-                        <List size={15} />
+                {(["grid", "list"] as const).map((mode) => {
+                  const label =
+                    mode === "grid"
+                      ? t("fileLibrary.gridView")
+                      : t("fileLibrary.listView");
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => onViewModeChange(mode)}
+                      title={label}
+                      className={`relative z-10 flex items-center justify-center w-8 h-full rounded-md transition-colors duration-200 ${
+                        viewMode === mode
+                          ? "text-stone-800 dark:text-stone-100"
+                          : "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300"
+                      }`}
+                    >
+                      <span className="relative z-10">
+                        {mode === "grid" ? (
+                          <LayoutGrid size={15} />
+                        ) : (
+                          <List size={15} />
+                        )}
+                      </span>
+                      {viewMode === mode && (
+                        <div className="absolute inset-0 bg-white dark:bg-stone-600 rounded-md shadow-sm dark:shadow-black/20 pointer-events-none" />
                       )}
-                    </span>
-                    {viewMode === mode && (
-                      <div className="absolute inset-0 bg-white dark:bg-stone-600 rounded-md shadow-sm dark:shadow-black/20 pointer-events-none" />
-                    )}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

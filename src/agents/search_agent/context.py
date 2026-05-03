@@ -43,6 +43,7 @@ class SearchAgentContext:
         user_id: Optional[str] = None,
         disabled_tools: Optional[List[str]] = None,
         disabled_skills: Optional[List[str]] = None,
+        enabled_skills: Optional[List[str]] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
     ):
         self.session_id = session_id
@@ -50,6 +51,7 @@ class SearchAgentContext:
         self.user_id = user_id
         self.disabled_tools = disabled_tools
         self.disabled_skills = disabled_skills
+        self.enabled_skills = enabled_skills
         self.disabled_mcp_tools = disabled_mcp_tools
         self.mcp_manager: Optional[MCPClientManager] = None
         self._mcp_loaded: bool = False
@@ -57,6 +59,29 @@ class SearchAgentContext:
         self.skills: List[dict] = []
         self.skill_files: Dict[str, Any] = {}
         self.deferred_manager: Optional["DeferredToolManager"] = None
+
+    def apply_skill_filters(self) -> None:
+        """Apply whitelist/blacklist filters to loaded skills and skill files."""
+        if self.enabled_skills is not None:
+            enabled_set = set(self.enabled_skills)
+            self.skills = [s for s in self.skills if s.get("name") in enabled_set]
+            if self.skill_files:
+                self.skill_files = {
+                    path: data
+                    for path, data in self.skill_files.items()
+                    if path.strip("/").split("/", 1)[0] in enabled_set
+                }
+            return
+
+        if self.disabled_skills:
+            disabled_set = set(self.disabled_skills)
+            self.skills = [s for s in self.skills if s.get("name") not in disabled_set]
+            if self.skill_files:
+                self.skill_files = {
+                    path: data
+                    for path, data in self.skill_files.items()
+                    if path.strip("/").split("/", 1)[0] not in disabled_set
+                }
 
     async def _lazy_load_mcp_tools(self) -> None:
         """懒加载 MCP 工具（仅在首次调用 get_tools 时初始化）"""
@@ -211,10 +236,13 @@ class SearchAgentContext:
                 self.skill_files = skill_result["files"]
                 self.skills = skill_result["skills"]
 
-                # Filter skills by disabled_skills blacklist if provided
-                if self.disabled_skills:
-                    disabled_set = set(self.disabled_skills)
-                    self.skills = [s for s in self.skills if s.get("name") not in disabled_set]
+                before_count = len(self.skills)
+                self.apply_skill_filters()
+                if self.enabled_skills is not None:
+                    logger.info(
+                        f"[SearchAgentContext] Applied enabled_skills whitelist, {len(self.skills)}/{before_count} remaining"
+                    )
+                elif self.disabled_skills:
                     logger.info(
                         f"[SearchAgentContext] Filtered out {len(self.disabled_skills)} disabled skills, {len(self.skills)} remaining"
                     )

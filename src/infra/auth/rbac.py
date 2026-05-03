@@ -165,6 +165,9 @@ class RBACManager:
                     # Marketplace
                     Permission.MARKETPLACE_READ.value,
                     Permission.MARKETPLACE_PUBLISH.value,
+                    # Persona Preset
+                    Permission.PERSONA_PRESET_READ.value,
+                    Permission.PERSONA_PRESET_WRITE.value,
                 ],
                 "limits": {"max_channels": 10},
                 "is_system": False,
@@ -183,6 +186,8 @@ class RBACManager:
                     Permission.AGENT_READ.value,
                     # Marketplace
                     Permission.MARKETPLACE_READ.value,
+                    # Persona Preset
+                    Permission.PERSONA_PRESET_READ.value,
                 ],
                 "limits": {"max_channels": 0},  # 不能创建渠道
                 "is_system": False,

@@ -1,6 +1,23 @@
 declare module "react-file-icon" {
   import { FC } from "react";
 
+  export type Type =
+    | "3d"
+    | "acrobat"
+    | "audio"
+    | "binary"
+    | "code"
+    | "compressed"
+    | "document"
+    | "drive"
+    | "font"
+    | "image"
+    | "presentation"
+    | "settings"
+    | "spreadsheet"
+    | "vector"
+    | "video";
+
   export interface FileIconProps {
     extension?: string;
     size?: number;
@@ -25,7 +42,6 @@ declare module "react-file-icon" {
 
   export const defaultStyles: Record<string, TypeStyle>;
   export const FileIcon: FC<FileIconProps>;
-  export type { Type } from "file-extensions";
 
   export default FileIcon;
 }

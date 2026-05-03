@@ -44,6 +44,21 @@ export type {
 } from "./message";
 
 // ============================================
+// Persona Preset Types
+// ============================================
+export type {
+  PersonaPreset,
+  PersonaPresetCreate,
+  PersonaPresetListParams,
+  PersonaPresetListResponse,
+  PersonaPresetScope,
+  PersonaPresetSnapshot,
+  PersonaPresetStatus,
+  PersonaPresetUpdate,
+  PersonaPresetVisibility,
+} from "./personaPreset";
+
+// ============================================
 // Skills Types
 // ============================================
 export type {

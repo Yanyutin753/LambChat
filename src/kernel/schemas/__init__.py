@@ -38,6 +38,12 @@ from src.kernel.schemas.permission import (
     PermissionsResponse,
     get_permissions_response,
 )
+from src.kernel.schemas.persona_preset import (
+    PersonaPreset,
+    PersonaPresetCreate,
+    PersonaPresetSnapshot,
+    PersonaPresetUpdate,
+)
 from src.kernel.schemas.role import (
     Role,
     RoleCreate,
@@ -109,6 +115,11 @@ __all__ = [
     "PermissionInfo",
     "PermissionsResponse",
     "get_permissions_response",
+    # Persona Preset
+    "PersonaPreset",
+    "PersonaPresetCreate",
+    "PersonaPresetUpdate",
+    "PersonaPresetSnapshot",
     # Agent
     "AgentRequest",
     "AgentResponse",

@@ -15,6 +15,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { SessionConfig } from "./useAgent/types";
+import type { PersonaPresetSnapshot } from "../types";
 import { normalizeAgentOptionValues } from "../components/layout/AppContent/useAgentOptions";
 
 const STORAGE_KEY = "lambchat_session_config";
@@ -26,6 +27,8 @@ export interface SessionConfigState {
   disabledMcpTools: string[];
   // Agent options
   agentOptions: Record<string, boolean | string | number>;
+  personaPresetId: string | null;
+  personaSnapshot: PersonaPresetSnapshot | null;
 }
 
 export interface UseSessionConfigOptions {
@@ -83,6 +86,8 @@ export interface UseSessionConfigReturn {
   setDisabledSkills: (skills: string[]) => void;
   setDisabledMcpTools: (tools: string[]) => void;
   setAgentOptions: (options: Record<string, boolean | string | number>) => void;
+  setPersonaPreset: (presetId: string, snapshot: PersonaPresetSnapshot) => void;
+  clearPersonaPreset: () => void;
 
   // 重置为默认配置
   resetToDefaults: () => void;
@@ -119,6 +124,8 @@ export function useSessionConfig(
         options.getDefaultDisabledMcpTools?.() ??
         [],
       agentOptions: options.getDefaultAgentOptions(),
+      personaPresetId: null,
+      personaSnapshot: null,
     };
   });
 
@@ -219,12 +226,33 @@ export function useSessionConfig(
     [],
   );
 
+  const setPersonaPreset = useCallback(
+    (presetId: string, snapshot: PersonaPresetSnapshot) => {
+      setConfig((prev) => ({
+        ...prev,
+        personaPresetId: presetId,
+        personaSnapshot: snapshot,
+      }));
+    },
+    [],
+  );
+
+  const clearPersonaPreset = useCallback(() => {
+    setConfig((prev) => ({
+      ...prev,
+      personaPresetId: null,
+      personaSnapshot: null,
+    }));
+  }, []);
+
   // Reset to defaults (new conversation)
   const resetToDefaults = useCallback(() => {
     const defaults = {
       disabledSkills: options.getDefaultDisabledSkills?.() || [],
       disabledMcpTools: options.getDefaultDisabledMcpTools?.() || [],
       agentOptions: defaultAgentOptionsRef.current,
+      personaPresetId: null,
+      personaSnapshot: null,
     };
     setConfig(defaults);
     persistConfig(defaults);
@@ -242,6 +270,8 @@ export function useSessionConfig(
       agentOptions:
         normalizeAgentOptionValues(sessionConfig.agent_options) ||
         defaultAgentOptionsRef.current,
+      personaPresetId: sessionConfig.persona_preset_id || null,
+      personaSnapshot: sessionConfig.persona_snapshot || null,
     };
     setConfig(restored);
     persistConfig(restored);
@@ -271,6 +301,8 @@ export function useSessionConfig(
     setDisabledSkills,
     setDisabledMcpTools,
     setAgentOptions,
+    setPersonaPreset,
+    clearPersonaPreset,
     resetToDefaults,
     restoreConfig,
     isSkillEnabled,

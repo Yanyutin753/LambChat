@@ -8,10 +8,24 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Wrench, Sparkles, Bot, Brain, Wand2, ChevronDown } from "lucide-react";
+import {
+  Wrench,
+  Sparkles,
+  Bot,
+  Brain,
+  Wand2,
+  ChevronDown,
+  UserRound,
+} from "lucide-react";
 import { THINKING_LEVEL_COLOR } from "../chat/chatInputConstants";
 
-export type FeaturePanel = "tools" | "skills" | "agent" | "thinking" | null;
+export type FeaturePanel =
+  | "persona"
+  | "tools"
+  | "skills"
+  | "agent"
+  | "thinking"
+  | null;
 
 interface FeatureMenuProps {
   activePanel: FeaturePanel;
@@ -20,6 +34,8 @@ interface FeatureMenuProps {
   totalToolsCount: number;
   enabledSkillsCount: number;
   totalSkillsCount: number;
+  hasPersonaSelector?: boolean;
+  personaName?: string | null;
   hasAgentSelector: boolean;
   hasThinkingOption: boolean;
   thinkingLabel?: string;
@@ -82,6 +98,8 @@ export const FeatureMenu = memo(function FeatureMenu({
   totalToolsCount,
   enabledSkillsCount,
   totalSkillsCount,
+  hasPersonaSelector = false,
+  personaName,
   hasAgentSelector,
   hasThinkingOption,
   thinkingLabel,
@@ -125,6 +143,7 @@ export const FeatureMenu = memo(function FeatureMenu({
   const hasItems =
     totalToolsCount > 0 ||
     totalSkillsCount > 0 ||
+    hasPersonaSelector ||
     hasAgentSelector ||
     hasThinkingOption;
   if (!hasItems) return null;
@@ -167,6 +186,15 @@ export const FeatureMenu = memo(function FeatureMenu({
               borderColor: "var(--theme-border)",
             }}
           >
+            {hasPersonaSelector && (
+              <MenuItem
+                icon={<UserRound size={15} />}
+                label={t("personaPresets.title", "角色广场")}
+                badge={personaName || undefined}
+                active={activePanel === "persona"}
+                onClick={() => onOpen("persona")}
+              />
+            )}
             {totalToolsCount > 0 && (
               <MenuItem
                 icon={<Wrench size={15} />}
@@ -174,6 +202,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                 badge={`${enabledToolsCount}/${totalToolsCount}`}
                 active={activePanel === "tools"}
                 onClick={() => onOpen("tools")}
+                divider={hasPersonaSelector}
               />
             )}
             {totalSkillsCount > 0 && (
@@ -183,7 +212,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                 badge={`${enabledSkillsCount}/${totalSkillsCount}`}
                 active={activePanel === "skills"}
                 onClick={() => onOpen("skills")}
-                divider={totalToolsCount > 0}
+                divider={hasPersonaSelector || totalToolsCount > 0}
               />
             )}
             {hasAgentSelector && (
@@ -192,7 +221,11 @@ export const FeatureMenu = memo(function FeatureMenu({
                 label={t("agent.selectMode", "智能体")}
                 active={activePanel === "agent"}
                 onClick={() => onOpen("agent")}
-                divider={totalToolsCount > 0 || totalSkillsCount > 0}
+                divider={
+                  hasPersonaSelector ||
+                  totalToolsCount > 0 ||
+                  totalSkillsCount > 0
+                }
               />
             )}
             {hasThinkingOption && (
@@ -206,6 +239,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                 divider={
                   totalToolsCount > 0 ||
                   totalSkillsCount > 0 ||
+                  hasPersonaSelector ||
                   hasAgentSelector
                 }
               />

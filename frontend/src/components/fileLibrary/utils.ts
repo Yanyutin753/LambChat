@@ -39,9 +39,9 @@ export function buildMeta(
   const parts: string[] = [];
   if (!isProject && file.file_size > 0)
     parts.push(formatFileSize(file.file_size));
-  if (ext) parts.push(ext);
+  if (ext) parts.push(CODE_LANG_MAP[ext] || ext);
   parts.push(formatTimeAgo(t, file.created_at));
-  return parts.join(" \u00B7 ");
+  return parts.join(" · ");
 }
 
 export function getSessionNavigationTarget(
@@ -59,22 +59,27 @@ export type FileCardPreviewKind =
   | "document"
   | "fallback";
 
-export type FileCardPreviewTone =
-  | "blue"
-  | "green"
-  | "amber"
-  | "rose"
-  | "violet"
-  | "stone";
-
 export interface FileCardPreview {
   kind: FileCardPreviewKind;
   title: string;
   subtitle: string;
   badge: string;
   lines: string[];
-  tone: FileCardPreviewTone;
+  colorName: string;
   imageUrl?: string;
+  language?: string;
+}
+
+/* ── Color name extraction ────────────────────────────── */
+
+/**
+ * Extract the Tailwind color name from the icon color class.
+ * e.g. "text-blue-600 dark:text-blue-400" → "blue"
+ *      "text-slate-600 dark:text-slate-400" → "slate"
+ */
+function extractColorName(iconColor: string): string {
+  const match = iconColor.match(/text-(\w+)-\d/);
+  return match ? match[1] : "slate";
 }
 
 const CODE_EXTENSIONS = new Set([
@@ -129,12 +134,13 @@ function normalizeStoredPreview(
   const stored = file.card_preview;
   if (!stored) return null;
 
+  const fileInfo = getFileTypeInfo(file.file_name, file.mime_type || undefined);
   const ext = getExt(file.file_name);
   const title = compactLine(stored.title) || stripExtension(file.file_name);
   const subtitle =
     compactLine(stored.subtitle) ||
     compactLine(file.description) ||
-    getFileTypeInfo(file.file_name, file.mime_type || undefined).label;
+    fileInfo.label;
   const textLines =
     Array.isArray(stored.lines) && stored.lines.length > 0
       ? stored.lines
@@ -144,25 +150,129 @@ function normalizeStoredPreview(
     kind: stored.kind || "fallback",
     title,
     subtitle,
-    badge: compactLine(stored.badge) || ext || stored.kind.toUpperCase(),
+    badge:
+      compactLine(stored.badge) ||
+      CODE_LANG_MAP[ext] ||
+      ext ||
+      stored.kind.toUpperCase(),
     lines: normalizeLines(textLines),
-    tone: normalizeTone(stored.accent),
+    colorName: extractColorName(fileInfo.color),
     imageUrl: stored.image_url || undefined,
   };
 }
 
-function normalizeTone(value: string | null | undefined): FileCardPreviewTone {
-  if (
-    value === "blue" ||
-    value === "green" ||
-    value === "amber" ||
-    value === "rose" ||
-    value === "violet" ||
-    value === "stone"
-  ) {
-    return value;
+const CODE_LANG_MAP: Record<string, string> = {
+  TS: "TypeScript",
+  TSX: "TypeScript React",
+  JS: "JavaScript",
+  JSX: "React",
+  PY: "Python",
+  GO: "Go",
+  RS: "Rust",
+  JAVA: "Java",
+  C: "C",
+  CPP: "C++",
+  RB: "Ruby",
+  PHP: "PHP",
+  CSS: "CSS",
+  VUE: "Vue",
+  SH: "Shell",
+  BASH: "Bash",
+  ZSH: "Zsh",
+  SQL: "SQL",
+  YAML: "YAML",
+  YML: "YAML",
+  INI: "INI",
+  H: "C Header",
+  RUST: "Rust",
+  MD: "Markdown",
+  MARKDOWN: "Markdown",
+  CSV: "CSV",
+  JSON: "JSON",
+  XML: "XML",
+  TOML: "TOML",
+  PNG: "PNG",
+  JPG: "JPEG",
+  JPEG: "JPEG",
+  GIF: "GIF",
+  SVG: "SVG",
+  WEBP: "WebP",
+  PDF: "PDF",
+};
+
+function codeLines(ext: string, name: string, desc: string): string[] {
+  const stubName = stripExtension(name);
+  switch (ext) {
+    case "PY":
+      return [
+        desc ? `"""${desc}"""` : `# ${stubName}`,
+        `class ${camelCase(stubName)}:`,
+        `    def __init__(self):`,
+        `        self.name = "${stubName}"`,
+      ];
+    case "TS":
+    case "TSX":
+      return [
+        desc ? `// ${desc}` : `// ${stubName}`,
+        `interface Props {`,
+        `  name: string;`,
+        `}`,
+        `export const ${camelCase(stubName)} = () => {};`,
+      ];
+    case "GO":
+      return [
+        `package ${camelCase(stubName)}`,
+        desc ? `// ${desc}` : "",
+        `func main() {`,
+        `  fmt.Println("${stubName}")`,
+      ];
+    case "RS":
+      return [
+        desc ? `// ${desc}` : "",
+        `fn main() {`,
+        `    println!("${stubName}");`,
+        `}`,
+      ];
+    case "JAVA":
+      return [
+        `public class ${pascalCase(stubName)} {`,
+        desc ? `  // ${desc}` : `  public static void main(String[] args) {`,
+        `  }`,
+        `}`,
+      ];
+    case "SQL":
+      return [
+        `-- ${desc || stubName}`,
+        `SELECT * FROM table`,
+        `WHERE status = 'active'`,
+        `LIMIT 10;`,
+      ];
+    case "CSS":
+      return [
+        desc ? `/* ${desc} */` : `/* ${stubName} */`,
+        `.container {`,
+        `  display: flex;`,
+        `  gap: 1rem;`,
+      ];
+    default:
+      return [
+        desc ? `// ${desc}` : `// ${stubName}`,
+        `function ${camelCase(stubName)}() {`,
+        `  return "${stubName}";`,
+        `}`,
+      ];
   }
-  return "stone";
+}
+
+function camelCase(s: string): string {
+  return s
+    .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ""))
+    .replace(/^(.)/, (c) => c.toLowerCase());
+}
+
+function pascalCase(s: string): string {
+  const cc = camelCase(s);
+  return cc.charAt(0).toUpperCase() + cc.slice(1);
 }
 
 export function buildFileCardPreview(file: RevealedFileItem): FileCardPreview {
@@ -170,6 +280,7 @@ export function buildFileCardPreview(file: RevealedFileItem): FileCardPreview {
   if (stored) return stored;
 
   const fileInfo = getFileTypeInfo(file.file_name, file.mime_type || undefined);
+  const colorName = extractColorName(fileInfo.color);
   const ext = getExt(file.file_name);
   const title = stripExtension(file.file_name);
   const description = compactLine(file.description);
@@ -179,9 +290,9 @@ export function buildFileCardPreview(file: RevealedFileItem): FileCardPreview {
       kind: "image",
       title,
       subtitle: description || fileInfo.label,
-      badge: ext || "IMG",
+      badge: ext || "Image",
       lines: [],
-      tone: "green",
+      colorName,
       imageUrl: file.url,
     };
   }
@@ -193,17 +304,23 @@ export function buildFileCardPreview(file: RevealedFileItem): FileCardPreview {
       meta?.file_count ??
       (meta?.files ? Object.keys(meta.files).length : undefined);
     const subtitle = formatCount(fileCount);
+    const entryLabel = meta?.entry
+      ? meta.entry.length > 28
+        ? "..." + meta.entry.slice(-25)
+        : meta.entry
+      : "auto";
     return {
       kind: "project",
       title,
       subtitle,
       badge: template,
+      language: `Template · ${template}`,
       lines: normalizeLines([
-        meta?.entry ? `Entry ${meta.entry}` : "Entry auto detected",
-        fileCount ? `${subtitle} indexed` : "Files indexed",
-        description,
+        `▸ Entry ${entryLabel}`,
+        fileCount ? `· ${subtitle} indexed` : "· Files indexed",
+        description ? `· ${description}` : "",
       ]),
-      tone: "violet",
+      colorName,
     };
   }
 
@@ -212,9 +329,14 @@ export function buildFileCardPreview(file: RevealedFileItem): FileCardPreview {
       kind: "markdown",
       title,
       subtitle: description || "Markdown document",
-      badge: "MD",
-      lines: normalizeLines([`# ${title}`, description, "Preview ready"]),
-      tone: "blue",
+      badge: "Markdown",
+      language: "Markdown",
+      lines: normalizeLines([
+        title,
+        description || "Document content preview",
+        description ? "Read more →" : "",
+      ]),
+      colorName,
     };
   }
 
@@ -222,30 +344,40 @@ export function buildFileCardPreview(file: RevealedFileItem): FileCardPreview {
     return {
       kind: "code",
       title,
-      subtitle: description || `${ext || fileInfo.label} source file`,
-      badge: ext || "CODE",
-      lines: normalizeLines([
-        description && `// ${description}`,
-        `const file = "${file.file_name}";`,
-        "export default file;",
-      ]),
-      tone: "green",
+      subtitle: CODE_LANG_MAP[ext] || ext,
+      badge: CODE_LANG_MAP[ext] || ext,
+      lines: normalizeLines(codeLines(ext, file.file_name, description)),
+      colorName,
     };
   }
 
   if (DATA_EXTENSIONS.has(ext)) {
+    if (ext === "CSV") {
+      return {
+        kind: "text",
+        title,
+        subtitle: description || "CSV data file",
+        badge: "CSV",
+        lines: normalizeLines([
+          "id, name, value",
+          "1, item_a, 42",
+          "2, item_b, 87",
+        ]),
+        colorName,
+      };
+    }
     return {
       kind: "text",
       title,
       subtitle: description || `${ext} data file`,
       badge: ext,
       lines: normalizeLines([
-        description,
         "{",
-        `  "name": "${file.file_name}"`,
+        `  "name": "${stripExtension(file.file_name)}",`,
+        `  "type": "${ext.toLowerCase()}"`,
         "}",
       ]),
-      tone: "amber",
+      colorName,
     };
   }
 
@@ -259,6 +391,6 @@ export function buildFileCardPreview(file: RevealedFileItem): FileCardPreview {
       file.file_size > 0 ? formatFileSize(file.file_size) : "",
       file.mime_type || fileInfo.label,
     ]),
-    tone: file.file_type === "video" ? "rose" : "stone",
+    colorName,
   };
 }

@@ -21,6 +21,7 @@ import { AgentOptionButton } from "./AgentOptionButton";
 import { turndown, cleanPastedHtml } from "./chatInputTurndown";
 import { PASTE_TEXT_THRESHOLD } from "./chatInputConstants";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
+import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
 import type {
   ToolState,
   ToolCategory,
@@ -28,6 +29,8 @@ import type {
   SkillSource,
   AgentOption,
   MessageAttachment,
+  PersonaPreset,
+  PersonaPresetSnapshot,
 } from "../../types";
 
 export interface ChatInputProps {
@@ -61,6 +64,27 @@ export interface ChatInputProps {
   enabledSkillsCount?: number;
   totalSkillsCount?: number;
   enableSkills?: boolean;
+  // Persona presets
+  personaPresets?: PersonaPreset[];
+  selectedPersonaPresetId?: string | null;
+  selectedPersonaName?: string | null;
+  personaPresetsLoading?: boolean;
+  personaPresetsMutating?: boolean;
+  onUsePersonaPreset?: (
+    preset: PersonaPreset,
+  ) => Promise<PersonaPresetSnapshot | null>;
+  onCopyPersonaPreset?: (preset: PersonaPreset) => Promise<void>;
+  onSavePersonaPreset?: (
+    preset: PersonaPreset | null,
+    data: {
+      name: string;
+      description: string;
+      system_prompt: string;
+      tags: string[];
+      skill_names: string[];
+    },
+  ) => Promise<void>;
+  onClearPersonaPreset?: () => void;
   // Agent options
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
@@ -103,6 +127,15 @@ export const ChatInput = memo(function ChatInput({
   enabledSkillsCount = 0,
   totalSkillsCount = 0,
   enableSkills = true,
+  personaPresets = [],
+  selectedPersonaPresetId,
+  selectedPersonaName,
+  personaPresetsLoading = false,
+  personaPresetsMutating = false,
+  onUsePersonaPreset,
+  onCopyPersonaPreset,
+  onSavePersonaPreset,
+  onClearPersonaPreset,
   // Agent options
   agentOptions,
   agentOptionValues = {},
@@ -480,6 +513,20 @@ export const ChatInput = memo(function ChatInput({
           )}
 
           <div className="px-2.5 pt-1 flex items-start gap-2">
+            {selectedPersonaName && (
+              <button
+                type="button"
+                onClick={() => setActivePanel("persona")}
+                className="shrink-0 self-start rounded-full px-2.5 py-1.5 text-xs font-medium inline-flex"
+                style={{
+                  backgroundColor:
+                    "var(--theme-primary-alpha, rgba(99,102,241,0.1))",
+                  color: "var(--theme-primary)",
+                }}
+              >
+                {selectedPersonaName}
+              </button>
+            )}
             <textarea
               ref={textareaRef}
               value={input}
@@ -510,6 +557,8 @@ export const ChatInput = memo(function ChatInput({
                 totalToolsCount={totalToolsCount}
                 enabledSkillsCount={enabledSkillsCount}
                 totalSkillsCount={totalSkillsCount}
+                hasPersonaSelector={!!onUsePersonaPreset}
+                personaName={selectedPersonaName}
                 hasAgentSelector={agents.length > 1 && !!onSelectAgent}
                 hasThinkingOption={
                   !!(
@@ -656,6 +705,23 @@ export const ChatInput = memo(function ChatInput({
             onOpenChange={(open) => setActivePanel(open ? "skills" : null)}
           />
         )}
+      {onUsePersonaPreset && onCopyPersonaPreset && onClearPersonaPreset && (
+        <PersonaPresetSelector
+          presets={personaPresets}
+          selectedPresetId={selectedPersonaPresetId}
+          isOpen={activePanel === "persona"}
+          isLoading={personaPresetsLoading}
+          isMutating={personaPresetsMutating}
+          onOpenChange={(open) => setActivePanel(open ? "persona" : null)}
+          onUsePreset={onUsePersonaPreset}
+          onCopyPreset={onCopyPersonaPreset}
+          onSavePreset={onSavePersonaPreset}
+          onClearPreset={() => {
+            onClearPersonaPreset();
+            setActivePanel(null);
+          }}
+        />
+      )}
       <AgentModeSelector
         agents={agents}
         currentAgent={currentAgent || ""}

@@ -49,6 +49,8 @@ export function buildSubmitChatBody({
   attachments,
   projectId,
   disabledSkills,
+  enabledSkills,
+  personaPresetId,
   disabledMcpTools,
   userTimezone,
 }: {
@@ -58,6 +60,8 @@ export function buildSubmitChatBody({
   attachments?: MessageAttachment[];
   projectId?: string;
   disabledSkills?: string[];
+  enabledSkills?: string[];
+  personaPresetId?: string | null;
   disabledMcpTools?: string[];
   userTimezone?: string;
 }): Record<string, unknown> {
@@ -67,6 +71,8 @@ export function buildSubmitChatBody({
     agent_options: agentOptions,
     attachments,
     disabled_skills: disabledSkills,
+    enabled_skills: enabledSkills,
+    persona_preset_id: personaPresetId || undefined,
     disabled_mcp_tools: disabledMcpTools,
   };
 
@@ -267,6 +273,8 @@ export const sessionApi = {
     projectId?: string,
     disabledSkills?: string[],
     disabledMcpTools?: string[],
+    personaPresetId?: string | null,
+    enabledSkills?: string[],
   ): Promise<{
     session_id: string;
     run_id: string;
@@ -280,6 +288,8 @@ export const sessionApi = {
       attachments,
       projectId,
       disabledSkills,
+      enabledSkills,
+      personaPresetId,
       disabledMcpTools,
       userTimezone: getBrowserTimezone(),
     });

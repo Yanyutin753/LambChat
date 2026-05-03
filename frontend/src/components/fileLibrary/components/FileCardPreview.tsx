@@ -1,10 +1,5 @@
 import { clsx } from "clsx";
-import {
-  Code2,
-  FileText,
-  FolderKanban,
-  Image as ImageIcon,
-} from "lucide-react";
+import { Braces, Layers } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getFullUrl } from "../../../services/api";
 import type { FileCardPreview as FileCardPreviewModel } from "../utils";
@@ -15,69 +10,255 @@ interface FileCardPreviewProps {
   compact?: boolean;
 }
 
-const toneStyles = {
-  blue: {
-    shell: "bg-sky-50 text-sky-950 dark:bg-sky-950/30 dark:text-sky-50",
-    badge:
-      "bg-sky-100 text-sky-700 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-200 dark:ring-sky-300/20",
-    line: "bg-white/72 dark:bg-white/[0.06]",
-    accent: "bg-sky-400",
-  },
-  green: {
-    shell:
-      "bg-emerald-50 text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-50",
-    badge:
-      "bg-emerald-100 text-emerald-700 ring-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-200 dark:ring-emerald-300/20",
-    line: "bg-white/72 dark:bg-white/[0.06]",
-    accent: "bg-emerald-400",
-  },
-  amber: {
-    shell: "bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-50",
-    badge:
-      "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-200 dark:ring-amber-300/20",
-    line: "bg-white/72 dark:bg-white/[0.06]",
-    accent: "bg-amber-400",
-  },
-  rose: {
-    shell: "bg-rose-50 text-rose-950 dark:bg-rose-950/30 dark:text-rose-50",
-    badge:
-      "bg-rose-100 text-rose-700 ring-rose-200 dark:bg-rose-400/10 dark:text-rose-200 dark:ring-rose-300/20",
-    line: "bg-white/72 dark:bg-white/[0.06]",
-    accent: "bg-rose-400",
-  },
-  violet: {
-    shell:
-      "bg-violet-50 text-violet-950 dark:bg-violet-950/30 dark:text-violet-50",
-    badge:
-      "bg-violet-100 text-violet-700 ring-violet-200 dark:bg-violet-400/10 dark:text-violet-200 dark:ring-violet-300/20",
-    line: "bg-white/72 dark:bg-white/[0.06]",
-    accent: "bg-violet-400",
-  },
-  stone: {
-    shell:
-      "bg-stone-50 text-stone-900 dark:bg-stone-900/70 dark:text-stone-100",
-    badge:
-      "bg-stone-100 text-stone-600 ring-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:ring-stone-700",
-    line: "bg-white/78 dark:bg-white/[0.06]",
-    accent: "bg-stone-400",
-  },
-} as const;
+/* ── Accent colors (per file type, for bar & glow only) ── */
 
-const kindIcon: Partial<Record<FileCardPreviewModel["kind"], LucideIcon>> = {
-  code: Code2,
-  image: ImageIcon,
-  markdown: FileText,
-  project: FolderKanban,
-  text: FileText,
-  document: FileText,
+function makeAccent(name: string) {
+  const neu = new Set(["stone", "slate", "zinc", "neutral", "gray"]).has(name);
+  return {
+    shell: neu
+      ? `bg-gradient-to-b from-${name}-50 to-${name}-100/60 text-${name}-900 dark:from-${name}-900/50 dark:to-${name}-950/60 dark:text-${name}-100`
+      : `bg-gradient-to-b from-${name}-50 to-${name}-100/60 text-${name}-950 dark:from-${name}-950/30 dark:to-${name}-950/60 dark:text-${name}-50`,
+    bar: `bg-${name}-400`,
+    glow: `bg-${name}-400`,
+    muted: `text-${name}-500 dark:text-${name}-400`,
+    badge: neu
+      ? `bg-${name}-100 text-${name}-600 ring-${name}-200 dark:bg-${name}-800 dark:text-${name}-300 dark:ring-${name}-700`
+      : `bg-${name}-100 text-${name}-700 ring-${name}-200 dark:bg-${name}-400/10 dark:text-${name}-200 dark:ring-${name}-300/20`,
+  };
+}
+
+const ACCENTS: Record<string, ReturnType<typeof makeAccent>> = {
+  amber: makeAccent("amber"),
+  blue: makeAccent("blue"),
+  cyan: makeAccent("cyan"),
+  emerald: makeAccent("emerald"),
+  green: makeAccent("green"),
+  indigo: makeAccent("indigo"),
+  lime: makeAccent("lime"),
+  orange: makeAccent("orange"),
+  pink: makeAccent("pink"),
+  purple: makeAccent("purple"),
+  red: makeAccent("red"),
+  rose: makeAccent("rose"),
+  sky: makeAccent("sky"),
+  slate: makeAccent("slate"),
+  stone: makeAccent("stone"),
+  teal: makeAccent("teal"),
+  violet: makeAccent("violet"),
+  yellow: makeAccent("yellow"),
+  zinc: makeAccent("zinc"),
 };
 
-function lineWidth(index: number): string {
-  if (index === 0) return "w-[86%]";
-  if (index === 1) return "w-[72%]";
-  if (index === 2) return "w-[92%]";
-  return "w-[64%]";
+function accentFor(colorName: string) {
+  return ACCENTS[colorName] ?? ACCENTS.slate;
 }
+
+/* ── Cover layout ──────────────────────────────────────── */
+
+function CoverLayout({
+  colorName,
+  icon: Icon,
+  badge,
+  title,
+  subtitle,
+  compact,
+}: {
+  colorName: string;
+  icon: LucideIcon;
+  badge: string;
+  title?: string;
+  subtitle?: string;
+  compact?: boolean;
+  topRight?: React.ReactNode;
+}) {
+  const a = accentFor(colorName);
+
+  if (compact) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-slate-100 dark:bg-slate-900/40">
+        <Icon size={17} strokeWidth={2} className={a.muted} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={clsx(
+        "relative flex h-full w-full flex-col overflow-hidden",
+        a.shell,
+      )}
+    >
+      {/* Centered icon with glow */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="relative">
+          <div
+            className={clsx(
+              "absolute inset-[-16px] rounded-full blur-2xl opacity-[0.10]",
+              a.glow,
+            )}
+          />
+          <Icon
+            size={42}
+            strokeWidth={1.1}
+            className={clsx("relative opacity-[0.18]", a.muted)}
+          />
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="relative z-10 flex items-center justify-between px-3 pt-2.5">
+        <span
+          className={clsx(
+            "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide ring-1",
+            a.badge,
+          )}
+        >
+          {badge}
+        </span>
+      </div>
+
+      {/* Footer */}
+      <div className="relative z-10 mt-auto px-3 pb-3">
+        {title && (
+          <p className="truncate text-[13px] font-semibold leading-tight tracking-tight">
+            {title}
+          </p>
+        )}
+        {subtitle && (
+          <p className="mt-0.5 truncate text-[10px] leading-3 opacity-40">
+            {subtitle}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Cover variants ────────────────────────────────────── */
+
+function MarkdownCover({
+  p,
+  icon,
+  compact,
+}: {
+  p: FileCardPreviewModel;
+  icon: LucideIcon;
+  compact?: boolean;
+}) {
+  const a = accentFor(p.colorName);
+  return (
+    <CoverLayout
+      colorName={p.colorName}
+      icon={icon}
+      badge="Markdown"
+      title={p.title}
+      subtitle={p.subtitle}
+      compact={compact}
+      topRight={
+        p.language && (
+          <span className={clsx("text-[10px]", a.muted)}>{p.language}</span>
+        )
+      }
+    />
+  );
+}
+
+function CodeCover({
+  p,
+  icon,
+  compact,
+}: {
+  p: FileCardPreviewModel;
+  icon: LucideIcon;
+  compact?: boolean;
+}) {
+  return (
+    <CoverLayout
+      colorName={p.colorName}
+      icon={icon}
+      badge={p.badge}
+      title={p.title}
+      subtitle={p.subtitle}
+      compact={compact}
+      topRight={
+        <div className="flex gap-1">
+          <span className="h-[6px] w-[6px] rounded-full bg-current/15" />
+          <span className="h-[6px] w-[6px] rounded-full bg-current/10" />
+          <span className="h-[6px] w-[6px] rounded-full bg-current/[0.07]" />
+        </div>
+      }
+    />
+  );
+}
+
+function ProjectCover({
+  p,
+  icon,
+  compact,
+}: {
+  p: FileCardPreviewModel;
+  icon: LucideIcon;
+  compact?: boolean;
+}) {
+  const a = accentFor(p.colorName);
+  return (
+    <CoverLayout
+      colorName={p.colorName}
+      icon={icon}
+      badge={p.badge}
+      compact={compact}
+      topRight={
+        <span className={clsx("flex items-center gap-1 text-[10px]", a.muted)}>
+          <Layers size={10} />
+          {p.subtitle}
+        </span>
+      }
+    />
+  );
+}
+
+function DataCover({
+  p,
+  icon,
+  compact,
+}: {
+  p: FileCardPreviewModel;
+  icon: LucideIcon;
+  compact?: boolean;
+}) {
+  const a = accentFor(p.colorName);
+  return (
+    <CoverLayout
+      colorName={p.colorName}
+      icon={icon}
+      badge={p.badge}
+      compact={compact}
+      topRight={<Braces size={12} className={clsx("opacity-35", a.muted)} />}
+    />
+  );
+}
+
+function DocumentCover({
+  p,
+  icon,
+  compact,
+}: {
+  p: FileCardPreviewModel;
+  icon: LucideIcon;
+  compact?: boolean;
+}) {
+  return (
+    <CoverLayout
+      colorName={p.colorName}
+      icon={icon}
+      badge={p.badge}
+      subtitle={p.subtitle}
+      compact={compact}
+    />
+  );
+}
+
+/* ── Main ──────────────────────────────────────────────── */
 
 export function FileCardPreview({
   preview,
@@ -85,8 +266,6 @@ export function FileCardPreview({
   compact = false,
 }: FileCardPreviewProps) {
   const imageUrl = preview.imageUrl ? getFullUrl(preview.imageUrl) : "";
-  const styles = toneStyles[preview.tone];
-  const PreviewIcon = kindIcon[preview.kind] || icon;
 
   if (preview.kind === "image" && imageUrl) {
     return (
@@ -99,69 +278,16 @@ export function FileCardPreview({
     );
   }
 
-  return (
-    <div
-      className={clsx(
-        "relative flex h-full w-full flex-col overflow-hidden",
-        styles.shell,
-        compact ? "p-1.5" : "p-3.5",
-      )}
-    >
-      <div className={clsx("absolute inset-x-0 top-0 h-1", styles.accent)} />
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <span
-          className={clsx(
-            "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold leading-4 ring-1",
-            styles.badge,
-          )}
-        >
-          {preview.badge}
-        </span>
-        <PreviewIcon
-          size={compact ? 13 : 16}
-          strokeWidth={1.7}
-          className="shrink-0 opacity-70"
-        />
-      </div>
-
-      {!compact && (
-        <div className="min-w-0 pt-2.5">
-          <p className="truncate text-[15px] font-semibold leading-5">
-            {preview.title}
-          </p>
-          <p className="mt-1 truncate text-[11px] leading-4 opacity-65">
-            {preview.subtitle}
-          </p>
-        </div>
-      )}
-
-      <div
-        className={clsx("mt-auto flex flex-col", compact ? "gap-1" : "gap-1.5")}
-      >
-        {preview.lines.length > 0 ? (
-          preview.lines.slice(0, compact ? 2 : 4).map((line, index) => (
-            <div
-              key={`${line}-${index}`}
-              className={clsx(
-                "min-w-0 truncate rounded px-1.5 font-mono text-[10px] leading-5 opacity-80",
-                styles.line,
-                compact ? "h-4 leading-4" : lineWidth(index),
-              )}
-            >
-              {line}
-            </div>
-          ))
-        ) : (
-          <div
-            className={clsx(
-              "rounded px-1.5 text-[10px] leading-5 opacity-75",
-              styles.line,
-            )}
-          >
-            {preview.subtitle}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  switch (preview.kind) {
+    case "markdown":
+      return <MarkdownCover p={preview} icon={icon} compact={compact} />;
+    case "code":
+      return <CodeCover p={preview} icon={icon} compact={compact} />;
+    case "project":
+      return <ProjectCover p={preview} icon={icon} compact={compact} />;
+    case "text":
+      return <DataCover p={preview} icon={icon} compact={compact} />;
+    default:
+      return <DocumentCover p={preview} icon={icon} compact={compact} />;
+  }
 }

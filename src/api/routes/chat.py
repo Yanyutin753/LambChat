@@ -19,10 +19,12 @@ from src.api.routes.auth.utils import _get_language
 from src.api.routes.session import verify_session_ownership
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.logging import get_logger
+from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.session.manager import SessionManager
 from src.infra.task.concurrency import register_executor
 from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
+from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.agent import AgentRequest
 from src.kernel.schemas.session import SessionUpdate
 from src.kernel.schemas.user import TokenPayload
@@ -40,6 +42,27 @@ async def _update_session_config(
 ) -> None:
     """Update session metadata with conversation configuration."""
     session_manager = SessionManager()
+    conversation_config = build_conversation_config(
+        session_id=session_id,
+        run_id=run_id,
+        agent_id=agent_id,
+        request=request,
+        language=language,
+    )
+    await session_manager.update_session(
+        session_id,
+        SessionUpdate(metadata=conversation_config),
+    )
+
+
+def build_conversation_config(
+    run_id: str,
+    agent_id: str,
+    request: AgentRequest,
+    language: str,
+    session_id: str | None = None,
+) -> dict:
+    """Build session metadata for conversation configuration."""
     conversation_config = {
         "current_run_id": run_id,
         "agent_id": agent_id,
@@ -47,15 +70,18 @@ async def _update_session_config(
         "agent_options": request.agent_options or {},
         "disabled_tools": request.disabled_tools or [],
         "disabled_skills": request.disabled_skills or [],
+        "enabled_skills": request.enabled_skills or [],
         "disabled_mcp_tools": request.disabled_mcp_tools or [],
         "language": language,
     }
+    if request.persona_preset_id:
+        conversation_config["persona_preset_id"] = request.persona_preset_id
+    if request.persona_snapshot:
+        conversation_config["persona_preset_name"] = request.persona_snapshot.name
+        conversation_config["persona_snapshot"] = request.persona_snapshot.model_dump()
     if request.project_id:
         conversation_config["project_id"] = request.project_id
-    await session_manager.update_session(
-        session_id,
-        SessionUpdate(metadata=conversation_config),
-    )
+    return conversation_config
 
 
 async def _execute_agent_stream(
@@ -68,6 +94,8 @@ async def _execute_agent_stream(
     agent_options: dict | None = None,
     attachments: list[dict] | None = None,
     disabled_skills: list[str] | None = None,
+    enabled_skills: list[str] | None = None,
+    persona_system_prompt: str | None = None,
     disabled_mcp_tools: list[str] | None = None,
 ):
     """执行 Agent 并流式输出事件（供 TaskManager 调用）"""
@@ -86,6 +114,8 @@ async def _execute_agent_stream(
             agent_options=agent_options,
             attachments=attachments,
             disabled_skills=disabled_skills,
+            enabled_skills=enabled_skills,
+            persona_system_prompt=persona_system_prompt,
             disabled_mcp_tools=disabled_mcp_tools,
         ):
             yield event
@@ -143,6 +173,22 @@ async def chat_stream(
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
 
+    if request.persona_preset_id:
+        try:
+            is_persona_admin = "persona_preset:admin" in (user.permissions or [])
+            snapshot = await PersonaPresetManager().use_preset(
+                request.persona_preset_id,
+                user_id=user.sub,
+                is_admin=is_persona_admin,
+            )
+            request.persona_snapshot = snapshot
+            request.enabled_skills = snapshot.skill_names
+            request.persona_system_prompt = snapshot.system_prompt
+        except NotFoundError:
+            raise HTTPException(status_code=404, detail="角色预设不存在")
+        except AuthorizationError as e:
+            raise HTTPException(status_code=403, detail=str(e))
+
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()
 
@@ -178,6 +224,8 @@ async def chat_stream(
         "trace_id": trace_id,
         "user_message_written": True,
         "disabled_skills": request.disabled_skills,
+        "enabled_skills": request.enabled_skills,
+        "persona_system_prompt": request.persona_system_prompt,
         "disabled_mcp_tools": request.disabled_mcp_tools,
     }
 
@@ -279,6 +327,8 @@ async def chat_stream(
         run_id=run_id,
         project_id=request.project_id,
         disabled_skills=request.disabled_skills,
+        enabled_skills=request.enabled_skills,
+        persona_system_prompt=request.persona_system_prompt,
         disabled_mcp_tools=request.disabled_mcp_tools,
         display_message=request.message,
     )
