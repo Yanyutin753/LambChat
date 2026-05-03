@@ -125,6 +125,28 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
     [fetchPresets],
   );
 
+  const deletePreset = useCallback(
+    async (presetId: string): Promise<boolean> => {
+      setIsMutating(true);
+      setError(null);
+      try {
+        await personaPresetApi.delete(presetId);
+        await fetchPresets();
+        return true;
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to delete persona preset",
+        );
+        return false;
+      } finally {
+        setIsMutating(false);
+      }
+    },
+    [fetchPresets],
+  );
+
   return {
     presets,
     isLoading,
@@ -135,5 +157,6 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
     copyPreset,
     createPreset,
     updatePreset,
+    deletePreset,
   };
 }

@@ -123,6 +123,7 @@ interface ChatViewProps {
     },
   ) => Promise<void>;
   onClearPersonaPreset: () => void;
+  canManagePersonaPresets: boolean;
   agentOptions: Record<string, AgentOption>;
   agentOptionValues: Record<string, boolean | string | number>;
   onToggleAgentOption: (key: string, value: boolean | string | number) => void;
@@ -191,6 +192,7 @@ export function ChatView({
   onCopyPersonaPreset,
   onSavePersonaPreset,
   onClearPersonaPreset,
+  canManagePersonaPresets,
   agentOptions,
   agentOptionValues,
   onToggleAgentOption,
@@ -672,6 +674,7 @@ export function ChatView({
     onCopyPersonaPreset,
     onSavePersonaPreset,
     onClearPersonaPreset,
+    canManagePersonaPresets,
     agentOptions,
     agentOptionValues,
     onToggleAgentOption,

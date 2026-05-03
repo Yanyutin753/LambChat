@@ -92,6 +92,9 @@ export function ChatAppContent({
   } = useSkills({ enabled: enableSkills });
 
   const canReadPersonaPresets = hasPermission(Permission.PERSONA_PRESET_READ);
+  const canManagePersonaPresets =
+    hasPermission(Permission.PERSONA_PRESET_WRITE) ||
+    hasPermission(Permission.PERSONA_PRESET_ADMIN);
   const {
     presets: personaPresets,
     isLoading: personaPresetsLoading,
@@ -740,6 +743,7 @@ export function ChatAppContent({
           onCopyPersonaPreset={handleCopyPersonaPreset}
           onSavePersonaPreset={handleSavePersonaPreset}
           onClearPersonaPreset={clearPersonaPreset}
+          canManagePersonaPresets={canManagePersonaPresets}
           agentOptions={currentAgentOptions}
           agentOptionValues={agentOptionValues}
           onToggleAgentOption={handleToggleAgentOption}

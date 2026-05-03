@@ -76,12 +76,35 @@ def build_conversation_config(
     }
     if request.persona_preset_id:
         conversation_config["persona_preset_id"] = request.persona_preset_id
-    if request.persona_snapshot:
+    if request.persona_preset_id and request.persona_snapshot:
         conversation_config["persona_preset_name"] = request.persona_snapshot.name
         conversation_config["persona_snapshot"] = request.persona_snapshot.model_dump()
     if request.project_id:
         conversation_config["project_id"] = request.project_id
     return conversation_config
+
+
+async def resolve_persona_request(
+    request: AgentRequest,
+    user: TokenPayload,
+    manager: PersonaPresetManager | None = None,
+) -> None:
+    """Resolve persona preset data and drop any client-supplied prompt injection."""
+    request.persona_snapshot = None
+    request.persona_system_prompt = None
+
+    if not request.persona_preset_id:
+        return
+
+    persona_manager = manager or PersonaPresetManager()
+    snapshot = await persona_manager.use_preset(
+        request.persona_preset_id,
+        user_id=user.sub,
+        is_admin="persona_preset:admin" in (user.permissions or []),
+    )
+    request.persona_snapshot = snapshot
+    request.enabled_skills = snapshot.skill_names
+    request.persona_system_prompt = snapshot.system_prompt
 
 
 async def _execute_agent_stream(
@@ -173,21 +196,12 @@ async def chat_stream(
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
 
-    if request.persona_preset_id:
-        try:
-            is_persona_admin = "persona_preset:admin" in (user.permissions or [])
-            snapshot = await PersonaPresetManager().use_preset(
-                request.persona_preset_id,
-                user_id=user.sub,
-                is_admin=is_persona_admin,
-            )
-            request.persona_snapshot = snapshot
-            request.enabled_skills = snapshot.skill_names
-            request.persona_system_prompt = snapshot.system_prompt
-        except NotFoundError:
-            raise HTTPException(status_code=404, detail="角色预设不存在")
-        except AuthorizationError as e:
-            raise HTTPException(status_code=403, detail=str(e))
+    try:
+        await resolve_persona_request(request, user)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="角色预设不存在")
+    except AuthorizationError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
     # 生成 run_id（不管是否排队都需要唯一 ID）
     run_id = _generate_run_id()

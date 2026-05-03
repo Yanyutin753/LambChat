@@ -46,9 +46,19 @@ async def list_persona_presets(
         skip=skip,
         limit=limit,
     )
+    total = await _manager().count_presets(
+        user_id=user.sub,
+        is_admin=_is_admin(user),
+        scope=scope,
+        status=status,
+        tag=tag,
+        q=q,
+        skip=skip,
+        limit=limit,
+    )
     return PersonaPresetListResponse(
         presets=presets,
-        total=len(presets),
+        total=total,
         skip=skip,
         limit=limit,
     )

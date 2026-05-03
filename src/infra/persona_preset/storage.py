@@ -63,35 +63,36 @@ class PersonaPresetStorage:
         skip: int = 0,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        query: dict[str, Any] = {}
-        if not include_admin:
-            query["$or"] = [
-                {"scope": "user", "owner_user_id": user_id},
-                {
-                    "scope": "global",
-                    "visibility": "public",
-                    "status": "published",
-                },
-            ]
-        if scope:
-            query["scope"] = scope
-        if status:
-            query["status"] = status
-        if tag:
-            query["tags"] = tag
-        if q:
-            query["$and"] = query.get("$and", [])
-            query["$and"].append(
-                {
-                    "$or": [
-                        {"name": {"$regex": q, "$options": "i"}},
-                        {"description": {"$regex": q, "$options": "i"}},
-                    ]
-                }
-            )
-
+        query = self._build_visible_query(
+            user_id=user_id,
+            include_admin=include_admin,
+            scope=scope,
+            status=status,
+            tag=tag,
+            q=q,
+        )
         cursor = self.collection.find(query).sort("updated_at", -1).skip(skip).limit(limit)
         return [self._to_model_dict(doc) async for doc in cursor]
+
+    async def count_visible(
+        self,
+        *,
+        user_id: str,
+        include_admin: bool = False,
+        scope: str | None = None,
+        status: str | None = None,
+        tag: str | None = None,
+        q: str | None = None,
+    ) -> int:
+        query = self._build_visible_query(
+            user_id=user_id,
+            include_admin=include_admin,
+            scope=scope,
+            status=status,
+            tag=tag,
+            q=q,
+        )
+        return await self.collection.count_documents(query)
 
     async def update(self, preset_id: str, update: dict[str, Any]) -> Optional[dict[str, Any]]:
         try:
@@ -120,3 +121,41 @@ class PersonaPresetStorage:
         except Exception:
             return
         await self.collection.update_one({"_id": query_id}, {"$inc": {"usage_count": 1}})
+
+    @staticmethod
+    def _build_visible_query(
+        *,
+        user_id: str,
+        include_admin: bool = False,
+        scope: str | None = None,
+        status: str | None = None,
+        tag: str | None = None,
+        q: str | None = None,
+    ) -> dict[str, Any]:
+        query: dict[str, Any] = {}
+        if not include_admin:
+            query["$or"] = [
+                {"scope": "user", "owner_user_id": user_id},
+                {
+                    "scope": "global",
+                    "visibility": "public",
+                    "status": "published",
+                },
+            ]
+        if scope:
+            query["scope"] = scope
+        if status:
+            query["status"] = status
+        if tag:
+            query["tags"] = tag
+        if q:
+            query["$and"] = query.get("$and", [])
+            query["$and"].append(
+                {
+                    "$or": [
+                        {"name": {"$regex": q, "$options": "i"}},
+                        {"description": {"$regex": q, "$options": "i"}},
+                    ]
+                }
+            )
+        return query

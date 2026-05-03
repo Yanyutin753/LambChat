@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Search, UserRound, X } from "lucide-react";
+import { Search, Settings2, UserRound, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
 
@@ -10,19 +10,11 @@ interface PersonaPresetSelectorProps {
   isOpen: boolean;
   isLoading?: boolean;
   isMutating?: boolean;
+  canManagePresets?: boolean;
   onOpenChange: (open: boolean) => void;
   onUsePreset: (preset: PersonaPreset) => Promise<PersonaPresetSnapshot | null>;
   onCopyPreset: (preset: PersonaPreset) => Promise<void>;
-  onSavePreset?: (
-    preset: PersonaPreset | null,
-    data: {
-      name: string;
-      description: string;
-      system_prompt: string;
-      tags: string[];
-      skill_names: string[];
-    },
-  ) => Promise<void>;
+  onManagePresets?: () => void;
   onClearPreset: () => void;
 }
 
@@ -32,49 +24,16 @@ export function PersonaPresetSelector({
   isOpen,
   isLoading = false,
   isMutating = false,
+  canManagePresets = false,
   onOpenChange,
   onUsePreset,
   onCopyPreset,
-  onSavePreset,
+  onManagePresets,
   onClearPreset,
 }: PersonaPresetSelectorProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [editingPreset, setEditingPreset] = useState<PersonaPreset | null>(
-    null,
-  );
-  const [isCreating, setIsCreating] = useState(false);
-  const [draft, setDraft] = useState({
-    name: "",
-    description: "",
-    system_prompt: "",
-    tags: "",
-    skill_names: "",
-  });
-
-  const startEdit = (preset: PersonaPreset | null) => {
-    setEditingPreset(preset);
-    setIsCreating(!preset);
-    setDraft({
-      name: preset?.name || "",
-      description: preset?.description || "",
-      system_prompt: preset?.system_prompt || "",
-      tags: preset?.tags.join(", ") || "",
-      skill_names: preset?.skill_names.join(", ") || "",
-    });
-  };
-
-  const closeEditor = () => {
-    setEditingPreset(null);
-    setIsCreating(false);
-  };
-
-  const parseList = (value: string) =>
-    value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
 
   const tags = useMemo(
     () => Array.from(new Set(presets.flatMap((preset) => preset.tags))).sort(),
@@ -139,17 +98,23 @@ export function PersonaPresetSelector({
 
         <div className="space-y-3 border-b px-5 py-3 border-stone-200/70 dark:border-stone-700/70">
           <div className="flex items-center gap-2">
-            {onSavePreset && (
+            {canManagePresets && onManagePresets && (
               <button
                 type="button"
-                onClick={() => startEdit(null)}
+                onClick={() => {
+                  onOpenChange(false);
+                  onManagePresets();
+                }}
                 className="rounded-lg px-3 py-2 text-xs font-medium"
                 style={{
                   background: "var(--theme-primary)",
                   color: "var(--theme-bg)",
                 }}
               >
-                {t("personaPresets.createMine", "新建我的角色")}
+                <span className="inline-flex items-center gap-1.5">
+                  <Settings2 size={14} />
+                  {t("personaPresets.manage", "管理角色")}
+                </span>
               </button>
             )}
             {selectedPresetId && (
@@ -315,20 +280,6 @@ export function PersonaPresetSelector({
                           {t("personaPresets.copy", "复制")}
                         </button>
                       )}
-                      {preset.scope === "user" && onSavePreset && (
-                        <button
-                          type="button"
-                          disabled={isMutating}
-                          onClick={() => startEdit(preset)}
-                          className="rounded-lg border px-3 py-1.5 text-xs disabled:opacity-50"
-                          style={{
-                            borderColor: "var(--theme-border)",
-                            color: "var(--theme-text-secondary)",
-                          }}
-                        >
-                          {t("personaPresets.edit", "编辑")}
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -336,123 +287,6 @@ export function PersonaPresetSelector({
             </div>
           )}
         </div>
-
-        {(editingPreset || isCreating) && onSavePreset && (
-          <div className="absolute inset-0 flex flex-col bg-white dark:bg-stone-900">
-            <div
-              className="flex items-center justify-between border-b px-5 py-4"
-              style={{ borderColor: "var(--theme-border)" }}
-            >
-              <h3 className="text-sm font-semibold">
-                {editingPreset
-                  ? t("personaPresets.editMine", "编辑我的角色")
-                  : t("personaPresets.createMine", "新建我的角色")}
-              </h3>
-              <button
-                type="button"
-                className="rounded-lg p-2 hover:bg-stone-100 dark:hover:bg-stone-800"
-                onClick={closeEditor}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
-              <input
-                value={draft.name}
-                onChange={(event) =>
-                  setDraft((prev) => ({ ...prev, name: event.target.value }))
-                }
-                placeholder={t("personaPresets.name", "名称")}
-                className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm"
-                style={{ borderColor: "var(--theme-border)" }}
-              />
-              <input
-                value={draft.description}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    description: event.target.value,
-                  }))
-                }
-                placeholder={t("personaPresets.description", "简介")}
-                className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm"
-                style={{ borderColor: "var(--theme-border)" }}
-              />
-              <textarea
-                value={draft.system_prompt}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    system_prompt: event.target.value,
-                  }))
-                }
-                placeholder={t("personaPresets.systemPrompt", "系统提示词")}
-                rows={8}
-                className="w-full resize-none rounded-lg border bg-transparent px-3 py-2 text-sm leading-6"
-                style={{ borderColor: "var(--theme-border)" }}
-              />
-              <input
-                value={draft.tags}
-                onChange={(event) =>
-                  setDraft((prev) => ({ ...prev, tags: event.target.value }))
-                }
-                placeholder={t("personaPresets.tagsInput", "标签，用逗号分隔")}
-                className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm"
-                style={{ borderColor: "var(--theme-border)" }}
-              />
-              <input
-                value={draft.skill_names}
-                onChange={(event) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    skill_names: event.target.value,
-                  }))
-                }
-                placeholder={t(
-                  "personaPresets.skillsInput",
-                  "Skills，用逗号分隔",
-                )}
-                className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm"
-                style={{ borderColor: "var(--theme-border)" }}
-              />
-            </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-4 border-stone-200/70 dark:border-stone-700/70">
-              <button
-                type="button"
-                onClick={closeEditor}
-                className="rounded-lg border px-3 py-2 text-sm"
-                style={{ borderColor: "var(--theme-border)" }}
-              >
-                {t("common.cancel", "取消")}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  isMutating ||
-                  !draft.name.trim() ||
-                  !draft.system_prompt.trim()
-                }
-                onClick={async () => {
-                  await onSavePreset(editingPreset, {
-                    name: draft.name.trim(),
-                    description: draft.description.trim(),
-                    system_prompt: draft.system_prompt.trim(),
-                    tags: parseList(draft.tags),
-                    skill_names: parseList(draft.skill_names),
-                  });
-                  closeEditor();
-                }}
-                className="rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
-                style={{
-                  background: "var(--theme-primary)",
-                  color: "var(--theme-bg)",
-                }}
-              >
-                {t("common.save", "保存")}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>,
     document.body,

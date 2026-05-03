@@ -7,6 +7,7 @@ import {
   MessageSquarePlus,
   MoreHorizontal,
   UserRound,
+  ShoppingBag,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -199,6 +200,14 @@ export function SessionListContent({
         >
           <UserRound size={20} />
           <span>{t("personaPresets.title", "角色广场")}</span>
+        </button>
+
+        <button
+          onClick={() => navigate("/marketplace")}
+          className="sidebar-nav-btn w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm focus:outline-none transition-colors"
+        >
+          <ShoppingBag size={20} />
+          <span>{t("nav.marketplace", "商店")}</span>
         </button>
 
         <button
@@ -441,10 +450,10 @@ export function SessionListContent({
       </div>
 
       {/* Footer */}
-      <div className="shrink-0 p-2 border-t border-stone-200/60 dark:border-stone-800/60">
+      <div className="shrink-0 px-2 py-1 border-t border-stone-200/60 dark:border-stone-800/60">
         <div
           onClick={onShowProfile}
-          className="group flex items-center rounded-xl py-2 px-2 w-full hover:bg-stone-100 dark:hover:bg-stone-800/60 transition cursor-pointer"
+          className="group flex items-center rounded-xl py-3 px-2 w-full hover:bg-stone-100 dark:hover:bg-stone-800/60 transition cursor-pointer"
         >
           <div className="shrink-0 w-8 h-8 rounded-full overflow-hidden ring-1 ring-stone-200 dark:ring-stone-700 group-hover:ring-[var(--theme-primary)] transition mr-3">
             {user?.avatar_url && !imgError ? (
@@ -463,7 +472,7 @@ export function SessionListContent({
               </div>
             )}
           </div>
-          <div className="flex-1 text-left min-w-0 space-y-0.5">
+          <div className="flex-1 text-left min-w-0">
             <div className="text-sm font-medium text-stone-800 dark:text-stone-100 truncate">
               {user?.username || "User"}
             </div>

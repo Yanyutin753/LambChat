@@ -104,6 +104,28 @@ class PersonaPresetManager:
         )
         return [PersonaPreset(**doc) for doc in docs]
 
+    async def count_presets(
+        self,
+        *,
+        user_id: str,
+        is_admin: bool = False,
+        scope: str | None = None,
+        status: str | None = None,
+        tag: str | None = None,
+        q: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> int:
+        del skip, limit
+        return await self.storage.count_visible(
+            user_id=user_id,
+            include_admin=is_admin,
+            scope=scope,
+            status=status,
+            tag=tag,
+            q=q,
+        )
+
     async def update_preset(
         self,
         preset_id: str,

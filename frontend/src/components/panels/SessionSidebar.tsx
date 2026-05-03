@@ -123,7 +123,6 @@ export const SessionSidebar = forwardRef<
     Permission.NOTIFICATION_MANAGE,
   ]);
   const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
-
   const moreMenuUserItems = [
     {
       path: "/users",
@@ -761,6 +760,7 @@ export const SessionSidebar = forwardRef<
             onOpenRecentChats={() => setIsRecentChatsOpen(true)}
             onOpenFileLibrary={() => navigate("/files")}
             onOpenPersonaPlaza={() => navigate("/persona")}
+            onOpenMarketplace={() => navigate("/marketplace")}
             hasMoreMenuItems={hasMoreMenuItems}
             onToggleMoreMenu={() => {
               setIsMoreMenuOpen((prev) => !prev);

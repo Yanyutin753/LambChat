@@ -7,14 +7,21 @@ import {
   Pencil,
   Check,
   X,
+  Trash2,
   Users,
   User,
   Sparkles,
   Tag,
+  ChevronDown,
+  Save,
 } from "lucide-react";
 import { PanelHeader } from "../common/PanelHeader";
+import { ConfirmDialog } from "../common/ConfirmDialog";
+import { LoadingSpinner } from "../common/LoadingSpinner";
+import { PersonaPlazaSkeleton } from "../skeletons";
 import { useAuth } from "../../hooks/useAuth";
 import { usePersonaPresets } from "../../hooks/usePersonaPresets";
+import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import type { PersonaPreset } from "../../types";
 import { Permission } from "../../types";
 
@@ -30,23 +37,27 @@ function readPersonaPresetId(): string | null {
   }
 }
 
-const AVATAR_GRADIENTS = [
-  "from-violet-500 to-purple-600",
-  "from-blue-500 to-cyan-500",
-  "from-rose-500 to-pink-500",
-  "from-amber-500 to-orange-500",
-  "from-emerald-500 to-teal-500",
-  "from-indigo-500 to-blue-500",
-  "from-fuchsia-500 to-pink-500",
-  "from-sky-500 to-blue-600",
+const GRADIENT_PALETTES = [
+  ["#8b5cf6", "#7c3aed", "#6d28d9"],
+  ["#3b82f6", "#2563eb", "#1d4ed8"],
+  ["#f43f5e", "#e11d48", "#be123c"],
+  ["#f59e0b", "#d97706", "#b45309"],
+  ["#10b981", "#059669", "#047857"],
+  ["#6366f1", "#4f46e5", "#4338ca"],
+  ["#ec4899", "#db2777", "#be185d"],
+  ["#0ea5e9", "#0284c7", "#0369a1"],
+  ["#14b8a6", "#0d9488", "#0f766e"],
+  ["#f97316", "#ea580c", "#c2410c"],
+  ["#a855f7", "#9333ea", "#7e22ce"],
+  ["#22d3ee", "#06b6d4", "#0891b2"],
 ];
 
-function getAvatarGradient(id: string) {
+function nameToGradient(name: string) {
   let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+  return GRADIENT_PALETTES[Math.abs(hash) % GRADIENT_PALETTES.length];
 }
 
 type ScopeFilter = "all" | "global" | "user";
@@ -65,13 +76,15 @@ export function PersonaPlazaPanel() {
     copyPreset,
     createPreset,
     updatePreset,
+    deletePreset,
   } = usePersonaPresets({ enabled: canRead });
 
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [showEditor, setShowEditor] = useState(false);
+
+  const [showModal, setShowModal] = useState(false);
   const [editingPreset, setEditingPreset] = useState<PersonaPreset | null>(
     null,
   );
@@ -82,20 +95,33 @@ export function PersonaPlazaPanel() {
     tags: "",
     skill_names: "",
   });
-  const [toast, setToast] = useState<string | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<PersonaPreset | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setEditingPreset(null);
+  }, []);
+  const modalRef = useSwipeToClose({ onClose: closeModal });
 
   useEffect(() => {
     setSelectedPresetId(readPersonaPresetId());
   }, []);
 
   useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (isFilterOpen && !target.closest("[data-persona-filter]")) {
+        setIsFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [isFilterOpen]);
 
-  const tags = useMemo(
+  const allTags = useMemo(
     () => Array.from(new Set(presets.flatMap((p) => p.tags))).sort(),
     [presets],
   );
@@ -141,10 +167,9 @@ export function PersonaPlazaPanel() {
             }),
           );
         } catch {}
-        setToast(t("personaPresets.useSuccess", "已选择角色"));
       }
     },
-    [usePreset, t],
+    [usePreset],
   );
 
   const handleClear = useCallback(() => {
@@ -161,22 +186,17 @@ export function PersonaPlazaPanel() {
         }),
       );
     } catch {}
-    setToast(t("personaPresets.clearSuccess", "已清除角色"));
-  }, [t]);
+  }, []);
 
   const handleCopy = useCallback(
     async (preset: PersonaPreset) => {
-      const result = await copyPreset(preset.id);
-      if (result) {
-        setToast(t("personaPresets.copySuccess", "已复制到我的角色"));
-      }
+      await copyPreset(preset.id);
     },
-    [copyPreset, t],
+    [copyPreset],
   );
 
-  const startEdit = (preset: PersonaPreset | null) => {
+  const openModal = (preset: PersonaPreset | null) => {
     setEditingPreset(preset);
-    setShowEditor(true);
     setDraft({
       name: preset?.name || "",
       description: preset?.description || "",
@@ -184,6 +204,7 @@ export function PersonaPlazaPanel() {
       tags: preset?.tags.join(", ") || "",
       skill_names: preset?.skill_names.join(", ") || "",
     });
+    setShowModal(true);
   };
 
   const handleSave = useCallback(async () => {
@@ -206,57 +227,129 @@ export function PersonaPlazaPanel() {
     } else {
       await createPreset(data);
     }
-    setShowEditor(false);
-    setEditingPreset(null);
-    setToast(t("common.saveSuccess", "保存成功"));
-  }, [draft, editingPreset, createPreset, updatePreset, t]);
+    closeModal();
+  }, [draft, editingPreset, createPreset, updatePreset, closeModal]);
 
-  const scopeTabs: {
-    key: ScopeFilter;
-    label: string;
-    icon: typeof Users;
-    count: number;
-  }[] = [
+  const handleDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    const ok = await deletePreset(deleteTarget.id);
+    setIsDeleting(false);
+    if (ok && selectedPresetId === deleteTarget.id) handleClear();
+    setDeleteTarget(null);
+  }, [deleteTarget, deletePreset, selectedPresetId, handleClear]);
+
+  const toggleTag = (tag: string) =>
+    setActiveTag((prev) => (prev === tag ? null : tag));
+  const clearFilters = () => {
+    setActiveTag(null);
+    setQuery("");
+  };
+
+  const scopeTabs = [
     {
-      key: "all",
+      key: "all" as ScopeFilter,
       label: t("personaPresets.all", "全部"),
       icon: Users,
       count: presets.length,
     },
     {
-      key: "global",
+      key: "global" as ScopeFilter,
       label: t("personaPresets.official", "官方"),
       icon: Sparkles,
       count: globalCount,
     },
     {
-      key: "user",
+      key: "user" as ScopeFilter,
       label: t("personaPresets.mine", "我的"),
       icon: User,
       count: userCount,
     },
   ];
 
+  const isFormValid = draft.name.trim() && draft.system_prompt.trim();
+  const hasActiveFilters = !!activeTag || query.length > 0;
+
+  if (isLoading) return <PersonaPlazaSkeleton />;
+
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0 animate-fade-in">
+    <div className="skill-theme-shell flex h-full min-h-0 flex-col">
       <PanelHeader
+        className="skill-panel-header"
         title={t("personaPresets.title", "角色广场")}
         subtitle={t("personaPresets.subtitle", "选择一个角色开始对话")}
-        icon={<UserRound />}
+        icon={
+          <UserRound size={18} className="text-stone-600 dark:text-stone-400" />
+        }
         searchValue={query}
         onSearchChange={setQuery}
         searchPlaceholder={t("personaPresets.search", "搜索角色名称、描述...")}
+        searchAccessory={
+          allTags.length > 0 ? (
+            <div className="relative shrink-0" data-persona-filter>
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen((prev) => !prev)}
+                className={`btn-secondary h-10 px-3 ${
+                  activeTag
+                    ? "border-[var(--theme-primary)] text-[var(--theme-text)]"
+                    : ""
+                }`}
+              >
+                <Tag size={14} />
+                <span className="hidden sm:inline">
+                  {t("personaPresets.tags", "标签")}
+                </span>
+                {activeTag && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[11px]">
+                    1
+                  </span>
+                )}
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${
+                    isFilterOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {isFilterOpen && (
+                <div className="skill-filter-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border p-3 shadow-lg">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]">
+                      {t("personaPresets.tags", "标签")}
+                    </p>
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="text-xs text-[var(--theme-text-secondary)] transition-colors hover:text-[var(--theme-primary)]"
+                      >
+                        {t("personaPresets.clearFilters", "清除筛选")}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto">
+                    {allTags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className={`skill-tag-chip ${
+                          activeTag === tag ? "skill-tag-chip--active" : ""
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null
+        }
         actions={
           canWrite ? (
-            <button
-              type="button"
-              onClick={() => startEdit(null)}
-              className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
-              style={{
-                background: "var(--theme-primary)",
-                color: "var(--theme-bg)",
-              }}
-            >
+            <button onClick={() => openModal(null)} className="btn-primary">
               <Plus size={16} />
               <span className="hidden sm:inline">
                 {t("personaPresets.createMine", "新建角色")}
@@ -264,482 +357,411 @@ export function PersonaPlazaPanel() {
             </button>
           ) : undefined
         }
-      >
-        {/* Tag filter row */}
-        {tags.length > 0 && (
-          <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            <Tag size={13} className="mr-1 shrink-0 text-stone-400" />
+      />
+
+      <div className="skill-content-area flex-1 overflow-y-auto p-4 sm:p-6">
+        {/* Scope tabs */}
+        <div
+          className="mb-5 flex items-center gap-1 rounded-xl p-1"
+          style={{ background: "var(--skill-surface-alt)" }}
+        >
+          {scopeTabs.map(({ key, label, icon: Icon, count }) => (
             <button
+              key={key}
               type="button"
-              onClick={() => setActiveTag(null)}
-              className="shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors"
+              onClick={() => setScopeFilter(key)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all"
               style={{
-                background: !activeTag
-                  ? "var(--theme-primary)"
-                  : "var(--glass-bg-subtle, color-mix(in srgb, var(--theme-bg) 80%, white))",
-                color: !activeTag
-                  ? "var(--theme-bg)"
-                  : "var(--theme-text-secondary)",
-                border: `1px solid ${
-                  !activeTag ? "var(--theme-primary)" : "var(--theme-border)"
-                }`,
+                background:
+                  scopeFilter === key ? "var(--skill-surface)" : "transparent",
+                color:
+                  scopeFilter === key
+                    ? "var(--theme-text)"
+                    : "var(--theme-text-secondary)",
+                boxShadow: scopeFilter === key ? "var(--skill-shadow)" : "none",
               }}
             >
-              {t("personaPresets.allTags", "全部")}
-            </button>
-            {tags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => setActiveTag(activeTag === tag ? null : tag)}
-                className="shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors"
-                style={{
-                  background:
-                    activeTag === tag
-                      ? "var(--theme-primary)"
-                      : "var(--glass-bg-subtle, color-mix(in srgb, var(--theme-bg) 80%, white))",
-                  color:
-                    activeTag === tag
-                      ? "var(--theme-bg)"
-                      : "var(--theme-text-secondary)",
-                  border: `1px solid ${
-                    activeTag === tag
-                      ? "var(--theme-primary)"
-                      : "var(--theme-border)"
-                  }`,
-                }}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        )}
-      </PanelHeader>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="p-3 sm:p-6 xl:p-8">
-          {/* Scope tabs */}
-          <div className="glass-card-subtle mb-4 flex items-center gap-1 rounded-xl p-1">
-            {scopeTabs.map(({ key, label, icon: Icon, count }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setScopeFilter(key)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all"
-                style={{
-                  background:
-                    scopeFilter === key ? "var(--glass-bg)" : "transparent",
-                  color:
-                    scopeFilter === key
-                      ? "var(--theme-text)"
-                      : "var(--theme-text-secondary)",
-                  boxShadow:
-                    scopeFilter === key ? "var(--glass-shadow)" : "none",
-                }}
-              >
-                <Icon size={15} />
-                <span className="hidden sm:inline">{label}</span>
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--theme-text-secondary)" }}
-                >
-                  {count}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Card grid */}
-          {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 xl:gap-5">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="glass-card rounded-xl flex flex-col p-5 animate-pulse"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="size-10 shrink-0 rounded-full bg-stone-200 dark:bg-stone-700" />
-                    <div className="min-w-0 flex-1">
-                      <div className="h-4 w-2/3 rounded bg-stone-200 dark:bg-stone-700" />
-                      <div className="mt-2 h-3 w-full rounded bg-stone-200 dark:bg-stone-700" />
-                      <div className="mt-1.5 h-3 w-4/5 rounded bg-stone-200 dark:bg-stone-700" />
-                    </div>
-                  </div>
-                  <div className="mt-4 flex gap-1.5">
-                    <div className="h-5 w-12 rounded-full bg-stone-200 dark:bg-stone-700" />
-                    <div className="h-5 w-16 rounded-full bg-stone-200 dark:bg-stone-700" />
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <div className="h-8 w-16 rounded-lg bg-stone-200 dark:bg-stone-700" />
-                    <div className="h-8 w-16 rounded-lg bg-stone-200 dark:bg-stone-700" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-stone-100 dark:bg-stone-800">
-                <UserRound size={28} className="text-stone-400" />
-              </div>
-              <h3
-                className="text-base font-semibold"
-                style={{ color: "var(--theme-text)" }}
-              >
-                {query || activeTag
-                  ? t("personaPresets.noMatch", "没有匹配的角色")
-                  : t("personaPresets.empty", "暂无角色预设")}
-              </h3>
-              <p
-                className="mt-1 text-sm"
+              <Icon size={15} />
+              <span className="hidden sm:inline">{label}</span>
+              <span
+                className="text-xs"
                 style={{ color: "var(--theme-text-secondary)" }}
               >
-                {query || activeTag
-                  ? t("personaPresets.tryOtherFilters", "试试其他搜索条件")
-                  : t("personaPresets.emptyHint", "管理员可以创建官方角色预设")}
-              </p>
+                {count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="skill-empty-state">
+            <div className="skill-empty-state__icon">
+              <UserRound size={28} />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 xl:gap-5">
-              {filtered.map((preset) => {
-                const selected = selectedPresetId === preset.id;
-                const gradient = getAvatarGradient(preset.id);
-                return (
+            <p className="skill-empty-state__title">
+              {query || activeTag
+                ? t("personaPresets.noMatch", "没有匹配的角色")
+                : t("personaPresets.empty", "暂无角色预设")}
+            </p>
+            <p className="skill-empty-state__description">
+              {query || activeTag
+                ? t("personaPresets.tryOtherFilters", "试试其他搜索条件")
+                : t("personaPresets.emptyHint", "管理员可以创建官方角色预设")}
+            </p>
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="btn-secondary mt-4">
+                {t("personaPresets.clearFilters", "清除筛选")}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((preset, index) => {
+              const selected = selectedPresetId === preset.id;
+              const gradient = nameToGradient(preset.name);
+              const primaryTag = preset.tags[0];
+              return (
+                <div
+                  key={preset.id}
+                  className="persona-card group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
+                  style={{ animationDelay: `${index * 60}ms` }}
+                >
+                  {/* Gradient Banner */}
                   <div
-                    key={preset.id}
-                    className="glass-card rounded-xl group flex flex-col p-5 transition-all animate-glass-enter"
+                    className="persona-card__banner relative h-12 shrink-0"
                     style={{
-                      borderColor: selected
-                        ? "var(--theme-primary)"
-                        : undefined,
-                      outline: selected
-                        ? "2px solid var(--theme-primary)"
-                        : undefined,
-                      outlineOffset: selected ? "-2px" : undefined,
+                      background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
                     }}
                   >
-                    {/* Card header */}
+                    {selected && (
+                      <div className="absolute top-2 right-2">
+                        <span className="persona-card__status-pill persona-card__status-pill--selected">
+                          {t("personaPresets.using", "使用中")}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="flex flex-1 flex-col p-4 pt-5">
                     <div className="flex items-start gap-3">
-                      <div
-                        className={`flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${gradient} text-white shadow-sm`}
-                      >
-                        <span className="text-sm font-bold">
+                      <div className="persona-card__avatar-ring shrink-0">
+                        <span className="text-sm font-bold text-[var(--theme-primary)]">
                           {preset.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3
-                            className="truncate text-sm font-semibold"
-                            style={{ color: "var(--theme-text)" }}
-                          >
-                            {preset.name}
-                          </h3>
+                        <h3
+                          className="truncate text-base font-semibold text-[var(--theme-text)] leading-tight"
+                          title={preset.name}
+                        >
+                          {preset.name}
+                        </h3>
+                        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+                          <span>
+                            {preset.scope === "global"
+                              ? t("personaPresets.official", "官方")
+                              : t("personaPresets.mine", "我的")}
+                          </span>
                           {preset.usage_count > 0 && (
-                            <span
-                              className="shrink-0 text-[11px]"
-                              style={{ color: "var(--theme-text-secondary)" }}
-                            >
-                              {preset.usage_count}次使用
-                            </span>
+                            <>
+                              <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
+                              <span>
+                                {preset.usage_count}
+                                {t("personaPresets.usageCount", "次使用")}
+                              </span>
+                            </>
                           )}
                         </div>
-                        <p
-                          className="mt-1 line-clamp-2 text-xs leading-5"
-                          style={{ color: "var(--theme-text-secondary)" }}
-                        >
-                          {preset.description || preset.system_prompt}
-                        </p>
                       </div>
                     </div>
 
-                    {/* Scope badge + tags */}
+                    <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">
+                      {preset.description || preset.system_prompt}
+                    </p>
+
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={
-                          preset.scope === "global"
-                            ? "glass-tag glass-tag--accent text-[11px] px-2.5 py-0.5"
-                            : "glass-tag text-[11px] px-2.5 py-0.5"
-                        }
-                      >
-                        {preset.scope === "global"
-                          ? t("personaPresets.official", "官方")
-                          : t("personaPresets.mine", "我的")}
-                      </span>
-                      {preset.tags.slice(0, 3).map((tag) => (
-                        <span
+                      {primaryTag && (
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles
+                            size={12}
+                            className="text-[var(--theme-text-secondary)]"
+                          />
+                          <span className="persona-card__scope-tag">
+                            {primaryTag}
+                          </span>
+                        </div>
+                      )}
+                      {preset.tags.slice(1, 4).map((tag) => (
+                        <button
                           key={tag}
-                          className="glass-tag text-[11px] px-2 py-0.5"
+                          type="button"
+                          onClick={() => toggleTag(tag)}
+                          className="persona-card__mini-tag"
                         >
                           {tag}
-                        </span>
+                        </button>
                       ))}
-                      {preset.tags.length > 3 && (
-                        <span className="glass-tag glass-tag--overflow text-[11px] px-2 py-0.5">
-                          +{preset.tags.length - 3}
+                      {preset.tags.length > 4 && (
+                        <span className="persona-card__mini-tag">
+                          +{preset.tags.length - 4}
                         </span>
                       )}
                     </div>
 
-                    {/* Actions */}
-                    <div className="mt-4 flex items-center gap-2 glass-divider pt-3">
-                      {selected ? (
-                        <button
-                          type="button"
-                          disabled={isMutating}
-                          onClick={handleClear}
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-50"
-                          style={{
-                            background: "var(--theme-primary-light, #dbeafe)",
-                            color: "var(--theme-primary)",
-                          }}
-                        >
-                          <Check size={14} />
-                          {t("personaPresets.using", "使用中")}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isMutating}
-                          onClick={() => handleUse(preset)}
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
-                          style={{
-                            background: "var(--theme-primary)",
-                            color: "var(--theme-bg)",
-                          }}
-                        >
-                          <Sparkles size={14} />
-                          {t("personaPresets.use", "使用")}
-                        </button>
-                      )}
-                      {preset.scope === "global" && canWrite && (
-                        <button
-                          type="button"
-                          disabled={isMutating}
-                          onClick={() => handleCopy(preset)}
-                          className="glass-tag flex items-center gap-1 px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
-                        >
-                          <Copy size={13} />
-                          {t("personaPresets.copy", "复制")}
-                        </button>
-                      )}
-                      {preset.scope === "user" && canWrite && (
-                        <button
-                          type="button"
-                          disabled={isMutating}
-                          onClick={() => startEdit(preset)}
-                          className="glass-tag flex items-center gap-1 px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
-                        >
-                          <Pencil size={13} />
-                          {t("personaPresets.edit", "编辑")}
-                        </button>
-                      )}
+                    <div className="flex-1" />
+
+                    <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+                        <span className="inline-flex items-center gap-1">
+                          <Tag size={11} />
+                          {preset.tags.length}
+                        </span>
+                        {preset.skill_names.length > 0 && (
+                          <>
+                            <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
+                            <span className="inline-flex items-center gap-1">
+                              <Sparkles size={11} />
+                              {preset.skill_names.length} skills
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {selected ? (
+                          <button
+                            onClick={handleClear}
+                            className="persona-card__action-btn persona-card__action-btn--active"
+                            title={t("personaPresets.clear", "清除使用")}
+                          >
+                            <Check size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleUse(preset)}
+                            className="persona-card__action-btn persona-card__action-btn--primary"
+                            title={t("personaPresets.use", "使用")}
+                          >
+                            <Sparkles size={16} />
+                          </button>
+                        )}
+                        {preset.scope === "global" && canWrite && (
+                          <button
+                            onClick={() => handleCopy(preset)}
+                            className="persona-card__action-btn"
+                            title={t("personaPresets.copy", "复制到我的角色")}
+                          >
+                            <Copy size={16} />
+                          </button>
+                        )}
+                        {preset.scope === "user" && canWrite && (
+                          <button
+                            onClick={() => openModal(preset)}
+                            className="persona-card__action-btn"
+                            title={t("personaPresets.edit", "编辑")}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
+                        {preset.scope === "user" && canWrite && (
+                          <button
+                            onClick={() => setDeleteTarget(preset)}
+                            className="persona-card__action-btn persona-card__action-btn--danger"
+                            title={t("common.delete", "删除")}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Toast notification */}
-      {toast && (
-        <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-fade-in">
+      {/* Create/Edit modal */}
+      {showModal && canWrite && (
+        <>
           <div
-            className="rounded-xl px-4 py-2.5 text-sm font-medium shadow-lg"
-            style={{
-              background: "var(--theme-text)",
-              color: "var(--theme-bg)",
-            }}
-          >
-            {toast}
-          </div>
-        </div>
-      )}
-
-      {/* Create/Edit overlay */}
-      {showEditor && canWrite && (
-        <div
-          className="absolute inset-0 z-20 flex flex-col animate-fade-in"
-          style={{ background: "var(--theme-bg)" }}
-        >
+            className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
+            onClick={closeModal}
+          />
           <div
-            className="flex items-center justify-between border-b px-5 py-4"
-            style={{ borderColor: "var(--theme-border)" }}
+            className="modal-bottom-sheet sm:modal-centered-wrapper"
+            onClick={closeModal}
           >
-            <h2
-              className="text-base font-semibold"
-              style={{ color: "var(--theme-text)" }}
+            <div
+              ref={modalRef as React.Ref<HTMLDivElement>}
+              className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              {editingPreset
-                ? t("personaPresets.editMine", "编辑我的角色")
-                : t("personaPresets.createMine", "新建我的角色")}
-            </h2>
-            <button
-              type="button"
-              onClick={() => {
-                setShowEditor(false);
-                setEditingPreset(null);
-              }}
-              className="rounded-lg p-2 transition-colors hover:bg-stone-100 dark:hover:bg-stone-800"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-2xl space-y-5 p-5 sm:p-6 xl:p-8">
-              <div>
-                <label
-                  className="mb-1.5 block text-sm font-medium"
-                  style={{ color: "var(--theme-text)" }}
-                >
-                  {t("personaPresets.name", "名称")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={draft.name}
-                  onChange={(e) =>
-                    setDraft((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  className="glass-input h-10 w-full px-3 text-sm"
-                  style={{ color: "var(--theme-text)" }}
-                  placeholder={t(
-                    "personaPresets.namePlaceholder",
-                    "给角色起个名字",
-                  )}
-                />
+              <div className="bottom-sheet-handle sm:hidden" />
+              <div className="flex items-center justify-between glass-divider px-6 py-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">
+                    {editingPreset
+                      ? t("personaPresets.editMine", "编辑我的角色")
+                      : t("personaPresets.createMine", "新建我的角色")}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-[var(--theme-text-secondary)]">
+                    {editingPreset
+                      ? t(
+                          "personaPresets.editHint",
+                          "修改角色的名称、提示词和标签",
+                        )
+                      : t(
+                          "personaPresets.createHint",
+                          "定义角色的行为、语气和能力边界",
+                        )}
+                  </p>
+                </div>
+                <button onClick={closeModal} className="btn-icon">
+                  <X size={20} />
+                </button>
               </div>
-              <div>
-                <label
-                  className="mb-1.5 block text-sm font-medium"
-                  style={{ color: "var(--theme-text)" }}
-                >
-                  {t("personaPresets.description", "简介")}
-                </label>
-                <input
-                  value={draft.description}
-                  onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  className="glass-input h-10 w-full px-3 text-sm"
-                  style={{ color: "var(--theme-text)" }}
-                  placeholder={t(
-                    "personaPresets.descriptionPlaceholder",
-                    "简短描述角色的能力和特点",
-                  )}
-                />
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {t("personaPresets.name", "名称")}{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={draft.name}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    className="glass-input h-10 w-full px-3 text-sm"
+                    style={{ color: "var(--theme-text)" }}
+                    placeholder={t(
+                      "personaPresets.namePlaceholder",
+                      "给角色起个名字",
+                    )}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {t("personaPresets.description", "简介")}
+                  </label>
+                  <input
+                    value={draft.description}
+                    onChange={(e) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
+                    className="glass-input h-10 w-full px-3 text-sm"
+                    style={{ color: "var(--theme-text)" }}
+                    placeholder={t(
+                      "personaPresets.descriptionPlaceholder",
+                      "简短描述角色的能力和特点",
+                    )}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {t("personaPresets.systemPrompt", "系统提示词")}{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={draft.system_prompt}
+                    onChange={(e) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        system_prompt: e.target.value,
+                      }))
+                    }
+                    rows={10}
+                    className="glass-input w-full resize-none px-4 py-3 text-sm leading-6"
+                    style={{ color: "var(--theme-text)" }}
+                    placeholder={t(
+                      "personaPresets.systemPromptPlaceholder",
+                      "定义角色的行为、语气和能力边界...",
+                    )}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {t("personaPresets.tagsInput", "标签")}
+                  </label>
+                  <input
+                    value={draft.tags}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, tags: e.target.value }))
+                    }
+                    className="glass-input h-10 w-full px-3 text-sm"
+                    style={{ color: "var(--theme-text)" }}
+                    placeholder={t(
+                      "personaPresets.tagsInputPlaceholder",
+                      "用逗号分隔，如：写作, 翻译, 代码",
+                    )}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {t("personaPresets.skillsInput", "Skills")}
+                  </label>
+                  <input
+                    value={draft.skill_names}
+                    onChange={(e) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        skill_names: e.target.value,
+                      }))
+                    }
+                    className="glass-input h-10 w-full px-3 text-sm"
+                    style={{ color: "var(--theme-text)" }}
+                    placeholder={t(
+                      "personaPresets.skillsInputPlaceholder",
+                      "用逗号分隔，如：web_search, code_interpreter",
+                    )}
+                  />
+                </div>
               </div>
-              <div>
-                <label
-                  className="mb-1.5 block text-sm font-medium"
-                  style={{ color: "var(--theme-text)" }}
+              <div className="flex justify-end gap-2 px-6 py-4 glass-divider">
+                <button onClick={closeModal} className="btn-secondary">
+                  {t("common.cancel", "取消")}
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isMutating || !isFormValid}
+                  className="btn-primary disabled:opacity-50"
                 >
-                  {t("personaPresets.systemPrompt", "系统提示词")}{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={draft.system_prompt}
-                  onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      system_prompt: e.target.value,
-                    }))
-                  }
-                  rows={10}
-                  className="glass-input w-full resize-none px-4 py-3 text-sm leading-6"
-                  style={{ color: "var(--theme-text)" }}
-                  placeholder={t(
-                    "personaPresets.systemPromptPlaceholder",
-                    "定义角色的行为、语气和能力边界...",
+                  {isMutating ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Save size={16} />
                   )}
-                />
-              </div>
-              <div>
-                <label
-                  className="mb-1.5 block text-sm font-medium"
-                  style={{ color: "var(--theme-text)" }}
-                >
-                  {t("personaPresets.tagsInput", "标签")}
-                </label>
-                <input
-                  value={draft.tags}
-                  onChange={(e) =>
-                    setDraft((prev) => ({ ...prev, tags: e.target.value }))
-                  }
-                  className="glass-input h-10 w-full px-3 text-sm"
-                  style={{ color: "var(--theme-text)" }}
-                  placeholder={t(
-                    "personaPresets.tagsInputPlaceholder",
-                    "用逗号分隔，如：写作, 翻译, 代码",
-                  )}
-                />
-              </div>
-              <div>
-                <label
-                  className="mb-1.5 block text-sm font-medium"
-                  style={{ color: "var(--theme-text)" }}
-                >
-                  {t("personaPresets.skillsInput", "Skills")}
-                </label>
-                <input
-                  value={draft.skill_names}
-                  onChange={(e) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      skill_names: e.target.value,
-                    }))
-                  }
-                  className="glass-input h-10 w-full px-3 text-sm"
-                  style={{ color: "var(--theme-text)" }}
-                  placeholder={t(
-                    "personaPresets.skillsInputPlaceholder",
-                    "用逗号分隔，如：web_search, code_interpreter",
-                  )}
-                />
+                  {t("common.save", "保存")}
+                </button>
               </div>
             </div>
           </div>
-
-          <div
-            className="flex justify-end gap-2 border-t px-5 py-4"
-            style={{ borderColor: "var(--theme-border)" }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setShowEditor(false);
-                setEditingPreset(null);
-              }}
-              className="rounded-xl border px-4 py-2 text-sm font-medium transition-colors"
-              style={{
-                borderColor: "var(--theme-border)",
-                color: "var(--theme-text-secondary)",
-              }}
-            >
-              {t("common.cancel", "取消")}
-            </button>
-            <button
-              type="button"
-              disabled={
-                isMutating || !draft.name.trim() || !draft.system_prompt.trim()
-              }
-              onClick={handleSave}
-              className="rounded-xl px-4 py-2 text-sm font-medium shadow-sm transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50"
-              style={{
-                background: "var(--theme-primary)",
-                color: "var(--theme-bg)",
-              }}
-            >
-              {t("common.save", "保存")}
-            </button>
-          </div>
-        </div>
+        </>
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title={t("personaPresets.confirmDelete", "删除角色")}
+        message={
+          deleteTarget
+            ? t(
+                "personaPresets.confirmDeleteMessage",
+                "确定要删除角色「{name}」吗？此操作不可撤销。",
+                { name: deleteTarget.name },
+              )
+            : ""
+        }
+        confirmText={t("common.delete", "删除")}
+        cancelText={t("common.cancel", "取消")}
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

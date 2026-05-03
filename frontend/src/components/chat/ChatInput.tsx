@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, memo } from "react";
 import toast from "react-hot-toast";
 import { ArrowUp, Square, Ban, Lock, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { AgentModeSelector } from "../selectors/AgentModeSelector";
@@ -85,6 +86,7 @@ export interface ChatInputProps {
     },
   ) => Promise<void>;
   onClearPersonaPreset?: () => void;
+  canManagePersonaPresets?: boolean;
   // Agent options
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
@@ -134,8 +136,8 @@ export const ChatInput = memo(function ChatInput({
   personaPresetsMutating = false,
   onUsePersonaPreset,
   onCopyPersonaPreset,
-  onSavePersonaPreset,
   onClearPersonaPreset,
+  canManagePersonaPresets = false,
   // Agent options
   agentOptions,
   agentOptionValues = {},
@@ -149,6 +151,7 @@ export const ChatInput = memo(function ChatInput({
   className,
 }: ChatInputProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [input, setInput] = useState("");
   const [activePanel, setActivePanel] = useState<FeaturePanel>(null);
   const [internalAttachments, setInternalAttachments] = useState<
@@ -514,18 +517,14 @@ export const ChatInput = memo(function ChatInput({
 
           <div className="px-2.5 pt-1 flex items-start gap-2">
             {selectedPersonaName && (
-              <button
-                type="button"
+              <span
+                className="shrink-0 pt-2.5 pl-1 cursor-pointer whitespace-nowrap select-none truncate font-semibold leading-relaxed text-blue-600 dark:text-blue-400"
+                style={{ maxWidth: "25%", fontSize: "15px" }}
                 onClick={() => setActivePanel("persona")}
-                className="shrink-0 self-start rounded-full px-2.5 py-1.5 text-xs font-medium inline-flex"
-                style={{
-                  backgroundColor:
-                    "var(--theme-primary-alpha, rgba(99,102,241,0.1))",
-                  color: "var(--theme-primary)",
-                }}
+                title={selectedPersonaName}
               >
                 {selectedPersonaName}
-              </button>
+              </span>
             )}
             <textarea
               ref={textareaRef}
@@ -712,10 +711,11 @@ export const ChatInput = memo(function ChatInput({
           isOpen={activePanel === "persona"}
           isLoading={personaPresetsLoading}
           isMutating={personaPresetsMutating}
+          canManagePresets={canManagePersonaPresets}
           onOpenChange={(open) => setActivePanel(open ? "persona" : null)}
           onUsePreset={onUsePersonaPreset}
           onCopyPreset={onCopyPersonaPreset}
-          onSavePreset={onSavePersonaPreset}
+          onManagePresets={() => navigate("/persona")}
           onClearPreset={() => {
             onClearPersonaPreset();
             setActivePanel(null);

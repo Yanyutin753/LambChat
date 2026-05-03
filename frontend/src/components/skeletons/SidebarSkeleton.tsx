@@ -38,7 +38,7 @@ function SidebarRailSkeleton() {
         <div className="flex-grow" />
 
         {/* Profile avatar */}
-        <div className="shrink-0 p-2 border-t border-stone-200/60 dark:border-stone-800/60">
+        <div className="shrink-0 px-2 py-4 border-t border-stone-200/60 dark:border-stone-800/60">
           <div className="flex items-center justify-center w-full py-[11px]">
             <div className="skeleton-line size-8 rounded-full shrink-0" />
           </div>
@@ -136,8 +136,8 @@ function SidebarExpandedSkeleton() {
       </div>
 
       {/* Bottom user area */}
-      <div className="shrink-0 p-2 border-t border-stone-200/60 dark:border-stone-800/60">
-        <div className="flex items-center gap-3 px-2 py-2 rounded-xl">
+      <div className="shrink-0 px-2 py-1 border-t border-stone-200/60 dark:border-stone-800/60">
+        <div className="flex items-center gap-3 px-2 py-3 rounded-xl">
           <div className="skeleton-line size-8 rounded-full shrink-0" />
           <div className="skeleton-line h-3.5 w-16 rounded-md" />
         </div>

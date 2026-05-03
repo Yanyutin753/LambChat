@@ -5,12 +5,13 @@ import {
   MoreHorizontal,
   FolderOpen,
   UserRound,
+  ShoppingBag,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_NAME } from "../../../constants";
 
 const railBtn =
-  "sidebar-rail-btn flex h-9 w-9 items-center justify-center rounded-lg transition-colors mx-2 touch-manipulation";
+  "sidebar-rail-btn flex h-9 w-9 items-center justify-center rounded-full transition-colors mx-2 touch-manipulation";
 
 interface SidebarRailProps {
   user: { username?: string; avatar_url?: string } | null;
@@ -22,6 +23,7 @@ interface SidebarRailProps {
   onOpenRecentChats: () => void;
   onOpenFileLibrary: () => void;
   onOpenPersonaPlaza: () => void;
+  onOpenMarketplace: () => void;
   hasMoreMenuItems: boolean;
   onToggleMoreMenu: () => void;
   moreMenuBtnRef: React.RefObject<HTMLButtonElement | null>;
@@ -39,6 +41,7 @@ export function SidebarRail({
   onOpenRecentChats,
   onOpenFileLibrary,
   onOpenPersonaPlaza,
+  onOpenMarketplace,
   hasMoreMenuItems,
   onToggleMoreMenu,
   moreMenuBtnRef,
@@ -57,16 +60,16 @@ export function SidebarRail({
       aria-label={t("sidebarView")}
     >
       {/* Expand button — default: app icon, hover: expand icon */}
-      <div className="h-11 flex items-center justify-center w-full pt-3">
+      <div className="flex items-center justify-center w-full pt-3">
         <button
           onClick={onExpand}
-          className={`sidebar-rail-btn group flex h-9 w-9 items-center justify-center rounded-lg transition-colors mx-2 touch-manipulation cursor-e-resize rtl:cursor-w-resize`}
+          className={`${railBtn} group cursor-e-resize rtl:cursor-w-resize`}
           aria-label={t("sidebar.expandSidebar")}
         >
           <img
             src="/icons/icon.svg"
             alt={APP_NAME}
-            className="size-6 rounded-full object-cover group-hover:hidden"
+            className="size-5 rounded-full object-cover group-hover:hidden"
           />
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -84,8 +87,11 @@ export function SidebarRail({
         </button>
       </div>
 
-      {/* Action icons */}
-      <div className="mt-3 flex flex-col items-center w-full space-y-1">
+      {/* Action icons — scrollable when overflowing, no scrollbar */}
+      <div
+        className="mt-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center w-full space-y-1"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
         <button
           type="button"
           onClick={onNewSession}
@@ -112,6 +118,15 @@ export function SidebarRail({
           aria-label={t("personaPresets.title", "角色广场")}
         >
           <UserRound size={20} />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenMarketplace}
+          className={railBtn}
+          title={t("nav.marketplace", "商店")}
+          aria-label={t("nav.marketplace", "商店")}
+        >
+          <ShoppingBag size={20} />
         </button>
         <button
           type="button"
@@ -146,16 +161,14 @@ export function SidebarRail({
         )}
       </div>
 
-      <div className="pointer-events-none flex-grow" />
-
       {/* Profile avatar */}
       <div
-        className="shrink-0 p-2 border-t"
+        className="shrink-0 py-4 border-t flex flex-col items-center w-full"
         style={{ borderColor: "var(--theme-border)" }}
       >
         <button
           onClick={onShowProfile}
-          className={`${railBtn} w-full rounded-xl py-[11px] transition cursor-pointer`}
+          className={`${railBtn} rounded-full transition cursor-pointer`}
           aria-label={t("sidebar.expandSidebar")}
         >
           <div
