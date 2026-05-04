@@ -375,6 +375,15 @@
     background-color 0.15s ease;
 }
 
+.ppe-skill-trigger__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--theme-primary);
+}
+
 .ppe-skill-trigger:hover {
   border-color: color-mix(
     in srgb,
@@ -395,10 +404,18 @@
   outline: none;
 }
 
+.ppe-skill-trigger > .ppe-chip-row {
+  margin-top: 0;
+  flex: 1;
+  min-width: 0;
+}
+
 .ppe-skill-trigger__placeholder {
+  flex: 1;
   color: var(--theme-text-secondary);
-  opacity: 0.7;
+  opacity: 0.6;
   user-select: none;
+  font-size: 0.8125rem;
 }
 
 .ppe-skill-trigger__chevron {
@@ -406,6 +423,30 @@
   color: var(--theme-text-secondary);
   transition: transform 0.2s ease;
   margin-left: auto;
+}
+
+/* --- Selected chips area (below trigger, closed state) --- */
+.ppe-skill-selected-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0.375rem 0 0;
+  animation: ppe-chip-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* --- Selected chips bar (inside dropdown) --- */
+.ppe-skill-selected-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--theme-border) 50%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 20%,
+    var(--theme-bg-card)
+  );
 }
 
 .ppe-skill-chip {
@@ -467,30 +508,33 @@
 /* --- Dropdown --- */
 .ppe-skill-dropdown {
   position: absolute;
-  top: calc(100% + 0.25rem);
+  top: calc(100% + 0.375rem);
   left: 0;
   right: 0;
   z-index: 20;
   border-radius: 0.75rem;
   border: 1px solid var(--theme-border);
-  background: var(--theme-bg-card);
+  background: color-mix(in srgb, var(--theme-bg-card) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.08),
-    0 10px 15px -3px rgba(0, 0, 0, 0.06);
-  animation: ppe-dropdown-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.08);
+  animation: ppe-dropdown-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
 }
 
 .dark .ppe-skill-dropdown {
+  background: color-mix(in srgb, var(--theme-bg-card) 80%, transparent);
   box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.3),
-    0 10px 15px -3px rgba(0, 0, 0, 0.25);
+    0 20px 25px -5px rgba(0, 0, 0, 0.5),
+    0 8px 10px -6px rgba(0, 0, 0, 0.35);
 }
 
 @keyframes ppe-dropdown-in {
   from {
     opacity: 0;
-    transform: translateY(-0.25rem) scale(0.98);
+    transform: translateY(-0.375rem) scale(0.97);
   }
   to {
     opacity: 1;
@@ -498,72 +542,160 @@
   }
 }
 
+/* --- Header --- */
 .ppe-skill-dropdown__header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.5rem 0.5rem 0.5rem;
-  border-bottom: 1px solid var(--theme-border);
+  padding: 0.625rem;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--theme-border) 60%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--theme-bg-card) 94%,
+    var(--theme-primary-light)
+  );
+}
+
+.ppe-skill-dropdown__search-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .ppe-skill-dropdown__search-icon {
   position: absolute;
-  left: 1.25rem;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0.75rem;
   pointer-events: none;
   color: var(--theme-text-secondary);
-}
-
-.ppe-skill-dropdown__clear-all {
-  flex-shrink: 0;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  color: var(--theme-text-secondary);
-  border-radius: 0.375rem;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.ppe-skill-dropdown__clear-all:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.08);
-}
-
-.dark .ppe-skill-dropdown__clear-all:hover {
-  color: #f87171;
-  background: rgba(239, 68, 68, 0.15);
+  opacity: 0.65;
 }
 
 .ppe-skill-search {
   width: 100%;
-  padding: 0.4375rem 0.625rem 0.4375rem 1.75rem;
+  height: 2.375rem;
+  padding: 0 0.875rem 0 2.25rem;
   font-size: 0.8125rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--theme-border);
-  background: var(--theme-bg);
+  line-height: 1;
+  border-radius: 0.625rem;
+  border: 1px solid transparent;
+  background: color-mix(
+    in srgb,
+    var(--theme-text-secondary) 7%,
+    var(--theme-bg-card)
+  );
   color: var(--theme-text);
   outline: none;
   transition:
+    background-color 0.15s ease,
     border-color 0.15s ease,
     box-shadow 0.15s ease;
 }
 
+.ppe-skill-search:hover {
+  border-color: color-mix(in srgb, var(--theme-border) 55%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--theme-text-secondary) 9%,
+    var(--theme-bg-card)
+  );
+}
+
 .ppe-skill-search:focus {
-  border-color: var(--theme-primary);
-  box-shadow: 0 0 0 2px var(--theme-primary-light);
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 18%,
+    var(--theme-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--theme-text-secondary) 6%,
+    var(--theme-bg-card)
+  );
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--theme-primary) 12%, transparent);
 }
 
 .ppe-skill-search::placeholder {
   color: var(--theme-text-secondary);
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
+.ppe-skill-dropdown__clear-all {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.125rem;
+  padding: 0 0.625rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+  cursor: pointer;
+}
+
+.ppe-skill-dropdown__clear-all:hover {
+  border-color: rgba(239, 68, 68, 0.16);
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+}
+
+.ppe-skill-dropdown__clear-all:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14);
+}
+
+.dark .ppe-skill-dropdown__clear-all:hover {
+  border-color: rgba(248, 113, 113, 0.22);
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+}
+
+/* --- List --- */
 .ppe-skill-dropdown__list {
-  max-height: 12rem;
+  max-height: 18rem;
   overflow-y: auto;
-  padding: 0.25rem;
+  padding: 0.375rem;
+}
+
+.ppe-skill-dropdown__section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.625rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--theme-text-secondary);
+  user-select: none;
+}
+
+.ppe-skill-dropdown__section-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: var(--theme-primary);
+  flex-shrink: 0;
+}
+
+.ppe-skill-dropdown__divider {
+  height: 1px;
+  margin: 0.25rem 0.5rem;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--theme-border) 50%, transparent),
+    transparent
+  );
 }
 
 .ppe-skill-dropdown__empty {
@@ -571,51 +703,38 @@
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  padding: 1.5rem 0.75rem;
+  padding: 2rem 0.75rem;
   text-align: center;
   color: var(--theme-text-secondary);
   font-size: 0.75rem;
 }
 
 .ppe-skill-dropdown__empty-icon {
-  opacity: 0.35;
+  opacity: 0.25;
 }
 
-/* --- Skill Option --- */
+/* --- Skill Option (mini-card) --- */
 .ppe-skill-option {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.625rem;
   width: 100%;
-  padding: 0.4375rem 0.5rem;
-  border-radius: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0.4375rem 0.625rem 0.4375rem 0.4375rem;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.1s ease;
   color: var(--theme-text);
-  animation: ppe-option-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease;
 }
 
-@keyframes ppe-option-in {
-  from {
-    opacity: 0;
-    transform: translateX(-0.25rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.ppe-skill-option:hover {
-  background: var(--theme-primary-light);
-}
-
-.ppe-skill-option:active {
-  opacity: 0.7;
-}
-
-.ppe-skill-option__icon {
+/* --- Check/Plus ring --- */
+.ppe-skill-option__check-ring {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -623,26 +742,185 @@
   width: 1.5rem;
   height: 1.5rem;
   border-radius: 0.375rem;
-  background: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-bg));
+  border: 1.5px solid var(--theme-border);
+  background: var(--theme-bg-card);
+  transition: all 0.15s ease;
+}
+
+.ppe-skill-option__plus-icon {
+  color: var(--theme-text-secondary);
+  opacity: 0.5;
+}
+
+.ppe-skill-option__check-icon {
   color: var(--theme-primary);
+}
+
+.ppe-skill-option--selected .ppe-skill-option__check-ring {
+  border-color: var(--theme-primary);
+  background: color-mix(
+    in srgb,
+    var(--theme-primary) 12%,
+    var(--theme-bg-card)
+  );
+}
+
+.ppe-skill-option:not(.ppe-skill-option--selected):hover
+  .ppe-skill-option__check-ring {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 30%,
+    var(--theme-border)
+  );
+}
+
+.ppe-skill-option:not(.ppe-skill-option--selected):hover
+  .ppe-skill-option__plus-icon {
+  opacity: 0.8;
+  color: var(--theme-primary);
+}
+
+@keyframes ppe-option-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ppe-skill-option:hover {
+  background: color-mix(
+    in srgb,
+    var(--theme-text-secondary) 5%,
+    var(--theme-bg-card)
+  );
+  border-color: color-mix(in srgb, var(--theme-border) 50%, transparent);
+}
+
+.dark .ppe-skill-option:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.ppe-skill-option:active {
+  transform: scale(0.98);
+}
+
+/* Gradient accent bar (left edge) */
+.ppe-skill-option__accent {
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 3px;
+  border-radius: 9999px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.ppe-skill-option:hover .ppe-skill-option__accent {
+  opacity: 0.6;
+}
+
+.ppe-skill-option--selected .ppe-skill-option__accent {
+  opacity: 1;
+}
+
+/* --- Selected state --- */
+.ppe-skill-option--selected {
+  background: color-mix(in srgb, var(--theme-primary) 5%, var(--theme-bg-card));
+  border-color: color-mix(in srgb, var(--theme-primary) 16%, transparent);
+}
+
+.ppe-skill-option--selected:hover {
+  background: color-mix(in srgb, var(--theme-primary) 7%, transparent);
+  border-color: color-mix(in srgb, var(--theme-primary) 20%, transparent);
+}
+
+/* --- Icon ring --- */
+.ppe-skill-option__icon-ring {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--theme-border);
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 50%,
+    var(--theme-bg-card)
+  );
+  color: var(--theme-primary);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.ppe-skill-option:hover .ppe-skill-option__icon-ring {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 25%,
+    var(--theme-border)
+  );
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--theme-primary) 6%, transparent);
+}
+
+.ppe-skill-option--selected .ppe-skill-option__icon-ring {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 32%,
+    var(--theme-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 78%,
+    var(--theme-bg-card)
+  );
+}
+
+/* --- Text --- */
+.ppe-skill-option__content {
+  display: grid;
+  gap: 0.125rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .ppe-skill-option__name {
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--theme-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.3;
 }
 
 .ppe-skill-option__desc {
-  font-size: 0.6875rem;
+  font-size: 0.71875rem;
   color: var(--theme-text-secondary);
+  opacity: 0.82;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  line-clamp: 1;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   margin-top: 0.0625rem;
+  line-height: 1.4;
+}
+
+/* --- Badge (pill style) --- */
+.ppe-skill-option__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
 }
 
 .ppe-skill-option__badge {
@@ -651,18 +929,16 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.025em;
-  padding: 0.0625rem 0.375rem;
+  padding: 0.125rem 0.4375rem;
   border-radius: 9999px;
-  background: color-mix(
-    in srgb,
-    var(--theme-text-secondary) 10%,
-    var(--theme-bg)
-  );
+  background: color-mix(in srgb, var(--theme-text-secondary) 8%, transparent);
   color: var(--theme-text-secondary);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .ppe-skill-option__badge--market {
-  background: color-mix(in srgb, #8b5cf6 10%, var(--theme-bg));
+  background: color-mix(in srgb, #8b5cf6 10%, transparent);
   color: #8b5cf6;
 }
 
@@ -671,17 +947,55 @@
   color: #a78bfa;
 }
 
-.ppe-skill-option__plus {
+/* --- Action buttons --- */
+.ppe-skill-option__action {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
   color: var(--theme-text-secondary);
+  background: transparent;
   opacity: 0;
-  transform: scale(0.8);
-  transition: all 0.15s ease;
+  transform: scale(0.85);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.ppe-skill-option:hover .ppe-skill-option__plus {
+.ppe-skill-option:hover .ppe-skill-option__action,
+.ppe-skill-option--selected .ppe-skill-option__action {
   opacity: 1;
   transform: scale(1);
+}
+
+.ppe-skill-option__remove,
+.ppe-skill-option__plus {
+  display: block;
+}
+
+.ppe-skill-option--selected .ppe-skill-option__action {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.ppe-skill-option--selected .ppe-skill-option__action:hover {
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.dark .ppe-skill-option--selected .ppe-skill-option__action {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.ppe-skill-option:not(.ppe-skill-option--selected)
+  .ppe-skill-option__action:hover {
+  background: color-mix(in srgb, var(--theme-primary) 12%, transparent);
+  color: var(--theme-primary);
 }
 
 /* ===== Panel Footer ===== */
@@ -689,18 +1003,6 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--theme-border);
-  flex-shrink: 0;
-  position: sticky;
-  bottom: 0;
-  background: var(--theme-bg-card);
-}
-
-@media (min-width: 768px) {
-  .ppe-modal-footer {
-    padding: 0.875rem 1.5rem;
-  }
 }
 
 .ppe-btn {
@@ -795,18 +1097,85 @@
     animation: ppe-sheet-up 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  .ppe-skill-dropdown .ppe-skill-dropdown__search-icon {
+    left: 0.75rem;
+  }
+
   .ppe-skill-dropdown .ppe-skill-search {
     font-size: 1rem;
-    padding: 0.625rem 0.75rem 0.625rem 2.25rem;
+    padding: 0 0.75rem 0 2.5rem;
     height: 2.5rem;
+  }
+
+  .ppe-skill-dropdown__clear-all {
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    font-size: 0.8125rem;
   }
 
   .ppe-skill-dropdown .ppe-skill-option {
     padding: 0.625rem 0.875rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .ppe-skill-dropdown .ppe-skill-option__icon-ring {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.625rem;
+  }
+
+  .ppe-skill-dropdown .ppe-skill-option__icon-ring svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .ppe-skill-dropdown .ppe-skill-option__name {
+    font-size: 0.9375rem;
+  }
+
+  .ppe-skill-dropdown .ppe-skill-option__desc {
+    font-size: 0.8125rem;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .ppe-skill-dropdown .ppe-skill-option__badge,
+  .ppe-skill-dropdown .ppe-skill-option__plus,
+  .ppe-skill-dropdown .ppe-skill-option__remove {
+    display: none;
   }
 
   .ppe-skill-dropdown__list {
     max-height: 20rem;
+  }
+
+  /* --- Profile section: stack vertically on mobile --- */
+  .ppe-profile-section {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ppe-profile-fields {
+    width: 100%;
+  }
+
+  /* --- Footer: full-width stacked buttons --- */
+  .ppe-modal-footer {
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+  }
+
+  .ppe-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.625rem 1rem;
+    min-height: 2.75rem;
+    font-size: 0.9375rem;
+  }
+
+  .ppe-btn-secondary {
+    border: 1px solid var(--theme-border);
   }
 }
 

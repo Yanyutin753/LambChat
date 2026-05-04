@@ -58,7 +58,7 @@ export const WelcomePage = memo(function WelcomePage({
       className="welcome-root relative flex h-full flex-col items-center justify-center px-4 overflow-hidden"
     >
       {/* Greeting section */}
-      <div className="relative flex flex-col items-center mb-3 sm:mb-5 2xl:mb-7 w-full max-w-[90vw]">
+      <div className="relative flex flex-col items-center mb-3 sm:mb-4 md:mb-5 xl:mb-6 2xl:mb-7 w-full max-w-[90vw]">
         {/* App icon (mobile only) */}
         <div className="sm:hidden relative mb-3">
           <img
@@ -70,7 +70,7 @@ export const WelcomePage = memo(function WelcomePage({
 
         {/* Greeting */}
         <h1
-          className="welcome-greeting max-w-[90vw] text-[1.65rem] sm:text-[2rem] md:text-[2.25rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
+          className="welcome-greeting max-w-[90vw] text-[1.65rem] sm:text-[2rem] md:text-[2.25rem] lg:text-[2.35rem] xl:text-[2.4rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
           style={{ color: "var(--theme-text)" }}
         >
           <img
@@ -82,7 +82,7 @@ export const WelcomePage = memo(function WelcomePage({
         </h1>
         {/* Subtle subtitle prompt */}
         <p
-          className="welcome-subtitle mt-2 sm:mt-3 2xl:mt-4 text-sm sm:text-base 2xl:text-lg text-center font-serif"
+          className="welcome-subtitle mt-2 sm:mt-3 md:mt-3.5 xl:mt-4 2xl:mt-4 text-sm sm:text-base md:text-[17px] xl:text-lg 2xl:text-lg text-center font-serif"
           style={{ color: "var(--theme-text-secondary)" }}
         >
           {subtitle}
@@ -90,28 +90,28 @@ export const WelcomePage = memo(function WelcomePage({
       </div>
 
       {/* ChatInput centered — the focal point */}
-      <div className="welcome-input w-[23rem] sm:w-full sm:max-w-[44rem] 2xl:max-w-[54rem]">
+      <div className="welcome-input w-[95%] sm:max-w-[52rem] md:max-w-[56rem] lg:max-w-[58rem] xl:max-w-[60rem] 2xl:max-w-[62rem]">
         <ChatInput {...chatInputProps} className="mx-auto w-full px-2" />
       </div>
 
       {/* Suggestions with refresh */}
       {suggestions && suggestions.length > 0 && (
-        <div className="welcome-suggestions relative w-[19rem] sm:max-w-[32rem] 2xl:max-w-[42rem] sm:w-full px-2 sm:px-4 sm:mt-2 2xl:mt-4">
-          <div className="flex items-center justify-between mb-2 sm:mb-3 2xl:mb-4">
+        <div className="welcome-suggestions relative w-[78%] sm:max-w-[44rem] md:max-w-[48rem] lg:max-w-[50rem] xl:max-w-[52rem] 2xl:max-w-[54rem] px-2 sm:px-4 sm:mt-2 md:mt-3 xl:mt-4 2xl:mt-4">
+          <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-3 xl:mb-4 2xl:mb-4">
             <div
-              className="flex items-center gap-1 text-xs sm:text-sm font-medium font-serif"
+              className="flex items-center gap-1 text-xs sm:text-sm md:text-sm font-medium font-serif"
               style={{ color: "var(--theme-text-secondary)" }}
             >
               <Sparkles
                 size={11}
-                className="opacity-60 sm:w-3.5 sm:h-3.5 2xl:w-4 2xl:h-4"
+                className="opacity-60 sm:w-3.5 sm:h-3.5 xl:w-4 xl:h-4 2xl:w-4 2xl:h-4"
               />
               <span>{suggestionsLabel}</span>
             </div>
             {onRefreshSuggestions && (
               <button
                 onClick={handleRefresh}
-                className="welcome-refresh-btn flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                className="welcome-refresh-btn flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
                 style={{
                   color: "var(--theme-text-secondary)",
                   backgroundColor: "transparent",
@@ -120,7 +120,9 @@ export const WelcomePage = memo(function WelcomePage({
                 <RefreshCw
                   size={12}
                   className={
-                    isRefreshing ? "animate-spin" : "2xl:w-3.5 2xl:h-3.5"
+                    isRefreshing
+                      ? "animate-spin"
+                      : "xl:w-3.5 xl:h-3.5 2xl:w-3.5 2xl:h-3.5"
                   }
                 />
                 <span>{refreshLabel}</span>
@@ -129,13 +131,13 @@ export const WelcomePage = memo(function WelcomePage({
           </div>
           <div
             key={animKey}
-            className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 2xl:gap-3"
+            className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 md:gap-2.5 xl:gap-3 2xl:gap-3"
           >
             {suggestions.map((suggestion, i) => (
               <button
                 key={suggestion.text}
                 onClick={() => handleSuggestionClick(suggestion.text)}
-                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 2xl:gap-3.5 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 text-left cursor-pointer transition-all duration-300 overflow-hidden${
+                className={`welcome-card group relative flex items-center gap-2 sm:gap-3 md:gap-3 xl:gap-3.5 2xl:gap-3.5 rounded-xl border px-3 py-2 sm:px-4 sm:py-3 text-left cursor-pointer transition-all duration-300 overflow-hidden${
                   i >= 2 ? " hidden sm:flex" : ""
                 }`}
                 style={{
@@ -147,7 +149,7 @@ export const WelcomePage = memo(function WelcomePage({
                 {/* Hover shimmer layer */}
                 <span className="welcome-card-shimmer" aria-hidden="true" />
                 <span
-                  className="relative flex items-center justify-center size-6 sm:size-7 2xl:size-8 rounded-lg text-[13px] sm:text-[15px] 2xl:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
+                  className="relative flex items-center justify-center size-6 sm:size-7 xl:size-8 2xl:size-8 rounded-lg text-[13px] sm:text-[15px] xl:text-lg 2xl:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
                   style={{
                     backgroundColor: "var(--theme-primary-light)",
                     color: "var(--theme-primary)",

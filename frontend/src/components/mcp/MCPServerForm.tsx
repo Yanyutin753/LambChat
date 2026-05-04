@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Permission } from "../../types";
 import type {
@@ -281,45 +281,37 @@ export function MCPServerForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Name */}
-      <div>
-        <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-          {t("mcp.form.serverName")}
-        </label>
+      <div className="es-field">
+        <label className="es-label">{t("mcp.form.serverName")}</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           disabled={isEditing}
           placeholder={t("mcp.form.serverNamePlaceholder")}
-          className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
-            errors.name
-              ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
-              : ""
+          className={`glass-input es-input ${
+            errors.name ? "!border-red-300 dark:!border-red-700" : ""
           }`}
         />
         {errors.name && (
-          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+          <p className="es-hint" style={{ color: "#dc2626" }}>
             {errors.name}
           </p>
         )}
         {isEditing && (
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-500">
-            {t("mcp.form.serverNameUneditable")}
-          </p>
+          <p className="es-hint">{t("mcp.form.serverNameUneditable")}</p>
         )}
       </div>
 
       {/* Transport Type */}
-      <div>
-        <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-          {t("mcp.form.transportType")}
-        </label>
+      <div className="es-field">
+        <label className="es-label">{t("mcp.form.transportType")}</label>
         <div className="relative">
           <select
             value={transport}
             onChange={(e) => setTransport(e.target.value as MCPTransport)}
             disabled={isEditing}
-            className="w-full appearance-none rounded-lg border border-stone-200 bg-white pl-3 pr-9 py-2 text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+            className="glass-input es-select"
           >
             {availableTransports.map((tr) => (
               <option key={tr.value} value={tr.value}>
@@ -327,44 +319,46 @@ export function MCPServerForm({
               </option>
             ))}
           </select>
-          <ChevronDown
-            size={16}
-            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-          />
         </div>
         {isEditing && (
-          <p className="mt-1 text-xs text-stone-500 dark:text-stone-500">
-            {t("mcp.form.transportUneditable")}
-          </p>
+          <p className="es-hint">{t("mcp.form.transportUneditable")}</p>
         )}
       </div>
 
       {/* Enabled */}
-      <div className="flex items-center gap-2">
+      <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40">
         <input
           type="checkbox"
           id="enabled"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
-          className=""
+          className="sr-only peer"
         />
-        <label
-          htmlFor="enabled"
-          className="text-sm text-stone-700 dark:text-stone-300"
-        >
-          {t("mcp.form.enabled")}
-        </label>
-      </div>
+        <div className="h-[18px] w-[18px] rounded-[5px] border-2 border-[var(--theme-border)] flex items-center justify-center transition-all peer-checked:bg-amber-500 peer-checked:border-amber-500">
+          {enabled && (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </div>
+        <span className="es-label">{t("mcp.form.enabled")}</span>
+      </label>
 
       {/* Allowed Roles (system servers only) */}
       {isSystemServer && (
-        <div>
-          <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-            {t("mcp.form.allowedRoles")}
-          </label>
-          <p className="mb-2 text-xs text-stone-500 dark:text-stone-400">
-            {t("mcp.form.allowedRolesDescription")}
-          </p>
+        <div className="es-field">
+          <label className="es-label">{t("mcp.form.allowedRoles")}</label>
+          <p className="es-hint">{t("mcp.form.allowedRolesDescription")}</p>
           <RoleSelector
             selectedRoles={allowedRoles}
             onChange={handleAllowedRolesChange}
@@ -377,16 +371,13 @@ export function MCPServerForm({
                   weekly_limit: "",
                 };
                 return (
-                  <div
-                    key={role}
-                    className="rounded-lg border border-stone-200 bg-stone-50 p-2 dark:border-stone-700 dark:bg-stone-800/50"
-                  >
-                    <div className="mb-2 text-xs font-medium text-stone-700 dark:text-stone-200">
+                  <div key={role} className="es-section">
+                    <div className="text-xs font-medium text-[var(--theme-text-secondary)]">
                       {role}
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs text-stone-500 dark:text-stone-400">
+                    <div className="es-row es-row-2">
+                      <div className="es-field">
+                        <label className="es-label">
                           {t("mcp.form.dailyLimit")}
                         </label>
                         <input
@@ -397,11 +388,11 @@ export function MCPServerForm({
                             updateRoleQuota(role, "daily_limit", e.target.value)
                           }
                           placeholder={t("mcp.form.unlimited")}
-                          className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-900 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+                          className="glass-input es-input"
                         />
                       </div>
-                      <div>
-                        <label className="mb-1 block text-xs text-stone-500 dark:text-stone-400">
+                      <div className="es-field">
+                        <label className="es-label">
                           {t("mcp.form.weeklyLimit")}
                         </label>
                         <input
@@ -416,7 +407,7 @@ export function MCPServerForm({
                             )
                           }
                           placeholder={t("mcp.form.unlimited")}
-                          className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm text-stone-900 focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+                          className="glass-input es-input"
                         />
                       </div>
                     </div>
@@ -432,36 +423,28 @@ export function MCPServerForm({
       {isSandbox && (
         <>
           {/* Command */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-              {t("mcp.form.command")}
-            </label>
+          <div className="es-field">
+            <label className="es-label">{t("mcp.form.command")}</label>
             <input
               type="text"
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               placeholder={t("mcp.form.commandPlaceholder")}
-              className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
-                errors.command
-                  ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
-                  : ""
+              className={`glass-input es-input font-mono ${
+                errors.command ? "!border-red-300 dark:!border-red-700" : ""
               }`}
             />
             {errors.command && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+              <p className="es-hint" style={{ color: "#dc2626" }}>
                 {errors.command}
               </p>
             )}
           </div>
 
           {/* Env Keys Selector */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-              {t("mcp.form.envKeys")}
-            </label>
-            <p className="mb-2 text-xs text-stone-500 dark:text-stone-400">
-              {t("mcp.form.envKeysDescription")}
-            </p>
+          <div className="es-field">
+            <label className="es-label">{t("mcp.form.envKeys")}</label>
+            <p className="es-hint">{t("mcp.form.envKeysDescription")}</p>
             <EnvKeysSelector selectedKeys={envKeys} onChange={setEnvKeys} />
           </div>
         </>
@@ -471,44 +454,38 @@ export function MCPServerForm({
       {!isSandbox && (
         <>
           {/* URL field */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
-              {t("mcp.form.url")}
-            </label>
+          <div className="es-field">
+            <label className="es-label">{t("mcp.form.url")}</label>
             <input
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder={t("mcp.form.urlPlaceholder")}
-              className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500 ${
-                errors.url
-                  ? "border-red-300 focus:border-red-500 focus:ring-red-500 dark:border-red-700"
-                  : ""
+              className={`glass-input es-input font-mono ${
+                errors.url ? "!border-red-300 dark:!border-red-700" : ""
               }`}
             />
             {errors.url && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+              <p className="es-hint" style={{ color: "#dc2626" }}>
                 {errors.url}
               </p>
             )}
           </div>
 
           {/* HTTP Headers */}
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("mcp.form.httpHeaders")}
-              </label>
+          <div className="es-field">
+            <div className="flex items-center justify-between">
+              <label className="es-label">{t("mcp.form.httpHeaders")}</label>
               <button
                 type="button"
                 onClick={addHeader}
-                className="flex items-center gap-1 rounded-md bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                className="btn-secondary text-xs px-2 py-1"
               >
                 <Plus size={12} />
                 {t("mcp.form.add")}
               </button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 mt-1">
               {headers.map((header) => (
                 <div key={header.id} className="flex gap-2">
                   <input
@@ -518,7 +495,7 @@ export function MCPServerForm({
                       updateHeader(header.id, "key", e.target.value)
                     }
                     placeholder={t("mcp.form.headerNamePlaceholder")}
-                    className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+                    className="glass-input es-input font-mono"
                   />
                   <input
                     type="text"
@@ -527,21 +504,19 @@ export function MCPServerForm({
                       updateHeader(header.id, "value", e.target.value)
                     }
                     placeholder={t("mcp.form.valuePlaceholder")}
-                    className="flex-1 rounded-lg border border-stone-200 px-3 py-2 font-mono text-sm focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-500 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 dark:focus:border-amber-500 dark:focus:ring-amber-500"
+                    className="glass-input es-input font-mono"
                   />
                   <button
                     type="button"
                     onClick={() => removeHeader(header.id)}
-                    className="rounded-lg p-2 text-stone-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                    className="btn-icon hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               ))}
               {headers.length === 0 && (
-                <p className="text-sm text-stone-500 dark:text-stone-500 italic">
-                  {t("mcp.form.noHeaders")}
-                </p>
+                <p className="es-hint italic">{t("mcp.form.noHeaders")}</p>
               )}
             </div>
           </div>
@@ -554,14 +529,14 @@ export function MCPServerForm({
           type="button"
           onClick={onCancel}
           disabled={isLoading}
-          className="rounded-lg border border-stone-200 px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+          className="btn-secondary"
         >
           {t("mcp.form.cancel")}
         </button>
         <button
           type="submit"
           disabled={isLoading}
-          className="flex items-center gap-1 rounded-lg bg-stone-800 px-4 py-2 text-sm font-medium text-white hover:bg-stone-900 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-700"
+          className="btn-primary disabled:opacity-50"
         >
           {isEditing ? t("mcp.form.saveChanges") : t("mcp.form.createServer")}
         </button>

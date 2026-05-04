@@ -41,15 +41,15 @@ export function SessionGroup({
   }, [files]);
 
   return (
-    <div className="flex flex-col gap-2.5 md:gap-3">
+    <div className="flex flex-col gap-2.5 @md:gap-3">
       {/* Session header */}
-      <div className="flex items-center justify-between gap-2 pt-4 md:pt-5">
+      <div className="flex items-center justify-between gap-2 pt-4 @md:pt-5">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() =>
               onGoToSession(sessionId, navigationTarget ?? undefined)
             }
-            className="min-w-0 truncate text-[14px] md:text-[15px] font-semibold leading-[22px] text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-white text-left transition-colors"
+            className="min-w-0 truncate text-[14px] @md:text-[15px] font-semibold leading-[22px] text-stone-800 dark:text-stone-100 hover:text-stone-900 dark:hover:text-white text-left transition-colors"
           >
             {sessionName}
           </button>
@@ -63,7 +63,7 @@ export function SessionGroup({
       <div
         className={
           viewMode === "grid"
-            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-start"
+            ? "grid gap-3 items-start auto-grid-cols"
             : "flex flex-col gap-2"
         }
       >

@@ -14,8 +14,9 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { SkillBaseCard } from "../../common/SkillBaseCard";
+import { getCategoryIcon, nameToGradient } from "../../common/cardUtils";
 import type { MarketplaceSkillResponse } from "../../../types";
-import { getCategoryIcon, nameToGradient } from "./constants";
 
 interface SkillCardProps {
   skill: MarketplaceSkillResponse;
@@ -65,90 +66,64 @@ export function SkillCard({
   const CategoryIcon = primaryTag ? getCategoryIcon(primaryTag) : Sparkles;
 
   return (
-    <div
-      key={skill.skill_name}
-      className="mp-card group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
-      style={{ animationDelay: `${index * 60}ms` }}
-    >
-      {/* Gradient Banner */}
-      <div
-        className="mp-card__banner relative h-12 shrink-0"
-        style={{
-          background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
-        }}
-      >
-        {/* Status pills overlay on banner */}
-        <div className="absolute top-2 right-2 flex gap-1.5">
+    <SkillBaseCard
+      title={skill.skill_name}
+      description={skill.description || t("marketplace.noDescription")}
+      gradient={gradient}
+      icon={<CategoryIcon size={20} className="text-[var(--theme-primary)]" />}
+      animated
+      animationDelay={index * 60}
+      bannerOverlay={
+        <>
           {isInstalled && (
-            <span className="mp-card__status-pill mp-card__status-pill--installed">
+            <span className="scb__status-pill scb__status-pill--installed">
               {t("marketplace.installed")}
             </span>
           )}
           {!skill.is_active && (
-            <span className="mp-card__status-pill mp-card__status-pill--inactive">
+            <span className="scb__status-pill scb__status-pill--inactive">
               {t("marketplace.inactive")}
             </span>
           )}
-        </div>
-      </div>
-
-      {/* Card Body */}
-      <div className="flex flex-1 flex-col p-4 pt-5">
-        {/* Title row with icon */}
-        <div className="flex items-start gap-3">
-          <div className="mp-card__icon-ring shrink-0">
-            <CategoryIcon size={20} className="text-[var(--theme-primary)]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3
-              className="truncate text-base font-semibold text-[var(--theme-text)] leading-tight"
-              title={skill.skill_name}
-            >
-              {skill.skill_name}
-            </h3>
-            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
-              {skill.updated_at && (
-                <span>
-                  {new Date(skill.updated_at).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                  })}
-                </span>
-              )}
-              {skill.created_by_username && (
-                <>
-                  <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
-                  <span className="truncate">
-                    {t("marketplace.publishedBy", {
-                      username: skill.created_by_username,
-                    })}
-                  </span>
-                </>
-              )}
+        </>
+      }
+      tags={
+        primaryTag ? (
+          <>
+            <div className="flex items-center gap-1.5">
+              <CategoryIcon
+                size={12}
+                className="text-[var(--theme-text-secondary)]"
+              />
+              <span className="scb__category-tag">{primaryTag}</span>
             </div>
-          </div>
-        </div>
-
-        {/* Description */}
-        <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">
-          {skill.description || t("marketplace.noDescription")}
-        </p>
-
-        {/* Category tag */}
-        {primaryTag && (
-          <div className="mt-3 flex items-center gap-1.5">
-            <CategoryIcon
-              size={12}
-              className="text-[var(--theme-text-secondary)]"
-            />
-            <span className="mp-card__category-tag">{primaryTag}</span>
-          </div>
-        )}
-
-        {/* Conflict warning */}
-        {hasLocalManualConflict && (
-          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/90 px-2.5 py-2 text-[11px] text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+            {skill.tags.length > 1 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {skill.tags.slice(1, 4).map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => onToggleTag(tag)}
+                    className={`scb__mini-tag ${
+                      selectedTags.includes(tag) ? "scb__mini-tag--active" : ""
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+                {skill.tags.length > 4 && (
+                  <span className="scb__mini-tag">
+                    +{skill.tags.length - 4}
+                  </span>
+                )}
+              </div>
+            )}
+          </>
+        ) : undefined
+      }
+      extraContent={
+        hasLocalManualConflict ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/90 px-2.5 py-2 text-[11px] text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
             <div className="flex items-start gap-1.5">
               <AlertTriangle size={12} className="mt-0.5 shrink-0" />
               <span>{t("marketplace.installNameConflict")}</span>
@@ -166,37 +141,11 @@ export function SkillCard({
               <span>{t("marketplace.viewInMySkills")}</span>
             </button>
           </div>
-        )}
-
-        {/* Tags */}
-        {skill.tags.length > 1 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {skill.tags.slice(1, 4).map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => onToggleTag(tag)}
-                className={`mp-card__mini-tag ${
-                  selectedTags.includes(tag) ? "mp-card__mini-tag--active" : ""
-                }`}
-              >
-                {tag}
-              </button>
-            ))}
-            {skill.tags.length > 4 && (
-              <span className="mp-card__mini-tag">
-                +{skill.tags.length - 4}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Meta & Actions */}
-        <div className="mt-4 flex items-center justify-between gap-2 border-t border-[var(--theme-border)] pt-3">
-          <div className="flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+        ) : undefined
+      }
+      meta={
+        <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+          <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1">
               <FileText size={11} />
               {skill.file_count}
@@ -206,8 +155,11 @@ export function SkillCard({
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={onPreview}
-              className="mp-card__action-btn mp-card__action-btn--ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPreview();
+              }}
+              className="scb__action-btn scb__action-btn--ghost"
               title={t("marketplace.preview")}
             >
               <Eye size={16} />
@@ -216,7 +168,7 @@ export function SkillCard({
               (installingSkill === skill.skill_name ? (
                 <button
                   disabled
-                  className="mp-card__action-btn mp-card__action-btn--loading"
+                  className="scb__action-btn scb__action-btn--loading"
                 >
                   <Loader2Icon size={16} className="animate-spin" />
                 </button>
@@ -229,7 +181,10 @@ export function SkillCard({
                 </span>
               ) : (
                 <button
-                  onClick={() => onInstallClick(skill.skill_name)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onInstallClick(skill.skill_name);
+                  }}
                   disabled={hasLocalManualConflict}
                   title={
                     hasLocalManualConflict
@@ -238,10 +193,10 @@ export function SkillCard({
                         ? t("marketplace.update")
                         : t("marketplace.install")
                   }
-                  className={`mp-card__action-btn ${
+                  className={`scb__action-btn ${
                     hasLocalManualConflict
-                      ? "mp-card__action-btn--disabled"
-                      : "mp-card__action-btn--ghost"
+                      ? "scb__action-btn--disabled"
+                      : "scb__action-btn--ghost"
                   }`}
                 >
                   {hasLocalManualConflict ? (
@@ -254,18 +209,18 @@ export function SkillCard({
                 </button>
               ))}
 
-            {/* Admin dropdown */}
             {canManage && (
               <div className="relative" data-mp-menu>
                 <button
-                  className="mp-card__action-btn mp-card__action-btn--ghost"
-                  onClick={() =>
+                  className="scb__action-btn scb__action-btn--ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     onOpenMenu(
                       openMenuName === skill.skill_name
                         ? null
                         : skill.skill_name,
-                    )
-                  }
+                    );
+                  }}
                 >
                   <MoreHorizontal size={16} />
                 </button>
@@ -318,7 +273,7 @@ export function SkillCard({
             )}
           </div>
         </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

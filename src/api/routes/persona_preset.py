@@ -93,7 +93,7 @@ async def get_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="角色预设不存在")
+        raise HTTPException(status_code=404, detail="persona_preset_not_found")
 
 
 @router.put("/{preset_id}", response_model=PersonaPreset)
@@ -111,7 +111,7 @@ async def update_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="角色预设不存在")
+        raise HTTPException(status_code=404, detail="persona_preset_not_found")
     except AuthorizationError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -130,7 +130,7 @@ async def delete_persona_preset(
         )
         return {"status": "deleted"}
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="角色预设不存在")
+        raise HTTPException(status_code=404, detail="persona_preset_not_found")
     except AuthorizationError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -148,7 +148,7 @@ async def copy_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="角色预设不存在")
+        raise HTTPException(status_code=404, detail="persona_preset_not_found")
 
 
 @router.post("/{preset_id}/use", response_model=PersonaPresetSnapshot)
@@ -164,4 +164,4 @@ async def use_persona_preset(
             is_admin=_is_admin(user),
         )
     except NotFoundError:
-        raise HTTPException(status_code=404, detail="角色预设不存在")
+        raise HTTPException(status_code=404, detail="persona_preset_not_found")

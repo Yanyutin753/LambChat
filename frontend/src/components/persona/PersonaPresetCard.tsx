@@ -4,10 +4,7 @@ import type { PersonaPreset } from "../../types";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
 import { isPersonaImageAvatar } from "./personaAvatar";
 import { getPersonaPresetCapabilities } from "./personaPresetAccess";
-import {
-  getCategoryIcon,
-  nameToGradient,
-} from "../panels/MarketplacePanel/constants";
+import { getCategoryIcon, nameToGradient } from "../common/cardUtils";
 
 interface PersonaPresetCardProps {
   preset: PersonaPreset;
@@ -46,17 +43,17 @@ export function PersonaPresetCard({
   });
 
   return (
-    <div className="mp-card group flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]">
+    <div className="scb group flex h-full flex-col overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none">
       {/* Gradient Banner */}
       <div
-        className="mp-card__banner relative h-12 shrink-0"
+        className="scb__banner relative h-12 shrink-0"
         style={{
           background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
         }}
       >
         <div className="absolute top-2 right-2 flex gap-1.5">
           {selected && (
-            <span className="mp-card__status-pill mp-card__status-pill--installed">
+            <span className="scb__status-pill scb__status-pill--installed">
               {t("personaPresets.using", "使用中")}
             </span>
           )}
@@ -68,18 +65,18 @@ export function PersonaPresetCard({
         {/* Title row with avatar or icon */}
         <div className="flex items-start gap-3">
           {isPersonaImageAvatar(preset.avatar) ? (
-            <div className="mp-card__avatar-ring shrink-0">
+            <div className="scb__avatar-ring shrink-0">
               <PersonaAvatarImage
                 avatar={preset.avatar}
                 alt=""
-                className="mp-card__avatar-img"
+                className="scb__avatar-img"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
               />
             </div>
           ) : (
-            <div className="mp-card__icon-ring shrink-0">
+            <div className="scb__icon-ring shrink-0">
               <PersonaAvatarIcon
                 avatar={preset.avatar}
                 primaryTag={primaryTag}
@@ -138,7 +135,7 @@ export function PersonaPresetCard({
               size={12}
               className="text-[var(--theme-text-secondary)]"
             />
-            <span className="mp-card__category-tag">{primaryTag}</span>
+            <span className="scb__category-tag">{primaryTag}</span>
           </div>
         )}
 
@@ -149,17 +146,15 @@ export function PersonaPresetCard({
                 key={tag}
                 type="button"
                 onClick={() => onToggleTag(tag)}
-                className={`mp-card__mini-tag ${
-                  activeTag === tag ? "mp-card__mini-tag--active" : ""
+                className={`scb__mini-tag ${
+                  activeTag === tag ? "scb__mini-tag--active" : ""
                 }`}
               >
                 {tag}
               </button>
             ))}
             {preset.tags.length > 4 && (
-              <span className="mp-card__mini-tag">
-                +{preset.tags.length - 4}
-              </span>
+              <span className="scb__mini-tag">+{preset.tags.length - 4}</span>
             )}
           </div>
         )}
@@ -173,7 +168,8 @@ export function PersonaPresetCard({
             {preset.skill_names.length > 0 && (
               <span className="inline-flex items-center gap-1">
                 <Sparkles size={11} />
-                {preset.skill_names.length} skills
+                {preset.skill_names.length}{" "}
+                {t("personaPresets.skillsCount", "skills")}
               </span>
             )}
           </div>
@@ -181,7 +177,7 @@ export function PersonaPresetCard({
             {selected ? (
               <button
                 onClick={onClear}
-                className="mp-card__action-btn mp-card__action-btn--ghost"
+                className="scb__action-btn scb__action-btn--ghost"
                 title={t("personaPresets.clear", "清除使用")}
               >
                 <Check size={16} />
@@ -189,7 +185,7 @@ export function PersonaPresetCard({
             ) : (
               <button
                 onClick={() => onUse(preset)}
-                className="mp-card__action-btn mp-card__action-btn--ghost"
+                className="scb__action-btn scb__action-btn--ghost"
                 title={t("personaPresets.use", "使用")}
               >
                 <Sparkles size={16} />
@@ -198,7 +194,7 @@ export function PersonaPresetCard({
             {capabilities.canCopy && (
               <button
                 onClick={() => onCopy(preset)}
-                className="mp-card__action-btn mp-card__action-btn--ghost"
+                className="scb__action-btn scb__action-btn--ghost"
                 title={t("personaPresets.copy", "复制到我的角色")}
               >
                 <Copy size={16} />
@@ -207,7 +203,7 @@ export function PersonaPresetCard({
             {capabilities.canEdit && (
               <button
                 onClick={() => onEdit(preset)}
-                className="mp-card__action-btn mp-card__action-btn--ghost"
+                className="scb__action-btn scb__action-btn--ghost"
                 title={t("personaPresets.edit", "编辑")}
               >
                 <Pencil size={16} />
@@ -216,7 +212,7 @@ export function PersonaPresetCard({
             {capabilities.canDelete && (
               <button
                 onClick={() => onDelete(preset)}
-                className="mp-card__action-btn"
+                className="scb__action-btn"
                 title={t("common.delete", "删除")}
                 style={{ color: "#dc2626" }}
               >

@@ -209,7 +209,7 @@ export function PersonaPresetSelector({
                 return (
                   <div
                     key={preset.id}
-                    className="pps-card group flex h-full flex-col overflow-hidden rounded-xl bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none dark:border dark:border-[var(--theme-border)]"
+                    className="pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     {/* Gradient Banner */}

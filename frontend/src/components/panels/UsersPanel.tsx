@@ -20,6 +20,9 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { EditorSidebar } from "../common/EditorSidebar";
+import { ConfirmDialog } from "../common/ConfirmDialog";
+import { Checkbox } from "../common/Checkbox";
 import { UsersPanelSkeleton } from "../skeletons";
 import { Pagination } from "../common/Pagination";
 import { userApi, roleApi } from "../../services/api";
@@ -31,7 +34,6 @@ import type {
   UserUpdate,
   Role,
 } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 // User avatar display component
 interface UserAvatarProps {
@@ -77,7 +79,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// 用户表单模态框
+// 用户表单侧边栏
 interface UserFormModalProps {
   user?: UserType | null;
   roles: Role[];
@@ -102,11 +104,6 @@ function UserFormModal({
   );
   const [isActive, setIsActive] = useState(user?.is_active ?? true);
   const [error, setError] = useState<string | null>(null);
-
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
 
   const isEditing = !!user;
 
@@ -168,271 +165,149 @@ function UserFormModal({
   };
 
   return (
-    <>
-      <div
-        className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
-        onClick={onClose}
-      />
-      <div
-        className="modal-bottom-sheet sm:modal-centered-wrapper"
-        onClick={onClose}
-      >
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bottom-sheet-handle sm:hidden" />
-          {/* Header */}
-          <div className="flex items-center justify-between glass-divider px-6 py-4">
-            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {isEditing ? t("users.editUser") : t("users.createUser")}
-            </h2>
-            <button onClick={onClose} className="btn-icon">
-              <X size={20} />
-            </button>
+    <EditorSidebar
+      open={true}
+      onClose={onClose}
+      title={isEditing ? t("users.editUser") : t("users.createUser")}
+      subtitle={
+        isEditing
+          ? t("users.editUserDesc", "修改用户信息")
+          : t("users.createUserDesc", "创建新用户账号")
+      }
+      icon={isEditing ? <Edit size={16} /> : <Plus size={16} />}
+      width="wide"
+      footer={
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary flex-1"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            type="submit"
+            form="user-form"
+            disabled={isLoading}
+            className="btn-primary flex-1 disabled:opacity-50"
+          >
+            {isLoading ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+            {t("common.save")}
+          </button>
+        </div>
+      }
+    >
+      <form id="user-form" onSubmit={handleSubmit} className="es-form">
+        {error && (
+          <div className="es-error">
+            <AlertCircle size={18} />
+            <span>{error}</span>
           </div>
+        )}
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                  <AlertCircle size={18} />
-                  <span>{error}</span>
-                </div>
-              )}
+        {/* 用户名 */}
+        <div className="es-field">
+          <label className="es-label">{t("users.username")}</label>
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500">
+              <User size={16} />
+            </div>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="glass-input es-input pl-10"
+              placeholder={t("users.usernamePlaceholder")}
+            />
+          </div>
+        </div>
 
-              {/* 用户名 */}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                  {t("users.username")}
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500">
-                    <User size={18} />
-                  </div>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="glass-input w-full rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-stone-100"
-                    placeholder={t("users.usernamePlaceholder")}
-                  />
-                </div>
-              </div>
+        {/* 邮箱 */}
+        <div className="es-field">
+          <label className="es-label">{t("users.email")}</label>
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500">
+              <Mail size={16} />
+            </div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="glass-input es-input pl-10"
+              placeholder={t("users.emailPlaceholder")}
+            />
+          </div>
+        </div>
 
-              {/* 邮箱 */}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                  {t("users.email")}
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500">
-                    <Mail size={18} />
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="glass-input w-full rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-stone-100"
-                    placeholder={t("users.emailPlaceholder")}
-                  />
-                </div>
-              </div>
+        {/* 密码 */}
+        <div className="es-field">
+          <label className="es-label">
+            {t("users.password")} {isEditing && t("users.passwordHint")}
+          </label>
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500">
+              <Lock size={16} />
+            </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="glass-input es-input pl-10"
+              placeholder={
+                isEditing
+                  ? t("users.passwordPlaceholderEdit")
+                  : t("users.passwordPlaceholder")
+              }
+            />
+          </div>
+        </div>
 
-              {/* 密码 */}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                  {t("users.password")} {isEditing && t("users.passwordHint")}
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400 dark:text-stone-500">
-                    <Lock size={18} />
-                  </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="glass-input w-full rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:text-stone-100"
-                    placeholder={
-                      isEditing
-                        ? t("users.passwordPlaceholderEdit")
-                        : t("users.passwordPlaceholder")
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* 角色 */}
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                  {t("users.roles")}
-                </label>
-                <div className="relative">
-                  <div className="overflow-y-auto rounded-xl border border-[var(--glass-border)] bg-[var(--theme-bg-card)] py-2 pl-5 pr-4">
-                    {roles.length === 0 ? (
-                      <p className="text-sm text-stone-500 dark:text-stone-400">
-                        {t("users.noRolesAvailable")}
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {roles.map((role) => (
-                          <label
-                            key={role.id}
-                            className="flex cursor-pointer items-center gap-2"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedRoles.includes(role.name)}
-                              onChange={() => toggleRole(role.name)}
-                              className=""
-                            />
-                            <span className="text-sm text-stone-700 dark:text-stone-300">
-                              {role.name}
-                            </span>
-                            {role.is_system && (
-                              <span className="rounded bg-[var(--glass-bg-subtle)] px-1.5 py-0.5 text-xs text-stone-500 dark:text-stone-400">
-                                {t("users.system")}
-                              </span>
-                            )}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* 状态 */}
-              {isEditing && (
-                <div>
-                  <label className="flex cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={isActive}
-                      onChange={(e) => setIsActive(e.target.checked)}
-                      className=""
+        {/* 角色 */}
+        <div className="es-field">
+          <label className="es-label">{t("users.roles")}</label>
+          <div className="es-section">
+            {roles.length === 0 ? (
+              <p className="es-hint">{t("users.noRolesAvailable")}</p>
+            ) : (
+              <div className="space-y-1">
+                {roles.map((role) => (
+                  <label
+                    key={role.id}
+                    className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40"
+                  >
+                    <Checkbox
+                      size="sm"
+                      checked={selectedRoles.includes(role.name)}
+                      onChange={() => toggleRole(role.name)}
                     />
                     <span className="text-sm text-stone-700 dark:text-stone-300">
-                      {t("users.enableAccount")}
+                      {role.name}
                     </span>
-                  </label>
-                </div>
-              )}
-
-              {/* 按钮 */}
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn-secondary flex-1"
-                >
-                  {t("common.cancel")}
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="btn-primary flex-1 disabled:opacity-50"
-                >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <span className="inline-flex h-4 w-4 items-center justify-center">
-                      {isLoading ? (
-                        <LoadingSpinner size="sm" />
-                      ) : (
-                        <Save size={16} />
-                      )}
-                    </span>
-                    <span>{t("common.save")}</span>
-                  </span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// 删除确认模态框
-interface DeleteConfirmModalProps {
-  username: string;
-  onConfirm: () => Promise<void>;
-  onClose: () => void;
-  isLoading: boolean;
-}
-
-function DeleteConfirmModal({
-  username,
-  onConfirm,
-  onClose,
-  isLoading,
-}: DeleteConfirmModalProps) {
-  const { t } = useTranslation();
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
-  return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div
-        className="modal-bottom-sheet sm:modal-centered-wrapper"
-        onClick={onClose}
-      >
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bottom-sheet-handle sm:hidden" />
-          {/* Header */}
-          <div className="flex items-center justify-between glass-divider px-6 py-4">
-            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {t("users.confirmDelete")}
-            </h2>
-            <button onClick={onClose} className="btn-icon">
-              <X size={20} />
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="px-6 py-4">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <AlertCircle
-                size={24}
-                className="text-red-600 dark:text-red-400"
-              />
-            </div>
-            <p className="mb-6 text-sm text-stone-500 dark:text-stone-400">
-              {t("users.confirmDeleteMessage", { username })}
-            </p>
-            <div className="flex gap-3">
-              <button onClick={onClose} className="btn-secondary flex-1">
-                {t("common.cancel")}
-              </button>
-              <button
-                onClick={onConfirm}
-                disabled={isLoading}
-                className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                <span className="inline-flex items-center justify-center gap-2">
-                  <span className="inline-flex h-4 w-4 items-center justify-center">
-                    {isLoading ? (
-                      <LoadingSpinner size="sm" color="text-white" />
-                    ) : (
-                      <Trash2 size={16} />
+                    {role.is_system && (
+                      <span className="es-chip">{t("users.system")}</span>
                     )}
-                  </span>
-                  <span>{t("common.delete")}</span>
-                </span>
-              </button>
-            </div>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      </div>
-    </>
+
+        {/* 状态 */}
+        {isEditing && (
+          <div className="es-field">
+            <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40">
+              <Checkbox
+                size="sm"
+                checked={isActive}
+                onChange={() => setIsActive(!isActive)}
+              />
+              <span className="es-label">{t("users.enableAccount")}</span>
+            </label>
+          </div>
+        )}
+      </form>
+    </EditorSidebar>
   );
 }
 
@@ -611,7 +486,7 @@ export function UsersPanel() {
         ) : (
           <>
             {/* Desktop table view */}
-            <div className="hidden overflow-hidden glass-card rounded-xl sm:block">
+            <div className="hidden overflow-x-auto glass-card rounded-xl sm:block">
               <table className="min-w-full divide-y divide-[var(--glass-border)]">
                 <thead className="bg-[var(--glass-bg-subtle)]">
                   <tr>
@@ -812,14 +687,19 @@ export function UsersPanel() {
         />
       )}
 
-      {deleteUser && (
-        <DeleteConfirmModal
-          username={deleteUser.username}
-          onConfirm={handleDeleteUser}
-          onClose={() => setDeleteUser(null)}
-          isLoading={isSaving}
-        />
-      )}
+      <ConfirmDialog
+        isOpen={!!deleteUser}
+        title={t("users.confirmDelete")}
+        message={t("users.confirmDeleteMessage", {
+          username: deleteUser?.username,
+        })}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
+        variant="danger"
+        loading={isSaving}
+        onConfirm={handleDeleteUser}
+        onCancel={() => setDeleteUser(null)}
+      />
     </div>
   );
 }

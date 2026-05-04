@@ -21,6 +21,8 @@ import { ImageViewer } from "../common";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
 import { useFileUpload } from "../../hooks/useFileUpload";
+import { useMentionState } from "../../hooks/useMentionState";
+import { getCaretCoordinates } from "../../utils/caretPosition";
 import { openAttachmentPreview } from "./attachmentPreviewStore";
 import {
   getTextareaMaxHeightPx,
@@ -31,6 +33,7 @@ import { turndown, cleanPastedHtml } from "./chatInputTurndown";
 import { PASTE_TEXT_THRESHOLD } from "./chatInputConstants";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
+import { MentionPopup } from "./MentionPopup";
 import {
   PersonaAvatarIcon,
   PersonaAvatarImage,
@@ -187,6 +190,16 @@ export const ChatInput = memo(function ChatInput({
   });
   const historyIndexRef = useRef(-1);
   const draftRef = useRef("");
+  const [cursorPosition, setCursorPosition] = useState(0);
+
+  const mentionPresets = onUsePersonaPreset ? personaPresets : [];
+  const {
+    mention,
+    filteredPresets: mentionFilteredPresets,
+    moveHighlight: moveMentionHighlight,
+    setHighlightedIndex: setMentionHighlight,
+    resetMention,
+  } = useMentionState(input, cursorPosition, mentionPresets);
 
   const personaAvatar = useMemo(() => {
     if (!selectedPersonaPresetId) return null;
@@ -292,6 +305,47 @@ export const ChatInput = memo(function ChatInput({
     [validateCount, uploadFiles, t],
   );
 
+  const applyMentionSelection = useCallback(
+    (preset: PersonaPreset) => {
+      if (!mention.isActive) return;
+      const before = input.substring(0, mention.atIndex);
+      const after = input.substring(mention.atIndex + mention.query.length + 1);
+      const newInput = before + preset.name + " " + after;
+      const newCursorPos = mention.atIndex + preset.name.length + 1;
+      setInput(newInput);
+      setCursorPosition(newCursorPos);
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          textarea.selectionStart = textarea.selectionEnd = newCursorPos;
+          textarea.focus();
+          scheduleTextareaResize();
+        }
+      });
+      onUsePersonaPreset?.(preset);
+      resetMention();
+    },
+    [input, mention, onUsePersonaPreset, resetMention, scheduleTextareaResize],
+  );
+
+  const getMentionPopupPosition = useCallback((): {
+    top: number;
+    left: number;
+  } | null => {
+    if (!mention.isActive || !textareaRef.current) return null;
+    const coords = getCaretCoordinates(textareaRef.current, mention.atIndex);
+    if (!coords) return null;
+    const lineHeight =
+      parseFloat(window.getComputedStyle(textareaRef.current).lineHeight) || 24;
+    const textareaRect = textareaRef.current.getBoundingClientRect();
+    let top = textareaRect.top + coords.top + lineHeight + 6;
+    const popupMaxHeight = 320;
+    if (top + popupMaxHeight > window.innerHeight) {
+      top = textareaRect.top + coords.top - popupMaxHeight - 6;
+    }
+    return { top, left: textareaRect.left + coords.left };
+  }, [mention.isActive, mention.atIndex]);
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const clipboardData = e.clipboardData;
     if (!clipboardData) return;
@@ -374,6 +428,30 @@ export const ChatInput = memo(function ChatInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mention.isActive) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        moveMentionHighlight("up");
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        moveMentionHighlight("down");
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const highlighted = mentionFilteredPresets[mention.highlightedIndex];
+        if (highlighted) applyMentionSelection(highlighted);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        resetMention();
+        return;
+      }
+    }
+
     const newlineModifier = localStorage.getItem("newlineModifier") || "shift";
 
     if (e.key === "Enter") {
@@ -476,7 +554,9 @@ export const ChatInput = memo(function ChatInput({
     >
       <form
         onSubmit={handleSubmit}
-        className={className ?? "mx-auto max-w-3xl xl:max-w-5xl px-2"}
+        className={
+          className ?? "mx-auto max-w-3xl lg:max-w-4xl xl:max-w-5xl px-2"
+        }
       >
         <div
           onDragOver={handleDragOver}
@@ -541,7 +621,10 @@ export const ChatInput = memo(function ChatInput({
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  setCursorPosition(e.target.selectionStart);
+                }}
                 onFocus={scheduleTextareaResize}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
@@ -735,6 +818,18 @@ export const ChatInput = memo(function ChatInput({
         </div>
       </form>
 
+      {mention.isActive && (
+        <MentionPopup
+          filteredPresets={mentionFilteredPresets}
+          highlightedIndex={mention.highlightedIndex}
+          selectedPresetId={selectedPersonaPresetId}
+          position={getMentionPopupPosition()}
+          onSelect={applyMentionSelection}
+          onHover={setMentionHighlight}
+          onClose={resetMention}
+        />
+      )}
+
       {/* Controlled selectors — modals only, triggered by FeatureMenu */}
       {onToggleTool && onToggleCategory && onToggleAll && (
         <ToolSelector
@@ -810,7 +905,7 @@ export const ChatInput = memo(function ChatInput({
             />
           ))}
 
-      <div className="hidden sm:flex mx-auto max-w-3xl xl:max-w-5xl mt-3 px-2 justify-center">
+      <div className="hidden sm:flex mx-auto max-w-3xl lg:max-w-4xl xl:max-w-5xl mt-3 px-2 justify-center">
         <span
           className="text-xs font-serif"
           style={{ color: "var(--theme-text-secondary)" }}

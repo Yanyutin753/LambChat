@@ -100,7 +100,7 @@ export function RevealedFilesPanel() {
 
   return (
     <>
-      <div className="flex min-h-full flex-col">
+      <div className="flex min-h-full flex-col @container">
         {/* Toolbar */}
         <Toolbar
           search={search}
@@ -131,8 +131,8 @@ export function RevealedFilesPanel() {
           />
 
           {sessionGroups.length > 0 && (
-            <div className="flex flex-col pb-6 px-5 md:px-6 gap-3">
-              <div className="w-full flex flex-col gap-3 md:gap-6">
+            <div className="flex flex-col pb-6 px-5 @md:px-6 gap-3">
+              <div className="w-full flex flex-col gap-3 @md:gap-6">
                 {sessionGroups.map((group) => (
                   <SessionGroup
                     key={group.session_id}

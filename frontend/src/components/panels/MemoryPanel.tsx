@@ -9,7 +9,6 @@ import {
   Trash2,
   ChevronDown,
   Check,
-  X,
   Clock,
   Tag,
   RefreshCw,
@@ -22,6 +21,7 @@ import { Pagination } from "../common/Pagination";
 import { Checkbox } from "../common/Checkbox";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { BatchActionBar } from "../panels/SkillsPanel/BatchActionBar";
+import { EditorSidebar } from "../common/EditorSidebar";
 import { memoryApi, type MemoryItem } from "../../services/api/memory";
 
 const TYPE_STYLES: Record<string, string> = {
@@ -185,121 +185,99 @@ function DetailModal({
   const style = TYPE_STYLES[memory.memory_type] ?? TYPE_STYLES.user;
 
   return (
-    <>
-      <div
-        className="modal-bottom-sheet sm:modal-centered-wrapper"
-        onClick={onClose}
-      />
-      <div className="modal-bottom-sheet sm:modal-centered-wrapper">
-        <div
-          className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-2xl min-h-[40vh]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bottom-sheet-handle sm:hidden" />
-
-          {/* Header */}
-          <div className="flex items-start justify-between border-b border-[var(--glass-border)] p-5 sm:p-6 pb-4">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span
-                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none ${style}`}
-                >
-                  {t(`memory.type.${memory.memory_type}`)}
-                </span>
-                <span className="text-[11px] text-stone-400 dark:text-stone-500">
-                  {relativeTime(memory.updated_at)}
-                </span>
-              </div>
-              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100 font-serif truncate">
-                {memory.title}
-              </h3>
-              {memory.created_at && (
-                <p className="mt-1 text-xs text-stone-400 dark:text-stone-500 flex items-center gap-1">
-                  <Clock size={12} />
-                  {new Date(memory.created_at).toLocaleString()}
-                  <span className="ml-2">
-                    {memory.access_count ?? 0} {t("memory.accesses")}
-                  </span>
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-1 flex-shrink-0 ml-3">
-              <button
-                onClick={() => onDelete(memory.memory_id)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                title={t("common.delete")}
-              >
-                <Trash2 size={16} />
-              </button>
-              <button
-                onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-              >
-                <X size={20} />
-              </button>
-            </div>
-          </div>
-
-          {/* Tags */}
-          {memory.tags.length > 0 && (
-            <div className="flex items-center gap-1.5 px-5 sm:px-6 pt-3 flex-wrap">
-              <Tag size={12} className="text-stone-400 flex-shrink-0" />
-              {memory.tags.slice(0, 8).map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-400"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <svg
-                  className="h-6 w-6 animate-spin text-stone-400"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-              </div>
-            ) : (
-              <div className="rounded-xl bg-stone-50 p-4 dark:bg-stone-900/60">
-                <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap leading-relaxed">
-                  {content || memory.summary}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="border-t border-[var(--glass-border)] px-5 sm:px-6 py-3">
-            <button
-              onClick={onClose}
-              className="w-full rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
-            >
-              {t("common.close")}
-            </button>
-          </div>
+    <EditorSidebar
+      open={true}
+      onClose={onClose}
+      title={memory.title}
+      subtitle={t(`memory.type.${memory.memory_type}`)}
+      icon={<Eye size={16} />}
+      footer={
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => onDelete(memory.memory_id)}
+            className="btn-danger"
+          >
+            <Trash2 size={16} />
+            {t("common.delete")}
+          </button>
+          <div className="flex-1" />
+          <button onClick={onClose} className="btn-secondary">
+            {t("common.close")}
+          </button>
         </div>
+      }
+    >
+      <div className="es-form">
+        {/* Type badge & time */}
+        <div className="flex items-center gap-2 mb-3">
+          <span
+            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase leading-none ${style}`}
+          >
+            {t(`memory.type.${memory.memory_type}`)}
+          </span>
+          <span className="text-[11px] text-stone-400 dark:text-stone-500">
+            {relativeTime(memory.updated_at)}
+          </span>
+        </div>
+
+        {/* Created at & access count */}
+        {memory.created_at && (
+          <p className="es-hint flex items-center gap-1">
+            <Clock size={12} />
+            {new Date(memory.created_at).toLocaleString()}
+            <span className="ml-2">
+              {memory.access_count ?? 0} {t("memory.accesses")}
+            </span>
+          </p>
+        )}
+
+        {/* Tags */}
+        {memory.tags.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+            <Tag size={12} className="text-stone-400 flex-shrink-0" />
+            {memory.tags.slice(0, 8).map((tag) => (
+              <span key={tag} className="es-chip">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Divider */}
+        <hr className="es-divider" />
+
+        {/* Content */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <svg
+              className="h-6 w-6 animate-spin text-stone-400"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+          </div>
+        ) : (
+          <div className="es-section">
+            <p className="text-sm text-stone-700 dark:text-stone-300 whitespace-pre-wrap leading-relaxed">
+              {content || memory.summary}
+            </p>
+          </div>
+        )}
       </div>
-    </>
+    </EditorSidebar>
   );
 }
 

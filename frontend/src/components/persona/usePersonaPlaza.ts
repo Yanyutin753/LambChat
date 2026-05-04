@@ -26,6 +26,21 @@ export interface PersonaRouteState {
   personaSnapshot?: PersonaPresetSnapshot;
 }
 
+const BACKEND_ERROR_MAP: Record<string, string> = {
+  persona_preset_not_found: "personaPresets.presetNotFound",
+  persona_preset_no_edit_permission: "personaPresets.noEditPermission",
+  persona_preset_no_delete_permission: "personaPresets.noDeletePermission",
+  persona_preset_no_admin_permission: "personaPresets.noAdminPermission",
+};
+
+function translateBackendError(
+  message: string,
+  t: (key: string, fallback?: string) => string,
+): string {
+  const i18nKey = BACKEND_ERROR_MAP[message];
+  return i18nKey ? t(i18nKey) : message;
+}
+
 export function usePersonaPlaza() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -38,6 +53,7 @@ export function usePersonaPlaza() {
     presets,
     isLoading,
     isMutating,
+    error,
     usePreset: activatePreset,
     copyPreset,
     createPreset,
@@ -126,9 +142,11 @@ export function usePersonaPlaza() {
             name: preset.name,
           }),
         );
+      } else if (error) {
+        toast.error(translateBackendError(error, t));
       }
     },
-    [activatePreset, navigate, t],
+    [activatePreset, navigate, t, error],
   );
 
   const handleClear = useCallback(() => {
@@ -159,9 +177,11 @@ export function usePersonaPlaza() {
             name: preset.name,
           }),
         );
+      } else if (error) {
+        toast.error(translateBackendError(error, t));
       }
     },
-    [copyPreset, t],
+    [copyPreset, t, error],
   );
 
   const openModal = (
@@ -191,9 +211,11 @@ export function usePersonaPlaza() {
         }),
       );
       if (selectedPresetId === deleteTarget.id) handleClear();
+    } else if (error) {
+      toast.error(translateBackendError(error, t));
     }
     setDeleteTarget(null);
-  }, [deleteTarget, deletePreset, selectedPresetId, handleClear, t]);
+  }, [deleteTarget, deletePreset, selectedPresetId, handleClear, t, error]);
 
   const toggleTag = (tag: string) =>
     setActiveTag((prev) => (prev === tag ? null : tag));

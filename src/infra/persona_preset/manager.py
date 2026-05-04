@@ -54,7 +54,7 @@ class PersonaPresetManager:
         is_admin: bool,
     ) -> PersonaPreset:
         if preset_data.scope == PersonaPresetScope.GLOBAL and not is_admin:
-            raise AuthorizationError("缺少全局角色预设管理权限")
+            raise AuthorizationError("persona_preset_no_admin_permission")
 
         now = datetime.now()
         data = preset_data.model_dump(mode="json")
@@ -77,7 +77,7 @@ class PersonaPresetManager:
     async def get_preset(self, preset_id: str, *, user_id: str, is_admin: bool) -> PersonaPreset:
         doc = await self.storage.get_by_id(preset_id)
         if not doc or not self._can_view(doc, user_id=user_id, is_admin=is_admin):
-            raise NotFoundError("角色预设不存在")
+            raise NotFoundError("persona_preset_not_found")
         return PersonaPreset(**doc)
 
     async def list_presets(
@@ -136,24 +136,24 @@ class PersonaPresetManager:
     ) -> PersonaPreset:
         doc = await self.storage.get_by_id(preset_id)
         if not doc:
-            raise NotFoundError("角色预设不存在")
+            raise NotFoundError("persona_preset_not_found")
         if not self._can_edit(doc, user_id=user_id, is_admin=is_admin):
-            raise AuthorizationError("无权编辑该角色预设")
+            raise AuthorizationError("persona_preset_no_edit_permission")
 
         update = preset_data.model_dump(mode="json", exclude_unset=True)
         update["version"] = int(doc.get("version", 1)) + 1
         update["updated_by"] = user_id
         updated = await self.storage.update(preset_id, update)
         if not updated:
-            raise NotFoundError("角色预设不存在")
+            raise NotFoundError("persona_preset_not_found")
         return PersonaPreset(**updated)
 
     async def delete_preset(self, preset_id: str, *, user_id: str, is_admin: bool) -> bool:
         doc = await self.storage.get_by_id(preset_id)
         if not doc:
-            raise NotFoundError("角色预设不存在")
+            raise NotFoundError("persona_preset_not_found")
         if not self._can_edit(doc, user_id=user_id, is_admin=is_admin):
-            raise AuthorizationError("无权删除该角色预设")
+            raise AuthorizationError("persona_preset_no_delete_permission")
         return await self.storage.delete(preset_id)
 
     async def copy_preset(

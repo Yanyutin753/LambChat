@@ -7,6 +7,7 @@ import {
   FolderOpen,
   Server,
   Check,
+  Pencil,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -17,11 +18,11 @@ import { Pagination } from "../common/Pagination";
 import { MCPServerCard } from "../mcp/MCPServerCard";
 import { MCPServerForm } from "../mcp/MCPServerForm";
 import { ConfirmDialog } from "../common/ConfirmDialog";
+import { EditorSidebar } from "../common/EditorSidebar";
 import { useMCP } from "../../hooks/useMcp";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import type { MCPServerResponse, MCPServerCreate } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
 export function MCPPanel() {
   const { t } = useTranslation();
@@ -224,16 +225,6 @@ export function MCPPanel() {
     setCreateAsSystem(false);
     setChangeToSystem(false);
   }, []);
-
-  const swipeRef = useSwipeToClose({
-    onClose: handleCancel,
-    enabled: showModal,
-  });
-
-  const swipeRefImport = useSwipeToClose({
-    onClose: () => setShowImportModal(false),
-    enabled: showImportModal,
-  });
 
   const handleDelete = useCallback(
     async (name: string, isSystem: boolean = false) => {
@@ -466,134 +457,110 @@ export function MCPPanel() {
         </div>
       )}
 
-      {/* Form Modal */}
-      {showModal && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
-            onClick={handleCancel}
-          />
-          {/* Modal */}
-          <div
-            className="modal-bottom-sheet sm:modal-centered-wrapper"
-            onClick={handleCancel}
-          >
-            <div
-              ref={swipeRef as React.RefObject<HTMLDivElement>}
-              className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Mobile drag handle */}
-              <div className="bottom-sheet-handle sm:hidden" />
-
-              {/* Header */}
-              <div className="flex items-center justify-between glass-divider px-6 py-4">
-                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                  {isCreating
-                    ? t("mcp.addNew")
-                    : t("mcp.editServer", { name: editingServer?.name })}
-                </h3>
-                <button onClick={handleCancel} className="btn-icon">
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2">
-                {/* Admin option for creating system server */}
-                {isCreating && canAdmin && (
-                  <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20">
-                    <input
-                      type="checkbox"
-                      id="createAsSystem"
-                      checked={createAsSystem}
-                      onChange={(e) => setCreateAsSystem(e.target.checked)}
-                      className=""
-                    />
-                    <label
-                      htmlFor="createAsSystem"
-                      className="text-sm text-amber-800 dark:text-amber-200"
-                    >
-                      {t("mcp.createAsSystem")}
-                    </label>
-                  </div>
-                )}
-                {/* Admin option for changing server type when editing */}
-                {!isCreating && editingServer && canAdmin && (
-                  <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-800 dark:bg-amber-900/20">
-                    <input
-                      type="checkbox"
-                      id="changeToSystem"
-                      checked={changeToSystem}
-                      onChange={(e) => setChangeToSystem(e.target.checked)}
-                      className=""
-                    />
-                    <label
-                      htmlFor="changeToSystem"
-                      className="text-sm text-amber-800 dark:text-amber-200"
-                    >
-                      {changeToSystem
-                        ? t("mcp.systemServerVisible")
-                        : t("mcp.userServerVisible")}
-                    </label>
-                  </div>
-                )}
-                <MCPServerForm
-                  server={editingServer}
-                  onSave={handleSave}
-                  onCancel={handleCancel}
-                  isLoading={isLoading}
-                  allowedTransports={allowedTransports}
-                  isSystemServer={
-                    isCreating ? createAsSystem : !!editingServer?.is_system
-                  }
+      {/* Form Sidebar */}
+      <EditorSidebar
+        open={showModal}
+        onClose={handleCancel}
+        title={
+          isCreating
+            ? t("mcp.addNew")
+            : t("mcp.editServer", { name: editingServer?.name })
+        }
+        icon={isCreating ? <Plus size={16} /> : <Pencil size={16} />}
+        width="wide"
+      >
+        <div className="es-form" style={{ gap: 0 }}>
+          {/* Admin option for creating system server */}
+          {isCreating && canAdmin && (
+            <div className="es-section mb-4">
+              <label
+                className="flex items-center gap-2.5 text-sm cursor-pointer"
+                style={{ color: "var(--theme-text)" }}
+              >
+                <input
+                  type="checkbox"
+                  id="createAsSystem"
+                  checked={createAsSystem}
+                  onChange={(e) => setCreateAsSystem(e.target.checked)}
                 />
-              </div>
+                {t("mcp.createAsSystem")}
+              </label>
             </div>
-          </div>
-        </>
-      )}
-
-      {/* Import Modal */}
-      {showImportModal && (
-        <>
-          <div
-            className="fixed inset-0 z-[299] bg-black/50 sm:bg-transparent"
-            onClick={() => setShowImportModal(false)}
+          )}
+          {/* Admin option for changing server type when editing */}
+          {!isCreating && editingServer && canAdmin && (
+            <div className="es-section mb-4">
+              <label
+                className="flex items-center gap-2.5 text-sm cursor-pointer"
+                style={{ color: "var(--theme-text)" }}
+              >
+                <input
+                  type="checkbox"
+                  id="changeToSystem"
+                  checked={changeToSystem}
+                  onChange={(e) => setChangeToSystem(e.target.checked)}
+                />
+                {changeToSystem
+                  ? t("mcp.systemServerVisible")
+                  : t("mcp.userServerVisible")}
+              </label>
+            </div>
+          )}
+          <MCPServerForm
+            server={editingServer}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            isLoading={isLoading}
+            allowedTransports={allowedTransports}
+            isSystemServer={
+              isCreating ? createAsSystem : !!editingServer?.is_system
+            }
           />
-          <div
-            className="modal-bottom-sheet sm:modal-centered-wrapper"
-            onClick={() => setShowImportModal(false)}
-          >
-            <div
-              ref={swipeRefImport as React.RefObject<HTMLDivElement>}
-              className="modal-bottom-sheet-content sm:modal-centered-content sm:max-w-[72rem]"
-              onClick={(e) => e.stopPropagation()}
+        </div>
+      </EditorSidebar>
+
+      {/* Import Sidebar */}
+      <EditorSidebar
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title={t("mcp.importServers")}
+        icon={<Download size={16} />}
+        width="wide"
+        footer={
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setShowImportModal(false)}
+              className="btn-secondary"
             >
-              <div className="bottom-sheet-handle sm:hidden" />
-              <div className="flex items-center justify-between glass-divider px-6 py-4">
-                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-                  {t("mcp.importServers")}
-                </h3>
-                <button
-                  onClick={() => setShowImportModal(false)}
-                  className="btn-icon"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2">
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-stone-600 dark:text-stone-300">
-                      {t("mcp.jsonConfig")}
-                    </label>
-                    <textarea
-                      value={importJson}
-                      onChange={(e) => setImportJson(e.target.value)}
-                      rows={8}
-                      placeholder={`{
+              {t("common.cancel")}
+            </button>
+            <button
+              onClick={handleImport}
+              disabled={isLoading || !importJson.trim()}
+              className="btn-primary disabled:opacity-50"
+            >
+              <span className="inline-flex items-center justify-center gap-2">
+                <span className="inline-flex h-4 w-4 items-center justify-center">
+                  {isLoading ? (
+                    <LoadingSpinner size="sm" color="text-white" />
+                  ) : (
+                    <Upload size={18} />
+                  )}
+                </span>
+                <span>{t("common.import")}</span>
+              </span>
+            </button>
+          </div>
+        }
+      >
+        <div className="es-form">
+          <div className="es-field">
+            <label className="es-label">{t("mcp.jsonConfig")}</label>
+            <textarea
+              value={importJson}
+              onChange={(e) => setImportJson(e.target.value)}
+              rows={8}
+              placeholder={`{
   "mcpServers": {
     "server-name": {
       "transport": "sse",
@@ -602,75 +569,42 @@ export function MCPPanel() {
     }
   }
 }`}
-                      className="glass-input w-full rounded-xl px-3 py-2 font-mono text-sm text-stone-900 placeholder-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="overwrite"
-                      checked={importOverwrite}
-                      onChange={(e) => setImportOverwrite(e.target.checked)}
-                      className=""
-                    />
-                    <label
-                      htmlFor="overwrite"
-                      className="text-sm text-stone-600 dark:text-stone-300"
-                    >
-                      {t("mcp.overwriteExisting")}
-                    </label>
-                  </div>
-
-                  {importResult && (
-                    <div
-                      className={`flex items-center gap-2 rounded-xl p-3 ${
-                        importResult.success
-                          ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                      }`}
-                    >
-                      {importResult.success ? (
-                        <Check size={20} className="flex-shrink-0" />
-                      ) : (
-                        <X size={20} className="flex-shrink-0" />
-                      )}
-                      <span className="whitespace-pre-wrap text-sm">
-                        {importResult.message}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      onClick={() => setShowImportModal(false)}
-                      className="btn-secondary"
-                    >
-                      {t("common.cancel")}
-                    </button>
-                    <button
-                      onClick={handleImport}
-                      disabled={isLoading || !importJson.trim()}
-                      className="btn-primary disabled:opacity-50"
-                    >
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <span className="inline-flex h-4 w-4 items-center justify-center">
-                          {isLoading ? (
-                            <LoadingSpinner size="sm" color="text-white" />
-                          ) : (
-                            <Upload size={18} />
-                          )}
-                        </span>
-                        <span>{t("common.import")}</span>
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+              className="glass-input es-textarea font-mono"
+            />
           </div>
-        </>
-      )}
+
+          <div className="es-field">
+            <label className="flex items-center gap-2 es-label">
+              <input
+                type="checkbox"
+                id="overwrite"
+                checked={importOverwrite}
+                onChange={(e) => setImportOverwrite(e.target.checked)}
+              />
+              {t("mcp.overwriteExisting")}
+            </label>
+          </div>
+
+          {importResult && (
+            <div
+              className={`flex items-center gap-2 rounded-xl p-3 ${
+                importResult.success
+                  ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              }`}
+            >
+              {importResult.success ? (
+                <Check size={20} className="flex-shrink-0" />
+              ) : (
+                <X size={20} className="flex-shrink-0" />
+              )}
+              <span className="whitespace-pre-wrap text-sm">
+                {importResult.message}
+              </span>
+            </div>
+          )}
+        </div>
+      </EditorSidebar>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

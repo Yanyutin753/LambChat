@@ -161,7 +161,12 @@ export function useSessionConfig(
       personaPresetId: config.personaPresetId,
       personaSnapshot: config.personaSnapshot,
     });
-  }, [config.disabledSkills, config.disabledMcpTools]);
+  }, [
+    config.disabledSkills,
+    config.disabledMcpTools,
+    config.personaPresetId,
+    config.personaSnapshot,
+  ]);
 
   // Toggle skill (add/remove from disabled list)
   const toggleSkill = useCallback((skillName: string) => {

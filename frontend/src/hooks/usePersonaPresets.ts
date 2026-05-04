@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { personaPresetApi } from "../services/api";
 import type {
   PersonaPreset,
@@ -9,6 +10,7 @@ import type {
 } from "../types";
 
 export function usePersonaPresets(options?: { enabled?: boolean }) {
+  const { t } = useTranslation();
   const enabled = options?.enabled !== false;
   const [presets, setPresets] = useState<PersonaPreset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,13 +29,16 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to fetch persona presets",
+            : t(
+                "personaPresets.fetchFailed",
+                "Failed to fetch persona presets",
+              ),
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [enabled],
+    [enabled, t],
   );
 
   useEffect(() => {
@@ -48,14 +53,16 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         return await personaPresetApi.use(presetId);
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to use persona preset",
+          err instanceof Error
+            ? err.message
+            : t("personaPresets.useFailed", "Failed to use persona preset"),
         );
         return null;
       } finally {
         setIsMutating(false);
       }
     },
-    [],
+    [t],
   );
 
   const copyPreset = useCallback(
@@ -68,14 +75,16 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         return copied;
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to copy persona preset",
+          err instanceof Error
+            ? err.message
+            : t("personaPresets.copyFailed", "Failed to copy persona preset"),
         );
         return null;
       } finally {
         setIsMutating(false);
       }
     },
-    [fetchPresets],
+    [fetchPresets, t],
   );
 
   const createPreset = useCallback(
@@ -90,14 +99,17 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to create persona preset",
+            : t(
+                "personaPresets.createFailed",
+                "Failed to create persona preset",
+              ),
         );
         return null;
       } finally {
         setIsMutating(false);
       }
     },
-    [fetchPresets],
+    [fetchPresets, t],
   );
 
   const updatePreset = useCallback(
@@ -115,14 +127,17 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to update persona preset",
+            : t(
+                "personaPresets.updateFailed",
+                "Failed to update persona preset",
+              ),
         );
         return null;
       } finally {
         setIsMutating(false);
       }
     },
-    [fetchPresets],
+    [fetchPresets, t],
   );
 
   const deletePreset = useCallback(
@@ -137,14 +152,17 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setError(
           err instanceof Error
             ? err.message
-            : "Failed to delete persona preset",
+            : t(
+                "personaPresets.deleteFailed",
+                "Failed to delete persona preset",
+              ),
         );
         return false;
       } finally {
         setIsMutating(false);
       }
     },
-    [fetchPresets],
+    [fetchPresets, t],
   );
 
   return {

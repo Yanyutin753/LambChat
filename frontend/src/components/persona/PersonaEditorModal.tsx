@@ -20,6 +20,7 @@ import {
   Database,
   Zap,
   Package,
+  Check,
   type LucideIcon,
 } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
@@ -88,7 +89,6 @@ export function PersonaEditorModal({
   updatePreset,
   onClose,
 }: PersonaEditorModalProps) {
-  const MAX_VISIBLE_CHIPS = 3;
   const { t } = useTranslation();
   const [editorScope, setEditorScope] = useState<"user" | "global">(
     initialScope,
@@ -137,15 +137,20 @@ export function PersonaEditorModal({
 
   const { skills: allSkills } = useSkills({ enabled: showModal });
 
-  const availableSkills = useMemo(() => {
+  const displayedSkills = useMemo(() => {
     const q = skillSearch.trim().toLowerCase();
-    return allSkills.filter(
-      (s) =>
-        !draft.skill_names.includes(s.name) &&
-        (!q ||
+    return allSkills
+      .filter(
+        (s) =>
+          !q ||
           s.name.toLowerCase().includes(q) ||
-          (s.description || "").toLowerCase().includes(q)),
-    );
+          (s.description || "").toLowerCase().includes(q),
+      )
+      .sort((a, b) => {
+        const aSel = draft.skill_names.includes(a.name) ? 0 : 1;
+        const bSel = draft.skill_names.includes(b.name) ? 0 : 1;
+        return aSel - bSel;
+      });
   }, [allSkills, draft.skill_names, skillSearch]);
 
   useEffect(() => {
@@ -246,7 +251,7 @@ export function PersonaEditorModal({
 
   const isFormValid = draft.name.trim() && draft.system_prompt.trim();
 
-  const headerTitle = editingPreset
+  const title = editingPreset
     ? editingPreset.scope === "global"
       ? t("personaPresets.editOfficial", "编辑官方角色")
       : t("personaPresets.editMine", "编辑我的角色")
@@ -254,7 +259,7 @@ export function PersonaEditorModal({
       ? t("personaPresets.publishOfficial", "发布官方角色")
       : t("personaPresets.createMine", "新建我的角色");
 
-  const headerSubtitle =
+  const subtitle =
     editorScope === "global"
       ? t(
           "personaPresets.officialHint",
@@ -266,11 +271,26 @@ export function PersonaEditorModal({
     <EditorSidebar
       open={showModal}
       onClose={onClose}
-      title={headerTitle}
-      subtitle={headerSubtitle}
+      title={title}
+      subtitle={subtitle}
       icon={editingPreset ? <Pencil size={16} /> : <Plus size={16} />}
+      footer={
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary">
+            {t("common.cancel", "取消")}
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isMutating || !isFormValid}
+            className="btn-primary disabled:opacity-50"
+          >
+            {isMutating ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+            {t("common.save", "保存")}
+          </button>
+        </div>
+      }
     >
-      <div className="space-y-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="es-form">
         {/* Profile: Avatar + Name + Description */}
         <div className="ppe-profile-section">
           <div className="ppe-avatar-upload">
@@ -553,33 +573,12 @@ export function PersonaEditorModal({
                 }`}
               >
                 {draft.skill_names.length > 0 ? (
-                  <div className="ppe-chip-row">
-                    {draft.skill_names
-                      .slice(0, MAX_VISIBLE_CHIPS)
-                      .map((name) => (
-                        <span key={name} className="ppe-skill-chip">
-                          {name}
-                          <X
-                            size={11}
-                            className="ppe-skill-chip-remove"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDraft((prev) => ({
-                                ...prev,
-                                skill_names: prev.skill_names.filter(
-                                  (n) => n !== name,
-                                ),
-                              }));
-                            }}
-                          />
-                        </span>
-                      ))}
-                    {draft.skill_names.length > MAX_VISIBLE_CHIPS && (
-                      <span className="ppe-skill-chip ppe-skill-chip--overflow">
-                        +{draft.skill_names.length - MAX_VISIBLE_CHIPS}
-                      </span>
-                    )}
-                  </div>
+                  <span className="ppe-skill-trigger__count">
+                    <Sparkles size={12} />
+                    {t("personaPresets.skillCount", "{{count}} 个技能已选择", {
+                      count: draft.skill_names.length,
+                    })}
+                  </span>
                 ) : (
                   <span className="ppe-skill-trigger__placeholder">
                     {t("personaPresets.skillsInputPlaceholder", "选择技能...")}
@@ -593,10 +592,32 @@ export function PersonaEditorModal({
                 />
               </button>
 
+              {draft.skill_names.length > 0 && !skillDropdownOpen && (
+                <div className="ppe-skill-selected-area">
+                  {draft.skill_names.map((name) => (
+                    <span key={name} className="ppe-skill-chip">
+                      {name}
+                      <X
+                        size={11}
+                        className="ppe-skill-chip-remove"
+                        onClick={() =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            skill_names: prev.skill_names.filter(
+                              (n) => n !== name,
+                            ),
+                          }))
+                        }
+                      />
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {skillDropdownOpen && (
                 <div className="ppe-skill-dropdown">
                   <div className="ppe-skill-dropdown__header">
-                    <div className="relative">
+                    <div className="ppe-skill-dropdown__search-wrap">
                       <Search
                         size={14}
                         className="ppe-skill-dropdown__search-icon"
@@ -621,68 +642,91 @@ export function PersonaEditorModal({
                           setDraft((prev) => ({ ...prev, skill_names: [] }))
                         }
                       >
-                        {t("personaPresets.clearSkills", "清空")}
+                        {t("common.clearAll", "清除全部")}
                       </button>
                     )}
                   </div>
+
+                  {draft.skill_names.length > 0 && (
+                    <div className="ppe-skill-selected-bar">
+                      {draft.skill_names.map((name) => (
+                        <span key={name} className="ppe-skill-chip">
+                          {name}
+                          <X
+                            size={11}
+                            className="ppe-skill-chip-remove"
+                            onClick={() =>
+                              setDraft((prev) => ({
+                                ...prev,
+                                skill_names: prev.skill_names.filter(
+                                  (n) => n !== name,
+                                ),
+                              }))
+                            }
+                          />
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="ppe-skill-dropdown__list">
-                    {availableSkills.length > 0 ? (
-                      availableSkills.map((skill, idx) => (
-                        <button
-                          key={skill.name}
-                          type="button"
-                          onClick={() => {
-                            setDraft((prev) => ({
-                              ...prev,
-                              skill_names: [...prev.skill_names, skill.name],
-                            }));
-                            setSkillSearch("");
-                          }}
-                          className="ppe-skill-option"
-                          style={{
-                            animationDelay: `${Math.min(idx, 8) * 25}ms`,
-                          }}
-                        >
-                          <div className="ppe-skill-option__icon">
-                            <Sparkles size={13} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="ppe-skill-option__name">
-                              {skill.name}
-                            </div>
-                            {skill.description && (
-                              <div className="ppe-skill-option__desc">
-                                {skill.description}
-                              </div>
-                            )}
-                          </div>
-                          <span
-                            className={`ppe-skill-option__badge ${
-                              skill.source === "marketplace"
-                                ? "ppe-skill-option__badge--market"
-                                : ""
+                    {displayedSkills.length > 0 ? (
+                      displayedSkills.map((skill) => {
+                        const isSelected = draft.skill_names.includes(
+                          skill.name,
+                        );
+                        return (
+                          <button
+                            key={skill.name}
+                            type="button"
+                            onClick={() => {
+                              setDraft((prev) => ({
+                                ...prev,
+                                skill_names: isSelected
+                                  ? prev.skill_names.filter(
+                                      (n) => n !== skill.name,
+                                    )
+                                  : [...prev.skill_names, skill.name],
+                              }));
+                            }}
+                            className={`ppe-skill-option ${
+                              isSelected ? "ppe-skill-option--selected" : ""
                             }`}
                           >
-                            {skill.source === "marketplace"
-                              ? t("skills.sourceMarketplace", "Market")
-                              : t("skills.sourceLocal", "Local")}
-                          </span>
-                          <Plus size={14} className="ppe-skill-option__plus" />
-                        </button>
-                      ))
+                            <div className="ppe-skill-option__check-ring">
+                              {isSelected ? (
+                                <Check
+                                  size={12}
+                                  className="ppe-skill-option__check-icon"
+                                />
+                              ) : (
+                                <Plus
+                                  size={12}
+                                  className="ppe-skill-option__plus-icon"
+                                />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {skill.name}
+                              </div>
+                              {skill.description && (
+                                <div className="text-[11px] text-[var(--theme-text-secondary)] truncate mt-0.5">
+                                  {skill.description}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
                     ) : (
                       <div className="ppe-skill-dropdown__empty">
-                        <Search
+                        <Sparkles
                           size={20}
                           className="ppe-skill-dropdown__empty-icon"
                         />
                         <span>
-                          {skillSearch.trim()
-                            ? t("skills.noMatchingSkills", "没有匹配的技能")
-                            : t(
-                                "personaPresets.allSkillsSelected",
-                                "所有技能已选择",
-                              )}
+                          {t("skills.noMatchingSkills", "没有匹配的技能")}
                         </span>
                       </div>
                     )}
@@ -691,21 +735,6 @@ export function PersonaEditorModal({
               )}
             </div>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="ppe-modal-footer">
-          <button onClick={onClose} className="ppe-btn ppe-btn-secondary">
-            {t("common.cancel", "取消")}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isMutating || !isFormValid}
-            className="ppe-btn ppe-btn-primary"
-          >
-            {isMutating ? <LoadingSpinner size="sm" /> : <Save size={15} />}
-            {t("common.save", "保存")}
-          </button>
         </div>
       </div>
     </EditorSidebar>

@@ -28,3 +28,12 @@ export type { CodeMirrorViewerProps } from "./CodeMirrorViewer";
 export { DeferredCodeMirrorViewer } from "./DeferredCodeMirrorViewer";
 
 export { getLangSupport } from "./getLangSupport";
+
+export { SkillBaseCard } from "./SkillBaseCard";
+export type { SkillBaseCardProps } from "./SkillBaseCard";
+
+export {
+  getCategoryIcon,
+  nameToGradient,
+  GRADIENT_PALETTES,
+} from "./cardUtils";

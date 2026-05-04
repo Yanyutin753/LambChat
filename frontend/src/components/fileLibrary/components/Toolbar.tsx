@@ -111,7 +111,7 @@ export function Toolbar({
       />
       <div className="absolute bottom-0 left-0 right-0 h-px bg-stone-200/60 dark:bg-stone-700/40" />
 
-      <div className="relative px-5 md:px-6 py-3 md:py-4">
+      <div className="relative px-5 @md:px-6 py-3 @md:py-4">
         <div className="flex items-center justify-between gap-3 w-full">
           {/* ─── Left group: Filters ─── */}
           <div className="flex flex-wrap gap-2 items-center">
@@ -134,7 +134,7 @@ export function Toolbar({
                 </span>
                 <ChevronDown
                   size={14}
-                  className={`text-stone-400 dark:text-stone-500 hidden md:block transition-transform duration-200 ${
+                  className={`text-stone-400 dark:text-stone-500 hidden @md:block transition-transform duration-200 ${
                     showFilter ? "rotate-180" : ""
                   }`}
                 />
@@ -179,14 +179,14 @@ export function Toolbar({
                   favoritesOnly ? "fill-amber-400 dark:fill-amber-500" : ""
                 }
               />
-              <span className="hidden md:inline">
+              <span className="hidden @md:inline">
                 {t("fileLibrary.favorites", "我的收藏")}
               </span>
             </button>
 
             {/* Project filter */}
             {projects.length > 0 && (
-              <div className="relative hidden md:block">
+              <div className="relative hidden @md:block">
                 <button
                   ref={projectDd.ref}
                   onClick={() => {
@@ -262,7 +262,7 @@ export function Toolbar({
                   order={sortOrder}
                   className="text-stone-400 dark:text-stone-500"
                 />
-                <span className="max-w-[64px] truncate hidden sm:inline">
+                <span className="max-w-[64px] truncate hidden @sm:inline">
                   {t(currentSortLabel ?? "fileLibrary.sort.newest")}
                 </span>
                 <ChevronDown
@@ -317,7 +317,7 @@ export function Toolbar({
           {/* ─── Right group: Search + View toggle ─── */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Search */}
-            <div className="group flex items-center gap-2.5 h-9 w-[160px] md:w-[200px] rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 px-3 pl-9 relative focus-within:border-stone-400 dark:focus-within:border-stone-500 focus-within:bg-white dark:focus-within:bg-stone-800/60 transition-all duration-150">
+            <div className="group flex items-center gap-2.5 h-9 w-[160px] @md:w-[200px] rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 px-3 pl-9 relative focus-within:border-stone-400 dark:focus-within:border-stone-500 focus-within:bg-white dark:focus-within:bg-stone-800/60 transition-all duration-150">
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500 pointer-events-none"
@@ -340,7 +340,7 @@ export function Toolbar({
             </div>
 
             {/* View toggle */}
-            <div className="hidden md:block">
+            <div className="hidden @md:block">
               <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 h-8 p-px">
                 {(["grid", "list"] as const).map((mode) => {
                   const label =

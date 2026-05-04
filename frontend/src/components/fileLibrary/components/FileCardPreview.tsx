@@ -93,7 +93,7 @@ function CoverLayout({
         <div className="relative">
           <div
             className={clsx(
-              "absolute inset-[-16px] rounded-full blur-2xl opacity-[0.10]",
+              "absolute inset-[-16px] rounded-full opacity-[0.10]",
               a.glow,
             )}
           />

@@ -78,64 +78,6 @@
   align-items: stretch;
 }
 
-.skill-surface-card {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--skill-border);
-  background: var(--skill-surface);
-  box-shadow: var(--skill-shadow);
-  transition:
-    border-color 0.24s ease,
-    box-shadow 0.24s ease,
-    transform 0.24s ease;
-}
-
-.skill-surface-card::after {
-  content: "";
-  position: absolute;
-  inset: 0 auto auto 1rem;
-  width: 3rem;
-  height: 1px;
-  border-radius: 9999px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--theme-primary) 24%, transparent),
-    transparent
-  );
-  opacity: 0.85;
-  transition:
-    width 0.22s ease,
-    opacity 0.22s ease;
-}
-
-.skill-surface-card:hover {
-  border-color: var(--skill-border-strong);
-  box-shadow: var(--skill-shadow-strong);
-  transform: translateY(-2px);
-}
-
-.skill-surface-card:hover::after {
-  width: 4rem;
-  opacity: 1;
-}
-
-.skill-surface-card:focus-within {
-  border-color: var(--skill-border-strong);
-  box-shadow:
-    0 2px 8px rgb(15 23 42 / 0.04),
-    var(--skill-shadow),
-    var(--skill-glow);
-}
-
-.skill-surface-card--muted {
-  background: var(--skill-surface-alt);
-  box-shadow: none;
-}
-
-.skill-card {
-  min-height: 19rem;
-}
-
 .skill-card-actions {
   border-color: color-mix(in srgb, var(--theme-border) 86%, transparent);
 }
@@ -174,57 +116,40 @@
   }
 }
 
-/* Selected card glow pulse */
-@keyframes select-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0
-      color-mix(in srgb, var(--theme-primary) 20%, transparent);
-  }
-  50% {
-    box-shadow:
-      0 0 0 3px color-mix(in srgb, var(--theme-primary) 12%, transparent),
-      0 0 16px color-mix(in srgb, var(--theme-primary) 8%, transparent);
-  }
-}
-
 .skill-status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  border-radius: 9999px;
-  border: 1px solid var(--skill-border);
-  background: var(--theme-bg);
-  padding: 0.38rem 0.82rem;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  gap: 0.3rem;
+  border-radius: 6px;
+  border: none;
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 10%,
+    var(--theme-bg)
+  );
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
   line-height: 1;
   color: var(--theme-text-secondary);
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--theme-border) 60%, transparent);
+  transition: all 0.2s ease;
 }
 
 .skill-status-pill--active,
 .skill-status-pill--installed {
-  border-color: color-mix(
-    in srgb,
-    var(--skill-accent) 30%,
-    var(--theme-border)
-  );
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--skill-accent-soft) 92%, white 8%) 0%,
-    color-mix(in srgb, var(--skill-accent-soft) 78%, var(--theme-bg-card) 22%)
-      100%
-  );
-  color: var(--theme-text);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--skill-accent) 10%, transparent);
+  background: color-mix(in srgb, var(--skill-accent-soft) 15%, var(--theme-bg));
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--skill-accent) 20%, var(--theme-border));
+  color: var(--skill-accent);
 }
 
 .skill-status-pill--disabled {
-  opacity: 0.5;
-  background: color-mix(in srgb, var(--theme-bg-card) 50%, var(--theme-bg) 50%);
+  opacity: 0.45;
+  background: color-mix(in srgb, var(--theme-bg-card) 50%, var(--theme-bg));
 }
 
 .skill-meta-pill {
@@ -828,22 +753,29 @@
 }
 
 .dark .skill-status-pill {
-  border-color: var(--skill-border);
-  background: color-mix(in srgb, var(--theme-bg-card) 82%, var(--theme-bg) 18%);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--theme-border) 40%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 8%,
+    var(--theme-bg-card)
+  );
 }
 
 .dark .skill-status-pill--active,
 .dark .skill-status-pill--installed {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--skill-accent-soft) 64%, var(--theme-bg-card)) 0%,
-    color-mix(in srgb, var(--skill-accent-soft) 40%, var(--theme-bg-card)) 100%
+  background: color-mix(
+    in srgb,
+    var(--skill-accent-soft) 12%,
+    var(--theme-bg-card)
   );
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--skill-accent) 18%, var(--theme-border));
 }
 
 .dark .skill-status-pill--disabled {
   opacity: 0.4;
-  background: color-mix(in srgb, var(--theme-bg) 70%, var(--theme-bg-card) 30%);
+  background: color-mix(in srgb, var(--theme-bg) 60%, var(--theme-bg-card) 40%);
 }
 
 .dark .skill-meta-pill {

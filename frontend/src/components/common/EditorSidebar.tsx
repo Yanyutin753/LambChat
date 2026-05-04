@@ -9,6 +9,9 @@ export interface EditorSidebarProps {
   subtitle?: string;
   icon?: React.ReactNode;
   children: React.ReactNode;
+  footer?: React.ReactNode;
+  /** "default" (400px) | "wide" (500px) */
+  width?: "default" | "wide";
 }
 
 export function EditorSidebar({
@@ -18,12 +21,15 @@ export function EditorSidebar({
   subtitle,
   icon,
   children,
+  footer,
+  width = "default",
 }: EditorSidebarProps) {
   const [isMobile, setIsMobile] = useState(
     () => window.matchMedia("(max-width: 639px)").matches,
   );
   const [animateIn, setAnimateIn] = useState(false);
   const dragHandleRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
@@ -77,6 +83,8 @@ export function EditorSidebar({
   const swipeRef = useSwipeToClose({
     onClose,
     enabled: open && isMobile,
+    dragHandleRef,
+    scrollContainerRef: bodyRef,
   });
 
   const setRef = useCallback(
@@ -108,7 +116,9 @@ export function EditorSidebar({
         ref={setRef}
         className={`editor-sidebar ${
           isMobile ? "editor-sidebar--mobile" : "editor-sidebar--sidebar"
-        } ${animateIn ? "editor-sidebar--animate-in" : ""}`}
+        } ${width === "wide" ? "editor-sidebar--wide" : ""} ${
+          animateIn ? "editor-sidebar--animate-in" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Mobile drag handle */}
@@ -135,7 +145,12 @@ export function EditorSidebar({
         </div>
 
         {/* Body */}
-        <div className="editor-sidebar-body">{children}</div>
+        <div ref={bodyRef} className="editor-sidebar-body">
+          {children}
+        </div>
+
+        {/* Footer (outside scroll area) */}
+        {footer && <div className="editor-sidebar-footer">{footer}</div>}
       </div>
     </>
   );

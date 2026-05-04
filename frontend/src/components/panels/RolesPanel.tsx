@@ -2,14 +2,13 @@
  * 角色管理页面组件
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Shield,
   Plus,
   Edit,
   Trash2,
   Save,
-  X,
   AlertCircle,
   Lock,
   ChevronDown,
@@ -20,6 +19,9 @@ import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { RolesPanelSkeleton } from "../skeletons";
 import { Pagination } from "../common/Pagination";
+import { EditorSidebar } from "../common/EditorSidebar";
+import { ConfirmDialog } from "../common/ConfirmDialog";
+import { Checkbox } from "../common/Checkbox";
 import { roleApi, authApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
@@ -31,9 +33,8 @@ import type {
   PermissionGroup,
   PermissionInfo,
 } from "../../types";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
-// 角色表单模态框 - 底部弹出式设计
+// 角色表单模态框 - 使用 EditorSidebar
 interface RoleFormModalProps {
   role?: Role | null;
   onSave: (data: RoleCreate | RoleUpdate) => Promise<void>;
@@ -52,6 +53,7 @@ function RoleFormModal({
   permissionLabels,
 }: RoleFormModalProps) {
   const { t } = useTranslation();
+  const formRef = useRef<HTMLFormElement>(null);
   const [name, setName] = useState(role?.name || "");
   const [description, setDescription] = useState(role?.description || "");
   const [maxChannels, setMaxChannels] = useState<number | "">(
@@ -60,10 +62,6 @@ function RoleFormModal({
   const [maxConcurrentChats, setMaxConcurrentChats] = useState<number | "">(
     role?.limits?.max_concurrent_chats ?? "",
   );
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
   const [maxQueuedChats, setMaxQueuedChats] = useState<number | "">(
     role?.limits?.max_queued_chats ?? "",
   );
@@ -91,8 +89,8 @@ function RoleFormModal({
   const isEditing = !!role;
   const isSystem = role?.is_system || false;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError(null);
 
     // 验证
@@ -226,397 +224,258 @@ function RoleFormModal({
     return groupPermissions.every((p) => selectedPermissions.includes(p.value));
   };
 
-  const isGroupIndeterminate = (groupPermissions: PermissionInfo[]) => {
-    const checkedCount = groupPermissions.filter((p) =>
-      selectedPermissions.includes(p.value),
-    ).length;
-    return checkedCount > 0 && checkedCount < groupPermissions.length;
-  };
-
   return (
-    <>
-      <div
-        className="fixed inset-0 z-[299] bg-black/50 sm:hidden"
-        onClick={onClose}
-      />
-      <div className="modal-bottom-sheet" onClick={onClose}>
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bottom-sheet-handle sm:hidden" />
-          {/* Header */}
-          <div className="flex items-center justify-between glass-divider px-6 py-4">
-            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {isEditing ? t("roles.editRole") : t("roles.createRole")}
-            </h2>
-            <button onClick={onClose} className="btn-icon">
-              <X size={20} />
-            </button>
-          </div>
-
-          {isSystem && (
-            <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl bg-yellow-50 p-3 text-sm text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-              <AlertCircle size={18} />
-              <span>{t("roles.systemRoleHint")}</span>
-            </div>
-          )}
-
-          <form
-            onSubmit={handleSubmit}
-            className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-2"
+    <EditorSidebar
+      open={true}
+      onClose={onClose}
+      title={isEditing ? t("roles.editRole") : t("roles.createRole")}
+      icon={isEditing ? <Edit size={16} /> : <Plus size={16} />}
+      width="wide"
+      footer={
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn-secondary flex-1"
           >
-            {error && (
-              <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                <AlertCircle size={18} />
-                <span>{error}</span>
-              </div>
-            )}
+            {t("common.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSubmit()}
+            disabled={isLoading}
+            className="btn-primary flex-1 disabled:opacity-50"
+          >
+            {isLoading ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+            {t("common.save")}
+          </button>
+        </div>
+      }
+    >
+      {isSystem && (
+        <div className="es-callout">
+          <div className="es-callout-icon">
+            <AlertCircle size={14} />
+          </div>
+          <span
+            className="text-sm"
+            style={{ color: "var(--theme-text-secondary)" }}
+          >
+            {t("roles.systemRoleHint")}
+          </span>
+        </div>
+      )}
 
-            {/* 角色名称 */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("roles.roleName")}
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isSystem}
-                className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none disabled:bg-stone-100 dark:text-stone-100 dark:placeholder:text-stone-500 dark:disabled:bg-stone-700"
-                placeholder={t("roles.roleNamePlaceholder")}
-              />
-            </div>
+      <form ref={formRef} onSubmit={handleSubmit} className="es-form">
+        {error && (
+          <div className="es-error">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
 
-            {/* 描述 */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("roles.description")}
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none dark:text-stone-100 dark:placeholder:text-stone-500"
-                placeholder={t("roles.descriptionPlaceholder")}
-              />
-            </div>
+        {/* 角色名称 */}
+        <div className="es-field">
+          <label className="es-label">{t("roles.roleName")}</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={isSystem}
+            className="glass-input es-input"
+            placeholder={t("roles.roleNamePlaceholder")}
+          />
+        </div>
 
-            {/* 最大渠道数量 */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("roles.maxChannels")}
+        {/* 描述 */}
+        <div className="es-field">
+          <label className="es-label">{t("roles.description")}</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            className="glass-input es-textarea"
+            placeholder={t("roles.descriptionPlaceholder")}
+          />
+        </div>
+
+        {/* 最大渠道数量 */}
+        <div className="es-field">
+          <label className="es-label">{t("roles.maxChannels")}</label>
+          <input
+            type="number"
+            min="0"
+            value={maxChannels}
+            onChange={(e) =>
+              setMaxChannels(
+                e.target.value === "" ? "" : Number(e.target.value),
+              )
+            }
+            className="glass-input es-input"
+            placeholder={t("roles.maxChannelsPlaceholder")}
+          />
+          <p className="es-hint">{t("roles.maxChannelsHint")}</p>
+        </div>
+
+        {/* 并发限制 */}
+        <div className="es-section">
+          <div className="es-section-title">
+            {t("roles.concurrentChatsTitle")}
+          </div>
+          <div className="es-row es-row-2">
+            <div className="es-field">
+              <label className="es-label">
+                {t("roles.maxConcurrentChats")}
               </label>
               <input
                 type="number"
                 min="0"
-                value={maxChannels}
+                value={maxConcurrentChats}
                 onChange={(e) =>
-                  setMaxChannels(
+                  setMaxConcurrentChats(
                     e.target.value === "" ? "" : Number(e.target.value),
                   )
                 }
-                className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
-                placeholder={t("roles.maxChannelsPlaceholder")}
+                className="glass-input es-input"
+                placeholder="5"
               />
-              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                {t("roles.maxChannelsHint")}
-              </p>
             </div>
+            <div className="es-field">
+              <label className="es-label">{t("roles.maxQueuedChats")}</label>
+              <input
+                type="number"
+                min="0"
+                value={maxQueuedChats}
+                onChange={(e) =>
+                  setMaxQueuedChats(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+                className="glass-input es-input"
+                placeholder="10"
+              />
+            </div>
+          </div>
+          <p className="es-hint">{t("roles.concurrentChatsHint")}</p>
+        </div>
 
-            {/* 并发限制 */}
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("roles.concurrentChatsTitle")}
-              </label>
-              <div className="space-y-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-stone-600 dark:text-stone-400">
-                    {t("roles.maxConcurrentChats")}
-                  </label>
+        {/* 上传限制 */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowUploadLimits(!showUploadLimits)}
+            className="es-section-title cursor-pointer w-full"
+          >
+            {t("roles.uploadLimitsTitle")}
+            <ChevronDown
+              size={14}
+              className={`ml-auto transition-transform ${
+                showUploadLimits ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {showUploadLimits && (
+            <div className="es-section mt-2">
+              <p className="es-hint">{t("roles.uploadLimitsHint")}</p>
+              {[
+                {
+                  label: "maxUploadSizeImage",
+                  value: maxUploadSizeImage,
+                  setter: setMaxUploadSizeImage,
+                },
+                {
+                  label: "maxUploadSizeVideo",
+                  value: maxUploadSizeVideo,
+                  setter: setMaxUploadSizeVideo,
+                },
+                {
+                  label: "maxUploadSizeAudio",
+                  value: maxUploadSizeAudio,
+                  setter: setMaxUploadSizeAudio,
+                },
+                {
+                  label: "maxUploadSizeDocument",
+                  value: maxUploadSizeDocument,
+                  setter: setMaxUploadSizeDocument,
+                },
+                {
+                  label: "maxFiles",
+                  value: maxUploadFiles,
+                  setter: setMaxUploadFiles,
+                },
+              ].map(({ label, value, setter }) => (
+                <div key={label} className="es-field">
+                  <label className="es-label">{t(`roles.${label}`)}</label>
                   <input
                     type="number"
                     min="0"
-                    value={maxConcurrentChats}
+                    value={value}
                     onChange={(e) =>
-                      setMaxConcurrentChats(
+                      setter(
                         e.target.value === "" ? "" : Number(e.target.value),
                       )
                     }
-                    className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
-                    placeholder="5"
+                    className="glass-input es-input"
+                    placeholder={t("roles.maxChannelsPlaceholder")}
                   />
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-stone-600 dark:text-stone-400">
-                    {t("roles.maxQueuedChats")}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={maxQueuedChats}
-                    onChange={(e) =>
-                      setMaxQueuedChats(
-                        e.target.value === "" ? "" : Number(e.target.value),
-                      )
-                    }
-                    className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
-                    placeholder="10"
-                  />
-                </div>
-              </div>
-              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                {t("roles.concurrentChatsHint")}
-              </p>
+              ))}
             </div>
+          )}
+        </div>
 
-            {/* 上传限制 */}
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowUploadLimits(!showUploadLimits)}
-                className="flex items-center justify-between w-full text-sm font-medium text-stone-700 dark:text-stone-300"
-              >
-                {t("roles.uploadLimitsTitle")}
-                <svg
-                  className={`w-4 h-4 transition-transform ${
-                    showUploadLimits ? "rotate-180" : ""
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
+        {/* 权限选择 */}
+        <div className="es-field">
+          <label className="es-label">{t("roles.permissions")}</label>
+          <div className="es-section">
+            {permissionGroups.map((group) => (
+              <div key={group.name} className="space-y-1.5">
+                {/* 组标题 */}
+                <label className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40">
+                  <Checkbox
+                    size="sm"
+                    checked={isGroupChecked(group.permissions)}
+                    onChange={() =>
+                      toggleGroup(
+                        group.permissions,
+                        !isGroupChecked(group.permissions),
+                      )
+                    }
                   />
-                </svg>
-              </button>
-              {showUploadLimits && (
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs text-stone-500 dark:text-stone-400">
-                    {t("roles.uploadLimitsHint")}
-                  </p>
-                  {[
-                    {
-                      label: "maxUploadSizeImage",
-                      value: maxUploadSizeImage,
-                      setter: setMaxUploadSizeImage,
-                    },
-                    {
-                      label: "maxUploadSizeVideo",
-                      value: maxUploadSizeVideo,
-                      setter: setMaxUploadSizeVideo,
-                    },
-                    {
-                      label: "maxUploadSizeAudio",
-                      value: maxUploadSizeAudio,
-                      setter: setMaxUploadSizeAudio,
-                    },
-                    {
-                      label: "maxUploadSizeDocument",
-                      value: maxUploadSizeDocument,
-                      setter: setMaxUploadSizeDocument,
-                    },
-                    {
-                      label: "maxFiles",
-                      value: maxUploadFiles,
-                      setter: setMaxUploadFiles,
-                    },
-                  ].map(({ label, value, setter }) => (
-                    <div key={label}>
-                      <label className="mb-1 block text-xs font-medium text-stone-600 dark:text-stone-400">
-                        {t(`roles.${label}`)}
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={value}
-                        onChange={(e) =>
-                          setter(
-                            e.target.value === "" ? "" : Number(e.target.value),
-                          )
-                        }
-                        className="glass-input w-full rounded-lg px-4 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
-                        placeholder={t("roles.maxChannelsPlaceholder")}
+                  <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {group.name}
+                  </span>
+                </label>
+                {/* 组内权限 */}
+                <div className="ml-7 space-y-0.5">
+                  {group.permissions.map((permission) => (
+                    <label
+                      key={permission.value}
+                      className="group flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--theme-primary-light)]/40"
+                    >
+                      <Checkbox
+                        size="sm"
+                        checked={selectedPermissions.includes(permission.value)}
+                        onChange={() => togglePermission(permission.value)}
                       />
-                    </div>
+                      <span className="text-sm text-stone-600 dark:text-stone-400">
+                        {permissionLabels[permission.value] || permission.label}
+                      </span>
+                      <code className="es-chip ml-auto">
+                        {permission.value}
+                      </code>
+                    </label>
                   ))}
                 </div>
-              )}
-            </div>
-
-            {/* 权限选择 */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-stone-700 dark:text-stone-300">
-                {t("roles.permissions")}
-              </label>
-              <div className="space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-4 mb-2">
-                {permissionGroups.map((group) => (
-                  <div key={group.name} className="space-y-2">
-                    {/* 组标题 */}
-                    <label className="flex cursor-pointer items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={isGroupChecked(group.permissions)}
-                        ref={(el) => {
-                          if (el)
-                            el.indeterminate = isGroupIndeterminate(
-                              group.permissions,
-                            );
-                        }}
-                        onChange={(e) =>
-                          toggleGroup(group.permissions, e.target.checked)
-                        }
-                        className=""
-                      />
-                      <span className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                        {group.name}
-                      </span>
-                    </label>
-                    {/* 组内权限 */}
-                    <div className="ml-6 space-y-1">
-                      {group.permissions.map((permission) => (
-                        <label
-                          key={permission.value}
-                          className="flex cursor-pointer items-center gap-2"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedPermissions.includes(
-                              permission.value,
-                            )}
-                            onChange={() => togglePermission(permission.value)}
-                            className=""
-                          />
-                          <span className="text-sm text-stone-600 dark:text-stone-400">
-                            {permissionLabels[permission.value] ||
-                              permission.label}
-                          </span>
-                          <code className="rounded bg-[var(--glass-bg-subtle)] px-1 text-xs text-stone-500 dark:text-stone-400">
-                            {permission.value}
-                          </code>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
               </div>
-            </div>
-
-            {/* 按钮 */}
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="btn-secondary flex-1"
-              >
-                {t("common.cancel")}
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="btn-primary flex-1 disabled:opacity-50"
-              >
-                <span className="inline-flex items-center justify-center gap-2">
-                  <span className="inline-flex h-4 w-4 items-center justify-center">
-                    {isLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <Save size={16} />
-                    )}
-                  </span>
-                  <span>{t("common.save")}</span>
-                </span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// 删除确认模态框 - 底部弹出式设计
-interface DeleteConfirmModalProps {
-  roleName: string;
-  onConfirm: () => Promise<void>;
-  onClose: () => void;
-  isLoading: boolean;
-}
-
-function DeleteConfirmModal({
-  roleName,
-  onConfirm,
-  onClose,
-  isLoading,
-}: DeleteConfirmModalProps) {
-  const { t } = useTranslation();
-  const swipeRef = useSwipeToClose({
-    onClose,
-    enabled: true,
-  });
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-[299] bg-black/50 sm:hidden"
-        onClick={onClose}
-      />
-      <div className="modal-bottom-sheet" onClick={onClose}>
-        <div
-          ref={swipeRef as React.RefObject<HTMLDivElement>}
-          className="modal-bottom-sheet-content"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bottom-sheet-handle sm:hidden" />
-          {/* Header */}
-          <div className="flex items-center justify-between glass-divider px-6 py-4">
-            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-100 font-serif">
-              {t("roles.confirmDelete")}
-            </h2>
-            <button onClick={onClose} className="btn-icon">
-              <X size={20} />
-            </button>
-          </div>
-          {/* Content */}
-          <div className="px-6 py-4">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <AlertCircle
-                size={24}
-                className="text-red-600 dark:text-red-400"
-              />
-            </div>
-            <p className="mb-6 text-sm text-stone-500 dark:text-stone-400">
-              {t("roles.confirmDeleteMessage", { roleName })}
-            </p>
-            <div className="flex gap-3">
-              <button onClick={onClose} className="btn-secondary flex-1">
-                {t("common.cancel")}
-              </button>
-              <button
-                onClick={onConfirm}
-                disabled={isLoading}
-                className="flex-1 rounded-lg bg-red-600 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                <span className="inline-flex items-center justify-center gap-2">
-                  <span className="inline-flex h-4 w-4 items-center justify-center">
-                    {isLoading ? (
-                      <LoadingSpinner size="sm" color="text-white" />
-                    ) : (
-                      <Trash2 size={16} />
-                    )}
-                  </span>
-                  <span>{t("common.delete")}</span>
-                </span>
-              </button>
-            </div>
+            ))}
           </div>
         </div>
-      </div>
-    </>
+
+        {/* Hidden submit button so Enter key still works */}
+        <button type="submit" className="hidden" />
+      </form>
+    </EditorSidebar>
   );
 }
 
@@ -954,14 +813,19 @@ export function RolesPanel() {
         />
       )}
 
-      {deleteRole && (
-        <DeleteConfirmModal
-          roleName={deleteRole.name}
-          onConfirm={handleDeleteRole}
-          onClose={() => setDeleteRole(null)}
-          isLoading={isSaving}
-        />
-      )}
+      <ConfirmDialog
+        isOpen={!!deleteRole}
+        title={t("roles.confirmDelete")}
+        message={t("roles.confirmDeleteMessage", {
+          roleName: deleteRole?.name,
+        })}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
+        variant="danger"
+        loading={isSaving}
+        onConfirm={handleDeleteRole}
+        onCancel={() => setDeleteRole(null)}
+      />
     </div>
   );
 }

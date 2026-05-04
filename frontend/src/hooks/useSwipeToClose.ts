@@ -1,5 +1,9 @@
 /**
- * Hook for swipe-to-close gesture on mobile bottom sheets
+ * Hook for swipe-to-close gesture on mobile bottom sheets.
+ *
+ * Supports two swipe zones:
+ * 1. Drag handle — always triggers swipe-to-close regardless of scroll position
+ * 2. Everywhere else — only triggers when the scroll container is at its top
  */
 
 import { useEffect, useRef, useCallback, type RefObject } from "react";
@@ -7,9 +11,11 @@ import { useEffect, useRef, useCallback, type RefObject } from "react";
 interface UseSwipeToCloseOptions {
   onClose: () => void;
   enabled?: boolean;
-  threshold?: number; // Distance in pixels to trigger close
-  velocityThreshold?: number; // Velocity to trigger close
+  threshold?: number;
+  velocityThreshold?: number;
   dragHandleRef?: RefObject<HTMLElement | null>;
+  /** Scrollable body ref — swipe from anywhere works only when scrollTop ≤ 0 */
+  scrollContainerRef?: RefObject<HTMLElement | null>;
 }
 
 export function useSwipeToClose({
@@ -18,6 +24,7 @@ export function useSwipeToClose({
   threshold = 100,
   velocityThreshold = 0.5,
   dragHandleRef,
+  scrollContainerRef,
 }: UseSwipeToCloseOptions) {
   const startY = useRef<number>(0);
   const currentY = useRef<number>(0);
@@ -32,30 +39,30 @@ export function useSwipeToClose({
     (e: TouchEvent) => {
       if (!elementRef.current) return;
 
+      const touch = e.touches[0];
+
+      // Check if touch is on the drag handle — always allow
       if (dragHandleRef?.current) {
         const target = e.target;
-        if (
-          !(target instanceof Node) ||
-          !dragHandleRef.current.contains(target)
-        ) {
+        if (target instanceof Node && dragHandleRef.current.contains(target)) {
+          startY.current = touch.clientY;
+          currentY.current = touch.clientY;
+          startTime.current = Date.now();
+          isDragging.current = true;
           return;
         }
-      } else {
-        const touch = e.touches[0];
-        const rect = elementRef.current.getBoundingClientRect();
-        const relativeY = touch.clientY - rect.top;
-
-        // Only handle if touch starts near the top (first 60px for drag handle area)
-        if (relativeY > 60) return;
       }
 
-      const touch = e.touches[0];
+      // For non-drag-handle touches, only allow when scrolled to top
+      const scrollEl = scrollContainerRef?.current;
+      if (scrollEl && scrollEl.scrollTop > 0) return;
+
       startY.current = touch.clientY;
       currentY.current = touch.clientY;
       startTime.current = Date.now();
       isDragging.current = true;
     },
-    [dragHandleRef],
+    [dragHandleRef, scrollContainerRef],
   );
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
@@ -65,11 +72,8 @@ export function useSwipeToClose({
     currentY.current = touch.clientY;
     const deltaY = currentY.current - startY.current;
 
-    // Only allow downward swipes
     if (deltaY > 0) {
-      // Prevent default to avoid scrolling while dragging
       e.preventDefault();
-      // Apply transform to follow finger
       elementRef.current.style.transform = `translateY(${deltaY}px)`;
       elementRef.current.style.transition = "none";
     }
@@ -82,19 +86,15 @@ export function useSwipeToClose({
     const deltaTime = Date.now() - startTime.current;
     const velocity = deltaY / deltaTime;
 
-    // Reset transform
     elementRef.current.style.transition = "transform 0.3s ease-out";
 
-    // Check if should close based on distance or velocity
     if (deltaY > threshold || velocity > velocityThreshold) {
-      // Animate out and close
       elementRef.current.style.transform = `translateY(100%)`;
       closeTimerRef.current = setTimeout(() => {
         closeTimerRef.current = null;
         onCloseRef.current();
       }, 300);
     } else {
-      // Snap back
       elementRef.current.style.transform = "translateY(0)";
     }
 
