@@ -81,7 +81,7 @@ export function RevealedFilesPanel() {
         return;
       }
       if (file.file_type === "image" && file.url) {
-        setImageViewerSrc(getFullUrl(file.url));
+        setImageViewerSrc(getFullUrl(file.url) ?? file.url);
         return;
       }
       setPreviewFile(file);

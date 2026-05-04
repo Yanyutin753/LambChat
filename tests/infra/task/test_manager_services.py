@@ -136,8 +136,67 @@ async def test_recovery_service_resume_session_submits_localized_recovery_messag
     assert submit_calls[0]["project_id"] == "project-1"
     assert submit_calls[0]["disabled_tools"] == ["bash"]
     assert submit_calls[0]["message"] == "请继续处理当前会话中未完成的内容。"
+    assert submit_calls[0]["enabled_skills"] is None
     assert redis.set_calls
     assert storage.updates[-1][0] == "session-1"
+
+
+@pytest.mark.asyncio
+async def test_recovery_service_preserves_empty_enabled_skills_whitelist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        name="Recovery Session",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "failed",
+            "agent_id": "search",
+            "executor_key": "agent_stream",
+            "enabled_skills": [],
+        },
+    )
+    storage = _FakeStorage(session)
+    heartbeat = _FakeHeartbeat(exists=False)
+    redis = _FakeRedis(acquired=True)
+    submit_calls = []
+
+    async def _fake_submit(**kwargs):
+        submit_calls.append(kwargs)
+        return kwargs["run_id"], ""
+
+    async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
+        return None
+
+    class _FakeUserStorage:
+        async def get_by_id(self, user_id: str):
+            return SimpleNamespace(metadata={"language": "zh-CN"})
+
+    async def _fake_executor(*args, **kwargs):
+        if False:
+            yield None
+
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
+    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
+
+    service = recovery_module.TaskRecoveryService(
+        storage=storage,
+        run_info={},
+        heartbeat=heartbeat,
+        ensure_executor=lambda: None,
+        submit_task=_fake_submit,
+        mark_run_failed=_fake_mark_failed,
+    )
+
+    result = await service.resume_session("session-1")
+
+    assert result["success"] is True
+    assert submit_calls[0]["enabled_skills"] == []
+    metadata = storage.updates[-1][1].metadata
+    assert metadata["enabled_skills"] == []
 
 
 @pytest.mark.asyncio

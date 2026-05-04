@@ -15,7 +15,7 @@ import asyncio
 import base64
 import os
 import shlex
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 
 from deepagents.backends.sandbox import BaseSandbox
 from deepagents.backends.utils import (
@@ -342,10 +342,10 @@ class E2BBackend(BaseSandbox):
 
             rendered = _slice_text_read(content, offset, limit)
             if is_read_result(rendered):
-                return rendered
+                return rendered  # type: ignore[return-value]
             return ReadResult(
                 file_data={"content": content, "encoding": "utf-8"},
-                rendered_content=rendered,
+                rendered_content=cast(str, rendered),
             )
         except Exception as e:
             logger.warning(f"E2B files.read({file_path}) failed: {e}, falling back to execute()")

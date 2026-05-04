@@ -107,7 +107,6 @@ export function useSkillsActions() {
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [isFormFullscreen, setIsFormFullscreen] = useState(false);
 
   // Batch selection state
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
@@ -200,7 +199,6 @@ export function useSkillsActions() {
     setShowModal(false);
     setEditingSkill(null);
     setIsCreating(false);
-    setIsFormFullscreen(false);
   };
 
   const handleExportZip = async (name: string) => {
@@ -539,8 +537,6 @@ export function useSkillsActions() {
     editingSkill,
     isCreating,
     showModal,
-    isFormFullscreen,
-    setIsFormFullscreen,
     handleCreate,
     handleEdit,
     handleSave,

@@ -1,6 +1,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import toast from "react-hot-toast";
-import { ArrowUp, Square, Ban, Lock, FileText, Sparkles } from "lucide-react";
+import {
+  ArrowUp,
+  Square,
+  Ban,
+  Lock,
+  FileText,
+  X,
+  ChevronDown,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ToolSelector } from "../selectors/ToolSelector";
@@ -23,7 +31,10 @@ import { turndown, cleanPastedHtml } from "./chatInputTurndown";
 import { PASTE_TEXT_THRESHOLD } from "./chatInputConstants";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
-import { getCategoryIcon } from "../panels/MarketplacePanel/constants";
+import {
+  PersonaAvatarIcon,
+  PersonaAvatarImage,
+} from "../persona/PersonaAvatarIcon";
 import type {
   ToolState,
   ToolCategory,
@@ -70,6 +81,7 @@ export interface ChatInputProps {
   personaPresets?: PersonaPreset[];
   selectedPersonaPresetId?: string | null;
   selectedPersonaName?: string | null;
+  personaSkillsControlled?: boolean;
   personaPresetsLoading?: boolean;
   personaPresetsMutating?: boolean;
   onUsePersonaPreset?: (
@@ -133,6 +145,7 @@ export const ChatInput = memo(function ChatInput({
   personaPresets = [],
   selectedPersonaPresetId,
   selectedPersonaName,
+  personaSkillsControlled = false,
   personaPresetsLoading = false,
   personaPresetsMutating = false,
   onUsePersonaPreset,
@@ -181,22 +194,6 @@ export const ChatInput = memo(function ChatInput({
     if (!preset) return null;
     return { avatar: preset.avatar, primaryTag: preset.tags[0] || "" };
   }, [selectedPersonaPresetId, personaPresets]);
-
-  const CategoryIcon = personaAvatar
-    ? getCategoryIcon(personaAvatar.primaryTag) ?? Sparkles
-    : Sparkles;
-
-  const personaChipWidth = useMemo(() => {
-    if (!selectedPersonaName) return 0;
-    if (typeof document === "undefined") return 0;
-    const canvas = document.createElement("canvas").getContext("2d");
-    if (!canvas) return 0;
-    const fontFamily = getComputedStyle(document.documentElement).fontFamily;
-    canvas.font = `600 15px ${fontFamily}`;
-    const textWidth = canvas.measureText(selectedPersonaName).width;
-    // pl(4px) + icon(20px, if avatar) + gap(6px) + text + extra spacing(4px)
-    return 4 + (personaAvatar ? 20 + 6 : 0) + textWidth + 4;
-  }, [selectedPersonaName, personaAvatar]);
 
   const attachments = externalAttachments ?? internalAttachments;
   const setAttachments = externalOnAttachmentsChange ?? setInternalAttachments;
@@ -541,50 +538,6 @@ export const ChatInput = memo(function ChatInput({
 
           <div className="px-2.5 pt-1">
             <div className="relative">
-              {selectedPersonaName && (
-                <span
-                  className="absolute top-0 left-0 pt-[10px] pl-1 cursor-pointer select-none inline-flex items-center gap-1.5 z-10 pointer-events-auto"
-                  onClick={() => setActivePanel("persona")}
-                  title={selectedPersonaName}
-                >
-                  {personaAvatar && (
-                    <span
-                      className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-[var(--theme-border)] overflow-hidden shrink-0"
-                      style={{
-                        background:
-                          "color-mix(in srgb, var(--theme-primary-light) 50%, var(--theme-bg-card))",
-                      }}
-                    >
-                      {personaAvatar.avatar ? (
-                        <img
-                          src={personaAvatar.avatar}
-                          alt=""
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display =
-                              "none";
-                          }}
-                        />
-                      ) : (
-                        <CategoryIcon
-                          size={12}
-                          className="text-[var(--theme-primary)]"
-                        />
-                      )}
-                    </span>
-                  )}
-                  <span
-                    className="whitespace-nowrap font-semibold text-blue-600 dark:text-blue-400"
-                    style={{
-                      fontSize: "15px",
-                      lineHeight: 1.625,
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    {selectedPersonaName}
-                  </span>
-                </span>
-              )}
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -599,7 +552,7 @@ export const ChatInput = memo(function ChatInput({
                 className="bg-transparent outline-none w-full pt-[10px] resize-none text-[15px] disabled:opacity-50 leading-relaxed overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[52px]"
                 style={{
                   color: "var(--theme-text)",
-                  paddingLeft: personaChipWidth > 0 ? personaChipWidth + 4 : 4,
+                  paddingLeft: 4,
                 }}
                 rows={1}
               />
@@ -669,6 +622,51 @@ export const ChatInput = memo(function ChatInput({
                     : undefined
                 }
               />
+              {selectedPersonaName && (
+                <button
+                  type="button"
+                  className="chat-tool-btn group"
+                  onClick={() => setActivePanel("persona")}
+                  title={selectedPersonaName}
+                >
+                  <div className="flex flex-row items-center gap-1.5">
+                    <span className="relative w-[18px] h-[18px] shrink-0 inline-flex items-center justify-center">
+                      {personaAvatar?.avatar ? (
+                        <PersonaAvatarImage
+                          avatar={personaAvatar.avatar}
+                          alt=""
+                          className="w-[18px] h-[18px] rounded-full object-cover group-hover:opacity-0 transition-opacity"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                      ) : (
+                        <PersonaAvatarIcon
+                          avatar={personaAvatar?.avatar}
+                          primaryTag={personaAvatar?.primaryTag}
+                          size={18}
+                          className="transition-transform duration-200 group-hover:opacity-0"
+                        />
+                      )}
+                      {onClearPersonaPreset && (
+                        <X
+                          size={18}
+                          className="absolute inset-0 m-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onClearPersonaPreset();
+                          }}
+                        />
+                      )}
+                    </span>
+                    <span className="max-w-40 truncate text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      {selectedPersonaName}
+                    </span>
+                    <ChevronDown size={14} className="opacity-50 shrink-0" />
+                  </div>
+                </button>
+              )}
             </div>
 
             <div className="self-end flex space-x-1.5 flex-shrink-0">
@@ -763,6 +761,9 @@ export const ChatInput = memo(function ChatInput({
             isMutating={skillsMutating}
             enabledCount={enabledSkillsCount}
             totalCount={totalSkillsCount}
+            controlledByPersonaName={
+              personaSkillsControlled ? selectedPersonaName : null
+            }
             isOpen={activePanel === "skills"}
             onOpenChange={(open) => setActivePanel(open ? "skills" : null)}
           />

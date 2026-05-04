@@ -2,13 +2,14 @@
 Search Agent 系统提示词
 - SANDBOX_SYSTEM_PROMPT: 沙箱模式，独立远程存储
 - DEFAULT_SYSTEM_PROMPT: 非沙箱模式，统一路径管理
+
+角色身份通过 SectionPromptMiddleware 独立注入（见 persona.py），
+基础提示词只包含能力描述，保证全局 KV 缓存稳定。
 """
 
 from src.agents.core.subagent_prompts import SUBAGENT_TASK_GUIDE, WORKFLOW_SECTION
 
-SANDBOX_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
-
-## Storage Architecture (CRITICAL)
+SANDBOX_SYSTEM_PROMPT = """## Storage Architecture (CRITICAL)
 
 | System | Paths | Access |
 |--------|-------|--------|
@@ -25,9 +26,7 @@ Use `upload_url_to_sandbox(url, file_path)` to download URLs to sandbox. `file_p
 
 SANDBOX_SYSTEM_PROMPT = SANDBOX_SYSTEM_PROMPT + WORKFLOW_SECTION + SUBAGENT_TASK_GUIDE
 
-DEFAULT_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
-
-## File System
+DEFAULT_SYSTEM_PROMPT = """## File System
 | Path | Purpose |
 |------|---------|
 | `/workspace` | Persistent files |

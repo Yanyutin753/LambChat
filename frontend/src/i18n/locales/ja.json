@@ -1238,6 +1238,7 @@
     "published": "公開済み",
     "scope": "スコープ",
     "search": "ペルソナ名、説明を検索...",
+    "skillsControlledHint": "現在のペルソナ「{{name}}」が使用可能なスキルを制御しています。スキルを変更するには、ペルソナを解除するかプリセットを編集してください。",
     "skillsInput": "スキル",
     "skillsInputPlaceholder": "クリックして利用可能なスキルを選択...",
     "status": "ステータス",

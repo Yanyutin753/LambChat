@@ -1,12 +1,13 @@
 """
 Fast Agent 系统提示 - 简洁高效
+
+角色身份通过 SectionPromptMiddleware 独立注入（见 persona.py），
+基础提示词只包含能力描述，保证全局 KV 缓存稳定。
 """
 
 from src.agents.core.subagent_prompts import SUBAGENT_TASK_GUIDE, WORKFLOW_SECTION
 
-FAST_SYSTEM_PROMPT = """You are an intelligent assistant with tools and skills.
-
-## File System
+FAST_SYSTEM_PROMPT = """## File System
 | Path | Purpose |
 |------|---------|
 | `/workspace` | Persistent files |

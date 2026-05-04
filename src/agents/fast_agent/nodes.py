@@ -18,7 +18,7 @@ from src.agents.core.node_utils import (
     emit_token_usage,
     resolve_fallback_model,
 )
-from src.agents.core.persona import build_persona_prompt_section
+from src.agents.core.persona import build_persona_prompt_sections
 from src.agents.core.subagent_prompts import SUBAGENT_PROMPT, get_memory_guide
 from src.agents.core.thinking import build_thinking_config
 from src.agents.fast_agent.context import FastAgentContext
@@ -92,7 +92,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     assistant_id = f"assistant-{tenant_id}"
 
     # 构建 persona + skills 提示
-    persona_prompt = build_persona_prompt_section(configurable.get("persona_system_prompt"))
+    persona_sections = build_persona_prompt_sections(configurable.get("persona_system_prompt"))
 
     skills_prompt = ""
     if settings.ENABLE_SKILLS and context.skills:
@@ -107,7 +107,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 构建记忆系统提示
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
 
-    # 构建系统提示（skills/memory_guide 由 SectionPromptMiddleware 在请求时注入）
+    # 构建系统提示（persona 由 SectionPromptMiddleware 注入，保持基础提示词稳定以优化 KV 缓存）
     system_prompt = FAST_SYSTEM_PROMPT
 
     # 创建 backend（无沙箱，PostgreSQL 或 MongoDB 由 store 决定）
@@ -178,7 +178,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     )
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     # Skills + memory guide: session-static (one SectionPromptMiddleware, multiple blocks)
-    _prompt_sections = [s for s in (persona_prompt, skills_prompt, memory_guide) if s]
+    # persona_sections returns 0-2 blocks (role + behavior) for fine-grained KV cache
+    _prompt_sections = [s for s in (*persona_sections, skills_prompt, memory_guide) if s]
     if _prompt_sections:
         user_middleware.append(SectionPromptMiddleware(sections=_prompt_sections))
     if settings.ENABLE_MEMORY and settings.NATIVE_MEMORY_INDEX_ENABLED and context.user_id:

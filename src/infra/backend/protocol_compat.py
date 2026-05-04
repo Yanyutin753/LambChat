@@ -51,7 +51,7 @@ if _UPSTREAM_IS_DATACLASS:
         def __str__(self) -> str:
             return self.rendered_content or ""
 
-        def __contains__(self, item: object) -> bool:
+        def __contains__(self, item: str) -> bool:
             return item in str(self)
 
         def __iter__(self):

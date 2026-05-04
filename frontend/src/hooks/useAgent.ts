@@ -39,6 +39,7 @@ import {
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
 import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
+import { resolvePersonaEnabledSkills } from "./useAgent/personaRequestConfig";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
@@ -516,9 +517,12 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         }
 
         // 获取当前禁用的 skills 和 mcp_tools
-        const disabledSkills = options?.getDisabledSkills?.() || [];
-        const enabledSkills = options?.getEnabledSkills?.() || [];
         const personaPresetId = options?.getPersonaPresetId?.() || null;
+        const disabledSkills = options?.getDisabledSkills?.() || [];
+        const enabledSkills = resolvePersonaEnabledSkills(
+          personaPresetId,
+          options?.getEnabledSkills?.(),
+        );
         const disabledMcpTools = options?.getDisabledMcpTools?.() || [];
 
         // Merge session-level agent options (e.g. model) with ChatInput values

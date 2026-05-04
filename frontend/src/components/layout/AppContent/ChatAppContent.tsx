@@ -18,6 +18,7 @@ import {
   type ToolCategory,
   type SkillSource,
   type PersonaPreset,
+  type PersonaPresetSnapshot,
 } from "../../../types";
 import { useDragAndDrop } from "./useDragAndDrop";
 import { useWebSocketNotifications } from "./useWebSocketNotifications";
@@ -229,6 +230,13 @@ export function ChatAppContent({
   useEffect(() => {
     const personaId = searchParams.get("persona");
     if (!personaId) return;
+    const state = location.state as
+      | {
+          personaPresetId?: string;
+          personaSnapshot?: PersonaPresetSnapshot;
+        }
+      | null
+      | undefined;
     setSearchParams(
       (prev) => {
         prev.delete("persona");
@@ -236,6 +244,13 @@ export function ChatAppContent({
       },
       { replace: true },
     );
+    if (
+      state?.personaPresetId === personaId &&
+      state.personaSnapshot?.preset_id === personaId
+    ) {
+      setPersonaPreset(personaId, state.personaSnapshot);
+      return;
+    }
     try {
       const raw = localStorage.getItem("lambchat_session_config");
       if (!raw) return;
@@ -246,7 +261,7 @@ export function ChatAppContent({
     } catch {
       /* ignore */
     }
-  }, [searchParams, setSearchParams, setPersonaPreset]);
+  }, [location.state, searchParams, setSearchParams, setPersonaPreset]);
 
   useEffect(() => {
     if (isSessionRestoredRef.current) return;
@@ -761,6 +776,9 @@ export function ChatAppContent({
           personaPresets={personaPresets}
           selectedPersonaPresetId={sessionConfig.personaPresetId}
           selectedPersonaName={sessionConfig.personaSnapshot?.name || null}
+          personaSkillsControlled={
+            (sessionConfig.personaSnapshot?.skill_names.length ?? 0) > 0
+          }
           personaPresetsLoading={personaPresetsLoading}
           personaPresetsMutating={personaPresetsMutating}
           onUsePersonaPreset={handleUsePersonaPreset}

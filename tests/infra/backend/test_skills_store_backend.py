@@ -67,8 +67,17 @@ class _FakeSkillStorage:
 
 
 class _FakeRuntime:
-    def __init__(self, disabled_skills: list[str]) -> None:
-        self.config = {"configurable": {"disabled_skills": disabled_skills}}
+    def __init__(
+        self,
+        disabled_skills: list[str] | None = None,
+        enabled_skills: list[str] | None = None,
+    ) -> None:
+        self.config = {
+            "configurable": {
+                "disabled_skills": disabled_skills,
+                "enabled_skills": enabled_skills,
+            }
+        }
 
 
 async def test_skills_store_backend_hides_disabled_skills_from_ls_and_read() -> None:
@@ -109,6 +118,58 @@ async def test_skills_store_backend_reads_disabled_skills_from_runtime_config() 
     result = await backend.als("/skills/")
 
     assert [_field(entry, "path") for entry in _field(result, "entries")] == ["/visible/"]
+
+
+async def test_skills_store_backend_limits_root_and_reads_to_enabled_skills() -> None:
+    backend = SkillsStoreBackend(user_id="user-1", enabled_skills=["visible"])
+    backend._storage = _FakeSkillStorage()
+
+    result = await backend.als("/skills/")
+
+    assert [_field(entry, "path") for entry in _field(result, "entries")] == ["/visible/"]
+
+    visible = await backend.aread("/skills/visible/SKILL.md")
+    assert _field(visible, "file_data")["content"] == "visible skill"
+
+    hidden = await backend.aread("/skills/hidden/SKILL.md")
+    assert _field(hidden, "error") == "Skill 'hidden' not found"
+
+    hidden_dir = await backend.als("/skills/hidden/")
+    assert _field(hidden_dir, "entries") == []
+
+
+async def test_skills_store_backend_limits_search_to_enabled_skills() -> None:
+    backend = SkillsStoreBackend(user_id="user-1", enabled_skills=["visible"])
+    backend._storage = _FakeSkillStorage()
+
+    grep_result = await backend.agrep("needle", "/skills/")
+    assert [_field(match, "path") for match in _field(grep_result, "matches")] == [
+        "/visible/notes.txt"
+    ]
+
+    glob_result = await backend.aglob("*", "/skills/")
+    assert [_field(entry, "path") for entry in _field(glob_result, "matches")] == ["/visible/"]
+
+
+async def test_skills_store_backend_reads_enabled_skills_from_runtime_config() -> None:
+    backend = SkillsStoreBackend(
+        user_id="user-1",
+        runtime=_FakeRuntime(enabled_skills=["visible"]),
+    )
+    backend._storage = _FakeSkillStorage()
+
+    result = await backend.als("/skills/")
+
+    assert [_field(entry, "path") for entry in _field(result, "entries")] == ["/visible/"]
+
+
+async def test_skills_store_backend_empty_enabled_skills_hides_all_skills() -> None:
+    backend = SkillsStoreBackend(user_id="user-1", enabled_skills=[])
+    backend._storage = _FakeSkillStorage()
+
+    result = await backend.als("/skills/")
+
+    assert _field(result, "entries") == []
 
 
 async def test_skills_store_backend_read_reports_offset_past_eof() -> None:

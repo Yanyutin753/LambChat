@@ -1238,6 +1238,7 @@
     "published": "게시됨",
     "scope": "범위",
     "search": "페르소나 이름, 설명 검색...",
+    "skillsControlledHint": "현재 페르소나 \"{{name}}\"이(가) 사용 가능한 스킬을 제어합니다. 이 채팅의 스킬을 변경하려면 페르소나를 해제하거나 프리셋을 편집하세요.",
     "skillsInput": "스킬",
     "skillsInputPlaceholder": "클릭하여 사용 가능한 스킬을 선택...",
     "status": "상태",

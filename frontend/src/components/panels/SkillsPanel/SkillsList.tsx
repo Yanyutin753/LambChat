@@ -174,7 +174,7 @@ export function SkillsList({
   const headerActions = (
     <div className="flex items-center gap-2">
       {filteredSkills.length > 0 && (
-        <button onClick={onSelectAll} className="btn-secondary">
+        <button onClick={onSelectAll} className="btn-secondary h-10">
           <Check size={16} />
           <span className="hidden sm:inline">
             {selectedNames.size === filteredSkills.length &&
@@ -184,15 +184,15 @@ export function SkillsList({
           </span>
         </button>
       )}
-      <button onClick={onGithubClick} className="btn-secondary">
+      <button onClick={onGithubClick} className="btn-secondary h-10">
         <Github size={16} />
         <span className="hidden sm:inline">GitHub</span>
       </button>
-      <button onClick={onZipClick} className="btn-secondary">
+      <button onClick={onZipClick} className="btn-secondary h-10">
         <Archive size={16} />
         <span className="hidden sm:inline">ZIP</span>
       </button>
-      <button onClick={onCreate} className="btn-primary">
+      <button onClick={onCreate} className="btn-primary h-10">
         <Plus size={16} />
         <span className="hidden sm:inline">{t("skills.newSkill")}</span>
       </button>
@@ -203,24 +203,22 @@ export function SkillsList({
     <>
       {embedded && (
         <div className="skill-panel-header">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search
-                  size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="panel-search h-10"
-                  placeholder={t("skills.searchPlaceholder")}
-                />
-              </div>
-              {filterMenu}
+          <div className="mt-2 flex items-center gap-2 sm:mt-3">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="panel-search h-10"
+                placeholder={t("skills.searchPlaceholder")}
+              />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            {filterMenu}
+            <div className="flex flex-nowrap shrink-0 items-center gap-1.5 sm:gap-2">
               {headerActions}
             </div>
           </div>

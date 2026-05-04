@@ -13,7 +13,7 @@ Skills Store Backend
 """
 
 import fnmatch
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from deepagents.backends.utils import (
     create_file_data,
@@ -92,10 +92,12 @@ class SkillsStoreBackend(BackendProtocol):
         user_id: str,
         runtime: Any = None,
         disabled_skills: Optional[list[str]] = None,
+        enabled_skills: Optional[list[str]] = None,
     ):
         self._user_id = user_id
         self._runtime = runtime
         self._disabled_skills = disabled_skills
+        self._enabled_skills = enabled_skills
         self._storage: Optional[SkillStorage] = None
 
     async def _get_storage(self) -> SkillStorage:
@@ -122,8 +124,33 @@ class SkillsStoreBackend(BackendProtocol):
 
         return set()
 
+    def _get_enabled_skill_names(self) -> set[str] | None:
+        """获取当前会话显式允许的 skill 名称集合；None 表示使用全局可见性。"""
+        if self._enabled_skills is not None:
+            return {str(name) for name in self._enabled_skills}
+
+        if not self._runtime or not hasattr(self._runtime, "config"):
+            return None
+
+        try:
+            configurable = self._runtime.config.get("configurable", {})
+            if "enabled_skills" not in configurable:
+                return None
+            enabled_skills = configurable.get("enabled_skills")
+            if enabled_skills is None:
+                return None
+            if isinstance(enabled_skills, list):
+                return {str(name) for name in enabled_skills}
+        except Exception:
+            pass
+
+        return None
+
     def _is_skill_visible(self, skill_name: str) -> bool:
         """检查 skill 是否在当前会话中可见。"""
+        enabled = self._get_enabled_skill_names()
+        if enabled is not None and skill_name not in enabled:
+            return False
         return skill_name not in self._get_disabled_skill_names()
 
     @staticmethod
@@ -131,11 +158,8 @@ class SkillsStoreBackend(BackendProtocol):
         return f"Skill '{skill_name}' not found"
 
     def _filter_effective_skills(self, skills: dict[str, Any]) -> dict[str, Any]:
-        """过滤当前会话禁用的 skills。"""
-        disabled = self._get_disabled_skill_names()
-        if not disabled:
-            return skills
-        return {name: data for name, data in skills.items() if name not in disabled}
+        """过滤当前会话不可见的 skills。"""
+        return {name: data for name, data in skills.items() if self._is_skill_visible(name)}
 
     async def _get_skill_file_paths(self, storage, skill_name: str) -> list[str]:
         """获取 skill 文件路径"""
@@ -206,18 +230,18 @@ class SkillsStoreBackend(BackendProtocol):
                 )
                 rendered = _slice_text_read(desc, offset, limit)
                 if is_read_result(rendered):
-                    return rendered
+                    return rendered  # type: ignore[return-value]
                 return ReadResult(
                     file_data={"content": desc, "encoding": "utf-8"},
-                    rendered_content=rendered,
+                    rendered_content=cast(str, rendered),
                 )
 
             rendered = _slice_text_read(content, offset, limit)
             if is_read_result(rendered):
-                return rendered
+                return rendered  # type: ignore[return-value]
             return ReadResult(
                 file_data={"content": content, "encoding": "utf-8"},
-                rendered_content=rendered,
+                rendered_content=cast(str, rendered),
             )
 
         except Exception as e:
@@ -703,6 +727,7 @@ def create_skills_backend(
     user_id: str,
     runtime: Any = None,
     disabled_skills: Optional[list[str]] = None,
+    enabled_skills: Optional[list[str]] = None,
 ) -> SkillsStoreBackend:
     """
     创建 Skills Store Backend
@@ -711,6 +736,7 @@ def create_skills_backend(
         user_id: 用户 ID
         runtime: ToolRuntime 实例（可选）
         disabled_skills: 会话级禁用的 skills（可选）
+        enabled_skills: 会话级允许的 skills 白名单（可选，None 表示全局）
 
     Returns:
         SkillsStoreBackend 实例
@@ -719,4 +745,5 @@ def create_skills_backend(
         user_id=user_id,
         runtime=runtime,
         disabled_skills=disabled_skills,
+        enabled_skills=enabled_skills,
     )

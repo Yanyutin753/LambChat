@@ -30,6 +30,7 @@ interface SkillSelectorProps {
   isMutating?: boolean;
   enabledCount: number;
   totalCount: number;
+  controlledByPersonaName?: string | null;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -53,6 +54,7 @@ export function SkillSelector({
   isMutating = false,
   enabledCount,
   totalCount,
+  controlledByPersonaName,
   isOpen: externalIsOpen,
   onOpenChange: externalOnOpenChange,
 }: SkillSelectorProps) {
@@ -121,6 +123,7 @@ export function SkillSelector({
   );
   const allSkillsEnabled = totalCount > 0 && enabledCount === totalCount;
   const noSkillsEnabled = enabledCount === 0;
+  const personaControlled = !!controlledByPersonaName;
 
   const showBatchToggleToast = (
     enabled: boolean,
@@ -220,7 +223,7 @@ export function SkillSelector({
             const ok = await onToggleAll(true);
             showBatchToggleToast(true, changedCount, ok);
           }}
-          disabled={isMutating || allSkillsEnabled}
+          disabled={personaControlled || isMutating || allSkillsEnabled}
           className="px-3 py-2 sm:py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("skillSelector.selectAll")}
@@ -234,7 +237,7 @@ export function SkillSelector({
             const ok = await onToggleAll(false);
             showBatchToggleToast(false, enabledCount, ok);
           }}
-          disabled={isMutating || noSkillsEnabled}
+          disabled={personaControlled || isMutating || noSkillsEnabled}
           className="px-3 py-2 sm:py-1.5 text-xs font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-700 active:bg-stone-200 dark:active:bg-stone-600 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
           {t("skillSelector.deselectAll")}
@@ -252,6 +255,16 @@ export function SkillSelector({
           <span>{t("skillSelector.manage")}</span>
         </button>
       </div>
+
+      {personaControlled && (
+        <div className="border-b border-blue-200/70 bg-blue-50/80 px-4 py-3 text-xs leading-relaxed text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200 sm:px-5">
+          {t(
+            "personaPresets.skillsControlledHint",
+            "当前角色「{{name}}」正在控制可用 Skills。要调整本次对话的技能，请先清除当前角色，或编辑该角色预设。",
+            { name: controlledByPersonaName },
+          )}
+        </div>
+      )}
 
       <div className="border-b border-stone-200/80 bg-white/80 px-4 py-3 dark:border-stone-700/80 dark:bg-stone-800/60 sm:px-5">
         <div className="relative">
@@ -350,9 +363,18 @@ export function SkillSelector({
                   <Checkbox
                     checked={allEnabled}
                     pending={categoryPending}
-                    disabled={isMutating || categoryChangedCount === 0}
+                    disabled={
+                      personaControlled ||
+                      isMutating ||
+                      categoryChangedCount === 0
+                    }
                     onChange={async () => {
-                      if (isMutating || categoryChangedCount === 0) return;
+                      if (
+                        personaControlled ||
+                        isMutating ||
+                        categoryChangedCount === 0
+                      )
+                        return;
                       const ok = await onToggleCategory(
                         cat,
                         categoryTargetEnabled,
@@ -375,18 +397,20 @@ export function SkillSelector({
                           {/* Skill Row */}
                           <button
                             type="button"
-                            disabled={isMutating}
+                            disabled={personaControlled || isMutating}
                             className={`flex w-full items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-2 sm:py-2 rounded-lg transition-all duration-200 disabled:cursor-not-allowed ${
                               skill.enabled
                                 ? "hover:bg-stone-50 dark:hover:bg-stone-700/30 active:bg-stone-100/80 dark:active:bg-stone-600/40"
                                 : "bg-[var(--theme-primary)]/[0.06] dark:bg-[var(--theme-primary)]/[0.08] hover:bg-[var(--theme-primary)]/[0.12] dark:hover:bg-[var(--theme-primary)]/[0.14] active:bg-[var(--theme-primary)]/[0.18] dark:active:bg-[var(--theme-primary)]/[0.20]"
                             } ${
-                              pendingSet.has(skill.name) || isMutating
+                              pendingSet.has(skill.name) ||
+                              personaControlled ||
+                              isMutating
                                 ? "opacity-70"
                                 : ""
                             }`}
                             onClick={async () => {
-                              if (isMutating) {
+                              if (personaControlled || isMutating) {
                                 return;
                               }
                               const ok = await onToggleSkill(skill.name);
@@ -413,8 +437,9 @@ export function SkillSelector({
                             <Checkbox
                               checked={skill.enabled}
                               pending={pendingSet.has(skill.name)}
+                              disabled={personaControlled || isMutating}
                               onChange={async () => {
-                                if (isMutating) {
+                                if (personaControlled || isMutating) {
                                   return;
                                 }
                                 const ok = await onToggleSkill(skill.name);

@@ -106,6 +106,7 @@ interface ChatViewProps {
   personaPresets: PersonaPreset[];
   selectedPersonaPresetId: string | null;
   selectedPersonaName: string | null;
+  personaSkillsControlled: boolean;
   personaPresetsLoading: boolean;
   personaPresetsMutating: boolean;
   onUsePersonaPreset: (
@@ -186,6 +187,7 @@ export function ChatView({
   personaPresets,
   selectedPersonaPresetId,
   selectedPersonaName,
+  personaSkillsControlled,
   personaPresetsLoading,
   personaPresetsMutating,
   onUsePersonaPreset,
@@ -668,6 +670,7 @@ export function ChatView({
     personaPresets,
     selectedPersonaPresetId,
     selectedPersonaName,
+    personaSkillsControlled,
     personaPresetsLoading,
     personaPresetsMutating,
     onUsePersonaPreset,

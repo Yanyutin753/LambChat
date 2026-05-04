@@ -26,6 +26,7 @@ from src.infra.task.manager import get_task_manager
 from src.infra.task.status import TaskStatus
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.agent import AgentRequest
+from src.kernel.schemas.persona_preset import PersonaPresetSnapshot
 from src.kernel.schemas.session import SessionUpdate
 from src.kernel.schemas.user import TokenPayload
 
@@ -55,6 +56,15 @@ async def _update_session_config(
     )
 
 
+def _persona_enabled_skills_from_snapshot(
+    snapshot: PersonaPresetSnapshot,
+) -> list[str] | None:
+    """Return a whitelist only when the persona explicitly configured skills."""
+    if snapshot.skill_names or snapshot.missing_skill_names:
+        return snapshot.skill_names
+    return None
+
+
 def build_conversation_config(
     run_id: str,
     agent_id: str,
@@ -70,7 +80,7 @@ def build_conversation_config(
         "agent_options": request.agent_options or {},
         "disabled_tools": request.disabled_tools or [],
         "disabled_skills": request.disabled_skills or [],
-        "enabled_skills": request.enabled_skills or [],
+        "enabled_skills": request.enabled_skills,
         "disabled_mcp_tools": request.disabled_mcp_tools or [],
         "language": language,
     }
@@ -103,7 +113,7 @@ async def resolve_persona_request(
         is_admin="persona_preset:admin" in (user.permissions or []),
     )
     request.persona_snapshot = snapshot
-    request.enabled_skills = snapshot.skill_names
+    request.enabled_skills = _persona_enabled_skills_from_snapshot(snapshot)
     request.persona_system_prompt = snapshot.system_prompt
 
 

@@ -2,11 +2,10 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Settings2, UserRound, X, Sparkles, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  getCategoryIcon,
-  nameToGradient,
-} from "../panels/MarketplacePanel/constants";
+import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
+import { isPersonaImageAvatar } from "./personaAvatar";
+import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
 
 interface PersonaPresetSelectorProps {
   presets: PersonaPreset[];
@@ -207,9 +206,6 @@ export function PersonaPresetSelector({
                 const selected = selectedPresetId === preset.id;
                 const gradient = nameToGradient(preset.name);
                 const primaryTag = preset.tags[0];
-                const CategoryIcon = primaryTag
-                  ? getCategoryIcon(primaryTag)
-                  : Sparkles;
                 return (
                   <div
                     key={preset.id}
@@ -235,9 +231,9 @@ export function PersonaPresetSelector({
                       {/* Title row */}
                       <div className="flex items-start gap-2.5">
                         <div className="pps-card__avatar shrink-0">
-                          {preset.avatar ? (
-                            <img
-                              src={preset.avatar}
+                          {isPersonaImageAvatar(preset.avatar) ? (
+                            <PersonaAvatarImage
+                              avatar={preset.avatar}
                               alt=""
                               className="pps-card__avatar-img"
                               onError={(e) => {
@@ -245,11 +241,14 @@ export function PersonaPresetSelector({
                                   "none";
                               }}
                             />
-                          ) : null}
-                          <CategoryIcon
-                            size={16}
-                            className="pps-card__avatar-icon"
-                          />
+                          ) : (
+                            <PersonaAvatarIcon
+                              avatar={preset.avatar}
+                              primaryTag={primaryTag}
+                              size={16}
+                              className="pps-card__avatar-icon"
+                            />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3

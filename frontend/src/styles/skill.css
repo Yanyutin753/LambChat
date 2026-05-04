@@ -911,3 +911,54 @@
   background-color: rgb(153 27 27 / 0.3);
   color: #fca5a5;
 }
+
+/* ===== Skill Form Editor - Sidebar-specific tweaks ===== */
+/* Sidebar/overlay/animation styles are in components.css (.editor-sidebar-*) */
+
+/* --- Sticky action bar inside sidebar --- */
+.editor-sidebar .skill-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: var(--theme-bg-card);
+  border-top: 1px solid var(--skill-border);
+  padding: 0.75rem 1rem;
+  margin: 0 -0.75rem;
+}
+
+@media (min-width: 640px) {
+  .editor-sidebar .skill-action-bar {
+    margin: 0 -1rem;
+  }
+}
+
+/* Editor area fills available space inside sidebar */
+.editor-sidebar .skill-form-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-sidebar .skill-form-editor .relative[style] {
+  height: auto !important;
+  min-height: 220px;
+  flex: 1;
+}
+
+@media (max-width: 639px) {
+  .editor-sidebar .skill-form-editor .relative[style] {
+    min-height: 160px;
+  }
+}
+
+/* Fullscreen button hidden inside sidebar (already full-height) */
+.editor-sidebar .skill-form-editor [title="skills.form.fullscreenEditor"],
+.editor-sidebar .skill-form-editor [title="skills.form.editFullscreen"] {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .sfe-panel .skill-form-editor [title="skills.form.fullscreenEditor"],
+  .sfe-panel .skill-form-editor [title="skills.form.editFullscreen"] {
+    display: flex;
+  }
+}

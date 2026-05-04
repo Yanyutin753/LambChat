@@ -13,7 +13,7 @@ import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { MarketplacePanelSkeleton } from "../skeletons";
 import { ConfirmDialog } from "../common/ConfirmDialog";
-import { SkillFormModal } from "./SkillsPanel/SkillFormModal";
+import { SkillFormSidebar } from "./SkillsPanel/SkillFormSidebar";
 import { useMarketplace } from "../../hooks/useMarketplace";
 import { useSkills } from "../../hooks/useSkills";
 import { useAuth } from "../../hooks/useAuth";
@@ -97,7 +97,6 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [isFormFullscreen, setIsFormFullscreen] = useState(false);
   const [openMenuName, setOpenMenuName] = useState<string | null>(null);
 
   // Close all dropdowns when clicking outside
@@ -235,7 +234,6 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
       if (success) {
         setEditingSkill(null);
         setIsCreating(false);
-        setIsFormFullscreen(false);
         setShowCreateModal(false);
         await fetchSkills();
         await fetchUserSkills();
@@ -254,7 +252,6 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
   const handleFormCancel = () => {
     setEditingSkill(null);
     setIsCreating(false);
-    setIsFormFullscreen(false);
     setShowCreateModal(false);
   };
 
@@ -505,16 +502,14 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
         />
       )}
 
-      {/* Create / Edit Modal */}
-      <SkillFormModal
+      {/* Create / Edit Sidebar */}
+      <SkillFormSidebar
         showModal={showCreateModal || !!editingSkill}
         isCreating={isCreating}
-        isFormFullscreen={isFormFullscreen}
         editingSkill={editingSkill}
         isLoading={isLoading}
         onSave={handleSave}
         onCancel={handleFormCancel}
-        onFullscreenChange={setIsFormFullscreen}
         createTitle={t("marketplace.createTitle")}
         subtitle={t("marketplace.createHint")}
       />
