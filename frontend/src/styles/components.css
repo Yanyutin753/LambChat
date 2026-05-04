@@ -789,6 +789,7 @@
   font-size: 0.875rem;
   width: 100%;
   border-radius: 0.5rem;
+  padding: 0 0.75rem;
 }
 
 /* Textarea variant */
@@ -895,6 +896,40 @@
   color: var(--theme-text-secondary);
   margin-top: 0.125rem;
   line-height: 1.5;
+}
+
+.es-callout--success {
+  border-color: #86efac;
+  background: color-mix(in srgb, #dcfce7 30%, var(--theme-bg));
+}
+.es-callout--success .es-callout-icon {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.dark .es-callout--success {
+  border-color: #166534;
+  background: color-mix(in srgb, #14532d 25%, var(--theme-bg));
+}
+.dark .es-callout--success .es-callout-icon {
+  background: #14532d;
+  color: #4ade80;
+}
+
+.es-callout--danger {
+  border-color: #fca5a5;
+  background: color-mix(in srgb, #fef2f2 30%, var(--theme-bg));
+}
+.es-callout--danger .es-callout-icon {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.dark .es-callout--danger {
+  border-color: #7f1d1d;
+  background: color-mix(in srgb, #450a0a 25%, var(--theme-bg));
+}
+.dark .es-callout--danger .es-callout-icon {
+  background: #450a0a;
+  color: #f87171;
 }
 
 /* Error banner */

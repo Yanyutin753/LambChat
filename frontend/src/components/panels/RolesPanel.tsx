@@ -282,7 +282,7 @@ function RoleFormModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={isSystem}
-            className="glass-input es-input"
+            className="glass-input es-input px-3"
             placeholder={t("roles.roleNamePlaceholder")}
           />
         </div>
@@ -311,7 +311,7 @@ function RoleFormModal({
                 e.target.value === "" ? "" : Number(e.target.value),
               )
             }
-            className="glass-input es-input"
+            className="glass-input es-input px-3"
             placeholder={t("roles.maxChannelsPlaceholder")}
           />
           <p className="es-hint">{t("roles.maxChannelsHint")}</p>
@@ -336,7 +336,7 @@ function RoleFormModal({
                     e.target.value === "" ? "" : Number(e.target.value),
                   )
                 }
-                className="glass-input es-input"
+                className="glass-input es-input px-3"
                 placeholder="5"
               />
             </div>
@@ -351,7 +351,7 @@ function RoleFormModal({
                     e.target.value === "" ? "" : Number(e.target.value),
                   )
                 }
-                className="glass-input es-input"
+                className="glass-input es-input px-3"
                 placeholder="10"
               />
             </div>
@@ -415,7 +415,7 @@ function RoleFormModal({
                         e.target.value === "" ? "" : Number(e.target.value),
                       )
                     }
-                    className="glass-input es-input"
+                    className="glass-input es-input px-3"
                     placeholder={t("roles.maxChannelsPlaceholder")}
                   />
                 </div>

@@ -218,7 +218,7 @@ export function SkillsList({
               />
             </div>
             {filterMenu}
-            <div className="flex flex-nowrap shrink-0 items-center gap-1.5 sm:gap-2">
+            <div className="flex flex-nowrap shrink-0 items-center gap-1.5 sm:gap-2 ml-2">
               {headerActions}
             </div>
           </div>

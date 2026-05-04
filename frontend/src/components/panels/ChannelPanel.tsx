@@ -25,6 +25,7 @@ import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { ChannelsPanelSkeleton } from "../skeletons";
+import { EditorSidebar } from "../common/EditorSidebar";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
 import { channelApi } from "../../services/api/channel";
 import type {
@@ -39,12 +40,14 @@ interface ChannelPanelProps {
   channelType: ChannelType;
   instanceId: string;
   metadata: ChannelMetadata;
+  onClose?: () => void;
 }
 
 export function ChannelPanel({
   channelType,
   instanceId,
   metadata,
+  onClose,
 }: ChannelPanelProps) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
@@ -235,8 +238,7 @@ export function ChannelPanel({
     try {
       await channelApi.delete(channelType, instanceId);
       toast.success(t("channel.deleteSuccess", "Configuration deleted"));
-      // Navigate back to instance list
-      navigate(`/channels/${channelType}`);
+      onClose?.();
     } catch (error) {
       console.error(`Failed to delete ${channelType} config:`, error);
       toast.error(t("channel.deleteError", "Failed to delete configuration"));
@@ -405,6 +407,235 @@ export function ChannelPanel({
     return <ChannelsPanelSkeleton />;
   }
 
+  // Form content shared between both modes
+  const formContent = (
+    <div className="space-y-4">
+      {/* Status Card */}
+      {hasExistingConfig && status && (
+        <div className="glass-card rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {status.connected ? (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
+                  <Check
+                    size={16}
+                    className="text-green-600 dark:text-green-400"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
+                  <X size={16} className="text-red-600 dark:text-red-400" />
+                </div>
+              )}
+              <div>
+                <span
+                  className={`text-sm font-semibold ${
+                    status.connected
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}
+                >
+                  {status.connected
+                    ? t("channel.connected", "Connected")
+                    : t("channel.disconnected", "Disconnected")}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={handleTest}
+              disabled={isTesting || !enabled}
+              className="btn-secondary btn-sm"
+            >
+              {isTesting ? (
+                <span className="animate-spin">⟳</span>
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              {t("channel.testConnection", "Test")}
+            </button>
+          </div>
+          {status.error_message && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
+              <AlertCircle
+                size={16}
+                className="flex-shrink-0 text-red-500 dark:text-red-400"
+              />
+              <span className="text-sm text-red-700 dark:text-red-300">
+                {status.error_message}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Configuration Card */}
+      <div className="glass-card rounded-xl p-4">
+        <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
+          {t("channel.configuration", "Configuration")}
+        </h3>
+
+        <div className="space-y-4">
+          {/* Instance Name - only show for new instances */}
+          {isNewInstance && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
+                {t("channel.instanceName", "Instance Name")}{" "}
+                <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={instanceName}
+                onChange={(e) => setInstanceName(e.target.value)}
+                placeholder={t(
+                  "channel.instanceNamePlaceholder",
+                  "e.g., My Work Bot",
+                )}
+                className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
+              />
+            </div>
+          )}
+
+          {/* Instance Name Display - show for existing instances */}
+          {!isNewInstance && hasExistingConfig && (
+            <div className="rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
+              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
+                {t("channel.instanceName", "Instance Name")}
+              </span>
+              <p className="text-sm text-stone-900 dark:text-stone-100">
+                {instanceName}
+              </p>
+            </div>
+          )}
+
+          {/* Enable Toggle */}
+          <div className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
+            <div>
+              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
+                {t("channel.enabled", "Enable Channel")}
+              </span>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                {t("channel.enabledDesc", "Enable or disable this channel")}
+              </p>
+            </div>
+            <button
+              onClick={() => setEnabled(!enabled)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                enabled ? "bg-stone-900" : "bg-stone-200 dark:bg-stone-600"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-[var(--theme-bg-card)] shadow-sm transition-transform ${
+                  enabled ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Dynamic Fields */}
+          {metadata.config_fields.map(renderField)}
+
+          {/* Agent Selector */}
+          <ChannelAgentSelect value={agentId} onChange={setAgentId} />
+        </div>
+      </div>
+
+      {/* Help Card */}
+      {metadata.setup_guide.length > 0 && (
+        <div className="glass-card-subtle rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                {t("channel.setupGuide", "Setup Guide")}
+              </p>
+              <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-stone-600 dark:text-stone-300">
+                {metadata.setup_guide.map((step, index) => (
+                  <li key={index} className="leading-relaxed">
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Action buttons
+  const actionButtons = (
+    <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+      {canDelete && (
+        <button
+          onClick={handleDeleteClick}
+          disabled={!hasExistingConfig}
+          className="btn-danger"
+        >
+          <Trash2 size={16} />
+          {t("common.delete")}
+        </button>
+      )}
+      {canWrite && (
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="btn-primary"
+        >
+          <span className="inline-flex h-4 w-4 items-center justify-center">
+            {isSaving ? (
+              <LoadingSpinner size="sm" color="text-white" />
+            ) : (
+              <Save size={16} />
+            )}
+          </span>
+          <span>{t("common.save")}</span>
+        </button>
+      )}
+    </div>
+  );
+
+  const deleteDialog = (
+    <ConfirmDialog
+      isOpen={showDeleteConfirm}
+      title={t("channel.deleteTitle", "Delete Channel Instance")}
+      message={t(
+        "channel.deleteConfirmMessage",
+        `Are you sure you want to delete "${instanceName}"? This action cannot be undone.`,
+      )}
+      confirmText={t("common.delete", "Delete")}
+      cancelText={t("common.cancel", "Cancel")}
+      variant="danger"
+      onConfirm={() => {
+        setShowDeleteConfirm(false);
+        handleDelete();
+      }}
+      onCancel={() => setShowDeleteConfirm(false)}
+    />
+  );
+
+  // Sidebar mode: render inside EditorSidebar
+  if (onClose) {
+    return (
+      <>
+        <EditorSidebar
+          open={true}
+          onClose={onClose}
+          title={
+            hasExistingConfig
+              ? instanceName || metadata.display_name
+              : t("channel.newInstance", "New Instance")
+          }
+          subtitle={metadata.description}
+          icon={getChannelIcon()}
+          footer={actionButtons}
+        >
+          {formContent}
+        </EditorSidebar>
+        {deleteDialog}
+      </>
+    );
+  }
+
+  // Full-page mode (backward compatible)
   return (
     <>
       <div className="glass-shell flex h-full flex-col min-h-0">
@@ -423,218 +654,12 @@ export function ChannelPanel({
             </button>
           }
         />
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
-          <div className="space-y-4">
-            {/* Status Card */}
-            {hasExistingConfig && status && (
-              <div className="glass-card rounded-xl p-4 ">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {status.connected ? (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
-                        <Check
-                          size={16}
-                          className="text-green-600 dark:text-green-400"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
-                        <X
-                          size={16}
-                          className="text-red-600 dark:text-red-400"
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <span
-                        className={`text-sm font-semibold ${
-                          status.connected
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-red-600 dark:text-red-400"
-                        }`}
-                      >
-                        {status.connected
-                          ? t("channel.connected", "Connected")
-                          : t("channel.disconnected", "Disconnected")}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleTest}
-                    disabled={isTesting || !enabled}
-                    className="btn-secondary btn-sm"
-                  >
-                    {isTesting ? (
-                      <span className="animate-spin">⟳</span>
-                    ) : (
-                      <RefreshCw size={14} />
-                    )}
-                    {t("channel.testConnection", "Test")}
-                  </button>
-                </div>
-                {status.error_message && (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
-                    <AlertCircle
-                      size={16}
-                      className="flex-shrink-0 text-red-500 dark:text-red-400"
-                    />
-                    <span className="text-sm text-red-700 dark:text-red-300">
-                      {status.error_message}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Configuration Card */}
-            <div className="glass-card rounded-xl p-4 ">
-              <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
-                {t("channel.configuration", "Configuration")}
-              </h3>
-
-              <div className="space-y-4">
-                {/* Instance Name - only show for new instances */}
-                {isNewInstance && (
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-                      {t("channel.instanceName", "Instance Name")}{" "}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={instanceName}
-                      onChange={(e) => setInstanceName(e.target.value)}
-                      placeholder={t(
-                        "channel.instanceNamePlaceholder",
-                        "e.g., My Work Bot",
-                      )}
-                      className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
-                    />
-                  </div>
-                )}
-
-                {/* Instance Name Display - show for existing instances */}
-                {!isNewInstance && hasExistingConfig && (
-                  <div className="rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
-                    <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
-                      {t("channel.instanceName", "Instance Name")}
-                    </span>
-                    <p className="text-sm text-stone-900 dark:text-stone-100">
-                      {instanceName}
-                    </p>
-                  </div>
-                )}
-
-                {/* Enable Toggle */}
-                <div className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
-                  <div>
-                    <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
-                      {t("channel.enabled", "Enable Channel")}
-                    </span>
-                    <p className="text-xs text-stone-500 dark:text-stone-400">
-                      {t(
-                        "channel.enabledDesc",
-                        "Enable or disable this channel",
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setEnabled(!enabled)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      enabled
-                        ? "bg-stone-900"
-                        : "bg-stone-200 dark:bg-stone-600"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 rounded-full bg-[var(--theme-bg-card)] shadow-sm transition-transform ${
-                        enabled ? "translate-x-4" : "translate-x-0.5"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Dynamic Fields */}
-                {metadata.config_fields.map(renderField)}
-
-                {/* Agent Selector */}
-                <ChannelAgentSelect value={agentId} onChange={setAgentId} />
-              </div>
-            </div>
-
-            {/* Help Card */}
-            {metadata.setup_guide.length > 0 && (
-              <div className="glass-card-subtle rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                      {t("channel.setupGuide", "Setup Guide")}
-                    </p>
-                    <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-stone-600 dark:text-stone-300">
-                      {metadata.setup_guide.map((step, index) => (
-                        <li key={index} className="leading-relaxed">
-                          {step}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
-              {canDelete && (
-                <button
-                  onClick={handleDeleteClick}
-                  disabled={!hasExistingConfig}
-                  className="btn-danger"
-                >
-                  <Trash2 size={16} />
-                  {t("common.delete")}
-                </button>
-              )}
-
-              {canWrite && (
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="btn-primary"
-                >
-                  <span className="inline-flex h-4 w-4 items-center justify-center">
-                    {isSaving ? (
-                      <LoadingSpinner size="sm" color="text-white" />
-                    ) : (
-                      <Save size={16} />
-                    )}
-                  </span>
-                  <span>{t("common.save")}</span>
-                </button>
-              )}
-            </div>
-          </div>
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4">{formContent}</div>
+        <div className="border-t border-[var(--theme-border)] px-3 py-3 sm:px-4">
+          {actionButtons}
         </div>
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={showDeleteConfirm}
-        title={t("channel.deleteTitle", "Delete Channel Instance")}
-        message={t(
-          "channel.deleteConfirmMessage",
-          `Are you sure you want to delete "${instanceName}"? This action cannot be undone.`,
-        )}
-        confirmText={t("common.delete", "Delete")}
-        cancelText={t("common.cancel", "Cancel")}
-        variant="danger"
-        onConfirm={() => {
-          setShowDeleteConfirm(false);
-          handleDelete();
-        }}
-        onCancel={() => setShowDeleteConfirm(false)}
-      />
+      {deleteDialog}
     </>
   );
 }

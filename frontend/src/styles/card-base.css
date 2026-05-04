@@ -28,6 +28,19 @@
   }
 }
 
+/* --- Subtle border glow on hover --- */
+@keyframes border-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 /* --- Container --- */
 .scb {
   position: relative;
@@ -38,28 +51,42 @@
   border-radius: 1rem;
   background: var(--theme-bg-card);
   border: 1px solid var(--theme-border);
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08);
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.06),
+    0 1px 2px -1px rgb(0 0 0 / 0.04);
   transition:
-    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.3s ease;
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.35s ease;
 }
 
 .dark .scb {
-  box-shadow: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
 }
 
 .scb:hover {
   transform: translateY(-4px);
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 18%,
+    var(--theme-border)
+  );
   box-shadow:
     0 12px 32px -8px rgb(0 0 0 / 0.1),
-    0 4px 12px -4px rgb(0 0 0 / 0.05);
+    0 4px 12px -4px rgb(0 0 0 / 0.05),
+    0 0 0 1px color-mix(in srgb, var(--theme-primary) 8%, transparent);
 }
 
 .dark .scb:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 22%,
+    var(--theme-border)
+  );
   box-shadow:
     0 12px 32px -8px rgb(0 0 0 / 0.4),
-    0 4px 12px -4px rgb(0 0 0 / 0.25);
+    0 4px 12px -4px rgb(0 0 0 / 0.25),
+    0 0 0 1px color-mix(in srgb, var(--theme-primary) 10%, transparent);
 }
 
 .scb--animated {
@@ -80,8 +107,17 @@
 /* --- Gradient Banner --- */
 .scb__banner {
   position: relative;
-  height: 3rem;
+  height: 3.25rem;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.scb__banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.08) 100%);
+  z-index: 1;
 }
 
 .scb__banner::after {
@@ -90,16 +126,32 @@
   inset: 0;
   background: linear-gradient(
     105deg,
-    transparent 40%,
-    rgba(255, 255, 255, 0.15) 50%,
-    transparent 60%
+    transparent 30%,
+    rgba(255, 255, 255, 0.25) 45%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 70%
   );
-  transform: translateX(-100%);
-  transition: transform 0.6s ease;
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 2;
 }
 
 .scb:hover .scb__banner::after {
-  transform: translateX(100%);
+  transform: translateX(120%);
+}
+
+.dark .scb__banner::before {
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.2) 100%);
+}
+
+.dark .scb__banner::after {
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.12) 45%,
+    rgba(255, 255, 255, 0.04) 55%,
+    transparent 70%
+  );
 }
 
 /* --- Icon Ring --- */
@@ -118,17 +170,27 @@
   );
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.04);
   transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    background-color 0.25s ease,
+    transform 0.25s ease;
 }
 
 .scb:hover .scb__icon-ring {
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 28%,
+    var(--theme-primary) 30%,
     var(--theme-border)
   );
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--theme-primary) 8%, transparent);
+  box-shadow:
+    0 2px 8px color-mix(in srgb, var(--theme-primary) 10%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--theme-primary) 6%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--theme-primary-light) 70%,
+    var(--theme-bg-card)
+  );
+  transform: scale(1.04);
 }
 
 /* --- Avatar Ring --- */
@@ -163,13 +225,15 @@
 .scb__status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 0.15rem 0.5rem;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
   font-size: 0.625rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   border-radius: 9999px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
 .scb__status-pill--installed {
@@ -314,15 +378,19 @@
 .scb__action-btn--ghost {
   background: transparent;
   border-color: transparent;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.425rem;
 }
 
 .scb__action-btn--ghost:hover {
   background: var(--theme-primary-light);
   border-color: color-mix(
     in srgb,
-    var(--theme-primary) 28%,
+    var(--theme-primary) 20%,
     var(--theme-border)
   );
+  transform: scale(1.08);
 }
 
 .scb__action-btn--update {
@@ -364,7 +432,7 @@
 .scb__footer {
   margin-top: 1rem;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--theme-border);
+  border-top: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
 }
 
 /* ═══════════════════════════════════════════

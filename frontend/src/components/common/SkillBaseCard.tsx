@@ -102,7 +102,9 @@ export function SkillBaseCard({
       )}
 
       <div
-        className={`flex flex-1 flex-col p-4 ${gradient ? "pt-5" : "sm:p-5"}`}
+        className={`flex flex-1 flex-col p-4 ${
+          gradient ? "-mt-3 pt-5" : "sm:p-5"
+        }`}
       >
         <div className="flex items-start gap-3">
           {icon && <div className="scb__icon-ring shrink-0">{icon}</div>}

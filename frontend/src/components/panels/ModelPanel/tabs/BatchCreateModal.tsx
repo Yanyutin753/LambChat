@@ -288,7 +288,7 @@ export const BatchCreateModal = ({
                     value={batchApiBase}
                     onChange={(e) => setBatchApiBase(e.target.value)}
                     placeholder={t("agentConfig.modelApiBasePlaceholder")}
-                    className="glass-input es-input"
+                    className="glass-input es-input px-3"
                   />
                 </div>
                 <div className="es-field">
@@ -394,7 +394,7 @@ export const BatchCreateModal = ({
                           updateBatchRow(row.id, "value", e.target.value)
                         }
                         placeholder={t("agentConfig.modelValuePlaceholder")}
-                        className="glass-input es-input"
+                        className="glass-input es-input px-3"
                       />
                     </div>
                     <div className="es-field">
@@ -409,7 +409,7 @@ export const BatchCreateModal = ({
                           updateBatchRow(row.id, "label", e.target.value)
                         }
                         placeholder={t("agentConfig.modelLabelPlaceholder")}
-                        className="glass-input es-input"
+                        className="glass-input es-input px-3"
                       />
                     </div>
                   </div>
@@ -438,7 +438,7 @@ export const BatchCreateModal = ({
                           placeholder={t(
                             "agentConfig.modelDescriptionPlaceholder",
                           )}
-                          className="glass-input es-input"
+                          className="glass-input es-input px-3"
                         />
                       </div>
                       <div className="es-field">
@@ -475,7 +475,7 @@ export const BatchCreateModal = ({
                               )
                             }
                             placeholder="0.7"
-                            className="glass-input es-input"
+                            className="glass-input es-input px-3"
                           />
                         </div>
                         <div className="es-field">
@@ -493,7 +493,7 @@ export const BatchCreateModal = ({
                               )
                             }
                             placeholder="4096"
-                            className="glass-input es-input"
+                            className="glass-input es-input px-3"
                           />
                         </div>
                         <div className="es-field">
@@ -511,7 +511,7 @@ export const BatchCreateModal = ({
                               )
                             }
                             placeholder="200000"
-                            className="glass-input es-input"
+                            className="glass-input es-input px-3"
                           />
                         </div>
                       </div>

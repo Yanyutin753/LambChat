@@ -207,7 +207,7 @@ export const ModelFormModal = ({
             value={formLabel}
             onChange={(e) => setFormLabel(e.target.value)}
             placeholder={t("agentConfig.modelLabelPlaceholder")}
-            className="glass-input es-input"
+            className="glass-input es-input px-3"
           />
         </div>
 
@@ -229,7 +229,7 @@ export const ModelFormModal = ({
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
                 placeholder={t("agentConfig.modelDescriptionPlaceholder")}
-                className="glass-input es-input"
+                className="glass-input es-input px-3"
               />
             </div>
             <div className="es-field">
@@ -335,7 +335,7 @@ export const ModelFormModal = ({
                 value={formApiBase}
                 onChange={(e) => setFormApiBase(e.target.value)}
                 placeholder={t("agentConfig.modelApiBasePlaceholder")}
-                className="glass-input es-input"
+                className="glass-input es-input px-3"
               />
             </div>
             <div className="es-row es-row-3">
@@ -351,7 +351,7 @@ export const ModelFormModal = ({
                   value={formTemperature}
                   onChange={(e) => setFormTemperature(e.target.value)}
                   placeholder="0.7"
-                  className="glass-input es-input"
+                  className="glass-input es-input px-3"
                 />
               </div>
               <div className="es-field">
@@ -361,7 +361,7 @@ export const ModelFormModal = ({
                   value={formMaxTokens}
                   onChange={(e) => setFormMaxTokens(e.target.value)}
                   placeholder="4096"
-                  className="glass-input es-input"
+                  className="glass-input es-input px-3"
                 />
               </div>
               <div className="es-field">
@@ -373,7 +373,7 @@ export const ModelFormModal = ({
                   value={formMaxInputTokens}
                   onChange={(e) => setFormMaxInputTokens(e.target.value)}
                   placeholder="200000"
-                  className="glass-input es-input"
+                  className="glass-input es-input px-3"
                 />
               </div>
             </div>

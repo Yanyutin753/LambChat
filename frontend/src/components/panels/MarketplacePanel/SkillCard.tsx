@@ -87,6 +87,23 @@ export function SkillCard({
           )}
         </>
       }
+      statusPills={
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[var(--theme-text-secondary)]">
+          {skill.updated_at && (
+            <span>{new Date(skill.updated_at).toLocaleDateString()}</span>
+          )}
+          {skill.updated_at && skill.created_by_username && (
+            <span className="inline-block h-1 w-1 rounded-full bg-[var(--theme-border)]" />
+          )}
+          {skill.created_by_username && (
+            <span className="truncate">
+              {t("marketplace.publishedBy", {
+                username: skill.created_by_username,
+              })}
+            </span>
+          )}
+        </div>
+      }
       tags={
         primaryTag ? (
           <>

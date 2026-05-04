@@ -7,7 +7,6 @@ import {
   RefreshCw,
   Check,
   X,
-  AlertCircle,
   ArrowLeft,
   Sparkles,
 } from "lucide-react";
@@ -412,368 +411,319 @@ export function FeishuPanel({
 
   // Form content shared between both modes
   const formContent = (
-    <div className="space-y-4">
-      {/* Status Card */}
+    <div className="es-form">
+      {/* Status Callout */}
       {hasExistingConfig && status && (
-        <div className="glass-card rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {status.connected ? (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/50">
-                  <Check
-                    size={16}
-                    className="text-green-600 dark:text-green-400"
-                  />
-                </div>
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
-                  <X size={16} className="text-red-600 dark:text-red-400" />
-                </div>
-              )}
-              <div>
-                <span
-                  className={`text-sm font-semibold ${
-                    status.connected
-                      ? "text-green-600 dark:text-green-400"
-                      : "text-red-600 dark:text-red-400"
-                  }`}
-                >
-                  {status.connected
-                    ? t("feishu.connected", "Connected")
-                    : t("feishu.disconnected", "Disconnected")}
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={handleTest}
-              disabled={isTesting || !enabled}
-              className="btn-secondary btn-sm"
-            >
-              {isTesting ? (
-                <span className="animate-spin">⟳</span>
-              ) : (
-                <RefreshCw size={14} />
-              )}
-              {t("feishu.testConnection", "Test")}
-            </button>
+        <div
+          className={`es-callout ${
+            status.connected ? "es-callout--success" : "es-callout--danger"
+          }`}
+        >
+          <div className="es-callout-icon">
+            {status.connected ? (
+              <Check size={16} className="text-green-600 dark:text-green-400" />
+            ) : (
+              <X size={16} className="text-red-600 dark:text-red-400" />
+            )}
           </div>
-          {status.error_message && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
-              <AlertCircle
-                size={16}
-                className="flex-shrink-0 text-red-500 dark:text-red-400"
-              />
-              <span className="text-sm text-red-700 dark:text-red-300">
-                {status.error_message}
-              </span>
+          <div className="es-callout-body">
+            <div className="es-callout-title">
+              {status.connected
+                ? t("feishu.connected", "Connected")
+                : t("feishu.disconnected", "Disconnected")}
             </div>
-          )}
+            {status.error_message && (
+              <div className="es-callout-desc">{status.error_message}</div>
+            )}
+          </div>
+          <button
+            onClick={handleTest}
+            disabled={isTesting || !enabled}
+            className="btn-secondary btn-sm ml-auto flex-shrink-0"
+          >
+            {isTesting ? (
+              <span className="animate-spin">⟳</span>
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {t("feishu.testConnection", "Test")}
+          </button>
         </div>
       )}
 
-      {/* Configuration Form */}
-      <div className="glass-card rounded-xl p-4">
-        <h3 className="mb-4 text-sm font-semibold text-stone-900 dark:text-stone-100">
-          {t("feishu.configuration", "Configuration")}
-        </h3>
+      {/* Instance Name */}
+      {!hasExistingConfig && (
+        <div className="es-field">
+          <label className="es-label">
+            {t("feishu.instanceName", "Instance Name")}
+            <span className="es-required">*</span>
+          </label>
+          <input
+            type="text"
+            value={instanceName}
+            onChange={(e) => setInstanceName(e.target.value)}
+            placeholder={t("feishu.instanceNamePlaceholder", "My Feishu Bot")}
+            className="glass-input es-input"
+          />
+        </div>
+      )}
 
-        <div className="space-y-4">
-          {/* Enable Toggle */}
-          <div className="flex items-center justify-between rounded-lg bg-[var(--glass-bg-subtle)] px-3 py-2.5">
-            <div>
-              <span className="text-sm font-medium text-stone-700 dark:text-stone-200">
-                {t("feishu.enabled", "Enable Feishu Bot")}
-              </span>
-              <p className="text-xs text-stone-500 dark:text-stone-400">
-                {t("feishu.enabledDesc", "Enable or disable this channel")}
-              </p>
+      {/* Enable Toggle */}
+      <div className="es-section">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium text-[var(--theme-text)]">
+              {t("feishu.enabled", "Enable Feishu Bot")}
             </div>
+            <p className="es-hint mt-0.5">
+              {t("feishu.enabledDesc", "Enable or disable this channel")}
+            </p>
+          </div>
+          <button
+            onClick={() => setEnabled(!enabled)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+              enabled
+                ? "bg-[var(--theme-primary)]"
+                : "bg-stone-200 dark:bg-stone-600"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                enabled ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* App Credentials */}
+      <div className="es-section">
+        <div className="es-section-title">
+          {t("feishu.credentials", "App Credentials")}
+        </div>
+        <div className="es-field">
+          <label className="es-label">
+            {t("feishu.appId", "App ID")}
+            <span className="es-required">*</span>
+          </label>
+          <input
+            type="text"
+            value={appId}
+            onChange={(e) => setAppId(e.target.value)}
+            placeholder={t("feishu.appIdPlaceholder", "cli_xxxxxxxxxx")}
+            className="glass-input es-input"
+          />
+        </div>
+        <div className="es-field">
+          <label className="es-label">
+            {t("feishu.appSecret", "App Secret")}
+            {hasExistingConfig ? (
+              <span className="es-hint ml-1">{t("feishu.leaveEmpty")}</span>
+            ) : (
+              <span className="es-required">*</span>
+            )}
+          </label>
+          <input
+            type="password"
+            value={appSecret}
+            onChange={(e) => setAppSecret(e.target.value)}
+            placeholder={
+              hasExistingConfig ? t("feishu.passwordMask", "••••••••••••") : ""
+            }
+            className="glass-input es-input"
+          />
+        </div>
+      </div>
+
+      {/* Security Settings */}
+      <div className="es-section">
+        <div className="es-section-title">
+          {t("feishu.security", "Security Settings")}
+          <span className="ml-1 normal-case tracking-normal opacity-60">
+            ({t("feishu.optional")})
+          </span>
+        </div>
+        <div className="es-field">
+          <label className="es-label">
+            {t("feishu.encryptKey", "Encrypt Key")}
+          </label>
+          <input
+            type="text"
+            value={encryptKey}
+            onChange={(e) => setEncryptKey(e.target.value)}
+            className="glass-input es-input"
+          />
+        </div>
+        <div className="es-field">
+          <label className="es-label">
+            {t("feishu.verificationToken", "Verification Token")}
+          </label>
+          <input
+            type="text"
+            value={verificationToken}
+            onChange={(e) => setVerificationToken(e.target.value)}
+            className="glass-input es-input"
+          />
+        </div>
+      </div>
+
+      {/* Behavior Settings */}
+      <div className="es-section">
+        <div className="es-section-title">
+          {t("feishu.behavior", "Behavior Settings")}
+        </div>
+
+        {/* React Emoji */}
+        <div className="es-field">
+          <div className="flex items-center justify-between">
+            <label className="es-label">
+              {t("feishu.reactEmoji", "Reaction Emoji")}
+            </label>
             <button
-              onClick={() => setEnabled(!enabled)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                enabled ? "bg-stone-900" : "bg-stone-200 dark:bg-stone-600"
+              type="button"
+              onClick={() => setUseCustomEmoji(!useCustomEmoji)}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                useCustomEmoji
+                  ? "bg-[var(--theme-primary)] text-white"
+                  : "bg-[var(--glass-bg-subtle)] text-stone-600 hover:bg-stone-200 dark:text-stone-400 dark:hover:bg-stone-700"
               }`}
             >
-              <span
-                className={`inline-block h-4 w-4 rounded-full bg-[var(--theme-bg-card)] shadow-sm transition-transform ${
-                  enabled ? "translate-x-4" : "translate-x-0.5"
-                }`}
-              />
+              <Sparkles size={12} />
+              {t("feishu.custom", "Custom")}
             </button>
           </div>
 
-          {/* Instance Name - Only show for new instances */}
-          {!hasExistingConfig && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-                {t("feishu.instanceName", "Instance Name")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
+          {useCustomEmoji ? (
+            <>
               <input
                 type="text"
-                value={instanceName}
-                onChange={(e) => setInstanceName(e.target.value)}
+                value={customEmoji}
+                onChange={(e) => setCustomEmoji(e.target.value)}
                 placeholder={t(
-                  "feishu.instanceNamePlaceholder",
-                  "My Feishu Bot",
+                  "feishu.customEmojiPlaceholder",
+                  "Enter emoji or text (e.g., 🎯 or DONE)",
                 )}
-                className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
+                className="glass-input es-input"
               />
+              <p className="es-hint">
+                {t(
+                  "feishu.customEmojiHint",
+                  "Enter an emoji character or a Feishu emoji type code",
+                )}
+              </p>
+            </>
+          ) : (
+            <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+              {PREDEFINED_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji.value}
+                  type="button"
+                  onClick={() => setReactEmoji(emoji.value)}
+                  className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 transition-all ${
+                    reactEmoji === emoji.value
+                      ? "border-[var(--theme-primary)] bg-[var(--theme-primary-light)]"
+                      : "border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
+                  }`}
+                >
+                  <span className="text-base">{emoji.emoji}</span>
+                  <span className="text-[10px] text-[var(--theme-text-secondary)]">
+                    {t(emoji.labelKey)}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
+        </div>
 
-          {/* App Credentials */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
-              {t("feishu.credentials", "App Credentials")}
-            </h4>
-
-            {/* App ID */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-                {t("feishu.appId", "App ID")}{" "}
-                <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={appId}
-                onChange={(e) => setAppId(e.target.value)}
-                placeholder={t("feishu.appIdPlaceholder", "cli_xxxxxxxxxx")}
-                className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
-              />
-            </div>
-
-            {/* App Secret */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-                {t("feishu.appSecret", "App Secret")}{" "}
-                {hasExistingConfig ? (
-                  <span className="text-xs text-stone-400">
-                    {t("feishu.leaveEmpty")}
-                  </span>
-                ) : (
-                  <span className="text-red-500">*</span>
-                )}
-              </label>
-              <input
-                type="password"
-                value={appSecret}
-                onChange={(e) => setAppSecret(e.target.value)}
-                placeholder={
-                  hasExistingConfig
-                    ? t("feishu.passwordMask", "••••••••••••")
-                    : ""
-                }
-                className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
-              />
-            </div>
-          </div>
-
-          {/* Security Settings */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
-              {t("feishu.security", "Security Settings")}
-              <span className="ml-1 normal-case tracking-normal text-stone-400">
-                {t("feishu.optional")}
-              </span>
-            </h4>
-
-            {/* Encrypt Key */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-                {t("feishu.encryptKey", "Encrypt Key")}
-              </label>
-              <input
-                type="text"
-                value={encryptKey}
-                onChange={(e) => setEncryptKey(e.target.value)}
-                className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
-              />
-            </div>
-
-            {/* Verification Token */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-200">
-                {t("feishu.verificationToken", "Verification Token")}
-              </label>
-              <input
-                type="text"
-                value={verificationToken}
-                onChange={(e) => setVerificationToken(e.target.value)}
-                className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
-              />
-            </div>
-          </div>
-
-          {/* Behavior Settings */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-medium uppercase tracking-wide text-stone-500 dark:text-stone-400">
-              {t("feishu.behavior", "Behavior Settings")}
-            </h4>
-
-            {/* React Emoji */}
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="text-sm font-medium text-stone-700 dark:text-stone-200">
-                  {t("feishu.reactEmoji", "Reaction Emoji")}
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setUseCustomEmoji(!useCustomEmoji)}
-                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                    useCustomEmoji
-                      ? "bg-[var(--glass-bg)] text-stone-100 dark:bg-stone-100 dark:text-stone-900"
-                      : "bg-[var(--glass-bg-subtle)] text-stone-600 hover:bg-stone-200 dark:text-stone-400 dark:hover:bg-stone-700"
-                  }`}
-                >
-                  <Sparkles size={12} />
-                  {t("feishu.custom", "Custom")}
-                </button>
+        {/* Group Policy */}
+        <div className="es-field">
+          <label className="es-label">
+            {t("feishu.groupPolicy", "Group Message Policy")}
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setGroupPolicy("mention")}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
+                groupPolicy === "mention"
+                  ? "border-[var(--theme-primary)] bg-[var(--theme-primary-light)]"
+                  : "border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
+              }`}
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--glass-bg-subtle)] text-sm font-medium">
+                @
               </div>
-
-              {useCustomEmoji ? (
-                <div>
-                  <input
-                    type="text"
-                    value={customEmoji}
-                    onChange={(e) => setCustomEmoji(e.target.value)}
-                    placeholder={t(
-                      "feishu.customEmojiPlaceholder",
-                      "Enter emoji or text (e.g., 🎯 or DONE)",
-                    )}
-                    className="w-full rounded-lg glass-input px-3 py-2 text-sm text-stone-900 placeholder-stone-400 focus:border-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder-stone-500"
-                  />
-                  <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-                    {t(
-                      "feishu.customEmojiHint",
-                      "Enter an emoji character or a Feishu emoji type code",
-                    )}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
-                  {PREDEFINED_EMOJIS.map((emoji) => (
-                    <button
-                      key={emoji.value}
-                      type="button"
-                      onClick={() => setReactEmoji(emoji.value)}
-                      className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 transition-all ${
-                        reactEmoji === emoji.value
-                          ? "border-[var(--glass-border-hover)] bg-[var(--glass-bg-subtle)]"
-                          : "border-[var(--glass-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
-                      }`}
-                    >
-                      <span className="text-base">{emoji.emoji}</span>
-                      <span className="text-[10px] text-stone-500 dark:text-stone-400">
-                        {t(emoji.labelKey)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Group Policy */}
-            <div>
-              <label className="mb-2 block text-sm font-medium text-stone-700 dark:text-stone-200">
-                {t("feishu.groupPolicy", "Group Message Policy")}
-              </label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setGroupPolicy("mention")}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
-                    groupPolicy === "mention"
-                      ? "border-[var(--glass-border-hover)] bg-[var(--glass-bg-subtle)]"
-                      : "border-[var(--glass-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
-                  }`}
-                >
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--glass-bg-subtle)] text-sm">
-                    @
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-stone-700 dark:text-stone-200">
-                      {t("feishu.groupPolicyMention", "Mention Only")}
-                    </span>
-                    <span className="text-xs text-stone-500 dark:text-stone-400">
-                      {t(
-                        "feishu.groupPolicyMentionDesc",
-                        "Reply when @mentioned",
-                      )}
-                    </span>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGroupPolicy("open")}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
-                    groupPolicy === "open"
-                      ? "border-[var(--glass-border-hover)] bg-[var(--glass-bg-subtle)]"
-                      : "border-[var(--glass-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
-                  }`}
-                >
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--glass-bg-subtle)] text-sm">
-                    💬
-                  </div>
-                  <div>
-                    <span className="block text-sm font-medium text-stone-700 dark:text-stone-200">
-                      {t("feishu.groupPolicyOpen", "All Messages")}
-                    </span>
-                    <span className="text-xs text-stone-500 dark:text-stone-400">
-                      {t("feishu.groupPolicyOpenDesc", "Reply to all messages")}
-                    </span>
-                  </div>
-                </button>
+              <div className="min-w-0">
+                <span className="block text-xs font-medium text-[var(--theme-text)]">
+                  {t("feishu.groupPolicyMention", "Mention Only")}
+                </span>
+                <span className="text-[10px] text-[var(--theme-text-secondary)]">
+                  {t("feishu.groupPolicyMentionDesc", "Reply when @mentioned")}
+                </span>
               </div>
-            </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGroupPolicy("open")}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-all ${
+                groupPolicy === "open"
+                  ? "border-[var(--theme-primary)] bg-[var(--theme-primary-light)]"
+                  : "border-[var(--theme-border)] bg-[var(--theme-bg-card)] hover:bg-[var(--glass-bg-subtle)]"
+              }`}
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--glass-bg-subtle)] text-sm">
+                💬
+              </div>
+              <div className="min-w-0">
+                <span className="block text-xs font-medium text-[var(--theme-text)]">
+                  {t("feishu.groupPolicyOpen", "All Messages")}
+                </span>
+                <span className="text-[10px] text-[var(--theme-text-secondary)]">
+                  {t("feishu.groupPolicyOpenDesc", "Reply to all messages")}
+                </span>
+              </div>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Agent Selector */}
-      <div className="glass-card rounded-xl p-4">
+      {/* Agent & Model */}
+      <div className="es-section">
         <ChannelAgentSelect value={agentId} onChange={setAgentId} />
       </div>
-
-      {/* Model Selector */}
-      <div className="glass-card rounded-xl p-4">
+      <div className="es-section">
         <ChannelModelSelect value={modelId} onChange={setModelId} />
       </div>
 
-      {/* Help Card */}
-      <div className="glass-card-subtle rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
-              {t("feishu.setupGuide", "Setup Guide")}
-            </p>
-            <ol className="mt-2 list-decimal list-outside ml-4 space-y-1 text-sm text-stone-600 dark:text-stone-300">
-              <li>
-                {t(
-                  "feishu.step1",
-                  "Go to Feishu Open Platform (open.feishu.cn)",
-                )}
-              </li>
-              <li>
-                {t(
-                  "feishu.step2",
-                  "Create a custom app and get App ID and App secret",
-                )}
-              </li>
-              <li>
-                {t(
-                  "feishu.step3",
-                  "Enable bot capability and subscribe to message events",
-                )}
-              </li>
-              <li>
-                {t(
-                  "feishu.step4",
-                  "Use WebSocket long connection (no public IP required)",
-                )}
-              </li>
-            </ol>
+      {/* Setup Guide */}
+      <div className="es-callout">
+        <div className="es-callout-body">
+          <div className="es-callout-title">
+            {t("feishu.setupGuide", "Setup Guide")}
           </div>
+          <ol className="mt-1 list-decimal list-outside ml-4 space-y-0.5 text-[0.8rem] text-[var(--theme-text-secondary)]">
+            <li>
+              {t("feishu.step1", "Go to Feishu Open Platform (open.feishu.cn)")}
+            </li>
+            <li>
+              {t(
+                "feishu.step2",
+                "Create a custom app and get App ID and App secret",
+              )}
+            </li>
+            <li>
+              {t(
+                "feishu.step3",
+                "Enable bot capability and subscribe to message events",
+              )}
+            </li>
+            <li>
+              {t(
+                "feishu.step4",
+                "Use WebSocket long connection (no public IP required)",
+              )}
+            </li>
+          </ol>
         </div>
       </div>
     </div>

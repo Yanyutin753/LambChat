@@ -388,7 +388,7 @@ export function MCPServerForm({
                             updateRoleQuota(role, "daily_limit", e.target.value)
                           }
                           placeholder={t("mcp.form.unlimited")}
-                          className="glass-input es-input"
+                          className="glass-input es-input px-3"
                         />
                       </div>
                       <div className="es-field">
@@ -407,7 +407,7 @@ export function MCPServerForm({
                             )
                           }
                           placeholder={t("mcp.form.unlimited")}
-                          className="glass-input es-input"
+                          className="glass-input es-input px-3"
                         />
                       </div>
                     </div>

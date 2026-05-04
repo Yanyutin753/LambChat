@@ -124,18 +124,18 @@
   border: none;
   background: color-mix(
     in srgb,
-    var(--theme-primary-light) 10%,
+    var(--theme-primary-light) 12%,
     var(--theme-bg)
   );
-  padding: 0.2rem 0.55rem;
-  font-size: 0.68rem;
+  padding: 0.18rem 0.5rem;
+  font-size: 0.66rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: none;
   line-height: 1;
   color: var(--theme-text-secondary);
   box-shadow: inset 0 0 0 1px
-    color-mix(in srgb, var(--theme-border) 60%, transparent);
+    color-mix(in srgb, var(--theme-border) 50%, transparent);
   transition: all 0.2s ease;
 }
 
@@ -155,16 +155,28 @@
 .skill-meta-pill {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   max-width: 100%;
   border-radius: 9999px;
-  border: 1px solid var(--skill-border);
-  background: var(--theme-bg);
-  padding: 0.45rem 0.78rem;
-  font-size: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 60%, transparent);
+  background: color-mix(in srgb, var(--theme-bg) 80%, var(--theme-bg-card));
+  padding: 0.3rem 0.65rem;
+  font-size: 0.68rem;
   line-height: 1.1;
   color: var(--theme-text-secondary);
   box-shadow: none;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.skill-meta-pill:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 16%,
+    var(--theme-border)
+  );
+  background: var(--theme-primary-light);
 }
 
 .skill-tag-chip-remove {
@@ -551,12 +563,12 @@
 .skill-tag-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   border-radius: 9999px;
-  border: 1px solid var(--skill-border);
-  background: var(--theme-bg-card);
-  padding: 0.42rem 0.82rem;
-  font-size: 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
+  background: color-mix(in srgb, var(--theme-bg) 60%, var(--theme-bg-card));
+  padding: 0.32rem 0.7rem;
+  font-size: 0.68rem;
   font-weight: 600;
   line-height: 1;
   color: var(--theme-text-secondary);
@@ -779,8 +791,16 @@
 }
 
 .dark .skill-meta-pill {
-  border-color: var(--skill-border);
+  border-color: color-mix(in srgb, var(--theme-border) 50%, transparent);
   background: color-mix(in srgb, var(--theme-bg-card) 72%, var(--theme-bg) 28%);
+}
+
+.dark .skill-meta-pill:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--theme-primary) 20%,
+    var(--theme-border)
+  );
 }
 
 .dark .skill-modal-header {
