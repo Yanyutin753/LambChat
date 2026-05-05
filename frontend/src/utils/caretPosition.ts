@@ -36,7 +36,8 @@ export function getCaretCoordinates(
   ] as const;
 
   for (const prop of propsToCopy) {
-    (style as Record<string, string>)[prop] = computed.getPropertyValue(prop);
+    (style as unknown as Record<string, string>)[prop] =
+      computed.getPropertyValue(prop);
   }
 
   style.position = "absolute";
