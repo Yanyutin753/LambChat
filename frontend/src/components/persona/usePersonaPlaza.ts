@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { personaPresetApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 import { usePersonaPresets } from "../../hooks/usePersonaPresets";
 import { Permission } from "../../types";
@@ -37,12 +39,9 @@ const BACKEND_ERROR_MAP: Record<string, string> = {
   persona_preset_no_admin_permission: "personaPresets.noAdminPermission",
 };
 
-function translateBackendError(
-  message: string,
-  t: (key: string, fallback?: string) => string,
-): string {
+function translateBackendError(message: string, t: TFunction): string {
   const i18nKey = BACKEND_ERROR_MAP[message];
-  return i18nKey ? t(i18nKey) : message;
+  return i18nKey ? t(i18nKey, i18nKey) : message;
 }
 
 const PAGE_SIZE = 12;
@@ -267,8 +266,23 @@ export function usePersonaPlaza() {
   const hasActiveFilters = !!activeTag || query.length > 0;
 
   // --- Export ---
-  const handleExport = useCallback(() => {
-    const exportData = presets.map((p) => ({
+  const handleExport = useCallback(async () => {
+    const PAGE_LIMIT = 200;
+    let allData: typeof presets = [];
+    let skip = 0;
+    try {
+      while (true) {
+        const res = await personaPresetApi.list({ skip, limit: PAGE_LIMIT });
+        allData = allData.concat(res.presets);
+        skip += res.presets.length;
+        if (skip >= res.total || res.presets.length < PAGE_LIMIT) break;
+      }
+    } catch {
+      toast.error(t("personaPresets.exportFailed", "导出失败"));
+      return;
+    }
+
+    const exportData = allData.map((p) => ({
       name: p.name,
       description: p.description,
       avatar: p.avatar ?? null,
@@ -295,7 +309,7 @@ export function usePersonaPlaza() {
         count: exportData.length,
       }),
     );
-  }, [presets, t]);
+  }, [t]);
 
   // --- Import ---
   const importInputRef = useRef<HTMLInputElement>(null);
