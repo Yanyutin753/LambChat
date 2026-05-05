@@ -19,6 +19,20 @@
   }
 }
 
+/* When EditorSidebar is open, compress the main app layout */
+@media (min-width: 640px) {
+  html[data-editor-sidebar="open"] #root {
+    max-width: calc(100% - var(--editor-sidebar-width, 30%)) !important;
+  }
+  html[data-editor-sidebar="open"] #root [data-yields-sidebar] {
+    right: var(--editor-sidebar-width, 30%) !important;
+  }
+  /* Portals rendered outside #root (e.g. PersonaPresetSelector) */
+  html[data-editor-sidebar="open"] body > [data-yields-sidebar] {
+    right: var(--editor-sidebar-width, 30%) !important;
+  }
+}
+
 /* 统一 checkbox / radio 样式 */
 input[type="checkbox"],
 input[type="radio"] {

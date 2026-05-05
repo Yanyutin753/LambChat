@@ -59,8 +59,8 @@ async def _update_session_config(
 def _persona_enabled_skills_from_snapshot(
     snapshot: PersonaPresetSnapshot,
 ) -> list[str] | None:
-    """Return a whitelist only when the persona explicitly configured skills."""
-    if snapshot.skill_names or snapshot.missing_skill_names:
+    """Return a whitelist only when the persona has usable skills."""
+    if snapshot.skill_names:
         return snapshot.skill_names
     return None
 
@@ -89,6 +89,8 @@ def build_conversation_config(
     if request.persona_preset_id and request.persona_snapshot:
         conversation_config["persona_preset_name"] = request.persona_snapshot.name
         conversation_config["persona_snapshot"] = request.persona_snapshot.model_dump()
+        if request.persona_snapshot.avatar:
+            conversation_config["persona_avatar"] = request.persona_snapshot.avatar
     if request.project_id:
         conversation_config["project_id"] = request.project_id
     return conversation_config

@@ -229,7 +229,10 @@ export function ShareDialog({
       <div className="fixed inset-0 z-[299] bg-black/50" onClick={onClose} />
 
       {/* Dialog - bottom sheet on mobile, centered on desktop */}
-      <div className="fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center sm:pointer-events-none">
+      <div
+        data-yields-sidebar
+        className="fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center sm:pointer-events-none"
+      >
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}
           className="relative z-10 w-full sm:max-w-xl sm:mx-4 sm:pointer-events-auto bg-white dark:bg-stone-800 sm:rounded-xl rounded-t-xl shadow-xl border border-stone-200 dark:border-stone-700 overflow-hidden duration-300 max-h-[90vh] max-h-[90dvh] flex flex-col animate-slide-up-sheet sm:animate-in sm:fade-in sm:zoom-in-95 sm:duration-200"

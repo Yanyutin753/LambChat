@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Settings2, UserRound, X, Sparkles, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,10 @@ import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
 import { isPersonaImageAvatar } from "./personaAvatar";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
+import { PersonaPreviewSidebar } from "./PersonaPreviewSidebar";
+import { Pagination } from "../common/Pagination";
+
+const PAGE_SIZE = 12;
 
 interface PersonaPresetSelectorProps {
   presets: PersonaPreset[];
@@ -37,6 +41,10 @@ export function PersonaPresetSelector({
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [previewPreset, setPreviewPreset] = useState<PersonaPreset | null>(
+    null,
+  );
+  const [page, setPage] = useState(1);
 
   const tags = useMemo(
     () => Array.from(new Set(presets.flatMap((preset) => preset.tags))).sort(),
@@ -55,15 +63,25 @@ export function PersonaPresetSelector({
     });
   }, [activeTag, presets, query]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [query, activeTag]);
+
+  const paged = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
+
   if (!isOpen) return null;
 
-  return createPortal(
+  const selector = createPortal(
     <div
-      className="fixed inset-0 z-[9998] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
+      data-yields-sidebar
+      className="fixed inset-0 z-[250] flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-6"
       onClick={() => onOpenChange(false)}
     >
       <div
-        className="flex max-h-[86vh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-w-3xl sm:rounded-2xl"
+        className="flex max-h-[86vh] w-full flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:max-w-3xl md:max-w-4xl lg:max-w-5xl sm:rounded-2xl"
         style={{ background: "var(--theme-bg-card)" }}
         onClick={(event) => event.stopPropagation()}
       >
@@ -201,16 +219,17 @@ export function PersonaPresetSelector({
               {t("personaPresets.empty", "暂无角色预设")}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {filtered.map((preset, index) => {
+            <div className="grid auto-grid-cols gap-4">
+              {paged.map((preset, index) => {
                 const selected = selectedPresetId === preset.id;
                 const gradient = nameToGradient(preset.name);
                 const primaryTag = preset.tags[0];
                 return (
                   <div
                     key={preset.id}
-                    className="pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none"
+                    className="pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm dark:shadow-none cursor-pointer"
                     style={{ animationDelay: `${index * 50}ms` }}
+                    onClick={() => setPreviewPreset(preset)}
                   >
                     {/* Gradient Banner */}
                     <div
@@ -284,7 +303,7 @@ export function PersonaPresetSelector({
 
                       {/* Description */}
                       <p
-                        className="mt-2.5 text-[13px] leading-relaxed line-clamp-2"
+                        className="mt-2.5 text-[13px] leading-relaxed line-clamp-2 min-h-[3.25em]"
                         style={{ color: "var(--theme-text-secondary)" }}
                       >
                         {preset.description || preset.system_prompt}
@@ -292,14 +311,21 @@ export function PersonaPresetSelector({
 
                       {/* Tags */}
                       {preset.tags.length > 0 && (
-                        <div className="mt-2.5 flex flex-wrap gap-1">
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
                           {preset.tags.slice(0, 3).map((tag) => (
-                            <span key={tag} className="pps-card__tag">
+                            <span
+                              key={tag}
+                              className="scb__mini-tag"
+                              style={{ cursor: "default" }}
+                            >
                               {tag}
                             </span>
                           ))}
                           {preset.tags.length > 3 && (
-                            <span className="pps-card__tag pps-card__tag--more">
+                            <span
+                              className="scb__mini-tag"
+                              style={{ cursor: "default", opacity: 0.7 }}
+                            >
                               +{preset.tags.length - 3}
                             </span>
                           )}
@@ -316,7 +342,8 @@ export function PersonaPresetSelector({
                         <button
                           type="button"
                           disabled={isMutating}
-                          onClick={async () => {
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             const snapshot = await onUsePreset(preset);
                             if (snapshot) onOpenChange(false);
                           }}
@@ -335,7 +362,10 @@ export function PersonaPresetSelector({
                           <button
                             type="button"
                             disabled={isMutating}
-                            onClick={() => onCopyPreset(preset)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onCopyPreset(preset);
+                            }}
                             className="pps-card__action pps-card__action--ghost"
                           >
                             <Copy size={13} />
@@ -350,8 +380,51 @@ export function PersonaPresetSelector({
             </div>
           )}
         </div>
+
+        {filtered.length > PAGE_SIZE && (
+          <div
+            className="border-t px-5 py-3"
+            style={{ borderColor: "var(--theme-border)" }}
+          >
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={filtered.length}
+              onChange={setPage}
+            />
+          </div>
+        )}
       </div>
     </div>,
     document.body,
+  );
+
+  const preview = previewPreset
+    ? createPortal(
+        <PersonaPreviewSidebar
+          preset={previewPreset}
+          isSelected={selectedPresetId === previewPreset.id}
+          isMutating={isMutating}
+          onClose={() => setPreviewPreset(null)}
+          onUsePreset={async (preset) => {
+            const snapshot = await onUsePreset(preset);
+            if (snapshot) {
+              setPreviewPreset(null);
+              onOpenChange(false);
+            }
+          }}
+          onCopyPreset={(preset) => {
+            onCopyPreset(preset);
+          }}
+        />,
+        document.body,
+      )
+    : null;
+
+  return (
+    <>
+      {selector}
+      {preview}
+    </>
   );
 }

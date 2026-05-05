@@ -116,7 +116,7 @@ export function ProjectMenu({
 
           {/* Header */}
           <div className="flex items-center justify-between px-4 pb-1.5">
-            <span className="text-[13px] font-medium text-stone-700 dark:text-stone-200">
+            <span className="text-[13px] font-medium text-[var(--theme-text)]">
               {t("sidebar.projectOptions")}
             </span>
             <button
@@ -136,7 +136,7 @@ export function ProjectMenu({
                   onNewSessionInProject(_project.id);
                   onClose();
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
               >
                 <MessageSquarePlus size={16} />
                 <span>{t("sidebar.newChat")}</span>
@@ -149,7 +149,7 @@ export function ProjectMenu({
                 onRename();
                 onClose();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
             >
               <Edit2 size={16} />
               <span>{t("sidebar.rename")}</span>
@@ -197,7 +197,7 @@ export function ProjectMenu({
           onRename();
           onClose();
         }}
-        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
       >
         <Edit2 size={14} />
         <span>{t("sidebar.rename")}</span>
@@ -210,7 +210,7 @@ export function ProjectMenu({
             onNewSessionInProject(_project.id);
             onClose();
           }}
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
         >
           <MessageSquarePlus size={14} />
           <span>{t("sidebar.newChat")}</span>

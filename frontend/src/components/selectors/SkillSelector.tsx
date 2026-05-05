@@ -481,6 +481,7 @@ export function SkillSelector({
       ? createPortal(
           <>
             <div
+              data-yields-sidebar
               className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
               onClick={() => setIsOpen(false)}
             />
@@ -532,6 +533,7 @@ export function SkillSelector({
         createPortal(
           <>
             <div
+              data-yields-sidebar
               className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
               onClick={() => setIsOpen(false)}
             />

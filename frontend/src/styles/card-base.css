@@ -290,6 +290,7 @@
 .scb__mini-tag {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   padding: 0.2rem 0.55rem;
   font-size: 0.625rem;
   font-weight: 500;
@@ -302,6 +303,7 @@
     background-color 0.15s ease,
     color 0.15s ease;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .scb__mini-tag:hover {

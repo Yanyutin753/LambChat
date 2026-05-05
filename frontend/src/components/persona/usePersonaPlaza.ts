@@ -5,7 +5,11 @@ import toast from "react-hot-toast";
 import { useAuth } from "../../hooks/useAuth";
 import { usePersonaPresets } from "../../hooks/usePersonaPresets";
 import { Permission } from "../../types";
-import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
+import type {
+  PersonaPreset,
+  PersonaPresetCreate,
+  PersonaPresetSnapshot,
+} from "../../types";
 
 const SESSION_CONFIG_KEY = "lambchat_session_config";
 
@@ -41,6 +45,8 @@ function translateBackendError(
   return i18nKey ? t(i18nKey) : message;
 }
 
+const PAGE_SIZE = 12;
+
 export function usePersonaPlaza() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -65,6 +71,7 @@ export function usePersonaPlaza() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const [showModal, setShowModal] = useState(false);
   const [editingPreset, setEditingPreset] = useState<PersonaPreset | null>(
@@ -102,6 +109,15 @@ export function usePersonaPlaza() {
       return matchesQuery && matchesTag && matchesScope;
     });
   }, [presets, query, activeTag, scopeFilter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, activeTag, scopeFilter]);
+
+  const paged = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
 
   const globalCount = useMemo(
     () => presets.filter((p) => p.scope === "global").length,
@@ -250,9 +266,116 @@ export function usePersonaPlaza() {
 
   const hasActiveFilters = !!activeTag || query.length > 0;
 
+  // --- Export ---
+  const handleExport = useCallback(() => {
+    const exportData = presets.map((p) => ({
+      name: p.name,
+      description: p.description,
+      avatar: p.avatar ?? null,
+      tags: p.tags,
+      system_prompt: p.system_prompt,
+      skill_names: p.skill_names,
+      scope: p.scope,
+      visibility: p.visibility,
+      status: p.status,
+    }));
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lambchat-personas-${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(
+      t("personaPresets.exportSuccess", "已导出 {{count}} 个角色", {
+        count: exportData.length,
+      }),
+    );
+  }, [presets, t]);
+
+  // --- Import ---
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleImport = useCallback(() => {
+    importInputRef.current?.click();
+  }, []);
+
+  const handleImportFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      // Reset so re-selecting same file fires onChange
+      e.target.value = "";
+
+      let items: PersonaPresetCreate[];
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) throw new Error("not_array");
+        items = parsed.map((item: Record<string, unknown>) => ({
+          name: String(item.name ?? ""),
+          description: item.description ? String(item.description) : undefined,
+          avatar: item.avatar !== undefined ? String(item.avatar) : undefined,
+          tags: Array.isArray(item.tags) ? item.tags.map(String) : undefined,
+          system_prompt: String(item.system_prompt ?? ""),
+          skill_names: Array.isArray(item.skill_names)
+            ? item.skill_names.map(String)
+            : undefined,
+          scope: item.scope === "global" ? "global" : "user",
+          visibility: item.visibility === "private" ? "private" : "public",
+          status:
+            item.status === "draft"
+              ? "draft"
+              : item.status === "archived"
+                ? "archived"
+                : "published",
+        }));
+        const invalid = items.filter((it) => !it.name || !it.system_prompt);
+        if (invalid.length > 0) throw new Error("invalid_items");
+      } catch {
+        toast.error(
+          t("personaPresets.importInvalidFile", "导入失败：文件格式不正确"),
+        );
+        return;
+      }
+
+      setIsImporting(true);
+      let imported = 0;
+      let failed = 0;
+      for (const data of items) {
+        const result = await createPreset(data);
+        if (result) imported++;
+        else failed++;
+      }
+      setIsImporting(false);
+
+      if (imported > 0) {
+        toast.success(
+          t("personaPresets.importSuccess", "成功导入 {{count}} 个角色", {
+            count: imported,
+          }),
+        );
+      }
+      if (failed > 0) {
+        toast.error(
+          t("personaPresets.importPartialFail", "{{count}} 个角色导入失败", {
+            count: failed,
+          }),
+        );
+      }
+    },
+    [createPreset, t],
+  );
+
   return {
     isLoading,
     isMutating,
+    presets,
     canRead,
     canWrite,
     canAdmin,
@@ -262,6 +385,11 @@ export function usePersonaPlaza() {
     scopeFilter,
     selectedPresetId,
     filtered,
+    paged,
+    total: filtered.length,
+    page,
+    pageSize: PAGE_SIZE,
+    setPage,
     allTags,
     scopeTabs,
     hasActiveFilters,
@@ -288,5 +416,10 @@ export function usePersonaPlaza() {
     editorScope,
     createPreset,
     updatePreset,
+    handleExport,
+    handleImport,
+    handleImportFile,
+    importInputRef,
+    isImporting,
   };
 }

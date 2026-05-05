@@ -106,36 +106,32 @@ export function SkillCard({
       }
       tags={
         primaryTag ? (
-          <>
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="scb__mini-tag" style={{ cursor: "default" }}>
               <CategoryIcon
-                size={12}
+                size={10}
                 className="text-[var(--theme-text-secondary)]"
               />
-              <span className="scb__category-tag">{primaryTag}</span>
-            </div>
-            {skill.tags.length > 1 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {skill.tags.slice(1, 4).map((tag) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => onToggleTag(tag)}
-                    className={`scb__mini-tag ${
-                      selectedTags.includes(tag) ? "scb__mini-tag--active" : ""
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
-                {skill.tags.length > 4 && (
-                  <span className="scb__mini-tag">
-                    +{skill.tags.length - 4}
-                  </span>
-                )}
-              </div>
+              {primaryTag}
+            </span>
+            {skill.tags.slice(1, 4).map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => onToggleTag(tag)}
+                className={`scb__mini-tag ${
+                  selectedTags.includes(tag) ? "scb__mini-tag--active" : ""
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {skill.tags.length > 4 && (
+              <span className="scb__mini-tag" style={{ cursor: "default" }}>
+                +{skill.tags.length - 4}
+              </span>
             )}
-          </>
+          </div>
         ) : undefined
       }
       extraContent={

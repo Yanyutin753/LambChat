@@ -54,6 +54,7 @@ export interface PersonaPresetSnapshot {
   skill_names: string[];
   missing_skill_names: string[];
   version: number;
+  avatar?: string | null;
 }
 
 export interface PersonaPresetListResponse {

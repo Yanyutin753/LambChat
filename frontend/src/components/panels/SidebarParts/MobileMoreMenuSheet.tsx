@@ -43,7 +43,7 @@ export function MobileMoreMenuSheet({
     <button
       key={item.path}
       type="button"
-      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
       onClick={() => {
         onClose();
         navigate(item.path);
@@ -73,7 +73,7 @@ export function MobileMoreMenuSheet({
           <div className="w-10 h-1 rounded-full bg-stone-300 dark:bg-stone-600" />
         </div>
         <div className="flex items-center justify-between px-4 pb-1.5">
-          <span className="text-[13px] font-medium text-stone-700 dark:text-stone-200">
+          <span className="text-[13px] font-medium text-[var(--theme-text)]">
             {t("nav.more", "更多")}
           </span>
           <button

@@ -34,6 +34,7 @@ import {
   resolveDefaultModelSelection,
 } from "./modelSelection";
 import { getRestoredModelSelection } from "./sessionState";
+import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
 import { AppShell } from "./AppShell";
 import { ChatView } from "./ChatView";
 import { shouldShowMessageOutline } from "./messageOutline";
@@ -286,14 +287,10 @@ export function ChatAppContent({
   }, [availableModels, currentModelId, currentModelValue, defaultModel]);
 
   useEffect(() => {
-    if (currentModelValue) {
-      handleToggleAgentOption("model", currentModelValue);
-      setSessionAgentOption("model", currentModelValue);
-    }
-    if (currentModelId) {
-      handleToggleAgentOption("model_id", currentModelId);
-      setSessionAgentOption("model_id", currentModelId);
-    }
+    handleToggleAgentOption("model", currentModelValue);
+    setSessionAgentOption("model", currentModelValue);
+    handleToggleAgentOption("model_id", currentModelId);
+    setSessionAgentOption("model_id", currentModelId);
   }, [
     currentModelValue,
     currentModelId,
@@ -309,16 +306,21 @@ export function ChatAppContent({
     [],
   );
 
-  useEffect(() => {
-    sessionConfigRef.current = {
-      ...sessionConfig,
-      enabledSkills: sessionConfig.personaSnapshot
-        ? sessionConfig.personaSnapshot.skill_names
-        : undefined,
-      personaPresetId: sessionConfig.personaPresetId,
-      agentOptions: agentOptionValues,
-    };
-  }, [sessionConfig, agentOptionValues]);
+  // Sync ref synchronously during render so getAgentOptions always has
+  // the latest model_id — useEffect introduces a one-tick delay that
+  // can cause model_id to be missing when using the default model.
+  sessionConfigRef.current = {
+    ...sessionConfig,
+    enabledSkills: sessionConfig.personaSnapshot
+      ? sessionConfig.personaSnapshot.skill_names
+      : undefined,
+    personaPresetId: sessionConfig.personaPresetId,
+    agentOptions: {
+      ...agentOptionValues,
+      ...(currentModelValue ? { model: currentModelValue } : {}),
+      ...(currentModelId ? { model_id: currentModelId } : {}),
+    },
+  };
 
   const handleUsePersonaPreset = useCallback(
     async (preset: PersonaPreset) => {
@@ -368,21 +370,12 @@ export function ChatAppContent({
   }, [tools, sessionConfig.disabledMcpTools]);
 
   const effectiveSkills = useMemo(() => {
-    if (skillsLoading) return skills;
-    const whitelist = sessionConfig.personaSnapshot?.skill_names;
-    if (whitelist && whitelist.length > 0) {
-      const enabledSet = new Set(whitelist);
-      return skills
-        .filter((s) => s.enabled && enabledSet.has(s.name))
-        .map((s) => ({ ...s, enabled: true }));
-    }
-    const sessionDisabled = new Set(sessionConfig.disabledSkills);
-    return skills
-      .filter((s) => s.enabled)
-      .map((s) => ({
-        ...s,
-        enabled: s.enabled && !sessionDisabled.has(s.name),
-      }));
+    return buildEffectiveSkills({
+      skills,
+      skillsLoading,
+      personaSkillNames: sessionConfig.personaSnapshot?.skill_names,
+      disabledSkillNames: sessionConfig.disabledSkills,
+    });
   }, [
     skills,
     sessionConfig.disabledSkills,
@@ -770,15 +763,13 @@ export function ChatAppContent({
           skillsLoading={skillsLoading}
           pendingSkillNames={pendingSkillNames}
           skillsMutating={skillsMutating}
-          enabledSkillsCount={effectiveSkills.length}
-          totalSkillsCount={skills.length}
+          enabledSkillsCount={countEnabledSkills(effectiveSkills)}
+          totalSkillsCount={effectiveSkills.length}
           enableSkills={enableSkills}
           personaPresets={personaPresets}
           selectedPersonaPresetId={sessionConfig.personaPresetId}
           selectedPersonaName={sessionConfig.personaSnapshot?.name || null}
-          personaSkillsControlled={
-            (sessionConfig.personaSnapshot?.skill_names.length ?? 0) > 0
-          }
+          personaSkillsControlled={false}
           personaPresetsLoading={personaPresetsLoading}
           personaPresetsMutating={personaPresetsMutating}
           onUsePersonaPreset={handleUsePersonaPreset}

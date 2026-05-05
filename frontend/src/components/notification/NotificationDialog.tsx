@@ -100,6 +100,7 @@ export function NotificationDialog({
 
   return createPortal(
     <div
+      data-yields-sidebar
       className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
       onClick={onClose}
     >

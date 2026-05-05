@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, memo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Paperclip, Image, Video, Music, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -47,6 +48,7 @@ export const FileUploadButton = memo(function FileUploadButton({
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<FileCategory | null>(
@@ -68,17 +70,15 @@ export const FileUploadButton = memo(function FileUploadButton({
 
   // Close dropdown on outside click
   useEffect(() => {
+    if (!showDropdown) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
-        setShowDropdown(false);
-      }
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropdownRef.current?.contains(e.target as Node)) return;
+      setShowDropdown(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [showDropdown]);
 
   // Handle file selection from the dropdown or file picker
   const handleFiles = useCallback(
@@ -129,10 +129,21 @@ export const FileUploadButton = memo(function FileUploadButton({
     e.target.value = "";
   };
 
+  const getDropdownStyle = (): React.CSSProperties => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return { display: "none" };
+    return {
+      position: "fixed",
+      bottom: window.innerHeight - rect.top + 8,
+      left: rect.left,
+      zIndex: 9999,
+    };
+  };
+
   if (!canUpload) return null;
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <>
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -144,6 +155,7 @@ export const FileUploadButton = memo(function FileUploadButton({
 
       {/* Upload button */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setShowDropdown(!showDropdown)}
         className="chat-tool-btn"
@@ -152,63 +164,67 @@ export const FileUploadButton = memo(function FileUploadButton({
         <Paperclip size={18} />
       </button>
 
-      {/* Dropdown menu */}
-      {showDropdown && (
-        <div
-          className="absolute bottom-full left-0 mb-2 z-50 w-52 rounded-xl shadow-lg border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
-          style={{
-            background: "var(--theme-bg-card)",
-            borderColor: "var(--theme-border)",
-          }}
-        >
-          {availableCategories.map((category) => {
-            const Icon = CATEGORY_ICONS[category];
-            return (
-              <button
-                key={category}
-                type="button"
-                onClick={() => handleCategorySelect(category)}
-                className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] transition-colors hover:bg-[var(--theme-primary-light)] active:bg-[var(--theme-primary-light)]"
-                style={{ color: "var(--theme-text)" }}
-              >
-                <div
-                  className="flex items-center justify-center w-7 h-7 rounded-lg"
-                  style={{ background: "var(--theme-primary-light)" }}
+      {/* Dropdown menu via portal */}
+      {showDropdown &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="w-52 rounded-xl shadow-lg border overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200"
+            style={{
+              ...getDropdownStyle(),
+              background: "var(--theme-bg-card)",
+              borderColor: "var(--theme-border)",
+            }}
+          >
+            {availableCategories.map((category) => {
+              const Icon = CATEGORY_ICONS[category];
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => handleCategorySelect(category)}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] transition-colors hover:bg-[var(--theme-primary-light)] active:bg-[var(--theme-primary-light)]"
+                  style={{ color: "var(--theme-text)" }}
                 >
-                  <Icon
-                    size={14}
-                    style={{ color: "var(--theme-text-secondary)" }}
-                  />
-                </div>
-                <span className="flex-1 text-left font-medium">
-                  {t(`fileUpload.categories.${category}`)}
-                </span>
-                {uploadLimits && (
-                  <span
-                    className="text-[11px] tabular-nums"
-                    style={{ color: "var(--theme-text-secondary)" }}
+                  <div
+                    className="flex items-center justify-center w-7 h-7 rounded-lg"
+                    style={{ background: "var(--theme-primary-light)" }}
                   >
-                    {uploadLimits[category]}MB
+                    <Icon
+                      size={14}
+                      style={{ color: "var(--theme-text-secondary)" }}
+                    />
+                  </div>
+                  <span className="flex-1 text-left font-medium">
+                    {t(`fileUpload.categories.${category}`)}
                   </span>
-                )}
-              </button>
-            );
-          })}
-          {uploadLimits && (
-            <div
-              className="px-3.5 py-2 border-t text-xs"
-              style={{
-                borderColor: "var(--theme-border)",
-                color: "var(--theme-text-secondary)",
-              }}
-            >
-              {t("fileUpload.maxFilesSummary", {
-                maxFiles: uploadLimits.maxFiles,
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+                  {uploadLimits && (
+                    <span
+                      className="text-[11px] tabular-nums"
+                      style={{ color: "var(--theme-text-secondary)" }}
+                    >
+                      {uploadLimits[category]}MB
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {uploadLimits && (
+              <div
+                className="px-3.5 py-2 border-t text-xs"
+                style={{
+                  borderColor: "var(--theme-border)",
+                  color: "var(--theme-text-secondary)",
+                }}
+              >
+                {t("fileUpload.maxFilesSummary", {
+                  maxFiles: uploadLimits.maxFiles,
+                })}
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 });

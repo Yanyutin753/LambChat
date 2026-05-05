@@ -179,9 +179,7 @@ async def test_resolve_persona_request_keeps_global_skills_when_preset_has_no_sk
 
 
 @pytest.mark.asyncio
-async def test_resolve_persona_request_uses_empty_whitelist_when_configured_skills_missing() -> (
-    None
-):
+async def test_resolve_persona_request_keeps_global_skills_when_configured_skills_missing() -> None:
     snapshot = PersonaPresetSnapshot(
         preset_id="preset-1",
         name="Planner",
@@ -204,7 +202,7 @@ async def test_resolve_persona_request_uses_empty_whitelist_when_configured_skil
 
     await resolve_persona_request(request, user, manager=_FakeManager())
 
-    assert request.enabled_skills == []
+    assert request.enabled_skills is None
 
 
 def test_persona_prompt_section_is_deterministic() -> None:
@@ -218,14 +216,16 @@ def test_persona_prompt_section_is_deterministic() -> None:
     ]
 
 
-def test_search_context_filters_skills_and_files_by_whitelist() -> None:
-    context = SearchAgentContext(enabled_skills=["keep"])
+def test_search_context_filters_skills_and_files_by_whitelist_and_disabled_list() -> None:
+    context = SearchAgentContext(enabled_skills=["keep", "off"], disabled_skills=["off"])
     context.skills = [
         {"name": "keep", "enabled": True},
+        {"name": "off", "enabled": True},
         {"name": "drop", "enabled": True},
     ]
     context.skill_files = {
         "/keep/SKILL.md": object(),
+        "/off/SKILL.md": object(),
         "/drop/SKILL.md": object(),
         "/drop/notes.md": object(),
     }

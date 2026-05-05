@@ -7,9 +7,12 @@ import {
   Sparkles,
   Tag,
   ChevronDown,
+  Download,
+  Upload,
 } from "lucide-react";
 import { PanelHeader } from "../common/PanelHeader";
 import { ConfirmDialog } from "../common/ConfirmDialog";
+import { Pagination } from "../common/Pagination";
 import { PersonaPlazaSkeleton } from "../skeletons";
 import { usePersonaPlaza, type PersonaRouteState } from "./usePersonaPlaza";
 import { PersonaPresetCard } from "./PersonaPresetCard";
@@ -29,6 +32,7 @@ export function PersonaPlazaPanel() {
   const { t } = useTranslation();
 
   const {
+    presets,
     isLoading,
     isMutating,
     canWrite,
@@ -39,6 +43,11 @@ export function PersonaPlazaPanel() {
     scopeFilter,
     selectedPresetId,
     filtered,
+    paged,
+    total,
+    page,
+    pageSize,
+    setPage,
     allTags,
     scopeTabs,
     hasActiveFilters,
@@ -65,6 +74,11 @@ export function PersonaPlazaPanel() {
     editorScope,
     createPreset,
     updatePreset,
+    handleExport,
+    handleImport,
+    handleImportFile,
+    importInputRef,
+    isImporting,
   } = usePersonaPlaza();
 
   if (isLoading) return <PersonaPlazaSkeleton />;
@@ -151,32 +165,56 @@ export function PersonaPlazaPanel() {
           </div>
         }
         actions={
-          canWrite || canAdmin ? (
-            <div className="flex items-center gap-2">
-              {canWrite && (
-                <button
-                  onClick={() => openModal(null, "user")}
-                  className="btn-secondary h-10"
-                >
-                  <Plus size={16} />
-                  <span className="hidden sm:inline">
-                    {t("personaPresets.createMine", "新建我的角色")}
-                  </span>
-                </button>
-              )}
-              {canAdmin && (
-                <button
-                  onClick={() => openModal(null, "global")}
-                  className="btn-primary h-10"
-                >
-                  <Sparkles size={16} />
-                  <span className="hidden sm:inline">
-                    {t("personaPresets.publishOfficial", "发布官方角色")}
-                  </span>
-                </button>
-              )}
-            </div>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              disabled={presets.length === 0}
+              className="btn-secondary h-10"
+              title={t("personaPresets.export", "导出角色")}
+            >
+              <Download size={16} />
+              <span className="hidden sm:inline">
+                {t("personaPresets.export", "导出")}
+              </span>
+            </button>
+            {(canWrite || canAdmin) && (
+              <button
+                onClick={handleImport}
+                disabled={isImporting}
+                className="btn-secondary h-10"
+                title={t("personaPresets.import", "导入角色")}
+              >
+                <Upload size={16} />
+                <span className="hidden sm:inline">
+                  {isImporting
+                    ? t("personaPresets.importing", "导入中...")
+                    : t("personaPresets.import", "导入")}
+                </span>
+              </button>
+            )}
+            {canWrite && (
+              <button
+                onClick={() => openModal(null, "user")}
+                className="btn-secondary h-10"
+              >
+                <Plus size={16} />
+                <span className="hidden sm:inline">
+                  {t("personaPresets.createMine", "新建我的角色")}
+                </span>
+              </button>
+            )}
+            {canAdmin && (
+              <button
+                onClick={() => openModal(null, "global")}
+                className="btn-primary h-10"
+              >
+                <Sparkles size={16} />
+                <span className="hidden sm:inline">
+                  {t("personaPresets.publishOfficial", "发布官方角色")}
+                </span>
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -203,8 +241,8 @@ export function PersonaPlazaPanel() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-            {filtered.map((preset, index) => (
+          <div className="grid auto-grid-cols gap-4 sm:gap-5">
+            {paged.map((preset, index) => (
               <div
                 key={preset.id}
                 style={{ animationDelay: `${index * 60}ms` }}
@@ -227,6 +265,17 @@ export function PersonaPlazaPanel() {
           </div>
         )}
       </div>
+
+      {total > pageSize && (
+        <div className="glass-divider px-3 py-3 sm:px-6">
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onChange={setPage}
+          />
+        </div>
+      )}
 
       <PersonaEditorModal
         showModal={showModal}
@@ -257,6 +306,14 @@ export function PersonaPlazaPanel() {
         loading={isDeleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleImportFile}
       />
 
       <PersonaScopeDropdown

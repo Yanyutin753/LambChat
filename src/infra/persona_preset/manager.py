@@ -208,6 +208,7 @@ class PersonaPresetManager:
             skill_names=skill_names,
             missing_skill_names=missing,
             version=preset.version,
+            avatar=preset.avatar,
         )
 
     async def _get_available_skill_names(self, user_id: str) -> set[str]:

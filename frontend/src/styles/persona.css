@@ -1312,25 +1312,23 @@
 .pps-card__tag {
   display: inline-flex;
   align-items: center;
-  border-radius: 9999px;
-  padding: 0.125rem 0.5rem;
+  padding: 0.2rem 0.55rem;
   font-size: 0.625rem;
   font-weight: 500;
-  background: color-mix(in srgb, var(--theme-primary) 8%, var(--theme-bg-card));
+  border-radius: 9999px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-bg);
   color: var(--theme-text-secondary);
-  border: 1px solid
-    color-mix(in srgb, var(--theme-primary) 6%, var(--theme-border));
-  transition: all 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .pps-card__tag--more {
-  background: color-mix(
-    in srgb,
-    var(--theme-text-secondary) 8%,
-    var(--theme-bg-card)
-  );
-  color: var(--theme-text-secondary);
   border-color: var(--theme-border);
+  background: var(--theme-bg);
+  color: var(--theme-text-secondary);
 }
 
 .pps-card__action {

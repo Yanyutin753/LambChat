@@ -64,13 +64,17 @@ class FastAgentContext:
 
     def apply_skill_filters(self) -> None:
         """Apply whitelist/blacklist filters to loaded skills."""
+        disabled_set = set(self.disabled_skills or [])
         if self.enabled_skills is not None:
             enabled_set = set(self.enabled_skills)
-            self.skills = [s for s in self.skills if s.get("name") in enabled_set]
+            self.skills = [
+                s
+                for s in self.skills
+                if s.get("name") in enabled_set and s.get("name") not in disabled_set
+            ]
             return
 
-        if self.disabled_skills:
-            disabled_set = set(self.disabled_skills)
+        if disabled_set:
             self.skills = [s for s in self.skills if s.get("name") not in disabled_set]
 
     async def get_tools(self) -> List[Any]:

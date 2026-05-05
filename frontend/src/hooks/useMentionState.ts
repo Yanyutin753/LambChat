@@ -16,18 +16,15 @@ function detectMention(
 
   const textBefore = input.substring(0, cursorPosition);
 
-  // Scan backwards for @ preceded by whitespace or at start of string
   for (let i = textBefore.length - 1; i >= 0; i--) {
     const ch = textBefore[i];
     if (ch === "@") {
-      // @ must be at position 0 or preceded by whitespace
       if (i > 0 && !/\s/.test(textBefore[i - 1])) return null;
       return {
         atIndex: i,
         query: textBefore.substring(i + 1),
       };
     }
-    // If we hit a whitespace before finding @, no active mention
     if (/\s/.test(ch)) return null;
   }
 
@@ -40,6 +37,7 @@ export function useMentionState(
   presets: PersonaPreset[],
 ) {
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const resultCountRef = useRef(0);
 
   const mention: MentionState = useMemo(() => {
     if (presets.length === 0) {
@@ -59,48 +57,31 @@ export function useMentionState(
     };
   }, [input, cursorPosition, presets.length, highlightedIndex]);
 
-  const filteredPresets = useMemo(() => {
-    if (!mention.isActive) return [];
-    const q = mention.query.trim().toLowerCase();
-    if (!q) return presets;
-    return presets.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q),
-    );
-  }, [mention.isActive, mention.query, presets]);
-
-  // Reset highlight when filtered list changes
-  const prevFilteredLengthRef = useRef(filteredPresets.length);
-  if (prevFilteredLengthRef.current !== filteredPresets.length) {
-    prevFilteredLengthRef.current = filteredPresets.length;
-    if (highlightedIndex >= filteredPresets.length) {
-      setHighlightedIndex(0);
-    }
-  }
-
-  const moveHighlight = useCallback(
-    (direction: "up" | "down") => {
-      if (filteredPresets.length === 0) return;
-      setHighlightedIndex((prev) => {
-        if (direction === "down") {
-          return (prev + 1) % filteredPresets.length;
-        }
-        return (prev - 1 + filteredPresets.length) % filteredPresets.length;
-      });
-    },
-    [filteredPresets.length],
-  );
+  const moveHighlight = useCallback((direction: "up" | "down") => {
+    const len = resultCountRef.current;
+    if (len === 0) return;
+    setHighlightedIndex((prev) => {
+      if (direction === "down") {
+        return (prev + 1) % len;
+      }
+      return (prev - 1 + len) % len;
+    });
+  }, []);
 
   const resetMention = useCallback(() => {
     setHighlightedIndex(0);
   }, []);
 
+  const setResultCount = useCallback((count: number) => {
+    resultCountRef.current = count;
+    setHighlightedIndex((prev) => (prev >= count ? 0 : prev));
+  }, []);
+
   return {
     mention,
-    filteredPresets,
     moveHighlight,
     setHighlightedIndex,
+    setResultCount,
     resetMention,
   };
 }

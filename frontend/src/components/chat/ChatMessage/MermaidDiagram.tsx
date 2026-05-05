@@ -701,7 +701,10 @@ function MermaidViewer({
     "flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
 
   return createPortal(
-    <div className="fixed inset-0 z-[300] flex flex-col bg-black/90">
+    <div
+      data-yields-sidebar
+      className="fixed inset-0 z-[300] flex flex-col bg-black/90"
+    >
       {/* Top bar - close + code actions */}
       <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-black">
         <button

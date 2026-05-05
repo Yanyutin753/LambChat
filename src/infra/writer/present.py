@@ -639,7 +639,9 @@ class Presenter:
         )
 
     def present_user_message(
-        self, content: str, attachments: Optional[List[Dict[str, Any]]] = None
+        self,
+        content: str,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """输出用户消息"""
         data: Dict[str, Any] = {"content": content, "timestamp": _get_timestamp()}

@@ -57,6 +57,7 @@ export function AgentModeSelector({
       ? createPortal(
           <>
             <div
+              data-yields-sidebar
               className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
               onClick={handleClose}
             />
@@ -201,6 +202,7 @@ export function AgentModeSelector({
         createPortal(
           <>
             <div
+              data-yields-sidebar
               className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
               onClick={handleClose}
             />

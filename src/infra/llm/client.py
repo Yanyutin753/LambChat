@@ -166,11 +166,25 @@ class LLMClient:
         protocol = _resolve_protocol(provider)
 
         if protocol == "anthropic":
+            # 将 thinking config 转换为 Anthropic API 格式
+            anthropic_thinking = None
+            effort = None
+            if thinking and thinking.get("type") == "enabled":
+                budget_tokens = thinking.get("budget_tokens")
+                level = thinking.get("level", "medium")
+                # 新版模型 (Claude 4.7+) 使用 output_config.effort
+                # 旧版模型使用 budget_tokens
+                # 两者都传，由 API 选择
+                anthropic_thinking = {"type": "enabled"}
+                if budget_tokens:
+                    anthropic_thinking["budget_tokens"] = budget_tokens
+                effort = level
             anthropic_kwargs: dict[str, Any] = {
                 "model_name": model_name,
                 "temperature": temperature,
                 "max_tokens": max_tokens,  # type: ignore[arg-type]
-                "thinking": thinking,
+                "thinking": anthropic_thinking,
+                "effort": effort,
                 "base_url": api_base or None,
                 "max_retries": settings.LLM_MAX_RETRIES,
             }
@@ -206,6 +220,12 @@ class LLMClient:
             "base_url": api_base or None,
             "max_retries": settings.LLM_MAX_RETRIES,
         }
+        # OpenAI 协议: 传递 reasoning_effort 给推理模型
+        if thinking and thinking.get("type") == "enabled":
+            level = thinking.get("level", "medium")
+            # OpenAI 支持: minimal, low, medium, high
+            openai_effort_map = {"low": "low", "medium": "medium", "high": "high", "max": "high"}
+            openai_kwargs["reasoning_effort"] = openai_effort_map.get(level, "medium")
         if profile:
             openai_kwargs["profile"] = profile
         return ChatOpenAI(**openai_kwargs, **kwargs)

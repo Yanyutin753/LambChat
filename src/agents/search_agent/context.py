@@ -62,19 +62,24 @@ class SearchAgentContext:
 
     def apply_skill_filters(self) -> None:
         """Apply whitelist/blacklist filters to loaded skills and skill files."""
+        disabled_set = set(self.disabled_skills or [])
         if self.enabled_skills is not None:
             enabled_set = set(self.enabled_skills)
-            self.skills = [s for s in self.skills if s.get("name") in enabled_set]
+            self.skills = [
+                s
+                for s in self.skills
+                if s.get("name") in enabled_set and s.get("name") not in disabled_set
+            ]
             if self.skill_files:
                 self.skill_files = {
                     path: data
                     for path, data in self.skill_files.items()
-                    if path.strip("/").split("/", 1)[0] in enabled_set
+                    if (skill_name := path.strip("/").split("/", 1)[0]) in enabled_set
+                    and skill_name not in disabled_set
                 }
             return
 
-        if self.disabled_skills:
-            disabled_set = set(self.disabled_skills)
+        if disabled_set:
             self.skills = [s for s in self.skills if s.get("name") not in disabled_set]
             if self.skill_files:
                 self.skill_files = {

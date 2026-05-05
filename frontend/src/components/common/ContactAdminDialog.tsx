@@ -63,7 +63,10 @@ export function ContactAdminDialog({
   const hasContact = adminEmail || adminUrl;
 
   return createPortal(
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+    <div
+      data-yields-sidebar
+      className="fixed inset-0 z-[300] flex items-center justify-center p-4"
+    >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative z-10 w-full max-w-[420px] rounded-2xl border border-stone-200/60 bg-white shadow-2xl shadow-stone-900/8 dark:border-stone-700/50 dark:bg-stone-900 dark:shadow-stone-950/40 animate-in fade-in zoom-in-95 duration-200">
         {/* Header illustration */}

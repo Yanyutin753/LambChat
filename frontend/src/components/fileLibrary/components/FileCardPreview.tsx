@@ -10,7 +10,7 @@ interface FileCardPreviewProps {
   compact?: boolean;
 }
 
-/* ── Accent colors (per file type, for bar & glow only) ── */
+/* ── Accent colors (per file type, for bar only) ── */
 
 function makeAccent(name: string) {
   const neu = new Set(["stone", "slate", "zinc", "neutral", "gray"]).has(name);
@@ -19,7 +19,6 @@ function makeAccent(name: string) {
       ? `bg-gradient-to-b from-${name}-50 to-${name}-100/60 text-${name}-900 dark:from-${name}-900/50 dark:to-${name}-950/60 dark:text-${name}-100`
       : `bg-gradient-to-b from-${name}-50 to-${name}-100/60 text-${name}-950 dark:from-${name}-950/30 dark:to-${name}-950/60 dark:text-${name}-50`,
     bar: `bg-${name}-400`,
-    glow: `bg-${name}-400`,
     muted: `text-${name}-500 dark:text-${name}-400`,
     badge: neu
       ? `bg-${name}-100 text-${name}-600 ring-${name}-200 dark:bg-${name}-800 dark:text-${name}-300 dark:ring-${name}-700`
@@ -88,15 +87,9 @@ function CoverLayout({
         a.shell,
       )}
     >
-      {/* Centered icon with glow */}
+      {/* Centered icon */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <div className="relative">
-          <div
-            className={clsx(
-              "absolute inset-[-16px] rounded-full opacity-[0.10]",
-              a.glow,
-            )}
-          />
           <Icon
             size={42}
             strokeWidth={1.1}

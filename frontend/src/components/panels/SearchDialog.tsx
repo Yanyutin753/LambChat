@@ -227,6 +227,7 @@ export function SearchDialog({
 
   return createPortal(
     <div
+      data-yields-sidebar
       className={`fixed inset-0 z-[300] flex items-center justify-center transition-all duration-200 ease-out ${
         visible ? "visible" : "invisible"
       }`}

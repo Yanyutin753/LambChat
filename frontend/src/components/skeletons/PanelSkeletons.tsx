@@ -11,7 +11,7 @@ export function SkillsPanelSkeleton() {
     <div className="flex h-full flex-col gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto min-h-0 p-2 sm:p-4 xl:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 xl:gap-5">
+        <div className="grid auto-grid-cols gap-4 xl:gap-5">
           {Array.from({ length: 9 }).map((_, i) => (
             <div key={i} className="panel-card flex flex-col p-4 sm:p-5">
               <div className="flex items-start justify-between gap-2 sm:gap-3">
@@ -71,7 +71,7 @@ export function MarketplacePanelSkeleton() {
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6 xl:p-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid auto-grid-cols gap-5">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="panel-card overflow-hidden !p-0">
               {/* Gradient banner */}

@@ -420,14 +420,15 @@ export function FeishuPanel({
           }`}
         >
           <div className="es-callout-icon">
-            {status.connected ? (
-              <Check size={16} className="text-green-600 dark:text-green-400" />
-            ) : (
-              <X size={16} className="text-red-600 dark:text-red-400" />
-            )}
+            {status.connected ? <Check size={14} /> : <X size={14} />}
           </div>
           <div className="es-callout-body">
             <div className="es-callout-title">
+              <span
+                className={`es-status-dot ${
+                  status.connected ? "" : "opacity-40"
+                }`}
+              />
               {status.connected
                 ? t("feishu.connected", "Connected")
                 : t("feishu.disconnected", "Disconnected")}
@@ -442,7 +443,7 @@ export function FeishuPanel({
             className="btn-secondary btn-sm ml-auto flex-shrink-0"
           >
             {isTesting ? (
-              <span className="animate-spin">⟳</span>
+              <span className="animate-spin inline-block">⟳</span>
             ) : (
               <RefreshCw size={14} />
             )}

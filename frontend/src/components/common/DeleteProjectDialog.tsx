@@ -46,7 +46,10 @@ export function DeleteProjectDialog({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[300] flex items-center justify-center">
+    <div
+      data-yields-sidebar
+      className="fixed inset-0 z-[300] flex items-center justify-center"
+    >
       <div
         className="absolute inset-0 bg-black/50"
         onClick={loading ? undefined : onCancel}

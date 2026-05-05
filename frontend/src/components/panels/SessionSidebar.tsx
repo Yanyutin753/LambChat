@@ -26,6 +26,7 @@ import {
   Server,
   Brain,
   MessageCircle,
+  Sparkles,
 } from "lucide-react";
 import { sessionApi, type BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -139,7 +140,14 @@ export const SessionSidebar = forwardRef<
   const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
   const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
   const canReadMemory = enableMemory;
+  const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
   const moreMenuFeatureItems = [
+    {
+      path: "/skills",
+      label: t("nav.skills"),
+      icon: Sparkles,
+      show: canReadSkills,
+    },
     {
       path: "/mcp",
       label: t("nav.mcp"),

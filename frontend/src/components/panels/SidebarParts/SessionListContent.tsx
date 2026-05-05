@@ -168,7 +168,7 @@ export function SessionListContent({
       <div className="flex flex-col gap-px px-2 py-2 space-y-1">
         <button
           onClick={onNewSession}
-          className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm font-medium text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 focus:outline-none transition-colors group"
+          className="sidebar-nav-btn w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px] text-sm font-medium focus:outline-none transition-colors group"
         >
           <MessageSquarePlus size={20} />
           <span className="flex-1 text-left">{t("sidebar.newChat")}</span>

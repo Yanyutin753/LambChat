@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import {
   Code2,
   Database,
@@ -58,13 +59,42 @@ export function PersonaAvatarImage({
   avatar,
   alt = "",
   className = "",
+  onLoad,
   onError,
 }: {
   avatar?: string | null;
   alt?: string;
   className?: string;
+  onLoad?: React.ReactEventHandler<HTMLImageElement>;
   onError?: React.ReactEventHandler<HTMLImageElement>;
 }) {
+  const [loaded, setLoaded] = useState(false);
+
+  const handleLoad = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      setLoaded(true);
+      onLoad?.(e);
+    },
+    [onLoad],
+  );
+
+  const handleError = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      setLoaded(true);
+      onError?.(e);
+    },
+    [onError],
+  );
+
   if (!isPersonaImageAvatar(avatar)) return null;
-  return <img src={avatar} alt={alt} className={className} onError={onError} />;
+  return (
+    <img
+      src={avatar}
+      alt={alt}
+      className={className}
+      onLoad={handleLoad}
+      onError={handleError}
+      style={loaded ? {} : { opacity: 0 }}
+    />
+  );
 }

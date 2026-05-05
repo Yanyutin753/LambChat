@@ -185,6 +185,7 @@ export function ImageViewer({
 
   return createPortal(
     <div
+      data-yields-sidebar
       className="fixed inset-0 z-[300] flex flex-col bg-black/90"
       onClick={handleBackgroundClick}
     >

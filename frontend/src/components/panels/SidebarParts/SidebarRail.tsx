@@ -5,7 +5,6 @@ import {
   MoreHorizontal,
   FolderOpen,
   UserRound,
-  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { APP_NAME } from "../../../constants";
@@ -41,7 +40,6 @@ export function SidebarRail({
   onOpenRecentChats,
   onOpenFileLibrary,
   onOpenPersonaPlaza,
-  onOpenSkills,
   hasMoreMenuItems,
   onToggleMoreMenu,
   moreMenuBtnRef,
@@ -118,15 +116,6 @@ export function SidebarRail({
           aria-label={t("personaPresets.title", "角色广场")}
         >
           <UserRound size={20} />
-        </button>
-        <button
-          type="button"
-          onClick={onOpenSkills}
-          className={railBtn}
-          title={t("nav.skills", "Skills")}
-          aria-label={t("nav.skills", "Skills")}
-        >
-          <Sparkles size={20} />
         </button>
         <button
           type="button"

@@ -58,6 +58,9 @@ export interface SharedContentResponse {
     task_status?: string | null;
     task_error?: string | null;
     completed_at?: string | null;
+    persona_preset_id?: string;
+    persona_preset_name?: string;
+    persona_avatar?: string;
   };
   events: SSEEventRecord[];
   owner: SharedContentOwner;

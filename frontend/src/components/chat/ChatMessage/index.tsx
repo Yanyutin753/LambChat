@@ -67,6 +67,8 @@ interface ChatMessageProps {
   runId?: string;
   isLastMessage?: boolean;
   onStop?: () => void;
+  personaAvatar?: string | null;
+  personaName?: string | null;
   activePreview?: RevealPreviewRequest | null;
   latestAutoPreview?: AutoPreviewTarget | null;
   onOpenPreview?: (
@@ -244,6 +246,8 @@ export const ChatMessage = memo(function ChatMessage({
   sessionName,
   runId,
   isLastMessage,
+  personaAvatar,
+  personaName,
   activePreview,
   latestAutoPreview,
   onOpenPreview,
@@ -267,7 +271,7 @@ export const ChatMessage = memo(function ChatMessage({
         id={createMessageAnchorId(message.id)}
         data-outline-anchor="true"
         data-outline-id={createMessageAnchorId(message.id)}
-        className="scroll-mt-6 rounded-2xl transition-[box-shadow] duration-300 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/75 data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(245,158,11,0.2)] dark:data-[external-navigation-highlighted=true]:ring-amber-400/55 dark:data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(251,191,36,0.1)]"
+        className="scroll-mt-6 rounded-2xl transition-[box-shadow] duration-300 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/75 data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(245,158,11,0.2)] dark:data-[external-navigation-highlighted=true]:ring-amber-400/55 dark:data-[external-navigation-highlighted=true]:shadow-[0_0_20px_rgba(251,191,36,0.1)] space-y-3 sm:space-y-4"
       >
         <UserMessageBubble
           content={message.content}
@@ -300,17 +304,20 @@ export const ChatMessage = memo(function ChatMessage({
       data-outline-id={createMessageAnchorId(message.id)}
       className="group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6 rounded-2xl transition-[background-color,box-shadow] duration-300 data-[external-navigation-highlighted=true]:bg-amber-50/85 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/60 dark:data-[external-navigation-highlighted=true]:bg-amber-500/12 dark:data-[external-navigation-highlighted=true]:ring-amber-400/50"
     >
-      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6 mb-3 sm:mb-4">
+      <div className="mx-auto flex flex-col max-w-3xl xl:max-w-5xl px-4 sm:px-6">
         {/* Content */}
-        <div className="min-w-0 min-h-0">
+        <div className="min-w-0 min-h-0 py-1 sm:py-2">
           {/* Header: Avatar + Role label + Stop button */}
           <div className="mb-3 flex items-center gap-2">
-            <AssistantAvatar className="size-6 shrink-0 rounded-full" />
+            <AssistantAvatar
+              className="size-6 shrink-0 rounded-full"
+              personaAvatar={personaAvatar}
+            />
             <span
               className="text-base sm:text-lg font-semibold tracking-tight font-serif"
               style={{ color: "var(--theme-text)" }}
             >
-              {t("chat.message.assistant")}
+              {personaName || t("chat.message.assistant")}
             </span>
             {message.timestamp && (
               <span
@@ -403,7 +410,7 @@ export const ChatMessage = memo(function ChatMessage({
         </div>
         {/* Copy button and Token button - same line at bottom, show on message hover (only after message completes) */}
         {!message.isStreaming && (
-          <div className="mt-2 flex items-center gap-1">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => {
                 const textContent = getAssistantTextContent();

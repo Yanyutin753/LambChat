@@ -83,7 +83,10 @@ export function ConfirmDialog({
   const ConfirmIcon = variantStyles[variant].confirmIcon;
 
   return createPortal(
-    <div className="fixed inset-0 z-[300] flex items-center justify-center">
+    <div
+      data-yields-sidebar
+      className="fixed inset-0 z-[300] flex items-center justify-center"
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50"

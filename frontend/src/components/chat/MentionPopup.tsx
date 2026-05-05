@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import type { PersonaPreset } from "../../types";
 import {
   PersonaAvatarIcon,
@@ -10,27 +9,95 @@ import {
 import { isPersonaImageAvatar } from "../persona/personaAvatar";
 
 interface MentionPopupProps {
-  filteredPresets: PersonaPreset[];
+  presets: PersonaPreset[];
   highlightedIndex: number;
   selectedPresetId?: string | null;
-  position: { top: number; left: number } | null;
+  isLoading?: boolean;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
   onSelect: (preset: PersonaPreset) => void;
   onHover: (index: number) => void;
   onClose: () => void;
+  onLoadMore?: () => void;
+}
+
+function SkeletonItems() {
+  return (
+    <>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <div key={n} className="mention-skeleton-item">
+          <div className="mention-skeleton-avatar" />
+          <div className="mention-skeleton-text">
+            <div className="mention-skeleton-name" />
+            <div className="mention-skeleton-desc" />
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function AvatarWithSkeleton({ preset }: { preset: PersonaPreset }) {
+  const isImage = isPersonaImageAvatar(preset.avatar);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div
+      className={`mention-popup-avatar ${
+        isImage && !imgLoaded && !imgError
+          ? "mention-popup-avatar--loading"
+          : isImage && imgLoaded
+            ? "mention-popup-avatar--loaded"
+            : ""
+      }`}
+    >
+      {isImage ? (
+        !imgError ? (
+          <PersonaAvatarImage
+            avatar={preset.avatar}
+            alt=""
+            className="mention-popup-avatar-img"
+            onLoad={() => setImgLoaded(true)}
+            onError={() => {
+              setImgError(true);
+            }}
+          />
+        ) : (
+          <PersonaAvatarIcon
+            avatar={null}
+            primaryTag={preset.tags?.[0]}
+            size={14}
+            className="mention-popup-avatar-icon"
+          />
+        )
+      ) : (
+        <PersonaAvatarIcon
+          avatar={preset.avatar}
+          primaryTag={preset.tags?.[0]}
+          size={14}
+          className="mention-popup-avatar-icon"
+        />
+      )}
+    </div>
+  );
 }
 
 export function MentionPopup({
-  filteredPresets,
+  presets,
   highlightedIndex,
   selectedPresetId,
-  position,
+  isLoading,
+  isLoadingMore,
+  hasMore,
   onSelect,
   onHover,
   onClose,
+  onLoadMore,
 }: MentionPopupProps) {
   const { t } = useTranslation();
-  const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = itemRefs.current[highlightedIndex];
@@ -39,93 +106,78 @@ export function MentionPopup({
     }
   }, [highlightedIndex]);
 
-  if (!position) return null;
+  const handleScroll = useCallback(() => {
+    const el = listRef.current;
+    if (!el || !hasMore || isLoadingMore) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    if (scrollHeight - scrollTop - clientHeight < 60) {
+      onLoadMore?.();
+    }
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
-  const vw = window.innerWidth;
-  const isMobile = vw < 640;
-  const popupWidth = isMobile ? vw - 32 : Math.min(320, vw - 32);
-  let left = position.left;
-  if (left + popupWidth > vw - 16) {
-    left = vw - popupWidth - 16;
-  }
-  if (left < 8) left = 8;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[9999]" onMouseDown={onClose}>
-      <div
-        ref={containerRef}
-        className="mention-popup"
-        role="listbox"
-        style={{
-          position: "fixed",
-          top: position.top,
-          left,
-          width: popupWidth,
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {filteredPresets.length === 0 ? (
-          <div className="mention-popup-empty">
-            {t("chat.mentionNoResults", "没有匹配的角色")}
-          </div>
-        ) : (
-          filteredPresets.map((preset, index) => {
-            const isActive = index === highlightedIndex;
-            const isSelected = selectedPresetId === preset.id;
-            return (
-              <button
-                key={preset.id}
-                ref={(el) => {
-                  itemRefs.current[index] = el;
-                }}
-                type="button"
-                role="option"
-                aria-selected={isActive}
-                className={`mention-popup-item ${
-                  isActive ? "mention-popup-item--active" : ""
-                }`}
-                onClick={() => onSelect(preset)}
-                onMouseEnter={() => onHover(index)}
-              >
-                <div className="mention-popup-avatar">
-                  {isPersonaImageAvatar(preset.avatar) ? (
-                    <PersonaAvatarImage
-                      avatar={preset.avatar}
-                      alt=""
-                      className="mention-popup-avatar-img"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <PersonaAvatarIcon
-                      avatar={preset.avatar}
-                      primaryTag={preset.tags[0]}
-                      size={16}
-                      className="mention-popup-avatar-icon"
-                    />
-                  )}
+  return (
+    <div className="mention-popup-anchor" onMouseDown={onClose}>
+      <div className="mention-popup" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="mention-popup-content">
+          {isLoading && presets.length === 0 ? (
+            <div className="mention-popup-list">
+              <SkeletonItems />
+            </div>
+          ) : presets.length === 0 ? (
+            <div className="mention-popup-empty">
+              {t("chat.mentionNoResults", "没有匹配的角色")}
+            </div>
+          ) : (
+            <div
+              ref={listRef}
+              className="mention-popup-list"
+              onScroll={handleScroll}
+            >
+              {presets.map((preset, index) => {
+                const isActive = index === highlightedIndex;
+                const isSelected = selectedPresetId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    ref={(el) => {
+                      itemRefs.current[index] = el;
+                    }}
+                    type="button"
+                    role="option"
+                    aria-selected={isActive}
+                    className={`mention-popup-item ${
+                      isActive ? "mention-popup-item--active" : ""
+                    }`}
+                    onClick={() => onSelect(preset)}
+                    onMouseEnter={() => onHover(index)}
+                  >
+                    <AvatarWithSkeleton preset={preset} />
+                    <div className="mention-popup-text">
+                      <span className="mention-popup-name">
+                        {preset.name}
+                        {isSelected && (
+                          <Check
+                            size={13}
+                            className="inline-block ml-1.5 opacity-60"
+                          />
+                        )}
+                      </span>
+                      <span className="mention-popup-desc">
+                        {preset.description || preset.system_prompt}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+              {isLoadingMore && (
+                <div className="mention-popup-loading">
+                  <Loader2 size={14} className="animate-spin" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mention-popup-name">
-                    {preset.name}
-                    {isSelected && (
-                      <Check
-                        size={13}
-                        className="inline-block ml-1.5 opacity-60"
-                      />
-                    )}
-                  </div>
-                  <div className="mention-popup-desc">
-                    {preset.description || preset.system_prompt}
-                  </div>
-                </div>
-              </button>
-            );
-          })
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }

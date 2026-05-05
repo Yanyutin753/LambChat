@@ -276,6 +276,12 @@ async def get_shared_content(
 
     model = (session.metadata or {}).get("agent_options", {}).get("model")
 
+    # Extract persona info from session metadata (stored at top level)
+    metadata = session.metadata or {}
+    persona_preset_id = metadata.get("persona_preset_id")
+    persona_preset_name = metadata.get("persona_preset_name")
+    persona_avatar = metadata.get("persona_avatar")
+
     session_info = {
         "id": session.id,
         "name": session.name,
@@ -288,6 +294,14 @@ async def get_shared_content(
         "task_error": session.task_error,
         "completed_at": session.completed_at.isoformat() if session.completed_at else None,
     }
+
+    # Add persona info if available
+    if persona_preset_id:
+        session_info["persona_preset_id"] = persona_preset_id
+    if persona_preset_name:
+        session_info["persona_preset_name"] = persona_preset_name
+    if persona_avatar:
+        session_info["persona_avatar"] = persona_avatar
 
     return SharedContentResponse(
         session=session_info,

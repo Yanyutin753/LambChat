@@ -40,6 +40,10 @@ import { reconstructMessagesFromEvents } from "../../hooks/useAgent/historyLoade
 import { APP_NAME, GITHUB_URL } from "../../constants";
 import { getModelIconUrl, isMonochromeIcon } from "../agent/modelIcon";
 import { ScrollButtons } from "../landing/components/ScrollButtons";
+import {
+  PersonaAvatarImage,
+  PersonaAvatarIcon,
+} from "../persona/PersonaAvatarIcon";
 
 const LANGUAGES = [
   { code: "en", nativeName: "English" },
@@ -632,6 +636,23 @@ export function SharedPage() {
                     {data.session.agent_name}
                   </span>
                 )}
+                {data.session.persona_preset_name && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                    {data.session.persona_avatar &&
+                    !data.session.persona_avatar.startsWith("icon:") ? (
+                      <PersonaAvatarImage
+                        avatar={data.session.persona_avatar}
+                        className="w-3.5 h-3.5 rounded-full object-cover"
+                      />
+                    ) : (
+                      <PersonaAvatarIcon
+                        avatar={data.session.persona_avatar}
+                        size={14}
+                      />
+                    )}
+                    {data.session.persona_preset_name}
+                  </span>
+                )}
                 {data.session.model && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
                     {(() => {
@@ -658,7 +679,7 @@ export function SharedPage() {
                     {data.session.model}
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium capitalize">
                   {readingTime}
                 </span>
               </div>
@@ -730,6 +751,8 @@ export function SharedPage() {
                     sessionName={data.session.name}
                     runId={data.run_ids?.[0]}
                     isLastMessage={index === messages.length - 1}
+                    personaAvatar={data.session.persona_avatar ?? null}
+                    personaName={data.session.persona_preset_name ?? null}
                     activePreview={activePreview}
                     latestAutoPreview={latestAutoPreview}
                     onOpenPreview={handleOpenPreview}

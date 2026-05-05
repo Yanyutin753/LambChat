@@ -32,6 +32,7 @@ interface OutlineNodeData {
   isActive: boolean;
   avatarUrl: string | undefined;
   username: string;
+  personaAvatar?: string | null;
   [key: string]: unknown;
 }
 
@@ -94,7 +95,11 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
           {isUser ? (
             <UserAvatar avatarUrl={data.avatarUrl} username={data.username} />
           ) : (
-            <AssistantAvatar className="size-[22px] rounded-full ring-1 ring-white/20" />
+            <AssistantAvatar
+              className="size-[22px] rounded-full ring-1 ring-white/20"
+              personaAvatar={data.personaAvatar}
+              personaSize={16}
+            />
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -144,6 +149,7 @@ function buildFlowData(
   activeId: string | null,
   avatarUrl: string | undefined,
   username: string,
+  personaAvatar?: string | null,
 ) {
   const flowItems = items.filter(
     (item) => item.kind === "user-message" || item.kind === "assistant-message",
@@ -161,6 +167,7 @@ function buildFlowData(
       isActive: activeId === item.anchorId,
       avatarUrl,
       username,
+      personaAvatar,
     },
   }));
 
@@ -185,12 +192,14 @@ interface MessageOutlinePanelProps {
   items: MessageOutlineItem[];
   activeId: string | null;
   onNavigate: (anchorId: string, messageIndex: number) => void;
+  personaAvatar?: string | null;
 }
 
 function OutlineFlowInner({
   items,
   activeId,
   onNavigate,
+  personaAvatar,
 }: MessageOutlinePanelProps) {
   const { user } = useAuth();
   const { fitView, setViewport } = useReactFlow();
@@ -204,8 +213,9 @@ function OutlineFlowInner({
   );
 
   const { nodes, edges } = useMemo(
-    () => buildFlowData(items, flowActiveId, avatarUrl, username),
-    [items, flowActiveId, avatarUrl, username],
+    () =>
+      buildFlowData(items, flowActiveId, avatarUrl, username, personaAvatar),
+    [items, flowActiveId, avatarUrl, username, personaAvatar],
   );
 
   // zoom into the target node and position it at the top of the viewport

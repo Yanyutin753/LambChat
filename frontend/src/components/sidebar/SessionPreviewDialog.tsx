@@ -111,7 +111,11 @@ export function SessionPreviewDialog({
 
   return createPortal(
     <>
-      <div className="fixed inset-0 z-[299] bg-black/50" onClick={onClose} />
+      <div
+        data-yields-sidebar
+        className="fixed inset-0 z-[299] bg-black/50"
+        onClick={onClose}
+      />
       <div className="fixed inset-0 z-[300] flex items-end sm:items-center sm:justify-center sm:pointer-events-none">
         <div
           ref={swipeRef as React.RefObject<HTMLDivElement>}

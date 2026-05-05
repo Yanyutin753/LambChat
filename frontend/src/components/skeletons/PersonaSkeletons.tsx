@@ -6,7 +6,7 @@ export function PersonaPlazaSkeleton() {
     <div className="flex h-full flex-col gap-4 animate-fade-in">
       <PanelHeaderSkeleton hasSearch />
       <div className="flex-1 overflow-y-auto min-h-0 p-3 sm:p-6 xl:p-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 xl:gap-5">
+        <div className="grid auto-grid-cols gap-4 xl:gap-5">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="panel-card flex flex-col p-5">
               <div className="flex items-start gap-3">

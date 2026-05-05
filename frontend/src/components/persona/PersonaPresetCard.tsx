@@ -124,24 +124,23 @@ export function PersonaPresetCard({
         </div>
 
         {/* Description */}
-        <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2">
+        <p className="mt-3 text-[13px] leading-relaxed text-[var(--theme-text-secondary)] line-clamp-2 min-h-[3.25em]">
           {preset.description || preset.system_prompt}
         </p>
 
         {/* Category tag + mini tags */}
-        {primaryTag && (
-          <div className="mt-3 flex items-center gap-1.5">
-            <CategoryIcon
-              size={12}
-              className="text-[var(--theme-text-secondary)]"
-            />
-            <span className="scb__category-tag">{primaryTag}</span>
-          </div>
-        )}
-
-        {preset.tags.length > 1 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {preset.tags.slice(1, 4).map((tag) => (
+        {(primaryTag || preset.tags.length > 1) && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {primaryTag && (
+              <span className="scb__mini-tag" style={{ cursor: "default" }}>
+                <CategoryIcon
+                  size={10}
+                  className="text-[var(--theme-text-secondary)]"
+                />
+                {primaryTag}
+              </span>
+            )}
+            {preset.tags.slice(primaryTag ? 1 : 0, 4).map((tag) => (
               <button
                 key={tag}
                 type="button"
@@ -154,7 +153,9 @@ export function PersonaPresetCard({
               </button>
             ))}
             {preset.tags.length > 4 && (
-              <span className="scb__mini-tag">+{preset.tags.length - 4}</span>
+              <span className="scb__mini-tag" style={{ cursor: "default" }}>
+                +{preset.tags.length - 4}
+              </span>
             )}
           </div>
         )}

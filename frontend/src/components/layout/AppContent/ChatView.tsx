@@ -297,6 +297,11 @@ export function ChatView({
     return latestMessage ? createMessageAnchorId(latestMessage.id) : null;
   }, [messages, visibleRange]);
 
+  const currentPersonaAvatar = useMemo(() => {
+    const preset = personaPresets.find((p) => p.id === selectedPersonaPresetId);
+    return preset?.avatar ?? null;
+  }, [personaPresets, selectedPersonaPresetId]);
+
   const handleOutlineNavigate = useCallback(
     (anchorId: string, messageIndex: number) => {
       virtuosoRef.current?.scrollToIndex({
@@ -335,10 +340,17 @@ export function ChatView({
           items={outlineItems}
           activeId={activeOutlineId}
           onNavigate={handleOutlineNavigate}
+          personaAvatar={currentPersonaAvatar}
         />
       ),
     });
-  }, [outlineItems, activeOutlineId, handleOutlineNavigate, t]);
+  }, [
+    outlineItems,
+    activeOutlineId,
+    handleOutlineNavigate,
+    t,
+    currentPersonaAvatar,
+  ]);
 
   useEffect(() => {
     if (outlineToggleRef) {
@@ -588,6 +600,8 @@ export function ChatView({
         sessionName={sessionName ?? undefined}
         runId={currentRunId ?? undefined}
         isLastMessage={index === messages.length - 1}
+        personaAvatar={currentPersonaAvatar}
+        personaName={selectedPersonaName}
         activePreview={activePreview}
         latestAutoPreview={latestAutoPreview}
         onOpenPreview={handleOpenPreview}
@@ -598,6 +612,8 @@ export function ChatView({
       sessionName,
       currentRunId,
       messages.length,
+      currentPersonaAvatar,
+      selectedPersonaName,
       activePreview,
       latestAutoPreview,
       handleOpenPreview,
