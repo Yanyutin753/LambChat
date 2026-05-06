@@ -1,14 +1,15 @@
 """
 Reveal Project 工具
 
-让 Agent 可以向用户展示整个前端项目（多文件），前端使用 Sandpack 进行预览。
-支持纯 HTML/CSS/JS 项目和 React/Vue 等框架项目。
+让 Agent 可以向用户展示整个项目或文件夹（多文件）。
+前端项目会使用 Sandpack 进行浏览器预览；没有可运行前端入口的普通目录会以文件夹模式展示，
+方便用户浏览大量代码、文档、配置或其他文本文件。
 
 工作流程：
 1. Agent 调用 reveal_project 指定项目目录
 2. 后端递归扫描目录，将所有文件上传到 OSS/S3
 3. 返回文件清单（manifest）给前端
-4. 前端从 OSS 拉取文本文件内容，替换二进制文件引用，用 Sandpack 渲染
+4. 前端从 OSS 拉取文本文件内容，前端项目用 Sandpack 渲染，普通文件夹用文件树/代码浏览展示
 
 返回格式（v2）：
 {
@@ -770,7 +771,9 @@ async def _upload_file(
 
 @tool
 async def reveal_project(
-    project_path: Annotated[str, "项目目录路径，包含 index.html 或 package.json 的目录"],
+    project_path: Annotated[
+        str, "项目或文件夹目录路径；前端项目可预览，普通文件夹会以 folder 模式展示"
+    ],
     name: Annotated[Optional[str], "项目名称（可选，默认使用目录名）"] = None,
     description: Annotated[Optional[str], "项目描述（可选）"] = None,
     template: Annotated[
@@ -780,13 +783,15 @@ async def reveal_project(
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
-    向用户展示一个前端项目（多文件预览）
+    向用户展示一个项目或文件夹（多文件预览 / 文件树浏览）
 
-    当 AI 生成了包含多个文件的前端项目（HTML/CSS/JS 或 React/Vue 项目）时，
-    使用此工具让用户可以在沙箱环境中预览整个项目。
+    当 AI 生成或整理了多个文件时，使用此工具把整个目录展示给用户。
+    对 HTML/CSS/JS、React/Vue 等前端项目，工具会返回 project 模式用于浏览器预览；
+    对没有前端入口的非前端普通代码目录、文档目录、配置目录或文件很多的结果，工具会返回 folder
+    模式，让用户直接浏览文件夹内容。
 
     Args:
-        project_path: 项目目录路径（包含 index.html 或 package.json 的目录）
+        project_path: 项目或文件夹目录路径；前端项目可预览，普通文件夹会以 folder 模式展示
         name: 项目名称（可选，默认使用目录名）
         description: 项目描述（可选）
         template: 项目模板类型（可选，自动检测：react/vue/vanilla/static/angular/svelte/solid/nextjs）

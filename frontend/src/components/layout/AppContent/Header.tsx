@@ -191,24 +191,11 @@ export function Header({
           ) : (
             <div className="flex items-center gap-1.5">
               <button
-                onClick={() => navigate("/chat")}
+                onClick={() => navigate(-1)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800 transition-colors"
                 title={t("common.back")}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                  className="size-5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
-                  />
-                </svg>
+                <ChevronLeft size={20} />
               </button>
               <div className="flex flex-col justify-center">
                 <span className="text-base font-bold text-stone-700 dark:text-stone-200 font-serif leading-tight">

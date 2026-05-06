@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Code2, Download } from "lucide-react";
+import { Code2, FolderTree } from "lucide-react";
+import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../../common";
 import { LazyDocumentPreview } from "../../../documents/LazyDocumentPreview";
 import { LazyProjectPreview } from "../../../documents/previews/LazyProjectPreview";
 import { ToolResultPanel } from "./ToolResultPanel";
-import { exportProjectZip } from "../../../../utils/exportProjectZip";
+import { isImageFile } from "../../../documents/utils";
 import {
   isProjectPreviewFullscreen,
   requestProjectPreviewFullscreen,
@@ -24,6 +25,10 @@ import {
   normalizeProjectRevealBinaryFiles,
   shouldReplaceProjectRevealFiles,
 } from "./projectRevealState";
+import { createActiveRevealPreviewState } from "./revealPreviewState";
+import { setActiveRevealPreviewState } from "./activeRevealPreviewStore";
+import { FileTreeView } from "./FileTreeView";
+import type { TreeNode } from "./FileTreeView";
 
 function ProjectRevealPreviewPanel({
   project,
@@ -42,6 +47,8 @@ function ProjectRevealPreviewPanel({
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [viewMode, setViewMode] = useState<"center" | "sidebar">("sidebar");
   const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+  const isFolder = project.mode === "folder";
+  const [showExplorer, setShowExplorer] = useState(isFolder);
   const panelElementRef = useRef<HTMLDivElement | null>(null);
   const cacheKey = useMemo(
     () => project.path || project.name,
@@ -181,6 +188,29 @@ function ProjectRevealPreviewPanel({
 
   const filesForPreview = loadedFiles || {};
 
+  const handleFileClickInTree = useCallback(
+    (node: TreeNode) => {
+      if (!loadedFiles) return;
+      const ext = node.name.split(".").pop()?.toLowerCase() || "";
+      const filePreview: RevealPreviewRequest = {
+        kind: "file",
+        previewKey: `project-file:${node.path}`,
+        filePath: node.name,
+        ...(node.isBinary
+          ? { signedUrl: node.url }
+          : { content: loadedFiles[node.path] }),
+        ...(isImageFile(ext) && node.isBinary && node.url
+          ? { imageUrl: node.url }
+          : {}),
+        fileSize: node.size,
+      };
+      setActiveRevealPreviewState(
+        createActiveRevealPreviewState(filePreview, "manual"),
+      );
+    },
+    [loadedFiles],
+  );
+
   return (
     <ToolResultPanel
       open={true}
@@ -195,7 +225,9 @@ function ProjectRevealPreviewPanel({
         count: project.fileCount,
       })}`}
       viewMode={isMobile ? "center" : viewMode}
+      onViewModeChange={(mode) => setViewMode(mode)}
       isFullscreen={isBrowserFullscreen}
+      mobileFillViewport
       onFullscreenChange={(fs) => {
         if (fs) {
           void enterBrowserFullscreen();
@@ -208,16 +240,22 @@ function ProjectRevealPreviewPanel({
       panelElementRef={panelElementRef}
       onUserInteraction={onUserInteraction}
       headerActions={
-        <button
-          onClick={() =>
-            exportProjectZip(filesForPreview, project.name, binaryFiles)
-          }
-          className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
-          title={t("project.exportZip")}
-          disabled={!loadedFiles || loadingError}
-        >
-          <Download size={15} className="text-stone-400 dark:text-stone-500" />
-        </button>
+        !isFolder ? (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setShowExplorer(!showExplorer)}
+              className={clsx(
+                "flex items-center justify-center w-8 h-8 rounded-xl transition-all duration-200 active:scale-95",
+                showExplorer
+                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                  : "hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400 dark:text-stone-500",
+              )}
+              title={t("project.toggleExplorer", "切换文件浏览器")}
+            >
+              <FolderTree size={18} />
+            </button>
+          </div>
+        ) : undefined
       }
     >
       {loadingError ? (
@@ -231,6 +269,13 @@ function ProjectRevealPreviewPanel({
             {t("project.loadingFiles")}
           </div>
         </div>
+      ) : showExplorer || isFolder ? (
+        <FileTreeView
+          files={loadedFiles}
+          binaryFiles={binaryFiles}
+          projectName={project.name}
+          onFileClick={handleFileClickInTree}
+        />
       ) : (
         <LazyProjectPreview
           name={project.name}
@@ -267,9 +312,12 @@ export function RevealPreviewHost({
   if (preview.kind === "file") {
     return (
       <LazyDocumentPreview
+        key={preview.previewKey}
         path={preview.filePath}
+        content={preview.content}
         s3Key={preview.s3Key}
         signedUrl={preview.signedUrl}
+        imageUrl={preview.imageUrl}
         fileSize={preview.fileSize}
         onClose={onClose}
         onUserInteraction={onUserInteraction}
@@ -280,6 +328,7 @@ export function RevealPreviewHost({
 
   return (
     <ProjectRevealPreviewPanel
+      key={preview.previewKey}
       project={preview.project}
       openInFullscreen={preview.openInFullscreen}
       onClose={onClose}

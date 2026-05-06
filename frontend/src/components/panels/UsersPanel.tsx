@@ -466,7 +466,7 @@ export function UsersPanel() {
       )}
 
       {/* 用户列表 */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
         {users.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Users

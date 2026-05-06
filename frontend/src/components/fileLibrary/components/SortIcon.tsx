@@ -9,8 +9,8 @@ export function SortIcon({
   className?: string;
 }) {
   return order === "desc" ? (
-    <ArrowDown size={14} className={className} />
+    <ArrowDown size={16} className={className} />
   ) : (
-    <ArrowUp size={14} className={className} />
+    <ArrowUp size={16} className={className} />
   );
 }

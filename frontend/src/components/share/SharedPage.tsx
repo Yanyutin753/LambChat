@@ -8,7 +8,6 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   AlertCircle,
-  ArrowLeft,
   MessageSquare,
   Sun,
   Moon,
@@ -21,6 +20,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { BackIcon } from "../common/BackIcon";
 import { shareApi } from "../../services/api/share";
 import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
@@ -498,7 +498,7 @@ export function SharedPage() {
                 className="inline-flex items-center gap-2 px-6 py-3 bg-stone-900 dark:bg-stone-100 hover:bg-stone-800 dark:hover:bg-stone-200 text-white dark:text-stone-900 rounded-xl font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
               >
                 {t("errors.backToHome")}
-                <ArrowLeft size={16} />
+                <BackIcon size={16} />
               </Link>
             </div>
           </div>

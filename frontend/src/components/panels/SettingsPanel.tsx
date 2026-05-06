@@ -469,7 +469,7 @@ export function SettingsPanel() {
               <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100 font-serif">
                 {t("settings.title")}
               </h2>
-              <p className="text-[11px] text-stone-400 dark:text-stone-500">
+              <p className="text-xs text-stone-400 dark:text-stone-500">
                 {t("settings.modelConfigDescription", "管理应用配置")}
               </p>
             </div>
@@ -488,7 +488,7 @@ export function SettingsPanel() {
                 <button
                   key={category}
                   onClick={() => setActiveCategory(category)}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-[13px] transition-all duration-150 ${
+                  className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-all duration-150 ${
                     isActive
                       ? "bg-[var(--glass-bg)] font-semibold text-stone-900 dark:text-stone-100 shadow-sm"
                       : "font-medium text-stone-500 hover:bg-[var(--glass-bg-subtle)] dark:text-stone-400"
@@ -496,7 +496,7 @@ export function SettingsPanel() {
                 >
                   <span className="flex items-center justify-between">
                     {CATEGORY_LABELS[category]}
-                    <span className="ml-2 text-[11px] tabular-nums opacity-40">
+                    <span className="ml-2 text-xs tabular-nums opacity-40">
                       {visibleCount}
                     </span>
                   </span>
@@ -634,7 +634,7 @@ export function SettingsPanel() {
           )}
 
           {/* Settings List */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+          <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
             {/* System Health Monitor */}
             <SystemHealthSection />
 

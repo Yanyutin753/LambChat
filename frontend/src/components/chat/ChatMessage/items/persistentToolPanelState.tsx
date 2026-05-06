@@ -6,6 +6,10 @@ import { isMobileDevice } from "../../../../utils/mobile";
 import { ToolResultPanel } from "./ToolResultPanel";
 import { closeCurrentToolPanel } from "./toolPanelRegistry";
 import { createSingletonStore } from "./createSingletonStore";
+import {
+  registerPanelCapture,
+  pushCurrentPanelToHistory,
+} from "./sidebarHistoryStore";
 
 export interface PersistentToolPanelState {
   title: string;
@@ -28,6 +32,20 @@ export interface PersistentToolPanelState {
 const panelStore = createSingletonStore<PersistentToolPanelState | null>(null);
 let panelOpen = false;
 
+registerPanelCapture(() => {
+  const panel = panelStore.get();
+  if (panel) {
+    const captured = panel;
+    return { restore: () => openPersistentToolPanelDirect(captured) };
+  }
+  return null;
+});
+
+function openPersistentToolPanelDirect(panel: PersistentToolPanelState): void {
+  panelStore.set(panel);
+  panelOpen = true;
+}
+
 export function getPersistentToolPanelState(): PersistentToolPanelState | null {
   return panelStore.get();
 }
@@ -44,6 +62,7 @@ export function isPersistentToolPanelOpen(panelKey?: string): boolean {
 
 export function openPersistentToolPanel(panel: PersistentToolPanelState): void {
   if (panel.auto && isMobileDevice()) return;
+  pushCurrentPanelToHistory();
   closeCurrentToolPanel();
   panelStore.set(panel);
   panelOpen = true;

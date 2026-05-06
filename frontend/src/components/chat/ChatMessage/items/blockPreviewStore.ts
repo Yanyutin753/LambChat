@@ -1,5 +1,9 @@
 import { createSingletonStore } from "./createSingletonStore";
 import { closeCurrentToolPanel } from "./ToolResultPanel";
+import {
+  registerPanelCapture,
+  pushCurrentPanelToHistory,
+} from "./sidebarHistoryStore";
 
 export interface BlockPreviewData {
   type: "image" | "file" | "text";
@@ -10,6 +14,19 @@ export interface BlockPreviewData {
 }
 
 const store = createSingletonStore<BlockPreviewData | null>(null);
+
+registerPanelCapture(() => {
+  const data = store.get();
+  if (data) {
+    const captured = data;
+    return { restore: () => openBlockPreviewDirect(captured) };
+  }
+  return null;
+});
+
+function openBlockPreviewDirect(data: BlockPreviewData): void {
+  store.set(data);
+}
 
 function areBlockPreviewsEqual(
   left: BlockPreviewData | null,
@@ -35,6 +52,7 @@ export function subscribeBlockPreview(listener: () => void): () => void {
 }
 
 export function openBlockPreview(data: BlockPreviewData): void {
+  pushCurrentPanelToHistory();
   closeCurrentToolPanel();
   if (areBlockPreviewsEqual(store.get(), data)) {
     return;

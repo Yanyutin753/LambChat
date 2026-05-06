@@ -14,6 +14,7 @@ from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.role.storage import RoleStorage
 from src.infra.tool.backend_utils import get_user_id_from_runtime
 from src.infra.user.storage import UserStorage
+from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.persona_preset import (
     PersonaPresetCreate,
     PersonaPresetStatus,
@@ -72,23 +73,33 @@ def _is_admin(user: TokenPayload) -> bool:
 
 @tool
 async def create_persona_preset(
-    name: Annotated[str, "Persona preset name"],
-    system_prompt: Annotated[str, "System prompt for the persona"],
-    description: Annotated[str, "Short persona description"] = "",
+    name: Annotated[str, "Persona preset name, e.g. 'Code Reviewer', 'Translator'"],
+    system_prompt: Annotated[
+        str,
+        "System prompt that defines the persona's behavior, personality, and rules. "
+        "Write clear instructions covering: 1) Role identity (who the persona is), "
+        "2) Behavioral guidelines (how it should act), 3) Output format preferences, "
+        "4) Constraints (what it must not do). "
+        "Example: 'You are a senior code reviewer. Focus on correctness, security, and readability. "
+        "Always suggest fixes alongside issues. Never approve code with SQL injection risks.'",
+    ],
+    description: Annotated[str, "Short one-line description of what this persona does"] = "",
     avatar: Annotated[str | None, "Optional avatar URL"] = None,
-    tags: Annotated[list[str], "Optional persona tags"] = [],
-    skill_names: Annotated[list[str], "Optional skill names to associate"] = [],
+    tags: Annotated[list[str], "Optional tags for categorization, e.g. ['coding', 'review']"] = [],
+    skill_names: Annotated[list[str], "Optional skill/tool names to enable for this persona"] = [],
     visibility: Annotated[
         str,
-        "Visibility: 'private' or 'public'",
+        "Visibility: 'private' (only you) or 'public' (all users)",
     ] = "private",
     status: Annotated[
         str,
-        "Status: 'draft' or 'published'",
+        "Status: 'draft' (work in progress) or 'published' (ready to use)",
     ] = "draft",
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """Create a new persona preset for the current user."""
+    """Create a new persona preset (AI character/role) for the current user.
+    The persona is defined by its system_prompt which controls how the AI behaves.
+    Write a detailed, specific system_prompt for best results."""
     user_id = _get_user_id(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
@@ -104,20 +115,23 @@ async def create_persona_preset(
         return _json({"error": "Invalid visibility or status value"})
 
     manager = PersonaPresetManager()
-    preset = await manager.create_preset(
-        PersonaPresetCreate(
-            name=name,
-            description=description,
-            avatar=avatar,
-            tags=tags,
-            system_prompt=system_prompt,
-            skill_names=skill_names,
-            visibility=vis,
-            status=st,
-        ),
-        user_id=user_id,
-        is_admin=_is_admin(user),
-    )
+    try:
+        preset = await manager.create_preset(
+            PersonaPresetCreate(
+                name=name,
+                description=description,
+                avatar=avatar,
+                tags=tags,
+                system_prompt=system_prompt,
+                skill_names=skill_names,
+                visibility=vis,
+                status=st,
+            ),
+            user_id=user_id,
+            is_admin=_is_admin(user),
+        )
+    except Exception as e:
+        return _json({"error": f"Failed to create preset: {e}"})
     return _json(
         {
             "success": True,
@@ -134,15 +148,21 @@ async def update_persona_preset(
     preset_id: Annotated[str | None, "Exact preset id to update when known"] = None,
     current_name: Annotated[str | None, "Existing persona name when preset id is unknown"] = None,
     name: Annotated[str | None, "New persona name"] = None,
-    description: Annotated[str | None, "New description"] = None,
+    description: Annotated[str | None, "New one-line description"] = None,
     avatar: Annotated[str | None, "New avatar URL"] = None,
-    tags: Annotated[list[str] | None, "Updated tags"] = None,
-    system_prompt: Annotated[str | None, "Updated system prompt"] = None,
-    skill_names: Annotated[list[str] | None, "Updated skill names"] = None,
+    tags: Annotated[list[str] | None, "Updated tags for categorization"] = None,
+    system_prompt: Annotated[
+        str | None,
+        "Updated system prompt. Should clearly define: role identity, behavioral rules, "
+        "output format, and constraints. Be specific and detailed for best results.",
+    ] = None,
+    skill_names: Annotated[list[str] | None, "Updated skill/tool names"] = None,
     visibility: Annotated[str | None, "Updated visibility: 'private' or 'public'"] = None,
     status: Annotated[str | None, "Updated status: 'draft' or 'published'"] = None,
 ) -> str:
-    """Update an existing persona preset for the current user."""
+    """Update an existing persona preset. Provide preset_id or current_name to identify
+    the target, then pass only the fields you want to change.
+    When updating system_prompt, rewrite the full prompt (partial edits are not supported)."""
     user_id = _get_user_id(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
@@ -183,18 +203,27 @@ async def update_persona_preset(
         else:
             return _json({"error": f"Persona preset '{current_name}' not found"})
 
-    update_data = PersonaPresetUpdate(
-        name=name,
-        description=description,
-        avatar=avatar,
-        tags=tags,
-        system_prompt=system_prompt,
-        skill_names=skill_names,
-        visibility=PersonaPresetVisibility(visibility) if visibility else None,
-        status=PersonaPresetStatus(status) if status else None,
-    )
-    if not update_data.model_dump(exclude_unset=True):
+    fields: dict[str, Any] = {}
+    if name is not None:
+        fields["name"] = name
+    if description is not None:
+        fields["description"] = description
+    if avatar is not None:
+        fields["avatar"] = avatar
+    if tags is not None:
+        fields["tags"] = tags
+    if system_prompt is not None:
+        fields["system_prompt"] = system_prompt
+    if skill_names is not None:
+        fields["skill_names"] = skill_names
+    if visibility is not None:
+        fields["visibility"] = PersonaPresetVisibility(visibility)
+    if status is not None:
+        fields["status"] = PersonaPresetStatus(status)
+    if not fields:
         return _json({"error": "At least one field to update is required"})
+
+    update_data = PersonaPresetUpdate(**fields)
 
     try:
         preset = await manager.update_preset(
@@ -203,8 +232,10 @@ async def update_persona_preset(
             user_id=user_id,
             is_admin=_is_admin(user),
         )
-    except Exception as e:
+    except (NotFoundError, AuthorizationError) as e:
         return _json({"error": str(e)})
+    except Exception as e:
+        return _json({"error": f"Failed to update preset: {e}"})
 
     return _json(
         {

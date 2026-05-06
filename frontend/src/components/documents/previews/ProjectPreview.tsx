@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   SandpackProvider,
   SandpackLayout,
@@ -126,10 +126,7 @@ export default function ProjectPreview({
   );
   const canPreview = layout.showPreview;
 
-  useEffect(() => {
-    setActiveTab(layout.initialTab);
-    setShowExplorer(showFileExplorer || layout.showExplorer);
-  }, [layout.initialTab, layout.showExplorer, showFileExplorer]);
+  // 当 mode 变化时，通过 key 重置组件状态（由上层 SandpackProvider key 驱动）
 
   // 对 Vue 项目使用 StackBlitz
   const useStackBlitz =
@@ -295,7 +292,7 @@ export default function ProjectPreview({
       {/* 预览区域 */}
       <div
         className={clsx(
-          "flex-1 min-h-0 h-[200px] sm:h-auto",
+          "flex-1 min-h-0 h-auto",
           isFullscreen && "h-[calc(100vh-120px)]",
         )}
       >

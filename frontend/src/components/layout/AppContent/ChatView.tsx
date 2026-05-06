@@ -69,6 +69,7 @@ import {
   subscribeActiveRevealPreviewState,
   updateActiveRevealPreviewState,
 } from "../../chat/ChatMessage/items/activeRevealPreviewStore";
+import { clearSidebarHistory } from "../../chat/ChatMessage/items/sidebarHistoryStore";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 import { isFileLink } from "../../documents/utils";
 import { getFullUrl } from "../../../services/api/config";
@@ -486,6 +487,7 @@ export function ChatView({
     dismissedPreviewKeysRef.current.clear();
     clearFileRevealAutoOpenState();
     clearProjectRevealAutoOpenState();
+    clearSidebarHistory();
     setActiveRevealPreviewState(null);
     externalPreviewActiveRef.current = false;
     closePersistentToolPanel();

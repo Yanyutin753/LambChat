@@ -125,24 +125,25 @@ async def sandbox_mcp_add(
     user_id = get_user_id_from_runtime(runtime) or "unknown"
     env_key_list = [k.strip() for k in env_keys.split(",") if k.strip()] if env_keys else []
 
-    # Register in sandbox
-    env_flags = await build_env_flags(user_id, env_key_list)
-    cmd = (
-        f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(command)}{env_flags}"
-    )
-    result = await backend.aexecute(cmd, timeout=_MCPORTER_TIMEOUT)
-    if result.exit_code != 0:
-        return json.dumps({"error": f"mcporter failed: {result.output}"})
+    try:
+        # Register in sandbox
+        env_flags = await build_env_flags(user_id, env_key_list)
+        cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(command)}{env_flags}"
+        result = await backend.aexecute(cmd, timeout=_MCPORTER_TIMEOUT)
+        if result.exit_code != 0:
+            return json.dumps({"error": f"mcporter failed: {result.output}"})
 
-    # Persist to MongoDB
-    ok = await _persist_server_to_mongodb(user_id, server_name, command, env_key_list)
-    if not ok:
-        return json.dumps(
-            {"error": "Server registered in sandbox but failed to persist to database"}
-        )
+        # Persist to MongoDB
+        ok = await _persist_server_to_mongodb(user_id, server_name, command, env_key_list)
+        if not ok:
+            return json.dumps(
+                {"error": "Server registered in sandbox but failed to persist to database"}
+            )
 
-    invalidate_sandbox_mcp_prompt_cache(user_id)
-    await publish_tool_cache_invalidation("sandbox_mcp_prompt", user_id=user_id)
+        invalidate_sandbox_mcp_prompt_cache(user_id)
+        await publish_tool_cache_invalidation("sandbox_mcp_prompt", user_id=user_id)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to add server: {e}"})
     return json.dumps(
         {
             "success": True,
@@ -175,47 +176,50 @@ async def sandbox_mcp_update(
     user_id = get_user_id_from_runtime(runtime) or "unknown"
     env_key_list = [k.strip() for k in env_keys.split(",") if k.strip()] if env_keys else None
 
-    # We need to know the current command to rebuild mcporter config.
-    # Read from MongoDB first.
-    from src.infra.mcp.storage import MCPStorage
+    try:
+        # We need to know the current command to rebuild mcporter config.
+        # Read from MongoDB first.
+        from src.infra.mcp.storage import MCPStorage
 
-    storage = MCPStorage()
-    existing = await storage.get_user_server(server_name, user_id)
-    if not existing:
-        return json.dumps({"error": f"Server '{server_name}' not found in database"})
+        storage = MCPStorage()
+        existing = await storage.get_user_server(server_name, user_id)
+        if not existing:
+            return json.dumps({"error": f"Server '{server_name}' not found in database"})
 
-    resolved_command = command or existing.command or ""
-    resolved_env_keys = env_key_list if env_key_list is not None else (existing.env_keys or [])
+        resolved_command = command or existing.command or ""
+        resolved_env_keys = env_key_list if env_key_list is not None else (existing.env_keys or [])
 
-    # Remove old config from mcporter, add new one
-    await backend.aexecute(
-        f"mcporter config remove {shlex.quote(server_name)}", timeout=_MCPORTER_TIMEOUT
-    )
-    # remove may fail if server wasn't in mcporter yet, that's ok
+        # Remove old config from mcporter, add new one
+        await backend.aexecute(
+            f"mcporter config remove {shlex.quote(server_name)}", timeout=_MCPORTER_TIMEOUT
+        )
+        # remove may fail if server wasn't in mcporter yet, that's ok
 
-    env_flags = await build_env_flags(user_id, resolved_env_keys)
-    add_cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(resolved_command)}{env_flags}"
-    result = await backend.aexecute(add_cmd, timeout=_MCPORTER_TIMEOUT)
-    if result.exit_code != 0:
-        # Try to restore the old one if possible
-        old_env = await build_env_flags(user_id, existing.env_keys or [])
-        restore_cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(existing.command or '')}{old_env}"
-        await backend.aexecute(restore_cmd, timeout=_MCPORTER_TIMEOUT)
-        return json.dumps({"error": f"mcporter update failed: {result.output}"})
+        env_flags = await build_env_flags(user_id, resolved_env_keys)
+        add_cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(resolved_command)}{env_flags}"
+        result = await backend.aexecute(add_cmd, timeout=_MCPORTER_TIMEOUT)
+        if result.exit_code != 0:
+            # Try to restore the old one if possible
+            old_env = await build_env_flags(user_id, existing.env_keys or [])
+            restore_cmd = f"mcporter config add {shlex.quote(server_name)} --stdio {shlex.quote(existing.command or '')}{old_env}"
+            await backend.aexecute(restore_cmd, timeout=_MCPORTER_TIMEOUT)
+            return json.dumps({"error": f"mcporter update failed: {result.output}"})
 
-    # Persist to MongoDB
-    from src.kernel.schemas.mcp import MCPServerUpdate
+        # Persist to MongoDB
+        from src.kernel.schemas.mcp import MCPServerUpdate
 
-    update = MCPServerUpdate(
-        command=resolved_command,
-        env_keys=resolved_env_keys,
-    )
-    updated = await storage.update_user_server(server_name, update, user_id)
-    if not updated:
-        return json.dumps({"error": "mcporter updated but failed to persist to database"})
+        update = MCPServerUpdate(
+            command=resolved_command,
+            env_keys=resolved_env_keys,
+        )
+        updated = await storage.update_user_server(server_name, update, user_id)
+        if not updated:
+            return json.dumps({"error": "mcporter updated but failed to persist to database"})
 
-    invalidate_sandbox_mcp_prompt_cache(user_id)
-    await publish_tool_cache_invalidation("sandbox_mcp_prompt", user_id=user_id)
+        invalidate_sandbox_mcp_prompt_cache(user_id)
+        await publish_tool_cache_invalidation("sandbox_mcp_prompt", user_id=user_id)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to update server: {e}"})
     return json.dumps(
         {
             "success": True,
@@ -240,28 +244,31 @@ async def sandbox_mcp_remove(
 
     user_id = get_user_id_from_runtime(runtime) or "unknown"
 
-    # Unregister from mcporter
-    cmd = f"mcporter config remove {shlex.quote(server_name)}"
-    result = await backend.aexecute(cmd, timeout=_MCPORTER_TIMEOUT)
+    try:
+        # Unregister from mcporter
+        cmd = f"mcporter config remove {shlex.quote(server_name)}"
+        result = await backend.aexecute(cmd, timeout=_MCPORTER_TIMEOUT)
 
-    # Persist removal to MongoDB (even if mcporter remove failed, e.g. server wasn't registered)
-    deleted = await _delete_server_from_mongodb(user_id, server_name)
+        # Persist removal to MongoDB (even if mcporter remove failed, e.g. server wasn't registered)
+        deleted = await _delete_server_from_mongodb(user_id, server_name)
 
-    if result.exit_code != 0 and deleted:
+        if result.exit_code != 0 and deleted:
+            invalidate_sandbox_mcp_prompt_cache(user_id)
+            await publish_tool_cache_invalidation("sandbox_mcp_prompt", user_id=user_id)
+            return json.dumps(
+                {
+                    "success": True,
+                    "message": f"Server '{server_name}' removed from database (was not in sandbox)",
+                }
+            )
+
+        if result.exit_code != 0:
+            return json.dumps({"error": f"mcporter failed: {result.output}"})
+
         invalidate_sandbox_mcp_prompt_cache(user_id)
         await publish_tool_cache_invalidation("sandbox_mcp_prompt", user_id=user_id)
-        return json.dumps(
-            {
-                "success": True,
-                "message": f"Server '{server_name}' removed from database (was not in sandbox)",
-            }
-        )
-
-    if result.exit_code != 0:
-        return json.dumps({"error": f"mcporter failed: {result.output}"})
-
-    invalidate_sandbox_mcp_prompt_cache(user_id)
-    await publish_tool_cache_invalidation("sandbox_mcp_prompt", user_id=user_id)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to remove server: {e}"})
     return json.dumps(
         {
             "success": True,

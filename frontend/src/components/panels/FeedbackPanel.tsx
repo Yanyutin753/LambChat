@@ -445,7 +445,7 @@ export function FeedbackPanel() {
       )}
 
       {/* Feedback List - ChatGPT style */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6">
         {isLoading && feedbackList.length === 0 ? (
           <FeedbackPanelSkeleton />
         ) : !isLoading && feedbackList.length === 0 ? (

@@ -268,7 +268,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
             : ""
         }`}
       >
-        <Tag size={14} />
+        <Tag size={16} />
         <span className="hidden sm:inline">{t("adminMarketplace.tags")}</span>
         {selectedTags.length > 0 && (
           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[11px]">
@@ -276,7 +276,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
           </span>
         )}
         <ChevronDown
-          size={14}
+          size={16}
           className={`transition-transform ${isFilterOpen ? "rotate-180" : ""}`}
         />
       </button>
@@ -379,7 +379,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
           subtitle={t("marketplace.subtitle")}
           icon={
             <ShoppingBag
-              size={18}
+              size={20}
               className="text-stone-600 dark:text-stone-400"
             />
           }
@@ -405,7 +405,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
       )}
 
       {/* Skills List */}
-      <div className="skill-content-area flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="skill-content-area flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6">
         {skills.length === 0 ? (
           <div className="skill-empty-state">
             <div className="skill-empty-state__icon">

@@ -6,6 +6,27 @@ import pytest
 from src.infra.tool import reveal_project_tool
 
 
+def test_reveal_project_tool_description_mentions_folder_reveal() -> None:
+    description = reveal_project_tool.reveal_project.description
+    project_path_description = reveal_project_tool.reveal_project.args["project_path"][
+        "description"
+    ]
+
+    assert "文件夹" in description
+    assert "非前端" in description
+    assert "folder" in description
+    assert "index.html 或 package.json" not in project_path_description
+    assert "文件夹" in project_path_description
+
+
+def test_subagent_workflow_allows_folder_reveal() -> None:
+    from src.agents.core.subagent_prompts import WORKFLOW_SECTION
+
+    assert "Project / Folder Reveal" in WORKFLOW_SECTION
+    assert "ordinary folders with many files" in WORKFLOW_SECTION
+    assert 'mode: "folder"' in WORKFLOW_SECTION
+
+
 class _Runtime:
     def __init__(
         self,

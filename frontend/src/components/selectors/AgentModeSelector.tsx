@@ -105,7 +105,7 @@ export function AgentModeSelector({
                 </div>
 
                 {/* Agent list */}
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-1.5">
+                <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5">
                   {agents.map((agent) => {
                     const isActive = agent.id === currentAgent;
                     return (
@@ -251,7 +251,7 @@ export function AgentModeSelector({
                 </div>
 
                 {/* Agent list */}
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-1.5">
+                <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5">
                   {agents.map((agent) => {
                     const isActive = agent.id === currentAgent;
                     return (

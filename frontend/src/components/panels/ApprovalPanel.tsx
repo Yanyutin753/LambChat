@@ -166,7 +166,7 @@ function FormFieldRenderer({
                   }
                 }}
                 disabled={disabled}
-                className={`approval-chip px-3 py-1 rounded-md text-[13px] font-medium ${
+                className={`approval-chip px-3 py-1 rounded-md text-sm font-medium ${
                   isSelected ? "approval-chip-active" : ""
                 } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
                 style={
@@ -462,7 +462,7 @@ export function ApprovalPanel({
           {/* Header */}
           <div className="approval-header">
             <div className="approval-icon">
-              <ShieldCheck size={15} strokeWidth={2} />
+              <ShieldCheck size={16} strokeWidth={2} />
             </div>
             <span className="approval-title">
               {t("approvals.needsConfirmation")}
@@ -473,7 +473,7 @@ export function ApprovalPanel({
                   isUrgent ? "approval-timer-urgent" : ""
                 }`}
               >
-                <Clock size={12} />
+                <Clock size={14} />
                 {formatCountdown(currentRemaining)}
               </span>
             )}

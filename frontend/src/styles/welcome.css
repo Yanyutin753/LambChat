@@ -125,7 +125,7 @@
     max-width: none;
     flex: 0 1 auto;
     margin-top: 0.25rem;
-    padding: 0;
+    padding: 0 0.5rem;
   }
 
   html[data-mobile-keyboard="true"] .welcome-suggestions-header {

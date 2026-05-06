@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { FileIcon } from "../common/FileIcon";
 import { ImageViewer } from "../common/ImageViewer";
+import { BackIcon } from "../common/BackIcon";
 import {
   X,
   AlertCircle,
@@ -18,6 +19,11 @@ import {
 } from "lucide-react";
 import { uploadApi } from "../../services/api";
 import { ToolResultPanel } from "../chat/ChatMessage/items/ToolResultPanel";
+import {
+  getSidebarHistoryLength,
+  goBackSidebar,
+  subscribeSidebarHistory,
+} from "../chat/ChatMessage/items/sidebarHistoryStore";
 import {
   fetchDocumentArrayBuffer,
   fetchDocumentText,
@@ -95,6 +101,7 @@ interface DocumentPreviewProps {
   onClose: () => void;
   onUserInteraction?: () => void;
   registryKey?: string;
+  onBack?: () => void;
 }
 
 export default function DocumentPreview({
@@ -109,8 +116,20 @@ export default function DocumentPreview({
   onClose,
   onUserInteraction,
   registryKey,
+  onBack,
 }: DocumentPreviewProps) {
   const { t } = useTranslation();
+  const [historyAvailable, setHistoryAvailable] = useState(
+    () => getSidebarHistoryLength() > 0,
+  );
+  useEffect(() => {
+    return subscribeSidebarHistory(() => {
+      setHistoryAvailable(getSidebarHistoryLength() > 0);
+    });
+  }, []);
+  const effectiveOnBack =
+    onBack ?? (historyAvailable ? goBackSidebar : undefined);
+
   const [data, setData] = useState<{ content: string; path: string } | null>(
     null,
   );
@@ -459,6 +478,7 @@ export default function DocumentPreview({
       }
       panelClass={isSidebar ? undefined : centerPanelClass}
       onUserInteraction={onUserInteraction}
+      onBack={effectiveOnBack}
       footer={
         <div className="px-3 sm:px-5 py-2 sm:py-3 border-t border-[var(--theme-border)] bg-[var(--theme-primary-light)]">
           <div className="flex items-center justify-between text-xs sm:text-xs text-[var(--theme-text-secondary)]">
@@ -479,7 +499,23 @@ export default function DocumentPreview({
         </div>
       }
       customHeader={
-        <div className="flex items-center gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-[var(--theme-border)] whitespace-nowrap overflow-hidden">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-4 py-2 sm:py-3 border-b border-[var(--theme-border)] overflow-hidden">
+          {effectiveOnBack && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                effectiveOnBack();
+              }}
+              className="flex items-center justify-center size-8 sm:size-9 rounded-lg sm:rounded-xl hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+              title={t("common.back", "Back")}
+            >
+              <BackIcon
+                size={16}
+                className="text-stone-500 dark:text-stone-400"
+              />
+            </button>
+          )}
           <FileIcon icon={Icon} bg={fileInfo.bg} color={fileInfo.color} />
           <div className="flex-1 min-w-0 overflow-hidden">
             <h3
@@ -488,13 +524,13 @@ export default function DocumentPreview({
             >
               {fileName}
             </h3>
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-[var(--theme-text-secondary)] mt-0.5">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-[var(--theme-text-secondary)] mt-0.5">
               {codeFile && (
-                <span className="px-1.5 py-0.5 rounded bg-[var(--theme-primary-light)] font-mono text-xs sm:text-xs shrink-0">
+                <span className="px-1 py-0 sm:px-1.5 sm:py-0.5 rounded bg-[var(--theme-primary-light)] font-mono text-[10px] sm:text-xs shrink-0">
                   {language}
                 </span>
               )}
-              <span className="text-xs sm:text-xs truncate">
+              <span className="text-[10px] sm:text-xs truncate">
                 {hasTextContent
                   ? t("documents.chars", { count: displaySize })
                   : fileSize
@@ -505,7 +541,7 @@ export default function DocumentPreview({
           </div>
           <div
             ref={toolbarRef}
-            className="flex items-center gap-0.5 sm:gap-1 relative z-10 shrink-0 overflow-x-auto scrollbar-none"
+            className="flex items-center gap-px sm:gap-1 relative z-10 shrink-0"
           >
             {markdownFile && data?.content && (
               <button
@@ -514,7 +550,7 @@ export default function DocumentPreview({
                   e.stopPropagation();
                   setViewSource(!viewSource);
                 }}
-                className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                className="flex items-center justify-center size-8 sm:size-auto sm:gap-1.5 sm:px-2.5 sm:py-2 rounded-lg sm:rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
                 title={
                   viewSource ? t("documents.preview") : t("documents.source")
                 }
@@ -522,12 +558,20 @@ export default function DocumentPreview({
                 {viewSource ? (
                   <>
                     <Eye size={16} />
-                    {!toolbarCompact && <span>{t("documents.preview")}</span>}
+                    {!toolbarCompact && (
+                      <span className="hidden sm:inline">
+                        {t("documents.preview")}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <>
                     <Code2 size={16} />
-                    {!toolbarCompact && <span>{t("documents.source")}</span>}
+                    {!toolbarCompact && (
+                      <span className="hidden sm:inline">
+                        {t("documents.source")}
+                      </span>
+                    )}
                   </>
                 )}
               </button>
@@ -544,7 +588,7 @@ export default function DocumentPreview({
                   if (isFullscreen) setIsFullscreen(false);
                 }
               }}
-              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="hidden sm:flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               title={
                 isSidebar
                   ? t("documents.centerView", "Center view")
@@ -575,7 +619,7 @@ export default function DocumentPreview({
                 }
                 setIsFullscreen(!isFullscreen);
               }}
-              className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center justify-center size-8 sm:size-auto sm:gap-1.5 sm:px-2.5 sm:py-2 rounded-lg sm:rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               title={
                 isFullscreen
                   ? t("documents.exitFullscreen")
@@ -586,13 +630,19 @@ export default function DocumentPreview({
                 <>
                   <Shrink size={16} />
                   {!toolbarCompact && (
-                    <span>{t("documents.exitFullscreen")}</span>
+                    <span className="hidden sm:inline">
+                      {t("documents.exitFullscreen")}
+                    </span>
                   )}
                 </>
               ) : (
                 <>
                   <Expand size={16} />
-                  {!toolbarCompact && <span>{t("documents.fullscreen")}</span>}
+                  {!toolbarCompact && (
+                    <span className="hidden sm:inline">
+                      {t("documents.fullscreen")}
+                    </span>
+                  )}
                 </>
               )}
             </button>
@@ -608,11 +658,15 @@ export default function DocumentPreview({
                     e.stopPropagation();
                     handleDownload();
                   }}
-                  className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                  className="flex items-center justify-center size-8 sm:size-auto sm:gap-1.5 sm:px-2.5 sm:py-2 rounded-lg sm:rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
                   title={t("documents.download")}
                 >
                   <Download size={16} />
-                  {!toolbarCompact && <span>{t("documents.download")}</span>}
+                  {!toolbarCompact && (
+                    <span className="hidden sm:inline">
+                      {t("documents.download")}
+                    </span>
+                  )}
                 </button>
                 {data?.content && (
                   <button
@@ -621,7 +675,7 @@ export default function DocumentPreview({
                       e.stopPropagation();
                       handleCopy();
                     }}
-                    className="flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 rounded-xl text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                    className="flex items-center justify-center size-8 sm:size-auto sm:gap-1.5 sm:px-2.5 sm:py-2 rounded-lg sm:rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
                   >
                     {copied ? (
                       <>
@@ -630,7 +684,7 @@ export default function DocumentPreview({
                           className="text-green-500 dark:text-green-400"
                         />
                         {!toolbarCompact && (
-                          <span className="text-green-500 dark:text-green-400">
+                          <span className="hidden sm:inline text-green-500 dark:text-green-400">
                             {t("documents.copied")}
                           </span>
                         )}
@@ -638,7 +692,11 @@ export default function DocumentPreview({
                     ) : (
                       <>
                         <Copy size={16} />
-                        {!toolbarCompact && <span>{t("documents.copy")}</span>}
+                        {!toolbarCompact && (
+                          <span className="hidden sm:inline">
+                            {t("documents.copy")}
+                          </span>
+                        )}
                       </>
                     )}
                   </button>
@@ -651,7 +709,7 @@ export default function DocumentPreview({
                 e.stopPropagation();
                 onClose();
               }}
-              className="flex items-center justify-center w-9 h-9 sm:w-9 sm:h-9 rounded-xl hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center justify-center size-8 sm:size-9 rounded-lg sm:rounded-xl hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
               aria-label={t("common.close")}
             >
               <X size={16} className="text-stone-500 dark:text-stone-400" />

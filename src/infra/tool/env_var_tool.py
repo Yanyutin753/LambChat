@@ -74,7 +74,10 @@ async def env_var_list(
     if not user_id:
         return _json({"error": "No user context available"})
 
-    variables = await EnvVarStorage().list_vars(user_id)
+    try:
+        variables = await EnvVarStorage().list_vars(user_id)
+    except Exception as e:
+        return _json({"error": f"Failed to list variables: {e}"})
     masked = [_masked_var(variable) for variable in variables]
     return _json({"variables": masked, "count": len(masked)})
 
@@ -96,9 +99,12 @@ async def env_var_set(
     if validation_error:
         return _json({"error": validation_error})
 
-    variable = await EnvVarStorage().set_var(user_id, key, value)
-    backend = get_backend_from_runtime(runtime)
-    await _sync_envvar_change(user_id, backend)
+    try:
+        variable = await EnvVarStorage().set_var(user_id, key, value)
+        backend = get_backend_from_runtime(runtime)
+        await _sync_envvar_change(user_id, backend)
+    except Exception as e:
+        return _json({"error": f"Failed to save variable: {e}"})
     return _json(
         {
             "success": True,
@@ -122,7 +128,10 @@ async def env_var_delete(
     if validation_error:
         return _json({"error": validation_error})
 
-    deleted = await EnvVarStorage().delete_var(user_id, key)
+    try:
+        deleted = await EnvVarStorage().delete_var(user_id, key)
+    except Exception as e:
+        return _json({"error": f"Failed to delete variable: {e}"})
     if not deleted:
         return _json({"error": f"Environment variable '{key}' not found"})
     backend = get_backend_from_runtime(runtime)
@@ -140,9 +149,12 @@ async def env_var_delete_all(
     if not user_id:
         return _json({"error": "No user context available"})
 
-    count = await EnvVarStorage().delete_all_vars(user_id)
-    backend = get_backend_from_runtime(runtime)
-    await _sync_envvar_change(user_id, backend)
+    try:
+        count = await EnvVarStorage().delete_all_vars(user_id)
+        backend = get_backend_from_runtime(runtime)
+        await _sync_envvar_change(user_id, backend)
+    except Exception as e:
+        return _json({"error": f"Failed to delete all variables: {e}"})
     return _json(
         {
             "success": True,

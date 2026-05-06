@@ -227,7 +227,7 @@ export function RolesPanelSkeleton() {
   return (
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
-      <div className="flex-1 overflow-y-auto p-3 sm:p-6 xl:p-8">
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 xl:p-8">
         <div className="grid gap-4 xl:grid-cols-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="panel-card !p-4">
@@ -312,7 +312,7 @@ export function MCPPanelSkeleton() {
   return (
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton />
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 xl:p-6 space-y-3">
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 xl:p-6 space-y-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="panel-card !p-4">
             <div className="flex items-start justify-between gap-2">
@@ -434,7 +434,7 @@ export function ChannelsPanelSkeleton() {
   return (
     <div className="flex h-full flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton hasSearch={false} />
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 xl:p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 xl:p-6 space-y-4">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="panel-card !p-4">
             <div className="flex items-center gap-2.5 sm:gap-3">

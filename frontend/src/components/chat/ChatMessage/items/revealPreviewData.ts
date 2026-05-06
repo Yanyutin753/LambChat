@@ -79,8 +79,10 @@ export type RevealPreviewRequest =
       kind: "file";
       previewKey: string;
       filePath: string;
+      content?: string;
       s3Key?: string;
       signedUrl?: string;
+      imageUrl?: string;
       fileSize?: number;
     }
   | {

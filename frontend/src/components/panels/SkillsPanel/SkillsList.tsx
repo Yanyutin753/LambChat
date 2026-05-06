@@ -124,7 +124,7 @@ export function SkillsList({
             : ""
         }`}
       >
-        <Tag size={14} />
+        <Tag size={16} />
         <span className="hidden sm:inline">{t("adminMarketplace.tags")}</span>
         {selectedTags.length > 0 && (
           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[11px]">
@@ -132,7 +132,7 @@ export function SkillsList({
           </span>
         )}
         <ChevronDown
-          size={14}
+          size={16}
           className={`transition-transform ${isFilterOpen ? "rotate-180" : ""}`}
         />
       </button>
@@ -255,7 +255,7 @@ export function SkillsList({
       )}
 
       {/* Skills List */}
-      <div className="skill-content-area flex-1 overflow-y-auto p-2 sm:p-4">
+      <div className="skill-content-area flex-1 overflow-y-auto py-2 sm:py-4 px-4">
         {filteredSkills.length === 0 ? (
           <div className="skill-empty-state">
             <div className="skill-empty-state__icon">

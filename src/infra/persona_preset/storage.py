@@ -25,11 +25,24 @@ class PersonaPresetStorage:
             self._collection = db["persona_presets"]
         return self._collection
 
-    @staticmethod
-    def _to_model_dict(doc: dict[str, Any]) -> dict[str, Any]:
+    _REQUIRED_DEFAULTS: dict[str, Any] = {
+        "name": "Untitled",
+        "description": "",
+        "tags": [],
+        "system_prompt": "You are a helpful assistant.",
+        "skill_names": [],
+        "visibility": "private",
+        "status": "draft",
+    }
+
+    @classmethod
+    def _to_model_dict(cls, doc: dict[str, Any]) -> dict[str, Any]:
         result = dict(doc)
         if "_id" in result:
             result["id"] = str(result.pop("_id"))
+        for key, default in cls._REQUIRED_DEFAULTS.items():
+            if result.get(key) is None:
+                result[key] = default
         return result
 
     async def create(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -109,7 +122,10 @@ class PersonaPresetStorage:
             query_id = ObjectId(preset_id)
         except Exception:
             return None
-        update = {**update, "updated_at": datetime.now()}
+        update = {k: v for k, v in update.items() if v is not None}
+        update["updated_at"] = datetime.now()
+        if not update:
+            return await self.get_by_id(preset_id)
         doc = await self.collection.find_one_and_update(
             {"_id": query_id},
             {"$set": update},

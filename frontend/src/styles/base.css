@@ -184,14 +184,6 @@ body {
 }
 
 @media (max-width: 639px) {
-  input:not([type="checkbox"]):not([type="radio"]),
-  textarea,
-  select {
-    font-size: 16px;
-    scroll-margin-top: calc(env(safe-area-inset-top) + 1rem);
-    scroll-margin-bottom: 0.5rem;
-  }
-
   input,
   textarea,
   select,

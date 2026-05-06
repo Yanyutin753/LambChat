@@ -36,21 +36,21 @@ interface ToolbarProps {
 /* ── Shared style tokens ──────────────────────────────── */
 
 const btnBase =
-  "flex items-center h-8 gap-1.5 rounded-lg border transition-all duration-150 text-[13px]";
+  "flex items-center h-9 gap-1.5 rounded-lg border transition-all duration-150 text-sm";
 const btnDefault =
   "border-stone-200 dark:border-stone-700/60 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 hover:border-stone-300 dark:hover:border-stone-600";
 const btnActive =
   "border-stone-300 dark:border-stone-600 bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-200";
 
 const ddItemBase =
-  "w-full text-left px-3 py-2 text-[13px] transition-colors rounded-lg flex items-center gap-2";
+  "w-full text-left px-3 py-2 text-sm transition-colors rounded-lg flex items-center gap-2";
 const ddItemActive =
   "text-stone-900 dark:text-stone-100 bg-stone-100 dark:bg-stone-700 font-medium";
 const ddItemDef =
   "text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800/50";
 
 const smItemBase =
-  "w-full text-left px-3 py-2 text-[12px] rounded-lg flex items-center gap-2";
+  "w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2";
 
 /* ═══════════════════════════════════════════════════════ */
 
@@ -111,10 +111,10 @@ export function Toolbar({
       />
       <div className="absolute bottom-0 left-0 right-0 h-px bg-stone-200/60 dark:bg-stone-700/40" />
 
-      <div className="relative px-5 @md:px-6 py-3 @md:py-4">
-        <div className="flex items-center justify-between gap-3 w-full">
+      <div className="relative px-3 @sm:px-4 @md:px-6 py-2 @md:py-3">
+        <div className="flex items-center justify-between gap-2 @sm:gap-3 w-full">
           {/* ─── Left group: Filters ─── */}
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-wrap gap-1.5 @sm:gap-2 items-center min-w-0">
             {/* Type filter */}
             <div className="relative">
               <button
@@ -124,17 +124,17 @@ export function Toolbar({
                   setShowFilter(true);
                   setTimeout(() => filterDd.update(), 0);
                 }}
-                className={`${btnBase} ${btnDefault} px-2.5`}
+                className={`${btnBase} ${btnDefault} px-2 @sm:px-2.5`}
               >
                 {currentFilterItem?.icon && (
-                  <currentFilterItem.icon size={14} />
+                  <currentFilterItem.icon size={16} />
                 )}
-                <span>
+                <span className="truncate max-w-[56px] @sm:max-w-none">
                   {t(currentFilterItem?.labelKey || "fileLibrary.types.all")}
                 </span>
                 <ChevronDown
-                  size={14}
-                  className={`text-stone-400 dark:text-stone-500 hidden @md:block transition-transform duration-200 ${
+                  size={16}
+                  className={`text-stone-400 dark:text-stone-500 hidden @sm:block transition-transform duration-200 ${
                     showFilter ? "rotate-180" : ""
                   }`}
                 />
@@ -157,7 +157,7 @@ export function Toolbar({
                       activeFilter === f.key ? ddItemActive : ddItemDef
                     }`}
                   >
-                    {f.icon && <f.icon size={15} />}
+                    {f.icon && <f.icon size={16} />}
                     {t(f.labelKey)}
                   </button>
                 ))}
@@ -167,26 +167,26 @@ export function Toolbar({
             {/* Favorites */}
             <button
               onClick={onFavoritesToggle}
-              className={`${btnBase} px-3 transition-all duration-150 ${
+              className={`${btnBase} px-2 @sm:px-3 transition-all duration-150 ${
                 favoritesOnly
                   ? "border-amber-300/80 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm shadow-amber-100 dark:shadow-black/20"
                   : "border-stone-200 dark:border-stone-700/60 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 hover:border-stone-300 dark:hover:border-stone-600"
               }`}
             >
               <Star
-                size={14}
+                size={16}
                 className={
                   favoritesOnly ? "fill-amber-400 dark:fill-amber-500" : ""
                 }
               />
-              <span className="hidden @md:inline">
+              <span className="hidden @sm:inline">
                 {t("fileLibrary.favorites", "我的收藏")}
               </span>
             </button>
 
             {/* Project filter */}
             {projects.length > 0 && (
-              <div className="relative hidden @md:block">
+              <div className="relative hidden @lg:block">
                 <button
                   ref={projectDd.ref}
                   onClick={() => {
@@ -198,12 +198,12 @@ export function Toolbar({
                     selectedProject ? btnActive : btnDefault
                   }`}
                 >
-                  <FolderKanban size={14} />
+                  <FolderKanban size={16} />
                   <span className="max-w-[72px] truncate">
                     {selectedProjectName || t("fileLibrary.projectFilter")}
                   </span>
                   <ChevronDown
-                    size={14}
+                    size={16}
                     className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
                       showProject ? "rotate-180" : ""
                     }`}
@@ -256,17 +256,17 @@ export function Toolbar({
                   setShowSort(true);
                   setTimeout(() => sortDd.update(), 0);
                 }}
-                className={`${btnBase} gap-1 px-2 ${btnDefault}`}
+                className={`${btnBase} gap-1 px-2 @sm:px-2.5 ${btnDefault}`}
               >
                 <SortIcon
                   order={sortOrder}
                   className="text-stone-400 dark:text-stone-500"
                 />
-                <span className="max-w-[64px] truncate hidden @sm:inline">
+                <span className="max-w-[80px] truncate hidden @sm:inline">
                   {t(currentSortLabel ?? "fileLibrary.sort.newest")}
                 </span>
                 <ChevronDown
-                  size={14}
+                  size={16}
                   className={`text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
                     showSort ? "rotate-180" : ""
                   }`}
@@ -302,7 +302,7 @@ export function Toolbar({
                         <span className="flex-1">{t(o.labelKey)}</span>
                         {isActive && (
                           <Check
-                            size={12}
+                            size={16}
                             className="text-stone-400 dark:text-stone-500 shrink-0"
                           />
                         )}
@@ -315,33 +315,33 @@ export function Toolbar({
           </div>
 
           {/* ─── Right group: Search + View toggle ─── */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 @sm:gap-2 shrink-0">
             {/* Search */}
-            <div className="group flex items-center gap-2.5 h-9 w-[160px] @md:w-[200px] rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 px-3 pl-9 relative focus-within:border-stone-400 dark:focus-within:border-stone-500 focus-within:bg-white dark:focus-within:bg-stone-800/60 transition-all duration-150">
+            <div className="group flex items-center h-9 w-[120px] @sm:w-[160px] @md:w-[200px] rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 px-2 @sm:px-3 pl-9 relative focus-within:border-stone-400 dark:focus-within:border-stone-500 focus-within:bg-white dark:focus-within:bg-stone-800/60 transition-all duration-150">
               <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500 pointer-events-none"
+                size={16}
+                className="absolute left-2 @sm:left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500 pointer-events-none"
               />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={t("fileLibrary.searchPlaceholder")}
-                className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-stone-700 dark:text-stone-300 placeholder:text-stone-500 dark:placeholder:text-stone-400 focus:outline-none"
+                className="h-full min-w-0 flex-1 bg-transparent text-sm text-stone-700 dark:text-stone-300 placeholder:text-stone-500 dark:placeholder:text-stone-400 focus:outline-none"
               />
               {search && (
                 <button
                   onClick={() => onSearchChange("")}
                   className="shrink-0 text-stone-300 hover:text-stone-500 dark:text-stone-600 dark:hover:text-stone-400 transition-colors rounded"
                 >
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               )}
             </div>
 
             {/* View toggle */}
-            <div className="hidden @md:block">
-              <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 h-8 p-px">
+            <div className="hidden @sm:block">
+              <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700/60 bg-stone-50/50 dark:bg-stone-800/30 h-9 p-px">
                 {(["grid", "list"] as const).map((mode) => {
                   const label =
                     mode === "grid"
@@ -360,9 +360,9 @@ export function Toolbar({
                     >
                       <span className="relative z-10">
                         {mode === "grid" ? (
-                          <LayoutGrid size={15} />
+                          <LayoutGrid size={16} />
                         ) : (
-                          <List size={15} />
+                          <List size={16} />
                         )}
                       </span>
                       {viewMode === mode && (

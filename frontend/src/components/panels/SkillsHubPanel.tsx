@@ -68,7 +68,7 @@ export function SkillsHubPanel() {
         title={t("skillsHub.title")}
         subtitle={t("skillsHub.subtitle")}
         icon={
-          <Sparkles size={18} className="text-stone-600 dark:text-stone-400" />
+          <Sparkles size={20} className="text-stone-600 dark:text-stone-400" />
         }
         actions={
           showTabSwitcher ? (
@@ -100,7 +100,7 @@ export function SkillsHubPanel() {
                     }`}
                     aria-pressed={isActive}
                   >
-                    <Icon size={14} />
+                    <Icon size={16} />
                     <span className="hidden sm:inline">{label}</span>
                   </button>
                 );

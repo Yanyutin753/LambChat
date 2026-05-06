@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { BackIcon } from "../common/BackIcon";
 import {
   Save,
   Trash2,
@@ -13,7 +14,6 @@ import {
   Check,
   X,
   AlertCircle,
-  ArrowLeft,
   MessageCircle,
   ChevronDown,
 } from "lucide-react";
@@ -649,12 +649,14 @@ export function ChannelPanel({
               onClick={() => navigate("/channels")}
               className="btn-secondary"
             >
-              <ArrowLeft size={16} />
+              <BackIcon size={16} />
               <span className="hidden sm:inline">{t("common.back")}</span>
             </button>
           }
         />
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4">{formContent}</div>
+        <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+          {formContent}
+        </div>
         <div className="border-t border-[var(--theme-border)] px-3 py-3 sm:px-4">
           {actionButtons}
         </div>

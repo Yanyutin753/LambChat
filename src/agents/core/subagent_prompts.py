@@ -33,8 +33,9 @@ Example:
 # Step 2: ![Sales Chart](https://your-domain/api/upload/file/revealed_files/chart.png)
 ```
 
-### Frontend Project Preview
+### Project / Folder Reveal
 For multi-file frontend projects, use `reveal_project(project_path, name, template?)` for browser preview.
+For ordinary folders with many files (code, docs, config, data samples, etc.), also use `reveal_project` so the user can browse the folder directly instead of receiving a long file list or many separate `reveal_file` calls. The tool will automatically return `mode: "project"` when a runnable frontend entry is found, otherwise `mode: "folder"`.
 
 ### File Transfer
 Different storage backends are routed by path prefix:

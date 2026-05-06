@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { BackIcon } from "../../../common/BackIcon";
 import {
   X,
   CheckCircle,
@@ -17,6 +18,12 @@ import { LoadingSpinner } from "../../../common";
 import { useSidebarPanel } from "../../../../hooks/useSidebarPanel";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
 import { registerToolPanel } from "./toolPanelRegistry";
+import {
+  getSidebarHistoryLength,
+  goBackSidebar,
+  subscribeSidebarHistory,
+  clearSidebarHistory,
+} from "./sidebarHistoryStore";
 export { closeCurrentToolPanel } from "./toolPanelRegistry";
 
 const WIDTH_STORAGE_KEY = "sidebar-preview-width";
@@ -49,12 +56,18 @@ interface ToolResultPanelProps {
   panelClass?: string;
   /** Optional external ref to the root panel element */
   panelElementRef?: React.Ref<HTMLDivElement>;
+  /** Callback when view mode changes (for externally controlled viewMode) */
+  onViewModeChange?: (mode: "sidebar" | "center") => void;
   /** Called when the user explicitly manipulates the panel UI */
   onUserInteraction?: () => void;
   /** Stable logical key to survive remounts without closing the same panel */
   registryKey?: string;
   /** Hide the built-in center/fullscreen buttons in the default header */
   hideViewToggle?: boolean;
+  /** When true, mobile renders as full-viewport instead of bottom sheet */
+  mobileFillViewport?: boolean;
+  /** When provided, a back button is shown in the header */
+  onBack?: () => void;
 }
 
 const statusConfig: Record<
@@ -108,6 +121,9 @@ export function ToolResultPanel({
   onUserInteraction,
   registryKey,
   hideViewToggle = false,
+  onViewModeChange,
+  onBack,
+  mobileFillViewport,
 }: ToolResultPanelProps) {
   const { t } = useTranslation();
   const [internalViewMode, setInternalViewMode] = useState<
@@ -115,8 +131,20 @@ export function ToolResultPanel({
   >("sidebar");
   const [internalIsFullscreen, setInternalIsFullscreen] = useState(false);
 
+  const [historyAvailable, setHistoryAvailable] = useState(
+    () => getSidebarHistoryLength() > 0,
+  );
+  useEffect(() => {
+    return subscribeSidebarHistory(() => {
+      setHistoryAvailable(getSidebarHistoryLength() > 0);
+    });
+  }, []);
+
+  const effectiveOnBack =
+    onBack ?? (historyAvailable ? goBackSidebar : undefined);
+
   // Allow external control of viewMode, but default to internal state
-  let effectiveViewMode = externalViewMode ?? internalViewMode;
+  const effectiveViewMode = externalViewMode ?? internalViewMode;
   const effectiveIsFullscreen = externalIsFullscreen ?? internalIsFullscreen;
   const isFullscreen = effectiveIsFullscreen;
 
@@ -144,7 +172,10 @@ export function ToolResultPanel({
 
   const handleToggleViewMode = useCallback(() => {
     onUserInteraction?.();
-    if (externalViewMode) return; // externally controlled
+    if (externalViewMode) {
+      onViewModeChange?.(viewMode === "sidebar" ? "center" : "sidebar");
+      return;
+    }
     setInternalViewMode((v) => {
       if (v === "center") {
         if (isFullscreen) {
@@ -158,6 +189,8 @@ export function ToolResultPanel({
   }, [
     onUserInteraction,
     externalViewMode,
+    onViewModeChange,
+    viewMode,
     isFullscreen,
     onFullscreenChange,
     externalIsFullscreen,
@@ -212,6 +245,11 @@ export function ToolResultPanel({
     [onUserInteraction, handleResizeStart],
   );
 
+  const handleUserClose = useCallback(() => {
+    clearSidebarHistory();
+    onClose();
+  }, [onClose]);
+
   if (!open) return null;
 
   const cfg = statusConfig[status];
@@ -226,19 +264,21 @@ export function ToolResultPanel({
           ? panelClass
           : isFullscreen
             ? "h-full w-full"
-            : isMobile
-              ? `max-h-[92vh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] ${
-                  animateIn
-                    ? "animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)_backwards]"
-                    : ""
-                }`
-              : isCenter
-                ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl sm:h-[80vh] sm:rounded-2xl sm:my-auto"}`
-                : `h-full relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
+            : isMobile && mobileFillViewport
+              ? "h-full"
+              : isMobile
+                ? `max-h-[92vh] rounded-t-2xl overflow-hidden shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.2)] dark:shadow-[0_-8px_40px_-8px_rgba(0,0,0,0.5)] ${
                     animateIn
-                      ? "animate-[slide-in-right_200ms_ease-out_backwards]"
+                      ? "animate-[slide-up-fullscreen_280ms_cubic-bezier(0.16,1,0.3,1)_backwards]"
                       : ""
                   }`
+                : isCenter
+                  ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl sm:h-[80vh] sm:rounded-2xl sm:my-auto"}`
+                  : `h-full relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
+                      animateIn
+                        ? "animate-[slide-in-right_200ms_ease-out_backwards]"
+                        : ""
+                    }`
       }`}
       ref={(el) => {
         // Merge refs
@@ -314,6 +354,24 @@ export function ToolResultPanel({
             customHeader
           ) : (
             <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 shrink-0 overflow-hidden">
+              {/* Back button */}
+              {effectiveOnBack && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    effectiveOnBack();
+                  }}
+                  className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 shrink-0"
+                  title={t("common.back", "Back")}
+                >
+                  <BackIcon
+                    size={15}
+                    className="text-stone-400 dark:text-stone-500"
+                  />
+                </button>
+              )}
+
               {/* Status + Icon */}
               <div
                 className={`flex items-center justify-center size-10 rounded-xl shrink-0 ${cfg.bg}`}
@@ -358,14 +416,14 @@ export function ToolResultPanel({
 
               {/* Center / Fullscreen / Close */}
               {!hideViewToggle && (
-                <div className="flex items-center gap-0.5 shrink min-w-0 overflow-hidden">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleToggleViewMode();
                     }}
-                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                    className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
                     title={
                       isSidebar
                         ? t("documents.centerView", "Center view")
@@ -373,19 +431,15 @@ export function ToolResultPanel({
                     }
                   >
                     {isSidebar ? (
-                      <>
-                        <Columns2 size={14} />
-                        <span className="hidden xl:inline truncate min-w-0">
-                          {t("documents.centerView", "居中")}
-                        </span>
-                      </>
+                      <Columns2
+                        size={15}
+                        className="text-stone-400 dark:text-stone-500"
+                      />
                     ) : (
-                      <>
-                        <PanelRight size={14} />
-                        <span className="hidden sm:inline truncate min-w-0">
-                          {t("documents.sidebarView", "侧边栏")}
-                        </span>
-                      </>
+                      <PanelRight
+                        size={15}
+                        className="text-stone-400 dark:text-stone-500"
+                      />
                     )}
                   </button>
                   <button
@@ -394,7 +448,7 @@ export function ToolResultPanel({
                       e.stopPropagation();
                       handleToggleFullscreen();
                     }}
-                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                    className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
                     title={
                       isFullscreen
                         ? t("documents.exitFullscreen", "退出全屏")
@@ -402,35 +456,31 @@ export function ToolResultPanel({
                     }
                   >
                     {isFullscreen ? (
-                      <>
-                        <Shrink size={14} />
-                        <span className="hidden xl:inline truncate min-w-0">
-                          {t("documents.exitFullscreen", "退出全屏")}
-                        </span>
-                      </>
+                      <Shrink
+                        size={15}
+                        className="text-stone-400 dark:text-stone-500"
+                      />
                     ) : (
-                      <>
-                        <Expand size={14} />
-                        <span className="hidden xl:inline truncate min-w-0">
-                          {t("documents.fullscreen", "全屏")}
-                        </span>
-                      </>
+                      <Expand
+                        size={15}
+                        className="text-stone-400 dark:text-stone-500"
+                      />
                     )}
                   </button>
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onClose();
+                      handleUserClose();
                     }}
-                    className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer"
+                    className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95"
                     aria-label="Close"
                     title={t("common.close", "Close")}
                   >
-                    <X size={14} />
-                    <span className="hidden xl:inline truncate min-w-0">
-                      {t("common.close", "关闭")}
-                    </span>
+                    <X
+                      size={15}
+                      className="text-stone-400 dark:text-stone-500"
+                    />
                   </button>
                 </div>
               )}
@@ -439,16 +489,13 @@ export function ToolResultPanel({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onClose();
+                    handleUserClose();
                   }}
-                  className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-stone-500 dark:text-stone-400 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-all duration-200 active:scale-95 shrink-0"
                   aria-label="Close"
                   title={t("common.close", "Close")}
                 >
-                  <X size={14} />
-                  <span className="hidden xl:inline">
-                    {t("common.close", "关闭")}
-                  </span>
+                  <X size={15} className="text-stone-400 dark:text-stone-500" />
                 </button>
               )}
             </div>
@@ -458,16 +505,30 @@ export function ToolResultPanel({
 
       {/* Floating close button (center mode only, no customHeader, desktop only) */}
       {isCenter && !hasCustomHeader && !isMobile && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          className="absolute top-3 right-3 z-[310] flex items-center justify-center w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-all duration-200 cursor-pointer"
-          aria-label="Close"
-        >
-          <X size={18} />
-        </button>
+        <div className="absolute top-3 right-3 z-[310] flex items-center gap-2">
+          {effectiveOnBack && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                effectiveOnBack();
+              }}
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-all duration-200 cursor-pointer"
+              aria-label="Back"
+            >
+              <BackIcon size={18} />
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleUserClose();
+            }}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-all duration-200 cursor-pointer"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
       )}
 
       {/* Content */}
@@ -493,14 +554,16 @@ export function ToolResultPanel({
           ? overlayClass
           : isFullscreen
             ? "bg-transparent pointer-events-none"
-            : isMobile
-              ? "bg-black/50 items-end justify-end"
-              : isCenter
-                ? "sm:items-center sm:justify-center bg-black/70"
-                : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
+            : isMobile && mobileFillViewport
+              ? "bg-black/50"
+              : isMobile
+                ? "bg-black/50 items-end justify-end"
+                : isCenter
+                  ? "sm:items-center sm:justify-center bg-black/70"
+                  : "bg-black/50 sm:bg-transparent sm:pointer-events-none sm:items-end sm:justify-stretch"
       }`}
       onClick={() => {
-        if (!isResizing.current && !justResized.current) onClose();
+        if (!isResizing.current && !justResized.current) handleUserClose();
       }}
     >
       {content}

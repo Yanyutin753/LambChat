@@ -21,6 +21,17 @@ export function DropdownShell({
 }: DropdownShellProps) {
   if (!show || !pos) return null;
 
+  const isMobile = window.innerWidth < 640;
+
+  const positionStyle: React.CSSProperties = isMobile
+    ? { position: "fixed", top: pos.top, left: 8, right: 8, zIndex: 50 }
+    : {
+        position: "fixed",
+        top: pos.top,
+        [align]: align === "left" ? pos.left : pos.right,
+        zIndex: 50,
+      };
+
   return (
     <>
       {/* Backdrop */}
@@ -29,7 +40,7 @@ export function DropdownShell({
       {/* Menu */}
       <div
         className={`
-          py-1.5 ${w} ${maxH ?? ""}
+          py-1.5 ${isMobile ? "w-auto" : w} ${maxH ?? ""}
           rounded-xl
           border border-stone-200/80 dark:border-stone-700/60
           bg-white dark:bg-stone-800
@@ -37,12 +48,7 @@ export function DropdownShell({
           ${maxH ? "overflow-y-auto scrollbar-none" : ""}
           animate-in fade-in-0 zoom-in-95 duration-100
         `}
-        style={{
-          position: "fixed",
-          top: pos.top,
-          [align]: align === "left" ? pos.left : pos.right,
-          zIndex: 50,
-        }}
+        style={positionStyle}
       >
         {children}
       </div>

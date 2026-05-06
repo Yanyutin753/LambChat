@@ -241,7 +241,9 @@ export function ProfileModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">{renderTabContent()}</div>
+        <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+          {renderTabContent()}
+        </div>
 
         {/* Footer */}
         {renderFooter("safe-area-bottom")}

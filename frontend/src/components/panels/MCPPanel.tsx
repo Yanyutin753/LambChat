@@ -408,7 +408,7 @@ export function MCPPanel() {
       )}
 
       {/* Servers List */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
         {filteredServers.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-theme-text-secondary">
             <FolderOpen size={48} className="mb-3 text-theme-text-secondary" />

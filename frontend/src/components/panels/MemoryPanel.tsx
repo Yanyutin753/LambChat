@@ -466,7 +466,7 @@ export function MemoryPanel() {
       />
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6">
         {isLoading && memories.length === 0 ? (
           <div className="flex h-40 items-center justify-center">
             <div className="relative h-8 w-8">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { BackIcon } from "../../../common/BackIcon";
 import {
   MessageSquare,
   Save,
@@ -7,7 +8,6 @@ import {
   RefreshCw,
   Check,
   X,
-  ArrowLeft,
   Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -772,7 +772,7 @@ export function FeishuPanel({
         subtitle={t("feishu.description")}
         icon={
           <MessageSquare
-            size={18}
+            size={20}
             className="text-blue-600 dark:text-blue-400"
           />
         }
@@ -791,7 +791,7 @@ export function FeishuPanel({
         subtitle={t("feishu.description")}
         icon={
           <MessageSquare
-            size={18}
+            size={20}
             className="text-blue-600 dark:text-blue-400"
           />
         }
@@ -800,12 +800,14 @@ export function FeishuPanel({
             onClick={() => navigate("/channels")}
             className="btn-secondary"
           >
-            <ArrowLeft size={16} />
+            <BackIcon size={16} />
             <span className="hidden sm:inline">{t("common.back")}</span>
           </button>
         }
       />
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4">{formContent}</div>
+      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
+        {formContent}
+      </div>
       <div className="border-t border-[var(--theme-border)] px-3 py-3 sm:px-4">
         {actionButtons}
       </div>

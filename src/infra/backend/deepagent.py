@@ -17,23 +17,17 @@ logger = get_logger(__name__)
 
 
 def _create_routes(
-    rt: Any,
     assistant_id: str,
     user_id: str,
 ) -> dict[str, BackendProtocol]:
     """创建通用的 backend 路由（skills + memories）"""
-    from deepagents.backends.store import BackendContext
-
     from src.infra.backend.skills_store import create_skills_backend
 
-    def memory_namespace_factory(ctx: BackendContext) -> tuple[str, ...]:  # type: ignore[arg-type]
-        return (assistant_id, "memories")
-
-    skills_backend = create_skills_backend(user_id=user_id, runtime=rt)
+    skills_backend = create_skills_backend(user_id=user_id)
 
     return {
         "/skills/": skills_backend,
-        "/memories/": StoreBackend(rt, namespace=memory_namespace_factory),  # type: ignore[arg-type]
+        "/memories/": StoreBackend(namespace=lambda _rt: (assistant_id, "memories")),
     }
 
 
@@ -43,13 +37,13 @@ def create_memory_backend_factory(
 ) -> Callable[[Any], CompositeBackend]:
     """创建基于内存的 Backend 工厂（不使用长期存储）"""
 
-    def backend_factory(rt: Any) -> CompositeBackend:
+    def backend_factory(_rt: Any) -> CompositeBackend:
         from src.infra.backend.skills_store import create_skills_backend
 
-        skills_backend = create_skills_backend(user_id=user_id or "default", runtime=rt)
+        skills_backend = create_skills_backend(user_id=user_id or "default")
 
         return CompositeBackend(
-            default=StateBackend(rt),
+            default=StateBackend(),
             routes={"/skills/": skills_backend},
         )
 
@@ -65,16 +59,11 @@ def create_persistent_backend_factory(
     底层 Store 由 create_deep_agent 传入，此处只负责 namespace 路由。
     """
 
-    def backend_factory(rt: Any) -> CompositeBackend:
-        from deepagents.backends.store import BackendContext
-
-        routes = _create_routes(rt, assistant_id, user_id or "default")
-
-        def default_namespace_factory(ctx: BackendContext) -> tuple[str, ...]:  # type: ignore[arg-type]
-            return (assistant_id, "filesystem")
+    def backend_factory(_rt: Any) -> CompositeBackend:
+        routes = _create_routes(assistant_id, user_id or "default")
 
         return CompositeBackend(
-            default=StoreBackend(rt, namespace=default_namespace_factory),  # type: ignore[arg-type]
+            default=StoreBackend(namespace=lambda _rt: (assistant_id, "filesystem")),
             routes=routes,
         )
 
@@ -88,8 +77,8 @@ def create_sandbox_backend_factory(
 ) -> Callable[[Any], CompositeBackend]:
     """创建基于沙箱的 Backend 工厂"""
 
-    def backend_factory(rt: Any) -> CompositeBackend:
-        routes = _create_routes(rt, assistant_id, user_id or "default")
+    def backend_factory(_rt: Any) -> CompositeBackend:
+        routes = _create_routes(assistant_id, user_id or "default")
 
         return CompositeBackend(
             default=sandbox_backend,

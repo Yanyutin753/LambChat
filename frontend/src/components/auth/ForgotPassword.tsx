@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, ArrowLeft, CheckCircle } from "lucide-react";
+import { Mail, CheckCircle } from "lucide-react";
+import { BackIcon } from "../common/BackIcon";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { authApi } from "../../services/api";
@@ -82,7 +83,7 @@ export function ForgotPassword() {
                 className="auth-primary-button w-full rounded-xl py-2.5 text-sm transition-all duration-200 hover:-translate-y-px active:translate-y-0"
               >
                 <span className="inline-flex items-center justify-center gap-2">
-                  <ArrowLeft size={14} />
+                  <BackIcon size={14} />
                   {t("auth.backToLogin")}
                 </span>
               </button>
@@ -140,7 +141,7 @@ export function ForgotPassword() {
                   onClick={handleBackToLogin}
                   className="inline-flex items-center gap-1.5 text-[13px] text-stone-400 transition-colors hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
                 >
-                  <ArrowLeft size={12} />
+                  <BackIcon size={12} />
                   {t("auth.backToLogin")}
                 </button>
               </div>

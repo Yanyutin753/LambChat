@@ -359,13 +359,6 @@ function JsonFallback({ data }: { data: unknown }) {
           {expanded ? t("chat.message.collapse") : t("chat.message.expandAll")}
         </button>
       )}
-      {expanded && str.length > MAX_JSON_COLLAPSED && (
-        <div className="mt-1 max-h-64 overflow-y-auto">
-          <pre className="text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words min-w-0">
-            {str}
-          </pre>
-        </div>
-      )}
     </div>
   );
 }

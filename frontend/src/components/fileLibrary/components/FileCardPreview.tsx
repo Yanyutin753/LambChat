@@ -10,47 +10,57 @@ interface FileCardPreviewProps {
   compact?: boolean;
 }
 
-/* ── Accent colors (per file type, for bar only) ── */
+/* ── Per-file-type icon tint ── */
 
-function makeAccent(name: string) {
-  const neu = new Set(["stone", "slate", "zinc", "neutral", "gray"]).has(name);
-  return {
-    shell: neu
-      ? `bg-gradient-to-b from-${name}-50 to-${name}-100/60 text-${name}-900 dark:from-${name}-900/50 dark:to-${name}-950/60 dark:text-${name}-100`
-      : `bg-gradient-to-b from-${name}-50 to-${name}-100/60 text-${name}-950 dark:from-${name}-950/30 dark:to-${name}-950/60 dark:text-${name}-50`,
-    bar: `bg-${name}-400`,
-    muted: `text-${name}-500 dark:text-${name}-400`,
-    badge: neu
-      ? `bg-${name}-100 text-${name}-600 ring-${name}-200 dark:bg-${name}-800 dark:text-${name}-300 dark:ring-${name}-700`
-      : `bg-${name}-100 text-${name}-700 ring-${name}-200 dark:bg-${name}-400/10 dark:text-${name}-200 dark:ring-${name}-300/20`,
-  };
-}
-
-const ACCENTS: Record<string, ReturnType<typeof makeAccent>> = {
-  amber: makeAccent("amber"),
-  blue: makeAccent("blue"),
-  cyan: makeAccent("cyan"),
-  emerald: makeAccent("emerald"),
-  green: makeAccent("green"),
-  indigo: makeAccent("indigo"),
-  lime: makeAccent("lime"),
-  orange: makeAccent("orange"),
-  pink: makeAccent("pink"),
-  purple: makeAccent("purple"),
-  red: makeAccent("red"),
-  rose: makeAccent("rose"),
-  sky: makeAccent("sky"),
-  slate: makeAccent("slate"),
-  stone: makeAccent("stone"),
-  teal: makeAccent("teal"),
-  violet: makeAccent("violet"),
-  yellow: makeAccent("yellow"),
-  zinc: makeAccent("zinc"),
+const ICON_TINT: Record<string, string> = {
+  amber: "text-amber-500 dark:text-amber-400",
+  blue: "text-blue-500 dark:text-blue-400",
+  cyan: "text-cyan-500 dark:text-cyan-400",
+  emerald: "text-emerald-500 dark:text-emerald-400",
+  green: "text-green-500 dark:text-green-400",
+  indigo: "text-indigo-500 dark:text-indigo-400",
+  lime: "text-lime-500 dark:text-lime-400",
+  orange: "text-orange-500 dark:text-orange-400",
+  pink: "text-pink-500 dark:text-pink-400",
+  purple: "text-purple-500 dark:text-purple-400",
+  red: "text-red-500 dark:text-red-400",
+  rose: "text-rose-500 dark:text-rose-400",
+  sky: "text-sky-500 dark:text-sky-400",
+  slate: "text-slate-500 dark:text-slate-400",
+  stone: "text-stone-500 dark:text-stone-400",
+  teal: "text-teal-500 dark:text-teal-400",
+  violet: "text-violet-500 dark:text-violet-400",
+  yellow: "text-yellow-500 dark:text-yellow-400",
+  zinc: "text-zinc-500 dark:text-zinc-400",
 };
 
-function accentFor(colorName: string) {
-  return ACCENTS[colorName] ?? ACCENTS.slate;
-}
+const BADGE_TINT: Record<string, string> = {
+  amber: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  blue: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  cyan: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
+  emerald:
+    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+  green: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  indigo:
+    "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300",
+  lime: "bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300",
+  orange:
+    "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  pink: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300",
+  purple:
+    "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  red: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  rose: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300",
+  sky: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
+  slate: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  stone: "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-300",
+  teal: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300",
+  violet:
+    "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
+  yellow:
+    "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+  zinc: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300",
+};
 
 /* ── Cover layout ──────────────────────────────────────── */
 
@@ -58,9 +68,9 @@ function CoverLayout({
   colorName,
   icon: Icon,
   badge,
-  title,
   subtitle,
   compact,
+  topRight,
 }: {
   colorName: string;
   icon: LucideIcon;
@@ -70,55 +80,45 @@ function CoverLayout({
   compact?: boolean;
   topRight?: React.ReactNode;
 }) {
-  const a = accentFor(colorName);
+  const tint = ICON_TINT[colorName] ?? ICON_TINT.stone;
+  const badgeCls = BADGE_TINT[colorName] ?? BADGE_TINT.stone;
 
   if (compact) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-slate-100 dark:bg-slate-900/40">
-        <Icon size={17} strokeWidth={2} className={a.muted} />
+      <div className="flex h-full w-full items-center justify-center bg-stone-50 dark:bg-stone-800/40">
+        <Icon size={17} strokeWidth={2} className={tint} />
       </div>
     );
   }
 
   return (
-    <div
-      className={clsx(
-        "relative flex h-full w-full flex-col overflow-hidden",
-        a.shell,
-      )}
-    >
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-stone-50 dark:bg-stone-800/30">
       {/* Centered icon */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="relative">
-          <Icon
-            size={42}
-            strokeWidth={1.1}
-            className={clsx("relative opacity-[0.18]", a.muted)}
-          />
-        </div>
+        <Icon
+          size={42}
+          strokeWidth={1.1}
+          className={clsx("relative opacity-[0.15]", tint)}
+        />
       </div>
 
       {/* Header */}
       <div className="relative z-10 flex items-center justify-between px-3 pt-2.5">
         <span
           className={clsx(
-            "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide ring-1",
-            a.badge,
+            "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tracking-wide",
+            badgeCls,
           )}
         >
           {badge}
         </span>
+        {topRight}
       </div>
 
       {/* Footer */}
       <div className="relative z-10 mt-auto px-3 pb-3">
-        {title && (
-          <p className="truncate text-[13px] font-semibold leading-tight tracking-tight text-white">
-            {title}
-          </p>
-        )}
         {subtitle && (
-          <p className="mt-0.5 truncate text-[10px] leading-3 text-white opacity-40">
+          <p className="truncate text-[10px] leading-3 text-stone-400 dark:text-stone-500">
             {subtitle}
           </p>
         )}
@@ -138,18 +138,17 @@ function MarkdownCover({
   icon: LucideIcon;
   compact?: boolean;
 }) {
-  const a = accentFor(p.colorName);
+  const tint = ICON_TINT[p.colorName] ?? ICON_TINT.stone;
   return (
     <CoverLayout
       colorName={p.colorName}
       icon={icon}
       badge="Markdown"
-      title={p.title}
       subtitle={p.subtitle}
       compact={compact}
       topRight={
         p.language && (
-          <span className={clsx("text-[10px]", a.muted)}>{p.language}</span>
+          <span className={clsx("text-[10px]", tint)}>{p.language}</span>
         )
       }
     />
@@ -170,14 +169,13 @@ function CodeCover({
       colorName={p.colorName}
       icon={icon}
       badge={p.badge}
-      title={p.title}
       subtitle={p.subtitle}
       compact={compact}
       topRight={
         <div className="flex gap-1">
-          <span className="h-[6px] w-[6px] rounded-full bg-current/15" />
-          <span className="h-[6px] w-[6px] rounded-full bg-current/10" />
-          <span className="h-[6px] w-[6px] rounded-full bg-current/[0.07]" />
+          <span className="h-[6px] w-[6px] rounded-full bg-stone-300 dark:bg-stone-600" />
+          <span className="h-[6px] w-[6px] rounded-full bg-stone-200 dark:bg-stone-700" />
+          <span className="h-[6px] w-[6px] rounded-full bg-stone-100 dark:bg-stone-800" />
         </div>
       }
     />
@@ -193,7 +191,7 @@ function ProjectCover({
   icon: LucideIcon;
   compact?: boolean;
 }) {
-  const a = accentFor(p.colorName);
+  const tint = ICON_TINT[p.colorName] ?? ICON_TINT.stone;
   return (
     <CoverLayout
       colorName={p.colorName}
@@ -201,7 +199,7 @@ function ProjectCover({
       badge={p.badge}
       compact={compact}
       topRight={
-        <span className={clsx("flex items-center gap-1 text-[10px]", a.muted)}>
+        <span className={clsx("flex items-center gap-1 text-[10px]", tint)}>
           <Layers size={10} />
           {p.subtitle}
         </span>
@@ -219,14 +217,14 @@ function DataCover({
   icon: LucideIcon;
   compact?: boolean;
 }) {
-  const a = accentFor(p.colorName);
+  const tint = ICON_TINT[p.colorName] ?? ICON_TINT.stone;
   return (
     <CoverLayout
       colorName={p.colorName}
       icon={icon}
       badge={p.badge}
       compact={compact}
-      topRight={<Braces size={12} className={clsx("opacity-35", a.muted)} />}
+      topRight={<Braces size={12} className={clsx("opacity-40", tint)} />}
     />
   );
 }
