@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   SandpackProvider,
   SandpackLayout,
@@ -20,13 +20,18 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
-import { buildSandpackConfig } from "./projectPreviewUtils";
+import {
+  buildSandpackConfig,
+  resolveProjectPreviewLayout,
+  type ProjectPreviewMode,
+} from "./projectPreviewUtils";
 import StackBlitzPreview from "./StackBlitzPreview";
 
 interface ProjectPreviewProps {
   name: string;
   template: string;
   files: Record<string, string>;
+  mode?: ProjectPreviewMode;
   entry?: string;
   onClose?: () => void;
   showHeader?: boolean;
@@ -95,6 +100,7 @@ export default function ProjectPreview({
   name,
   template,
   files,
+  mode = "project",
   entry,
   onClose,
   showHeader = true,
@@ -105,20 +111,32 @@ export default function ProjectPreview({
 }: ProjectPreviewProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
-  const [showExplorer, setShowExplorer] = useState(showFileExplorer);
   const isFullscreen = !!externalFullscreen;
+  const layout = useMemo(() => resolveProjectPreviewLayout(mode), [mode]);
+  const [activeTab, setActiveTab] = useState<"preview" | "code">(
+    layout.initialTab,
+  );
+  const [showExplorer, setShowExplorer] = useState(
+    showFileExplorer || layout.showExplorer,
+  );
 
   const config = useMemo(
     () => buildSandpackConfig(template, files, entry),
     [template, files, entry],
   );
+  const canPreview = layout.showPreview;
+
+  useEffect(() => {
+    setActiveTab(layout.initialTab);
+    setShowExplorer(showFileExplorer || layout.showExplorer);
+  }, [layout.initialTab, layout.showExplorer, showFileExplorer]);
 
   // 对 Vue 项目使用 StackBlitz
   const useStackBlitz =
-    template === "vue" ||
-    config.template === "vue" ||
-    config.template === "vue-ts";
+    canPreview &&
+    (template === "vue" ||
+      config.template === "vue" ||
+      config.template === "vue-ts");
 
   const sandpackInstanceKey = useMemo(
     () =>
@@ -175,7 +193,7 @@ export default function ProjectPreview({
 
           {/* 右侧：标签切换 + 操作按钮 */}
           <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 flex-nowrap">
-            {showTabs && (
+            {showTabs && canPreview && (
               <>
                 <button
                   onClick={() =>
@@ -306,8 +324,8 @@ export default function ProjectPreview({
           >
             <CustomLayout
               showExplorer={showExplorer}
-              showEditor={activeTab === "code"}
-              showPreview={activeTab === "preview"}
+              showEditor={!canPreview || activeTab === "code"}
+              showPreview={canPreview && activeTab === "preview"}
               isFullscreen={isFullscreen}
             />
           </SandpackProvider>

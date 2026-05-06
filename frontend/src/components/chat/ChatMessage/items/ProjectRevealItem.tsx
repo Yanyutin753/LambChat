@@ -47,7 +47,7 @@ export function ProjectRevealItem({
   ) => boolean;
 }) {
   const { t } = useTranslation();
-  const { projectName, template, error, fileCount, projectPath, parsed } =
+  const { projectName, mode, template, error, fileCount, projectPath, parsed } =
     useMemo(
       () =>
         parseProjectRevealSummary({
@@ -270,7 +270,7 @@ export function ProjectRevealItem({
           icon={Code2}
           title={projectName || t("project.untitled")}
           subtitle={`${t("project.fileCount", { count: fileCount })}${
-            template !== "static" ? ` · ${template}` : ""
+            mode === "project" && template !== "static" ? ` · ${template}` : ""
           }`}
           actions={
             <>
@@ -309,6 +309,7 @@ export function ProjectRevealItem({
             <LazyProjectPreview
               name={projectName}
               template={template}
+              mode={parsed?.mode}
               files={loadedFiles}
               entry={parsed?.entry}
               showHeader={false}

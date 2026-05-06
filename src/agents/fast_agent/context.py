@@ -185,10 +185,15 @@ class FastAgentContext:
             logger.info("[FastAgentContext] Added audio_transcribe tool")
 
         from src.infra.tool.env_var_tool import get_env_var_tools
+        from src.infra.tool.persona_preset_tool import get_persona_preset_tools
 
         env_var_tools = get_env_var_tools()
         self.tools.extend(env_var_tools)
         logger.info(f"[FastAgentContext] Added {len(env_var_tools)} env var tools")
+
+        persona_preset_tools = get_persona_preset_tools()
+        self.tools.extend(persona_preset_tools)
+        logger.info(f"[FastAgentContext] Added {len(persona_preset_tools)} persona preset tools")
 
         # Memory 工具（统一接口，自动选择 Hindsight 或 memU 后端）
         if settings.ENABLE_MEMORY:

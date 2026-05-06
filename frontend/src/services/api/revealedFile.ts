@@ -39,6 +39,7 @@ export interface RevealedFileItem {
   is_favorite: boolean;
   card_preview?: RevealedFileCardPreview | null;
   project_meta?: {
+    mode?: "project" | "folder";
     template:
       | "react"
       | "vue"

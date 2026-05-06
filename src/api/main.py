@@ -48,7 +48,6 @@ from src.frontend_resolution import resolve_frontend_target
 from src.infra.local_filesystem import ensure_local_filesystem_dirs
 from src.infra.logging import get_logger, setup_logging
 from src.infra.monitoring import get_memory_monitor
-from src.infra.persona_preset.mcp_server import mount_persona_preset_mcp
 from src.infra.runtime_services import start_runtime_services, stop_runtime_services
 from src.infra.share.seo import (
     build_shared_page_error_seo,
@@ -412,7 +411,6 @@ def create_app() -> FastAPI:
     app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
     # WebSocket 路由: /ws 用于实时通知
     app.include_router(websocket.router, tags=["WebSocket"])
-    mount_persona_preset_mcp(app)
 
     # Serve frontend static files
     project_root = Path(__file__).parent.parent.parent

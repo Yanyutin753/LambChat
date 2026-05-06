@@ -297,11 +297,6 @@ class MCPClientManager:
         """
         try:
             from src.infra.mcp.storage import MCPStorage
-            from src.infra.persona_preset.mcp_server import (
-                PERSONA_PRESET_MCP_SERVER_NAME,
-                build_persona_preset_mcp_server_config,
-                user_can_use_persona_preset_mcp,
-            )
 
             storage = MCPStorage()
 
@@ -319,10 +314,6 @@ class MCPClientManager:
                     user_roles=user_roles,
                     is_admin=is_admin,
                 )
-                if await user_can_use_persona_preset_mcp(self._user_id):
-                    config.setdefault("mcpServers", {})[PERSONA_PRESET_MCP_SERVER_NAME] = (
-                        build_persona_preset_mcp_server_config(self._user_id)
-                    )
                 logger.info(
                     f"Loaded MCP config for user {self._user_id}: {len(config.get('mcpServers', {}))} servers"
                 )

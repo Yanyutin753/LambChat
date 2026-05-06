@@ -105,6 +105,7 @@ export function buildExternalNavigationPreviewRequest(
       project: {
         version: 2,
         name: file.file_name,
+        mode: projectMeta.mode ?? "project",
         path: file.original_path ?? undefined,
         template: projectMeta.template,
         entry: projectMeta.entry,

@@ -199,6 +199,7 @@ test("builds a project preview request for external navigation", () => {
       project: {
         version: 2,
         name: "demo-app",
+        mode: "project",
         path: "/workspace/demo-app",
         template: "vanilla",
         entry: "index.html",

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildSandpackConfig,
+  resolveProjectPreviewLayout,
   resolveEntryFile,
   resolveSandpackTemplate,
 } from "./projectPreviewUtils.ts";
@@ -208,4 +209,24 @@ test("injects a patched vfile entry that uses browser shims instead of package i
   assert.match(vfileIndex, /from '\.\/minproc\.browser\.js'/);
   assert.match(vfileIndex, /from '\.\/minurl\.browser\.js'/);
   assert.doesNotMatch(vfileIndex, /#minpath|#minproc|#minurl/);
+});
+
+test("uses code-first layout for folder previews", () => {
+  const layout = resolveProjectPreviewLayout("folder");
+
+  assert.deepEqual(layout, {
+    initialTab: "code",
+    showExplorer: true,
+    showPreview: false,
+  });
+});
+
+test("keeps preview-first layout for runnable project previews", () => {
+  const layout = resolveProjectPreviewLayout("project");
+
+  assert.deepEqual(layout, {
+    initialTab: "preview",
+    showExplorer: false,
+    showPreview: true,
+  });
 });

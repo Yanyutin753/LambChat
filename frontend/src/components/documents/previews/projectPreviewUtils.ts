@@ -14,6 +14,14 @@ export type SandpackTemplate =
   | "nextjs"
   | "static";
 
+export type ProjectPreviewMode = "project" | "folder";
+
+export interface ProjectPreviewLayout {
+  initialTab: "preview" | "code";
+  showExplorer: boolean;
+  showPreview: boolean;
+}
+
 const TEMPLATE_MAP: Record<string, SandpackTemplate> = {
   react: "react",
   vue: "vue",
@@ -27,6 +35,24 @@ const TEMPLATE_MAP: Record<string, SandpackTemplate> = {
   nextjs: "nextjs",
   static: "static",
 };
+
+export function resolveProjectPreviewLayout(
+  mode: ProjectPreviewMode = "project",
+): ProjectPreviewLayout {
+  if (mode === "folder") {
+    return {
+      initialTab: "code",
+      showExplorer: true,
+      showPreview: false,
+    };
+  }
+
+  return {
+    initialTab: "preview",
+    showExplorer: false,
+    showPreview: true,
+  };
+}
 
 const ENTRY_CANDIDATES = [
   "/pages/index.tsx",

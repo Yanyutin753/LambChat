@@ -11,6 +11,8 @@ export type ProjectTemplate =
   | "solid"
   | "nextjs";
 
+export type ProjectRevealMode = "project" | "folder";
+
 export interface FileManifestEntry {
   url: string;
   is_binary: boolean;
@@ -23,6 +25,7 @@ interface ProjectRevealResultBase {
   name: string;
   description?: string;
   template: ProjectTemplate;
+  mode?: ProjectRevealMode;
   entry?: string;
   path?: string;
   file_count?: number;
@@ -43,6 +46,7 @@ export type ParsedProjectRevealData =
   | {
       version: 1;
       name: string;
+      mode: ProjectRevealMode;
       template: ProjectTemplate;
       entry?: string;
       path?: string;
@@ -52,6 +56,7 @@ export type ParsedProjectRevealData =
   | {
       version: 2;
       name: string;
+      mode: ProjectRevealMode;
       template: ProjectTemplate;
       entry?: string;
       path?: string;
@@ -61,6 +66,7 @@ export type ParsedProjectRevealData =
 
 export interface ParsedProjectRevealSummary {
   projectName: string;
+  mode: ProjectRevealMode;
   template: ProjectTemplate;
   error: string;
   fileCount: number;
@@ -101,6 +107,7 @@ export function parseProjectRevealSummary(input: {
 }): ParsedProjectRevealSummary {
   const { args, result, parseErrorMessage } = input;
   let projectName = "";
+  let mode: ProjectRevealMode = "project";
   let template: ProjectTemplate = "vanilla";
   let error = "";
   let fileCount = 0;
@@ -123,11 +130,13 @@ export function parseProjectRevealSummary(input: {
       } else if (isProjectRevealV2(raw)) {
         projectName = raw.name || "";
         projectPath = raw.path || "";
+        mode = raw.mode || "project";
         template = raw.template || "vanilla";
         fileCount = raw.file_count || Object.keys(raw.files).length;
         parsed = {
           version: 2,
           name: projectName,
+          mode,
           path: projectPath,
           template,
           entry: raw.entry,
@@ -137,11 +146,13 @@ export function parseProjectRevealSummary(input: {
       } else {
         projectName = raw.name || "";
         projectPath = raw.path || "";
+        mode = raw.mode || "project";
         template = raw.template || "vanilla";
         fileCount = raw.file_count || Object.keys(raw.files).length;
         parsed = {
           version: 1,
           name: projectName,
+          mode,
           path: projectPath,
           template,
           entry: raw.entry,
@@ -158,6 +169,7 @@ export function parseProjectRevealSummary(input: {
 
   return {
     projectName,
+    mode,
     template,
     error,
     fileCount,

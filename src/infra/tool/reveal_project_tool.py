@@ -15,6 +15,7 @@ Reveal Project 工具
     "type": "project_reveal",
     "version": 2,
     "name": "项目名称",
+    "mode": "project" | "folder",
     "template": "react" | "vue" | "vanilla" | "static" | "angular" | "svelte" | "solid" | "nextjs",
     "files": {
         "/App.js": {"url": "/api/upload/file/...", "is_binary": false, "size": 123},
@@ -48,6 +49,7 @@ logger = get_logger(__name__)
 ProjectTemplate = Literal[
     "react", "vue", "vanilla", "static", "angular", "svelte", "solid", "nextjs"
 ]
+RevealMode = Literal["project", "folder"]
 
 # 上传并发数
 UPLOAD_CONCURRENCY = 10
@@ -101,8 +103,8 @@ BINARY_EXTENSIONS = {
     ".wasm",
 }
 
-# 前端相关扩展名白名单，不在列表中的非二进制文件会被跳过
-FRONTEND_EXTENSIONS = {
+# 文本文件白名单：既覆盖前端项目，也覆盖常见代码/脚本/配置/文档目录
+TEXT_EXTENSIONS = {
     # Web 核心
     ".html",
     ".htm",
@@ -138,6 +140,47 @@ FRONTEND_EXTENSIONS = {
     # 其他前端资源
     ".map",
     ".xml",
+    # 通用代码 / 脚本
+    ".py",
+    ".rb",
+    ".php",
+    ".java",
+    ".kt",
+    ".kts",
+    ".go",
+    ".rs",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".swift",
+    ".scala",
+    ".pl",
+    ".pm",
+    ".r",
+    ".lua",
+    ".zig",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".ps1",
+    ".bat",
+    ".cmd",
+    # 通用配置 / 数据
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".properties",
+    ".lock",
+    ".csv",
+    ".tsv",
+    ".sql",
+    ".proto",
+    ".dockerfile",
 }
 
 IGNORE_DIRS = {
@@ -167,6 +210,16 @@ IGNORE_FILES = {
     ".env.production",
     "tsconfig.tsbuildinfo",
     ".eslintcache",
+}
+
+ALLOWED_TEXT_FILENAMES = {
+    "Dockerfile",
+    "Containerfile",
+    "Makefile",
+    "Procfile",
+    "Gemfile",
+    "Rakefile",
+    "Jenkinsfile",
 }
 
 # 入口文件候选顺序（按模板类型分组，避免 React 项目误选 /index.html）
@@ -354,7 +407,7 @@ def detect_template(
 
 
 def _should_skip(rel_path: str) -> bool:
-    """检查文件是否应该跳过（忽略目录、隐藏文件、非前端文件）"""
+    """检查文件是否应该跳过（忽略目录、隐藏文件、非白名单文本文件）"""
     parts = rel_path.strip("/").split("/")
     filename = parts[-1] if parts else ""
 
@@ -365,9 +418,12 @@ def _should_skip(rel_path: str) -> bool:
     if filename in IGNORE_FILES:
         return True
 
+    if filename in ALLOWED_TEXT_FILENAMES:
+        return False
+
     # 跳过不在白名单中的非二进制文件
     ext = os.path.splitext(filename)[1].lower()
-    if ext not in BINARY_EXTENSIONS and ext not in FRONTEND_EXTENSIONS:
+    if ext not in BINARY_EXTENSIONS and ext not in TEXT_EXTENSIONS:
         return True
 
     return False
@@ -617,6 +673,11 @@ def _find_entry(file_keys: set[str], template: Optional[str] = None) -> Optional
     return None
 
 
+def _resolve_reveal_mode(entry: Optional[str]) -> RevealMode:
+    """根据是否找到可运行入口，决定展示为项目还是普通文件夹。"""
+    return "project" if entry else "folder"
+
+
 def _get_base_url(runtime: Any) -> str:
     """从 ToolRuntime 提取 base_url"""
     return get_base_url_from_runtime(runtime)
@@ -831,15 +892,18 @@ async def reveal_project(
         detected_template = template
         if not detected_template:
             detected_template = detect_template(package_json_content or "{}", file_keys)
+        entry = _find_entry(file_keys, detected_template)
+        mode = _resolve_reveal_mode(entry)
 
         result = {
             "type": "project_reveal",
             "version": 2,
             "name": project_name,
             "description": description or "",
+            "mode": mode,
             "template": detected_template,
             "files": files_manifest,
-            "entry": _find_entry(file_keys, detected_template),
+            "entry": entry,
             "path": project_path,
             "file_count": len(files_manifest),
             "scanned_file_count": len(all_files),
@@ -877,8 +941,9 @@ async def reveal_project(
                     pass
 
             project_meta = {
+                "mode": mode,
                 "template": detected_template,
-                "entry": result.get("entry"),
+                "entry": entry,
                 "file_count": len(files_manifest),
                 "files": {k: dict(v) for k, v in files_manifest.items()},
             }

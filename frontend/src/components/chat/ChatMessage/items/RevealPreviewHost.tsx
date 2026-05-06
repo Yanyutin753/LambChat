@@ -235,6 +235,7 @@ function ProjectRevealPreviewPanel({
         <LazyProjectPreview
           name={project.name}
           template={project.template}
+          mode={project.mode}
           files={filesForPreview}
           entry={project.entry}
           isFullscreen={viewMode === "center" || isBrowserFullscreen}
