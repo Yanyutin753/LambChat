@@ -72,7 +72,7 @@ LambChat is built for teams who want more than a chatbot UI. It gives you a comp
 - **Full CRUD** — Create, edit, delete, reorder, and batch import models via UI
 - **Channel Routing** — Route the same model through different channels with `model_id`
 - **Role-based Access** — `MODEL_ADMIN` permission and per-role model visibility
-- **Cross-session Memory** — Native, hindsight, and memu memory backends
+- **Cross-session Memory** — Native MongoDB-backed memory system
 - **Dual Skills Storage** — File system plus MongoDB backup
 - **GitHub Sync** — Import custom skills from GitHub
 - **Skill Marketplace** — Browse, install, publish, and manage skills in bulk
@@ -134,13 +134,13 @@ Multiple setting categories can be configured through the UI or environment vari
 | Tools | Tool system settings |
 | Tracing | LangSmith and tracing |
 | User | User management, registration, default role |
-| Memory | Memory system (native / hindsight / memu) |
+| Memory | Memory system (native) |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.12+ · Node.js 18+ · MongoDB · Redis
+- Python 3.12+ · Node.js 18+ · pnpm · MongoDB · Redis
 
 ### Setup
 
@@ -154,6 +154,7 @@ docker compose up -d
 
 # Or local development
 cp .env.example .env   # Edit with your config
+make install-pnpm      # Install pnpm if not present
 make install && make dev
 ```
 

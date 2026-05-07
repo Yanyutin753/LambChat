@@ -212,7 +212,7 @@ class SearchAgentContext:
         self.tools.extend(persona_preset_tools)
         logger.info(f"[SearchAgentContext] Added {len(persona_preset_tools)} persona preset tools")
 
-        # Memory 工具（统一接口，自动选择 Hindsight 或 memU 后端）
+        # Memory 工具（原生 MongoDB 后端）
         if settings.ENABLE_MEMORY:
             try:
                 from src.infra.memory.tools import get_all_memory_tools

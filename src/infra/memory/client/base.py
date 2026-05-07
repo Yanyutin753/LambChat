@@ -1,8 +1,8 @@
 """
 Memory Backend Base - Abstract interface & shared utilities.
 
-All memory backends (Hindsight, memU, etc.) inherit from MemoryBackend.
-A factory function creates the correct backend based on configuration.
+All memory backends inherit from MemoryBackend.
+Currently only the native MongoDB-backed backend is supported.
 """
 
 import asyncio
@@ -116,7 +116,7 @@ class MemoryBackend(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Backend identifier (e.g. 'hindsight', 'memu')."""
+        """Backend identifier (e.g. 'native')."""
         ...
 
     @abstractmethod

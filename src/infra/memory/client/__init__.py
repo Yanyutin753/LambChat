@@ -1,8 +1,5 @@
 """
-Memory backend clients.
-
-Each client implements the MemoryBackend interface from base.py.
-Use create_memory_backend() factory to get the active backend.
+Memory backend client (native MongoDB-backed).
 """
 
 from src.infra.memory.client.base import (

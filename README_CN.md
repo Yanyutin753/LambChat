@@ -72,7 +72,7 @@ LambChat 不只是一个聊天界面，而是一整套可落地的 AI Agent 系�
 - **完整 CRUD** — 通过 UI 创建、编辑、删除、排序和批量导入模型
 - **渠道路由** — 同一模型可通过 `model_id` 在不同渠道复用
 - **角色权限** — `MODEL_ADMIN` 权限和按角色控制模型可见性
-- **跨会话记忆** — 原生、hindsight、memu 三种记忆后端
+- **跨会话记忆** — 原生 MongoDB 记忆后端
 - **技能双存储** — 文件系统 + MongoDB 备份
 - **GitHub 同步** — 从 GitHub 导入自定义技能
 - **技能市场** — 浏览、安装、发布以及批量管理技能
@@ -134,13 +134,13 @@ LambChat 不只是一个聊天界面，而是一整套可落地的 AI Agent 系�
 | 工具 | 工具系统设置 |
 | 追踪 | LangSmith 链路追踪 |
 | 用户 | 用户管理、注册、默认角色 |
-| 记忆 | 记忆系统（native / hindsight / memu） |
+| 记忆 | 记忆系统（native） |
 
 ## 🚀 快速开始
 
 ### 环境要求
 
-- Python 3.12+ · Node.js 18+ · MongoDB · Redis
+- Python 3.12+ · Node.js 18+ · pnpm · MongoDB · Redis
 
 ### 安装
 
@@ -154,6 +154,7 @@ docker compose up -d
 
 # 或本地运行
 cp .env.example .env   # 编辑填写配置
+make install-pnpm      # 安装 pnpm（如未安装）
 make install && make dev
 ```
 

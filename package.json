@@ -1,7 +1,14 @@
 {
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
   "devDependencies": {
     "@types/node": "^25.3.0",
-    "@types/turndown": "^5.0.6"
+    "@types/turndown": "^5.0.6",
+    "vitepress": "^1.6.3",
+    "vue": "^3.5.13"
   },
   "dependencies": {
     "@lobehub/icons": "^5.2.0",

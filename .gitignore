@@ -72,15 +72,18 @@ node_modules/
 .claude/
 docs/superpowers/
 docs/plans/
-docs/*
 !docs/images/
 !docs/images/**/
 frontend/src/components/common/DynamicIcon.tsx
 .codex/
 claude-code
 .playwright-mcp/
+docs/.vitepress/.temp/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 
 # YubbChat (external project, not part of this repo)
 YubbChat/
 .codex
 scripts/
+docs/docs/.vitepress/
