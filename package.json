@@ -8,5 +8,6 @@
     "mermaid": "^11.14.0",
     "react-simple-code-editor": "^0.14.1",
     "turndown": "^7.2.2"
-  }
+  },
+  "packageManager": "pnpm@10.32.1"
 }

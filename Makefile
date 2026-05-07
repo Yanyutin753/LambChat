@@ -1,4 +1,4 @@
-.PHONY: help install dev build clean docker-up docker-down docker-logs docker-build test lint format check-all frontend-dev frontend-build frontend-install
+.PHONY: help install dev build clean docker-up docker-down docker-logs docker-build test lint format typecheck check-all frontend-dev frontend-build frontend-install
 
 # 默认目标
 help:
@@ -29,8 +29,9 @@ help:
 	@echo "代码质量:"
 	@echo "  make lint             - 运行 Ruff 代码检查"
 	@echo "  make format           - 格式化代码"
+	@echo "  make typecheck        - 运行 Mypy 类型检查"
 	@echo "  make test             - 运行测试"
-	@echo "  make check-all        - 运行所有检查（lint + test）"
+	@echo "  make check-all        - 运行所有检查（lint + typecheck + test）"
 	@echo ""
 	@echo "清理:"
 	@echo "  make clean            - 清理缓存和临时文件"
@@ -43,7 +44,7 @@ install:
 
 frontend-install:
 	@echo "📦 安装前端依赖..."
-	cd frontend && npm install
+	cd frontend && pnpm install
 
 install-all: install frontend-install
 	@echo "✅ 所有依赖安装完成"
@@ -55,7 +56,7 @@ dev:
 
 frontend-dev:
 	@echo "🎨 启动前端开发服务器..."
-	cd frontend && npm run dev
+	cd frontend && pnpm run dev
 
 dev-all:
 	@echo "🚀 启动前后端开发服务器..."
@@ -70,7 +71,7 @@ build:
 
 frontend-build:
 	@echo "🔨 构建前端..."
-	cd frontend && npm run build
+	cd frontend && pnpm run build
 
 build-all: build frontend-build
 	@echo "✅ 构建完成"
@@ -104,11 +105,15 @@ format:
 	@echo "✨ 格式化代码..."
 	uv run ruff format .
 
+typecheck:
+	@echo "🔬 运行 Mypy 类型检查..."
+	uv run mypy src/
+
 test:
 	@echo "🧪 运行测试..."
 	uv run pytest
 
-check-all: lint test
+check-all: lint typecheck test
 	@echo "✅ 所有检查通过"
 
 # 清理

@@ -162,9 +162,10 @@ Open **http://localhost:8000**
 ### Code Quality
 
 ```bash
-ruff format src/    # Format
-ruff check src/     # Lint
-mypy src/           # Type check
+make format       # Format (ruff format)
+make lint         # Lint (ruff check)
+make typecheck    # Type check (mypy)
+make check-all    # Run all checks (lint + typecheck + test)
 ```
 
 ### Project Structure

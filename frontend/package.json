@@ -8,8 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "i18n:extract": "npx tsx scripts/extract-i18n.ts",
-    "find-large-files": "tsx scripts/find-large-files.ts"
+    "i18n:extract": "tsx scripts/extract-i18n.ts",
+    "find-large-files": "tsx scripts/find-large-files.ts",
+    "migrate-tests": "tsx scripts/migrate-tests.ts"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",
@@ -80,5 +81,6 @@
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.18.2",
     "vite": "^6.0.5"
-  }
+  },
+  "packageManager": "pnpm@10.32.1"
 }

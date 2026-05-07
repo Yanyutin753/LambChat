@@ -1,19 +1,21 @@
 # Stage 1: Build frontend
 FROM node:20-alpine AS frontend-builder
 
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app/frontend
 
 # Copy package files
-COPY frontend/package*.json ./
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
 # Install dependencies
-RUN npm ci --prefer-offline --no-audit
+RUN pnpm install --frozen-lockfile
 
 # Copy frontend source
 COPY frontend/ ./
 
 # Build frontend
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Runtime image
 FROM python:3.12-slim

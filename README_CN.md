@@ -162,9 +162,10 @@ make install && make dev
 ### 代码质量
 
 ```bash
-ruff format src/    # 格式化
-ruff check src/     # 检查风格
-mypy src/           # 类型检查
+make format       # 格式化 (ruff format)
+make lint         # 检查风格 (ruff check)
+make typecheck    # 类型检查 (mypy)
+make check-all    # 运行所有检查 (lint + typecheck + test)
 ```
 
 ### 项目结构
