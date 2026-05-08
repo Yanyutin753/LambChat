@@ -36,12 +36,13 @@ class SubagentEventMixin:
         first_segment, _, _ = checkpoint_ns.partition("|")
         agent_info = self.checkpoint_to_agent.get(first_segment)
         if agent_info:
-            result = (agent_info[0], 1)
+            agent_id = agent_info[0]
+            result: tuple[str | None, int] = (agent_id, 1)
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(
                     "Found subagent: segment=%s, agent_id=%s",
                     first_segment[:30],
-                    agent_info[0],
+                    agent_id,
                 )
             self._agent_context_cache[checkpoint_ns] = result
             return result
