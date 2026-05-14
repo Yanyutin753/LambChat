@@ -174,16 +174,17 @@ export function useFileUpload({
           })
           .catch(() => ({ check: { exists: false } }))
           .then(({ check }) => {
-            if (check.exists) {
+            if (check.exists && 'key' in check) {
               abortMapRef.current.delete(tempId);
+              const c = check as FileCheckResult;
               const finalAttachment: MessageAttachment = {
                 id: uuid(),
-                key: check.key ?? "",
-                name: check.name || processedFile.name,
-                type: check.type as FileCategory,
-                mimeType: check.mimeType ?? processedFile.type,
-                size: check.size ?? processedFile.size,
-                url: check.url || `/api/upload/file/${check.key ?? ""}`,
+                key: c.key ?? "",
+                name: c.name || processedFile.name,
+                type: c.type as FileCategory,
+                mimeType: c.mimeType ?? processedFile.type,
+                size: c.size ?? processedFile.size,
+                url: c.url || `/api/upload/file/${c.key ?? ""}`,
               };
               onAttachmentsChange((prev: MessageAttachment[]) =>
                 prev.map((a) =>
