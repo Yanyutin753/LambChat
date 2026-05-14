@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { uploadApi } from "../services/api";
+import type { FileCheckResult } from "../types";
 import { compressImageFile } from "../utils/imageCompression";
 import { uuid } from "../utils/uuid";
 import type { MessageAttachment, FileCategory } from "../types";
