@@ -150,7 +150,7 @@ function collectPartImages(
   return [];
 }
 
-function collectSessionImageGalleryItems(
+export function collectSessionImageGalleryItems(
   messages: Message[],
 ): SessionImageGalleryItem[] {
   return messages.flatMap((message) => {
