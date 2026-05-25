@@ -258,3 +258,5 @@ deploy/             # Docker deployment assets
 <sub>WeChat for deployment help, product feedback, and collaboration</sub>
 
 </div>
+
+<sub><a href="https://linux.do/">LINUX DO - A New Ideal Community</a></sub>
