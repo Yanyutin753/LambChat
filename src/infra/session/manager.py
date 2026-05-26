@@ -101,6 +101,13 @@ class SessionManager:
 
     async def update_session_metadata(self, session_id: str, metadata: dict) -> bool:
         """Update metadata fields without materializing the full session."""
+        run_id = metadata.get("active_run_id") or metadata.get("current_run_id")
+        if run_id:
+            return await self.storage.update_metadata_if_active_run(
+                session_id,
+                str(run_id),
+                metadata,
+            )
         return await self.storage.update_metadata_only(session_id, metadata)
 
     async def _collect_user_attachment_keys(self, session_id: str) -> list[str]:

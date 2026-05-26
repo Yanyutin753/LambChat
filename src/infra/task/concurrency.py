@@ -587,6 +587,8 @@ class UserConcurrencyLimiter:
                                         "task_error_code": "cancelled",
                                         "task_recoverable": False,
                                         "current_run_id": run_id,
+                                        "active_run_id": None,
+                                        "last_started_run_id": run_id,
                                     }
                                 ),
                             )

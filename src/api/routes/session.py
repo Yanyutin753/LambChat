@@ -300,8 +300,11 @@ async def get_session_events(
         completed_only=True,
     )
 
-    # 获取 session 的 current_run_id 用于响应
-    current_run_id = session.metadata.get("current_run_id") if session.metadata else None
+    current_run_id = (
+        session.metadata.get("active_run_id") or session.metadata.get("current_run_id")
+        if session.metadata
+        else None
+    )
 
     return {
         "events": events,

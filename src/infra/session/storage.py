@@ -308,6 +308,46 @@ class SessionStorage:
         except Exception:
             return False
 
+    async def update_metadata_if_active_run(
+        self,
+        session_id: str,
+        run_id: str,
+        metadata: dict[str, Any],
+    ) -> bool:
+        """Update metadata only if the given run still owns the active task slot."""
+        await self.ensure_indexes_if_needed()
+        if not metadata:
+            return True
+
+        update_dict: dict[str, Any] = {"updated_at": utc_now()}
+        for key, value in metadata.items():
+            update_dict[f"metadata.{key}"] = value
+
+        run_guard = {
+            "$or": [
+                {"metadata.active_run_id": run_id},
+                {
+                    "metadata.active_run_id": {"$exists": False},
+                    "metadata.current_run_id": run_id,
+                },
+            ]
+        }
+        result = await self.collection.update_one(
+            {"session_id": session_id, **run_guard},
+            {"$set": update_dict},
+        )
+        if result.matched_count > 0:
+            return True
+
+        try:
+            result = await self.collection.update_one(
+                {"_id": ObjectId(session_id), **run_guard},
+                {"$set": update_dict},
+            )
+            return result.matched_count > 0
+        except Exception:
+            return False
+
     async def delete(self, session_id: str) -> bool:
         """删除会话（支持自定义 session_id 或 ObjectId）"""
         await self.ensure_indexes_if_needed()

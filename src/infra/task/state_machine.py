@@ -105,6 +105,19 @@ class TaskStateMachine:
         if run_id:
             metadata["current_run_id"] = run_id
 
+        if run_id and coerced in {
+            TaskStatus.QUEUED,
+            TaskStatus.PENDING,
+            TaskStatus.STARTING,
+            TaskStatus.RUNNING,
+            TaskStatus.RECOVERING,
+        }:
+            metadata["active_run_id"] = run_id
+            metadata["last_started_run_id"] = run_id
+
+        if coerced in self._terminal_statuses:
+            metadata["active_run_id"] = None
+
         if recoverable is not None:
             metadata["task_recoverable"] = recoverable
         elif status in {

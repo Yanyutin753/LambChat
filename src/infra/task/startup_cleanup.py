@@ -70,7 +70,8 @@ class TaskStartupCleanupService:
                 if session_model is None:
                     continue
                 session_id = session_model.id
-                run_id = session.get("metadata", {}).get("current_run_id")
+                metadata = session.get("metadata", {})
+                run_id = metadata.get("active_run_id") or metadata.get("current_run_id")
                 if not run_id:
                     continue
                 if _is_user_cancelled_task(_task_metadata(session, session_model)):
@@ -129,7 +130,8 @@ class TaskStartupCleanupService:
                 if session_model is None:
                     continue
                 session_id = session_model.id
-                run_id = session.get("metadata", {}).get("current_run_id")
+                metadata = session.get("metadata", {})
+                run_id = metadata.get("active_run_id") or metadata.get("current_run_id")
                 user_id = session.get("user_id")
                 if not run_id or not user_id:
                     continue
@@ -194,7 +196,8 @@ class TaskStartupCleanupService:
                 if session_model is None:
                     continue
                 session_id = session_model.id
-                run_id = session.get("metadata", {}).get("current_run_id")
+                metadata = session.get("metadata", {})
+                run_id = metadata.get("interrupted_run_id") or metadata.get("current_run_id")
                 if not run_id:
                     continue
 
@@ -304,7 +307,8 @@ class TaskStartupCleanupService:
                 if session_model is None:
                     continue
                 session_id = session_model.id
-                run_id = session.get("metadata", {}).get("current_run_id")
+                metadata = session.get("metadata", {})
+                run_id = metadata.get("active_run_id") or metadata.get("current_run_id")
                 user_id = session.get("user_id")
                 if not run_id or not user_id:
                     continue

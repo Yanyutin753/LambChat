@@ -284,6 +284,8 @@ class TaskRecoveryService:
             SessionUpdate(
                 metadata={
                     "current_run_id": new_run_id,
+                    "active_run_id": new_run_id,
+                    "last_started_run_id": new_run_id,
                     "agent_id": agent_id,
                     "executor_key": executor_key,
                     "agent_options": session_metadata.get("agent_options") or {},
@@ -302,6 +304,7 @@ class TaskRecoveryService:
                     "recovery_requested_at": utc_now_iso(),
                     "task_recoverable": False,
                     "task_error_code": None,
+                    "interrupted_run_id": source_run_id,
                 }
             ),
         )
@@ -368,7 +371,9 @@ class TaskRecoveryService:
 
         try:
             session_metadata = getattr(session, "metadata", None) or {}
-            current_run_id = session_metadata.get("current_run_id")
+            current_run_id = session_metadata.get("active_run_id") or session_metadata.get(
+                "current_run_id"
+            )
             if current_run_id and str(current_run_id) != str(source_run_id):
                 await self.release_recovery_lock(lock_key)
                 return {
@@ -438,7 +443,9 @@ class TaskRecoveryService:
             }
 
         session_metadata = session.metadata or {}
-        source_run_id = session_metadata.get("current_run_id")
+        source_run_id = session_metadata.get("interrupted_run_id") or session_metadata.get(
+            "current_run_id"
+        )
         task_status = session_metadata.get("task_status")
         if not source_run_id:
             return {

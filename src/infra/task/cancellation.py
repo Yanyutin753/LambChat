@@ -144,6 +144,7 @@ class TaskCancellation:
                             metadata={
                                 "task_recoverable": False,
                                 "task_error_code": "cancelled",
+                                "active_run_id": None,
                             }
                         ),
                     )

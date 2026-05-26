@@ -447,6 +447,19 @@ class TaskExecutor:
             if status == TaskStatus.COMPLETED:
                 metadata["completed_at"] = utc_now_iso()
 
+            if run_id and status not in {TaskStatus.QUEUED, TaskStatus.PENDING}:
+                update_if_active = getattr(self._storage, "update_metadata_if_active_run", None)
+                if update_if_active is not None:
+                    updated = await update_if_active(session_id, run_id, metadata)
+                    if not updated:
+                        logger.info(
+                            "Skipping stale task status update: session=%s, run_id=%s, status=%s",
+                            session_id,
+                            run_id,
+                            status.value,
+                        )
+                    return
+
             await self._storage.update(
                 session_id,
                 SessionUpdate(metadata=metadata),

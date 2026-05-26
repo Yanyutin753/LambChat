@@ -311,6 +311,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
           const currentRunId =
             targetRunId ||
+            (sessionData.metadata?.active_run_id as string) ||
             (sessionData.metadata?.current_run_id as string) ||
             null;
 
@@ -591,6 +592,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           // 构建完整的对话配置
           const conversationConfig: Record<string, unknown> = {
             current_run_id: newRunId,
+            active_run_id: newRunId,
+            last_started_run_id: newRunId,
             agent_id: currentAgent,
             agent_options: fullAgentOptions,
             disabled_skills: disabledSkills,
@@ -642,6 +645,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             ...((newlyCreatedSession?.metadata as Record<string, unknown>) ||
               {}),
             current_run_id: newRunId,
+            active_run_id: newRunId,
+            last_started_run_id: newRunId,
             agent_id: currentAgent,
             agent_options: fullAgentOptions,
             disabled_skills: disabledSkills,

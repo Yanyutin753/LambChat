@@ -76,4 +76,7 @@ def clone_session_metadata(
     if not include_checkpoints:
         copied.pop("checkpoints", None)
     copied.pop("current_run_id", None)
+    copied.pop("active_run_id", None)
+    copied.pop("last_started_run_id", None)
+    copied.pop("interrupted_run_id", None)
     return copied

@@ -161,6 +161,8 @@ def build_conversation_config(
     """Build session metadata for conversation configuration."""
     conversation_config = {
         "current_run_id": run_id,
+        "active_run_id": run_id,
+        "last_started_run_id": run_id,
         "agent_id": agent_id,
         "executor_key": "agent_stream",
         "agent_options": request.agent_options or {},
@@ -436,6 +438,36 @@ async def chat_stream(
         }
 
     if settings.TASK_BACKEND == "arq":
+        task_executor = task_manager._ensure_executor()
+        await task_executor.ensure_session(
+            session_id, agent_id, user.sub, project_id=request.project_id
+        )
+        await task_executor._update_session_status(session_id, TaskStatus.QUEUED, run_id=run_id)
+        presenter = Presenter(
+            PresenterConfig(
+                session_id=session_id,
+                agent_id=agent_id,
+                agent_name=resolve_agent_name(agent_id),
+                user_id=user.sub,
+                run_id=run_id,
+                trace_id=trace_id,
+                enable_storage=True,
+            )
+        )
+        await presenter._ensure_trace()
+        await presenter.emit_user_message(
+            request.message,
+            attachments=[a.model_dump() for a in request.attachments]
+            if request.attachments
+            else None,
+        )
+        task_manager._run_info[run_id] = {
+            "session_id": session_id,
+            "agent_id": agent_id,
+            "user_id": user.sub,
+            "trace_id": trace_id,
+            "user_message_written": True,
+        }
         _, _ = await task_manager.submit_arq(
             session_id=session_id,
             agent_id=agent_id,
@@ -453,10 +485,41 @@ async def chat_stream(
             disabled_mcp_tools=request.disabled_mcp_tools,
             display_message=request.message,
             trace_id=trace_id,
+            user_message_written=True,
             team_id=request.team_id,
         )
     else:
-        # STARTED — 正常提交后台任务
+        task_executor = task_manager._ensure_executor()
+        await task_executor.ensure_session(
+            session_id, agent_id, user.sub, project_id=request.project_id
+        )
+        await task_executor._update_session_status(session_id, TaskStatus.PENDING, run_id=run_id)
+        presenter = Presenter(
+            PresenterConfig(
+                session_id=session_id,
+                agent_id=agent_id,
+                agent_name=resolve_agent_name(agent_id),
+                user_id=user.sub,
+                run_id=run_id,
+                trace_id=trace_id,
+                enable_storage=True,
+            )
+        )
+        await presenter._ensure_trace()
+        await presenter.emit_user_message(
+            request.message,
+            attachments=[a.model_dump() for a in request.attachments]
+            if request.attachments
+            else None,
+        )
+        task_manager._run_info[run_id] = {
+            "session_id": session_id,
+            "agent_id": agent_id,
+            "user_id": user.sub,
+            "trace_id": trace_id,
+            "user_message_written": True,
+        }
+
         _, _ = await task_manager.submit(
             session_id=session_id,
             agent_id=agent_id,
@@ -473,6 +536,8 @@ async def chat_stream(
             persona_system_prompt=request.persona_system_prompt,
             disabled_mcp_tools=request.disabled_mcp_tools,
             display_message=request.message,
+            existing_trace_id=trace_id,
+            user_message_written=True,
             team_id=request.team_id,
         )
 

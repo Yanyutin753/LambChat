@@ -184,6 +184,8 @@ class BackgroundTaskManager:
         disabled_mcp_tools: Optional[List[str]] = None,
         session_name: Optional[str] = None,
         display_message: Optional[str] = None,
+        existing_trace_id: Optional[str] = None,
+        user_message_written: bool = False,
         team_id: Optional[str] = None,
     ) -> Tuple[str, str]:
         """
@@ -241,6 +243,8 @@ class BackgroundTaskManager:
                     persona_system_prompt=persona_system_prompt,
                     disabled_mcp_tools=disabled_mcp_tools,
                     display_message=display_message,
+                    existing_trace_id=existing_trace_id,
+                    user_message_written=user_message_written,
                     team_id=team_id,
                 )
             )
@@ -407,11 +411,16 @@ class BackgroundTaskManager:
                 "message": str  # 状态信息
             }
         """
-        # 获取 current_run_id
+        # Prefer active_run_id. Fall back to current_run_id only for older
+        # sessions that do not yet have active_run_id metadata.
         try:
             session = await self.storage.get_by_session_id(session_id)
             if session and session.metadata:
-                run_id = session.metadata.get("current_run_id")
+                run_id = (
+                    session.metadata.get("active_run_id")
+                    if "active_run_id" in session.metadata
+                    else session.metadata.get("current_run_id")
+                )
                 if run_id:
                     return await self.cancel_run(run_id, user_id=user_id)
                 else:

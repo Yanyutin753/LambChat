@@ -33,6 +33,7 @@ def test_builds_session_metadata_for_cancelled_task() -> None:
 
     assert metadata["task_status"] == "cancelled"
     assert metadata["current_run_id"] == "run-1"
+    assert metadata["active_run_id"] is None
     assert metadata["task_error"] == "Task cancelled"
     assert metadata["task_error_code"] == "cancelled"
     assert metadata["task_recoverable"] is False
@@ -51,3 +52,14 @@ def test_builds_session_metadata_for_recoverable_failed_task() -> None:
     assert metadata["task_error"] == "Server shutdown"
     assert metadata["task_error_code"] == "server_restart"
     assert metadata["task_recoverable"] is True
+
+
+def test_builds_session_metadata_for_running_task_tracks_active_run() -> None:
+    metadata = TaskStateMachine().build_metadata(
+        TaskStatus.RUNNING,
+        run_id="run-1",
+    )
+
+    assert metadata["current_run_id"] == "run-1"
+    assert metadata["active_run_id"] == "run-1"
+    assert metadata["last_started_run_id"] == "run-1"
