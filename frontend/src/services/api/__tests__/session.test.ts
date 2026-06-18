@@ -165,6 +165,27 @@ test("includes retry_user_message only for regenerated replies", () => {
   );
 });
 
+test("includes retry_user_message only for regenerated replies", () => {
+  assert.deepEqual(
+    buildSubmitChatBody({
+      message: "retry this prompt",
+      sessionId: "session-1",
+      retryUserMessage: true,
+    }),
+    {
+      message: "retry this prompt",
+      session_id: "session-1",
+      agent_options: undefined,
+      attachments: undefined,
+      disabled_skills: undefined,
+      enabled_skills: undefined,
+      persona_preset_id: undefined,
+      disabled_mcp_tools: undefined,
+      retry_user_message: true,
+    },
+  );
+});
+
 test("builds the message fork url", () => {
   expect(buildMessageForkUrl("session-1", "message-1")).toBe(
     "/api/sessions/session-1/messages/message-1/fork",

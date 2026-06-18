@@ -23,28 +23,20 @@ import {
   getCachedSessionTitle,
   listenSessionTitleUpdated,
 } from "./utils/sessionTitleEvents";
+import { listenPluginRuntimeUpdated } from "./utils/pluginRuntimeEvents";
 import { APP_TOASTER_CLASS_NAME } from "./components/layout/AppContent/appToastLayout";
 import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
 import { UpdateDialog } from "./components/update/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import { useAuth } from "./hooks/useAuth";
-import { useExtensionContributions } from "./hooks/useExtensionContributions";
+import { usePluginRuntime } from "./hooks/usePluginRuntime";
 import {
   buildAppRouteContributions,
   type CoreAppRouteContribution,
   type PluginRuntimeContributionStates,
 } from "./extensions/coreContributions";
-
-const EMPTY_RUNTIME_PLUGINS: PluginRuntimeContributionStates = [];
-const BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS = [
-  "/agent-team",
-  "/feedback",
-  "/usage",
-  "/workflows",
-  "/workflows/:workflowId/editor",
-  "/workflows/:workflowId/runs/:runId",
-] as const;
+import { Permission } from "./types";
 
 const SharedPage = lazy(() =>
   import("./components/share/SharedPage").then((m) => ({
@@ -247,37 +239,20 @@ function AuthPageWrapper({
 function App() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
-  const canReadExtensionContributions = isAuthenticated && !isAuthLoading;
-  const {
-    data: extensionContributions,
-    isLoading: areExtensionContributionsLoading,
-    error: extensionContributionsError,
-  } = useExtensionContributions({ enabled: canReadExtensionContributions });
-  const runtimePlugins = extensionContributions?.plugins ?? EMPTY_RUNTIME_PLUGINS;
+  const { hasAnyPermission, isAuthenticated, isLoading: isAuthLoading } =
+    useAuth();
+  const canReadPluginRuntime =
+    isAuthenticated &&
+    !isAuthLoading &&
+    hasAnyPermission([Permission.MARKETPLACE_READ]);
+  const { data: pluginRuntimeData, fetchPlugins } = usePluginRuntime({
+    enabled: canReadPluginRuntime,
+  });
+  const runtimePlugins = pluginRuntimeData?.plugins;
   const appRouteContributions = useMemo(
     () => buildAppRouteContributions(runtimePlugins),
     [runtimePlugins],
   );
-  const pluginAppRouteLoadingPaths = useMemo(() => {
-    const declaredPluginPaths = appRouteContributions
-      .filter((route) => route.pluginId)
-      .map((route) => route.path);
-    return Array.from(
-      new Set([
-        ...BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS,
-        ...declaredPluginPaths,
-      ]),
-    );
-  }, [appRouteContributions]);
-  const shouldShowPluginRouteLoading =
-    canReadExtensionContributions &&
-    (areExtensionContributionsLoading ||
-      (!extensionContributions && !extensionContributionsError)) &&
-    pluginAppRouteLoadingPaths.some((path) =>
-      path === location.pathname || Boolean(matchPath({ path, end: true }, location.pathname)),
-    );
 
   // Auto-update for desktop and mobile
   const {
@@ -307,6 +282,13 @@ function App() {
     appNotificationService.initializeNativeClickHandlers();
     return () => appNotificationService.setNavigator(null);
   }, [navigate]);
+
+  useEffect(() => {
+    if (!canReadPluginRuntime) return;
+    return listenPluginRuntimeUpdated(() => {
+      void fetchPlugins();
+    });
+  }, [canReadPluginRuntime, fetchPlugins]);
 
   return (
     <ThemeProvider>
@@ -433,16 +415,6 @@ function App() {
                 }
               />
             ))}
-            {shouldShowPluginRouteLoading && (
-              <Route
-                path={location.pathname}
-                element={
-                  <ProtectedRoute>
-                    <ChatPageSkeleton />
-                  </ProtectedRoute>
-                }
-              />
-            )}
             <Route path="/models" element={<Navigate to="/agents" replace />} />
             {/* OAuth callback page - handles OAuth redirect from backend */}
             <Route path="/auth/callback" element={<OAuthCallback />} />

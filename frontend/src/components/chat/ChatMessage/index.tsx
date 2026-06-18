@@ -17,6 +17,7 @@ import { ToolCallItem } from "./ToolCallItem";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { MessagePartRenderer } from "./MessagePartRenderer";
 import { RevealArtifactsSummary } from "./RevealArtifactsSummary";
+import { FeedbackButtons } from "../../../plugins/feedback/FeedbackButtons";
 import { AssistantAvatar } from "./AssistantAvatar";
 import { ShareButton } from "./ShareButton";
 import { CollapsiblePill } from "../../common/CollapsiblePill";
@@ -37,10 +38,9 @@ import { formatDateTime, formatDateTimeShort } from "../../../utils/datetime";
 import { copyToClipboard } from "../../../utils/clipboard";
 import { shouldShowGoalDetailsForMessage } from "../goalVisibility";
 import {
-  buildMessageActionContributions,
+  hasMessageActionContribution,
   type PluginRuntimeContributionStates,
 } from "../../../extensions/coreContributions";
-import { MESSAGE_ACTION_RENDERERS } from "./messageActionRenderers";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -447,9 +447,10 @@ export const ChatMessage = memo(function ChatMessage({
   const { isAuthenticated } = useAuth();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
-  const messageActionContributions = buildMessageActionContributions(runtimePlugins, {
-    target: "assistant_message",
-  });
+  const canUseFeedbackAction = hasMessageActionContribution(
+    "feedback",
+    runtimePlugins,
+  );
   const modelDetails = resolveTokenUsageModelDetails({
     modelId: message.tokenUsage?.model_id,
     model: message.tokenUsage?.model,
@@ -667,26 +668,18 @@ export const ChatMessage = memo(function ChatMessage({
             )}
             {showFeedbackAndShareActions && (
               <>
-                {isAuthenticated &&
+                {/* Feedback buttons */}
+                {canUseFeedbackAction &&
+                  isAuthenticated &&
                   sessionId &&
-                  (message.runId || runId) &&
-                  messageActionContributions.map((contribution) => {
-                    const rendererId = contribution.renderer;
-                    const Renderer = rendererId
-                      ? MESSAGE_ACTION_RENDERERS[rendererId]
-                      : null;
-                    if (!Renderer) return null;
-                    return (
-                      <Renderer
-                        key={contribution.id}
-                        contribution={contribution}
-                        sessionId={sessionId}
-                        runId={message.runId || runId!}
-                        currentFeedback={message.feedback}
-                        isLastMessage={isLastMessage}
-                      />
-                    );
-                  })}
+                  (message.runId || runId) && (
+                  <FeedbackButtons
+                    sessionId={sessionId}
+                    runId={message.runId || runId!}
+                    currentFeedback={message.feedback}
+                    isLastMessage={isLastMessage}
+                  />
+                )}
                 {/* Share button */}
                 {sessionId && (
                   <ShareButton

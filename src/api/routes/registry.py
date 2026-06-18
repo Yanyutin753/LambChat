@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from importlib import import_module
 from pathlib import Path
-from typing import Sequence, cast
+from typing import Sequence
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-from src.api.routes.plugin_guard import plugin_enabled_dependency, plugin_unavailable_http_error
 from src.infra.extensions.plugin_data import PluginDataService
 from src.kernel.config import settings
 from src.kernel.config.utils import PROJECT_ROOT
@@ -74,12 +72,8 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         prefix="/api/persona-presets",
         tags=("Persona Presets",),
     ),
-    CoreRouteRegistration(
-        "sessions", "src.api.routes.session", prefix="/api/sessions", tags=("Sessions",)
-    ),
-    CoreRouteRegistration(
-        "projects", "src.api.routes.project", prefix="/api/projects", tags=("Projects",)
-    ),
+    CoreRouteRegistration("sessions", "src.api.routes.session", prefix="/api/sessions", tags=("Sessions",)),
+    CoreRouteRegistration("projects", "src.api.routes.project", prefix="/api/projects", tags=("Projects",)),
     CoreRouteRegistration("share", "src.api.routes.share", prefix="/api/share", tags=("Share",)),
     CoreRouteRegistration("skills", "src.api.routes.skill", prefix="/api/skills", tags=("Skills",)),
     CoreRouteRegistration(
@@ -95,20 +89,12 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         tags=("Plugin Runtime",),
     ),
     CoreRouteRegistration(
-        "extension_host",
-        "src.api.routes.extensions",
-        prefix="/api/extensions",
-        tags=("Extensions",),
-    ),
-    CoreRouteRegistration(
         "settings",
         "src.api.routes.settings",
         prefix="/api/settings",
         tags=("Settings",),
     ),
-    CoreRouteRegistration(
-        "memory", "src.api.routes.memory", prefix="/api/memory", tags=("Memory",)
-    ),
+    CoreRouteRegistration("memory", "src.api.routes.memory", prefix="/api/memory", tags=("Memory",)),
     CoreRouteRegistration("mcp", "src.api.routes.mcp", prefix="/api/mcp", tags=("MCP",)),
     CoreRouteRegistration(
         "mcp_admin",
@@ -123,12 +109,8 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         prefix="/api/env-vars",
         tags=("Environment Variables",),
     ),
-    CoreRouteRegistration(
-        "upload", "src.api.routes.upload", prefix="/api/upload", tags=("Upload",)
-    ),
-    CoreRouteRegistration(
-        "files", "src.api.routes.revealed_file", prefix="/api/files", tags=("Files",)
-    ),
+    CoreRouteRegistration("upload", "src.api.routes.upload", prefix="/api/upload", tags=("Upload",)),
+    CoreRouteRegistration("files", "src.api.routes.revealed_file", prefix="/api/files", tags=("Files",)),
     CoreRouteRegistration("human", "src.api.routes.human", prefix="/human", tags=("Human",)),
     CoreRouteRegistration(
         "notifications",
@@ -137,9 +119,7 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         tags=("Notifications",),
     ),
     CoreRouteRegistration("push", "src.api.routes.push", prefix="/api/push", tags=("Push",)),
-    CoreRouteRegistration(
-        "channels", "src.api.routes.channels", prefix="/api/channels", tags=("Channels",)
-    ),
+    CoreRouteRegistration("channels", "src.api.routes.channels", prefix="/api/channels", tags=("Channels",)),
     CoreRouteRegistration(
         "scheduled_tasks",
         "src.api.routes.scheduled_task",
@@ -163,6 +143,23 @@ def register_core_routes(
         )
 
 
+def _plugin_enabled_dependency(runtime: PluginRuntime, plugin_id: str):
+    def dependency() -> None:
+        try:
+            runtime.ensure_enabled(plugin_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "plugin_unavailable",
+                    "plugin_id": plugin_id,
+                    "message": str(exc),
+                },
+            ) from exc
+
+    return dependency
+
+
 def _resolve_plugin_router(registration: PluginRouteRegistration) -> APIRouter:
     module = import_module(registration.module)
     router = getattr(module, "router")
@@ -182,7 +179,9 @@ def register_plugin_routes(
     interrupt core application startup.
     """
     route_registrations = (
-        list(registrations) if registrations is not None else runtime.routes(enabled_only=False)
+        list(registrations)
+        if registrations is not None
+        else runtime.routes(enabled_only=False)
     )
     for registration in route_registrations:
         state = runtime.get_state(registration.plugin_id)
@@ -192,10 +191,8 @@ def register_plugin_routes(
             app.include_router(
                 _resolve_plugin_router(registration),
                 prefix=registration.prefix,
-                tags=cast(
-                    list[str | Enum], registration.tags or [f"Plugin:{registration.plugin_id}"]
-                ),
-                dependencies=[Depends(plugin_enabled_dependency(runtime, registration.plugin_id))],
+                tags=registration.tags or [f"Plugin:{registration.plugin_id}"],
+                dependencies=[Depends(_plugin_enabled_dependency(runtime, registration.plugin_id))],
             )
         except Exception as exc:  # noqa: BLE001 - plugin isolation boundary
             runtime.mark_error(
@@ -251,7 +248,14 @@ def register_plugin_asset_routes(app: FastAPI, runtime: PluginRuntime) -> None:
         try:
             runtime.ensure_enabled(plugin_id)
         except Exception as exc:
-            raise plugin_unavailable_http_error(plugin_id, exc) from exc
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "plugin_unavailable",
+                    "plugin_id": plugin_id,
+                    "message": str(exc),
+                },
+            ) from exc
         package_source_path = state.manifest.package_source_path
         if not package_source_path:
             raise HTTPException(status_code=404, detail="plugin asset not found")
@@ -313,7 +317,6 @@ def _attach_package_descriptor(
         "package_data_dir": str(descriptor.data_dir),
         "package_validated_at": descriptor.validated_at.isoformat(),
         "package_errors": list(descriptor.errors),
-        "package_data_template": descriptor.layout.data_template,
         "package_layout": descriptor.layout.model_dump(),
     }
     return manifest.model_copy(
@@ -327,10 +330,30 @@ def _package_manifest_with_static_fallback(
     static_manifest: PluginManifest,
     descriptor: PluginFolderDescriptor,
 ) -> PluginManifest:
-    """Use the folder package as the authoritative built-in declaration."""
+    """Prefer folder-owned plugin declarations while keeping old built-ins bootable."""
     fallback_fields = _static_fallback_fields(package_manifest, static_manifest)
     return package_manifest.model_copy(
         update={
+            "settings": package_manifest.settings or static_manifest.settings,
+            "legacy_system_settings": (
+                package_manifest.legacy_system_settings
+                or static_manifest.legacy_system_settings
+            ),
+            "routers": package_manifest.routers or static_manifest.routers,
+            "tools": package_manifest.tools or static_manifest.tools,
+            "lifespan_hooks": (
+                package_manifest.lifespan_hooks or static_manifest.lifespan_hooks
+            ),
+            "scheduler_jobs": (
+                package_manifest.scheduler_jobs or static_manifest.scheduler_jobs
+            ),
+            "migrations": package_manifest.migrations or static_manifest.migrations,
+            "resources": package_manifest.resources or static_manifest.resources,
+            "frontend": (
+                package_manifest.frontend
+                if package_manifest.frontend.model_dump(exclude_defaults=True)
+                else static_manifest.frontend
+            ),
             "package_source_type": descriptor.source_type,
             "package_source_path": str(descriptor.folder),
             "package_manifest_path": str(descriptor.manifest_path),
@@ -339,7 +362,6 @@ def _package_manifest_with_static_fallback(
             "package_errors": list(descriptor.errors),
             "package_layout": descriptor.layout.model_dump(),
             "package_config_defaults": package_manifest.package_config_defaults,
-            "package_data_template": package_manifest.package_data_template,
             "package_frontend_assets": package_manifest.package_frontend_assets,
             "package_manifest_authority": "folder_package",
             "package_static_fallback_used": bool(fallback_fields),
@@ -365,15 +387,14 @@ def _static_fallback_fields(
         fields.append("lifespan_hooks")
     if not package_manifest.scheduler_jobs and static_manifest.scheduler_jobs:
         fields.append("scheduler_jobs")
-    if not package_manifest.event_listeners and static_manifest.event_listeners:
-        fields.append("event_listeners")
     if not package_manifest.migrations and static_manifest.migrations:
         fields.append("migrations")
     if not package_manifest.resources and static_manifest.resources:
         fields.append("resources")
-    if not package_manifest.frontend.model_dump(
-        exclude_defaults=True
-    ) and static_manifest.frontend.model_dump(exclude_defaults=True):
+    if (
+        not package_manifest.frontend.model_dump(exclude_defaults=True)
+        and static_manifest.frontend.model_dump(exclude_defaults=True)
+    ):
         fields.append("frontend")
     return fields
 

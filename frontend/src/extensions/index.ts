@@ -14,6 +14,11 @@ export type {
 
 export {
   APP_ROUTE_CONTRIBUTIONS,
+  BUILTIN_PLUGIN_APP_ROUTES,
+  BUILTIN_PLUGIN_I18N_NAMESPACES,
+  BUILTIN_PLUGIN_PANEL_CONTRIBUTIONS,
+  BUILTIN_PLUGIN_TOOL_RENDERERS,
+  BUILTIN_PLUGIN_USER_MENU_ITEMS,
   CORE_APP_ROUTES,
   CORE_PANEL_CONTRIBUTIONS,
   CORE_SETTINGS_SECTIONS,
@@ -23,16 +28,9 @@ export {
   PANEL_CONTRIBUTIONS,
   USER_MENU_CONTRIBUTIONS,
   buildSidebarMoreNavContributions,
-  buildAgentCatalogEntryContributions,
-  buildAgentCategoryContributions,
-  buildAssistantIdentityResolverContributions,
-  buildChannelOptionContributions,
-  buildScheduledTaskOptionContributions,
   buildToolRendererContributions,
   buildI18nNamespaceContributions,
   findAppRouteContribution,
-  findAgentCatalogEntryContribution,
-  findAssistantIdentityResolverContribution,
   findCoreAppRoute,
   findCorePanelContribution,
   findPanelContribution,
@@ -41,9 +39,7 @@ export {
   getToolRenderer,
   getToolRendererId,
   hasCoreToolRenderer,
-  hasAgentCatalogEntryContribution,
   hasI18nNamespaceContribution,
-  hasRuntimeManagedChannelConnector,
   hasToolRenderer,
 } from "./coreContributions";
 
@@ -60,16 +56,14 @@ export type { PluginAssetSlotRegistryEntry } from "./pluginAssetSlots";
 export type {
   CoreAppRouteContribution,
   CoreContributionArea,
-  CoreAgentCatalogEntryContribution,
-  CoreAssistantIdentityResolverContribution,
   CorePanelContribution,
   CoreI18nNamespaceContribution,
-  CoreAgentCategoryContribution,
   CorePluginAssetSlotContribution,
   CoreSettingsSectionContribution,
   CoreSidebarNavContribution,
   CoreToolRendererContribution,
   CoreUserMenuContribution,
+  BuiltinPluginToolRendererContribution,
 } from "./coreContributions";
 
 export {

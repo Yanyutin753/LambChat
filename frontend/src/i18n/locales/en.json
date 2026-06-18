@@ -2117,14 +2117,6 @@
       "description": "Inspect Plugin Runtime state, static contributions, resource ownership, and uninstall dry-run plans for built-in plugins.",
       "title": "Plugin Runtime"
     },
-    "workflows": {
-      "description": "Create, compose, version, run, and debug workflows.",
-      "editorDescription": "Edit a workflow graph with explicit inputs, outputs, nodes, and run traces.",
-      "editorTitle": "Workflow Editor",
-      "runDescription": "Inspect a workflow run trace, node events, output, errors, and approval state.",
-      "runTitle": "Workflow Run",
-      "title": "Workflows"
-    },
     "mcp": {
       "description": "Manage Model Context Protocol server connections. Connect external tools, databases, and services to extend AI agent capabilities.",
       "title": "MCP Server Management"

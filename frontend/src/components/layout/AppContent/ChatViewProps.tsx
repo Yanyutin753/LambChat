@@ -19,8 +19,6 @@ import type {
 import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
-import type { PluginOptionsMetadata } from "../../../extensions/pluginOptions";
-import { usePluginChatAssistantIdentity } from "../../chat/chatAssistantIdentityResolvers";
 
 // ---------------------------------------------------------------------------
 // Hooks

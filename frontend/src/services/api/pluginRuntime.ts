@@ -3,8 +3,6 @@ import { authFetch } from "./fetch";
 import { getValidAccessToken, redirectToLogin } from "./tokenManager";
 import type {
   PluginRuntimeContributionStatesResponse,
-  ExtensionHostSlotsResponse,
-  ExtensionScopedOptionsResponse,
   ArchivedPluginPackagesResponse,
   PluginDataResponse,
   PluginExportResponse,
@@ -24,7 +22,6 @@ import type {
 } from "../../types";
 
 const PLUGIN_RUNTIME_API = `${API_BASE}/api/extensions/plugins`;
-const EXTENSION_HOST_API = `${API_BASE}/api/extensions`;
 
 async function authFetchBlob(url: string): Promise<Blob> {
   const headers: HeadersInit = {
@@ -52,58 +49,8 @@ export const pluginRuntimeApi = {
   },
 
   async listContributionStates() {
-    return this.listContributions();
-  },
-
-  async listContributions() {
     return authFetch<PluginRuntimeContributionStatesResponse>(
-      `${EXTENSION_HOST_API}/contributions`,
-      { skipAuth: true },
-    );
-  },
-
-  async listSlots() {
-    return authFetch<ExtensionHostSlotsResponse>(`${EXTENSION_HOST_API}/slots`, {
-      skipAuth: true,
-    });
-  },
-
-  async listProjectOptions(options?: { includeInactive?: boolean }) {
-    const searchParams = new URLSearchParams();
-    if (options?.includeInactive) searchParams.set("include_inactive", "true");
-    const query = searchParams.toString();
-    return authFetch<ExtensionScopedOptionsResponse>(
-      `${EXTENSION_HOST_API}/contributions/project-options${query ? `?${query}` : ""}`,
-      { skipAuth: true },
-    );
-  },
-
-  async listSessionOptions(options?: { includeInactive?: boolean }) {
-    const searchParams = new URLSearchParams();
-    if (options?.includeInactive) searchParams.set("include_inactive", "true");
-    const query = searchParams.toString();
-    return authFetch<ExtensionScopedOptionsResponse>(
-      `${EXTENSION_HOST_API}/contributions/session-options${query ? `?${query}` : ""}`,
-      { skipAuth: true },
-    );
-  },
-
-  async listChannelOptions(options?: { includeInactive?: boolean }) {
-    const searchParams = new URLSearchParams();
-    if (options?.includeInactive) searchParams.set("include_inactive", "true");
-    const query = searchParams.toString();
-    return authFetch<ExtensionScopedOptionsResponse>(
-      `${EXTENSION_HOST_API}/contributions/channel-options${query ? `?${query}` : ""}`,
-      { skipAuth: true },
-    );
-  },
-
-  async listScheduledTaskOptions(options?: { includeInactive?: boolean }) {
-    const searchParams = new URLSearchParams();
-    if (options?.includeInactive) searchParams.set("include_inactive", "true");
-    const query = searchParams.toString();
-    return authFetch<ExtensionScopedOptionsResponse>(
-      `${EXTENSION_HOST_API}/contributions/scheduled-task-options${query ? `?${query}` : ""}`,
+      `${PLUGIN_RUNTIME_API}/contribution-states`,
       { skipAuth: true },
     );
   },

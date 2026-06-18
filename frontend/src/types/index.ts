@@ -194,9 +194,6 @@ export type {
 export type {
   ArchivedPluginPackage,
   ArchivedPluginPackagesResponse,
-  ExtensionHostSlotsResponse,
-  ExtensionScopedOption,
-  ExtensionScopedOptionsResponse,
   PluginDataResponse,
   PluginDryRunResource,
   PluginExportResponse,

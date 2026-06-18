@@ -265,11 +265,7 @@ export function MessagePartRenderer({
       );
     }
     // Detect internal MCP tools, use dedicated themed components
-    if (
-      coreToolRendererId === "image-generate" ||
-      part.name === "image_generate" ||
-      part.name === "image_edit_with_references"
-    ) {
+    if (coreToolRendererId === "image-generate") {
       return (
         <ImageGenerateItem
           args={part.args}
@@ -282,47 +278,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (part.name === "image_analyze") {
-      return (
-        <ImageAnalyzeItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (part.name === "upload_url_to_sandbox") {
-      return (
-        <UploadUrlToSandboxItem
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (part.name === "transfer_file" || part.name === "transfer_path") {
-      return (
-        <TransferItem
-          toolName={part.name}
-          args={part.args}
-          result={part.result}
-          success={part.success}
-          isPending={part.isPending}
-          cancelled={part.cancelled}
-          startedAt={part.startedAt}
-          completedAt={part.completedAt}
-        />
-      );
-    }
-    if (coreToolRendererId === "audio-transcribe" || part.name === "audio_transcribe") {
+    if (coreToolRendererId === "audio-transcribe") {
       return (
         <AudioTranscribeItem
           args={part.args}
@@ -335,17 +291,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      coreToolRendererId === "scheduled-task" ||
-      part.name === "scheduled_task_create" ||
-      part.name === "scheduled_task_list" ||
-      part.name === "scheduled_task_get" ||
-      part.name === "scheduled_task_update" ||
-      part.name === "scheduled_task_pause" ||
-      part.name === "scheduled_task_resume" ||
-      part.name === "scheduled_task_delete" ||
-      part.name === "scheduled_task_run"
-    ) {
+    if (coreToolRendererId === "scheduled-task") {
       return (
         <ScheduledTaskItem
           toolName={part.name}
@@ -359,13 +305,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      coreToolRendererId === "env-var" ||
-      part.name === "env_var_list" ||
-      part.name === "env_var_set" ||
-      part.name === "env_var_delete" ||
-      part.name === "env_var_delete_all"
-    ) {
+    if (coreToolRendererId === "env-var") {
       return (
         <EnvVarItem
           toolName={part.name}
@@ -379,12 +319,7 @@ export function MessagePartRenderer({
         />
       );
     }
-    if (
-      coreToolRendererId === "persona" ||
-      part.name === "save_persona_preset" ||
-      part.name === "create_persona_preset" ||
-      part.name === "update_persona_preset"
-    ) {
+    if (coreToolRendererId === "persona") {
       return (
         <PersonaItem
           args={part.args}

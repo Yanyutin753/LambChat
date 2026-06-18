@@ -21,7 +21,7 @@ from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
-from src.kernel.extensions import PluginRuntime, PluginUnavailableError
+from src.kernel.extensions import AGENT_TEAM_PLUGIN_ID, PluginRuntime, PluginUnavailableError
 
 logger = get_logger(__name__)
 
@@ -33,15 +33,6 @@ _AGENT_REGISTRY: Dict[str, Type[Any]] = {}
 _plugin_runtime: PluginRuntime | None = None
 
 
-def _declared_builtin_plugin_agent_ids() -> set[str]:
-    """Return built-in plugin-owned agent ids without requiring an active runtime."""
-    from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
-
-    return {
-        agent.id for manifest in BUILTIN_PLUGIN_MANIFESTS for agent in manifest.agents if agent.id
-    }
-
-
 def set_plugin_runtime(runtime: PluginRuntime | None) -> None:
     """Attach Plugin Runtime state used to guard plugin-owned agents."""
     global _plugin_runtime
@@ -49,35 +40,13 @@ def set_plugin_runtime(runtime: PluginRuntime | None) -> None:
 
 
 def _is_agent_exposed(agent_id: str) -> bool:
-    if _plugin_runtime is None:
-        return agent_id not in _declared_builtin_plugin_agent_ids()
+    if agent_id != "team" or _plugin_runtime is None:
+        return True
     try:
-        _plugin_runtime.ensure_agent_available(agent_id)
+        _plugin_runtime.ensure_enabled(AGENT_TEAM_PLUGIN_ID)
     except PluginUnavailableError:
         return False
     return True
-
-
-def _agent_plugin_category(agent_id: str) -> str | None:
-    """Return the effective plugin-declared category for a visible agent."""
-    if _plugin_runtime is None:
-        return None
-    registration = _plugin_runtime.ensure_agent_available(agent_id)
-    if registration is None:
-        return None
-    category = getattr(registration.agent, "category", None)
-    return category or None
-
-
-def ensure_agent_executable(agent_id: str) -> None:
-    """Fail before side effects when a plugin-owned agent is not executable."""
-    if _plugin_runtime is None:
-        if agent_id in _declared_builtin_plugin_agent_ids():
-            raise PluginUnavailableError(
-                f"plugin-owned agent is unavailable because Plugin Runtime is unavailable: {agent_id}",
-            )
-        return
-    _plugin_runtime.ensure_agent_available(agent_id)
 
 
 def _coerce_checkpoint_time(ts_raw: Any, cutoff_time: datetime) -> datetime | None:
@@ -780,6 +749,11 @@ class AgentFactory:
 
             if agent_id not in _AGENT_REGISTRY:
                 raise ValueError(f"Agent '{agent_id}' 未注册。可用: {list(_AGENT_REGISTRY.keys())}")
+
+            if not _is_agent_exposed(agent_id):
+                raise ValueError(
+                    f"Agent '{agent_id}' is unavailable because its plugin is disabled"
+                )
 
             agent_cls = _AGENT_REGISTRY[agent_id]
             agent = agent_cls()

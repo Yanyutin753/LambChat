@@ -25,13 +25,10 @@ from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.extensions import (
-    BUILTIN_PLUGIN_MANIFESTS,
+    FEISHU_CONNECTOR_ID,
+    FEISHU_CONNECTOR_PLUGIN_ID,
     PluginRuntime,
     PluginUnavailableError,
-)
-from src.kernel.extensions.plugin_options import (
-    declared_plugin_options_from_metadata,
-    plugin_options_from_metadata,
 )
 from src.kernel.schemas.channel import (
     ChannelConfigCreate,
@@ -63,52 +60,22 @@ def get_plugin_runtime(request: Request) -> PluginRuntime | None:
     return None
 
 
-def _runtime_or_builtin(plugin_runtime: object) -> PluginRuntime:
-    if isinstance(plugin_runtime, PluginRuntime):
-        return plugin_runtime
-    return PluginRuntime(BUILTIN_PLUGIN_MANIFESTS, core_dependencies=("skill_core",))
+def _plugin_unavailable_http_error(exc: PluginUnavailableError) -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={
+            "error": "plugin_unavailable",
+            "plugin_id": FEISHU_CONNECTOR_PLUGIN_ID,
+            "message": str(exc),
+        },
+    )
 
 
-def get_plugin_settings_service_dependency(request: Request) -> PluginSettingsService:
-    service = getattr(request.app.state, "plugin_settings_service", None)
-    if isinstance(service, PluginSettingsService):
-        return service
-    return get_plugin_settings_service()
-
-
-def _get_plugin_settings_service(_request: Request | None = None) -> PluginSettingsService:
-    return get_plugin_settings_service()
-
-
-def _settings_service_or_default(service: object) -> PluginSettingsService:
-    if isinstance(service, PluginSettingsService):
-        return service
-    return _get_plugin_settings_service()
-
-
-def _connector_for_channel_type(
-    channel_type: ChannelType | str,
-    plugin_runtime: object,
-) -> tuple[str, str] | None:
-    runtime = _runtime_or_builtin(plugin_runtime)
-    value = channel_type.value if isinstance(channel_type, ChannelType) else str(channel_type)
-    for manifest in runtime.manifests(enabled_only=False):
-        for connector in manifest.frontend.channel_connectors:
-            if connector.channel_type == value:
-                return connector.id, manifest.id
-    return None
-
-
-def _is_channel_connector_available(
-    channel_type: ChannelType | str,
-    plugin_runtime: object,
-) -> bool:
-    connector = _connector_for_channel_type(channel_type, plugin_runtime)
-    if connector is None or not isinstance(plugin_runtime, PluginRuntime):
+def _is_feishu_connector_available(plugin_runtime: object) -> bool:
+    if not isinstance(plugin_runtime, PluginRuntime):
         return True
-    connector_id, _plugin_id = connector
     try:
-        plugin_runtime.ensure_channel_connector_available(connector_id)
+        plugin_runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
     except PluginUnavailableError:
         return False
     return True
@@ -118,41 +85,14 @@ def _ensure_channel_connector_available(
     channel_type: ChannelType,
     plugin_runtime: object,
 ) -> None:
-    connector = _connector_for_channel_type(channel_type, plugin_runtime)
-    if connector is None:
+    if channel_type != ChannelType.FEISHU:
         return
     if not isinstance(plugin_runtime, PluginRuntime):
         return
-    connector_id, plugin_id = connector
     try:
-        plugin_runtime.ensure_channel_connector_available(connector_id)
+        plugin_runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
     except PluginUnavailableError as exc:
-        raise plugin_unavailable_http_error(plugin_id, exc) from exc
-
-
-def _normalized_channel_plugin_options(
-    plugin_options: dict[str, dict[str, Any]] | None,
-) -> dict[str, dict[str, Any]]:
-    return plugin_options_from_metadata({"plugin_options": plugin_options or {}})
-
-
-def _declared_channel_plugin_options_from_payload(
-    *,
-    plugin_runtime: object,
-    agent_id: str | None,
-    plugin_options: dict[str, dict[str, Any]] | None,
-    payload: dict[str, Any] | None = None,
-    legacy_payload_keys_provided: set[str] | None = None,
-) -> dict[str, dict[str, Any]]:
-    metadata = dict(payload or {})
-    metadata["plugin_options"] = _normalized_channel_plugin_options(plugin_options)
-    return declared_plugin_options_from_metadata(
-        _runtime_or_builtin(plugin_runtime),
-        metadata,
-        scope="channel",
-        agent_id=agent_id,
-        legacy_payload_keys_provided=legacy_payload_keys_provided,
-    )
+        raise _plugin_unavailable_http_error(exc) from exc
 
 
 async def _validate_agent_id(agent_id: str | None, user: TokenPayload) -> None:
@@ -240,14 +180,12 @@ async def get_channel_types(
     """Get all available channel types with metadata"""
     registry = get_registry()
     metadata_list = registry.get_channel_metadata()
-    metadata_list = [
-        metadata
-        for metadata in metadata_list
-        if _is_channel_connector_available(
-            str(metadata.get("channel_type", "")),
-            plugin_runtime,
-        )
-    ]
+    if not _is_feishu_connector_available(plugin_runtime):
+        metadata_list = [
+            metadata
+            for metadata in metadata_list
+            if metadata.get("channel_type") != ChannelType.FEISHU.value
+        ]
     return ChannelTypeListResponse(types=metadata_list)
 
 
@@ -314,9 +252,6 @@ async def cancel_feishu_registration(
 )
 async def list_user_channels(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
-    plugin_settings_service: PluginSettingsService = Depends(
-        get_plugin_settings_service_dependency
-    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
@@ -336,7 +271,7 @@ async def list_user_channels(
     for config in configs:
         try:
             channel_type = ChannelType(config.get("channel_type"))
-            if not _is_channel_connector_available(channel_type, plugin_runtime):
+            if channel_type == ChannelType.FEISHU and not _is_feishu_connector_available(plugin_runtime):
                 continue
             metadata = registry.get_channel_class(channel_type)
             if metadata:
@@ -394,9 +329,6 @@ async def list_user_channels(
 async def list_channel_instances(
     channel_type: ChannelType,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
-    plugin_settings_service: PluginSettingsService = Depends(
-        get_plugin_settings_service_dependency
-    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
@@ -472,9 +404,6 @@ async def get_channel_instance(
     channel_type: ChannelType,
     instance_id: str,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
-    plugin_settings_service: PluginSettingsService = Depends(
-        get_plugin_settings_service_dependency
-    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
@@ -511,9 +440,6 @@ async def create_channel_instance(
     channel_type: ChannelType,
     data: ChannelConfigCreate,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
-    plugin_settings_service: PluginSettingsService = Depends(
-        get_plugin_settings_service_dependency
-    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
@@ -623,9 +549,6 @@ async def update_channel_instance(
     instance_id: str,
     data: ChannelConfigUpdate,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
-    plugin_settings_service: PluginSettingsService = Depends(
-        get_plugin_settings_service_dependency
-    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):

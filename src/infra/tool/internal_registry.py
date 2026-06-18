@@ -32,7 +32,6 @@ from src.kernel.schemas.mcp import (
 )
 from src.kernel.types import Permission
 from src.plugins.feedback.tools import get_feedback_tools
-from src.plugins.workflow.tools import get_workflow_tools
 
 INTERNAL_MCP_SERVER_NAME = "lambchat_internal"
 
@@ -51,18 +50,6 @@ _SCHEDULED_TASK_TOOL_PERMISSIONS = {
 _plugin_runtime: PluginRuntime | None = None
 
 
-def _declared_builtin_plugin_tool_names() -> set[str]:
-    """Return built-in plugin tool names without requiring an active runtime."""
-    from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
-
-    names: set[str] = set()
-    for manifest in BUILTIN_PLUGIN_MANIFESTS:
-        for tool in manifest.tools:
-            names.add(tool.name)
-            names.update(tool.legacy_ids)
-    return names
-
-
 def set_plugin_runtime(runtime: PluginRuntime | None) -> None:
     """Attach the active Plugin Runtime used to guard plugin-owned tools."""
     global _plugin_runtime
@@ -72,8 +59,6 @@ def set_plugin_runtime(runtime: PluginRuntime | None) -> None:
 def _plugin_tool_error(tool_name: str) -> str | None:
     runtime = _plugin_runtime
     if runtime is None:
-        if tool_name in _declared_builtin_plugin_tool_names():
-            return f"[Plugin Tool Error] {tool_name} unavailable: Plugin Runtime is unavailable"
         return None
     registrations = runtime.tools(enabled_only=False)
     if not any(
@@ -125,15 +110,9 @@ def build_internal_tools() -> list[BaseTool]:
     logger = get_logger(__name__)
     tools: list[BaseTool] = []
 
-    if settings.ENABLE_IMAGE_ANALYSIS:
-        tools.append(get_image_analysis_tool())
-
-    if settings.ENABLE_IMAGE_GENERATION:
-        tools.append(get_image_generation_tool())
-        tools.append(get_reference_image_generation_tool())
-
-    if settings.ENABLE_AUDIO_TRANSCRIPTION:
-        tools.append(get_audio_transcribe_tool())
+    tools.append(get_image_generation_tool())
+    tools.append(get_reference_image_generation_tool())
+    tools.append(get_audio_transcribe_tool())
 
     if settings.ENABLE_SCHEDULED_TASK:
         try:
@@ -153,7 +132,6 @@ def build_internal_tools() -> list[BaseTool]:
 
     tools.extend(get_env_var_tools())
     tools.extend(get_feedback_tools())
-    tools.extend(get_workflow_tools())
     tools.extend(get_persona_preset_tools())
     tools.extend(get_team_tools())
 

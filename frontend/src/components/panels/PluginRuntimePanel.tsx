@@ -25,16 +25,9 @@ import { useTranslation } from "react-i18next";
 import { Button, IconButton } from "../common";
 import { EmptyState } from "../common/EmptyState";
 import { PanelHeader } from "../common/PanelHeader";
+import { buildPluginContributionPreview } from "../../extensions/coreContributions";
 import { useAuth } from "../../hooks/useAuth";
 import { usePluginRuntime } from "../../hooks/usePluginRuntime";
-import { buildPluginRuntimeImpactSummary } from "./pluginRuntimeImpactSummary";
-import {
-  legacyFrontendContributionCount,
-  pluginContributionGroups,
-  pluginContributionLabels,
-  structuredFrontendContributionCount,
-  type PluginContributionGroup,
-} from "./pluginRuntimePanelUtils";
 import {
   Permission,
   type ArchivedPluginPackage,
@@ -61,6 +54,63 @@ function formatCounts(values: Record<string, number>): string {
   return entries.map(([key, value]) => `${key}: ${value}`).join(" · ");
 }
 
+function formatToolLabel(tool: PluginRuntimePlugin["tools"][number]): string {
+  if (tool.legacy_ids.length === 0) return tool.name;
+  return `${tool.name} (${tool.legacy_ids.join(" / ")})`;
+}
+
+function uniqueValues(values: readonly string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function frontendDeclarationLabels(plugin: PluginRuntimePlugin): string[] {
+  const assetSlots = plugin.package?.frontend_assets?.slots ?? [];
+  const messageActions = plugin.frontend.message_actions ?? [];
+  return uniqueValues([
+    ...plugin.frontend.routes.map((value) => `frontend route ${value}`),
+    ...plugin.frontend.panels.map((value) => `panel ${value}`),
+    ...plugin.frontend.nav_items.map((value) => `nav ${value}`),
+    ...plugin.frontend.tool_renderers.map((value) => `renderer ${value}`),
+    ...plugin.frontend.file_viewers.map((value) => `viewer ${value}`),
+    ...plugin.frontend.skill_importers.map((value) => `importer ${value}`),
+    ...plugin.frontend.channel_connectors.map((value) => `connector ${value}`),
+    ...messageActions.map((value) => `message action ${value}`),
+    ...plugin.frontend.settings_sections.map((value) => `settings ${value}`),
+    ...plugin.frontend.i18n_namespaces.map((value) => `i18n ${value}`),
+    ...assetSlots.map((value) => `asset slot ${value}`),
+  ]);
+}
+
+function declaredRuntimeEntryLabels(plugin: PluginRuntimePlugin): string[] {
+  return uniqueValues([
+    ...plugin.routes.map((route) => `route ${route.prefix}`),
+    ...plugin.tools.map((tool) => `tool ${formatToolLabel(tool)}`),
+    ...frontendDeclarationLabels(plugin),
+  ]);
+}
+
+function resourceActionLabels(values: Record<string, number>): string[] {
+  return Object.entries(values).map(([action, count]) => `${action}: ${count}`);
+}
+
+function pluginContributionLabels(plugin: PluginRuntimePlugin): string[] {
+  const assetSlots = plugin.package?.frontend_assets?.slots ?? [];
+  const messageActions = plugin.frontend.message_actions ?? [];
+  return uniqueValues([
+    ...plugin.routes.map((route) => `API ${route.prefix}`),
+    ...plugin.tools.map((tool) => `Tool ${formatToolLabel(tool)}`),
+    ...plugin.frontend.routes.map((value) => `Route ${value}`),
+    ...plugin.frontend.panels.map((value) => `Panel ${value}`),
+    ...plugin.frontend.nav_items.map((value) => `Menu ${value}`),
+    ...plugin.frontend.tool_renderers.map((value) => `Renderer ${value}`),
+    ...plugin.frontend.file_viewers.map((value) => `Viewer ${value}`),
+    ...plugin.frontend.skill_importers.map((value) => `Importer ${value}`),
+    ...plugin.frontend.channel_connectors.map((value) => `Connector ${value}`),
+    ...messageActions.map((value) => `Message Action ${value}`),
+    ...assetSlots.map((value) => `Asset Slot ${value}`),
+  ]);
+}
+
 function PluginOwnershipOverview({ plugins }: { plugins: PluginRuntimePlugin[] }) {
   const { t } = useTranslation();
   const visiblePlugins = plugins.filter(
@@ -85,7 +135,7 @@ function PluginOwnershipOverview({ plugins }: { plugins: PluginRuntimePlugin[] }
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 text-sm font-semibold text-theme-text">
-                  {plugin.name ? t(plugin.name, plugin.name) : plugin.plugin_id}
+                  {plugin.name || plugin.plugin_id}
                 </div>
                 <span className={statusClassName(plugin.status)}>{plugin.status}</span>
               </div>
@@ -112,6 +162,55 @@ function PluginOwnershipOverview({ plugins }: { plugins: PluginRuntimePlugin[] }
       </div>
     </section>
   );
+}
+
+export function buildPluginRuntimeImpactSummary(
+  plugin: PluginRuntimePlugin,
+  runtimePlugins?: PluginRuntimeListResponse["plugins"],
+) {
+  const contributionPreview = buildPluginContributionPreview(
+    plugin.plugin_id,
+    runtimePlugins,
+  );
+  const declaredEntries = declaredRuntimeEntryLabels(plugin);
+
+  return {
+    activeEntries: plugin.executable ? declaredEntries : [],
+    blockedWhenDisabled: uniqueValues([
+      ...declaredEntries,
+      ...contributionPreview.removedWhenDisabled.toolRenderers.map(
+        (value) => `renderer ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.fileViewers.map(
+        (value) => `viewer ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.skillImporters.map(
+        (value) => `importer ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.channelConnectors.map(
+        (value) => `connector ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.messageActions.map(
+        (value) => `action ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.pluginAssetSlots.map(
+        (value) => `asset slot ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.i18nNamespaces.map(
+        (value) => `i18n ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.appRoutes.map(
+        (value) => `app route ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.panels.map(
+        (value) => `panel ${value}`,
+      ),
+      ...contributionPreview.removedWhenDisabled.userMenuItems.map(
+        (value) => `menu ${value}`,
+      ),
+    ]),
+    resourceActions: resourceActionLabels(plugin.dry_run_actions),
+  };
 }
 
 function statusClassName(status: string): string {
@@ -424,41 +523,6 @@ function CompactStat({ label, value }: { label: string; value: string | number }
   );
 }
 
-function PluginContributionGroupGrid({ groups }: { groups: PluginContributionGroup[] }) {
-  if (groups.length === 0) {
-    return (
-      <div className="rounded-md bg-[var(--theme-bg)] px-3 py-2 text-xs text-theme-text-secondary">
-        No directory-declared contributions
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-2 text-xs text-theme-text-secondary xl:grid-cols-2">
-      {groups.map((group) => (
-        <div key={group.id} className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="font-medium text-theme-text">{group.title}</div>
-            <span className="skill-status-pill skill-status-pill--active">
-              {group.entries.length}
-            </span>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {group.entries.slice(0, 8).map((entry) => (
-              <span key={entry} className="skill-meta-pill max-w-full truncate" title={entry}>
-                {entry}
-              </span>
-            ))}
-            {group.entries.length > 8 && (
-              <span className="skill-meta-pill">+{group.entries.length - 8}</span>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function PluginSettingsSection({
   plugin,
   settings,
@@ -636,7 +700,6 @@ function PluginPackageSection({
     frontend_assets: null,
     data_template: {
       exists: false,
-      template: "plugin-data-template",
       file_count: 0,
       total_bytes: 0,
       files: [],
@@ -657,7 +720,6 @@ function PluginPackageSection({
       has_config_defaults: false,
       has_resources: false,
       has_data_template: false,
-      data_template: "plugin-data-template",
       has_readme: false,
       backend_files: [],
       frontend_files: [],
@@ -671,7 +733,6 @@ function PluginPackageSection({
     has_config_defaults: false,
     has_resources: false,
     has_data_template: false,
-    data_template: "plugin-data-template",
     has_readme: false,
     backend_files: [],
     frontend_files: [],
@@ -680,7 +741,6 @@ function PluginPackageSection({
   const frontendAssets = packageInfo.frontend_assets;
   const dataTemplate = packageInfo.data_template ?? {
     exists: false,
-    template: "plugin-data-template",
     file_count: 0,
     total_bytes: 0,
     files: [],
@@ -701,14 +761,9 @@ function PluginPackageSection({
     ["config/schema.json", packageLayout.has_config_schema],
     ["config/defaults.json", packageLayout.has_config_defaults],
     ["resources/resources.yaml", packageLayout.has_resources],
-    [`${packageLayout.data_template || dataTemplate.template || "plugin-data-template"}/`, packageLayout.has_data_template],
+    ["plugin-data-template/", packageLayout.has_data_template],
     ["README", packageLayout.has_readme],
   ] as const;
-  const requiredDataTemplateFiles = [
-    "config/current.json",
-    "config/defaults.json",
-    "state/audit.jsonl",
-  ];
   const integrity = packageReview?.integrity;
   const showReviewControls =
     canManageRuntime &&
@@ -856,25 +911,13 @@ function PluginPackageSection({
           {dataTemplate.exists && (
             <div className="mt-3 rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg-subtle)] px-2 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="font-medium text-theme-text">{dataTemplate.template}</div>
+                <div className="font-medium text-theme-text">plugin-data-template</div>
                 <span className="skill-status-pill skill-status-pill--active">
                   files {dataTemplate.file_count}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <span className="skill-meta-pill">bytes {dataTemplate.total_bytes}</span>
-                {requiredDataTemplateFiles.map((file) => (
-                  <span
-                    key={`required-${file}`}
-                    className={
-                      dataTemplate.files.includes(file)
-                        ? "skill-meta-pill"
-                        : "skill-meta-pill skill-meta-pill--muted"
-                    }
-                  >
-                    {file}
-                  </span>
-                ))}
                 {dataTemplate.files.slice(0, 6).map((file) => (
                   <span key={file} className="skill-meta-pill max-w-full truncate">
                     {file}
@@ -987,16 +1030,23 @@ function PluginCard({
     plugin,
     runtimePlugins,
   );
-  const structuredFrontendCount = structuredFrontendContributionCount(plugin);
-  const legacyFrontendCount = legacyFrontendContributionCount(plugin);
-  const frontendContributionCount = structuredFrontendCount + legacyFrontendCount;
+  const frontendContributionCount =
+    plugin.frontend.routes.length +
+    plugin.frontend.panels.length +
+    plugin.frontend.nav_items.length +
+    plugin.frontend.tool_renderers.length +
+    plugin.frontend.file_viewers.length +
+    plugin.frontend.skill_importers.length +
+    plugin.frontend.channel_connectors.length +
+    (plugin.frontend.message_actions ?? []).length +
+    plugin.frontend.settings_sections.length +
+    plugin.frontend.i18n_namespaces.length;
   const contributionCount =
     plugin.routes.length +
-    plugin.agents.length +
     plugin.tools.length +
     frontendContributionCount;
   const dryRunTotal = countValues(plugin.dry_run_actions);
-  const contributionGroups = pluginContributionGroups(plugin);
+  const frontendDeclarations = frontendDeclarationLabels(plugin);
   const dependencies = plugin.depends_on ?? [];
   const settingsCount =
     settings?.settings.length ??
@@ -1004,10 +1054,6 @@ function PluginCard({
     plugin.resource_types.settings ??
     plugin.resource_types.plugin_settings ??
     0;
-  const pluginName = plugin.name ? t(plugin.name, plugin.name) : plugin.plugin_id;
-  const pluginDescription = plugin.description
-    ? t(plugin.description, plugin.description)
-    : "";
 
   return (
     <article className="overflow-hidden rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm transition-shadow hover:shadow-md">
@@ -1024,7 +1070,7 @@ function PluginCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="max-w-[14rem] truncate text-sm font-semibold text-theme-text sm:max-w-[18rem]">
-                {pluginName}
+                {plugin.name || plugin.plugin_id}
               </h2>
               <span className={statusClassName(plugin.status)}>{plugin.status}</span>
               <span className="hidden text-[0.72rem] text-theme-text-secondary sm:inline">{plugin.plugin_id}</span>
@@ -1036,11 +1082,6 @@ function PluginCard({
               <span>{t(`pluginRuntime.installTypes.${plugin.install_type}`, plugin.install_type)}</span>
               {plugin.state_updated_by && <span className="max-w-[7rem] truncate">{plugin.state_updated_by}</span>}
             </div>
-            {pluginDescription && (
-              <div className="mt-1 max-w-[24rem] truncate text-[0.72rem] text-theme-text-secondary">
-                {pluginDescription}
-              </div>
-            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-theme-text-secondary sm:justify-end">
@@ -1104,10 +1145,7 @@ function PluginCard({
         <div className="border-t border-[var(--theme-border)] px-3 pb-3 pt-2.5">
           <div className="mb-3 flex flex-wrap gap-1.5">
             <CompactStat label={t("pluginRuntime.metrics.routes")} value={plugin.routes.length} />
-            <CompactStat label={t("pluginRuntime.metrics.frontend")} value={structuredFrontendCount} />
-            {legacyFrontendCount > 0 && (
-              <CompactStat label="Legacy UI" value={legacyFrontendCount} />
-            )}
+            <CompactStat label={t("pluginRuntime.metrics.frontend")} value={frontendContributionCount} />
             <CompactStat label={t("pluginRuntime.metrics.dryRun")} value={dryRunTotal} />
             <CompactStat
               label={t("pluginRuntime.metrics.uninstall")}
@@ -1127,7 +1165,39 @@ function PluginCard({
                 <GitBranch size={14} />
                 <span>{t("pluginRuntime.contributions")}</span>
               </div>
-              <PluginContributionGroupGrid groups={contributionGroups} />
+              <div className="space-y-2 text-xs text-theme-text-secondary">
+                {plugin.routes.map((route) => (
+                  <div key={route.name} className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
+                    <div className="font-medium text-theme-text">{route.prefix}</div>
+                    <div className="mt-1 break-all">{route.module}</div>
+                  </div>
+                ))}
+                {plugin.tools.map((tool) => (
+                  <div key={tool.name} className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
+                    <div className="font-medium text-theme-text">
+                      {formatToolLabel(tool)}
+                    </div>
+                    <div className="mt-1 break-all">{tool.module}</div>
+                    {tool.required_permissions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {tool.required_permissions.map((permission) => (
+                          <span key={permission} className="skill-meta-pill">
+                            {permission}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {frontendDeclarations.length > 0 && (
+                  <div className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
+                    <div className="font-medium text-theme-text">Frontend</div>
+                    <div className="mt-1">
+                      {frontendDeclarations.join(" · ")}
+                    </div>
+                  </div>
+                )}
+              </div>
             </section>
 
             <PluginSettingsSection

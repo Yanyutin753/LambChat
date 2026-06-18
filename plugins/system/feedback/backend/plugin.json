@@ -2,7 +2,7 @@
   "schema": "lambchat.plugin.backend.v1",
   "plugin_id": "feedback",
   "backend": {
-    "routes": [
+    "routers": [
       {
         "name": "feedback-api",
         "prefix": "/api/feedback",
@@ -13,10 +13,9 @@
     ],
     "tools": [
       {
-        "name": "feedback_summary",
+        "name": "feedback.summary",
         "module": "src.plugins.feedback.tools",
-        "required_permissions": ["feedback:read"],
-        "legacy_ids": ["feedback.summary"]
+        "required_permissions": ["feedback:read"]
       }
     ],
     "lifespan_hooks": [

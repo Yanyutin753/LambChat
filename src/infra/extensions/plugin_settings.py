@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from builtins import list as builtin_list
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -57,25 +56,13 @@ class InMemoryPluginSettingsStorage:
         plugin_id: str,
         scope: str = "system",
         subject_id: str | None = None,
-    ) -> builtin_list[PluginSettingRecord]:
+    ) -> list[PluginSettingRecord]:
         return [
             record
-            for (
-                record_plugin_id,
-                record_scope,
-                _key,
-                record_subject_id,
-            ), record in self.records.items()
+            for (record_plugin_id, record_scope, _key, record_subject_id), record in self.records.items()
             if record_plugin_id == plugin_id
             and record_scope == scope
             and record_subject_id == subject_id
-        ]
-
-    async def list_all(self, *, plugin_id: str) -> builtin_list[PluginSettingRecord]:
-        return [
-            record
-            for (record_plugin_id, _scope, _key, _subject_id), record in self.records.items()
-            if record_plugin_id == plugin_id
         ]
 
     async def set(
@@ -121,7 +108,7 @@ class MongoPluginSettingsStorage:
     COLLECTION = "plugin_settings"
 
     def __init__(self) -> None:
-        self._collection: Any | None = None
+        self._collection = None
         self._indexes_created = False
 
     @property
@@ -164,16 +151,11 @@ class MongoPluginSettingsStorage:
         plugin_id: str,
         scope: str = "system",
         subject_id: str | None = None,
-    ) -> builtin_list[PluginSettingRecord]:
+    ) -> list[PluginSettingRecord]:
         await self.ensure_indexes()
         cursor = self.collection.find(
             {"plugin_id": plugin_id, "scope": scope, "subject_id": subject_id}
         )
-        return [_record_from_doc(doc) async for doc in cursor]
-
-    async def list_all(self, *, plugin_id: str) -> builtin_list[PluginSettingRecord]:
-        await self.ensure_indexes()
-        cursor = self.collection.find({"plugin_id": plugin_id})
         return [_record_from_doc(doc) async for doc in cursor]
 
     async def set(
@@ -264,12 +246,7 @@ class PluginSettingsService:
             stored_records = []
         records = {record.key: record for record in stored_records}
         values = []
-        scoped_definitions = [
-            definition for definition in manifest.settings if definition.scope == scope
-        ]
-        for definition in sorted(
-            scoped_definitions, key=lambda item: (item.group, item.order, item.key)
-        ):
+        for definition in sorted(manifest.settings, key=lambda item: (item.group, item.order, item.key)):
             record = records.get(definition.key)
             value, source = await self._resolved_value(manifest, definition, record)
             if mask_sensitive and definition.sensitive and value not in (None, ""):
@@ -302,71 +279,6 @@ class PluginSettingsService:
             )
         return values
 
-    async def export_settings(
-        self,
-        manifest: PluginManifest,
-        *,
-        mask_sensitive: bool = True,
-    ) -> list[dict[str, Any]]:
-        """Export manifest-declared plugin settings across all scopes and subjects."""
-        exported: list[dict[str, Any]] = []
-        stored_records: list[PluginSettingRecord] = []
-        list_all = getattr(self.storage, "list_all", None)
-        if callable(list_all):
-            try:
-                stored_records = await asyncio.wait_for(
-                    list_all(plugin_id=manifest.id),
-                    timeout=SETTINGS_STORAGE_READ_TIMEOUT_SECONDS,
-                )
-            except Exception:
-                stored_records = []
-
-        exported_keys: set[tuple[str, str, str | None]] = set()
-        definitions: dict[tuple[str, str], PluginSettingDefinition] = {
-            (definition.scope, definition.key): definition for definition in manifest.settings
-        }
-        for record in sorted(
-            stored_records,
-            key=lambda item: (item.scope, item.subject_id or "", item.key),
-        ):
-            definition = definitions.get((record.scope, record.key))
-            if definition is None:
-                continue
-            exported.append(
-                self._setting_payload(
-                    manifest,
-                    definition,
-                    record,
-                    value=record.value,
-                    source=record.source,
-                    mask_sensitive=mask_sensitive,
-                    subject_id=record.subject_id,
-                )
-            )
-            exported_keys.add((record.scope, record.key, record.subject_id))
-
-        for definition in sorted(
-            manifest.settings,
-            key=lambda item: (item.scope, item.group, item.order, item.key),
-        ):
-            export_key = (definition.scope, definition.key, None)
-            if export_key in exported_keys:
-                continue
-            default_record: PluginSettingRecord | None = None
-            value, source = await self._resolved_value(manifest, definition, default_record)
-            exported.append(
-                self._setting_payload(
-                    manifest,
-                    definition,
-                    default_record,
-                    value=value,
-                    source=source,
-                    mask_sensitive=mask_sensitive,
-                    subject_id=None,
-                )
-            )
-        return exported
-
     async def set_setting(
         self,
         manifest: PluginManifest,
@@ -377,7 +289,7 @@ class PluginSettingsService:
         scope: str = "system",
         subject_id: str | None = None,
     ) -> PluginSettingRecord:
-        definition = _definition_for_key(manifest, key, scope=scope)
+        definition = _definition_for_key(manifest, key)
         if definition.sensitive and value == MASKED_SECRET_VALUE:
             existing = await self.storage.get(
                 plugin_id=manifest.id,
@@ -408,7 +320,7 @@ class PluginSettingsService:
         scope: str = "system",
         subject_id: str | None = None,
     ) -> bool:
-        definition = _definition_for_key(manifest, key, scope=scope)
+        definition = _definition_for_key(manifest, key)
         return await self.storage.delete(
             plugin_id=manifest.id,
             key=definition.key,
@@ -425,9 +337,6 @@ class PluginSettingsService:
         imported: list[str] = []
         skipped: list[str] = []
         for definition in manifest.settings:
-            if definition.scope != "system":
-                skipped.append(definition.key)
-                continue
             existing = await self.storage.get(plugin_id=manifest.id, key=definition.key)
             if existing is not None:
                 skipped.append(definition.key)
@@ -446,45 +355,6 @@ class PluginSettingsService:
             )
             imported.append(definition.key)
         return {"imported": imported, "skipped": skipped, "failed": []}
-
-    def _setting_payload(
-        self,
-        manifest: PluginManifest,
-        definition: PluginSettingDefinition,
-        record: PluginSettingRecord | None,
-        *,
-        value: Any,
-        source: str,
-        mask_sensitive: bool,
-        subject_id: str | None,
-    ) -> dict[str, Any]:
-        if mask_sensitive and definition.sensitive and value not in (None, ""):
-            value = MASKED_SECRET_VALUE
-        return {
-            "key": definition.key,
-            "qualified_key": f"{manifest.id}.{definition.key}",
-            "value": value,
-            "type": definition.type,
-            "label": definition.label,
-            "description": definition.description,
-            "group": definition.group,
-            "order": definition.order,
-            "default_value": definition.default,
-            "sensitive": definition.sensitive,
-            "required": definition.required,
-            "requires_restart": definition.requires_restart,
-            "scope": definition.scope,
-            "subject_id": subject_id,
-            "source": record.source if record else source,
-            "updated_at": record.updated_at if record else None,
-            "updated_by": record.updated_by if record else None,
-            "legacy_system_setting_keys": definition.legacy_system_setting_keys,
-            "options": definition.options,
-            "json_schema": definition.json_schema,
-            "visible_when": (
-                definition.visible_when.model_dump() if definition.visible_when else None
-            ),
-        }
 
     async def _resolved_value(
         self,
@@ -578,17 +448,11 @@ class PluginSettingsResolver:
             return default
 
 
-def _definition_for_key(
-    manifest: PluginManifest,
-    key: str,
-    *,
-    scope: str | None = None,
-) -> PluginSettingDefinition:
+def _definition_for_key(manifest: PluginManifest, key: str) -> PluginSettingDefinition:
     for definition in manifest.settings:
-        if definition.key == key and (scope is None or definition.scope == scope):
+        if definition.key == key:
             return definition
-    suffix = f" in scope {scope}" if scope else ""
-    raise KeyError(f"plugin setting {manifest.id}.{key}{suffix} is not declared")
+    raise KeyError(f"plugin setting {manifest.id}.{key} is not declared")
 
 
 def _plugin_data_config_value(manifest: PluginManifest, key: str, filename: str) -> Any:
@@ -612,7 +476,7 @@ async def _legacy_system_setting_value(key: str) -> Any:
         from src.infra.settings.service import SettingsService
 
         return await asyncio.wait_for(
-            SettingsService.get_instance().get_plugin_owned_legacy_raw(key),
+            SettingsService.get_instance().get_raw(key),
             timeout=LEGACY_SYSTEM_SETTING_READ_TIMEOUT_SECONDS,
         )
     except Exception:

@@ -10,7 +10,7 @@ from langchain.tools import tool
 from src.infra.feedback.manager import FeedbackManager
 
 
-@tool("feedback_summary")
+@tool("feedback.summary")
 async def feedback_summary(
     session_id: Annotated[Optional[str], "Optional session id to scope feedback stats."] = None,
     run_id: Annotated[Optional[str], "Optional run id to scope feedback stats."] = None,

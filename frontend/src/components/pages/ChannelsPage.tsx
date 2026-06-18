@@ -17,12 +17,9 @@ import { ChannelsGridSkeleton } from "../skeletons";
 import { SkillBaseCard } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
 import {
-  findChannelConnectorContribution,
   hasChannelConnectorContribution,
-  hasRuntimeManagedChannelConnector,
   type PluginRuntimeContributionStates,
 } from "../../extensions/coreContributions";
-import { getChannelConnectorPanelRenderer } from "./channelConnectorPanelRenderers";
 import type {
   ChannelMetadata,
   ChannelConfigStatus,
@@ -85,12 +82,11 @@ export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
     setIsLoading(true);
     try {
       const types = await channelApi.getTypes();
-      const visibleTypes = types.filter((ct) => {
-        if (!hasRuntimeManagedChannelConnector(ct.channel_type, runtimePlugins)) {
-          return true;
-        }
-        return hasChannelConnectorContribution(ct.channel_type, runtimePlugins);
-      });
+      const visibleTypes = types.filter((ct) =>
+        ct.channel_type === "feishu"
+          ? hasChannelConnectorContribution(ct.channel_type, runtimePlugins)
+          : true,
+      );
       setChannelTypes(visibleTypes);
 
       // Load instances for all channel types in parallel

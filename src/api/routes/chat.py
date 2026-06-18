@@ -880,13 +880,6 @@ async def chat_stream(
         if existing_session:
             verify_session_ownership(existing_session, user)
             existing_metadata = existing_session.metadata or {}
-            apply_existing_session_plugin_options(
-                request,
-                agent_id=agent_id,
-                existing_metadata=existing_metadata,
-                plugin_runtime=plugin_runtime,
-            )
-            validate_team_agent_request(agent_id, request, plugin_runtime=plugin_runtime)
     if request.retry_user_message and not request.session_id:
         raise HTTPException(status_code=400, detail="retry_user_message requires session_id")
     if request.retry_user_message and not existing_session:
@@ -894,6 +887,10 @@ async def chat_stream(
 
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     active_goal_data = active_goal.model_dump() if active_goal else None
+    formatted_message = format_user_message_with_timestamp(
+        agent_message,
+        request.user_timezone,
+    )
     write_user_message = not request.retry_user_message
     user_message_written = request.retry_user_message
 
@@ -1072,7 +1069,6 @@ async def chat_stream(
             trace_id=trace_id,
             team_id=request.team_id,
             active_goal=active_goal_data,
-            plugin_options=request.plugin_options,
             user_message_written=user_message_written,
             write_user_message_immediately=write_user_message,
         )
@@ -1098,7 +1094,6 @@ async def chat_stream(
             team_id=request.team_id,
             trace_id=trace_id,
             active_goal=active_goal_data,
-            plugin_options=request.plugin_options,
             user_message_written=user_message_written,
             write_user_message_immediately=write_user_message,
         )

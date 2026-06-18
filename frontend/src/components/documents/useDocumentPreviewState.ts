@@ -201,8 +201,9 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   const videoFile = isVideoFile(ext);
   const audioFile = isAudioFile(ext);
   const advancedFileViewersEnabled =
-    hasFileViewerContribution("code", runtimePlugins) &&
-    hasPluginAssetSlot("file_viewer", runtimePlugins);
+    runtimePlugins === undefined ||
+    (hasFileViewerContribution("code", runtimePlugins) &&
+      hasPluginAssetSlot("file_viewer", runtimePlugins));
 
   // MIME-based fallback
   const mime = mimeType?.toLowerCase();

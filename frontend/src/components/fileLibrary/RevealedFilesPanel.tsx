@@ -109,8 +109,9 @@ export function RevealedFilesPanel({
       ? `${imagePreviewNavigation.index + 1} / ${imagePreviewNavigation.total}`
       : undefined;
   const advancedFileViewersEnabled =
-    hasFileViewerContribution("code", runtimePlugins) &&
-    hasPluginAssetSlot("file_viewer", runtimePlugins);
+    runtimePlugins === undefined ||
+    (hasFileViewerContribution("code", runtimePlugins) &&
+      hasPluginAssetSlot("file_viewer", runtimePlugins));
 
   /* ── Handlers ── */
   const handlePreview = useCallback(

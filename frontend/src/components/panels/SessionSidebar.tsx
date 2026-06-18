@@ -55,7 +55,6 @@ import type {
   ScheduledTaskActions,
 } from "./SidebarParts";
 import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
-import type { Project } from "../../types";
 
 // ─── Public interfaces ─────────────────────────────────────────────
 

@@ -9,7 +9,6 @@ from typing import List, Literal
 from src.kernel.extensions.manifest import (
     ExtensionManifest,
     ExtensionType,
-    PluginAgentCatalogEntry,
     PluginLifecycleHook,
     PluginManifest,
     PluginRoute,
@@ -101,26 +100,6 @@ class PluginToolRegistration:
         return self.tool.legacy_ids
 
 
-@dataclass(frozen=True)
-class PluginAgentRegistration:
-    """An agent catalog declaration with plugin ownership metadata."""
-
-    plugin_id: str
-    agent: PluginAgentCatalogEntry
-
-    @property
-    def id(self) -> str:
-        return self.agent.id
-
-    @property
-    def module(self) -> str:
-        return self.agent.module
-
-    @property
-    def required_permissions(self) -> list[str]:
-        return self.agent.required_permissions
-
-
 class ExtensionRegistry:
     """Build-time registry for all extension manifests."""
 
@@ -164,7 +143,6 @@ class ExtensionRegistry:
                     seen.add(permission)
                     result.append(permission)
         return result
-
 
 class PluginRegistry:
     """Build-time registry for plugin manifests."""
@@ -213,16 +191,9 @@ class PluginRegistry:
             if enabled_only and not manifest.enabled_by_default:
                 continue
             for route in manifest.routers:
-                registrations.append(PluginRouteRegistration(plugin_id=manifest.id, route=route))
-        return registrations
-
-    def agents(self, *, enabled_only: bool = True) -> List[PluginAgentRegistration]:
-        registrations: List[PluginAgentRegistration] = []
-        for manifest in self._items.values():
-            if enabled_only and not manifest.enabled_by_default:
-                continue
-            for agent in manifest.agents:
-                registrations.append(PluginAgentRegistration(plugin_id=manifest.id, agent=agent))
+                registrations.append(
+                    PluginRouteRegistration(plugin_id=manifest.id, route=route)
+                )
         return registrations
 
     def tools(self, *, enabled_only: bool = True) -> List[PluginToolRegistration]:
@@ -231,7 +202,9 @@ class PluginRegistry:
             if enabled_only and not manifest.enabled_by_default:
                 continue
             for tool in manifest.tools:
-                registrations.append(PluginToolRegistration(plugin_id=manifest.id, tool=tool))
+                registrations.append(
+                    PluginToolRegistration(plugin_id=manifest.id, tool=tool)
+                )
         return registrations
 
     def lifecycle_hooks(

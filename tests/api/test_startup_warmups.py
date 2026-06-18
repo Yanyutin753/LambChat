@@ -428,10 +428,6 @@ def test_feedback_shutdown_is_owned_by_plugin_lifecycle() -> None:
     )
 
 
-async def _async_value(value):
-    return value
-
-
 @pytest.mark.asyncio
 async def test_close_session_sandbox_manager_for_shutdown_delegates_to_close_helper(
     monkeypatch: pytest.MonkeyPatch,

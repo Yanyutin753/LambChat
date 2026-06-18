@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from builtins import list as builtin_list
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -14,15 +13,9 @@ class PluginResourceType(str, Enum):
     FRONTEND_ROUTE = "frontend_route"
     PANEL = "panel"
     NAV_ITEM = "nav_item"
-    APP_TAB = "app_tab"
-    APP_PANEL = "app_panel"
-    SIDEBAR_ITEM = "sidebar_item"
-    USER_MENU_ITEM = "user_menu_item"
-    AGENT = "agent"
     TOOL = "tool"
     TOOL_RENDERER = "tool_renderer"
     FILE_VIEWER = "file_viewer"
-    UPLOAD_HANDLER = "upload_handler"
     SKILL_IMPORTER = "skill_importer"
     PERMISSION = "permission"
     SETTING = "setting"
@@ -42,16 +35,6 @@ class PluginResourceType(str, Enum):
     SHARE_TARGET = "share_target"
     CHANNEL_CONNECTOR = "channel_connector"
     MESSAGE_ACTION = "message_action"
-    CHAT_INPUT_OPTION = "chat_input_option"
-    CHAT_INPUT_PANEL = "chat_input_panel"
-    MENTION_PROVIDER = "mention_provider"
-    WELCOME_SURFACE = "welcome_surface"
-    ASSISTANT_IDENTITY_RESOLVER = "assistant_identity_resolver"
-    AGENT_CATEGORY = "agent_category"
-    PROJECT_OPTION = "project_option"
-    SESSION_OPTION = "session_option"
-    CHANNEL_OPTION = "channel_option"
-    SCHEDULED_TASK_OPTION = "scheduled_task_option"
     PLUGIN_PACKAGE_FOLDER = "plugin_package_folder"
     PLUGIN_DATA_FOLDER = "plugin_data_folder"
     PLUGIN_DATA_CONFIG = "plugin_data_config"
@@ -66,8 +49,6 @@ class PluginResourceScope(str, Enum):
     ROLE = "role"
     PROJECT = "project"
     SESSION = "session"
-    CHANNEL = "channel"
-    SCHEDULED_TASK = "scheduled_task"
     SYSTEM = "system"
 
 
@@ -98,7 +79,9 @@ class PluginResourceRecord:
     owner_user_id: str | None = None
     owner_role: str | None = None
     created_by_plugin_version: str | None = None
-    retention_policy: PluginResourceRetentionPolicy = PluginResourceRetentionPolicy.KEEP_USER_DATA
+    retention_policy: PluginResourceRetentionPolicy = (
+        PluginResourceRetentionPolicy.KEEP_USER_DATA
+    )
     cleanup_strategy: PluginResourceCleanupStrategy = PluginResourceCleanupStrategy.KEEP
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -152,8 +135,8 @@ class PluginResourceLedger:
         plugin_id: str | None = None,
         resource_type: PluginResourceType | str | None = None,
         scope: PluginResourceScope | str | None = None,
-    ) -> builtin_list[PluginResourceRecord]:
-        records = builtin_list(self._records.values())
+    ) -> list[PluginResourceRecord]:
+        records = list(self._records.values())
         if plugin_id is not None:
             records = [record for record in records if record.plugin_id == plugin_id]
         if resource_type is not None:
@@ -182,151 +165,38 @@ class PluginResourceLedger:
         frontend_routes: Iterable[str] = (),
         panels: Iterable[str] = (),
         nav_items: Iterable[str] = (),
-        app_tabs: Iterable[str] = (),
-        app_panels: Iterable[str] = (),
-        sidebar_items: Iterable[str] = (),
-        user_menu_items: Iterable[str] = (),
-        agents: Iterable[str] = (),
         tools: Iterable[str] = (),
         tool_renderers: Iterable[str] = (),
         file_viewers: Iterable[str] = (),
-        upload_handlers: Iterable[str] = (),
         skill_importers: Iterable[str] = (),
         channel_connectors: Iterable[str] = (),
         message_actions: Iterable[str] = (),
-        chat_input_options: Iterable[str] = (),
-        chat_input_panels: Iterable[str] = (),
-        mention_providers: Iterable[str] = (),
-        welcome_surfaces: Iterable[str] = (),
-        assistant_identity_resolvers: Iterable[str] = (),
-        agent_categories: Iterable[str] = (),
-        project_options: Iterable[str] = (),
-        session_options: Iterable[str] = (),
-        channel_options: Iterable[str] = (),
-        scheduled_task_options: Iterable[str] = (),
         permissions: Iterable[str] = (),
-        settings: Iterable[str | tuple[str, str]] = (),
+        settings: Iterable[str] = (),
         env_keys: Iterable[str] = (),
         scheduler_jobs: Iterable[str] = (),
-        event_listeners: Iterable[str] = (),
         migrations: Iterable[str] = (),
         i18n_namespaces: Iterable[str] = (),
         records: Iterable[PluginResourceRecord] = (),
-    ) -> builtin_list[PluginResourceRecord]:
-        registered: builtin_list[PluginResourceRecord] = []
+    ) -> list[PluginResourceRecord]:
+        registered: list[PluginResourceRecord] = []
         declarations = [
             (PluginResourceType.BACKEND_ROUTE, backend_routes, PluginResourceCleanupStrategy.KEEP),
-            (
-                PluginResourceType.FRONTEND_ROUTE,
-                frontend_routes,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
+            (PluginResourceType.FRONTEND_ROUTE, frontend_routes, PluginResourceCleanupStrategy.KEEP),
             (PluginResourceType.PANEL, panels, PluginResourceCleanupStrategy.KEEP),
             (PluginResourceType.NAV_ITEM, nav_items, PluginResourceCleanupStrategy.KEEP),
-            (PluginResourceType.APP_TAB, app_tabs, PluginResourceCleanupStrategy.KEEP),
-            (PluginResourceType.APP_PANEL, app_panels, PluginResourceCleanupStrategy.KEEP),
-            (PluginResourceType.SIDEBAR_ITEM, sidebar_items, PluginResourceCleanupStrategy.KEEP),
-            (
-                PluginResourceType.USER_MENU_ITEM,
-                user_menu_items,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (PluginResourceType.AGENT, agents, PluginResourceCleanupStrategy.KEEP),
             (PluginResourceType.TOOL, tools, PluginResourceCleanupStrategy.KEEP),
             (PluginResourceType.TOOL_RENDERER, tool_renderers, PluginResourceCleanupStrategy.KEEP),
             (PluginResourceType.FILE_VIEWER, file_viewers, PluginResourceCleanupStrategy.KEEP),
-            (
-                PluginResourceType.UPLOAD_HANDLER,
-                upload_handlers,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.SKILL_IMPORTER,
-                skill_importers,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.CHANNEL_CONNECTOR,
-                channel_connectors,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.MESSAGE_ACTION,
-                message_actions,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.CHAT_INPUT_OPTION,
-                chat_input_options,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.CHAT_INPUT_PANEL,
-                chat_input_panels,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.MENTION_PROVIDER,
-                mention_providers,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.WELCOME_SURFACE,
-                welcome_surfaces,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.ASSISTANT_IDENTITY_RESOLVER,
-                assistant_identity_resolvers,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.AGENT_CATEGORY,
-                agent_categories,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.PROJECT_OPTION,
-                project_options,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.SESSION_OPTION,
-                session_options,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.CHANNEL_OPTION,
-                channel_options,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
-            (
-                PluginResourceType.SCHEDULED_TASK_OPTION,
-                scheduled_task_options,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
+            (PluginResourceType.SKILL_IMPORTER, skill_importers, PluginResourceCleanupStrategy.KEEP),
+            (PluginResourceType.CHANNEL_CONNECTOR, channel_connectors, PluginResourceCleanupStrategy.KEEP),
+            (PluginResourceType.MESSAGE_ACTION, message_actions, PluginResourceCleanupStrategy.KEEP),
             (PluginResourceType.PERMISSION, permissions, PluginResourceCleanupStrategy.ARCHIVE),
-            (
-                PluginResourceType.ENV_KEY_DECLARATION,
-                env_keys,
-                PluginResourceCleanupStrategy.ARCHIVE,
-            ),
-            (
-                PluginResourceType.SCHEDULER_JOB,
-                scheduler_jobs,
-                PluginResourceCleanupStrategy.MANUAL_REVIEW,
-            ),
-            (
-                PluginResourceType.LISTENER,
-                event_listeners,
-                PluginResourceCleanupStrategy.MANUAL_REVIEW,
-            ),
+            (PluginResourceType.SETTING, settings, PluginResourceCleanupStrategy.ARCHIVE),
+            (PluginResourceType.ENV_KEY_DECLARATION, env_keys, PluginResourceCleanupStrategy.ARCHIVE),
+            (PluginResourceType.SCHEDULER_JOB, scheduler_jobs, PluginResourceCleanupStrategy.MANUAL_REVIEW),
             (PluginResourceType.MIGRATION, migrations, PluginResourceCleanupStrategy.ARCHIVE),
-            (
-                PluginResourceType.I18N_NAMESPACE,
-                i18n_namespaces,
-                PluginResourceCleanupStrategy.KEEP,
-            ),
+            (PluginResourceType.I18N_NAMESPACE, i18n_namespaces, PluginResourceCleanupStrategy.KEEP),
         ]
         for resource_type, resource_ids, cleanup_strategy in declarations:
             for resource_id in resource_ids:
@@ -344,31 +214,7 @@ class PluginResourceLedger:
                 )
         for record in records:
             registered.append(self.register(record))
-        for setting in settings:
-            resource_id, scope = _setting_resource_id_and_scope(setting)
-            registered.append(
-                self.register(
-                    PluginResourceRecord(
-                        plugin_id=plugin_id,
-                        resource_id=resource_id,
-                        resource_type=PluginResourceType.SETTING,
-                        scope=scope,
-                        created_by_plugin_version=plugin_version,
-                        retention_policy=PluginResourceRetentionPolicy.ARCHIVE_METADATA,
-                        cleanup_strategy=PluginResourceCleanupStrategy.ARCHIVE,
-                    )
-                )
-            )
         return registered
-
-
-def _setting_resource_id_and_scope(
-    setting: str | tuple[str, str],
-) -> tuple[str, PluginResourceScope]:
-    if isinstance(setting, tuple):
-        resource_id, scope = setting
-        return resource_id, PluginResourceScope(scope)
-    return setting, PluginResourceScope.GLOBAL
 
 
 def _retention_for_cleanup(
