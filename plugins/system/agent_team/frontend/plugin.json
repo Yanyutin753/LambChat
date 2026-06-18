@@ -1,0 +1,12 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "agent_team",
+  "frontend": {
+    "routes": ["agent_team:team-route"],
+    "panels": ["agent_team:team-panel"],
+    "nav_items": ["agent_team:team-nav"],
+    "tool_renderers": ["agent_team:agent-team"],
+    "i18n_namespaces": ["agent_team:team"],
+    "required_permissions": ["team:read"]
+  }
+}

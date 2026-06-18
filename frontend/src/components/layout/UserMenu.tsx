@@ -2,29 +2,23 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import {
-  LogOut,
-  User,
-  Users,
-  Shield,
-  Settings2,
-  Star,
-  Bell,
-  Settings,
-  BarChart3,
-} from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
-import { Permission } from "../../types";
 import { clearSessionSelectionGuard } from "../../utils/sessionSelectionGuard";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { getFullUrl } from "../../services/api";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
+import {
+  buildUserMenuContributions,
+  type PluginRuntimeContributionStates,
+} from "../../extensions/coreContributions";
 
 interface UserMenuProps {
   onShowProfile: () => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
-export function UserMenu({ onShowProfile }: UserMenuProps) {
+export function UserMenu({ onShowProfile, runtimePlugins }: UserMenuProps) {
   const { t } = useTranslation();
   const { logout, hasAnyPermission, user } = useAuth();
   const navigate = useNavigate();
@@ -40,20 +34,6 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     onClose: () => setShowMenu(false),
     enabled: showMenu && isMobile,
   });
-
-  const canManageUsers = hasAnyPermission([
-    Permission.USER_READ,
-    Permission.USER_WRITE,
-  ]);
-  const canManageRoles = hasAnyPermission([Permission.ROLE_MANAGE]);
-  const canManageAgents = hasAnyPermission([Permission.AGENT_ADMIN]);
-  const canManageModels = hasAnyPermission([Permission.MODEL_ADMIN]);
-  const canViewFeedback = hasAnyPermission([Permission.FEEDBACK_READ]);
-  const canViewUsage = hasAnyPermission([Permission.USAGE_READ]);
-  const canManageNotifications = hasAnyPermission([
-    Permission.NOTIFICATION_MANAGE,
-  ]);
-  const canManageSettings = hasAnyPermission([Permission.SETTINGS_MANAGE]);
 
   // Reactive mobile detection
   useEffect(() => {
@@ -129,53 +109,21 @@ export function UserMenu({ onShowProfile }: UserMenuProps) {
     });
   };
 
-  const adminItems = [
-    {
-      path: "/users",
-      label: t("nav.users"),
-      icon: Users,
-      show: canManageUsers,
-    },
-    {
-      path: "/roles",
-      label: t("nav.roles"),
-      icon: Shield,
-      show: canManageRoles,
-    },
-    {
-      path: "/agents",
-      label: t("nav.agents"),
-      icon: Settings2,
-      show: canManageAgents || canManageModels,
-    },
-  ].filter((i) => i.show);
+  const visibleUserMenuItems = buildUserMenuContributions(runtimePlugins).filter((item) =>
+    hasAnyPermission([...item.requiredAnyPermissions]),
+  ).map((item) => ({
+    path: item.path,
+    label: t(item.labelKey),
+    icon: item.icon,
+    group: item.group,
+  }));
 
-  const sysItems = [
-    {
-      path: "/feedback",
-      label: t("nav.feedback"),
-      icon: Star,
-      show: canViewFeedback,
-    },
-    {
-      path: "/usage",
-      label: t("nav.usage"),
-      icon: BarChart3,
-      show: canViewUsage,
-    },
-    {
-      path: "/notifications",
-      label: t("nav.notifications"),
-      icon: Bell,
-      show: canManageNotifications,
-    },
-    {
-      path: "/settings",
-      label: t("nav.systemSettings"),
-      icon: Settings,
-      show: canManageSettings,
-    },
-  ].filter((i) => i.show);
+  const adminItems = visibleUserMenuItems.filter(
+    (item) => item.group === "admin",
+  );
+  const sysItems = visibleUserMenuItems.filter(
+    (item) => item.group === "system",
+  );
 
   const hasAdminSection = adminItems.length > 0;
   const hasSysSection = sysItems.length > 0;

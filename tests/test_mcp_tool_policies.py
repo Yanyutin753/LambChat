@@ -105,6 +105,239 @@ async def test_internal_tool_policies_filter_blocked_tools(
 
 
 @pytest.mark.asyncio
+async def test_internal_plugin_tool_visibility_follows_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import PluginManifest, PluginRuntime
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="feedback",
+                name="Feedback",
+                version="1.0.0",
+                api_version="v1",
+                permissions=["feedback:read"],
+                tools=[{"name": "feedback.summary", "module": "tests.feedback_tool"}],
+            )
+        ]
+    )
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakeTool(name="feedback.summary"), _FakeTool(name="env_var_list")],
+    )
+
+    enabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in enabled_infos] == ["feedback.summary", "env_var_list"]
+
+    runtime.disable_plugin("feedback")
+    disabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    disabled_tools = await internal_registry.get_internal_tools_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in disabled_infos] == ["env_var_list"]
+    assert [tool.name for tool in disabled_tools] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
+async def test_internal_image_generation_tool_visibility_follows_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import IMAGE_GENERATION_PLUGIN_ID, PluginRuntime
+    from src.kernel.extensions.builtin_plugins import build_image_generation_plugin_manifest
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    monkeypatch.setattr(
+        "src.kernel.extensions.builtin_plugins.settings.ENABLE_IMAGE_GENERATION",
+        True,
+    )
+    runtime = PluginRuntime([build_image_generation_plugin_manifest()])
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakeTool(name="image_generate"), _FakeTool(name="env_var_list")],
+    )
+
+    enabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    runtime.disable_plugin(IMAGE_GENERATION_PLUGIN_ID)
+    disabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in enabled_infos] == ["image_generate", "env_var_list"]
+    assert [info.name for info in disabled_infos] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
+async def test_internal_audio_transcription_tool_visibility_follows_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import AUDIO_TRANSCRIPTION_PLUGIN_ID, PluginRuntime
+    from src.kernel.extensions.builtin_plugins import build_audio_transcription_plugin_manifest
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    monkeypatch.setattr(
+        "src.kernel.extensions.builtin_plugins.settings.ENABLE_AUDIO_TRANSCRIPTION",
+        True,
+    )
+    runtime = PluginRuntime([build_audio_transcription_plugin_manifest()])
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakeTool(name="audio_transcribe"), _FakeTool(name="env_var_list")],
+    )
+
+    enabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    runtime.disable_plugin(AUDIO_TRANSCRIPTION_PLUGIN_ID)
+    disabled_infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in enabled_infos] == ["audio_transcribe", "env_var_list"]
+    assert [info.name for info in disabled_infos] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
+async def test_internal_plugin_tool_execution_rechecks_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import PluginManifest, PluginRuntime
+
+    calls = {"count": 0}
+
+    class _FakePluginTool(BaseTool):
+        name: str = "feedback.summary"
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            calls["count"] += 1
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            calls["count"] += 1
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="feedback",
+                name="Feedback",
+                version="1.0.0",
+                api_version="v1",
+                permissions=["feedback:read"],
+                tools=[{"name": "feedback.summary", "module": "tests.feedback_tool"}],
+            )
+        ]
+    )
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [_FakePluginTool()],
+    )
+
+    tools = await internal_registry.get_internal_tools_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    runtime.disable_plugin("feedback")
+
+    result = await tools[0]._arun()
+
+    assert calls["count"] == 0
+    assert "[Plugin Tool Error] feedback.summary unavailable" in result
+
+
+@pytest.mark.asyncio
 async def test_internal_scheduled_task_tool_infos_follow_role_permissions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -256,6 +489,7 @@ async def test_internal_image_generate_tool_infos_include_supported_parameters(
     async def _empty_policies():
         return {}
 
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", None)
     monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
     monkeypatch.setattr(
         internal_registry,

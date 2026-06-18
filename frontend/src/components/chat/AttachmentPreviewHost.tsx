@@ -7,8 +7,13 @@ import {
   getAttachmentPreviewState,
   subscribeAttachmentPreview,
 } from "./attachmentPreviewStore";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
 
-export function AttachmentPreviewHost() {
+export function AttachmentPreviewHost({
+  runtimePlugins,
+}: {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
   const [, forceRender] = useState(0);
   const previewStateRef = useRef(getAttachmentPreviewState());
 
@@ -40,6 +45,7 @@ export function AttachmentPreviewHost() {
           }
           onClose={closeAttachmentPreview}
           mobileFillViewport
+          runtimePlugins={runtimePlugins}
         />
       )}
     </DelayedUnmount>

@@ -394,12 +394,17 @@ async def chat_stream(
 
     # 如果用户传入了 session_id，验证所有权
     existing_metadata: dict = {}
+    existing_session = None
     if request.session_id:
         session_manager = SessionManager()
         existing_session = await session_manager.get_session(session_id)
         if existing_session:
             verify_session_ownership(existing_session, user)
             existing_metadata = existing_session.metadata or {}
+    if request.retry_user_message and not request.session_id:
+        raise HTTPException(status_code=400, detail="retry_user_message requires session_id")
+    if request.retry_user_message and not existing_session:
+        raise HTTPException(status_code=404, detail="session not found")
 
     active_goal, agent_message = resolve_goal_for_request(request, existing_metadata)
     active_goal_data = active_goal.model_dump() if active_goal else None
@@ -407,6 +412,8 @@ async def chat_stream(
         agent_message,
         request.user_timezone,
     )
+    write_user_message = not request.retry_user_message
+    user_message_written = request.retry_user_message
 
     task_manager = get_task_manager()
     preferred_language = _get_language(http_request)
@@ -516,12 +523,13 @@ async def chat_stream(
             )
         )
         await presenter._ensure_trace()
-        await presenter.emit_user_message(
-            request.message,
-            attachments=[a.model_dump() for a in request.attachments]
-            if request.attachments
-            else None,
-        )
+        if write_user_message:
+            await presenter.emit_user_message(
+                request.message,
+                attachments=[a.model_dump() for a in request.attachments]
+                if request.attachments
+                else None,
+            )
 
         # Mark user message as already written so executor skips re-emitting
         task_manager._run_info[run_id] = {
@@ -571,7 +579,8 @@ async def chat_stream(
             trace_id=trace_id,
             team_id=request.team_id,
             active_goal=active_goal_data,
-            write_user_message_immediately=True,
+            user_message_written=user_message_written,
+            write_user_message_immediately=write_user_message,
         )
     else:
         # STARTED — 正常提交后台任务
@@ -595,7 +604,8 @@ async def chat_stream(
             team_id=request.team_id,
             trace_id=trace_id,
             active_goal=active_goal_data,
-            write_user_message_immediately=True,
+            user_message_written=user_message_written,
+            write_user_message_immediately=write_user_message,
         )
 
     # 更新 session metadata，存储完整的对话配置

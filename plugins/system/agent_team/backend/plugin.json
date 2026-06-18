@@ -1,0 +1,29 @@
+{
+  "schema": "lambchat.plugin.backend.v1",
+  "plugin_id": "agent_team",
+  "backend": {
+    "routers": [
+      {
+        "name": "agent_team-api",
+        "prefix": "/api/teams",
+        "module": "src.api.routes.team",
+        "required_permissions": ["team:read", "team:write", "team:delete"],
+        "tags": ["Teams"]
+      }
+    ],
+    "tools": [
+      {
+        "name": "agent_team.search_persona_presets",
+        "module": "src.infra.tool.team_tool",
+        "required_permissions": ["team:read", "persona_preset:read", "chat:write"],
+        "legacy_ids": ["search_persona_presets"]
+      },
+      {
+        "name": "agent_team.create_agent_team",
+        "module": "src.infra.tool.team_tool",
+        "required_permissions": ["team:write", "chat:write"],
+        "legacy_ids": ["create_agent_team"]
+      }
+    ]
+  }
+}

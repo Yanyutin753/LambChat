@@ -1,0 +1,30 @@
+{
+  "schema": "lambchat.plugin.backend.v1",
+  "plugin_id": "feedback",
+  "backend": {
+    "routers": [
+      {
+        "name": "feedback-api",
+        "prefix": "/api/feedback",
+        "module": "src.plugins.feedback.routes",
+        "required_permissions": ["feedback:write", "feedback:read", "feedback:admin"],
+        "tags": ["Feedback"]
+      }
+    ],
+    "tools": [
+      {
+        "name": "feedback.summary",
+        "module": "src.plugins.feedback.tools",
+        "required_permissions": ["feedback:read"]
+      }
+    ],
+    "lifespan_hooks": [
+      {
+        "name": "feedback:shutdown",
+        "module": "src.plugins.feedback.lifecycle:close_feedback_manager",
+        "phase": "shutdown",
+        "order": 20
+      }
+    ]
+  }
+}

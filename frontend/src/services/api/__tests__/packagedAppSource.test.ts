@@ -126,10 +126,18 @@ test("approval polling requests use the configured backend base", () => {
 });
 
 test("API modules share the normalized API base configuration", () => {
-  const feedback = readSource("../feedback.ts");
+  const feedback = readSource("../../../plugins/feedback/api.ts");
+  const feedbackCompatibility = readSource("../feedback.ts");
   const notification = readSource("../notification.ts");
 
-  assert.match(feedback, /import \{ API_BASE \} from "\.\/config"/);
+  assert.match(
+    feedback,
+    /import \{ API_BASE \} from "\.\.\/\.\.\/services\/api\/config"/,
+  );
+  assert.match(
+    feedbackCompatibility,
+    /export \{ feedbackApi \} from "\.\.\/\.\.\/plugins\/feedback\/api"/,
+  );
   assert.match(notification, /import \{ API_BASE \} from "\.\/config"/);
   assert.doesNotMatch(feedback, /import\.meta\.env\.VITE_API_BASE/);
   assert.doesNotMatch(notification, /import\.meta\.env\.VITE_API_BASE/);

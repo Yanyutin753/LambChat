@@ -1,4 +1,4 @@
-import { Suspense, lazy, type ReactNode } from "react";
+import { Suspense, lazy, useMemo, type ReactNode } from "react";
 import {
   SkillsPanelSkeleton,
   MarketplacePanelSkeleton,
@@ -12,6 +12,10 @@ import {
   UsagePanelSkeleton,
 } from "../../skeletons";
 import { PanelLoadingState } from "../../common/PanelLoadingState";
+import {
+  buildPanelContributions,
+  type PluginRuntimeContributionStates,
+} from "../../../extensions/coreContributions";
 import type { TabType } from "./types";
 
 const SkillsHubPanel = lazy(() =>
@@ -39,14 +43,14 @@ const MCPPanel = lazy(() =>
   import("../../panels/MCPPanel").then((m) => ({ default: m.MCPPanel })),
 );
 const FeedbackPanel = lazy(() =>
-  import("../../panels/FeedbackPanel").then((m) => ({
+  import("../../../plugins/feedback/FeedbackPanel").then((m) => ({
     default: m.FeedbackPanel,
   })),
 );
 const ChannelsPage = lazy(() =>
   import("../../pages/ChannelsPage").then((m) => ({ default: m.ChannelsPage })),
 );
-const RevealedFilesPage = lazy(() =>
+const RevealedFilesPanel = lazy(() =>
   import("../../fileLibrary/RevealedFilesPanel").then((m) => ({
     default: m.RevealedFilesPanel,
   })),
@@ -82,12 +86,22 @@ const UsagePanel = lazy(() =>
   })),
 );
 
-const panelMap: Record<
-  string,
-  React.LazyExoticComponent<React.ComponentType>
-> = {
+type RuntimeAwarePanelProps = {
+  runtimePlugins?: PluginRuntimeContributionStates;
+};
+
+type PanelComponent = React.LazyExoticComponent<
+  React.ComponentType<Record<string, never>>
+>;
+
+type RuntimeAwarePanelComponent = React.LazyExoticComponent<
+  React.ComponentType<RuntimeAwarePanelProps>
+>;
+
+const corePanelComponents: Record<Exclude<TabType, "chat">, PanelComponent> = {
   skills: SkillsHubPanel,
   marketplace: SkillsHubPanel,
+  plugins: SkillsHubPanel,
   users: UsersPanel,
   roles: RolesPanel,
   settings: SettingsPanel,
@@ -95,7 +109,7 @@ const panelMap: Record<
   feedback: FeedbackPanel,
   channels: ChannelsPage,
   agents: AgentModelPanel,
-  files: RevealedFilesPage,
+  files: RevealedFilesPanel,
   persona: PersonaPlazaPanel,
   team: TeamBuilderPanel,
   notifications: NotificationPanel,
@@ -104,9 +118,39 @@ const panelMap: Record<
   usage: UsagePanel,
 };
 
+function renderPanel(
+  activeTab: Exclude<TabType, "chat">,
+  Panel: PanelComponent,
+  runtimePlugins?: PluginRuntimeContributionStates,
+) {
+  if (activeTab === "skills" || activeTab === "marketplace" || activeTab === "plugins") {
+    const RuntimeAwareSkillsHubPanel = SkillsHubPanel as RuntimeAwarePanelComponent;
+    return <RuntimeAwareSkillsHubPanel runtimePlugins={runtimePlugins} />;
+  }
+  if (activeTab === "files") {
+    const RuntimeAwareRevealedFilesPanel = RevealedFilesPanel as RuntimeAwarePanelComponent;
+    return <RuntimeAwareRevealedFilesPanel runtimePlugins={runtimePlugins} />;
+  }
+  if (activeTab === "channels") {
+    const RuntimeAwareChannelsPage = ChannelsPage as RuntimeAwarePanelComponent;
+    return <RuntimeAwareChannelsPage runtimePlugins={runtimePlugins} />;
+  }
+  return <Panel />;
+}
+
+function buildPanelMap(runtimePlugins?: PluginRuntimeContributionStates) {
+  return buildPanelContributions(runtimePlugins).reduce<
+    Partial<Record<TabType, PanelComponent>>
+  >((map, panel) => {
+    map[panel.tab] = corePanelComponents[panel.tab];
+    return map;
+  }, {});
+}
+
 const skeletonMap: Partial<Record<TabType, ReactNode>> = {
   skills: <SkillsPanelSkeleton />,
   marketplace: <MarketplacePanelSkeleton />,
+  plugins: <MarketplacePanelSkeleton />,
   users: <UsersPanelSkeleton />,
   roles: <RolesPanelSkeleton />,
   mcp: <MCPPanelSkeleton />,
@@ -117,7 +161,18 @@ const skeletonMap: Partial<Record<TabType, ReactNode>> = {
   usage: <UsagePanelSkeleton />,
 };
 
-export function TabContent({ activeTab }: { activeTab: TabType }) {
+export function TabContent({
+  activeTab,
+  runtimePlugins,
+}: {
+  activeTab: TabType;
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
+  const panelMap = useMemo(
+    () => buildPanelMap(runtimePlugins),
+    [runtimePlugins],
+  );
+
   if (activeTab === "chat") return null;
 
   const Panel = panelMap[activeTab];
@@ -127,7 +182,7 @@ export function TabContent({ activeTab }: { activeTab: TabType }) {
     <main className="flex-1 overflow-hidden bg-[var(--theme-bg)]">
       <div className="mx-auto w-full h-full flex flex-col overflow-hidden lg:max-w-[80rem] xl:max-w-[96rem] 2xl:max-w-[120rem] sm:px-4">
         <Suspense fallback={skeletonMap[activeTab] ?? <PanelLoadingState />}>
-          <Panel />
+          {renderPanel(activeTab, Panel, runtimePlugins)}
         </Suspense>
       </div>
     </main>

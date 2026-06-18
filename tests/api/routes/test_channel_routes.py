@@ -7,6 +7,11 @@ from fastapi import HTTPException
 
 from src.api.routes import channels as channels_route
 from src.infra.channel.feishu import registration as feishu_registration
+from src.kernel.extensions import (
+    FEISHU_CONNECTOR_PLUGIN_ID,
+    PluginRuntime,
+    build_feishu_connector_plugin_manifest,
+)
 from src.kernel.schemas.channel import ChannelConfigCreate, ChannelConfigUpdate, ChannelType
 
 
@@ -25,6 +30,22 @@ class _FakeRegistry:
 
     def get_manager_class(self, channel_type: ChannelType):
         return self._manager_class
+
+    def get_channel_metadata(self):
+        return [
+            {
+                "channel_type": "feishu",
+                "display_name": "Feishu",
+                "description": "Feishu channel",
+                "icon": "feishu",
+                "capabilities": [],
+                "config_schema": {},
+                "requires_webhook": False,
+                "requires_websocket": True,
+                "setup_guide": [],
+                "config_fields": [],
+            },
+        ]
 
 
 class _FakeStorage:
@@ -185,6 +206,56 @@ class _FakePersonaManager:
     async def get_preset(self, preset_id: str, *, user_id: str, is_admin: bool):
         self.calls.append((preset_id, user_id, is_admin))
         return SimpleNamespace(id=preset_id)
+
+
+def _disabled_feishu_runtime():
+    runtime = PluginRuntime([build_feishu_connector_plugin_manifest()])
+    runtime.disable_plugin(FEISHU_CONNECTOR_PLUGIN_ID)
+    return runtime
+
+
+@pytest.mark.asyncio
+async def test_channel_types_hide_feishu_when_connector_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    response = await channels_route.get_channel_types(
+        plugin_runtime=_disabled_feishu_runtime()
+    )
+
+    assert [channel.channel_type.value for channel in response.types] == []
+
+
+@pytest.mark.asyncio
+async def test_feishu_channel_operations_fail_closed_when_connector_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await channels_route.list_channel_instances(
+            ChannelType.FEISHU,
+            plugin_runtime=_disabled_feishu_runtime(),
+            user=SimpleNamespace(sub="user-1"),
+            storage=storage,
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error"] == "plugin_unavailable"
+    assert exc_info.value.detail["plugin_id"] == FEISHU_CONNECTOR_PLUGIN_ID
+
+
+@pytest.mark.asyncio
+async def test_feishu_registration_fails_closed_when_connector_is_disabled() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        await channels_route.start_feishu_registration(
+            plugin_runtime=_disabled_feishu_runtime()
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error"] == "plugin_unavailable"
 
 
 @pytest.mark.asyncio

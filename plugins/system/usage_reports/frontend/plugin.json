@@ -1,0 +1,11 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "usage_reports",
+  "frontend": {
+    "routes": ["usage_reports:usage-route"],
+    "panels": ["usage_reports:usage-panel"],
+    "nav_items": ["usage_reports:usage-menu"],
+    "i18n_namespaces": ["usage_reports:usage"],
+    "required_permissions": ["usage:read"]
+  }
+}

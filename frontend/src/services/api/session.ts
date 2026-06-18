@@ -43,6 +43,10 @@ export interface RunGoalSpec {
   max_iterations?: number;
 }
 
+export interface SubmitChatOptions {
+  retryUserMessage?: boolean;
+}
+
 export function buildMessageForkUrl(
   sessionId: string,
   messageId: string,
@@ -82,6 +86,7 @@ export function buildSubmitChatBody({
   userTimezone,
   teamId,
   goal,
+  retryUserMessage,
 }: {
   message: string;
   sessionId?: string;
@@ -95,6 +100,7 @@ export function buildSubmitChatBody({
   userTimezone?: string;
   teamId?: string | null;
   goal?: RunGoalSpec | null;
+  retryUserMessage?: boolean;
 }): Record<string, unknown> {
   const body: Record<string, unknown> = {
     message,
@@ -118,6 +124,9 @@ export function buildSubmitChatBody({
   }
   if (goal) {
     body.goal = goal;
+  }
+  if (retryUserMessage) {
+    body.retry_user_message = true;
   }
   return body;
 }
@@ -314,6 +323,7 @@ export const sessionApi = {
     enabledSkills?: string[],
     teamId?: string | null,
     goal?: RunGoalSpec | null,
+    options?: SubmitChatOptions,
   ): Promise<{
     session_id: string;
     run_id: string;
@@ -333,6 +343,7 @@ export const sessionApi = {
       userTimezone: getBrowserTimezone(),
       teamId,
       goal,
+      retryUserMessage: options?.retryUserMessage,
     });
     return authFetch(`${API_BASE}/api/chat/stream?agent_id=${agentId}`, {
       method: "POST",

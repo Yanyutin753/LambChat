@@ -391,3 +391,63 @@ test("reconstructMessagesFromEvents keeps late run events after cancel on the ca
     "thinking",
   ]);
 });
+
+test("reconstructMessagesFromEvents treats assistant-only run after cancel as retry", () => {
+  const cancelledRunId = "run_cancelled";
+  const retryRunId = "run_retry";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        id: "event-user",
+        event_type: "user:message",
+        run_id: cancelledRunId,
+        timestamp: "2026-06-17T12:00:00.000Z",
+        data: {
+          content: "regenerate this",
+          message_id: `${cancelledRunId}:user`,
+          attachments: [],
+        },
+      },
+      {
+        id: "event-old-chunk",
+        event_type: "message:chunk",
+        run_id: cancelledRunId,
+        timestamp: "2026-06-17T12:00:01.000Z",
+        data: { content: "partial" },
+      },
+      {
+        id: "event-cancel",
+        event_type: "user:cancel",
+        run_id: cancelledRunId,
+        timestamp: "2026-06-17T12:00:02.000Z",
+        data: { run_id: cancelledRunId },
+      },
+      {
+        id: "event-retry-metadata",
+        event_type: "metadata",
+        run_id: retryRunId,
+        timestamp: "2026-06-17T12:00:03.000Z",
+        data: { run_id: retryRunId },
+      },
+      {
+        id: "event-retry-chunk",
+        event_type: "message:chunk",
+        run_id: retryRunId,
+        timestamp: "2026-06-17T12:00:04.000Z",
+        data: { content: "fresh answer" },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  assert.deepEqual(
+    messages.map((message) => [message.id, message.role, message.runId]),
+    [
+      [`${cancelledRunId}:user`, "user", cancelledRunId],
+      [retryRunId, "assistant", retryRunId],
+    ],
+  );
+  assert.equal(messages[1]?.content, "fresh answer");
+  assert.equal(messages[1]?.cancelled, undefined);
+});

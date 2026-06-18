@@ -236,6 +236,8 @@ class Settings(BaseSettings):
 
     # File Upload Settings
     LOCAL_STORAGE_PATH: str = "./uploads"
+    PLUGIN_PACKAGE_PATH: str = "./plugins"
+    PLUGIN_DATA_PATH: str = "./plugin-data"
     ENABLE_LOCAL_FILESYSTEM_FALLBACK: bool = True
     FILE_UPLOAD_MAX_SIZE_IMAGE: int = 10
     FILE_UPLOAD_MAX_SIZE_VIDEO: int = 100

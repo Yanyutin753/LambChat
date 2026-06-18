@@ -14,6 +14,16 @@ from src.kernel.config import (
 from src.kernel.schemas.setting import SettingItem
 
 
+def _plugin_owned_setting_keys() -> dict[str, str]:
+    try:
+        from src.infra.extensions import plugin_owned_system_setting_keys
+        from src.kernel.extensions.builtin_plugins import BUILTIN_PLUGIN_MANIFESTS
+
+        return plugin_owned_system_setting_keys(BUILTIN_PLUGIN_MANIFESTS)
+    except Exception:
+        return {}
+
+
 class SettingsStorage:
     """Settings storage using MongoDB"""
 
@@ -57,7 +67,11 @@ class SettingsStorage:
 
         result: dict[str, list[SettingItem]] = {}
 
+        plugin_owned_keys = _plugin_owned_setting_keys()
+
         for key, definition in SETTING_DEFINITIONS.items():
+            if key in plugin_owned_keys:
+                continue
             # Filter non-admin users
             if not admin_mode and not definition.get("frontend_visible", False):
                 continue
@@ -102,6 +116,8 @@ class SettingsStorage:
 
     async def get(self, key: str) -> Optional[SettingItem]:
         """Get single setting by key (with sensitive values masked)"""
+        if key in _plugin_owned_setting_keys():
+            return None
         return await self._get_internal(key, mask_sensitive=True)
 
     async def get_raw(self, key: str) -> Optional[SettingItem]:

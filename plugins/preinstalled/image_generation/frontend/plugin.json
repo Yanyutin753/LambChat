@@ -1,0 +1,7 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "image_generation",
+  "frontend": {
+    "tool_renderers": ["image_generation:image-generate"]
+  }
+}

@@ -1,0 +1,17 @@
+resources:
+  - id: document-preview-cache
+    type: cache_key
+    scope: session
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      producer: frontend/src/components/documents/documentFetchCache.ts
+      purpose: client-side preview fetch cache
+  - id: preview-blob-urls
+    type: file
+    scope: session
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: browser_object_url
+      purpose: ephemeral rich preview blobs

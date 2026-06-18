@@ -13,11 +13,15 @@ import inspect
 import uuid
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from src.infra.logging import get_logger
+
+if TYPE_CHECKING:
+    from src.kernel.extensions import PluginRuntime
 
 logger = get_logger(__name__)
 
@@ -25,6 +29,12 @@ PubSubHandler = Callable[[dict[str, Any]], Awaitable[None] | None]
 _MAX_RECONNECT_DELAY = 30
 _DEFAULT_MAX_HANDLER_TASKS = 128
 _DEFAULT_MAX_MESSAGE_BYTES = 256 * 1024
+
+
+@dataclass(frozen=True, slots=True)
+class PubSubSubscription:
+    handler: PubSubHandler
+    plugin_listener_id: str | None = None
 
 
 def create_redis_client(*, isolated_pool: bool = False, socket_timeout: Any = None) -> Any:
@@ -57,7 +67,7 @@ class RedisPubSubHub:
         max_handler_tasks: int = _DEFAULT_MAX_HANDLER_TASKS,
         max_message_bytes: int = _DEFAULT_MAX_MESSAGE_BYTES,
     ) -> None:
-        self._subscriptions: dict[str, dict[str, PubSubHandler]] = defaultdict(dict)
+        self._subscriptions: dict[str, dict[str, PubSubSubscription]] = defaultdict(dict)
         self._lock = asyncio.Lock()
         self._listener_task: asyncio.Task | None = None
         self._pubsub: Any | None = None
@@ -68,11 +78,25 @@ class RedisPubSubHub:
         self._resubscribe_task: asyncio.Task[None] | None = None
         self._handler_semaphore = asyncio.Semaphore(max(1, max_handler_tasks))
         self._max_message_bytes = max(1, int(max_message_bytes))
+        self._plugin_runtime: PluginRuntime | None = None
 
-    def subscribe(self, channel: str, handler: PubSubHandler) -> str:
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        """Attach the active Plugin Runtime for plugin-owned listener guards."""
+        self._plugin_runtime = runtime
+
+    def subscribe(
+        self,
+        channel: str,
+        handler: PubSubHandler,
+        *,
+        plugin_listener_id: str | None = None,
+    ) -> str:
         """Register a handler for a Redis channel."""
         token = uuid.uuid4().hex
-        self._subscriptions[channel][token] = handler
+        self._subscriptions[channel][token] = PubSubSubscription(
+            handler=handler,
+            plugin_listener_id=plugin_listener_id,
+        )
         if self._running:
             self._schedule_resubscribe()
         return token
@@ -220,11 +244,11 @@ class RedisPubSubHub:
             )
             return
 
-        handlers = list(self._subscriptions.get(channel, {}).values())
-        for handler in handlers:
+        subscriptions = list(self._subscriptions.get(channel, {}).values())
+        for subscription in subscriptions:
             await self._handler_semaphore.acquire()
             task = asyncio.create_task(
-                self._run_handler(channel, handler, dict(message)),
+                self._run_handler(channel, subscription, dict(message)),
                 name=f"pubsub-handler:{channel}",
             )
             self._handler_tasks.add(task)
@@ -237,17 +261,36 @@ class RedisPubSubHub:
     async def _run_handler(
         self,
         channel: str,
-        handler: PubSubHandler,
+        subscription: PubSubSubscription,
         message: dict[str, Any],
     ) -> None:
         try:
-            result = handler(message)
+            if not self._is_plugin_listener_available(subscription):
+                return
+            result = subscription.handler(message)
             if inspect.isawaitable(result):
                 await result
         except asyncio.CancelledError:
             raise
         except Exception as e:
             logger.error("Pub/sub hub handler failed for channel %s: %s", channel, e)
+
+    def _is_plugin_listener_available(self, subscription: PubSubSubscription) -> bool:
+        listener_id = subscription.plugin_listener_id
+        if not listener_id:
+            return True
+        if self._plugin_runtime is None:
+            logger.warning(
+                "Skipping plugin pub/sub listener %s because Plugin Runtime is unavailable",
+                listener_id,
+            )
+            return False
+        try:
+            self._plugin_runtime.ensure_listener_available(listener_id)
+        except Exception as e:  # noqa: BLE001 - plugin listener dispatch must fail closed
+            logger.info("Skipping plugin pub/sub listener %s: %s", listener_id, e)
+            return False
+        return True
 
     async def _cancel_handler_tasks(self) -> None:
         tasks = list(self._handler_tasks)

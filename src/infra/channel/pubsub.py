@@ -11,6 +11,7 @@ from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
 from src.infra.pubsub_hub import get_pubsub_hub
 from src.infra.storage.redis import get_redis_client
+from src.kernel.extensions import FEISHU_CONNECTOR_ID, PluginRuntime, PluginUnavailableError
 from src.kernel.schemas.channel import ChannelType
 
 logger = get_logger(__name__)
@@ -25,10 +26,14 @@ class ChannelConfigPubSub:
         self._subscription_token: Optional[str] = None
         self._running = False
         self._instance_id = uuid.uuid4().hex[:8]
+        self._plugin_runtime: PluginRuntime | None = None
 
     @property
     def instance_id(self) -> str:
         return self._instance_id
+
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        self._plugin_runtime = runtime
 
     async def start_listener(self) -> None:
         if self._running:
@@ -69,6 +74,13 @@ class ChannelConfigPubSub:
             except ValueError:
                 logger.warning("Unknown channel type from pub/sub event: %s", channel_type_value)
                 return
+
+            if channel_type is ChannelType.FEISHU and self._plugin_runtime is not None:
+                try:
+                    self._plugin_runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
+                except PluginUnavailableError as exc:
+                    logger.info("Skipped Feishu channel config reload by Plugin Runtime: %s", exc)
+                    return
 
             manager_class = get_registry().get_manager_class(channel_type)
             if not manager_class:

@@ -14,6 +14,7 @@ import {
 import { isMobileDevice } from "../../../utils/mobile";
 import type { Project, VersionInfo } from "../../../types";
 import type { TabType } from "./types";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 
 function isEditableElementFocused(): boolean {
   if (typeof document === "undefined") return false;
@@ -76,6 +77,7 @@ export interface AppShellProps {
   // Outline
   showOutlineButton?: boolean;
   onToggleOutline?: () => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 export function AppShell({
@@ -96,6 +98,7 @@ export function AppShell({
   sessionId,
   showOutlineButton,
   onToggleOutline,
+  runtimePlugins,
 }: AppShellProps) {
   const appSafeAreaTop =
     "var(--app-safe-area-top-active, max(var(--app-safe-area-top, 0px), var(--app-fullscreen-safe-area-top, 0px)))";
@@ -313,6 +316,7 @@ export function AppShell({
             sessionId={sessionId}
             showOutlineButton={showOutlineButton}
             onToggleOutline={onToggleOutline}
+            runtimePlugins={runtimePlugins}
           />
 
           {children}

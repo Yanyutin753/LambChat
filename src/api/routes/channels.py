@@ -6,7 +6,7 @@ Supports multiple channel types and multiple instances per channel type.
 
 import inspect
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.api.deps import get_current_user_required, require_permissions
 from src.infra.agent.config_storage import get_agent_config_storage
@@ -17,6 +17,12 @@ from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
 from src.kernel.exceptions import AuthorizationError, NotFoundError
+from src.kernel.extensions import (
+    FEISHU_CONNECTOR_ID,
+    FEISHU_CONNECTOR_PLUGIN_ID,
+    PluginRuntime,
+    PluginUnavailableError,
+)
 from src.kernel.schemas.channel import (
     ChannelConfigCreate,
     ChannelConfigResponse,
@@ -38,6 +44,48 @@ CHANNEL_LIST_MAX_ITEMS = 200
 async def get_channel_storage() -> ChannelStorage:
     """Dependency to get ChannelStorage"""
     return ChannelStorage()
+
+
+def get_plugin_runtime(request: Request) -> PluginRuntime | None:
+    runtime = getattr(request.app.state, "plugin_runtime", None)
+    if isinstance(runtime, PluginRuntime):
+        return runtime
+    return None
+
+
+def _plugin_unavailable_http_error(exc: PluginUnavailableError) -> HTTPException:
+    return HTTPException(
+        status_code=503,
+        detail={
+            "error": "plugin_unavailable",
+            "plugin_id": FEISHU_CONNECTOR_PLUGIN_ID,
+            "message": str(exc),
+        },
+    )
+
+
+def _is_feishu_connector_available(plugin_runtime: object) -> bool:
+    if not isinstance(plugin_runtime, PluginRuntime):
+        return True
+    try:
+        plugin_runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
+    except PluginUnavailableError:
+        return False
+    return True
+
+
+def _ensure_channel_connector_available(
+    channel_type: ChannelType,
+    plugin_runtime: object,
+) -> None:
+    if channel_type != ChannelType.FEISHU:
+        return
+    if not isinstance(plugin_runtime, PluginRuntime):
+        return
+    try:
+        plugin_runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
+    except PluginUnavailableError as exc:
+        raise _plugin_unavailable_http_error(exc) from exc
 
 
 async def _validate_agent_id(agent_id: str | None, user: TokenPayload) -> None:
@@ -112,10 +160,18 @@ async def _is_manager_connected(manager, user_id: str, instance_id: str) -> bool
     response_model=ChannelTypeListResponse,
     dependencies=[Depends(require_permissions(Permission.CHANNEL_READ))],
 )
-async def get_channel_types():
+async def get_channel_types(
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+):
     """Get all available channel types with metadata"""
     registry = get_registry()
     metadata_list = registry.get_channel_metadata()
+    if not _is_feishu_connector_available(plugin_runtime):
+        metadata_list = [
+            metadata
+            for metadata in metadata_list
+            if metadata.get("channel_type") != ChannelType.FEISHU.value
+        ]
     return ChannelTypeListResponse(types=metadata_list)
 
 
@@ -123,8 +179,11 @@ async def get_channel_types():
     "/feishu/registrations",
     dependencies=[Depends(require_permissions(Permission.CHANNEL_WRITE))],
 )
-async def start_feishu_registration():
+async def start_feishu_registration(
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+):
     """Start a one-click Feishu app registration session."""
+    _ensure_channel_connector_available(ChannelType.FEISHU, plugin_runtime)
     try:
         from src.infra.channel.feishu.registration import start_registration
 
@@ -141,8 +200,12 @@ async def start_feishu_registration():
     "/feishu/registrations/{session_id}",
     dependencies=[Depends(require_permissions(Permission.CHANNEL_WRITE))],
 )
-async def get_feishu_registration(session_id: str):
+async def get_feishu_registration(
+    session_id: str,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+):
     """Poll a one-click Feishu app registration session."""
+    _ensure_channel_connector_available(ChannelType.FEISHU, plugin_runtime)
     from src.infra.channel.feishu.registration import get_registration
 
     session = await run_blocking_io(get_registration, session_id, timeout=5.0)
@@ -155,8 +218,12 @@ async def get_feishu_registration(session_id: str):
     "/feishu/registrations/{session_id}",
     dependencies=[Depends(require_permissions(Permission.CHANNEL_WRITE))],
 )
-async def cancel_feishu_registration(session_id: str):
+async def cancel_feishu_registration(
+    session_id: str,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+):
     """Cancel a one-click Feishu app registration session."""
+    _ensure_channel_connector_available(ChannelType.FEISHU, plugin_runtime)
     from src.infra.channel.feishu.registration import cancel_registration
 
     if not await run_blocking_io(cancel_registration, session_id, timeout=5.0):
@@ -170,6 +237,7 @@ async def cancel_feishu_registration(session_id: str):
     dependencies=[Depends(require_permissions(Permission.CHANNEL_READ))],
 )
 async def list_user_channels(
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
@@ -187,6 +255,8 @@ async def list_user_channels(
     for config in configs:
         try:
             channel_type = ChannelType(config.get("channel_type"))
+            if channel_type == ChannelType.FEISHU and not _is_feishu_connector_available(plugin_runtime):
+                continue
             metadata = registry.get_channel_class(channel_type)
             if metadata:
                 meta = metadata.get_metadata()
@@ -232,10 +302,12 @@ async def list_user_channels(
 )
 async def list_channel_instances(
     channel_type: ChannelType,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
     """List all instances of a specific channel type"""
+    _ensure_channel_connector_available(channel_type, plugin_runtime)
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
@@ -293,10 +365,12 @@ async def list_channel_instances(
 async def get_channel_instance(
     channel_type: ChannelType,
     instance_id: str,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
     """Get a specific channel instance"""
+    _ensure_channel_connector_available(channel_type, plugin_runtime)
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
@@ -319,10 +393,12 @@ async def get_channel_instance(
 async def create_channel_instance(
     channel_type: ChannelType,
     data: ChannelConfigCreate,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
     """Create a new channel instance"""
+    _ensure_channel_connector_available(channel_type, plugin_runtime)
     if data.channel_type != channel_type:
         raise HTTPException(
             status_code=400,
@@ -407,10 +483,12 @@ async def update_channel_instance(
     channel_type: ChannelType,
     instance_id: str,
     data: ChannelConfigUpdate,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
     """Update a specific channel instance"""
+    _ensure_channel_connector_available(channel_type, plugin_runtime)
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
@@ -510,10 +588,12 @@ async def update_channel_instance(
 async def delete_channel_instance(
     channel_type: ChannelType,
     instance_id: str,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
     """Delete a specific channel instance"""
+    _ensure_channel_connector_available(channel_type, plugin_runtime)
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
@@ -560,10 +640,12 @@ async def delete_channel_instance(
 async def get_channel_instance_status(
     channel_type: ChannelType,
     instance_id: str,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
     """Get connection status for a specific channel instance"""
+    _ensure_channel_connector_available(channel_type, plugin_runtime)
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:
@@ -602,10 +684,12 @@ async def get_channel_instance_status(
 async def test_channel_instance_connection(
     channel_type: ChannelType,
     instance_id: str,
+    plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
 ):
     """Test connection for a specific channel instance"""
+    _ensure_channel_connector_available(channel_type, plugin_runtime)
     registry = get_registry()
     channel_class = registry.get_channel_class(channel_type)
     if not channel_class:

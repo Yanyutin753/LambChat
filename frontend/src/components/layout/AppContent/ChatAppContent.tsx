@@ -42,6 +42,7 @@ import { AppShell } from "./AppShell";
 import { ChatView } from "./ChatView";
 import { shouldShowMessageOutline } from "./messageOutline";
 import { buildEffectiveSkills, countEnabledSkills } from "./skillAvailability";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 
 const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
 const CHAT_SKILL_LIST_PARAMS = { limit: 100 };
@@ -55,6 +56,7 @@ export interface ChatAppContentProps {
   mobileSidebarOpen: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
   onShowProfile: () => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 export function ChatAppContent({
@@ -66,6 +68,7 @@ export function ChatAppContent({
   mobileSidebarOpen,
   setMobileSidebarOpen,
   onShowProfile,
+  runtimePlugins,
 }: ChatAppContentProps) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -813,6 +816,7 @@ export function ChatAppContent({
       projectManager={projectManager}
       onNewSession={handleNewSessionWithReset}
       onShowProfile={onShowProfile}
+      runtimePlugins={runtimePlugins}
       availableModels={filteredModels}
       currentModelId={currentModelId}
       onSelectModel={handleSelectModel}
@@ -834,6 +838,7 @@ export function ChatAppContent({
           isCollapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
           onShowProfile={onShowProfile}
+          runtimePlugins={runtimePlugins}
         />
       }
     >
@@ -919,8 +924,8 @@ export function ChatAppContent({
           approvals={approvals}
           onRespondApproval={respondToApproval}
           approvalLoading={approvalLoading}
-          onSendMessage={(content, sendAttachments) =>
-            void sendMessage(content, undefined, sendAttachments)
+          onSendMessage={(content, sendAttachments, sendOptions) =>
+            void sendMessage(content, undefined, sendAttachments, sendOptions)
           }
           onStopGeneration={stopGeneration}
           activeGoal={activeGoal}
@@ -937,6 +942,7 @@ export function ChatAppContent({
           }
           externalScrollToBottom={externalScrollToBottom}
           outlineToggleRef={outlineToggleRef}
+          runtimePlugins={runtimePlugins}
         />
         <BlockPreviewPortal />
       </>

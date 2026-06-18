@@ -4,76 +4,44 @@
  */
 
 import { useState, useEffect, useRef } from "react";
-import {
-  Server,
-  Brain,
-  MessageCircle,
-  Sparkles,
-  UserRound,
-  Users,
-} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./useAuth";
 import { useSettingsContext } from "../contexts/SettingsContext";
-import { Permission } from "../types";
+import {
+  buildSidebarMoreNavContributions,
+  type PluginRuntimeContributionStates,
+} from "../extensions/coreContributions";
 import { useSwipeToClose } from "./useSwipeToClose";
 
 interface UseMoreMenuParams {
   isCollapsed: boolean;
   isMobile: boolean;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
-export function useMoreMenu({ isCollapsed, isMobile }: UseMoreMenuParams) {
+export function useMoreMenu({
+  isCollapsed,
+  isMobile,
+  runtimePlugins,
+}: UseMoreMenuParams) {
   const { t } = useTranslation();
   const { hasAnyPermission } = useAuth();
   const { enableMemory } = useSettingsContext();
   const location = useLocation();
 
-  const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
-  const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
-  const canReadMemory = enableMemory;
-  const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
-  const canReadTeam = hasAnyPermission([Permission.TEAM_READ]);
-
-  const moreMenuFeatureItems = [
-    {
-      path: "/persona",
-      label: t("personaPresets.title", "角色广场"),
-      icon: UserRound,
-      show: true,
-    },
-    {
-      path: "/team",
-      label: t("nav.team", "团队构建"),
-      icon: Users,
-      show: canReadTeam,
-    },
-    {
-      path: "/skills",
-      label: t("nav.skills"),
-      icon: Sparkles,
-      show: canReadSkills,
-    },
-    {
-      path: "/mcp",
-      label: t("nav.mcp"),
-      icon: Server,
-      show: canReadMCP,
-    },
-    {
-      path: "/channels",
-      label: t("nav.channels"),
-      icon: MessageCircle,
-      show: canReadChannels,
-    },
-    {
-      path: "/memory",
-      label: t("nav.memory"),
-      icon: Brain,
-      show: canReadMemory,
-    },
-  ];
+  const moreMenuFeatureItems = buildSidebarMoreNavContributions(runtimePlugins).map((item) => ({
+    path: item.path,
+    label: item.fallbackLabel
+      ? t(item.labelKey, item.fallbackLabel)
+      : t(item.labelKey),
+    icon: item.icon,
+    show:
+      item.requiresSetting === "memory"
+        ? enableMemory
+        : !item.requiredAnyPermissions ||
+          hasAnyPermission([...item.requiredAnyPermissions]),
+  }));
 
   const hasMoreMenuItems = moreMenuFeatureItems.some((i) => i.show);
 

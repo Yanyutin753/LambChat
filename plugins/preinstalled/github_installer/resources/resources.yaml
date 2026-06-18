@@ -1,0 +1,18 @@
+resources:
+  - id: github.com/api/repos/contents
+    type: cache_key
+    scope: system
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      provider: github
+      purpose: repository skill preview and install scan
+  - id: user-skills/{user_id}/{skill_name}
+    type: file
+    scope: user
+    retention_policy: core_owned_do_not_delete
+    cleanup_strategy: forbid_delete
+    metadata:
+      writer: src.api.routes.github.install_github_skills
+      owned_by: skill_core
+      reason: GitHub importer writes Skill core user data and must not delete it during plugin uninstall.

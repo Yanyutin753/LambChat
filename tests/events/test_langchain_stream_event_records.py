@@ -24,7 +24,7 @@ EXPECTED_UNHANDLED_EVENTS = frozenset(
 
 
 def _load_fixture() -> dict:
-    return json.loads(FIXTURE_PATH.read_text())
+    return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
 def _load_fixture_event_names() -> set[str]:
@@ -39,7 +39,7 @@ def _extract_processed_event_types() -> set[str]:
     2. Explicit `on_chat_model_end` check
     3. TOOL_TASK match branches (these use on_tool_start/end/error, already in _CONTEXT_EVENT_TYPES)
     """
-    source = PROCESSOR_PATH.read_text()
+    source = PROCESSOR_PATH.read_text(encoding="utf-8")
 
     # 1. Extract _CONTEXT_EVENT_TYPES frozenset
     import re
@@ -129,7 +129,7 @@ def test_context_event_types_match_processor() -> None:
     """The context_event_types in the fixture must exactly match _CONTEXT_EVENT_TYPES in processor.py."""
     import re
 
-    source = PROCESSOR_PATH.read_text()
+    source = PROCESSOR_PATH.read_text(encoding="utf-8")
     ctx_match = re.search(
         r"_CONTEXT_EVENT_TYPES\s*=\s*frozenset\s*\(\s*\(([^)]+)\)\s*\)",
         source,

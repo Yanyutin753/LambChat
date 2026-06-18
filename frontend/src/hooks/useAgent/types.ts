@@ -161,6 +161,12 @@ export interface ActiveGoalSpec {
   ended_at?: string;
 }
 
+export interface SendMessageOptions {
+  retryUserMessage?: boolean;
+  retryAssistantMessageId?: string;
+  retryAfterUserMessageId?: string;
+}
+
 // Subagent tracking item
 export interface SubagentStackItem {
   agent_id: string;
@@ -246,6 +252,7 @@ export interface UseAgentReturn {
     content: string,
     agentOptions?: Record<string, boolean | string | number>,
     attachments?: MessageAttachment[],
+    options?: SendMessageOptions,
   ) => Promise<void>;
   clearActiveGoal: () => void;
   stopGeneration: () => Promise<void>;

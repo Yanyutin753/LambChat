@@ -1,0 +1,51 @@
+resources:
+  - id: feedback:message-feedback
+    type: message_action
+    scope: session
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      frontend_component: frontend/src/plugins/feedback/FeedbackButtons.tsx
+      purpose: Assistant message thumbs up/down feedback action.
+  - id: feedback
+    type: db_collection
+    scope: global
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: mongodb
+      manager: src.infra.feedback.manager.FeedbackManager
+      schema: src.kernel.schemas.feedback.Feedback
+  - id: feedback.user_run_unique
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: feedback
+      fields: user_id,session_id,run_id
+      unique: "true"
+  - id: feedback.session_run_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: feedback
+      fields: session_id,run_id
+  - id: feedback.rating_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: feedback
+      fields: rating
+  - id: feedback.created_at_sort
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: feedback
+      fields: created_at:-1

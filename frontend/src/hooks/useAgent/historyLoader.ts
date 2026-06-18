@@ -78,6 +78,19 @@ function canAttachToPreviousAssistant(
   );
 }
 
+function shouldReplaceCancelledAssistantWithRetry(
+  event: HistoryEvent,
+  message: Message | undefined,
+): boolean {
+  return (
+    canAttachEventTypeToPreviousAssistant(event.event_type) &&
+    message?.role === "assistant" &&
+    message.cancelled === true &&
+    Boolean(event.run_id) &&
+    message.runId !== event.run_id
+  );
+}
+
 /**
  * Process a single history event and update message state.
  * Returns updated currentAssistantMessage or new message.
@@ -328,6 +341,16 @@ export function reconstructMessagesFromEvents(
     ) {
       const lastMessageIndex = reconstructedMessages.length - 1;
       const lastMessage = reconstructedMessages[lastMessageIndex];
+      if (shouldReplaceCancelledAssistantWithRetry(event, lastMessage)) {
+        currentAssistantMessage = processHistoryEvent(
+          event,
+          null,
+          processedEventIds,
+          opts,
+        );
+        reconstructedMessages.splice(lastMessageIndex, 1);
+        continue;
+      }
       if (canAttachToPreviousAssistant(event, lastMessage)) {
         const updatedMessage = processHistoryEvent(
           event,

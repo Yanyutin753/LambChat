@@ -14,7 +14,7 @@ const selectorSources = [
   "../../components/selectors/ToolSelector.tsx",
 ].map(readSource);
 const overlaySources = [
-  "../../components/chat/ChatMessage/FeedbackDialog.tsx",
+  "../../plugins/feedback/FeedbackDialog.tsx",
   "../../components/common/ConfirmDialog.tsx",
   "../../components/common/ContactAdminDialog.tsx",
   "../../components/common/DeleteProjectDialog.tsx",

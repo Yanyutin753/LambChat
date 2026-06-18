@@ -511,14 +511,19 @@ test("mcp panel generic shell actions use shared buttons", () => {
 test("core admin crud panels use shared panel controls for generic actions", () => {
   const sources = [
     readSource("../../panels/NotificationPanel.tsx"),
-    readSource("../../panels/FeedbackPanel.tsx"),
+    readSource("../../../plugins/feedback/FeedbackPanel.tsx"),
     readSource("../../panels/UsersPanel.tsx"),
     readSource("../../panels/RolesPanel.tsx"),
   ].join("\n");
+  const feedbackCompatibility = readSource("../../panels/FeedbackPanel.tsx");
 
   assert.match(sources, /PanelFilterSelect/);
   assert.match(sources, /PanelFooterActions/);
   assert.match(sources, /<Button[\s>]/);
+  assert.match(
+    feedbackCompatibility,
+    /export \{ FeedbackPanel \} from "\.\.\/\.\.\/plugins\/feedback\/FeedbackPanel"/,
+  );
   assert.doesNotMatch(
     sources,
     /className="btn-(primary|secondary|danger|icon)[^"]*"/,

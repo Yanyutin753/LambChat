@@ -9,13 +9,15 @@ import {
   getAppToastSidebarOffset,
 } from "./appToastLayout";
 import type { TabType } from "./types";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 import { useRightPanelAutoCollapse } from "./useRightPanelAutoCollapse";
 
 interface AppContentProps {
   activeTab: TabType;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
-export function AppContent({ activeTab }: AppContentProps) {
+export function AppContent({ activeTab, runtimePlugins }: AppContentProps) {
   const { versionInfo } = useVersion();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -124,6 +126,7 @@ export function AppContent({ activeTab }: AppContentProps) {
         mobileSidebarOpen={mobileSidebarOpen}
         setMobileSidebarOpen={setMobileSidebarOpen}
         onShowProfile={handleShowProfile}
+        runtimePlugins={runtimePlugins}
       />
     );
   }
@@ -139,6 +142,7 @@ export function AppContent({ activeTab }: AppContentProps) {
       mobileSidebarOpen={mobileSidebarOpen}
       setMobileSidebarOpen={setMobileSidebarOpen}
       onShowProfile={handleShowProfile}
+      runtimePlugins={runtimePlugins}
     />
   );
 }

@@ -48,3 +48,31 @@ test("tracks current store size for lightweight observability", () => {
 
   assert.equal(store.size(), 1);
 });
+
+test("notifies listeners when runtime plugin contribution state changes", () => {
+  const store = createSubagentPanelStore();
+  const calls: string[] = [];
+  const firstRuntimeState = [
+    {
+      plugin_id: "image_generation",
+      enabled: true,
+      executable: true,
+      status: "enabled",
+    },
+  ];
+  const nextRuntimeState = [
+    {
+      plugin_id: "image_generation",
+      enabled: false,
+      executable: false,
+      status: "disabled",
+    },
+  ];
+
+  store.set({ ...createData("agent-a"), runtimePlugins: firstRuntimeState });
+  store.subscribe("agent-a", () => calls.push("a"));
+  store.set({ ...createData("agent-a"), runtimePlugins: nextRuntimeState });
+
+  assert.deepEqual(calls, ["a"]);
+  assert.equal(store.get("agent-a")?.runtimePlugins, nextRuntimeState);
+});

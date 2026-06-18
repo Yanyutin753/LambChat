@@ -53,6 +53,7 @@ import type {
   ProjectActions,
   ScheduledTaskActions,
 } from "./SidebarParts";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
 
 // ─── Public interfaces ─────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ interface SessionSidebarProps {
   /** Project ID to auto-expand after a new session is created in it */
   autoExpandProjectId?: string | null;
   onConsumeAutoExpandProjectId?: (projectId: string) => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 export interface SessionSidebarHandle {
@@ -103,6 +105,7 @@ export const SessionSidebar = forwardRef<
     onSetPendingProjectId,
     autoExpandProjectId,
     onConsumeAutoExpandProjectId,
+    runtimePlugins,
   },
   ref,
 ) {
@@ -240,7 +243,7 @@ export const SessionSidebar = forwardRef<
     getProjectRef,
   });
 
-  const moreMenu = useMoreMenu({ isCollapsed, isMobile });
+  const moreMenu = useMoreMenu({ isCollapsed, isMobile, runtimePlugins });
 
   useSessionSidebarEffects({
     currentSessionId,

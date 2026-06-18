@@ -1,0 +1,9 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "github_installer",
+  "frontend": {
+    "skill_importers": ["github_installer:github-import"],
+    "i18n_namespaces": ["github_installer:skills"],
+    "required_permissions": ["skill:read", "skill:write"]
+  }
+}

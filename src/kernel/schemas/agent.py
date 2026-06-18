@@ -62,6 +62,10 @@ class AgentRequest(BaseModel):
     project_id: Optional[str] = Field(None, description="Project ID to assign to new session")
     team_id: Optional[str] = Field(None, description="Team ID for team agent mode")
     goal: Optional[GoalSpec] = Field(None, description="Active goal for rubric-guided execution")
+    retry_user_message: bool = Field(
+        False,
+        description="Regenerate using an existing user message without writing a duplicate user event",
+    )
 
 
 class AgentStep(BaseModel):

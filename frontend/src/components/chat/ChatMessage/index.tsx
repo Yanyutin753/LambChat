@@ -16,7 +16,7 @@ import { ToolCallItem } from "./ToolCallItem";
 import { UserMessageBubble } from "./UserMessageBubble";
 import { MessagePartRenderer } from "./MessagePartRenderer";
 import { RevealArtifactsSummary } from "./RevealArtifactsSummary";
-import { FeedbackButtons } from "./FeedbackButtons";
+import { FeedbackButtons } from "../../../plugins/feedback/FeedbackButtons";
 import { AssistantAvatar } from "./AssistantAvatar";
 import { ShareButton } from "./ShareButton";
 import { CollapsiblePill } from "../../common/CollapsiblePill";
@@ -36,6 +36,10 @@ import { createMessageAnchorId } from "../../layout/AppContent/messageOutline";
 import { formatDateTime, formatDateTimeShort } from "../../../utils/datetime";
 import { copyToClipboard } from "../../../utils/clipboard";
 import { shouldShowGoalDetailsForMessage } from "../goalVisibility";
+import {
+  hasMessageActionContribution,
+  type PluginRuntimeContributionStates,
+} from "../../../extensions/coreContributions";
 
 // Skeleton-style loading animation component - refined thin lines
 function ThinkingIndicator() {
@@ -87,6 +91,7 @@ interface ChatMessageProps {
   showFeedbackAndShareActions?: boolean;
   activeGoal?: ActiveGoalSpec | null;
   isFirst?: boolean;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 // Token usage statistics button component - ChatGPT style
@@ -455,12 +460,17 @@ export const ChatMessage = memo(function ChatMessage({
   showFeedbackAndShareActions = true,
   activeGoal,
   isFirst,
+  runtimePlugins,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const { availableModels } = useSettingsContext();
   const { isAuthenticated } = useAuth();
   const isUser = message.role === "user";
   const isStreaming = message.isStreaming && !message.content;
+  const canUseFeedbackAction = hasMessageActionContribution(
+    "feedback",
+    runtimePlugins,
+  );
   const modelDetails = resolveTokenUsageModelDetails({
     modelId: message.tokenUsage?.model_id,
     model: message.tokenUsage?.model,
@@ -565,6 +575,7 @@ export const ChatMessage = memo(function ChatMessage({
                         ? () => void onRetryCancelledMessage(message.id)
                         : undefined
                     }
+                    runtimePlugins={runtimePlugins}
                     allowAutoPreview={shouldAllowAutoPreviewForPart({
                       messageId: message.id,
                       partIndex: index,
@@ -677,7 +688,10 @@ export const ChatMessage = memo(function ChatMessage({
             {showFeedbackAndShareActions && (
               <>
                 {/* Feedback buttons */}
-                {isAuthenticated && sessionId && (message.runId || runId) && (
+                {canUseFeedbackAction &&
+                  isAuthenticated &&
+                  sessionId &&
+                  (message.runId || runId) && (
                   <FeedbackButtons
                     sessionId={sessionId}
                     runId={message.runId || runId!}
@@ -720,6 +734,7 @@ export const ChatMessage = memo(function ChatMessage({
                     activePreview={activePreview}
                     onOpenPreview={onOpenPreview}
                     onRecommendQuestionClick={onRecommendQuestionClick}
+                    runtimePlugins={runtimePlugins}
                     allowAutoPreview={undefined}
                   />
                 ))}

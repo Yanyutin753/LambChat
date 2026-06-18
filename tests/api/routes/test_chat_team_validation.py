@@ -77,6 +77,6 @@ def test_validate_team_agent_request_ignores_other_agents() -> None:
 def test_conversation_metadata_scopes_team_id_to_team_agent() -> None:
     from pathlib import Path
 
-    source = Path("src/api/routes/chat.py").read_text()
+    source = Path("src/api/routes/chat.py").read_text(encoding="utf-8")
 
     assert 'if agent_id == "team" and request.team_id:' in source

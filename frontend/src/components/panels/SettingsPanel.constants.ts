@@ -1,31 +1,9 @@
+import { CORE_SETTINGS_SECTIONS } from "../../extensions/coreContributions";
 import type { SettingCategory, SettingType } from "../../types";
 
-export const CATEGORY_ORDER: SettingCategory[] = [
-  "frontend",
-  "agent",
-  "llm",
-  "session",
-  "mongodb",
-  "redis",
-  "checkpoint",
-  "long_term_storage",
-  "memory",
-  "memory_embedding",
-  "memory_search",
-  "memory_storage",
-  "security",
-  "email",
-  "captcha",
-  "s3",
-  "file_upload",
-  "sandbox",
-  "skills",
-  "tools",
-  "audio_transcription",
-  "tracing",
-  "user",
-  "oauth",
-];
+export const CATEGORY_ORDER: SettingCategory[] = CORE_SETTINGS_SECTIONS.map(
+  (section) => section.category,
+);
 
 export const TYPE_COLORS: Record<SettingType, string> = {
   string: "bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300",

@@ -23,6 +23,7 @@ import {
 import { BackIcon } from "../common/BackIcon";
 import { getFullUrl } from "../../services/api";
 import { shareApi } from "../../services/api/share";
+import { pluginRuntimeApi } from "../../services/api/pluginRuntime";
 import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
@@ -50,6 +51,7 @@ import { BrandWordmark } from "../common/BrandWordmark";
 import { formatDate, formatDateTimeShort } from "../../utils/datetime";
 import { getModelIconUrl, isMonochromeIcon } from "../agent/modelIcon";
 import { ScrollButtons } from "../landing/components/ScrollButtons";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
 import {
   PersonaAvatarImage,
   PersonaAvatarIcon,
@@ -189,6 +191,8 @@ export function SharedPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SharedContentResponse | null>(null);
+  const [runtimePlugins, setRuntimePlugins] =
+    useState<PluginRuntimeContributionStates>();
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(true);
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -262,6 +266,29 @@ export function SharedPage() {
 
     loadSharedContent();
   }, [shareId, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadContributionStates = async () => {
+      try {
+        const response = await pluginRuntimeApi.listContributionStates();
+        if (!cancelled) {
+          setRuntimePlugins(response.plugins);
+        }
+      } catch (err) {
+        console.warn("Failed to load public plugin runtime states:", err);
+        if (!cancelled) {
+          setRuntimePlugins(undefined);
+        }
+      }
+    };
+
+    loadContributionStates();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Reconstruct messages from events using the same logic as the main chat
   const messages = useMemo(() => {
@@ -807,6 +834,7 @@ export function SharedPage() {
                     onOpenPreview={handleOpenPreview}
                     showFeedbackAndShareActions={false}
                     isFirst={index === 0}
+                    runtimePlugins={runtimePlugins}
                   />
                 </div>
               ))}

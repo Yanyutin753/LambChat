@@ -48,6 +48,11 @@ import {
   isProjectPreviewFullscreen,
   requestProjectPreviewFullscreen,
 } from "../chat/ChatMessage/items/projectPreviewFullscreen";
+import {
+  hasFileViewerContribution,
+  type PluginRuntimeContributionStates,
+} from "../../extensions/coreContributions";
+import { hasPluginAssetSlot } from "../../extensions/pluginAssetSlots";
 
 export interface DocumentPreviewProps {
   path: string;
@@ -64,6 +69,7 @@ export interface DocumentPreviewProps {
   onBack?: () => void;
   mobileFillViewport?: boolean;
   footer?: ReactNode;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 export function useDocumentPreviewState(props: DocumentPreviewProps) {
@@ -76,6 +82,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     imageUrl: externalImageUrl,
     mimeType,
     onBack,
+    runtimePlugins,
   } = props;
 
   const { t } = useTranslation();
@@ -193,6 +200,10 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   const excalidrawFile = isExcalidrawFile(ext);
   const videoFile = isVideoFile(ext);
   const audioFile = isAudioFile(ext);
+  const advancedFileViewersEnabled =
+    runtimePlugins === undefined ||
+    (hasFileViewerContribution("code", runtimePlugins) &&
+      hasPluginAssetSlot("file_viewer", runtimePlugins));
 
   // MIME-based fallback
   const mime = mimeType?.toLowerCase();
@@ -206,15 +217,16 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     resolvedImageFile ||
     resolvedVideoFile ||
     resolvedAudioFile ||
-    resolvedPdfFile ||
-    cadFile ||
-    pptFile ||
-    htmlFile ||
-    wordPreviewFile ||
-    excelFile ||
-    excalidrawFile ||
-    markdownFile ||
-    codeFile;
+    (advancedFileViewersEnabled &&
+      (resolvedPdfFile ||
+        cadFile ||
+        pptFile ||
+        htmlFile ||
+        wordPreviewFile ||
+        excelFile ||
+        excalidrawFile ||
+        markdownFile ||
+        codeFile));
   const unsupportedPreviewFile = !hasSupportedPreview && !resolvedBinaryFile;
 
   // Memoized values
@@ -225,13 +237,11 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
       data?.content &&
       !unsupportedPreviewFile &&
       !resolvedBinaryFile &&
-      !excelFile &&
-      !pptFile &&
-      !cadFile &&
-      !htmlFile &&
-      !excalidrawFile
+      (!advancedFileViewersEnabled ||
+        (!excelFile && !pptFile && !cadFile && !htmlFile && !excalidrawFile))
     );
   }, [
+    advancedFileViewersEnabled,
     data?.content,
     unsupportedPreviewFile,
     resolvedBinaryFile,
@@ -282,7 +292,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           return;
         }
 
-        if (dxfFile) {
+        if (advancedFileViewersEnabled && dxfFile) {
           const blob = new Blob([content], { type: "text/plain" });
           const url = URL.createObjectURL(blob);
           setCadUrl(url);
@@ -292,14 +302,14 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           return;
         }
 
-        if (dwgFile) {
+        if (advancedFileViewersEnabled && dwgFile) {
           setCadKind("dwg");
           setData({ content: "", path });
           setLoading(false);
           return;
         }
 
-        if (htmlFile) {
+        if (advancedFileViewersEnabled && htmlFile) {
           const blob = new Blob([content], { type: "text/html" });
           const url = URL.createObjectURL(blob);
           setHtmlUrl(url);
@@ -336,7 +346,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             return;
           }
 
-          if (resolvedPdfFile) {
+          if (advancedFileViewersEnabled && resolvedPdfFile) {
             const buffer = await fetchDocumentArrayBuffer(readUrl);
             const blob = new Blob([buffer], { type: "application/pdf" });
             const previewUrl = URL.createObjectURL(blob);
@@ -360,7 +370,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             return;
           }
 
-          if (cadFile) {
+          if (advancedFileViewersEnabled && cadFile) {
             setCadUrl(readUrl);
             setCadKind(dxfFile ? "dxf" : "dwg");
             setData({ content: "", path });
@@ -368,7 +378,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             return;
           }
 
-          if (pptFile) {
+          if (advancedFileViewersEnabled && pptFile) {
             const buffer = await fetchDocumentArrayBuffer(readUrl);
             setPptxBuffer(buffer);
             setData({ content: "", path });
@@ -376,7 +386,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             return;
           }
 
-          if (htmlFile) {
+          if (advancedFileViewersEnabled && htmlFile) {
             setHtmlUrl(url);
             try {
               const text = await fetchDocumentText(readUrl);
@@ -389,7 +399,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             return;
           }
 
-          if (excalidrawFile) {
+          if (advancedFileViewersEnabled && excalidrawFile) {
             const text = await fetchDocumentText(readUrl);
             setExcalidrawData(text);
             setData({ content: "", path });
@@ -408,7 +418,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
             setData({ content: "", path });
           } else if (unsupportedPreviewFile) {
             setData({ content: "", path });
-          } else if (wordPreviewFile || excelFile) {
+          } else if (advancedFileViewersEnabled && (wordPreviewFile || excelFile)) {
             const buffer = await fetchDocumentArrayBuffer(readUrl);
             setArrayBuffer(buffer);
             setData({ content: "", path });
@@ -431,7 +441,15 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
     loadContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, content, s3Key, signedUrl, externalImageUrl, mimeType]);
+  }, [
+    path,
+    content,
+    s3Key,
+    signedUrl,
+    externalImageUrl,
+    mimeType,
+    advancedFileViewersEnabled,
+  ]);
 
   // Blob URL cleanup
   useEffect(() => {
@@ -558,6 +576,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
     resolvedBinaryFile,
     unsupportedPreviewFile,
     hasTextContent,
+    advancedFileViewersEnabled,
 
     // Computed
     language,

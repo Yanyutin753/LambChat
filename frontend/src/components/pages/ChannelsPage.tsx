@@ -17,6 +17,10 @@ import { PanelHeader } from "../common/PanelHeader";
 import { ChannelsGridSkeleton } from "../skeletons";
 import { SkillBaseCard } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
+import {
+  hasChannelConnectorContribution,
+  type PluginRuntimeContributionStates,
+} from "../../extensions/coreContributions";
 import type {
   ChannelMetadata,
   ChannelConfigStatus,
@@ -24,6 +28,10 @@ import type {
   ChannelType,
 } from "../../types/channel";
 import { formatDate } from "../../utils/datetime";
+
+interface ChannelsPageProps {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}
 
 // Icon map for channel icons
 const CHANNEL_ICONS: Record<string, React.FC<{ className?: string }>> = {
@@ -38,7 +46,7 @@ function getChannelIcon(iconName: string, className?: string) {
   return <IconComponent className={className} />;
 }
 
-export function ChannelsPage() {
+export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -62,7 +70,7 @@ export function ChannelsPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [runtimePlugins]);
 
   useEffect(() => {
     // Load instances when a channel type is selected
@@ -75,10 +83,15 @@ export function ChannelsPage() {
     setIsLoading(true);
     try {
       const types = await channelApi.getTypes();
-      setChannelTypes(types);
+      const visibleTypes = types.filter((ct) =>
+        ct.channel_type === "feishu"
+          ? hasChannelConnectorContribution(ct.channel_type, runtimePlugins)
+          : true,
+      );
+      setChannelTypes(visibleTypes);
 
       // Load instances for all channel types in parallel
-      await Promise.all(types.map((ct) => loadInstances(ct.channel_type)));
+      await Promise.all(visibleTypes.map((ct) => loadInstances(ct.channel_type)));
     } catch (error) {
       console.error("Failed to load channel types:", error);
       toast.error(

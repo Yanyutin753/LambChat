@@ -77,6 +77,11 @@ export type {
   SkillCreate,
   MarketplaceSkillResponse,
   MarketplaceCreateRequest,
+  ExtensionInstallState,
+  ExtensionMarketplaceCompatibility,
+  ExtensionMarketplaceEntry,
+  ExtensionMarketplaceItem,
+  ExtensionMarketplaceType,
   MarketplaceSkillFilesResponse,
   MarketplaceSkillFileResponse,
   MarketplaceInstallResponse,
@@ -178,6 +183,43 @@ export type {
   ToolsListResponse,
   ToolState,
 } from "./tool";
+
+// ============================================
+// Plugin Runtime Types
+// ============================================
+export type {
+  ArchivedPluginPackage,
+  ArchivedPluginPackagesResponse,
+  PluginDataResponse,
+  PluginDryRunResource,
+  PluginExportResponse,
+  PluginImportResponse,
+  PluginPackageDescriptor,
+  PluginPackageExportResponse,
+  PluginPackageImportResponse,
+  PluginPackageIntegrity,
+  PluginPackageReviewResponse,
+  PluginPackageRestoreResponse,
+  PluginPackagesResponse,
+  PluginRuntimeContributionState,
+  PluginRuntimeContributionStatesResponse,
+  PluginRuntimeAuditRecord,
+  PluginRuntimeAuditResponse,
+  PluginResourceRecord,
+  PluginResourcesResponse,
+  PluginRuntimeFrontend,
+  PluginRuntimeIssue,
+  PluginRuntimeListResponse,
+  PluginRuntimePlugin,
+  PluginRuntimePackage,
+  PluginRuntimeRoute,
+  PluginSettingItem,
+  PluginSettingsResponse,
+  PluginRuntimeSideEffect,
+  PluginRuntimeTool,
+  PluginUninstallDryRunResponse,
+  PluginUninstallResponse,
+} from "./pluginRuntime";
 
 // ============================================
 // Settings Types

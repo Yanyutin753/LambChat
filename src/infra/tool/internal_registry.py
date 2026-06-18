@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, get_args, get_origin
+from typing import Any, Optional, get_args, get_origin
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
+from pydantic import PrivateAttr
 
 from src.infra.mcp.storage import MCPStorage
 from src.infra.role.storage import RoleStorage
@@ -20,6 +22,7 @@ from src.infra.tool.persona_preset_tool import get_persona_preset_tools
 from src.infra.tool.scheduled_task import get_scheduled_task_tools
 from src.infra.tool.team_tool import get_team_tools
 from src.kernel.config import settings
+from src.kernel.extensions import PluginRuntime, PluginUnavailableError
 from src.kernel.schemas.mcp import (
     MCPServerResponse,
     MCPToolInfo,
@@ -27,6 +30,7 @@ from src.kernel.schemas.mcp import (
     MCPTransport,
 )
 from src.kernel.types import Permission
+from src.plugins.feedback.tools import get_feedback_tools
 
 INTERNAL_MCP_SERVER_NAME = "lambchat_internal"
 
@@ -37,6 +41,61 @@ _SCHEDULED_TASK_TOOL_PERMISSIONS = {
     "scheduled_task_delete": Permission.SCHEDULED_TASK_DELETE.value,
 }
 
+_plugin_runtime: PluginRuntime | None = None
+
+
+def set_plugin_runtime(runtime: PluginRuntime | None) -> None:
+    """Attach the active Plugin Runtime used to guard plugin-owned tools."""
+    global _plugin_runtime
+    _plugin_runtime = runtime
+
+
+def _plugin_tool_error(tool_name: str) -> str | None:
+    runtime = _plugin_runtime
+    if runtime is None:
+        return None
+    registrations = runtime.tools(enabled_only=False)
+    if not any(
+        registration.name == tool_name or tool_name in registration.legacy_ids
+        for registration in registrations
+    ):
+        return None
+    try:
+        runtime.ensure_tool_available(tool_name)
+    except PluginUnavailableError as exc:
+        return f"[Plugin Tool Error] {tool_name} unavailable: {exc}"
+    return None
+
+
+def _is_plugin_tool_exposed(tool_name: str) -> bool:
+    return _plugin_tool_error(tool_name) is None
+
+
+class PluginRuntimeToolGuard(BaseTool):
+    """Guard a plugin-owned internal tool immediately before execution."""
+
+    _original_tool: BaseTool = PrivateAttr()
+
+    def __init__(self, original_tool: BaseTool) -> None:
+        super().__init__(
+            name=original_tool.name,
+            description=original_tool.description,
+            args_schema=original_tool.args_schema,
+        )
+        self._original_tool = original_tool
+
+    def _run(self, *args, **kwargs) -> Any:
+        error = _plugin_tool_error(self.name)
+        if error is not None:
+            return error
+        return self._original_tool._run(*args, **kwargs)
+
+    async def _arun(self, *args, config: Optional[RunnableConfig] = None, **kwargs) -> Any:
+        error = _plugin_tool_error(self.name)
+        if error is not None:
+            return error
+        return await self._original_tool._arun(*args, config=config, **kwargs)
+
 
 def build_internal_tools() -> list[BaseTool]:
     """Build the internal tool set that LambChat exposes to agents."""
@@ -45,12 +104,9 @@ def build_internal_tools() -> list[BaseTool]:
     logger = get_logger(__name__)
     tools: list[BaseTool] = []
 
-    if settings.ENABLE_IMAGE_GENERATION:
-        tools.append(get_image_generation_tool())
-        tools.append(get_reference_image_generation_tool())
-
-    if settings.ENABLE_AUDIO_TRANSCRIPTION:
-        tools.append(get_audio_transcribe_tool())
+    tools.append(get_image_generation_tool())
+    tools.append(get_reference_image_generation_tool())
+    tools.append(get_audio_transcribe_tool())
 
     if settings.ENABLE_SCHEDULED_TASK:
         try:
@@ -69,6 +125,7 @@ def build_internal_tools() -> list[BaseTool]:
         logger.info("[InternalRegistry] ENABLE_SCHEDULED_TASK=False, skipping scheduled task tools")
 
     tools.extend(get_env_var_tools())
+    tools.extend(get_feedback_tools())
     tools.extend(get_persona_preset_tools())
     tools.extend(get_team_tools())
 
@@ -241,6 +298,8 @@ async def get_internal_tools_for_user(
     user_permissions = await _resolve_permissions_for_roles(user_roles)
     wrapped: list[BaseTool] = []
     for tool in tools:
+        if not _is_plugin_tool_exposed(tool.name):
+            continue
         policy = _policy_for_tool(policies, tool.name)
         if not _is_tool_allowed(policy=policy, user_roles=user_roles, is_admin=is_admin):
             continue
@@ -250,9 +309,10 @@ async def get_internal_tools_for_user(
         ):
             continue
 
+        guarded_tool: BaseTool = PluginRuntimeToolGuard(tool)
         wrapped.append(
             MCPToolWithRetry(
-                tool,
+                guarded_tool,
                 user_id=user_id,
                 server_name=INTERNAL_MCP_SERVER_NAME,
                 user_roles=user_roles,
@@ -276,6 +336,8 @@ async def get_internal_tool_infos(
     user_permissions = await _resolve_permissions_for_roles(user_roles)
     infos: list[MCPToolInfo] = []
     for tool in build_internal_tools():
+        if not _is_plugin_tool_exposed(tool.name):
+            continue
         policy = _policy_for_tool(policies, tool.name)
         if not _is_tool_allowed(policy=policy, user_roles=user_roles, is_admin=is_admin):
             continue

@@ -1,20 +1,34 @@
 import { useEffect } from "react";
-import { Package, PackageX, ShoppingBag } from "lucide-react";
+import { Package, PackageX, Plug, ShoppingBag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSettingsContext } from "../../contexts/SettingsContext";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types";
 import { MarketplacePanel } from "./MarketplacePanel";
+import { PluginRuntimePanel } from "./PluginRuntimePanel";
 import { SkillsPanel } from "./SkillsPanel";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
 import { resolveSkillsHubTab, type SkillsHubTab } from "./SkillsHubPanel/state";
 
 const TAB_PATHS: Record<SkillsHubTab, string> = {
   skills: "/skills",
   marketplace: "/marketplace",
+  plugins: "/plugins",
 };
 
-export function SkillsHubPanel() {
+type SkillsHubTabItem = {
+  key: SkillsHubTab;
+  label: string;
+  icon: typeof Package;
+  path: string;
+};
+
+export function SkillsHubPanel({
+  runtimePlugins,
+}: {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -24,27 +38,43 @@ export function SkillsHubPanel() {
   const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
   const canReadMarketplace = hasAnyPermission([Permission.MARKETPLACE_READ]);
   const requestedTab: SkillsHubTab =
-    location.pathname === "/marketplace" ? "marketplace" : "skills";
+    location.pathname === "/marketplace"
+      ? "marketplace"
+      : location.pathname === "/plugins"
+        ? "plugins"
+        : "skills";
   const visibleTab = resolveSkillsHubTab(
     requestedTab,
     canReadSkills,
     canReadMarketplace,
   );
-  const showTabSwitcher = canReadSkills && canReadMarketplace;
-  const hubTabs = [
-    {
-      key: "skills" as const,
-      label: t("nav.skills"),
-      icon: Package,
-      path: TAB_PATHS.skills,
-    },
-    {
-      key: "marketplace" as const,
-      label: t("nav.marketplace"),
-      icon: ShoppingBag,
-      path: TAB_PATHS.marketplace,
-    },
-  ];
+  const showTabSwitcher = canReadSkills || canReadMarketplace;
+  const hubTabs: SkillsHubTabItem[] = [
+    canReadSkills
+      ? {
+          key: "skills" as const,
+          label: t("nav.skills"),
+          icon: Package,
+          path: TAB_PATHS.skills,
+        }
+      : null,
+    canReadMarketplace
+      ? {
+          key: "marketplace" as const,
+          label: t("nav.marketplace"),
+          icon: ShoppingBag,
+          path: TAB_PATHS.marketplace,
+        }
+      : null,
+    canReadMarketplace
+      ? {
+          key: "plugins" as const,
+          label: t("nav.plugins"),
+          icon: Plug,
+          path: TAB_PATHS.plugins,
+        }
+      : null,
+  ].filter((tab): tab is SkillsHubTabItem => tab !== null);
 
   useEffect(() => {
     if (!visibleTab) return;
@@ -54,7 +84,7 @@ export function SkillsHubPanel() {
     }
   }, [location.pathname, navigate, visibleTab]);
 
-  if (!enableSkills) {
+  if (!enableSkills && visibleTab !== "plugins") {
     return (
       <div className="flex h-full flex-col items-center justify-center text-stone-500 dark:text-stone-400">
         <PackageX
@@ -107,7 +137,9 @@ export function SkillsHubPanel() {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {visibleTab === "skills" ? (
-          <SkillsPanel embedded />
+          <SkillsPanel embedded runtimePlugins={runtimePlugins} />
+        ) : visibleTab === "plugins" ? (
+          <PluginRuntimePanel embedded />
         ) : (
           <MarketplacePanel embedded />
         )}

@@ -1,0 +1,12 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "feedback",
+  "frontend": {
+    "routes": ["feedback-route"],
+    "panels": ["feedback-panel"],
+    "nav_items": ["feedback-nav"],
+    "message_actions": ["feedback:message-feedback"],
+    "i18n_namespaces": ["feedback"],
+    "required_permissions": ["feedback:read"]
+  }
+}

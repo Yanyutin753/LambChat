@@ -20,8 +20,19 @@ test("shared page hides feedback and share actions on chat messages", () => {
   assert.match(chatMessageSource, /showFeedbackAndShareActions\?: boolean/);
   assert.match(
     chatMessageSource,
-    /showFeedbackAndShareActions &&\s*\(\s*<>\s*\{\/\* Feedback buttons \*\//,
+    /canUseFeedbackAction &&\s*isAuthenticated &&\s*sessionId &&/,
   );
+});
+
+test("shared page passes public plugin runtime state into chat messages", () => {
+  const sharedPageSource = readFileSync(
+    resolve(__dirname, "../SharedPage.tsx"),
+    "utf8",
+  );
+
+  assert.match(sharedPageSource, /pluginRuntimeApi\.listContributionStates\(\)/);
+  assert.match(sharedPageSource, /setRuntimePlugins\(response\.plugins\)/);
+  assert.match(sharedPageSource, /runtimePlugins=\{runtimePlugins\}/);
 });
 
 test("shared page shows team identity for shared team sessions", () => {

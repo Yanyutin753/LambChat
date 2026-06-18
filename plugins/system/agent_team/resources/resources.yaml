@@ -1,0 +1,45 @@
+resources:
+  - id: teams
+    type: db_collection
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: mongodb
+      manager: src.infra.team.manager.TeamManager
+      schema: src.kernel.schemas.team.TeamResponse
+      data_policy: Disable/uninstall dry-run keeps user team definitions.
+  - id: teams.owner_updated_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: teams
+      fields: owner_user_id,updated_at:-1
+  - id: teams.owner_name_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: teams
+      fields: owner_user_id,name
+  - id: users.metadata.pinned_team_ids
+    type: db_document
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      collection: users
+      field: metadata.pinned_team_ids
+      reason: Pinned Team preferences must survive AgentTeam disable/uninstall.
+  - id: users.metadata.favorite_team_ids
+    type: db_document
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      collection: users
+      field: metadata.favorite_team_ids
+      reason: Favorite Team preferences must survive AgentTeam disable/uninstall.

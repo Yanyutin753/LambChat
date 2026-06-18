@@ -26,6 +26,7 @@ import {
   type HistoryEvent,
   type UseAgentReturn,
   type ActiveGoalSpec,
+  type SendMessageOptions,
 } from "./useAgent/types";
 import {
   reconstructMessagesFromEvents,
@@ -42,9 +43,15 @@ import {
   clearReconnectTimeout,
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
-import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
+import {
+  createOptimisticMessagesForRetry,
+  createOptimisticMessagesForSend,
+} from "./useAgent/optimisticMessages";
 import { resolvePersonaEnabledSkills } from "./useAgent/personaRequestConfig";
-import { planGoalSubmission } from "./useAgent/goalCommands";
+import {
+  planGoalSubmission,
+  type GoalSubmissionPlan,
+} from "./useAgent/goalCommands";
 import { translateBackendError } from "../utils/backendErrors";
 import { dispatchSessionTitleUpdated } from "../utils/sessionTitleEvents";
 import { resolveAvailableAgentId } from "./useAgent/agentSelection";
@@ -532,11 +539,26 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       content: string,
       agentOptions?: Record<string, boolean | string | number>,
       attachments?: MessageAttachment[],
+      sendOptions?: SendMessageOptions,
     ) => {
       if (!content.trim()) return;
       loadHistoryRequestIdRef.current += 1;
 
-      const goalPlan = planGoalSubmission(content, goalModeEnabled);
+      const retryUserMessage = sendOptions?.retryUserMessage === true;
+      if (retryUserMessage && !sessionId) {
+        setError(i18n.t("chat.requestFailed"));
+        return;
+      }
+
+      const goalPlan: GoalSubmissionPlan = retryUserMessage
+        ? {
+            content,
+            goal: null,
+            nextGoalModeEnabled: goalModeEnabled,
+            nextActiveGoal: activeGoal,
+            handledWithoutSend: false,
+          }
+        : planGoalSubmission(content, goalModeEnabled);
       if (goalPlan.handledWithoutSend) {
         if (goalPlan.errorKey) {
           setError(i18n.t(goalPlan.errorKey, "Please enter a goal"));
@@ -570,11 +592,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       lastHistoryTimestampRef.current = null;
 
       const { messages: optimisticMessages, assistantMessageId } =
-        createOptimisticMessagesForSend({
-          previousMessages: messagesRef.current,
-          content,
-          attachments,
-        });
+        retryUserMessage
+          ? createOptimisticMessagesForRetry({
+              previousMessages: messagesRef.current,
+              assistantMessageId: sendOptions?.retryAssistantMessageId,
+              afterUserMessageId: sendOptions?.retryAfterUserMessageId,
+            })
+          : createOptimisticMessagesForSend({
+              previousMessages: messagesRef.current,
+              content,
+              attachments,
+            });
 
       setMessages(optimisticMessages);
       setIsLoading(true);
@@ -617,6 +645,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           enabledSkills,
           requestTeamId,
           goalForRun,
+          { retryUserMessage },
         )) as {
           session_id: string;
           run_id: string;
@@ -805,6 +834,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       options,
       selectedTeamId,
       goalModeEnabled,
+      activeGoal,
     ],
   );
 
@@ -995,4 +1025,5 @@ export type {
   UseAgentOptions,
   UseAgentReturn,
   BackendSession,
+  SendMessageOptions,
 } from "./useAgent/types";

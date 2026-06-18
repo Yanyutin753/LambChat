@@ -274,9 +274,6 @@ async def test_close_route_dependency_singletons_closes_cached_route_managers(
 ) -> None:
     calls: list[str] = []
 
-    async def _close_feedback_manager() -> None:
-        calls.append("feedback")
-
     async def _close_notification_manager() -> None:
         calls.append("notification")
 
@@ -289,7 +286,6 @@ async def test_close_route_dependency_singletons_closes_cached_route_managers(
     async def _close_persona_preset_manager() -> None:
         calls.append("persona_preset")
 
-    monkeypatch.setattr(api_main.feedback, "close_feedback_manager", _close_feedback_manager)
     monkeypatch.setattr(
         api_main.notification,
         "close_notification_manager",
@@ -314,7 +310,20 @@ async def test_close_route_dependency_singletons_closes_cached_route_managers(
 
     await api_main._close_route_dependency_singletons()
 
-    assert calls == ["feedback", "notification", "revealed_file", "upload", "persona_preset"]
+    assert calls == ["notification", "revealed_file", "upload", "persona_preset"]
+
+
+def test_feedback_shutdown_is_owned_by_plugin_lifecycle() -> None:
+    from src.kernel.extensions import FEEDBACK_PLUGIN_ID, build_feedback_plugin_manifest
+
+    source_names = api_main._close_route_dependency_singletons.__code__.co_names
+    manifest = build_feedback_plugin_manifest()
+
+    assert "close_feedback_manager" not in source_names
+    assert manifest.id == FEEDBACK_PLUGIN_ID
+    assert manifest.lifespan_hooks[0].module == (
+        "src.plugins.feedback.lifecycle:close_feedback_manager"
+    )
 
 
 @pytest.mark.asyncio

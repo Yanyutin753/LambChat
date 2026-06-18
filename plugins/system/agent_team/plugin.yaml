@@ -1,0 +1,12 @@
+id: agent_team
+name: Agent Team
+version: 1.0.0
+api_version: v1
+install_type: system_builtin
+entrypoint: backend
+permissions:
+  - team:read
+  - team:write
+  - team:delete
+enabled_by_default: true
+data_template: plugin-data-template

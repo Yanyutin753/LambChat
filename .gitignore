@@ -42,6 +42,16 @@ wheels/
 *.log
 logs/
 
+# Local Codex/task execution artifacts
+goal-*/
+归档/
+
+# Build/runtime generated artifacts
+static/
+*.tsbuildinfo
+plugin-data/*/state/runtime.json
+plugin-data/*/state/*.jsonl
+
 # Redis
 dump.rdb
 

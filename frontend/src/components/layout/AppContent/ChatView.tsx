@@ -114,6 +114,7 @@ export function ChatView({
   externalNavigationTargetRunPending,
   externalScrollToBottom,
   outlineToggleRef,
+  runtimePlugins,
 }: ChatViewProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -266,14 +267,22 @@ export function ChatView({
         return;
       }
 
+      if (!sessionId) {
+        return;
+      }
+
       const target = findCancelledRetryTarget(messages, messageId);
       if (!target) {
         return;
       }
 
-      onSendMessage(target.content, target.attachments);
+      onSendMessage(target.content, target.attachments, {
+        retryUserMessage: true,
+        retryAssistantMessageId: target.assistantMessageId,
+        retryAfterUserMessageId: target.userMessageId,
+      });
     },
-    [canSendMessage, messages, onSendMessage, sessionRunning],
+    [canSendMessage, messages, onSendMessage, sessionId, sessionRunning],
   );
 
   const handleRecommendQuestionClick = useCallback(
@@ -362,6 +371,7 @@ export function ChatView({
           getGoalForMessage(goalsByRunId, message) ?? visibleActiveGoal
         }
         isFirst={index === 0}
+        runtimePlugins={runtimePlugins}
       />
     ),
     [
@@ -378,6 +388,7 @@ export function ChatView({
       handleRetryCancelledMessage,
       visibleActiveGoal,
       goalsByRunId,
+      runtimePlugins,
     ],
   );
 
@@ -509,8 +520,9 @@ export function ChatView({
         preview={activePreview}
         onClose={() => handleClosePreview(true)}
         onUserInteraction={handlePreviewInteraction}
+        runtimePlugins={runtimePlugins}
       />
-      <AttachmentPreviewHost />
+      <AttachmentPreviewHost runtimePlugins={runtimePlugins} />
       <PersistentToolPanelHost />
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}

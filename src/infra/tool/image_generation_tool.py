@@ -18,6 +18,7 @@ import httpx
 from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.extensions import PluginSettingsResolver
 from src.infra.logging import get_logger
 from src.infra.storage.s3.service import get_or_init_storage
 from src.infra.tool.backend_utils import (
@@ -25,7 +26,7 @@ from src.infra.tool.backend_utils import (
     get_user_id_from_runtime,
 )
 from src.infra.utils.datetime import utc_now
-from src.kernel.config import settings
+from src.kernel.extensions.builtin_plugins import IMAGE_GENERATION_PLUGIN_ID
 
 try:
     from langchain.tools import ToolRuntime  # type: ignore[assignment]
@@ -122,15 +123,20 @@ def _filename_from_url(url: str, index: int) -> str:
     return f"image-{index + 1}.png"
 
 
-def _resolve_base_url() -> str:
-    base_url = (
-        getattr(settings, "IMAGE_GENERATION_BASE_URL", "") or DEFAULT_IMAGE_GENERATION_BASE_URL
+def _settings_resolver() -> PluginSettingsResolver:
+    return PluginSettingsResolver(plugin_id=IMAGE_GENERATION_PLUGIN_ID)
+
+
+async def _resolve_base_url() -> str:
+    base_url = await _settings_resolver().get_str(
+        "BASE_URL",
+        DEFAULT_IMAGE_GENERATION_BASE_URL,
     )
     return str(base_url).rstrip("/")
 
 
-def _resolve_model() -> str:
-    model = getattr(settings, "IMAGE_GENERATION_MODEL", "") or DEFAULT_IMAGE_GENERATION_MODEL
+async def _resolve_model() -> str:
+    model = await _settings_resolver().get_str("MODEL", DEFAULT_IMAGE_GENERATION_MODEL)
     return str(model).strip() or DEFAULT_IMAGE_GENERATION_MODEL
 
 
@@ -406,13 +412,14 @@ async def _call_generation_api(
     output_format: str,
     runtime: ToolRuntime | None,
 ) -> dict[str, Any]:
-    api_key = getattr(settings, "IMAGE_GENERATION_API_KEY", "") or ""
+    resolver = _settings_resolver()
+    api_key = await resolver.get_secret("API_KEY")
     if not api_key:
         return {"error": "IMAGE_GENERATION_API_KEY is not configured"}
 
-    base_url = _resolve_base_url()
-    model = _resolve_model()
-    timeout = getattr(settings, "IMAGE_GENERATION_TIMEOUT", 120) or 120
+    base_url = await _resolve_base_url()
+    model = await _resolve_model()
+    timeout = await resolver.get_int("TIMEOUT", 120)
     user_id = get_user_id_from_runtime(runtime) or "anonymous"
 
     headers = {
@@ -480,13 +487,14 @@ async def _call_edit_api(
     output_format: str,
     runtime: ToolRuntime | None,
 ) -> dict[str, Any]:
-    api_key = getattr(settings, "IMAGE_GENERATION_API_KEY", "") or ""
+    resolver = _settings_resolver()
+    api_key = await resolver.get_secret("API_KEY")
     if not api_key:
         return {"error": "IMAGE_GENERATION_API_KEY is not configured"}
 
-    base_url = _resolve_base_url()
-    model = _resolve_model()
-    timeout = getattr(settings, "IMAGE_GENERATION_TIMEOUT", 120) or 120
+    base_url = await _resolve_base_url()
+    model = await _resolve_model()
+    timeout = await resolver.get_int("TIMEOUT", 120)
     user_id = get_user_id_from_runtime(runtime) or "anonymous"
 
     source_files = []
