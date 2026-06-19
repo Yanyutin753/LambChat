@@ -16,6 +16,7 @@ from src.kernel.extensions.registry import (
     LifecyclePhase,
     PluginLifecycleHookRegistration,
     PluginRegistry,
+    PluginAgentRegistration,
     PluginRouteRegistration,
     PluginToolRegistration,
 )
@@ -44,6 +45,10 @@ class PluginRuntimeStatus(str, Enum):
 
 class PluginUnavailableError(RuntimeError):
     """Raised by route/tool guards when a plugin is not executable."""
+
+    def __init__(self, message: str, *, plugin_id: str | None = None) -> None:
+        super().__init__(message)
+        self.plugin_id = plugin_id
 
 
 class PluginRuntimeStateTransitionError(RuntimeError):
@@ -187,10 +192,14 @@ class PluginRuntime:
         """Guard route/tool execution for a plugin contribution."""
         state = self.get_state(plugin_id)
         if state is None:
-            raise PluginUnavailableError(f"plugin is not installed: {plugin_id}")
+            raise PluginUnavailableError(
+                f"plugin is not installed: {plugin_id}",
+                plugin_id=plugin_id,
+            )
         if not state.executable:
             raise PluginUnavailableError(
-                f"plugin is not enabled: {plugin_id} ({state.status.value})"
+                f"plugin is not enabled: {plugin_id} ({state.status.value})",
+                plugin_id=plugin_id,
             )
 
     def ensure_tool_available(self, tool_name: str) -> PluginToolRegistration:
@@ -414,6 +423,26 @@ class PluginRuntime:
             enabled_only=enabled_only
         )
 
+    def agents(self, *, enabled_only: bool = True) -> list[PluginAgentRegistration]:
+        return PluginRegistry(self.manifests(enabled_only=enabled_only)).agents(
+            enabled_only=enabled_only
+        )
+
+    def plugin_for_agent(self, agent_id: str) -> str | None:
+        """Return the plugin that owns an agent catalog entry, if any."""
+        for registration in self.agents(enabled_only=False):
+            if registration.id == agent_id:
+                return registration.plugin_id
+        return None
+
+    def ensure_agent_available(self, agent_id: str) -> PluginAgentRegistration | None:
+        """Guard execution or catalog exposure for a plugin-owned agent."""
+        for registration in self.agents(enabled_only=False):
+            if registration.id == agent_id:
+                self.ensure_enabled(registration.plugin_id)
+                return registration
+        return None
+
     def scheduler_jobs(self, *, enabled_only: bool = True) -> list[str]:
         return [
             job_id
@@ -570,19 +599,41 @@ class PluginRuntime:
             plugin_id=manifest.id,
             plugin_version=manifest.version,
             backend_routes=[route.name for route in manifest.routers],
+            agents=[agent.id for agent in manifest.agents],
             tools=[tool.name for tool in manifest.tools],
-            tool_renderers=manifest.frontend.tool_renderers,
-            file_viewers=manifest.frontend.file_viewers,
-            skill_importers=manifest.frontend.skill_importers,
-            channel_connectors=manifest.frontend.channel_connectors,
-            message_actions=manifest.frontend.message_actions,
+            tool_renderers=[item.id for item in manifest.frontend.tool_renderers],
+            file_viewers=[item.id for item in manifest.frontend.file_viewers],
+            upload_handlers=[item.id for item in manifest.frontend.upload_handlers],
+            skill_importers=[item.id for item in manifest.frontend.skill_importers],
+            channel_connectors=[item.id for item in manifest.frontend.channel_connectors],
+            message_actions=[item.id for item in manifest.frontend.message_actions],
+            chat_input_options=[item.id for item in manifest.frontend.chat_input_options],
+            chat_input_panels=[item.id for item in manifest.frontend.chat_input_panels],
+            mention_providers=[item.id for item in manifest.frontend.mention_providers],
+            welcome_surfaces=[item.id for item in manifest.frontend.welcome_surfaces],
+            assistant_identity_resolvers=[
+                item.id for item in manifest.frontend.assistant_identity_resolvers
+            ],
+            agent_categories=[item.id for item in manifest.frontend.agent_categories],
+            project_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.project_options],
+            session_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.session_options],
+            channel_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.channel_options],
+            scheduled_task_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options],
             permissions=manifest.declared_permissions(),
-            settings=manifest.setting_keys(qualified=True),
+            settings=[
+                (_scoped_setting_resource_id(manifest.id, setting.key, setting.scope), setting.scope)
+                for setting in manifest.settings
+            ],
             scheduler_jobs=manifest.scheduler_jobs,
+            event_listeners=manifest.event_listeners,
             migrations=manifest.migrations,
             frontend_routes=manifest.frontend.routes,
             panels=manifest.frontend.panels,
             nav_items=manifest.frontend.nav_items,
+            app_tabs=[item.id for item in manifest.frontend.app_tabs],
+            app_panels=[item.id for item in manifest.frontend.app_panels],
+            sidebar_items=[item.id for item in manifest.frontend.sidebar_items],
+            user_menu_items=[item.id for item in manifest.frontend.user_menu_items],
             i18n_namespaces=manifest.frontend.i18n_namespaces,
             records=[
                 PluginResourceRecord(
@@ -687,6 +738,12 @@ def _is_namespaced_permission(permission: str) -> bool:
     return bool(left.strip() and separator and right.strip())
 
 
+def _scoped_setting_resource_id(plugin_id: str, key: str, scope: str) -> str:
+    if scope == "system":
+        return f"{plugin_id}.{key}"
+    return f"{plugin_id}.{scope}.{key}"
+
+
 def _is_plugin_namespaced(value: str, plugin_id: str) -> bool:
     normalized = value.strip()
     if normalized == plugin_id:
@@ -707,14 +764,27 @@ def _invalid_contribution_ids(manifest: PluginManifest) -> list[str]:
     values.extend(manifest.frontend.routes)
     values.extend(manifest.frontend.panels)
     values.extend(manifest.frontend.nav_items)
-    values.extend(manifest.frontend.tool_renderers)
-    values.extend(manifest.frontend.file_viewers)
-    values.extend(manifest.frontend.skill_importers)
-    values.extend(manifest.frontend.channel_connectors)
-    values.extend(manifest.frontend.message_actions)
+    values.extend(item.id for item in manifest.frontend.app_tabs)
+    values.extend(item.id for item in manifest.frontend.app_panels)
+    values.extend(item.id for item in manifest.frontend.sidebar_items)
+    values.extend(item.id for item in manifest.frontend.user_menu_items)
+    values.extend(item.id for item in manifest.frontend.agent_categories)
+    values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.project_options)
+    values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.session_options)
+    values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.channel_options)
+    values.extend(f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options)
+    values.extend(item.id for item in manifest.frontend.tool_renderers)
+    values.extend(item.id for item in manifest.frontend.file_viewers)
+    values.extend(item.id for item in manifest.frontend.upload_handlers)
+    values.extend(item.id for item in manifest.frontend.skill_importers)
+    values.extend(item.id for item in manifest.frontend.channel_connectors)
+    values.extend(item.id for item in manifest.frontend.message_actions)
+    values.extend(item.id for item in manifest.frontend.welcome_surfaces)
+    values.extend(item.id for item in manifest.frontend.assistant_identity_resolvers)
     values.extend(manifest.frontend.settings_sections)
     values.extend(manifest.frontend.i18n_namespaces)
     values.extend(manifest.scheduler_jobs)
+    values.extend(manifest.event_listeners)
     values.extend(manifest.migrations)
     return [
         value

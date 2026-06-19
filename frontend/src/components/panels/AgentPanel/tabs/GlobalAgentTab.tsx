@@ -13,6 +13,8 @@ import {
   resolveAgentDisplayName,
 } from "../../../agent/agentCatalog";
 import { ToggleSwitch } from "../shared/ToggleSwitch";
+import { groupAgentsByPluginCategory } from "../agentCategoryGroups";
+import type { CoreAgentCategoryContribution } from "../../../../extensions";
 import type { AgentConfig, AgentCatalogLabels } from "../../../../types";
 
 interface GlobalAgentTabProps {
@@ -20,6 +22,7 @@ interface GlobalAgentTabProps {
   onUpdate: (agents: AgentConfig[]) => Promise<void>;
   isLoading: boolean;
   isSaving: boolean;
+  agentCategories?: readonly CoreAgentCategoryContribution[];
 }
 
 export function GlobalAgentTab({
@@ -27,6 +30,7 @@ export function GlobalAgentTab({
   onUpdate,
   isLoading,
   isSaving,
+  agentCategories = [],
 }: GlobalAgentTabProps) {
   const { t } = useTranslation();
   const [localAgents, setLocalAgents] = useState<AgentConfig[]>(agents);
@@ -95,8 +99,15 @@ export function GlobalAgentTab({
         {t("agentConfig.globalDescription")}
       </p>
 
-      <div className="glass-card divide-y divide-[var(--glass-border)] overflow-hidden rounded-xl">
-        {localAgents.map((agent, index) => {
+      <div className="space-y-4">
+        {groupAgentsByPluginCategory(localAgents, agentCategories).map((group) => (
+          <section key={group.id} className="space-y-2">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-theme-text-tertiary">
+              <AgentIcon icon={group.icon} size={14} />
+              <span>{t(group.label, group.label)}</span>
+            </div>
+            <div className="glass-card divide-y divide-[var(--glass-border)] overflow-hidden rounded-xl">
+        {group.agents.map((agent, index) => {
           const displayName = resolveAgentDisplayName(agent, i18n.language, t);
           const displayDescription = resolveAgentDescription(
             agent,
@@ -146,6 +157,9 @@ export function GlobalAgentTab({
             </div>
           );
         })}
+            </div>
+          </section>
+        ))}
       </div>
 
       {hasChanges && (

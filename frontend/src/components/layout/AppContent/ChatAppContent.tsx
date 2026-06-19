@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { BlockPreviewPortal } from "../../chat/ChatMessage/items/McpBlockPreview";
 import { SessionSidebar } from "../../panels/SessionSidebar";
@@ -10,11 +11,15 @@ import { useApprovals } from "../../../hooks/useApprovals";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTools } from "../../../hooks/useTools";
 import { useSkills } from "../../../hooks/useSkills";
-import { personaPresetApi } from "../../../services/api";
+import { personaPresetApi, sessionApi } from "../../../services/api";
 import { usePersonaPresets } from "../../../hooks/usePersonaPresets";
 import { useProjectManager } from "../../../hooks/useProjectManager";
 import { appNotificationService } from "../../../services/notifications/appNotificationService";
 import { useSessionConfig } from "../../../hooks/useSessionConfig";
+import {
+  buildSessionOptionContributions,
+  hasAgentCatalogEntryContribution,
+} from "../../../extensions/coreContributions";
 import {
   Permission,
   type ToolCategory,
@@ -38,6 +43,7 @@ import {
 import { getRestoredModelSelection } from "./sessionState";
 import { getTeamRouteRequest } from "./teamRouteState";
 import { resolvePersonaAgentId } from "../../../hooks/useAgent/agentSelection";
+import { firstEffectivePluginOptionPath } from "../../../extensions/pluginOptions";
 import { AppShell } from "./AppShell";
 import { ChatView } from "./ChatView";
 import { shouldShowMessageOutline } from "./messageOutline";
@@ -183,14 +189,16 @@ export function ChatAppContent({
     stopGeneration,
     clearMessages,
     switchAgent,
-    selectTeam,
     selectedTeamId,
+    sessionPluginOptions,
+    setSessionPluginOption,
     loadHistory,
     setPendingProjectId,
     autoExpandProjectId,
     clearAutoExpandProjectId,
     currentProjectId,
   } = useAgent({
+    runtimePlugins,
     onApprovalRequired: (approval) => {
       void appNotificationService.notify({
         type: "approval",
@@ -231,14 +239,75 @@ export function ChatAppContent({
     },
   });
 
+  const sessionOptionContributions = useMemo(
+    () =>
+      buildSessionOptionContributions(runtimePlugins, {
+        agentId: currentAgent,
+      }),
+    [currentAgent, runtimePlugins],
+  );
+
+  const isDeclaredEffectiveSessionPluginOption = useCallback(
+    (pluginId: string, key: string) =>
+      sessionOptionContributions.some(
+        (option) =>
+          option.pluginId === pluginId && option.key === key && option.effective,
+      ),
+    [sessionOptionContributions],
+  );
+
+  const persistSessionPluginOption = useCallback(
+    (pluginId: string, key: string, value: unknown) => {
+      if (!sessionId) return;
+      sessionApi
+        .updatePluginOption(
+          sessionId,
+          pluginId,
+          key,
+          value === "" ? null : value,
+        )
+        .catch((error) => {
+          console.warn("[AppContent] Failed to persist plugin session option:", error);
+          toast.error(t("plugins.sessionOptionSaveFailed", "Failed to save plugin option"));
+        });
+    },
+    [sessionId, t],
+  );
+
+  const handlePluginOptionChange = useCallback(
+    (pluginId: string, key: string, value: unknown) => {
+      setSessionPluginOption(pluginId, key, value);
+      if (isDeclaredEffectiveSessionPluginOption(pluginId, key)) {
+        persistSessionPluginOption(pluginId, key, value);
+      }
+    },
+    [
+      isDeclaredEffectiveSessionPluginOption,
+      persistSessionPluginOption,
+      setSessionPluginOption,
+    ],
+  );
+
   const switchToPersonaAgentMode = useCallback(() => {
-    if (currentAgent !== "team") return;
-    const nextAgentId = resolvePersonaAgentId(currentAgent, undefined, agents);
+    const isPluginAgent = hasAgentCatalogEntryContribution(currentAgent, runtimePlugins);
+    if (!isPluginAgent) return;
+    const nextAgentId = resolvePersonaAgentId(currentAgent, undefined, agents, [currentAgent]);
     if (nextAgentId && nextAgentId !== currentAgent) {
       switchAgent(nextAgentId);
     }
-    selectTeam(null);
-  }, [agents, currentAgent, selectTeam, switchAgent]);
+    sessionOptionContributions
+      .filter((option) => option.effective)
+      .forEach((option) => {
+        handlePluginOptionChange(option.pluginId, option.key, null);
+      });
+  }, [
+    agents,
+    currentAgent,
+    handlePluginOptionChange,
+    runtimePlugins,
+    sessionOptionContributions,
+    switchAgent,
+  ]);
 
   const prevAgentRef = useRef(currentAgent);
   useEffect(() => {
@@ -334,12 +403,27 @@ export function ChatAppContent({
   useEffect(() => {
     const teamRequest = getTeamRouteRequest(searchParams, location.state);
     if (!teamRequest) return;
+    if (!hasAgentCatalogEntryContribution(teamRequest.agentId, runtimePlugins)) {
+      return;
+    }
     const requestKey = `${teamRequest.agentId}:${teamRequest.teamId}`;
     if (lastTeamRouteRequestRef.current === requestKey) return;
+
+    const optionPath = firstEffectivePluginOptionPath(
+      buildSessionOptionContributions(runtimePlugins, {
+        agentId: teamRequest.agentId,
+      }),
+      { effectiveOnly: true },
+    );
+    if (!optionPath) return;
     lastTeamRouteRequestRef.current = requestKey;
 
     switchAgent(teamRequest.agentId);
-    selectTeam(teamRequest.teamId);
+    setSessionPluginOption(
+      optionPath.pluginId,
+      optionPath.key,
+      teamRequest.teamId,
+    );
     setSearchParams(
       (prev) => {
         prev.delete("agent");
@@ -348,7 +432,7 @@ export function ChatAppContent({
       },
       { replace: true },
     );
-  }, [location.state, searchParams, selectTeam, setSearchParams, switchAgent]);
+  }, [location.state, runtimePlugins, searchParams, setSearchParams, setSessionPluginOption, switchAgent]);
 
   useEffect(() => {
     if (isSessionRestoredRef.current) return;
@@ -699,6 +783,7 @@ export function ChatAppContent({
       disabled_mcp_tools?: string[];
       disabled_tools?: string[];
       team_id?: string;
+      plugin_options?: Record<string, Record<string, unknown>>;
     }) => {
       console.log("[AppContent] Restoring session config:", config);
 
@@ -726,12 +811,6 @@ export function ChatAppContent({
           });
       }
 
-      if (config.team_id) {
-        selectTeam(config.team_id);
-      } else {
-        selectTeam(null);
-      }
-
       if (config.agent_options) {
         restoreAgentOptions(config.agent_options);
 
@@ -748,7 +827,6 @@ export function ChatAppContent({
       restoreSessionConfig,
       restoreAgentOptions,
       switchAgent,
-      selectTeam,
       setPersonaPreset,
     ],
   );
@@ -920,7 +998,8 @@ export function ChatAppContent({
           currentAgent={currentAgent}
           onSelectAgent={switchAgent}
           selectedTeamId={selectedTeamId}
-          onSelectTeam={selectTeam}
+          pluginOptionValues={sessionPluginOptions}
+          onPluginOptionChange={handlePluginOptionChange}
           approvals={approvals}
           onRespondApproval={respondToApproval}
           approvalLoading={approvalLoading}

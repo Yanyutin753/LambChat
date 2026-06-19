@@ -13,6 +13,10 @@ from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.infra.writer.present import Presenter, PresenterConfig
 from src.kernel.config import settings
+from src.kernel.extensions.plugin_options import (
+    selected_agent_team_id_from_metadata,
+    with_agent_team_session_option,
+)
 from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import ConcurrencyResult, get_concurrency_limiter, get_registered_executor
@@ -204,6 +208,20 @@ class TaskRecoveryService:
         language = await self.get_preferred_language(session.user_id, session)
         recovery_message = build_recovery_message(reason, language)
         agent_id = _resolve_recovery_agent_id(session_metadata, session)
+        from src.agents import ensure_agent_executable
+        from src.kernel.extensions import PluginUnavailableError
+
+        try:
+            ensure_agent_executable(agent_id)
+        except PluginUnavailableError as exc:
+            return {
+                "success": False,
+                "run_id": None,
+                "resumed_from_run_id": source_run_id,
+                "message": f"恢复任务失败：插件 Agent 不可用: {exc}",
+                "error": "plugin_unavailable",
+                "agent_id": agent_id,
+            }
         new_run_id = generate_run_id()
         recovery_trace = Presenter(
             PresenterConfig(
@@ -219,6 +237,7 @@ class TaskRecoveryService:
         user_roles = await self.get_user_roles(session.user_id)
         limiter = get_concurrency_limiter()
         enabled_skills = _get_enabled_skills_from_metadata(session_metadata)
+        session_team_id = selected_agent_team_id_from_metadata(session_metadata)
         task_context = {
             "executor_key": executor_key,
             "agent_id": agent_id,
@@ -236,7 +255,7 @@ class TaskRecoveryService:
                 else None
             ),
             "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or None,
-            "team_id": session_metadata.get("team_id"),
+            "team_id": session_team_id,
             "recommendation_input": recovery_message,
         }
 
@@ -281,7 +300,7 @@ class TaskRecoveryService:
                     ),
                     disabled_mcp_tools=session_metadata.get("disabled_mcp_tools") or None,
                     session_name=getattr(session, "name", None),
-                    team_id=session_metadata.get("team_id"),
+                    team_id=session_team_id,
                 )
             except Exception:
                 await limiter.release(session.user_id, new_run_id, dequeue=False)
@@ -321,31 +340,32 @@ class TaskRecoveryService:
                 "user_message_written": True,
             }
 
+        recovered_metadata = with_agent_team_session_option(
+            {
+                "current_run_id": new_run_id,
+                "agent_id": agent_id,
+                "executor_key": executor_key,
+                "agent_options": session_metadata.get("agent_options") or {},
+                "disabled_tools": session_metadata.get("disabled_tools") or [],
+                "disabled_skills": session_metadata.get("disabled_skills") or [],
+                "enabled_skills": enabled_skills,
+                "persona_preset_id": session_metadata.get("persona_preset_id"),
+                "persona_preset_name": session_metadata.get("persona_preset_name"),
+                "persona_snapshot": session_metadata.get("persona_snapshot"),
+                "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or [],
+                "language": language,
+                "project_id": session_metadata.get("project_id"),
+                "recovery_of_run_id": source_run_id,
+                "recovery_reason": reason,
+                "recovery_requested_at": utc_now_iso(),
+                "task_recoverable": False,
+                "task_error_code": None,
+            },
+            session_team_id,
+        )
         await self._storage.update(
             session.id,
-            SessionUpdate(
-                metadata={
-                    "current_run_id": new_run_id,
-                    "agent_id": agent_id,
-                    "executor_key": executor_key,
-                    "agent_options": session_metadata.get("agent_options") or {},
-                    "disabled_tools": session_metadata.get("disabled_tools") or [],
-                    "disabled_skills": session_metadata.get("disabled_skills") or [],
-                    "enabled_skills": enabled_skills,
-                    "persona_preset_id": session_metadata.get("persona_preset_id"),
-                    "persona_preset_name": session_metadata.get("persona_preset_name"),
-                    "persona_snapshot": session_metadata.get("persona_snapshot"),
-                    "disabled_mcp_tools": session_metadata.get("disabled_mcp_tools") or [],
-                    "language": language,
-                    "project_id": session_metadata.get("project_id"),
-                    "team_id": session_metadata.get("team_id"),
-                    "recovery_of_run_id": source_run_id,
-                    "recovery_reason": reason,
-                    "recovery_requested_at": utc_now_iso(),
-                    "task_recoverable": False,
-                    "task_error_code": None,
-                }
-            ),
+            SessionUpdate(metadata=recovered_metadata),
         )
 
         return {

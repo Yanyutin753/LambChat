@@ -30,7 +30,7 @@ import {
 } from "./sessionState";
 import type { MessageAttachment } from "../../../types";
 import type { ChatViewProps } from "./ChatViewProps";
-import { useCurrentTeam, resolveChatAssistantIdentity } from "./ChatViewProps";
+import { useChatAssistantIdentity } from "./ChatViewProps";
 import { useChatOutline } from "./useChatOutline";
 import { useRevealPreview } from "./useRevealPreview";
 import { findCancelledRetryTarget } from "../../chat/ChatMessage/cancelledRetry";
@@ -95,8 +95,8 @@ export function ChatView({
   currentAgent,
   onSelectAgent,
   selectedTeamId,
-  onSelectTeam,
-  onOpenTeamBuilder,
+  pluginOptionValues,
+  onPluginOptionChange,
   approvals,
   onRespondApproval,
   approvalLoading,
@@ -195,17 +195,13 @@ export function ChatView({
     const preset = personaPresets.find((p) => p.id === selectedPersonaPresetId);
     return preset?.avatar ?? null;
   }, [personaPresets, selectedPersonaPresetId]);
-  const currentTeam = useCurrentTeam(currentAgent, selectedTeamId);
-  const assistantIdentity = useMemo(
-    () =>
-      resolveChatAssistantIdentity({
-        currentAgent,
-        currentPersonaAvatar,
-        currentTeam,
-        selectedPersonaName,
-      }),
-    [currentAgent, currentPersonaAvatar, currentTeam, selectedPersonaName],
-  );
+  const assistantIdentity = useChatAssistantIdentity({
+    currentAgent,
+    currentPersonaAvatar,
+    pluginOptionValues,
+    runtimePlugins,
+    selectedPersonaName,
+  });
 
   // --- Outline panel (side effects managed by hook) ---
   useChatOutline(
@@ -443,8 +439,9 @@ export function ChatView({
     currentAgent,
     onSelectAgent,
     selectedTeamId,
-    onSelectTeam,
-    onOpenTeamBuilder,
+    pluginOptionValues,
+    onPluginOptionChange,
+    runtimePlugins,
     attachments,
     onAttachmentsChange,
   };
@@ -487,7 +484,6 @@ export function ChatView({
               onClearActiveGoal={onClearActiveGoal}
               onUsePersonaPreset={onUsePersonaPreset}
               onClearPersonaPreset={onClearPersonaPreset}
-              onSelectTeam={onSelectTeam}
             />
           )
         ) : (

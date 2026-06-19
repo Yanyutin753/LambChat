@@ -91,6 +91,10 @@ class ChannelConfigCreate(BaseModel):
     )
     project_id: Optional[str] = Field(None, description="Project ID to assign sessions to")
     team_id: Optional[str] = Field(None, description="Team ID to use for team agent channel runs")
+    plugin_options: Optional[dict[str, dict[str, Any]]] = Field(
+        None,
+        description="Plugin-scoped channel options; legacy top-level fields remain compatibility mirrors",
+    )
     persona_preset_id: Optional[str] = Field(
         None, description="Persona preset ID to use for this channel instance"
     )
@@ -109,6 +113,10 @@ class ChannelConfigUpdate(BaseModel):
     )
     project_id: Optional[str] = Field(None, description="Project ID to assign sessions to")
     team_id: Optional[str] = Field(None, description="Team ID to use for team agent channel runs")
+    plugin_options: Optional[dict[str, dict[str, Any]]] = Field(
+        None,
+        description="Plugin-scoped channel options; legacy top-level fields remain compatibility mirrors",
+    )
     persona_preset_id: Optional[str] = Field(
         None, description="Persona preset ID to use for this channel instance"
     )
@@ -132,6 +140,10 @@ class ChannelConfigResponse(BaseModel):
         None, description="Project ID assigned to this channel's sessions"
     )
     team_id: Optional[str] = Field(None, description="Team ID used by team agent channel runs")
+    plugin_options: Optional[dict[str, dict[str, Any]]] = Field(
+        None,
+        description="Plugin-scoped channel options",
+    )
     persona_preset_id: Optional[str] = Field(
         None, description="Persona preset ID used by this channel instance"
     )

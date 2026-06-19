@@ -36,6 +36,14 @@ from src.infra.channel.feishu.markdown import FeishuMarkdownAdapter
 from src.infra.logging import get_logger
 from src.infra.utils.datetime import utc_now
 from src.kernel.config import settings  # noqa: F401 - compatibility for handler tests/patching
+from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS, PluginRuntime
+from src.kernel.extensions.plugin_options import (
+    AGENT_TEAM_PLUGIN_ID,
+    AGENT_TEAM_SELECTED_TEAM_OPTION,
+    agent_uses_agent_team_options,
+    declared_plugin_options_from_metadata,
+    plugin_option_from_metadata,
+)
 
 logger = get_logger(__name__)
 
@@ -275,6 +283,47 @@ async def _safe_unlink(path: str) -> None:
         pass
     except Exception as exc:
         logger.debug("[Feishu] Failed to remove temporary file %s: %s", path, exc)
+
+
+def _runtime_or_builtin(runtime: object) -> PluginRuntime:
+    if isinstance(runtime, PluginRuntime):
+        return runtime
+    return PluginRuntime(BUILTIN_PLUGIN_MANIFESTS, core_dependencies=("skill_core",))
+
+
+def _channel_team_id_from_plugin_options(
+    *,
+    runtime: PluginRuntime,
+    channel_config: dict[str, Any],
+    agent_id: str | None,
+) -> str | None:
+    plugin_options = declared_plugin_options_from_metadata(
+        runtime,
+        channel_config,
+        scope="channel",
+        agent_id=agent_id,
+        executable_only=True,
+    )
+    selected_team_id = plugin_option_from_metadata(
+        {"plugin_options": plugin_options},
+        plugin_id=AGENT_TEAM_PLUGIN_ID,
+        key=AGENT_TEAM_SELECTED_TEAM_OPTION,
+    )
+    if isinstance(selected_team_id, str) and selected_team_id.strip():
+        return selected_team_id
+    return None
+
+
+def _ensure_agent_executable_with_runtime(
+    runtime: PluginRuntime,
+    agent_id: str,
+) -> None:
+    if runtime.plugin_for_agent(agent_id):
+        runtime.ensure_agent_available(agent_id)
+        return
+    from src.agents import ensure_agent_executable
+
+    ensure_agent_executable(agent_id)
 
 
 class FeishuResponseCollector:
@@ -951,6 +1000,7 @@ def create_feishu_message_handler(
     manager: "FeishuChannelManager",
     default_agent: str,
     show_tools: bool = True,
+    plugin_runtime: PluginRuntime | None = None,
 ) -> Callable:
     """
     创建飞书消息处理器
@@ -984,6 +1034,9 @@ def create_feishu_message_handler(
         try:
             logger.info(
                 f"[Feishu] Processing message from {sender_id} for user {user_id}: {content[:50]}..."
+            )
+            runtime = _runtime_or_builtin(
+                plugin_runtime or getattr(manager, "plugin_runtime", None)
             )
 
             sender_id_from_msg = metadata.get("sender_id")
@@ -1035,9 +1088,19 @@ def create_feishu_message_handler(
                         )
                     model_id = ch_config.get("model_id")
                     project_id = ch_config.get("project_id")
-                    team_id = ch_config.get("team_id")
+                    team_id = _channel_team_id_from_plugin_options(
+                        runtime=runtime,
+                        channel_config=ch_config,
+                        agent_id=agent_to_use,
+                    )
+                    uses_agent_team_options = agent_uses_agent_team_options(
+                        agent_to_use,
+                        runtime=runtime,
+                    )
                     persona_preset_id = (
-                        None if agent_to_use == "team" else ch_config.get("persona_preset_id")
+                        None
+                        if uses_agent_team_options
+                        else ch_config.get("persona_preset_id")
                     )
                     channel_name = ch_config.get("name")
                     stream_reply = bool(ch_config.get("stream_reply", True))
@@ -1106,6 +1169,8 @@ def create_feishu_message_handler(
             if model_id:
                 feishu_agent_options = {"model_id": model_id}
 
+            _ensure_agent_executable_with_runtime(runtime, agent_to_use)
+
             collector = FeishuResponseCollector(
                 manager=manager,
                 user_id=user_id,
@@ -1168,7 +1233,11 @@ def create_feishu_message_handler(
                 session_name=session_title,
                 enabled_skills=enabled_skills,
                 persona_system_prompt=persona_system_prompt,
-                team_id=team_id if agent_to_use == "team" else None,
+                team_id=(
+                    team_id
+                    if agent_uses_agent_team_options(agent_to_use, runtime=runtime)
+                    else None
+                ),
             )
             collector.set_session_link(session_id, run_id)
             try:
@@ -1495,6 +1564,7 @@ async def _patch_feishu_approval_card(
 async def setup_feishu_handler(
     default_agent: str,
     show_tools: bool = True,
+    plugin_runtime: PluginRuntime | None = None,
 ) -> None:
     """
     设置飞书消息处理器
@@ -1506,10 +1576,19 @@ async def setup_feishu_handler(
     from src.infra.channel.feishu import get_feishu_channel_manager, start_feishu_channels
 
     manager = get_feishu_channel_manager()
+    if plugin_runtime is not None and hasattr(manager, "set_plugin_runtime"):
+        manager.set_plugin_runtime(plugin_runtime)
+        try:
+            from src.agents import set_plugin_runtime as set_agent_plugin_runtime
+
+            set_agent_plugin_runtime(plugin_runtime)
+        except Exception as exc:  # noqa: BLE001 - Feishu can still rely on local guards
+            logger.warning("Failed to attach plugin runtime to Feishu agent guard: %s", exc)
     handler = create_feishu_message_handler(
         manager=manager,
         default_agent=default_agent,
         show_tools=show_tools,
+        plugin_runtime=plugin_runtime,
     )
 
     await start_feishu_channels(handler)

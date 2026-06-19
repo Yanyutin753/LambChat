@@ -9,13 +9,16 @@ error handling, and status updates.
 import asyncio
 from typing import Any, Callable, Dict, List, Optional
 
+from src.agents import ensure_agent_executable
 from src.agents.core import resolve_agent_name
 from src.infra.logging import get_logger
+from src.infra.logging.context import TraceContext
 from src.infra.session.dual_writer import get_dual_writer
 from src.infra.session.favorites import is_session_favorite
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.kernel.config import settings
+from src.kernel.extensions import PluginUnavailableError
 from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
 from .exceptions import TaskInterruptedError
@@ -87,6 +90,18 @@ class TaskExecutor:
         dual_writer = None
 
         try:
+            try:
+                ensure_agent_executable(agent_id)
+            except PluginUnavailableError as exc:
+                logger.warning(
+                    "Rejecting task for unavailable plugin-owned agent: session=%s, run_id=%s, agent_id=%s, plugin_id=%s",
+                    session_id,
+                    run_id,
+                    agent_id,
+                    exc.plugin_id,
+                )
+                raise
+
             await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
 
             # 启动心跳（传入 user_id 以刷新并发限制条目）
@@ -106,8 +121,6 @@ class TaskExecutor:
             )
 
             # 设置请求上下文（供工具使用，如 ask_human）
-            from src.infra.logging.context import TraceContext
-
             logger.info(
                 f"[TaskManager] Setting TraceContext: session_id={session_id}, run_id={run_id}"
             )

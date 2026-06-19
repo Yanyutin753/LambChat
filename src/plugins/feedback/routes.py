@@ -12,6 +12,7 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.api.deps import get_current_user_required, require_permissions
+from src.api.routes.plugin_guard import plugin_route_guard
 from src.infra.feedback.manager import FeedbackManager
 from src.infra.logging import get_logger
 from src.kernel.schemas.feedback import (
@@ -23,8 +24,11 @@ from src.kernel.schemas.feedback import (
 )
 from src.kernel.schemas.user import TokenPayload
 
-router = APIRouter()
 logger = get_logger(__name__)
+FEEDBACK_PLUGIN_ID = "feedback"
+
+
+router = APIRouter(dependencies=[Depends(plugin_route_guard(FEEDBACK_PLUGIN_ID))])
 
 
 @lru_cache

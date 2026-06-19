@@ -13,6 +13,7 @@ test("document preview gates advanced viewers through plugin runtime state", () 
   assert.match(stateSource, /runtimePlugins\?: PluginRuntimeContributionStates/);
   assert.match(stateSource, /hasFileViewerContribution\("code", runtimePlugins\)/);
   assert.match(stateSource, /hasPluginAssetSlot\("file_viewer", runtimePlugins\)/);
+  assert.doesNotMatch(stateSource, /runtimePlugins === undefined/);
   assert.match(stateSource, /advancedFileViewersEnabled && resolvedPdfFile/);
   assert.match(stateSource, /advancedFileViewersEnabled && cadFile/);
   assert.match(stateSource, /advancedFileViewersEnabled && \(wordPreviewFile \|\| excelFile\)/);
@@ -40,5 +41,6 @@ test("file library gates advanced viewer shortcuts through the plugin asset slot
 
   assert.match(fileLibrarySource, /hasFileViewerContribution\("code", runtimePlugins\)/);
   assert.match(fileLibrarySource, /hasPluginAssetSlot\("file_viewer", runtimePlugins\)/);
+  assert.doesNotMatch(fileLibrarySource, /runtimePlugins === undefined/);
   assert.match(fileLibrarySource, /advancedFileViewersEnabled && file\.url && isExcalidrawFile/);
 });

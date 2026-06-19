@@ -20,18 +20,210 @@ export interface PluginRuntimeTool {
   legacy_ids: string[];
 }
 
+export interface PluginRuntimeEffect {
+  action: string;
+  effect: string;
+}
+
+export interface PluginRuntimeAgent {
+  id: string;
+  module: string;
+  name: string;
+  description: string;
+  icon: string;
+  sort_order: number;
+  category?: string | null;
+  required_permissions: string[];
+}
+
 export interface PluginRuntimeFrontend {
   routes: string[];
   panels: string[];
   nav_items: string[];
-  tool_renderers: string[];
-  file_viewers: string[];
-  skill_importers: string[];
-  channel_connectors: string[];
-  message_actions: string[];
+  app_tabs: PluginRuntimeAppTab[];
+  app_panels: PluginRuntimeAppPanel[];
+  sidebar_items: PluginRuntimeSidebarItem[];
+  user_menu_items: PluginRuntimeUserMenuItem[];
+  tool_renderers: Array<string | PluginRuntimeToolRenderer>;
+  file_viewers: Array<string | PluginRuntimeFileViewer>;
+  upload_handlers: Array<string | PluginRuntimeUploadHandler>;
+  skill_importers: Array<string | PluginRuntimeSkillImporter>;
+  channel_connectors: Array<string | PluginRuntimeChannelConnector>;
+  message_actions: PluginRuntimeMessageAction[];
+  chat_input_options: PluginRuntimeChatInputOption[];
+  chat_input_panels: PluginRuntimeChatInputPanel[];
+  mention_providers: PluginRuntimeMentionProvider[];
+  welcome_surfaces: PluginRuntimeWelcomeSurface[];
+  assistant_identity_resolvers: PluginRuntimeAssistantIdentityResolver[];
+  agent_categories: PluginRuntimeAgentCategory[];
+  project_options: PluginRuntimeScopedOption[];
+  session_options: PluginRuntimeScopedOption[];
+  channel_options: PluginRuntimeScopedOption[];
+  scheduled_task_options: PluginRuntimeScopedOption[];
   settings_sections: string[];
   i18n_namespaces: string[];
   required_permissions: string[];
+}
+
+export interface PluginRuntimeToolRenderer {
+  id: string;
+  tool_names: string[];
+}
+
+export interface PluginRuntimeFileViewer {
+  id: string;
+  extensions: string[];
+}
+
+export interface PluginRuntimeUploadHandler {
+  id: string;
+  accept: string[];
+  max_bytes?: number | null;
+  handler?: string | null;
+}
+
+export interface PluginRuntimeSkillImporter {
+  id: string;
+  source: "github" | "zip";
+}
+
+export interface PluginRuntimeChannelConnector {
+  id: string;
+  channel_type: string;
+  panel_renderer?: string | null;
+}
+
+export interface PluginRuntimeVisibleWhen {
+  agent_id?: string | null;
+  route?: string | null;
+  scope?: string | null;
+  permissions?: string[];
+}
+
+export interface PluginRuntimeOptionBinding {
+  plugin_id?: string | null;
+  key: string;
+  scope?: string;
+}
+
+export interface PluginRuntimeAppTab {
+  id: string;
+  tab: string;
+  path: string;
+  label?: string;
+  panel?: string | null;
+  order: number;
+  insert_after?: string | null;
+  permissions?: string[];
+  seo_title?: string;
+  seo_description?: string;
+  redirect_to?: string | null;
+  show_no_permission_toast?: boolean;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeAppPanel {
+  id: string;
+  tab: string;
+  renderer: string;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeSidebarItem {
+  id: string;
+  path: string;
+  label: string;
+  icon: string;
+  order: number;
+  permissions?: string[];
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeUserMenuItem extends PluginRuntimeSidebarItem {
+  group: "admin" | "system";
+}
+
+export interface PluginRuntimeMessageAction {
+  id: string;
+  target?: "assistant_message" | "user_message" | "tool_result" | "shared_message" | string;
+  renderer: string;
+  order?: number;
+  permissions?: string[];
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeChatInputOption {
+  id: string;
+  slot: "enhance" | "settings" | "upload" | string;
+  label: string;
+  icon: string;
+  panel?: string | null;
+  selected_renderer?: string | null;
+  suppresses_core_persona_selector?: boolean;
+  shortcut?: string | null;
+  order: number;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeChatInputPanel {
+  id: string;
+  renderer: string;
+  create_path?: string | null;
+  manage_path?: string | null;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeMentionProvider {
+  id: string;
+  trigger: string;
+  mode: string;
+  provider: string;
+  option_binding?: PluginRuntimeOptionBinding | null;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeWelcomeSurface {
+  id: string;
+  agent_id: string;
+  renderer: string;
+  order: number;
+  option_binding?: PluginRuntimeOptionBinding | null;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeAssistantIdentityResolver {
+  id: string;
+  agent_id: string;
+  resolver: string;
+  order: number;
+  option_binding?: PluginRuntimeOptionBinding | null;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeAgentCategory {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  order: number;
+  visible_when?: PluginRuntimeVisibleWhen | null;
+}
+
+export interface PluginRuntimeScopedOption {
+  key: string;
+  type: "string" | "text" | "number" | "boolean" | "select" | "json" | string;
+  label: string;
+  description: string;
+  default?: unknown;
+  group: string;
+  order: number;
+  options?: string[] | null;
+  json_schema?: Record<string, unknown> | null;
+  renderer?: string | null;
+  suppresses_core_persona_selector?: boolean;
+  legacy_payload_keys?: string[];
+  applies_to_session_key?: string | null;
+  visible_when?: PluginRuntimeVisibleWhen | null;
 }
 
 export interface PluginRuntimeSideEffect {
@@ -48,6 +240,7 @@ export interface PluginPackageLayout {
   has_config_defaults: boolean;
   has_resources: boolean;
   has_data_template: boolean;
+  data_template: string;
   has_readme: boolean;
   backend_files: string[];
   frontend_files: string[];
@@ -79,6 +272,7 @@ export interface PluginRuntimePackage {
 
 export interface PluginDataTemplateSummary {
   exists: boolean;
+  template: string;
   file_count: number;
   total_bytes: number;
   files: string[];
@@ -121,7 +315,9 @@ export interface PluginRuntimePlugin {
   depends_on: string[];
   permissions: string[];
   routes: PluginRuntimeRoute[];
+  agents: PluginRuntimeAgent[];
   tools: PluginRuntimeTool[];
+  runtime_effects: PluginRuntimeEffect[];
   frontend: PluginRuntimeFrontend;
   resource_count: number;
   resource_types: Record<string, number>;
@@ -282,7 +478,7 @@ export interface PluginSettingItem {
   legacy_system_setting_keys: string[];
   options?: string[] | null;
   json_schema?: Record<string, unknown> | null;
-  visible_when?: Record<string, unknown> | null;
+  visible_when?: PluginRuntimeVisibleWhen | null;
 }
 
 export interface PluginSettingsResponse {
@@ -402,10 +598,57 @@ export interface PluginRuntimeContributionState {
   enabled: boolean;
   executable: boolean;
   status: string;
+  agents?: PluginRuntimeAgent[];
+  tools?: PluginRuntimeTool[];
+  frontend?: PluginRuntimeFrontend | null;
 }
 
 export interface PluginRuntimeContributionStatesResponse {
   plugins: PluginRuntimeContributionState[];
+  total: number;
+}
+
+export interface ExtensionScopedOption {
+  id: string;
+  plugin_id: string;
+  plugin_enabled: boolean;
+  effective: boolean;
+  plugin_status: string;
+  key: string;
+  type: "string" | "text" | "number" | "boolean" | "select" | "json" | string;
+  label: string;
+  description: string;
+  default_value?: unknown;
+  group: string;
+  order: number;
+  options?: string[] | null;
+  json_schema?: Record<string, unknown> | null;
+  renderer?: string | null;
+  suppresses_core_persona_selector?: boolean;
+  legacy_payload_keys?: string[];
+  visible_when?: PluginRuntimeVisibleWhen | null;
+  area: "project_option" | "session_option" | "channel_option" | "scheduled_task_option" | string;
+}
+
+export interface ExtensionScopedOptionsResponse {
+  options: ExtensionScopedOption[];
+  total: number;
+  scope: "project" | "session" | "channel" | "scheduled_task" | string;
+}
+
+export interface ExtensionHostSlot {
+  id: string;
+  manifest_key: string;
+  area: string;
+  description: string;
+  disabled_behavior: string;
+  supports_visible_when: boolean;
+  renderer_registry?: string | null;
+  data_scope?: string | null;
+}
+
+export interface ExtensionHostSlotsResponse {
+  slots: ExtensionHostSlot[];
   total: number;
 }
 

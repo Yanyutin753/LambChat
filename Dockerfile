@@ -41,6 +41,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy source code
 COPY src/ ./src/
+COPY plugins/ ./plugins/
 COPY main.py ./
 
 # Copy frontend static files

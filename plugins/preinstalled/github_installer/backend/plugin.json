@@ -2,7 +2,7 @@
   "schema": "lambchat.plugin.backend.v1",
   "plugin_id": "github_installer",
   "backend": {
-    "routers": [
+    "routes": [
       {
         "name": "github_installer-api",
         "prefix": "/api/github",

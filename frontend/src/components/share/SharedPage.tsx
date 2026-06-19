@@ -23,7 +23,6 @@ import {
 import { BackIcon } from "../common/BackIcon";
 import { getFullUrl } from "../../services/api";
 import { shareApi } from "../../services/api/share";
-import { pluginRuntimeApi } from "../../services/api/pluginRuntime";
 import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
 import { ImageWithSkeleton } from "../chat/ChatMessage/ImageWithSkeleton";
@@ -52,11 +51,13 @@ import { formatDate, formatDateTimeShort } from "../../utils/datetime";
 import { getModelIconUrl, isMonochromeIcon } from "../agent/modelIcon";
 import { ScrollButtons } from "../landing/components/ScrollButtons";
 import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
+import { useExtensionContributions } from "../../hooks/useExtensionContributions";
 import {
   PersonaAvatarImage,
   PersonaAvatarIcon,
 } from "../persona/PersonaAvatarIcon";
 import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
+import { resolvePluginAssistantIdentitySnapshot } from "../chat/chatAssistantIdentityResolvers";
 
 const LANGUAGES = [
   { code: "en", nativeName: "English" },
@@ -66,24 +67,41 @@ const LANGUAGES = [
   { code: "ru", nativeName: "Русский" },
 ];
 
+const EMPTY_RUNTIME_PLUGINS: PluginRuntimeContributionStates = [];
+
 function resolveSharedAssistantIdentity(
   session: SharedContentResponse["session"] | null | undefined,
+  runtimePlugins: PluginRuntimeContributionStates,
 ) {
   if (!session) {
     return { name: null, avatar: null };
   }
 
-  if (session.agent_id === "team") {
-    return {
-      name: session.team_name ?? null,
-      avatar: session.team_avatar ?? null,
-    };
+  const pluginIdentity = resolveSharedPluginAssistantIdentity(
+    session,
+    runtimePlugins,
+  );
+  if (pluginIdentity) {
+    return pluginIdentity;
   }
 
   return {
     name: session.persona_preset_name ?? null,
     avatar: session.persona_avatar ?? null,
   };
+}
+
+function resolveSharedPluginAssistantIdentity(
+  session: SharedContentResponse["session"] | null | undefined,
+  runtimePlugins: PluginRuntimeContributionStates,
+) {
+  if (!session) return null;
+  return resolvePluginAssistantIdentitySnapshot({
+    currentAgent: session.agent_id,
+    runtimePlugins,
+    teamName: session.team_name ?? null,
+    teamAvatar: session.team_avatar ?? null,
+  });
 }
 
 /** Local-only language toggle — no backend API calls (safe for unauthenticated shared pages) */
@@ -191,8 +209,8 @@ export function SharedPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SharedContentResponse | null>(null);
-  const [runtimePlugins, setRuntimePlugins] =
-    useState<PluginRuntimeContributionStates>();
+  const { data: extensionContributions } = useExtensionContributions();
+  const runtimePlugins = extensionContributions?.plugins ?? EMPTY_RUNTIME_PLUGINS;
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(true);
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -266,29 +284,6 @@ export function SharedPage() {
 
     loadSharedContent();
   }, [shareId, t]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadContributionStates = async () => {
-      try {
-        const response = await pluginRuntimeApi.listContributionStates();
-        if (!cancelled) {
-          setRuntimePlugins(response.plugins);
-        }
-      } catch (err) {
-        console.warn("Failed to load public plugin runtime states:", err);
-        if (!cancelled) {
-          setRuntimePlugins(undefined);
-        }
-      }
-    };
-
-    loadContributionStates();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Reconstruct messages from events using the same logic as the main chat
   const messages = useMemo(() => {
@@ -364,7 +359,11 @@ export function SharedPage() {
     () => getLatestAutoPreviewTarget(messages),
     [messages],
   );
-  const sharedAssistant = resolveSharedAssistantIdentity(data?.session);
+  const sharedPluginAssistant = resolveSharedPluginAssistantIdentity(
+    data?.session,
+    runtimePlugins,
+  );
+  const sharedAssistant = resolveSharedAssistantIdentity(data?.session, runtimePlugins);
 
   // Reading time estimate (rough: ~200 words per minute)
   const readingTime = useMemo(() => {
@@ -723,9 +722,9 @@ export function SharedPage() {
                     {data.session.persona_preset_name}
                   </span>
                 )}
-                {data.session.team_name && (
+                {sharedPluginAssistant?.name && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
-                    {data.session.team_name}
+                    {sharedPluginAssistant.name}
                   </span>
                 )}
                 {data.session.model && (

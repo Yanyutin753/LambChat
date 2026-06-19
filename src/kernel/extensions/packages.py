@@ -9,12 +9,20 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from src.kernel.extensions.manifest import (
     PluginFrontendAssetBundle,
     PluginInstallType,
     PluginManifest,
+)
+from src.kernel.extensions.host_slots import (
+    BACKEND_PLUGIN_MANIFEST_KEYS,
+    CONTROLLED_FRONTEND_REFERENCE_FIELDS,
+    CONTROLLED_FRONTEND_REFERENCES,
+    FRONTEND_MANIFEST_CONTRIBUTION_KEYS,
+    STRUCTURED_FRONTEND_MANIFEST_KEYS,
+    STRUCTURED_OR_LEGACY_STRING_FRONTEND_MANIFEST_KEYS,
 )
 
 PluginPackageSourceType = Literal["system", "preinstalled", "installed", "staged"]
@@ -24,10 +32,24 @@ class PluginPackageBackend(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     routers: list[dict[str, Any]] = Field(default_factory=list)
+    routes: list[dict[str, Any]] = Field(default_factory=list, exclude=True)
+    agents: list[dict[str, Any]] = Field(default_factory=list)
     tools: list[dict[str, Any]] = Field(default_factory=list)
     lifespan_hooks: list[dict[str, Any]] = Field(default_factory=list)
+    runtime_effects: list[dict[str, Any]] = Field(default_factory=list)
     scheduler_jobs: list[str] = Field(default_factory=list)
+    event_listeners: list[str] = Field(default_factory=list)
     migrations: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def normalize_route_alias(self) -> "PluginPackageBackend":
+        """Accept public backend.routes while keeping runtime internals on routers."""
+        if self.routes:
+            if self.routers and self.routers != self.routes:
+                raise ValueError("backend routes and routers cannot both declare different routes")
+            self.routers = self.routes
+        self.routes = []
+        return self
 
 
 class PluginPackageManifest(BaseModel):
@@ -89,6 +111,7 @@ class PluginPackageLayout:
     has_config_defaults: bool = False
     has_resources: bool = False
     has_data_template: bool = False
+    data_template: str = "plugin-data-template"
     has_readme: bool = False
     backend_files: tuple[str, ...] = ()
     frontend_files: tuple[str, ...] = ()
@@ -102,6 +125,7 @@ class PluginPackageLayout:
             "has_config_defaults": self.has_config_defaults,
             "has_resources": self.has_resources,
             "has_data_template": self.has_data_template,
+            "data_template": self.data_template,
             "has_readme": self.has_readme,
             "backend_files": list(self.backend_files),
             "frontend_files": list(self.frontend_files),
@@ -212,7 +236,11 @@ class PluginPackageScanner:
             external_backend = self._load_package_backend(folder, plugin_id=package.id)
             external_settings, config_defaults = self._load_package_settings(folder)
             external_resources = self._load_package_resources(folder)
-            external_frontend = self._load_package_frontend(folder, plugin_id=package.id)
+            external_frontend = self._load_package_frontend(
+                folder,
+                plugin_id=package.id,
+                source_type=source_type,
+            )
             frontend_assets = self._load_frontend_assets(folder, plugin_id=package.id)
             package = package.merged_with_package_files(
                 backend=self._merge_backend(package.backend, external_backend),
@@ -222,7 +250,7 @@ class PluginPackageScanner:
                     config_defaults=config_defaults,
                 ),
                 resources=self._merge_resources(package.resources, external_resources),
-                frontend=self._merge_frontend(package.frontend, external_frontend),
+                frontend=self._merge_frontend(package.frontend, external_frontend, plugin_id=package.id),
             )
             manifest = self._compile_manifest(
                 package,
@@ -260,6 +288,7 @@ class PluginPackageScanner:
             has_config_defaults=self._safe_child(folder, "config/defaults.json").is_file(),
             has_resources=self._safe_child(folder, "resources/resources.yaml").is_file(),
             has_data_template=self._safe_child(folder, data_template).is_dir(),
+            data_template=data_template,
             has_readme=(folder / "README.md").is_file() or (folder / "README").is_file(),
             backend_files=self._top_level_files(backend_dir),
             frontend_files=self._top_level_files(frontend_dir),
@@ -337,13 +366,7 @@ class PluginPackageScanner:
         backend = payload.get("backend", payload)
         if not isinstance(backend, dict):
             raise ValueError("backend/plugin.json backend must contain a mapping")
-        allowed = {
-            "routers",
-            "tools",
-            "lifespan_hooks",
-            "scheduler_jobs",
-            "migrations",
-        }
+        allowed = BACKEND_PLUGIN_MANIFEST_KEYS
         result: dict[str, Any] = {}
         for key, value in backend.items():
             if key in {"plugin_id", "schema"}:
@@ -352,7 +375,7 @@ class PluginPackageScanner:
                 raise ValueError(f"backend/plugin.json contains unknown contribution key: {key}")
             if not isinstance(value, list):
                 raise ValueError(f"backend/plugin.json {key} must be a list")
-            if key in {"scheduler_jobs", "migrations"}:
+            if key in {"scheduler_jobs", "event_listeners", "migrations"}:
                 if not all(isinstance(item, str) for item in value):
                     raise ValueError(f"backend/plugin.json {key} must be a list of strings")
             elif not all(isinstance(item, dict) for item in value):
@@ -365,6 +388,7 @@ class PluginPackageScanner:
         folder: Path,
         *,
         plugin_id: str,
+        source_type: PluginPackageSourceType,
     ) -> dict[str, Any]:
         path = self._optional_package_file(folder, "frontend/plugin.json")
         if path is None:
@@ -381,29 +405,63 @@ class PluginPackageScanner:
         frontend = payload.get("frontend", payload)
         if not isinstance(frontend, dict):
             raise ValueError("frontend/plugin.json frontend must contain a mapping")
-        allowed = {
-            "routes",
-            "panels",
-            "nav_items",
-            "tool_renderers",
-            "file_viewers",
-            "skill_importers",
-            "channel_connectors",
-            "message_actions",
-            "settings_sections",
-            "i18n_namespaces",
-            "required_permissions",
-        }
+        allowed = FRONTEND_MANIFEST_CONTRIBUTION_KEYS
+        structured_list_keys = STRUCTURED_FRONTEND_MANIFEST_KEYS
+        structured_or_legacy_string_list_keys = STRUCTURED_OR_LEGACY_STRING_FRONTEND_MANIFEST_KEYS
         result: dict[str, Any] = {}
         for key, value in frontend.items():
             if key in {"plugin_id", "schema"}:
                 continue
             if key not in allowed:
                 raise ValueError(f"frontend/plugin.json contains unknown contribution key: {key}")
-            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+            if key in structured_list_keys:
+                if not isinstance(value, list):
+                    raise ValueError(f"frontend/plugin.json {key} must be a list")
+                if not all(isinstance(item, dict) for item in value):
+                    raise ValueError(f"frontend/plugin.json {key} must be a list of mappings")
+            elif key in structured_or_legacy_string_list_keys:
+                if not isinstance(value, list):
+                    raise ValueError(f"frontend/plugin.json {key} must be a list")
+                if not all(isinstance(item, (dict, str)) for item in value):
+                    raise ValueError(f"frontend/plugin.json {key} must be a list of mappings or strings")
+            elif not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 raise ValueError(f"frontend/plugin.json {key} must be a list of strings")
             result[key] = value
+        self._validate_controlled_frontend_references(
+            result,
+            source_type=source_type,
+        )
         return result
+
+    def _validate_controlled_frontend_references(
+        self,
+        frontend: dict[str, Any],
+        *,
+        source_type: PluginPackageSourceType,
+    ) -> None:
+        if source_type not in {"system", "preinstalled"}:
+            return
+        missing: list[str] = []
+        for contribution_key, fields in CONTROLLED_FRONTEND_REFERENCE_FIELDS.items():
+            values = frontend.get(contribution_key, [])
+            if not isinstance(values, list):
+                continue
+            for item in values:
+                if not isinstance(item, dict):
+                    continue
+                for field in fields:
+                    reference = item.get(field)
+                    if not reference:
+                        continue
+                    contract_key = f"{contribution_key}.{field}"
+                    allowed = CONTROLLED_FRONTEND_REFERENCES.get(contract_key, frozenset())
+                    if str(reference) not in allowed:
+                        missing.append(f"{contract_key}={reference}")
+        if missing:
+            raise ValueError(
+                "frontend/plugin.json references unregistered controlled host renderer/provider: "
+                + ", ".join(missing)
+            )
 
     def _load_frontend_assets(
         self,
@@ -468,18 +526,22 @@ class PluginPackageScanner:
         *,
         config_defaults: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        merged: dict[str, dict[str, Any]] = {}
+        merged: dict[tuple[str, str], dict[str, Any]] = {}
         for setting in [*manifest_settings, *external_settings]:
             key = str(setting.get("key") or "")
             if not key:
                 raise ValueError("plugin setting key cannot be blank")
             normalized = dict(setting)
+            scope = str(normalized.get("scope") or "system")
             if key in config_defaults and "default" not in normalized:
                 normalized["default"] = config_defaults[key]
-            existing = merged.get(key)
+            merge_key = (scope, key)
+            existing = merged.get(merge_key)
             if existing is not None and existing != normalized:
-                raise ValueError(f"duplicate plugin setting with conflicting definition: {key}")
-            merged[key] = normalized
+                raise ValueError(
+                    f"duplicate plugin setting with conflicting definition: {scope}:{key}"
+                )
+            merged[merge_key] = normalized
         return list(merged.values())
 
     def _merge_backend(
@@ -494,6 +556,12 @@ class PluginPackageScanner:
                 key_field="name",
                 label="router",
             ),
+            agents=self._merge_backend_mappings(
+                manifest_backend.agents,
+                external_backend.agents,
+                key_field="id",
+                label="agent",
+            ),
             tools=self._merge_backend_mappings(
                 manifest_backend.tools,
                 external_backend.tools,
@@ -506,10 +574,21 @@ class PluginPackageScanner:
                 key_field="name",
                 label="lifespan hook",
             ),
+            runtime_effects=self._merge_backend_mappings(
+                manifest_backend.runtime_effects,
+                external_backend.runtime_effects,
+                key_field="action",
+                label="runtime effect",
+            ),
             scheduler_jobs=self._merge_string_list(
                 manifest_backend.scheduler_jobs,
                 external_backend.scheduler_jobs,
                 label="scheduler job",
+            ),
+            event_listeners=self._merge_string_list(
+                manifest_backend.event_listeners,
+                external_backend.event_listeners,
+                label="event listener",
             ),
             migrations=self._merge_string_list(
                 manifest_backend.migrations,
@@ -580,23 +659,59 @@ class PluginPackageScanner:
         self,
         manifest_frontend: dict[str, Any],
         external_frontend: dict[str, Any],
+        *,
+        plugin_id: str,
     ) -> dict[str, Any]:
         merged: dict[str, Any] = dict(manifest_frontend)
         for key, values in external_frontend.items():
             existing = merged.get(key, [])
             if existing is None:
                 existing = []
-            if not isinstance(existing, list) or not all(isinstance(item, str) for item in existing):
-                raise ValueError(f"plugin frontend {key} must be a list of strings")
-            seen = set(existing)
-            merged_values = list(existing)
-            for value in values:
-                if value in seen:
-                    continue
-                seen.add(value)
-                merged_values.append(value)
+            if not isinstance(existing, list):
+                raise ValueError(f"plugin frontend {key} must be a list")
+            if values and all(isinstance(item, dict) for item in values):
+                if not all(isinstance(item, dict) for item in existing):
+                    raise ValueError(f"plugin frontend {key} must be a list of mappings")
+                merged_values = self._merge_frontend_mappings(existing, values, key=key, plugin_id=plugin_id)
+            else:
+                if not all(isinstance(item, str) for item in existing):
+                    raise ValueError(f"plugin frontend {key} must be a list of strings")
+                seen = set(existing)
+                merged_values = list(existing)
+                for value in values:
+                    if value in seen:
+                        continue
+                    seen.add(value)
+                    merged_values.append(value)
             merged[key] = merged_values
         return merged
+
+    def _merge_frontend_mappings(
+        self,
+        manifest_values: list[dict[str, Any]],
+        external_values: list[dict[str, Any]],
+        *,
+        key: str,
+        plugin_id: str,
+    ) -> list[dict[str, Any]]:
+        merged: dict[str, dict[str, Any]] = {}
+        key_field = "key" if key in {"project_options", "session_options", "channel_options", "scheduled_task_options"} else "id"
+        for value in [*manifest_values, *external_values]:
+            contribution_id = str(value.get(key_field) or "")
+            if not contribution_id:
+                raise ValueError(f"plugin frontend {key} {key_field} cannot be blank")
+            if key_field == "id" and not _is_plugin_owned_contribution_id(contribution_id, plugin_id):
+                raise ValueError(
+                    f"plugin frontend {key} id must be owned by plugin {plugin_id}: {contribution_id}"
+                )
+            normalized = dict(value)
+            existing = merged.get(contribution_id)
+            if existing is not None and existing != normalized:
+                raise ValueError(
+                    f"duplicate plugin frontend {key} with conflicting definition: {contribution_id}"
+                )
+            merged[contribution_id] = normalized
+        return list(merged.values())
 
     def _compile_manifest(
         self,
@@ -621,9 +736,12 @@ class PluginPackageScanner:
             settings=package.settings,
             legacy_system_settings=package.legacy_system_settings,
             routers=package.backend.routers,
+            agents=package.backend.agents,
             tools=package.backend.tools,
             lifespan_hooks=package.backend.lifespan_hooks,
+            runtime_effects=package.backend.runtime_effects,
             scheduler_jobs=package.backend.scheduler_jobs,
+            event_listeners=package.backend.event_listeners,
             migrations=package.backend.migrations,
             resources=package.resources,
             frontend=package.frontend,
@@ -636,8 +754,12 @@ class PluginPackageScanner:
             package_data_dir=str(data_dir),
             package_validated_at=validated_at.isoformat(),
             package_config_defaults=config_defaults,
+            package_data_template=package.data_template,
             package_layout=self._inspect_layout(folder, data_template=package.data_template).model_dump(),
             package_frontend_assets=frontend_assets,
+            package_manifest_authority="folder_package",
+            package_static_fallback_used=False,
+            package_static_fallback_fields=[],
         )
 
     def _safe_child(self, root: Path, child: str) -> Path:
@@ -669,3 +791,7 @@ def _install_type_for_source(source_type: PluginPackageSourceType) -> PluginInst
     if source_type in {"installed", "staged"}:
         return PluginInstallType.USER_INSTALLED
     return PluginInstallType.PREINSTALLED
+
+
+def _is_plugin_owned_contribution_id(value: str, plugin_id: str) -> bool:
+    return value == plugin_id or value.startswith(f"{plugin_id}:") or value.startswith(f"{plugin_id}.")

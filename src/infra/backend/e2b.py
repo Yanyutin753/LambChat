@@ -14,6 +14,7 @@
 import asyncio
 import base64
 import os
+import posixpath
 import shlex
 from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 
@@ -450,7 +451,7 @@ class E2BBackend(BaseSandbox):
         glob_regex = re.compile("^" + "".join(segments) + "$")
 
         def _matches_find_result(full_path: str) -> bool:
-            relative_path = os.path.relpath(full_path, search_path)
+            relative_path = posixpath.relpath(full_path, search_path)
             return glob_regex.match(relative_path) is not None
 
         matches: list[FileInfo] = []

@@ -22,8 +22,16 @@ const welcomePageSource = readFileSync(
   new URL("../../chat/WelcomePage.tsx", import.meta.url),
   "utf8",
 );
+const welcomeSurfaceRendererSource = readFileSync(
+  new URL("../../chat/welcomeSurfaceRenderers.tsx", import.meta.url),
+  "utf8",
+);
 const toolbarSource = readFileSync(
   new URL("../../chat/ChatInputToolbar.tsx", import.meta.url),
+  "utf8",
+);
+const selectedRendererSource = readFileSync(
+  new URL("../../chat/chatInputSelectedRenderers.tsx", import.meta.url),
   "utf8",
 );
 
@@ -41,9 +49,11 @@ test("team avatar component supports team, default-role, and generic fallback ic
 test("all team selection surfaces render team avatars consistently", () => {
   assert.match(wrapperSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
   assert.match(pickerSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
-  assert.match(welcomePageSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  assert.doesNotMatch(welcomePageSource, /<TeamAvatar/);
+  assert.match(welcomeSurfaceRendererSource, /<TeamAvatar[\s\S]*avatar=\{team\.avatar\}/);
+  assert.doesNotMatch(toolbarSource, /<TeamAvatar/);
   assert.match(
-    toolbarSource,
+    selectedRendererSource,
     /<TeamAvatar[\s\S]*avatar=\{selectedTeam\?\.avatar\}/,
   );
 });

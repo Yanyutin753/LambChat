@@ -23,7 +23,11 @@ def test_image_generation_plugin_manifest_preserves_legacy_tool_name(monkeypatch
         ("image_generate", ["image_generate"])
     ]
     assert manifest.tools[0].required_permissions == [Permission.MCP_READ.value]
-    assert manifest.frontend.tool_renderers == ["image_generation:image-generate"]
+    assert manifest.frontend.tool_renderers[0].id == "image_generation:image-generate"
+    assert manifest.frontend.tool_renderers[0].tool_names == [
+        "image_generation.image_generate",
+        "image_generate",
+    ]
     assert manifest.setting_keys() == ["API_KEY", "BASE_URL", "MODEL", "TIMEOUT"]
     assert "ENABLE_IMAGE_GENERATION" in manifest.legacy_setting_keys()
     assert "IMAGE_GENERATION_API_KEY" in manifest.legacy_setting_keys()

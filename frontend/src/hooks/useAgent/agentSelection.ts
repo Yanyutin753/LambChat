@@ -1,7 +1,5 @@
 import type { AgentInfo } from "../../types";
 
-const TEAM_AGENT_ID = "team";
-
 export function resolveAvailableAgentId(
   currentAgentId: string,
   preferredDefaultAgentId: string | undefined,
@@ -24,8 +22,11 @@ export function resolvePersonaAgentId(
   currentAgentId: string,
   preferredDefaultAgentId: string | undefined,
   agents: AgentInfo[],
+  excludedAgentIds: readonly string[] = [],
 ): string {
-  if (currentAgentId && currentAgentId !== TEAM_AGENT_ID) {
+  const excludedIds = new Set(excludedAgentIds.filter(Boolean));
+
+  if (currentAgentId && !excludedIds.has(currentAgentId)) {
     return resolveAvailableAgentId(
       currentAgentId,
       preferredDefaultAgentId,
@@ -33,6 +34,6 @@ export function resolvePersonaAgentId(
     );
   }
 
-  const nonTeamAgents = agents.filter((agent) => agent.id !== TEAM_AGENT_ID);
-  return resolveAvailableAgentId("", preferredDefaultAgentId, nonTeamAgents);
+  const personaAgents = agents.filter((agent) => !excludedIds.has(agent.id));
+  return resolveAvailableAgentId("", preferredDefaultAgentId, personaAgents);
 }

@@ -23,6 +23,7 @@ import {
   ChevronDown,
   Upload,
   Layers,
+  Plug,
   Settings2,
   ToggleLeft,
 } from "lucide-react";
@@ -30,14 +31,15 @@ import { THINKING_LEVEL_COLOR } from "../chat/chatInputConstants";
 
 import type { AgentOption, FileCategory } from "../../types";
 import type { UploadLimits } from "../../hooks/useFileUpload";
+import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
 
 export type FeaturePanel =
   | "persona"
-  | "team"
   | "tools"
   | "skills"
   | "agent"
   | "thinking"
+  | (string & {})
   | null;
 
 const FILE_CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
@@ -45,6 +47,11 @@ const FILE_CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
   video: Video,
   audio: Music,
   document: FileText,
+};
+
+const PLUGIN_OPTION_ICONS: Record<string, React.ElementType> = {
+  UsersRound,
+  Plug,
 };
 
 interface FeatureMenuProps {
@@ -56,8 +63,7 @@ interface FeatureMenuProps {
   totalSkillsCount: number;
   hasPersonaSelector?: boolean;
   personaName?: string | null;
-  hasTeamSelector?: boolean;
-  totalTeamCount?: number;
+  pluginOptions?: readonly CoreChatInputOptionContribution[];
   hasAgentSelector: boolean;
   agentName?: string | null;
   hasThinkingOption: boolean;
@@ -162,8 +168,7 @@ export const FeatureMenu = memo(function FeatureMenu({
   totalSkillsCount,
   hasPersonaSelector = false,
   personaName,
-  hasTeamSelector = false,
-  totalTeamCount = 0,
+  pluginOptions = [],
   hasAgentSelector,
   agentName,
   hasThinkingOption,
@@ -215,11 +220,32 @@ export const FeatureMenu = memo(function FeatureMenu({
   };
 
   const booleanOptionEntries = Object.entries(booleanAgentOptions ?? {});
+  const uploadPluginOptions = pluginOptions.filter(
+    (option) => option.slot === "upload",
+  );
+  const settingsPluginOptions = pluginOptions.filter(
+    (option) => option.slot === "settings",
+  );
+  const enhancePluginOptions = pluginOptions.filter(
+    (option) => option.slot !== "upload" && option.slot !== "settings",
+  );
+  const renderPluginOption = (option: CoreChatInputOptionContribution) => {
+    const Icon = PLUGIN_OPTION_ICONS[option.icon] ?? Plug;
+    return (
+      <MenuItem
+        key={option.id}
+        icon={<Icon size={18} />}
+        label={t(option.label)}
+        active={activePanel === option.panel}
+        onClick={() => onOpen(option.panel ?? option.id)}
+      />
+    );
+  };
   const hasFeatureItems =
     totalToolsCount > 0 ||
     totalSkillsCount > 0 ||
     hasPersonaSelector ||
-    hasTeamSelector ||
+    pluginOptions.length > 0 ||
     hasAgentSelector ||
     hasThinkingOption ||
     booleanOptionEntries.length > 0;
@@ -253,7 +279,7 @@ export const FeatureMenu = memo(function FeatureMenu({
               borderColor: "var(--theme-border)",
             }}
           >
-            {uploadCategories.length > 0 && (
+            {(uploadCategories.length > 0 || uploadPluginOptions.length > 0) && (
               <MenuGroup
                 label={t("featureMenu.upload", "上传")}
                 icon={<Upload size={18} />}
@@ -285,10 +311,11 @@ export const FeatureMenu = memo(function FeatureMenu({
                     </button>
                   );
                 })}
+                {uploadPluginOptions.map(renderPluginOption)}
               </MenuGroup>
             )}
             {(hasPersonaSelector ||
-              hasTeamSelector ||
+              enhancePluginOptions.length > 0 ||
               totalToolsCount > 0 ||
               totalSkillsCount > 0) && (
               <MenuGroup
@@ -304,15 +331,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                     onClick={() => onOpen("persona")}
                   />
                 )}
-                {hasTeamSelector && (
-                  <MenuItem
-                    icon={<UsersRound size={18} />}
-                    label={t("featureMenu.team", "团队")}
-                    badge={totalTeamCount > 0 ? `${totalTeamCount}` : undefined}
-                    active={activePanel === "team"}
-                    onClick={() => onOpen("team")}
-                  />
-                )}
+                {enhancePluginOptions.map(renderPluginOption)}
                 {totalToolsCount > 0 && (
                   <MenuItem
                     icon={<Wrench size={18} />}
@@ -335,6 +354,7 @@ export const FeatureMenu = memo(function FeatureMenu({
             )}
             {(hasAgentSelector ||
               hasThinkingOption ||
+              settingsPluginOptions.length > 0 ||
               booleanOptionEntries.length > 0) && (
               <MenuGroup
                 label={t("featureMenu.settings", "设置")}
@@ -359,6 +379,7 @@ export const FeatureMenu = memo(function FeatureMenu({
                     onClick={() => onOpen("thinking")}
                   />
                 )}
+                {settingsPluginOptions.map(renderPluginOption)}
                 {booleanOptionEntries.map(([key, option]) => {
                   const value = agentOptionValues[key] ?? option.default;
                   const enabled = value === true;

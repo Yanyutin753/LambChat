@@ -10,6 +10,8 @@ from src.infra.task import concurrency as concurrency_module
 from src.infra.task import manager as task_manager_module
 from src.infra.task import recovery as recovery_module
 from src.infra.task import startup_cleanup as startup_cleanup_module
+from src.infra.task.status import TaskStatus
+from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 
 
 class _FakeStorage:
@@ -207,7 +209,11 @@ async def test_recovery_service_resume_session_submits_localized_recovery_messag
     assert submit_calls[0]["enabled_skills"] is None
     assert redis.set_calls
     assert storage.updates[-1][0] == "session-1"
-    assert storage.updates[-1][1].metadata["team_id"] == "team-1"
+    recovered_metadata = storage.updates[-1][1].metadata
+    assert "team_id" not in recovered_metadata
+    assert recovered_metadata["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
+    }
 
 
 @pytest.mark.asyncio
@@ -1175,6 +1181,98 @@ async def test_replay_pending_queued_tasks_scans_queue_in_pages(
 
     assert fake_limiter.redis.lrange_calls == [("chat:queue:user-1", 0, 99)]
     assert fake_limiter.release_calls == [("user-1", "run-old", True)]
+
+
+@pytest.mark.asyncio
+async def test_replay_pending_queued_tasks_rejects_disabled_plugin_owned_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="team",
+        name="Queued Team Session",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "queued",
+            "agent_id": "team",
+        },
+    )
+    storage = _FakeStorage(session)
+    storage.collection = _FakeCollection(
+        [
+            [
+                {
+                    "_id": "mongo-1",
+                    "session_id": "session-1",
+                    "user_id": "user-1",
+                    "metadata": {
+                        "current_run_id": "run-old",
+                        "task_status": "queued",
+                        "agent_id": "team",
+                    },
+                }
+            ]
+        ]
+    )
+    heartbeat = _FakeHeartbeat(exists=False)
+    status_calls: list[tuple] = []
+
+    class _FakeExecutor:
+        async def _update_session_status(self, *args, **kwargs):
+            status_calls.append((args, kwargs))
+
+    class _FakeLimiterRedis:
+        async def lrange(self, key: str, start: int, end: int):
+            del key, start, end
+            return ['{"run_id":"run-old","queued_at":0}']
+
+        async def zscore(self, key: str, member: str):
+            return None
+
+    class _FakeLimiter:
+        def __init__(self) -> None:
+            self.redis = _FakeLimiterRedis()
+            self.release_calls = []
+
+        async def release(self, user_id: str, run_id: str, dequeue: bool = True) -> None:
+            self.release_calls.append((user_id, run_id, dequeue))
+
+    fake_limiter = _FakeLimiter()
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+
+    async def _fake_load_session(raw_session):
+        return session
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter",
+        lambda: fake_limiter,
+    )
+    set_plugin_runtime(runtime)
+
+    service = startup_cleanup_module.TaskStartupCleanupService(
+        storage=storage,
+        heartbeat=heartbeat,
+        ensure_executor=lambda: _FakeExecutor(),
+        load_session_record=_fake_load_session,
+        resume_interrupted_run=lambda *args, **kwargs: None,
+    )
+
+    try:
+        await service.replay_pending_queued_tasks()
+    finally:
+        set_plugin_runtime(None)
+
+    assert fake_limiter.release_calls == []
+    assert status_calls
+    args, kwargs = status_calls[0]
+    assert args[0] == "session-1"
+    assert args[1] is TaskStatus.FAILED
+    assert "agent_team" in args[2]
+    assert kwargs == {"run_id": "run-old"}
 
 
 @pytest.mark.asyncio

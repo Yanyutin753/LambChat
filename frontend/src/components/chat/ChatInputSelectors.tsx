@@ -3,7 +3,6 @@ import { ToolSelector } from "../selectors/ToolSelector";
 import { SkillSelector } from "../selectors/SkillSelector";
 import { AgentModeSelector } from "../selectors/AgentModeSelector";
 import { PersonaPresetSelector } from "../persona/PersonaPresetSelector";
-import { TeamPickerModal } from "../team/TeamPickerModal";
 import { AgentOptionButton } from "./AgentOptionButton";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
 import type {
@@ -16,6 +15,9 @@ import type {
   PersonaPreset,
   PersonaPresetSnapshot,
 } from "../../types";
+import type { CoreChatInputPanelContribution } from "../../extensions/coreContributions";
+import { CHAT_INPUT_PANEL_RENDERERS } from "./chatInputPanelRenderers";
+import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
 
 export interface ChatInputSelectorsProps {
   activePanel: FeaturePanel;
@@ -66,9 +68,13 @@ export interface ChatInputSelectorsProps {
   agents?: AgentInfo[];
   currentAgent?: string;
   onSelectAgent?: (id: string) => void;
-  selectedTeamId?: string | null;
-  onSelectTeam?: (teamId: string | null) => void;
-  onOpenTeamBuilder?: () => void;
+  pluginOptionValues?: PluginOptionsMetadata;
+  onPluginOptionChange?: (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => void;
+  chatInputPanels?: readonly CoreChatInputPanelContribution[];
   // Agent options
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
@@ -112,9 +118,9 @@ export function ChatInputSelectors({
   agents = [],
   currentAgent,
   onSelectAgent,
-  selectedTeamId,
-  onSelectTeam,
-  onOpenTeamBuilder,
+  pluginOptionValues,
+  onPluginOptionChange,
+  chatInputPanels = [],
   agentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
@@ -186,22 +192,21 @@ export function ChatInputSelectors({
         isOpen={activePanel === "agent"}
         onOpenChange={(open) => onActivePanelChange(open ? "agent" : null)}
       />
-      {currentAgent === "team" && onSelectTeam && (
-        <TeamPickerModal
-          isOpen={activePanel === "team"}
-          selectedTeamId={selectedTeamId ?? null}
-          onSelect={onSelectTeam}
-          onClose={() => onActivePanelChange(null)}
-          onCreateNew={() => {
-            if (onOpenTeamBuilder) {
-              onOpenTeamBuilder();
-            } else {
-              navigate("/team");
-            }
-          }}
-          onManageTeams={() => navigate("/team")}
-        />
-      )}
+      {chatInputPanels.map((panel) => {
+        const Renderer = CHAT_INPUT_PANEL_RENDERERS[panel.renderer];
+        if (!Renderer) return null;
+        return (
+          <Renderer
+            key={panel.id}
+            contribution={panel}
+            activePanel={activePanel}
+            onActivePanelChange={onActivePanelChange}
+            pluginOptionValues={pluginOptionValues}
+            onPluginOptionChange={onPluginOptionChange}
+            onNavigate={navigate}
+          />
+        );
+      })}
       {agentOptions &&
         onToggleAgentOption &&
         Object.keys(agentOptions).length > 0 &&

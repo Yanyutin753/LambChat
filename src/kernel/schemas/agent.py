@@ -61,6 +61,10 @@ class AgentRequest(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
     project_id: Optional[str] = Field(None, description="Project ID to assign to new session")
     team_id: Optional[str] = Field(None, description="Team ID for team agent mode")
+    plugin_options: Optional[dict[str, dict[str, Any]]] = Field(
+        None,
+        description="Plugin-scoped session options keyed by plugin id and local option key",
+    )
     goal: Optional[GoalSpec] = Field(None, description="Active goal for rubric-guided execution")
     retry_user_message: bool = Field(
         False,
@@ -206,6 +210,7 @@ class AgentConfig(BaseModel):
     enabled: bool = Field(True, description="Whether the agent is enabled globally")
     icon: Optional[str] = Field(None, description="Display icon name or emoji")
     sort_order: Optional[int] = Field(None, description="Display sort order")
+    category: Optional[str] = Field(None, description="Plugin-declared agent category")
     labels: dict[str, "AgentCatalogLocale"] = Field(
         default_factory=dict,
         description="Localized display labels keyed by locale",
@@ -228,6 +233,7 @@ class AgentCatalogConfig(BaseModel):
     enabled: bool = Field(True, description="Whether the agent is enabled globally")
     icon: str = Field("Bot", description="Display icon name or emoji")
     sort_order: int = Field(100, description="Display sort order")
+    category: Optional[str] = Field(None, description="Plugin-declared agent category")
     labels: dict[str, AgentCatalogLocale] = Field(
         default_factory=dict,
         description="Localized display labels keyed by locale",

@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useEffect } from "react";
+import { Fragment, useRef, useCallback, useState } from "react";
 import { ArrowUp, Square, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
@@ -7,17 +7,13 @@ import {
   PersonaAvatarImage,
 } from "../persona/PersonaAvatarIcon";
 import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
-import { teamApi } from "../../services/api/team";
 import type { AgentOption, FileCategory } from "../../types";
-import type { Team } from "../../types/team";
 import type { UploadLimits } from "../../hooks/useFileUpload";
-import { TeamAvatar } from "../team/TeamAvatar";
-import {
-  getTeamFallbackAvatar,
-  getTeamFallbackTag,
-} from "../team/teamAvatarUtils";
 import { ToolbarChip } from "./ToolbarChip";
 import { AgentIcon } from "../agent/AgentIcon";
+import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
+import { CHAT_INPUT_SELECTED_RENDERERS } from "./chatInputSelectedRenderers";
+import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
 
 export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
@@ -45,8 +41,13 @@ export interface ChatInputToolbarProps {
   personaAvatar: { avatar?: string; primaryTag: string } | null;
   onClearPersonaPreset?: () => void;
   currentAgent?: string;
-  selectedTeamId?: string | null;
-  onSelectTeam?: (teamId: string | null) => void;
+  pluginOptionValues?: PluginOptionsMetadata;
+  onPluginOptionChange?: (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => void;
+  chatInputOptions?: readonly CoreChatInputOptionContribution[];
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
@@ -91,8 +92,9 @@ export function ChatInputToolbar({
   personaAvatar,
   onClearPersonaPreset,
   currentAgent,
-  selectedTeamId,
-  onSelectTeam,
+  pluginOptionValues,
+  onPluginOptionChange,
+  chatInputOptions = [],
   agentOptions,
   agentOptionValues = {},
   onToggleAgentOption,
@@ -103,26 +105,6 @@ export function ChatInputToolbar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFileCategory, setSelectedFileCategory] =
     useState<FileCategory | null>(null);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
-  const [totalTeamCount, setTotalTeamCount] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    teamApi
-      .list(0, 50)
-      .then((res) => {
-        if (cancelled) return;
-        setTotalTeamCount(res.total);
-        if (selectedTeamId) {
-          const team = res.teams.find((t) => t.id === selectedTeamId);
-          setSelectedTeam(team ?? null);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTeamId]);
 
   const booleanAgentOptions = agentOptions
     ? Object.fromEntries(
@@ -149,7 +131,27 @@ export function ChatInputToolbar({
     },
     [uploadFiles, selectedFileCategory],
   );
-  const selectedTeamName = selectedTeam?.name ?? null;
+  const selectedPluginOptions = chatInputOptions.filter(
+    (option) => option.selectedRenderer,
+  );
+  const selectedPluginRendererProps = (option: CoreChatInputOptionContribution) => ({
+    option,
+    activePanel,
+    onActivePanelChange,
+    pluginOptionValues,
+    onPluginOptionChange,
+    fallbackLabel: t("chat.teamSelected"),
+  });
+  const hasSelectedPluginOption = selectedPluginOptions.some((option) => {
+    const rendererId = option.selectedRenderer;
+    const entry = rendererId ? CHAT_INPUT_SELECTED_RENDERERS[rendererId] : null;
+    return Boolean(entry?.hasSelection(selectedPluginRendererProps(option)));
+  });
+  const corePersonaSelectorSuppressed = chatInputOptions.some(
+    (option) => option.suppressesCorePersonaSelector,
+  );
+  const corePersonaSelectorVisible =
+    hasPersonaSelector && !corePersonaSelectorSuppressed;
 
   return (
     <div className="flex max-w-full flex-nowrap justify-between gap-2 px-2 pb-3 pt-3 mx-0.5">
@@ -168,10 +170,9 @@ export function ChatInputToolbar({
           totalToolsCount={totalToolsCount}
           enabledSkillsCount={enabledSkillsCount}
           totalSkillsCount={totalSkillsCount}
-          hasPersonaSelector={hasPersonaSelector && currentAgent !== "team"}
+          hasPersonaSelector={corePersonaSelectorVisible}
           personaName={personaName}
-          hasTeamSelector={currentAgent === "team" && !!onSelectTeam}
-          totalTeamCount={totalTeamCount}
+          pluginOptions={chatInputOptions}
           hasAgentSelector={hasAgentSelector}
           agentName={agentName}
           hasThinkingOption={hasThinkingOption}
@@ -186,14 +187,14 @@ export function ChatInputToolbar({
         />
         {hasAgentSelector &&
           !selectedPersonaName &&
-          !(currentAgent === "team" && onSelectTeam && selectedTeamId) && (
+          !hasSelectedPluginOption && (
             <ToolbarChip
               icon={<AgentIcon icon={agentIcon || "Bot"} size={18} />}
               label={t(`agents.${currentAgent}.name`) || agentName || ""}
               onClick={() => onActivePanelChange("agent")}
             />
           )}
-        {selectedPersonaName && currentAgent !== "team" && (
+        {selectedPersonaName && corePersonaSelectorVisible && (
           <ToolbarChip
             icon={
               personaAvatar?.avatar &&
@@ -226,27 +227,16 @@ export function ChatInputToolbar({
             onClear={onClearPersonaPreset}
           />
         )}
-        {currentAgent === "team" && onSelectTeam && selectedTeamId && (
-          <ToolbarChip
-            icon={
-              <TeamAvatar
-                avatar={selectedTeam?.avatar}
-                fallbackAvatar={
-                  selectedTeam ? getTeamFallbackAvatar(selectedTeam) : null
-                }
-                fallbackTag={
-                  selectedTeam ? getTeamFallbackTag(selectedTeam) : ""
-                }
-                label={selectedTeamName ?? t("chat.teamSelected")}
-                className="team-toolbar-avatar transition-opacity group-hover:opacity-0"
-                iconSize={18}
-              />
-            }
-            label={selectedTeamName ?? t("chat.teamSelected")}
-            onClick={() => onActivePanelChange("team")}
-            onClear={() => onSelectTeam?.(null)}
-          />
-        )}
+        {selectedPluginOptions.map((option) => {
+          const rendererId = option.selectedRenderer;
+          const entry = rendererId ? CHAT_INPUT_SELECTED_RENDERERS[rendererId] : null;
+          if (!entry) return null;
+          const rendered = entry.render({
+            ...selectedPluginRendererProps(option),
+            option,
+          });
+          return rendered ? <Fragment key={option.id}>{rendered}</Fragment> : null;
+        })}
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 self-end">

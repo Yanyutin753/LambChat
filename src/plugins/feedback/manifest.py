@@ -84,10 +84,49 @@ def build_feedback_plugin_manifest() -> PluginManifest:
             }
         ],
         frontend={
-            "routes": ["feedback-route"],
-            "panels": ["feedback-panel"],
-            "nav_items": ["feedback-nav"],
-            "message_actions": ["feedback:message-feedback"],
+            "app_tabs": [
+                {
+                    "id": "feedback:feedback-tab",
+                    "tab": "feedback",
+                    "path": "/feedback",
+                    "label": "nav.feedback",
+                    "panel": "feedback:feedback-panel",
+                    "insert_after": "settings",
+                    "order": 610,
+                    "permissions": [Permission.FEEDBACK_READ.value],
+                    "seo_title": "seo.feedback.title",
+                    "seo_description": "seo.feedback.description",
+                    "redirect_to": "/chat",
+                    "show_no_permission_toast": True,
+                }
+            ],
+            "app_panels": [
+                {
+                    "id": "feedback:feedback-panel",
+                    "tab": "feedback",
+                    "renderer": "feedback.FeedbackPanel",
+                }
+            ],
+            "user_menu_items": [
+                {
+                    "id": "feedback:feedback-nav",
+                    "path": "/feedback",
+                    "label": "nav.feedback",
+                    "icon": "Star",
+                    "group": "system",
+                    "order": 50,
+                    "permissions": [Permission.FEEDBACK_READ.value],
+                }
+            ],
+            "message_actions": [
+                {
+                    "id": "feedback:message-feedback",
+                    "target": "assistant_message",
+                    "renderer": "feedback.FeedbackButtons",
+                    "order": 20,
+                    "permissions": [Permission.FEEDBACK_WRITE.value],
+                }
+            ],
             "i18n_namespaces": ["feedback"],
             "required_permissions": [Permission.FEEDBACK_READ.value],
         },
@@ -205,13 +244,15 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
                 and manifest.tools[0].module == "src.plugins.feedback.tools"
                 and manifest.lifespan_hooks[0].module
                 == "src.plugins.feedback.lifecycle:close_feedback_manager"
-                and manifest.frontend.routes == ["feedback-route"]
-                and manifest.frontend.panels == ["feedback-panel"]
-                and manifest.frontend.nav_items == ["feedback-nav"]
-                and manifest.frontend.message_actions == ["feedback:message-feedback"]
+                and [item.path for item in manifest.frontend.app_tabs] == ["/feedback"]
+                and [item.renderer for item in manifest.frontend.app_panels]
+                == ["feedback.FeedbackPanel"]
+                and [item.path for item in manifest.frontend.user_menu_items]
+                == ["/feedback"]
+                and [item.id for item in manifest.frontend.message_actions] == ["feedback:message-feedback"]
                 and manifest.lifespan_hooks[0].name == "feedback:shutdown"
             ),
-            evidence="Enabled Feedback exposes /api/feedback, feedback.summary, frontend route/panel/nav, and shutdown hook through src.plugins.feedback adapters.",
+            evidence="Enabled Feedback exposes /api/feedback, feedback.summary, structured frontend tab/panel/menu, and shutdown hook through src.plugins.feedback adapters.",
         ),
         PluginMigrationGateEvidence(
             gate_id="plugin_disabled_contributions_hidden",
@@ -241,9 +282,9 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
             category=PluginMigrationGateCategory.DRY_RUN,
             passed={
                 (PluginResourceType.BACKEND_ROUTE, "feedback-api"),
-                (PluginResourceType.FRONTEND_ROUTE, "feedback-route"),
-                (PluginResourceType.PANEL, "feedback-panel"),
-                (PluginResourceType.NAV_ITEM, "feedback-nav"),
+                (PluginResourceType.APP_TAB, "feedback:feedback-tab"),
+                (PluginResourceType.APP_PANEL, "feedback:feedback-panel"),
+                (PluginResourceType.USER_MENU_ITEM, "feedback:feedback-nav"),
                 (PluginResourceType.MESSAGE_ACTION, "feedback:message-feedback"),
                 (PluginResourceType.TOOL, "feedback.summary"),
                 (PluginResourceType.DB_COLLECTION, "feedback"),
@@ -269,7 +310,7 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
             category=PluginMigrationGateCategory.REGRESSION_COMPATIBILITY,
             passed=(
                 manifest.routers[0].prefix == "/api/feedback"
-                and manifest.frontend.routes == ["feedback-route"]
+                and [item.path for item in manifest.frontend.app_tabs] == ["/feedback"]
                 and Permission.FEEDBACK_READ.value in manifest.declared_permissions()
             ),
             evidence="Legacy /api/feedback, /feedback route contribution, and feedback:* permission strings remain stable.",

@@ -21,20 +21,20 @@ import {
   getCachedSessionTitle,
   listenSessionTitleUpdated,
 } from "./utils/sessionTitleEvents";
-import { listenPluginRuntimeUpdated } from "./utils/pluginRuntimeEvents";
 import { APP_TOASTER_CLASS_NAME } from "./components/layout/AppContent/appToastLayout";
 import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
 import { UpdateDialog } from "./components/update/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import { useAuth } from "./hooks/useAuth";
-import { usePluginRuntime } from "./hooks/usePluginRuntime";
+import { useExtensionContributions } from "./hooks/useExtensionContributions";
 import {
   buildAppRouteContributions,
   type CoreAppRouteContribution,
   type PluginRuntimeContributionStates,
 } from "./extensions/coreContributions";
-import { Permission } from "./types";
+
+const EMPTY_RUNTIME_PLUGINS: PluginRuntimeContributionStates = [];
 
 const SharedPage = lazy(() =>
   import("./components/share/SharedPage").then((m) => ({
@@ -237,16 +237,12 @@ function AuthPageWrapper({
 function App() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { hasAnyPermission, isAuthenticated, isLoading: isAuthLoading } =
-    useAuth();
-  const canReadPluginRuntime =
-    isAuthenticated &&
-    !isAuthLoading &&
-    hasAnyPermission([Permission.MARKETPLACE_READ]);
-  const { data: pluginRuntimeData, fetchPlugins } = usePluginRuntime({
-    enabled: canReadPluginRuntime,
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const canReadExtensionContributions = isAuthenticated && !isAuthLoading;
+  const { data: extensionContributions } = useExtensionContributions({
+    enabled: canReadExtensionContributions,
   });
-  const runtimePlugins = pluginRuntimeData?.plugins;
+  const runtimePlugins = extensionContributions?.plugins ?? EMPTY_RUNTIME_PLUGINS;
   const appRouteContributions = useMemo(
     () => buildAppRouteContributions(runtimePlugins),
     [runtimePlugins],
@@ -280,13 +276,6 @@ function App() {
     appNotificationService.initializeNativeClickHandlers();
     return () => appNotificationService.setNavigator(null);
   }, [navigate]);
-
-  useEffect(() => {
-    if (!canReadPluginRuntime) return;
-    return listenPluginRuntimeUpdated(() => {
-      void fetchPlugins();
-    });
-  }, [canReadPluginRuntime, fetchPlugins]);
 
   return (
     <ThemeProvider>

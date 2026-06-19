@@ -46,10 +46,14 @@ class PluginDataService:
 
     def ensure_for_descriptor(self, descriptor: PluginFolderDescriptor) -> PluginDataSnapshot:
         data_dir = self._plugin_data_dir(descriptor.plugin_id)
+        first_create = not data_dir.exists()
         data_dir.mkdir(parents=True, exist_ok=True)
         for subdir in PLUGIN_DATA_SUBDIRS:
             (data_dir / subdir).mkdir(parents=True, exist_ok=True)
-        self._copy_template_if_needed(descriptor.folder / "plugin-data-template", data_dir)
+        copied_template_files = self._copy_template_if_needed(
+            self._template_dir_for_descriptor(descriptor),
+            data_dir,
+        )
         manifest = descriptor.manifest
         defaults = _manifest_defaults(manifest) if manifest is not None else {}
         self._write_json_if_missing(data_dir / "config" / "defaults.json", defaults)
@@ -62,6 +66,26 @@ class PluginDataService:
                 "package_source_path": str(descriptor.folder),
             },
         )
+        if first_create:
+            self._append_audit_record(
+                data_dir,
+                action="plugin_data_initialized",
+                plugin_id=descriptor.plugin_id,
+                details={
+                    "package_source_type": descriptor.source_type,
+                    "package_source_path": str(descriptor.folder),
+                    "data_template": getattr(manifest, "package_data_template", None)
+                    if manifest is not None
+                    else getattr(descriptor.layout, "data_template", "plugin-data-template"),
+                },
+            )
+        if copied_template_files:
+            self._append_audit_record(
+                data_dir,
+                action="plugin_data_template_seeded",
+                plugin_id=descriptor.plugin_id,
+                details={"copied_files": copied_template_files},
+            )
         return self.snapshot(descriptor.plugin_id)
 
     def snapshot(self, plugin_id: str) -> PluginDataSnapshot:
@@ -118,25 +142,67 @@ class PluginDataService:
             raise ValueError("plugin data path escapes plugin-data root") from exc
         return path
 
-    def _copy_template_if_needed(self, template_dir: Path, data_dir: Path) -> None:
+    def _template_dir_for_descriptor(self, descriptor: PluginFolderDescriptor) -> Path:
+        template_name = "plugin-data-template"
+        manifest = descriptor.manifest
+        if manifest is not None:
+            template_name = getattr(manifest, "package_data_template", None) or template_name
+        else:
+            template_name = getattr(descriptor.layout, "data_template", None) or template_name
+        normalized = str(template_name).replace("\\", "/").strip()
+        if not normalized:
+            raise ValueError("plugin data template path cannot be blank")
+        path = Path(normalized)
+        if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+            raise ValueError("plugin data template path must be a safe relative path")
+        template_dir = (descriptor.folder / path).resolve()
+        try:
+            template_dir.relative_to(descriptor.folder.resolve())
+        except ValueError as exc:
+            raise ValueError("plugin data template path escapes plugin folder") from exc
+        return template_dir
+
+    def _copy_template_if_needed(self, template_dir: Path, data_dir: Path) -> list[str]:
         if not template_dir.exists():
-            return
+            return []
         if template_dir.is_symlink():
-            raise ValueError("plugin-data-template symlinks are not allowed")
+            raise ValueError("plugin data template symlinks are not allowed")
+        copied: list[str] = []
         for source in template_dir.rglob("*"):
             if source.is_symlink():
-                raise ValueError("plugin-data-template symlinks are not allowed")
+                raise ValueError("plugin data template symlinks are not allowed")
             relative = source.relative_to(template_dir)
             target = (data_dir / relative).resolve()
             try:
                 target.relative_to(data_dir)
             except ValueError as exc:
-                raise ValueError("plugin-data-template escapes plugin data dir") from exc
+                raise ValueError("plugin data template escapes plugin data dir") from exc
             if source.is_dir():
                 target.mkdir(parents=True, exist_ok=True)
             elif not target.exists():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, target)
+                copied.append(relative.as_posix())
+        return copied
+
+    def _append_audit_record(
+        self,
+        data_dir: Path,
+        *,
+        action: str,
+        plugin_id: str,
+        details: dict[str, Any],
+    ) -> None:
+        audit_path = data_dir / "state" / "audit.jsonl"
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "plugin_id": plugin_id,
+            "action": action,
+            "details": details,
+        }
+        with audit_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
 
     def _write_json_if_missing(self, path: Path, payload: dict[str, Any]) -> None:
         if path.exists():

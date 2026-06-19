@@ -15,7 +15,7 @@ def test_advanced_file_viewers_manifest_declares_frontend_viewers() -> None:
     assert manifest.id == ADVANCED_FILE_VIEWERS_PLUGIN_ID
     assert manifest.tools == []
     assert manifest.routers == []
-    assert manifest.frontend.file_viewers == [
+    assert [viewer.id for viewer in manifest.frontend.file_viewers] == [
         "advanced_file_viewers:pdf",
         "advanced_file_viewers:ppt",
         "advanced_file_viewers:word",
@@ -26,6 +26,17 @@ def test_advanced_file_viewers_manifest_declares_frontend_viewers() -> None:
         "advanced_file_viewers:markdown",
         "advanced_file_viewers:code",
     ]
+    assert {viewer.id: viewer.extensions for viewer in manifest.frontend.file_viewers} == {
+        "advanced_file_viewers:pdf": ["pdf"],
+        "advanced_file_viewers:ppt": ["ppt", "pptx"],
+        "advanced_file_viewers:word": ["docx"],
+        "advanced_file_viewers:excel": ["xls", "xlsx", "csv"],
+        "advanced_file_viewers:cad": ["dxf", "dwg"],
+        "advanced_file_viewers:excalidraw": ["excalidraw"],
+        "advanced_file_viewers:html": ["html", "htm"],
+        "advanced_file_viewers:markdown": ["md", "markdown"],
+        "advanced_file_viewers:code": ["*"],
+    }
     assert manifest.frontend.i18n_namespaces == [
         "advanced_file_viewers:documents"
     ]

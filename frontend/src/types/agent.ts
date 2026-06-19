@@ -20,6 +20,7 @@ export interface AgentInfo {
   version: string;
   sort_order?: number;
   icon?: string;
+  category?: string | null;
   labels?: AgentCatalogLabels;
   supports_sandbox?: boolean;
   options?: Record<string, AgentOption>;
@@ -53,6 +54,7 @@ export interface AgentConfig {
   enabled: boolean;
   icon?: string;
   sort_order?: number;
+  category?: string | null;
   labels?: AgentCatalogLabels;
 }
 
@@ -70,6 +72,7 @@ export interface AgentCatalogConfig {
   enabled: boolean;
   icon: string;
   sort_order: number;
+  category?: string | null;
   labels: AgentCatalogLabels;
 }
 

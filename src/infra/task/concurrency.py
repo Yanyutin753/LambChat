@@ -25,6 +25,9 @@ from src.infra.session.storage import SessionUpdate
 from src.infra.storage.redis import get_redis_client
 from src.infra.task.constants import HEARTBEAT_TIMEOUT
 from src.kernel.config import settings
+from src.kernel.extensions import PluginUnavailableError
+
+from .status import TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -586,6 +589,28 @@ class UserConcurrencyLimiter:
                 disabled_mcp_tools = pending.get("disabled_mcp_tools")
                 team_id = pending.get("team_id")
                 active_goal = pending.get("active_goal")
+
+            try:
+                from src.agents import ensure_agent_executable
+
+                ensure_agent_executable(str(agent_id))
+            except PluginUnavailableError as exc:
+                logger.warning(
+                    "Rejecting queued task for unavailable plugin-owned agent: run=%s, session=%s, agent=%s, plugin_id=%s",
+                    run_id,
+                    session_id,
+                    agent_id,
+                    exc.plugin_id,
+                )
+                executor = task_manager._ensure_executor()
+                await executor._update_session_status(
+                    session_id,
+                    TaskStatus.FAILED,
+                    str(exc) or "Plugin-owned agent is unavailable",
+                    run_id=run_id,
+                )
+                await self._release_active_slot_locked(user_id, run_id)
+                return
 
             if task_ctx and settings.TASK_BACKEND == "arq":
                 await task_manager.submit_arq(

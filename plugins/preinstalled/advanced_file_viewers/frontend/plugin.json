@@ -3,15 +3,15 @@
   "plugin_id": "advanced_file_viewers",
   "frontend": {
     "file_viewers": [
-      "advanced_file_viewers:pdf",
-      "advanced_file_viewers:ppt",
-      "advanced_file_viewers:word",
-      "advanced_file_viewers:excel",
-      "advanced_file_viewers:cad",
-      "advanced_file_viewers:excalidraw",
-      "advanced_file_viewers:html",
-      "advanced_file_viewers:markdown",
-      "advanced_file_viewers:code"
+      { "id": "advanced_file_viewers:pdf", "extensions": ["pdf"] },
+      { "id": "advanced_file_viewers:ppt", "extensions": ["ppt", "pptx"] },
+      { "id": "advanced_file_viewers:word", "extensions": ["docx"] },
+      { "id": "advanced_file_viewers:excel", "extensions": ["xls", "xlsx", "csv"] },
+      { "id": "advanced_file_viewers:cad", "extensions": ["dxf", "dwg"] },
+      { "id": "advanced_file_viewers:excalidraw", "extensions": ["excalidraw"] },
+      { "id": "advanced_file_viewers:html", "extensions": ["html", "htm"] },
+      { "id": "advanced_file_viewers:markdown", "extensions": ["md", "markdown"] },
+      { "id": "advanced_file_viewers:code", "extensions": ["*"] }
     ],
     "i18n_namespaces": ["advanced_file_viewers:documents"]
   }

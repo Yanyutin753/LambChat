@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.infra.team.manager import TeamManager
+from src.kernel.extensions import PluginManifest, PluginRuntime
 from src.kernel.schemas.model import ModelConfig
 from src.kernel.schemas.team import (
     TeamCreate,
@@ -253,6 +254,52 @@ async def test_validate_member_agent_access_rejects_team_agent(manager, monkeypa
             ),
             owner_user_id="user-1",
         )
+
+
+@pytest.mark.asyncio
+async def test_validate_member_agent_access_rejects_runtime_hidden_plugin_agent(
+    manager,
+    monkeypatch,
+):
+    import src.agents.core.base as agent_base
+
+    class _FastAgent:
+        _agent_name = "Fast"
+
+    class _ReviewerAgent:
+        _agent_name = "Reviewer"
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="review_plugin",
+                name="Review Plugin",
+                version="1.0.0",
+                api_version="v1",
+                permissions=["review:read"],
+                agents=[{"id": "reviewer", "module": "plugins.review.agent.Reviewer"}],
+                enabled_by_default=False,
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        agent_base,
+        "_AGENT_REGISTRY",
+        {"fast": _FastAgent, "reviewer": _ReviewerAgent},
+    )
+    agent_base.set_plugin_runtime(runtime)
+
+    try:
+        with pytest.raises(ValueError, match="team_member_agent_unavailable"):
+            await manager.create_team(
+                TeamCreate(
+                    name="Hidden Plugin Agent Team",
+                    members=[{"persona_preset_id": "preset-1", "agent_id": "reviewer"}],
+                ),
+                owner_user_id="user-1",
+            )
+    finally:
+        agent_base.set_plugin_runtime(None)
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from src.kernel.config import settings
 from src.kernel.extensions.manifest import PluginInstallType, PluginManifest
+from src.kernel.extensions.plugin_options import AGENT_TEAM_SELECTED_TEAM_OPTION
 from src.kernel.types import Permission
 from src.plugins.feedback.manifest import build_feedback_plugin_manifest
 
@@ -29,6 +30,48 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
             Permission.TEAM_WRITE.value,
             Permission.TEAM_DELETE.value,
         ],
+        settings=[
+            {
+                "key": "DEFAULT_TEAM_ID",
+                "type": "string",
+                "label": "agentTeam.settings.defaultTeam",
+                "description": "Default Agent Team selected for this project.",
+                "default": "",
+                "scope": "project",
+                "group": "project",
+                "order": 10,
+            },
+            {
+                "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                "type": "string",
+                "label": "agentTeam.session.selectedTeam",
+                "description": "Agent Team selected for the current chat session.",
+                "default": "",
+                "scope": "session",
+                "group": "session",
+                "order": 10,
+            },
+            {
+                "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                "type": "string",
+                "label": "agentTeam.channel.selectedTeam",
+                "description": "Agent Team selected for plugin-owned channel runs.",
+                "default": "",
+                "scope": "channel",
+                "group": "channel",
+                "order": 10,
+            },
+            {
+                "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                "type": "string",
+                "label": "agentTeam.scheduledTask.selectedTeam",
+                "description": "Agent Team selected for plugin-owned scheduled task runs.",
+                "default": "",
+                "scope": "scheduled_task",
+                "group": "scheduled_task",
+                "order": 10,
+            },
+        ],
         routers=[
             {
                 "name": "agent_team-api",
@@ -40,6 +83,18 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
                     Permission.TEAM_DELETE.value,
                 ],
                 "tags": ["Teams"],
+            }
+        ],
+        agents=[
+            {
+                "id": "team",
+                "module": "src.agents.team_agent.graph.TeamAgent",
+                "name": "agents.team.name",
+                "description": "agents.team.description",
+                "icon": "Users",
+                "sort_order": 15,
+                "category": "agent_team:team-builder",
+                "required_permissions": [Permission.TEAM_READ.value],
             }
         ],
         tools=[
@@ -64,10 +119,175 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
             },
         ],
         frontend={
-            "routes": ["agent_team:team-route"],
-            "panels": ["agent_team:team-panel"],
-            "nav_items": ["agent_team:team-nav"],
+            "app_tabs": [
+                {
+                    "id": "agent_team:team-tab",
+                    "tab": "team",
+                    "path": "/team",
+                    "label": "nav.team",
+                    "panel": "agent_team:team-panel",
+                    "insert_after": "agents",
+                    "order": 420,
+                    "permissions": [Permission.TEAM_READ.value],
+                    "seo_title": "seo.team.title",
+                    "seo_description": "seo.team.description",
+                }
+            ],
+            "app_panels": [
+                {
+                    "id": "agent_team:team-panel",
+                    "tab": "team",
+                    "renderer": "agent_team.TeamBuilderPanel",
+                }
+            ],
+            "sidebar_items": [
+                {
+                    "id": "agent_team:team-nav",
+                    "path": "/team",
+                    "label": "nav.team",
+                    "icon": "Users",
+                    "order": 20,
+                    "permissions": [Permission.TEAM_READ.value],
+                }
+            ],
             "tool_renderers": ["agent_team:agent-team"],
+            "chat_input_options": [
+                {
+                    "id": "agent_team:select-team",
+                    "slot": "enhance",
+                    "label": "featureMenu.team",
+                    "icon": "UsersRound",
+                    "panel": "agent_team:team-picker",
+                    "selected_renderer": "agent_team.SelectedTeamChip",
+                    "suppresses_core_persona_selector": True,
+                    "shortcut": "mod+t",
+                    "order": 20,
+                    "option_binding": {
+                        "plugin_id": "agent_team",
+                        "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                        "scope": "session",
+                    },
+                    "visible_when": {"agent_id": "team"},
+                }
+            ],
+            "chat_input_panels": [
+                {
+                    "id": "agent_team:team-picker",
+                    "renderer": "agent_team.TeamPickerModal",
+                    "create_path": "/team",
+                    "manage_path": "/team",
+                    "option_binding": {
+                        "plugin_id": "agent_team",
+                        "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                        "scope": "session",
+                    },
+                    "visible_when": {"agent_id": "team"},
+                }
+            ],
+            "mention_providers": [
+                {
+                    "id": "agent_team:team-mentions",
+                    "trigger": "@",
+                    "mode": "team",
+                    "provider": "agent_team.searchTeams",
+                    "option_binding": {
+                        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+                        "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                        "scope": "session",
+                    },
+                    "visible_when": {"agent_id": "team"},
+                }
+            ],
+            "welcome_surfaces": [
+                {
+                    "id": "agent_team:team-welcome",
+                    "agent_id": "team",
+                    "renderer": "agent_team.TeamWelcomeSurface",
+                    "order": 20,
+                    "option_binding": {
+                        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+                        "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                        "scope": "session",
+                    },
+                    "visible_when": {"agent_id": "team"},
+                }
+            ],
+            "assistant_identity_resolvers": [
+                {
+                    "id": "agent_team:team-assistant-identity",
+                    "agent_id": "team",
+                    "resolver": "agent_team.TeamAssistantIdentity",
+                    "order": 20,
+                    "option_binding": {
+                        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+                        "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                        "scope": "session",
+                    },
+                    "visible_when": {"agent_id": "team"},
+                }
+            ],
+            "agent_categories": [
+                {
+                    "id": "agent_team:team-builder",
+                    "label": "agentTeam.category.teamBuilder",
+                    "description": "Agent Team owned team-building agents.",
+                    "icon": "Users",
+                    "order": 20,
+                }
+            ],
+            "project_options": [
+                {
+                    "key": "DEFAULT_TEAM_ID",
+                    "type": "string",
+                    "label": "agentTeam.settings.defaultTeam",
+                    "description": "Default Agent Team selected for this project.",
+                    "group": "project",
+                    "order": 10,
+                    "renderer": "agent_team.TeamSelectOption",
+                    "applies_to_session_key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                }
+            ],
+            "session_options": [
+                {
+                    "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                    "type": "string",
+                    "label": "agentTeam.session.selectedTeam",
+                    "description": "Agent Team selected for the current chat session.",
+                    "group": "session",
+                    "order": 10,
+                    "suppresses_core_persona_selector": True,
+                    "legacy_payload_keys": ["team_id"],
+                    "visible_when": {"agent_id": "team"},
+                }
+            ],
+            "channel_options": [
+                {
+                    "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                    "type": "string",
+                    "label": "agentTeam.channel.selectedTeam",
+                    "description": "Agent Team selected for plugin-owned channel runs.",
+                    "group": "channel",
+                    "order": 10,
+                    "renderer": "agent_team.TeamSelectOption",
+                    "suppresses_core_persona_selector": True,
+                    "legacy_payload_keys": ["team_id"],
+                    "visible_when": {"route": "/channels/feishu"},
+                }
+            ],
+            "scheduled_task_options": [
+                {
+                    "key": AGENT_TEAM_SELECTED_TEAM_OPTION,
+                    "type": "string",
+                    "label": "agentTeam.scheduledTask.selectedTeam",
+                    "description": "Agent Team selected for plugin-owned scheduled task runs.",
+                    "group": "scheduled_task",
+                    "order": 10,
+                    "renderer": "agent_team.TeamSelectOption",
+                    "suppresses_core_persona_selector": True,
+                    "legacy_payload_keys": ["team_id"],
+                    "visible_when": {"agent_id": "team"},
+                }
+            ],
             "i18n_namespaces": ["agent_team:team"],
             "required_permissions": [Permission.TEAM_READ.value],
         },
@@ -344,9 +564,40 @@ def build_usage_reports_plugin_manifest() -> PluginManifest:
             }
         ],
         frontend={
-            "routes": ["usage_reports:usage-route"],
-            "panels": ["usage_reports:usage-panel"],
-            "nav_items": ["usage_reports:usage-menu"],
+            "app_tabs": [
+                {
+                    "id": "usage_reports:usage-tab",
+                    "tab": "usage",
+                    "path": "/usage",
+                    "label": "nav.usage",
+                    "panel": "usage_reports:usage-panel",
+                    "insert_after": "scheduled-tasks",
+                    "order": 620,
+                    "permissions": [Permission.USAGE_READ.value],
+                    "seo_title": "seo.usage.title",
+                    "seo_description": "seo.usage.description",
+                    "redirect_to": "/chat",
+                    "show_no_permission_toast": True,
+                }
+            ],
+            "app_panels": [
+                {
+                    "id": "usage_reports:usage-panel",
+                    "tab": "usage",
+                    "renderer": "usage_reports.UsagePanel",
+                }
+            ],
+            "user_menu_items": [
+                {
+                    "id": "usage_reports:usage-menu",
+                    "path": "/usage",
+                    "label": "nav.usage",
+                    "icon": "BarChart3",
+                    "group": "system",
+                    "order": 60,
+                    "permissions": [Permission.USAGE_READ.value],
+                }
+            ],
             "i18n_namespaces": ["usage_reports:usage"],
             "required_permissions": [Permission.USAGE_READ.value],
         },
@@ -528,10 +779,20 @@ def build_feishu_connector_plugin_manifest() -> PluginManifest:
             Permission.CHANNEL_DELETE.value,
         ],
         frontend={
-            "channel_connectors": [FEISHU_CONNECTOR_ID],
+            "channel_connectors": [
+                {
+                    "id": FEISHU_CONNECTOR_ID,
+                    "channel_type": "feishu",
+                    "panel_renderer": "feishu_connector.FeishuPanel",
+                }
+            ],
             "i18n_namespaces": ["feishu_connector:channels"],
             "required_permissions": [Permission.CHANNEL_READ.value],
         },
+        runtime_effects=[
+            {"action": "enable", "effect": "start_feishu_connector"},
+            {"action": "disable", "effect": "stop_feishu_connector"},
+        ],
         resources=[
             {
                 "id": FEISHU_CONNECTOR_ID,

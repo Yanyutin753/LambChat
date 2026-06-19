@@ -77,6 +77,7 @@ export interface ProjectActions {
   onUpdateIcon: (id: string, icon: string) => void;
   onOpenNewProjectModal: () => void;
   onNewSessionInProject: (projectId: string) => void;
+  onOpenProjectPluginOptions: (project: Project) => void;
   onSetProjectRef: (id: string, handle: ProjectItemHandle | null) => void;
 }
 
@@ -465,6 +466,7 @@ export function SessionListContent({
                   onRenameProject={projectActions.onRenameProject}
                   onDeleteProject={projectActions.onDeleteProject}
                   onUpdateIcon={projectActions.onUpdateIcon}
+                  onOpenPluginOptions={projectActions.onOpenProjectPluginOptions}
                   scrollRoot={scrollEl}
                   draggingSessionId={
                     sessionActions.touchDropTarget === fp.id

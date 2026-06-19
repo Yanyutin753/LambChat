@@ -17,9 +17,16 @@ import {
 interface ChannelTeamSelectProps {
   value: string | null | undefined;
   onChange: (teamId: string | null) => void;
+  disabled?: boolean;
+  loadTeams?: boolean;
 }
 
-export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
+export function ChannelTeamSelect({
+  value,
+  onChange,
+  disabled = false,
+  loadTeams = true,
+}: ChannelTeamSelectProps) {
   const { t } = useTranslation();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +37,13 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
 
   useEffect(() => {
     let cancelled = false;
+    if (!loadTeams) {
+      setTeams([]);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     setLoading(true);
     teamApi
       .list(0, 50)
@@ -45,7 +59,7 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadTeams]);
 
   useEffect(() => {
     if (!open) return;
@@ -92,7 +106,9 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
 
   const displayText = selectedTeam
     ? selectedTeam.name
-    : loading
+    : value
+      ? value
+      : loading
       ? t("common.loading", "Loading...")
       : t("channel.defaultTeam", "不指定团队");
 
@@ -107,8 +123,8 @@ export function ChannelTeamSelect({ value, onChange }: ChannelTeamSelectProps) {
       <div ref={ref} className="relative">
         <button
           type="button"
-          disabled={loading}
-          onClick={() => !loading && setOpen((v) => !v)}
+          disabled={loading || disabled}
+          onClick={() => !loading && !disabled && setOpen((v) => !v)}
           className="glass-input es-select-btn"
         >
           {selectedTeam && (

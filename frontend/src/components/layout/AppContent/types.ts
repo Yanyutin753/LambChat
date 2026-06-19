@@ -1,4 +1,4 @@
-export type TabType =
+export type CoreTabType =
   | "chat"
   | "persona"
   | "skills"
@@ -17,3 +17,7 @@ export type TabType =
   | "team"
   | "scheduled-tasks"
   | "usage";
+
+export type PluginTabType = string & {};
+
+export type TabType = CoreTabType | PluginTabType;

@@ -9,6 +9,7 @@ from typing import Any, Awaitable, Callable, TypeVar, cast
 
 from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.logging import get_logger
+from src.kernel.extensions import PluginUnavailableError
 from src.kernel.config import settings
 
 from .status import TaskStatus
@@ -335,6 +336,22 @@ def _is_latest_explicit_system_restart_failure(
         and metadata.get("task_recoverable") is True
         and metadata.get("task_error_code") == "server_restart"
     )
+
+
+def _agent_id_from_metadata(metadata: dict[str, Any], session_model: Any) -> str:
+    return str(metadata.get("agent_id") or getattr(session_model, "agent_id", "") or "").strip()
+
+
+def _plugin_agent_is_executable(agent_id: str) -> tuple[bool, str | None]:
+    if not agent_id:
+        return True, None
+    from src.agents import ensure_agent_executable
+
+    try:
+        ensure_agent_executable(agent_id)
+    except PluginUnavailableError as exc:
+        return False, str(exc) or "Plugin-owned agent is unavailable"
+    return True, None
 
 
 class TaskStartupCleanupService:
@@ -858,6 +875,24 @@ class TaskStartupCleanupService:
                     run_id,
                     user_id,
                 ) in replay_candidates:
+                    agent_id = _agent_id_from_metadata(metadata, session_model)
+                    agent_executable, agent_error = _plugin_agent_is_executable(agent_id)
+                    if not agent_executable:
+                        logger.warning(
+                            "Skipping queued task replay for unavailable plugin-owned agent: session=%s, run_id=%s, agent_id=%s",
+                            session_id,
+                            run_id,
+                            agent_id,
+                        )
+                        executor = self._ensure_executor()
+                        await executor._update_session_status(
+                            session_id,
+                            TaskStatus.FAILED,
+                            agent_error,
+                            run_id=run_id,
+                        )
+                        continue
+
                     if run_id in queued_run_ids_by_user.get(user_id, set()):
                         logger.info(
                             "Replaying queued task on startup: session=%s, run_id=%s",

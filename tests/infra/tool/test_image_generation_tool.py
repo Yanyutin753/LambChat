@@ -1046,16 +1046,33 @@ async def test_search_agent_context_includes_image_generation_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_context_tool_imports(monkeypatch)
+    from src.infra.tool import internal_registry
+
+    async def no_internal_tool_policies():
+        return {}
+
+    monkeypatch.setattr(
+        internal_registry,
+        "get_internal_tool_policies",
+        no_internal_tool_policies,
+    )
     search_context = _load_module_from_path(
         "search_context_with_image_tool_under_test",
         "src/agents/search_agent/context.py",
     )
+    from src.kernel.extensions import (
+        IMAGE_GENERATION_PLUGIN_ID,
+        PluginRuntime,
+        build_image_generation_plugin_manifest,
+    )
 
-    monkeypatch.setattr(search_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(search_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(search_context.settings, "ENABLE_SKILLS", False)
+    runtime = PluginRuntime([build_image_generation_plugin_manifest()])
+    runtime.enable_plugin(IMAGE_GENERATION_PLUGIN_ID)
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
 
     ctx = search_context.SearchAgentContext(user_id="user-1")
     await ctx.setup()
@@ -1069,16 +1086,33 @@ async def test_fast_agent_context_includes_image_generation_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_context_tool_imports(monkeypatch)
+    from src.infra.tool import internal_registry
+
+    async def no_internal_tool_policies():
+        return {}
+
+    monkeypatch.setattr(
+        internal_registry,
+        "get_internal_tool_policies",
+        no_internal_tool_policies,
+    )
     fast_context = _load_module_from_path(
         "fast_context_with_image_tool_under_test",
         "src/agents/fast_agent/context.py",
     )
+    from src.kernel.extensions import (
+        IMAGE_GENERATION_PLUGIN_ID,
+        PluginRuntime,
+        build_image_generation_plugin_manifest,
+    )
 
-    monkeypatch.setattr(fast_context.settings, "ENABLE_IMAGE_GENERATION", True)
     monkeypatch.setattr(fast_context.settings, "ENABLE_AUDIO_TRANSCRIPTION", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_MEMORY", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(fast_context.settings, "ENABLE_SKILLS", False)
+    runtime = PluginRuntime([build_image_generation_plugin_manifest()])
+    runtime.enable_plugin(IMAGE_GENERATION_PLUGIN_ID)
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
 
     ctx = fast_context.FastAgentContext(user_id="user-1")
     await ctx.setup()

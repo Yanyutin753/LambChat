@@ -7,6 +7,7 @@ import pytest
 
 from src.infra.task import recovery as recovery_module
 from src.infra.task.manager import BackgroundTaskManager
+from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 
 
 class _FakeStorage:
@@ -388,6 +389,60 @@ async def test_submit_recovery_run_falls_back_from_legacy_default_agent(
     assert result["success"] is True
     assert submit_calls[0]["agent_id"] == "search"
     assert storage.updates[-1][1].metadata["agent_id"] == "search"
+
+
+@pytest.mark.asyncio
+async def test_submit_recovery_run_rejects_disabled_plugin_owned_team_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    set_plugin_runtime(runtime)
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="team",
+        name="Disabled Team Recovery Session",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "failed",
+            "agent_id": "team",
+            "executor_key": "agent_stream",
+            "team_id": "team-1",
+        },
+    )
+    storage = _FakeStorage(session)
+    manager = BackgroundTaskManager()
+    manager._storage = storage
+
+    async def _fake_executor(*args, **kwargs):
+        if False:
+            yield None
+
+    class _FakeLimiter:
+        async def claim_recovery_slot(self, **kwargs):
+            raise AssertionError("disabled plugin-owned agent should not claim recovery slot")
+
+    class _FakeUserStorage:
+        async def get_by_id(self, user_id: str):
+            return SimpleNamespace(metadata={"language": "zh-CN"}, roles=[])
+
+    monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
+    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
+
+    try:
+        result = await manager._submit_recovery_run(session, "run-old", "server_restart")
+    finally:
+        set_plugin_runtime(None)
+
+    assert result["success"] is False
+    assert result["error"] == "plugin_unavailable"
+    assert result["agent_id"] == "team"
+    assert result["run_id"] is None
+    assert storage.updates == []
 
 
 @pytest.mark.asyncio
@@ -1042,7 +1097,10 @@ async def test_submit_recovery_run_reuses_trace_for_queued_recovery(
     assert captured_task_context["team_id"] == "team-1"
     assert captured_task_context["user_message_written"] is True
     assert captured_task_context["trace_id"] == "generated-trace"
-    assert storage.updates[-1][1].metadata["team_id"] == "team-1"
+    assert "team_id" not in storage.updates[-1][1].metadata
+    assert storage.updates[-1][1].metadata["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
+    }
     assert manager._run_info[result["run_id"]]["trace_id"] == "generated-trace"
     assert (
         presenter_calls[-1] == "由于系统重启，上一轮任务已中断。请继续处理当前会话中未完成的内容。"

@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
+from src.api.routes.plugin_guard import plugin_route_guard
 from src.infra.async_utils import run_blocking_io
 from src.infra.logging import get_logger
 from src.infra.skill.parser import parse_skill_md
@@ -26,7 +27,9 @@ from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+GITHUB_INSTALLER_PLUGIN_ID = "github_installer"
+
+router = APIRouter(dependencies=[Depends(plugin_route_guard(GITHUB_INSTALLER_PLUGIN_ID))])
 
 GITHUB_API = "https://api.github.com"
 GITHUB_RAW = "https://raw.githubusercontent.com"

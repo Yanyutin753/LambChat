@@ -1,4 +1,17 @@
 import type { AvailableModel } from "../../contexts/SettingsContext";
+import {
+  hasEffectiveCorePersonaSuppressingOption,
+  importLegacyPayloadPluginOptions,
+  legacyPayloadKeysForPluginOption,
+  pluginOptionFromMetadata,
+  pluginOptionsFromMetadata,
+  retainPluginOptionsForDeclarations,
+  withPluginOption,
+} from "../../extensions/pluginOptions";
+import type {
+  PluginOptionsMetadata,
+  ScopedPluginOptionLike,
+} from "../../extensions/pluginOptions";
 
 export function getAgentOptionsFromScheduledTaskPayload(
   payload: Record<string, unknown> | undefined,
@@ -30,29 +43,80 @@ export function getScheduledTaskPersonaPresetId(
   return typeof value === "string" ? value : "";
 }
 
-export function getScheduledTaskTeamId(
+export function getScheduledTaskPluginOptionStringValue(
   payload: Record<string, unknown> | undefined,
+  option: ScopedPluginOptionLike,
 ): string {
-  const value = payload?.team_id;
-  return typeof value === "string" ? value : "";
+  const pluginId = option.plugin_id ?? option.pluginId;
+  if (!pluginId) return "";
+
+  const value = pluginOptionFromMetadata(payload, pluginId, option.key);
+  if (typeof value === "string" && value.trim()) return value;
+
+  for (const legacyKey of legacyPayloadKeysForPluginOption(option)) {
+    const legacyValue = payload?.[legacyKey];
+    if (typeof legacyValue === "string" && legacyValue.trim()) {
+      return legacyValue;
+    }
+  }
+  return "";
+}
+
+function applyPluginOptionValues(
+  payload: Record<string, unknown>,
+  values: PluginOptionsMetadata | undefined,
+): Record<string, unknown> {
+  let nextPayload = payload;
+  for (const [pluginId, pluginValues] of Object.entries(values ?? {})) {
+    for (const [key, value] of Object.entries(pluginValues)) {
+      nextPayload = withPluginOption(nextPayload, pluginId, key, value);
+    }
+  }
+  return nextPayload;
+}
+
+function applyDeclaredPluginOptions(
+  payload: Record<string, unknown>,
+  originalPayload: Record<string, unknown>,
+  values: PluginOptionsMetadata | undefined,
+  declarations: readonly ScopedPluginOptionLike[],
+): Record<string, unknown> {
+  const imported = importLegacyPayloadPluginOptions(originalPayload, declarations);
+  const merged = applyPluginOptionValues(
+    { ...payload, plugin_options: imported },
+    values,
+  );
+  const retained = retainPluginOptionsForDeclarations(
+    pluginOptionsFromMetadata(merged),
+    declarations,
+  );
+
+  if (Object.keys(retained).length > 0) {
+    return { ...merged, plugin_options: retained };
+  }
+
+  const nextPayload = { ...merged };
+  delete nextPayload.plugin_options;
+  return nextPayload;
 }
 
 export function buildScheduledTaskInputPayload(
   payload: Record<string, unknown>,
   {
-    agentId,
     modelId,
     modelValue,
     availableModels,
     personaPresetId = "",
-    teamId = "",
+    pluginOptionValues,
+    pluginOptionDeclarations,
   }: {
-    agentId: string;
+    agentId?: string;
     modelId: string;
     modelValue: string;
     availableModels: AvailableModel[] | null;
     personaPresetId?: string;
-    teamId?: string;
+    pluginOptionValues?: PluginOptionsMetadata;
+    pluginOptionDeclarations?: readonly ScopedPluginOptionLike[];
   },
 ): Record<string, unknown> {
   const selectedModel = availableModels?.find((model) => model.id === modelId);
@@ -72,9 +136,35 @@ export function buildScheduledTaskInputPayload(
   if (Object.keys(nextAgentOptions).length > 0) {
     nextPayload.agent_options = nextAgentOptions;
   }
-  if (agentId === "team") {
-    if (teamId) nextPayload.team_id = teamId;
-  } else if (personaPresetId) {
+
+  const hasPluginOptionDeclarations = Boolean(pluginOptionDeclarations?.length);
+  if (hasPluginOptionDeclarations) {
+    delete nextPayload.plugin_options;
+    Object.assign(
+      nextPayload,
+      applyDeclaredPluginOptions(
+        nextPayload,
+        payload,
+        pluginOptionValues,
+        pluginOptionDeclarations ?? [],
+      ),
+    );
+    if (personaPresetId && !hasEffectiveCorePersonaSuppressingOption(pluginOptionDeclarations)) {
+      nextPayload.persona_preset_id = personaPresetId;
+    }
+    return nextPayload;
+  }
+
+  const currentPluginOptions = pluginOptionsFromMetadata(nextPayload);
+  delete nextPayload.plugin_options;
+  Object.assign(
+    nextPayload,
+    applyPluginOptionValues(
+      { ...nextPayload, plugin_options: currentPluginOptions },
+      pluginOptionValues,
+    ),
+  );
+  if (personaPresetId && !hasPluginOptionDeclarations) {
     nextPayload.persona_preset_id = personaPresetId;
   }
   return nextPayload;

@@ -2,7 +2,7 @@
   "schema": "lambchat.plugin.backend.v1",
   "plugin_id": "feedback",
   "backend": {
-    "routers": [
+    "routes": [
       {
         "name": "feedback-api",
         "prefix": "/api/feedback",

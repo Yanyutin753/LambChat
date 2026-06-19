@@ -455,8 +455,10 @@ def _attach_plugin_runtime_to_runtime_guards(app: FastAPI) -> None:
     runtime = getattr(app.state, "plugin_runtime", None)
     try:
         from src.infra.scheduler.runtime import get_runtime_scheduler
+        from src.infra.scheduler.runner import get_scheduled_task_runner
 
         get_runtime_scheduler().set_plugin_runtime(runtime)
+        get_scheduled_task_runner().set_plugin_runtime(runtime)
         logger.info("Plugin runtime attached to scheduler guards")
     except Exception as exc:  # noqa: BLE001 - scheduler guard attachment is non-fatal
         logger.warning("Failed to attach plugin runtime to scheduler guards: %s", exc)
@@ -467,6 +469,13 @@ def _attach_plugin_runtime_to_runtime_guards(app: FastAPI) -> None:
         logger.info("Plugin runtime attached to internal tool guards")
     except Exception as exc:  # noqa: BLE001 - tool guard attachment is non-fatal
         logger.warning("Failed to attach plugin runtime to internal tool guards: %s", exc)
+    try:
+        from src.infra.tool.scheduled_task.create import set_plugin_runtime
+
+        set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to scheduled task create guards")
+    except Exception as exc:  # noqa: BLE001 - scheduled task guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to scheduled task create guards: %s", exc)
     try:
         from src.agents import set_plugin_runtime as set_agent_plugin_runtime
 
@@ -485,9 +494,23 @@ def _attach_plugin_runtime_to_runtime_guards(app: FastAPI) -> None:
         from src.infra.channel.pubsub import get_channel_config_pubsub
 
         get_channel_config_pubsub().set_plugin_runtime(runtime)
-        logger.info("Plugin runtime attached to channel connector guards")
+        logger.info("Plugin runtime attached to channel config guards")
     except Exception as exc:  # noqa: BLE001 - channel guard attachment is non-fatal
-        logger.warning("Failed to attach plugin runtime to channel connector guards: %s", exc)
+        logger.warning("Failed to attach plugin runtime to channel config guards: %s", exc)
+    try:
+        from src.infra.channel.manager import get_channel_coordinator
+
+        get_channel_coordinator().set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to channel coordinator guards")
+    except Exception as exc:  # noqa: BLE001 - channel coordinator guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to channel coordinator guards: %s", exc)
+    try:
+        from src.infra.channel.feishu import get_feishu_channel_manager
+
+        get_feishu_channel_manager().set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to Feishu channel guards")
+    except Exception as exc:  # noqa: BLE001 - Feishu guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to Feishu channel guards: %s", exc)
 
 
 def _attach_plugin_runtime_to_scheduler(app: FastAPI) -> None:
@@ -656,21 +679,32 @@ async def lifespan(app: FastAPI):
     # Start Feishu channels in background (don't block app startup)
     async def _start_feishu():
         try:
-            from src.kernel.extensions import FEISHU_CONNECTOR_ID, PluginUnavailableError
+            from src.infra.channel.plugin_connectors import (
+                ensure_channel_connector_available_for_type,
+            )
+            from src.kernel.schemas.channel import ChannelType
 
             runtime = getattr(app.state, "plugin_runtime", None)
-            if runtime is not None:
-                try:
-                    runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
-                except PluginUnavailableError as exc:
+            available, connector_id, exc = ensure_channel_connector_available_for_type(
+                ChannelType.FEISHU,
+                runtime,
+            )
+            if not available:
+                if exc is None:
+                    logger.info(
+                        "Feishu connector startup skipped because Plugin Runtime is unavailable for connector %s",
+                        connector_id,
+                    )
+                else:
                     logger.info("Feishu connector startup skipped by Plugin Runtime: %s", exc)
-                    return
+                return
 
             from src.infra.channel.feishu.handler import setup_feishu_handler
 
             await setup_feishu_handler(
                 default_agent=settings.DEFAULT_AGENT,
                 show_tools=True,
+                plugin_runtime=runtime,
             )
         except Exception as e:
             logger.warning(f"Failed to start Feishu channels: {e}")

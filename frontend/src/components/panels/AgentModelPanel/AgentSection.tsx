@@ -17,15 +17,23 @@ import {
   resolveAgentDisplayName,
 } from "../../agent/agentCatalog";
 import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
+import { buildAgentCategoryContributions } from "../../../extensions";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
+import { groupAgentsByPluginCategory } from "../AgentPanel/agentCategoryGroups";
 
 import { GlobalAgentTab, RolesAgentTab } from "../AgentPanel/tabs";
 
 type AgentTabType = "global" | "roles";
 
-export function AgentSection() {
+export function AgentSection({
+  runtimePlugins,
+}: {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const canManageAgents = hasPermission(Permission.AGENT_ADMIN);
+  const agentCategories = buildAgentCategoryContributions(runtimePlugins);
   const [activeTab, setActiveTab] = useState<AgentTabType>("global");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -62,6 +70,7 @@ export function AgentSection() {
                 version: "",
                 icon: a.icon,
                 sort_order: a.sort_order,
+                category: a.category,
                 labels: a.labels,
               }))
           : agentList.agents || [],
@@ -78,6 +87,7 @@ export function AgentSection() {
             enabled: true,
             icon: a.icon,
             sort_order: a.sort_order,
+            category: a.category,
             labels: a.labels,
           })),
         );
@@ -137,6 +147,7 @@ export function AgentSection() {
             version: "",
             icon: agent.icon,
             sort_order: agent.sort_order,
+            category: agent.category,
             labels: agent.labels,
           })),
       );
@@ -201,6 +212,7 @@ export function AgentSection() {
             onUpdate={handleUpdateGlobalConfig}
             isLoading={isLoading}
             isSaving={isSaving}
+            agentCategories={agentCategories}
           />
         ) : (
           <RolesAgentTab
@@ -209,6 +221,7 @@ export function AgentSection() {
             availableAgents={availableAgents}
             onUpdate={handleUpdateRoleAgents}
             isLoading={isLoading}
+            agentCategories={agentCategories}
           />
         )
       ) : (
@@ -217,7 +230,8 @@ export function AgentSection() {
             {t("agentConfig.availableAgents")}
           </p>
           <div className="glass-card divide-y divide-[var(--glass-border)] overflow-hidden rounded-xl">
-            {availableAgents.map((agent, index) => {
+            {groupAgentsByPluginCategory(availableAgents, agentCategories).flatMap((group) =>
+              group.agents.map((agent, index) => {
               const displayName = resolveAgentDisplayName(
                 agent,
                 i18n.language,
@@ -247,7 +261,8 @@ export function AgentSection() {
                   </div>
                 </div>
               );
-            })}
+              }),
+            )}
           </div>
         </div>
       )}

@@ -17,11 +17,13 @@ import {
 interface ChannelAgentSelectProps {
   value: string | null | undefined;
   onChange: (agentId: string | null) => void;
+  onAgentsLoaded?: (agents: AgentInfo[]) => void;
 }
 
 export function ChannelAgentSelect({
   value,
   onChange,
+  onAgentsLoaded,
 }: ChannelAgentSelectProps) {
   const { t } = useTranslation();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -31,13 +33,16 @@ export function ChannelAgentSelect({
     agentApi
       .list()
       .then((res) => {
-        setAgents(res.agents || []);
+        const nextAgents = res.agents || [];
+        setAgents(nextAgents);
+        onAgentsLoaded?.(nextAgents);
       })
       .catch(() => {
         setAgents([]);
+        onAgentsLoaded?.([]);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [onAgentsLoaded]);
 
   return (
     <div className="es-field">

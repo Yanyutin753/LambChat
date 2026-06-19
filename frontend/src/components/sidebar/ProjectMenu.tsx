@@ -5,7 +5,7 @@
 import { useRef, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Edit2, Trash2, MessageSquarePlus, X } from "lucide-react";
+import { Edit2, Trash2, MessageSquarePlus, X, SlidersHorizontal } from "lucide-react";
 import type { Project } from "../../types";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 
@@ -15,6 +15,7 @@ interface ProjectMenuProps {
   onClose: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onPluginOptions?: () => void;
   onNewSessionInProject?: (projectId: string) => void;
   anchorEl: HTMLElement | null;
 }
@@ -25,6 +26,7 @@ export function ProjectMenu({
   onClose,
   onRename,
   onDelete,
+  onPluginOptions,
   onNewSessionInProject,
   anchorEl,
 }: ProjectMenuProps) {
@@ -156,6 +158,19 @@ export function ProjectMenu({
               <span>{t("sidebar.rename")}</span>
             </button>
 
+            {onPluginOptions && (
+              <button
+                onClick={() => {
+                  onPluginOptions();
+                  onClose();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 rounded-lg transition-colors"
+              >
+                <SlidersHorizontal size={16} />
+                <span>{t("sidebar.projectOptions")}</span>
+              </button>
+            )}
+
             {/* Divider */}
             <div className="h-px bg-stone-200 dark:bg-stone-700 my-1.5" />
 
@@ -215,6 +230,19 @@ export function ProjectMenu({
         >
           <MessageSquarePlus size={14} />
           <span>{t("sidebar.newChat")}</span>
+        </button>
+      )}
+
+      {onPluginOptions && (
+        <button
+          onClick={() => {
+            onPluginOptions();
+            onClose();
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-[var(--theme-text-secondary)] hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors"
+        >
+          <SlidersHorizontal size={14} />
+          <span>{t("sidebar.projectOptions")}</span>
         </button>
       )}
 

@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 
 from src.api import deps as api_deps
 from src.api.routes import team as team_route
+from src.kernel.extensions import AGENT_TEAM_PLUGIN_ID, PluginManifest, PluginRuntime
 from src.kernel.schemas.team import (
     TeamCreate,
     TeamListResponse,
@@ -106,6 +107,38 @@ async def test_collection_crud_accepts_paths_without_trailing_slash() -> None:
     assert create_response.status_code == 201
     assert calls == ["list", "create"]
     assert seen_users[0].sub == "user-1"
+
+
+@pytest.mark.asyncio
+async def test_team_routes_fail_closed_when_agent_team_plugin_disabled() -> None:
+    class _FakeManager:
+        async def list_teams(self, **kwargs):
+            raise AssertionError("disabled Agent Team route must not reach manager")
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id=AGENT_TEAM_PLUGIN_ID,
+                name="Agent Team",
+                version="1.0.0",
+                api_version="1",
+                enabled_by_default=False,
+            )
+        ]
+    )
+    app = FastAPI()
+    app.state.plugin_runtime = runtime
+    app.include_router(team_route.router, prefix="/api/teams")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[team_route._get_manager] = lambda: _FakeManager()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get("/api/teams")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["error"] == "plugin_unavailable"
+    assert response.json()["detail"]["plugin_id"] == AGENT_TEAM_PLUGIN_ID
 
 
 @pytest.mark.asyncio

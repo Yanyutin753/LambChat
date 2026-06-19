@@ -26,7 +26,12 @@ import { PanelLoadingState } from "../common/PanelLoadingState";
 import { EditorSidebar } from "../common/EditorSidebar";
 import { Button, Input, PanelFooterActions, Select } from "../common";
 import { ChannelAgentSelect } from "./channel/ChannelAgentSelect";
+import {
+  ChannelPluginOptions,
+  type ChannelPluginOptionValues,
+} from "./channel/ChannelPluginOptions";
 import { channelApi } from "../../services/api/channel";
+import { useChannelPluginOptions } from "../../hooks/useChannelPluginOptions";
 import type {
   ChannelType,
   ChannelMetadata,
@@ -70,6 +75,33 @@ export function ChannelPanel({
   const [hasExistingConfig, setHasExistingConfig] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [agentId, setAgentId] = useState<string | null>(null);
+  const [channelPluginOptionValues, setChannelPluginOptionValues] =
+    useState<ChannelPluginOptionValues>({});
+  const { options: channelPluginOptions } = useChannelPluginOptions(channelType, {
+    includeInactive: true,
+  });
+
+  const setChannelPluginOption = (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => {
+    setChannelPluginOptionValues((prev) => {
+      const next = { ...prev };
+      const pluginValues = { ...(next[pluginId] ?? {}) };
+      if (value === null || value === undefined || value === "") {
+        delete pluginValues[key];
+      } else {
+        pluginValues[key] = value;
+      }
+      if (Object.keys(pluginValues).length > 0) {
+        next[pluginId] = pluginValues;
+      } else {
+        delete next[pluginId];
+      }
+      return next;
+    });
+  };
 
   const loadConfig = async () => {
     setIsLoading(true);
@@ -101,10 +133,12 @@ export function ChannelPanel({
         setInstanceName(configResponse.name);
         setFormValues(configResponse.config || {});
         setAgentId(configResponse.agent_id || null);
+        setChannelPluginOptionValues(configResponse.plugin_options || {});
       } else {
         setHasExistingConfig(false);
         setEnabled(false);
         setAgentId(null);
+        setChannelPluginOptionValues({});
         const defaults: Record<string, unknown> = {};
         metadata.config_fields.forEach((field) => {
           if (field.default !== undefined) {
@@ -177,6 +211,7 @@ export function ChannelPanel({
           config: configData,
           enabled,
           agent_id: agentId,
+          plugin_options: channelPluginOptionValues,
         });
         setConfig(updated);
         const cleared = { ...formValues };
@@ -197,6 +232,7 @@ export function ChannelPanel({
           name: instanceName.trim(),
           config: configData,
           agent_id: agentId,
+          plugin_options: channelPluginOptionValues,
         });
         setConfig(created);
         setHasExistingConfig(true);
@@ -527,6 +563,14 @@ export function ChannelPanel({
 
           {/* Agent Selector */}
           <ChannelAgentSelect value={agentId} onChange={setAgentId} />
+
+          {/* Plugin-declared channel options */}
+          <ChannelPluginOptions
+            options={channelPluginOptions}
+            values={channelPluginOptionValues}
+            disabled={!canWrite}
+            onChange={setChannelPluginOption}
+          />
         </div>
       </div>
 

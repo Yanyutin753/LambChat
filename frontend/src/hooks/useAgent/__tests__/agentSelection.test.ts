@@ -22,26 +22,36 @@ test("replaces an unavailable current agent with the first available agent", () 
   assert.equal(resolveAvailableAgentId("default", "default", agents), "search");
 });
 
-test("persona mode keeps the current non-team agent", () => {
+test("persona mode keeps the current non-plugin agent", () => {
   assert.equal(resolvePersonaAgentId("fast", "search", agents), "fast");
 });
 
-test("persona mode switches team agent to the preferred non-team default", () => {
+test("persona mode switches an excluded plugin agent to the preferred non-plugin default", () => {
   assert.equal(
     resolvePersonaAgentId("team", "fast", [
       { id: "team", name: "Team", description: "", version: "1.0.0" },
       ...agents,
-    ]),
+    ], ["team"]),
     "fast",
   );
 });
 
-test("persona mode switches team agent to the first non-team agent when needed", () => {
+test("persona mode switches an excluded plugin agent to the first non-plugin agent when needed", () => {
   assert.equal(
     resolvePersonaAgentId("team", "team", [
       { id: "team", name: "Team", description: "", version: "1.0.0" },
       ...agents,
-    ]),
+    ], ["team"]),
+    "search",
+  );
+});
+
+test("persona mode can exclude any plugin-owned agent id", () => {
+  assert.equal(
+    resolvePersonaAgentId("workflow", "workflow", [
+      { id: "workflow", name: "Workflow", description: "", version: "1.0.0" },
+      ...agents,
+    ], ["workflow"]),
     "search",
   );
 });

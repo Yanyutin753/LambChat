@@ -24,6 +24,10 @@ def _plugin_owned_setting_keys() -> dict[str, str]:
         return {}
 
 
+def _plugin_owner_for_setting(key: str) -> str | None:
+    return _plugin_owned_setting_keys().get(key)
+
+
 class SettingsStorage:
     """Settings storage using MongoDB"""
 
@@ -116,12 +120,20 @@ class SettingsStorage:
 
     async def get(self, key: str) -> Optional[SettingItem]:
         """Get single setting by key (with sensitive values masked)"""
-        if key in _plugin_owned_setting_keys():
+        if _plugin_owner_for_setting(key):
             return None
         return await self._get_internal(key, mask_sensitive=True)
 
     async def get_raw(self, key: str) -> Optional[SettingItem]:
         """Get single setting by key (without masking - for internal use only)"""
+        if _plugin_owner_for_setting(key):
+            return None
+        return await self._get_internal(key, mask_sensitive=False)
+
+    async def get_plugin_owned_legacy_raw(self, key: str) -> Optional[SettingItem]:
+        """Read a plugin-owned legacy key only for explicit migration paths."""
+        if not _plugin_owner_for_setting(key):
+            return None
         return await self._get_internal(key, mask_sensitive=False)
 
     async def _get_internal(self, key: str, mask_sensitive: bool = True) -> Optional[SettingItem]:
@@ -164,6 +176,10 @@ class SettingsStorage:
 
     async def set(self, key: str, value: Any, user_id: str) -> Optional[SettingItem]:
         """Set setting value"""
+        plugin_owner = _plugin_owner_for_setting(key)
+        if plugin_owner:
+            raise ValueError(f"This setting is now owned by plugin {plugin_owner}")
+
         definition = SETTING_DEFINITIONS.get(key)
         if not definition:
             return None
@@ -223,13 +239,20 @@ class SettingsStorage:
         collection = self._get_collection()
 
         if key:
+            if _plugin_owner_for_setting(key):
+                return 0
             if key not in SETTING_DEFINITIONS:
                 return 0
             result = await collection.delete_one({"_id": key})
             return 1 if result.deleted_count > 0 else 0
         else:
             # Reset all
-            keys_to_delete = list(SETTING_DEFINITIONS.keys())
+            plugin_owned_keys = _plugin_owned_setting_keys()
+            keys_to_delete = [
+                setting_key
+                for setting_key in SETTING_DEFINITIONS.keys()
+                if setting_key not in plugin_owned_keys
+            ]
             result = await collection.delete_many({"_id": {"$in": keys_to_delete}})
             return result.deleted_count
 

@@ -8,7 +8,6 @@ import {
   Save,
   Timer,
   UserRound,
-  UsersRound,
 } from "lucide-react";
 import {
   Button,
@@ -27,16 +26,45 @@ import type {
 import type { AgentInfo } from "../../../types/agent";
 import type { AvailableModel } from "../../../contexts/SettingsContext";
 import type { PersonaPreset } from "../../../types/personaPreset";
-import type { Team } from "../../../types/team";
 import { personaPresetApi } from "../../../services/api/personaPreset";
-import { teamApi } from "../../../services/api/team";
+import { useScheduledTaskPluginOptions } from "../../../hooks/useScheduledTaskPluginOptions";
+import {
+  hasEffectiveCorePersonaSuppressingOption,
+  importLegacyPayloadPluginOptions,
+  pluginOptionFromValues,
+  pluginOptionsFromMetadata,
+  retainPluginOptionsForDeclarations,
+  withPluginOption,
+} from "../../../extensions/pluginOptions";
+import type { PluginOptionsMetadata } from "../../../extensions/pluginOptions";
 import {
   buildScheduledTaskInputPayload,
   getAgentOptionsFromScheduledTaskPayload,
   getScheduledTaskPersonaPresetId,
-  getScheduledTaskTeamId,
 } from "../scheduledTaskPayload";
 import { getBrowserTimezone, toDateTimeLocalValue } from "./utils";
+import {
+  renderScheduledTaskOptionField,
+} from "./scheduledTaskOptionRenderers";
+import type { ExtensionScopedOption } from "../../../types";
+
+function asInputValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return typeof value === "string" ? value : String(value);
+}
+
+function parseJsonValue(value: string): unknown {
+  if (!value.trim()) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function optionInputType(option: ExtensionScopedOption): "text" | "number" {
+  return option.type === "number" ? "number" : "text";
+}
 
 /** Create/Edit form sidebar */
 export function TaskFormModal({
@@ -84,11 +112,9 @@ export function TaskFormModal({
   const [personaPresetId, setPersonaPresetId] = useState(
     getScheduledTaskPersonaPresetId(task?.input_payload),
   );
-  const [teamId, setTeamId] = useState(
-    getScheduledTaskTeamId(task?.input_payload),
-  );
+  const [scheduledTaskPluginOptionValues, setScheduledTaskPluginOptionValues] =
+    useState<PluginOptionsMetadata>(() => pluginOptionsFromMetadata(task?.input_payload));
   const [personaPresets, setPersonaPresets] = useState<PersonaPreset[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
   const [modelId, setModelId] = useState(initialModelId);
   const [modelValue, setModelValue] = useState(initialModelValue);
   const [triggerType, setTriggerType] = useState<TriggerType>(
@@ -150,7 +176,26 @@ export function TaskFormModal({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
-  const isTeamAgent = agentId === "team";
+  const {
+    options: scheduledTaskPluginOptions,
+    isLoading: scheduledTaskPluginOptionsLoading,
+  } = useScheduledTaskPluginOptions(agentId, {
+    includeInactive: true,
+  });
+  const suppressPersonaSelector = hasEffectiveCorePersonaSuppressingOption(
+    scheduledTaskPluginOptions,
+  );
+
+  const setScheduledTaskPluginOptionValue = (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => {
+    setScheduledTaskPluginOptionValues((current) =>
+      withPluginOption({ plugin_options: current }, pluginId, key, value)
+        .plugin_options ?? {},
+    );
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -162,18 +207,34 @@ export function TaskFormModal({
       .catch(() => {
         if (!cancelled) setPersonaPresets([]);
       });
-    teamApi
-      .list({ limit: 100 })
-      .then((response) => {
-        if (!cancelled) setTeams(response.teams);
-      })
-      .catch(() => {
-        if (!cancelled) setTeams([]);
-      });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (scheduledTaskPluginOptionsLoading) return;
+    setScheduledTaskPluginOptionValues((current) => {
+      const imported = importLegacyPayloadPluginOptions(
+        task?.input_payload,
+        scheduledTaskPluginOptions,
+        current,
+      );
+      const next = retainPluginOptionsForDeclarations(
+        imported,
+        scheduledTaskPluginOptions,
+      );
+      return JSON.stringify(next) === JSON.stringify(current) ? current : next;
+    });
+    if (suppressPersonaSelector) {
+      setPersonaPresetId("");
+    }
+  }, [
+    scheduledTaskPluginOptions,
+    scheduledTaskPluginOptionsLoading,
+    suppressPersonaSelector,
+    task?.input_payload,
+  ]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -231,7 +292,8 @@ export function TaskFormModal({
         modelValue,
         availableModels,
         personaPresetId,
-        teamId,
+        pluginOptionValues: scheduledTaskPluginOptionValues,
+        pluginOptionDeclarations: scheduledTaskPluginOptions,
       });
       await onSave({
         name: name.trim(),
@@ -252,16 +314,150 @@ export function TaskFormModal({
   };
 
   const inputClass = "scheduled-task-input";
-  const PersonaOrTeamIcon = isTeamAgent ? UsersRound : UserRound;
-  const personaOrTeamIconLabel = isTeamAgent
-    ? t("scheduledTask.team", "团队")
-    : t("scheduledTask.persona", "角色");
-  const renderPersonaOrTeamOption = (label: string) => (
+  const agentOptions = [
+    { value: "", label: t("scheduledTask.agentPlaceholder") },
+    ...agents.map((agent) => ({
+      value: agent.id,
+      label: t(agent.name),
+    })),
+  ];
+  if (agentId && !agentOptions.some((option) => option.value === agentId)) {
+    agentOptions.push({ value: agentId, label: agentId });
+  }
+  const renderPersonaOption = (label: string) => (
     <span className="inline-flex min-w-0 items-center gap-2">
-      <PersonaOrTeamIcon size={14} className="shrink-0 opacity-70" />
+      <UserRound size={14} className="shrink-0 opacity-70" />
       <span className="truncate">{label}</span>
     </span>
   );
+  const personaOptions = [
+    {
+      value: "",
+      label: renderPersonaOption(t("scheduledTask.personaPlaceholder")),
+    },
+    ...personaPresets.map((preset) => ({
+      value: preset.id,
+      label: renderPersonaOption(preset.name),
+    })),
+  ];
+
+  const renderScheduledTaskPluginOption = (option: ExtensionScopedOption) => {
+    const currentValue = pluginOptionFromValues(
+      scheduledTaskPluginOptionValues,
+      option.plugin_id,
+      option.key,
+    );
+    const inactive = option.effective === false;
+    const disabled = inactive;
+    const fieldId = `${option.plugin_id}.${option.key}`;
+    const inactiveNotice = inactive || disabled ? (
+      <p className="mt-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+        {t(
+          "scheduledTask.pluginOptionInactive",
+          "Plugin disabled; saved value is retained but will not apply.",
+        )}
+      </p>
+    ) : null;
+    const onChange = (value: unknown) =>
+      setScheduledTaskPluginOptionValue(option.plugin_id, option.key, value);
+    const rendered = renderScheduledTaskOptionField({
+      option,
+      value: currentValue,
+      disabled,
+      inactive,
+      triggerClassName: inputClass,
+      onChange,
+    });
+
+    if (rendered) {
+      return (
+        <div key={fieldId} className="scheduled-task-form-field">
+          <label className="scheduled-task-label">{option.label || option.key}</label>
+          {rendered}
+          {inactiveNotice}
+        </div>
+      );
+    }
+
+    if (option.type === "boolean") {
+      return (
+        <div key={fieldId} className="scheduled-task-form-field">
+          <label className="scheduled-task-label">{option.label || option.key}</label>
+          <ToggleSwitch
+            enabled={Boolean(currentValue)}
+            onToggle={() => onChange(!currentValue)}
+            disabled={disabled}
+          />
+          {inactiveNotice}
+        </div>
+      );
+    }
+
+    if (option.type === "select" && option.options?.length) {
+      return (
+        <div key={fieldId} className="scheduled-task-form-field">
+          <label className="scheduled-task-label">{option.label || option.key}</label>
+          <Select
+            value={asInputValue(currentValue)}
+            onChange={(value) => onChange(value || null)}
+            disabled={disabled}
+            triggerClassName={inputClass}
+            options={[
+              { value: "", label: t("common.none", "None") },
+              ...option.options.map((value) => ({ value, label: value })),
+            ]}
+          />
+          {inactiveNotice}
+        </div>
+      );
+    }
+
+    if (option.type === "json" || option.type === "text") {
+      return (
+        <div key={fieldId} className="scheduled-task-form-field">
+          <label className="scheduled-task-label">{option.label || option.key}</label>
+          <Textarea
+            value={
+              typeof currentValue === "object" && currentValue !== null
+                ? JSON.stringify(currentValue, null, 2)
+                : asInputValue(currentValue)
+            }
+            onChange={(event) =>
+              onChange(
+                option.type === "json"
+                  ? parseJsonValue(event.target.value)
+                  : event.target.value,
+              )
+            }
+            disabled={disabled}
+            rows={3}
+            className={`${inputClass} min-h-[5rem] resize-y`}
+          />
+          {inactiveNotice}
+        </div>
+      );
+    }
+
+    return (
+      <div key={fieldId} className="scheduled-task-form-field">
+        <label className="scheduled-task-label">{option.label || option.key}</label>
+        <Input
+          type={optionInputType(option)}
+          value={asInputValue(currentValue)}
+          onChange={(event) =>
+            onChange(
+              option.type === "number"
+                ? Number(event.target.value || 0)
+                : event.target.value || null,
+            )
+          }
+          disabled={disabled}
+          className={inputClass}
+        />
+        {inactiveNotice}
+      </div>
+    );
+  };
 
   return (
     <EditorSidebar
@@ -275,7 +471,7 @@ export function TaskFormModal({
           <Button
             variant="primary"
             onClick={handleSave}
-            loading={isSaving}
+            loading={isSaving || scheduledTaskPluginOptionsLoading}
             leftIcon={<Save size={16} />}
           >
             {t("common.save")}
@@ -322,62 +518,28 @@ export function TaskFormModal({
               value={agentId}
               onChange={(v) => {
                 setAgentId(v);
-                if (v === "team") {
-                  setPersonaPresetId("");
-                } else {
-                  setTeamId("");
-                }
               }}
               triggerClassName={inputClass}
-              options={[
-                { value: "", label: t("scheduledTask.agentPlaceholder") },
-                ...agents.map((agent) => ({
-                  value: agent.id,
-                  label: t(agent.name),
-                })),
-              ]}
+              options={agentOptions}
             />
           </div>
 
           {/* Persona / team selector */}
           <div className="scheduled-task-form-field">
             <label className="scheduled-task-label inline-flex items-center gap-1.5">
-              <PersonaOrTeamIcon size={14} className="shrink-0 opacity-75" />
-              <span>{personaOrTeamIconLabel}</span>
+              <UserRound size={14} className="shrink-0 opacity-75" />
+              <span>{t("scheduledTask.persona", "瑙掕壊")}</span>
             </label>
             <Select
-              value={isTeamAgent ? teamId : personaPresetId}
-              onChange={isTeamAgent ? setTeamId : setPersonaPresetId}
+              value={personaPresetId}
+              onChange={setPersonaPresetId}
+              disabled={suppressPersonaSelector}
               triggerClassName={inputClass}
-              options={
-                isTeamAgent
-                  ? [
-                      {
-                        value: "",
-                        label: renderPersonaOrTeamOption(
-                          t("scheduledTask.teamPlaceholder", "不指定团队"),
-                        ),
-                      },
-                      ...teams.map((team) => ({
-                        value: team.id,
-                        label: renderPersonaOrTeamOption(team.name),
-                      })),
-                    ]
-                  : [
-                      {
-                        value: "",
-                        label: renderPersonaOrTeamOption(
-                          t("scheduledTask.personaPlaceholder", "不指定角色"),
-                        ),
-                      },
-                      ...personaPresets.map((preset) => ({
-                        value: preset.id,
-                        label: renderPersonaOrTeamOption(preset.name),
-                      })),
-                    ]
-              }
+              options={personaOptions}
             />
           </div>
+
+          {scheduledTaskPluginOptions.map(renderScheduledTaskPluginOption)}
 
           {/* Model selector */}
           <div className="scheduled-task-form-field">

@@ -6,6 +6,7 @@ from src.kernel.extensions import (
     PluginResourceLedger,
     PluginResourceRecord,
     PluginResourceRetentionPolicy,
+    PluginResourceScope,
     PluginResourceType,
     build_uninstall_dry_run,
     validate_uninstall_dry_run,
@@ -88,6 +89,59 @@ def test_uninstall_dry_run_only_lists_requested_plugin_resources() -> None:
 
     assert [resource.plugin_id for resource in dry_run.resources] == ["feedback"]
     assert [resource.action for resource in dry_run.resources] == [PluginDryRunAction.KEEP]
+
+
+def test_uninstall_dry_run_archives_scoped_plugin_settings_without_delete() -> None:
+    ledger = PluginResourceLedger(
+        [
+            PluginResourceRecord(
+                plugin_id="agent_team",
+                resource_id="agent_team.project.DEFAULT_TEAM_ID",
+                resource_type=PluginResourceType.SETTING,
+                scope=PluginResourceScope.PROJECT,
+                cleanup_strategy=PluginResourceCleanupStrategy.ARCHIVE,
+                retention_policy=PluginResourceRetentionPolicy.ARCHIVE_METADATA,
+            ),
+            PluginResourceRecord(
+                plugin_id="agent_team",
+                resource_id="agent_team.session.SELECTED_TEAM_ID",
+                resource_type=PluginResourceType.SETTING,
+                scope=PluginResourceScope.SESSION,
+                cleanup_strategy=PluginResourceCleanupStrategy.ARCHIVE,
+                retention_policy=PluginResourceRetentionPolicy.ARCHIVE_METADATA,
+            ),
+            PluginResourceRecord(
+                plugin_id="agent_team",
+                resource_id="agent_team.channel.SELECTED_TEAM_ID",
+                resource_type=PluginResourceType.SETTING,
+                scope=PluginResourceScope.CHANNEL,
+                cleanup_strategy=PluginResourceCleanupStrategy.ARCHIVE,
+                retention_policy=PluginResourceRetentionPolicy.ARCHIVE_METADATA,
+            ),
+            PluginResourceRecord(
+                plugin_id="agent_team",
+                resource_id="agent_team.scheduled_task.SELECTED_TEAM_ID",
+                resource_type=PluginResourceType.SETTING,
+                scope=PluginResourceScope.SCHEDULED_TASK,
+                cleanup_strategy=PluginResourceCleanupStrategy.ARCHIVE,
+                retention_policy=PluginResourceRetentionPolicy.ARCHIVE_METADATA,
+            ),
+        ]
+    )
+
+    dry_run = build_uninstall_dry_run(plugin_id="agent_team", ledger=ledger)
+    resources_by_id = {resource.resource_id: resource for resource in dry_run.resources}
+
+    assert dry_run.will_delete == []
+    assert dry_run.needs_manual_review == []
+    assert resources_by_id["agent_team.project.DEFAULT_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert resources_by_id["agent_team.project.DEFAULT_TEAM_ID"].scope == "project"
+    assert resources_by_id["agent_team.session.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert resources_by_id["agent_team.session.SELECTED_TEAM_ID"].scope == "session"
+    assert resources_by_id["agent_team.channel.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert resources_by_id["agent_team.channel.SELECTED_TEAM_ID"].scope == "channel"
+    assert resources_by_id["agent_team.scheduled_task.SELECTED_TEAM_ID"].action is PluginDryRunAction.ARCHIVE
+    assert resources_by_id["agent_team.scheduled_task.SELECTED_TEAM_ID"].scope == "scheduled_task"
 
 
 def test_uninstall_dry_run_validation_blocks_missing_snapshot() -> None:

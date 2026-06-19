@@ -180,6 +180,7 @@ export function usePluginRuntime(options: UsePluginRuntimeOptions = {}) {
       const payload = JSON.parse(rawJson) as Record<string, unknown>;
       await pluginRuntimeApi.importPlugin(payload, restoreState);
       await fetchPlugins();
+      dispatchPluginRuntimeUpdated();
       return true;
     } catch (err) {
       setError(
@@ -201,6 +202,9 @@ export function usePluginRuntime(options: UsePluginRuntimeOptions = {}) {
       const result = await pluginRuntimeApi.importPackage(sourcePath, dryRun);
       setPackageImportResult(result);
       await fetchPlugins();
+      if (!dryRun) {
+        dispatchPluginRuntimeUpdated();
+      }
       return true;
     } catch (err) {
       setError(

@@ -29,6 +29,10 @@ from src.kernel.schemas.share import (
 )
 from src.kernel.schemas.user import TokenPayload
 from src.kernel.types import Permission
+from src.kernel.extensions.plugin_options import (
+    agent_uses_agent_team_options,
+    selected_agent_team_id_from_metadata,
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -94,7 +98,11 @@ async def _attach_shared_team_metadata(
 ) -> None:
     """Attach safe team display metadata for shared team sessions."""
     metadata = session.metadata or {}
-    team_id = metadata.get("team_id") if session.agent_id == "team" else None
+    team_id = (
+        selected_agent_team_id_from_metadata(metadata)
+        if agent_uses_agent_team_options(session.agent_id)
+        else None
+    )
     if not team_id:
         return
 

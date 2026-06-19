@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -161,6 +162,9 @@ def test_build_grep_command_does_not_run_grep_when_rg_finds_no_matches(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    if shutil.which("/bin/sh") is None:
+        pytest.skip("requires a POSIX shell")
+
     bin_path = tmp_path / "bin"
     bin_path.mkdir()
     rg_path = bin_path / "rg"

@@ -15,13 +15,20 @@ test("shared page hides feedback and share actions on chat messages", () => {
     resolve(__dirname, "../../chat/ChatMessage/index.tsx"),
     "utf8",
   );
+  const messageActionRenderersSource = readFileSync(
+    resolve(__dirname, "../../chat/ChatMessage/messageActionRenderers.tsx"),
+    "utf8",
+  );
 
   assert.match(sharedPageSource, /showFeedbackAndShareActions=\{false\}/);
   assert.match(chatMessageSource, /showFeedbackAndShareActions\?: boolean/);
-  assert.match(
-    chatMessageSource,
-    /canUseFeedbackAction &&\s*isAuthenticated &&\s*sessionId &&/,
-  );
+  assert.match(chatMessageSource, /buildMessageActionContributions\(runtimePlugins, \{/);
+  assert.match(chatMessageSource, /target: "assistant_message"/);
+  assert.match(chatMessageSource, /MESSAGE_ACTION_RENDERERS/);
+  assert.doesNotMatch(chatMessageSource, /FeedbackButtons/);
+  assert.match(messageActionRenderersSource, /FeedbackButtons/);
+  assert.match(chatMessageSource, /isAuthenticated &&\s*sessionId &&/);
+  assert.doesNotMatch(chatMessageSource, /canUseFeedbackAction/);
 });
 
 test("shared page passes public plugin runtime state into chat messages", () => {
@@ -30,9 +37,15 @@ test("shared page passes public plugin runtime state into chat messages", () => 
     "utf8",
   );
 
-  assert.match(sharedPageSource, /pluginRuntimeApi\.listContributionStates\(\)/);
-  assert.match(sharedPageSource, /setRuntimePlugins\(response\.plugins\)/);
+  assert.match(sharedPageSource, /useExtensionContributions/);
+  assert.match(sharedPageSource, /const EMPTY_RUNTIME_PLUGINS/);
+  assert.match(
+    sharedPageSource,
+    /extensionContributions\?\.plugins \?\? EMPTY_RUNTIME_PLUGINS/,
+  );
   assert.match(sharedPageSource, /runtimePlugins=\{runtimePlugins\}/);
+  assert.doesNotMatch(sharedPageSource, /pluginRuntimeApi\.listContributions\(\)/);
+  assert.doesNotMatch(sharedPageSource, /setRuntimePlugins/);
 });
 
 test("shared page shows team identity for shared team sessions", () => {
@@ -40,11 +53,21 @@ test("shared page shows team identity for shared team sessions", () => {
     resolve(__dirname, "../SharedPage.tsx"),
     "utf8",
   );
+  const assistantIdentitySource = readFileSync(
+    resolve(__dirname, "../../chat/chatAssistantIdentityResolvers.ts"),
+    "utf8",
+  );
 
   assert.match(sharedPageSource, /resolveSharedAssistantIdentity/);
+  assert.match(sharedPageSource, /resolveSharedPluginAssistantIdentity/);
+  assert.match(sharedPageSource, /resolvePluginAssistantIdentitySnapshot/);
   assert.match(sharedPageSource, /sharedAssistant/);
-  assert.match(sharedPageSource, /session\.agent_id === "team"/);
-  assert.match(sharedPageSource, /data\.session\.team_name/);
+  assert.match(sharedPageSource, /sharedPluginAssistant/);
+  assert.doesNotMatch(sharedPageSource, /session\.agent_id === "team"/);
+  assert.match(assistantIdentitySource, /buildAssistantIdentityResolverContributions/);
+  assert.match(assistantIdentitySource, /agent_team\.TeamAssistantIdentity/);
+  assert.doesNotMatch(sharedPageSource, /\{data\.session\.team_name\}/);
+  assert.match(sharedPageSource, /\{sharedPluginAssistant\.name\}/);
   assert.match(sharedPageSource, /personaName=\{sharedAssistant\.name\}/);
   assert.match(sharedPageSource, /personaAvatar=\{sharedAssistant\.avatar\}/);
 });

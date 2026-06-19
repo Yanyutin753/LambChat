@@ -8,6 +8,11 @@ import pytest
 
 from src.infra.task.manager import BackgroundTaskManager
 from src.infra.task.status import TaskStatus
+from src.kernel.extensions import (
+    PluginRuntime,
+    PluginUnavailableError,
+    build_agent_team_plugin_manifest,
+)
 
 
 class _FakePayloadStore:
@@ -311,6 +316,41 @@ async def test_submit_persists_user_message_before_background_task_starts(
 
 
 @pytest.mark.asyncio
+async def test_submit_rejects_disabled_plugin_owned_agent_before_session_side_effects() -> None:
+    from src.agents import set_plugin_runtime
+
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    set_plugin_runtime(runtime)
+    manager = BackgroundTaskManager()
+    fake_executor = _FakeExecutor()
+    manager._executor = fake_executor  # type: ignore[assignment]
+
+    async def _executor_fn(*args, **kwargs):
+        raise AssertionError("disabled plugin-owned agent should not run")
+        if False:
+            yield None
+
+    try:
+        with pytest.raises(PluginUnavailableError):
+            await manager.submit(
+                session_id="session-1",
+                agent_id="team",
+                message="hello",
+                user_id="user-1",
+                executor=_executor_fn,
+                run_id="run-1",
+            )
+    finally:
+        set_plugin_runtime(None)
+
+    assert fake_executor.ensure_calls == []
+    assert fake_executor.status_calls == []
+    assert manager._tasks == {}
+    assert manager._run_info == {}
+
+
+@pytest.mark.asyncio
 async def test_shutdown_drains_release_concurrency_tasks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -396,3 +436,37 @@ async def test_submit_arq_can_persist_user_message_before_enqueue(
         ("emit_user_message", "hello", None),
     ]
     assert payload_store.saved[0][1]["user_message_written"] is True
+
+
+@pytest.mark.asyncio
+async def test_submit_arq_rejects_disabled_plugin_owned_agent_before_queue_side_effects() -> None:
+    from src.agents import set_plugin_runtime
+
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    set_plugin_runtime(runtime)
+    manager = BackgroundTaskManager()
+    fake_executor = _FakeExecutor()
+    payload_store = _FakePayloadStore()
+    arq_pool = _FakeArqPool()
+    manager._executor = fake_executor  # type: ignore[assignment]
+
+    try:
+        with pytest.raises(PluginUnavailableError):
+            await manager.submit_arq(
+                session_id="session-1",
+                agent_id="team",
+                message="hello",
+                user_id="user-1",
+                executor_key="agent_stream",
+                payload_store=cast(Any, payload_store),
+                arq_pool=arq_pool,
+                run_id="run-1",
+            )
+    finally:
+        set_plugin_runtime(None)
+
+    assert fake_executor.ensure_calls == []
+    assert fake_executor.status_calls == []
+    assert payload_store.saved == []
+    assert arq_pool.enqueued == []

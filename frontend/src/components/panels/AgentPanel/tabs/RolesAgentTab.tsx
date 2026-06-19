@@ -11,6 +11,8 @@ import {
   resolveAgentDisplayName,
 } from "../../../agent/agentCatalog";
 import { RoleSelector } from "../shared/RoleSelector";
+import { groupAgentsByPluginCategory } from "../agentCategoryGroups";
+import type { CoreAgentCategoryContribution } from "../../../../extensions";
 import type { Role, AgentInfo } from "../../../../types";
 
 interface RolesAgentTabProps {
@@ -19,6 +21,7 @@ interface RolesAgentTabProps {
   availableAgents: AgentInfo[];
   onUpdate: (roleId: string, agentIds: string[]) => Promise<void>;
   isLoading: boolean;
+  agentCategories?: readonly CoreAgentCategoryContribution[];
 }
 
 export function RolesAgentTab({
@@ -27,6 +30,7 @@ export function RolesAgentTab({
   availableAgents,
   onUpdate,
   isLoading,
+  agentCategories = [],
 }: RolesAgentTabProps) {
   const { t } = useTranslation();
   const [selectedRole, setSelectedRole] = useState<string | null>(
@@ -101,7 +105,7 @@ export function RolesAgentTab({
 
       {selectedRole && (
         <>
-          <div className="glass-card divide-y divide-[var(--glass-border)] overflow-hidden rounded-xl">
+          <div className="glass-card overflow-hidden rounded-xl">
             <div className="bg-[var(--glass-bg-subtle)] px-4 py-2.5">
               <h4 className="truncate text-xs font-medium uppercase tracking-wider text-theme-text-secondary">
                 {t("agentConfig.selectAgentsForRole", {
@@ -109,7 +113,15 @@ export function RolesAgentTab({
                 })}
               </h4>
             </div>
-            {availableAgents.map((agent, index) => {
+            <div className="divide-y divide-[var(--glass-border)]">
+            {groupAgentsByPluginCategory(availableAgents, agentCategories).map((group) => (
+              <section key={group.id}>
+                <div className="flex items-center gap-2 bg-[var(--glass-bg-subtle)] px-4 py-2 text-xs font-medium uppercase tracking-wider text-theme-text-tertiary">
+                  <AgentIcon icon={group.icon} size={14} />
+                  <span>{t(group.label, group.label)}</span>
+                </div>
+                <div className="divide-y divide-[var(--glass-border)]">
+            {group.agents.map((agent, index) => {
               const isSelected = currentRoleAgents.includes(agent.id);
               const displayName = resolveAgentDisplayName(
                 agent,
@@ -150,6 +162,10 @@ export function RolesAgentTab({
                 </label>
               );
             })}
+                </div>
+              </section>
+            ))}
+            </div>
           </div>
 
           {hasChanges && (

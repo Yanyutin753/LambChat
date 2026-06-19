@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from src.api.deps import require_permissions
+from src.api.routes.plugin_guard import plugin_unavailable_http_error
 from src.infra.scheduler.service import ScheduledTaskService
 from src.kernel.schemas.scheduled_task import (
     ScheduledTask,
@@ -18,13 +19,19 @@ from src.kernel.schemas.scheduled_task import (
     TaskSessionResponse,
 )
 from src.kernel.schemas.user import TokenPayload
+from src.kernel.extensions import PluginUnavailableError
 from src.kernel.types import Permission
 
 router = APIRouter()
 
 
-def _get_service() -> ScheduledTaskService:
-    return ScheduledTaskService()
+def _get_service(request: Request) -> ScheduledTaskService:
+    service = ScheduledTaskService()
+    service.plugin_runtime = getattr(request.app.state, "plugin_runtime", None)
+    plugin_settings_service = getattr(request.app.state, "plugin_settings_service", None)
+    if plugin_settings_service is not None:
+        service.plugin_settings_service = plugin_settings_service
+    return service
 
 
 async def _require_owned_task(
@@ -51,6 +58,8 @@ async def create_scheduled_task(
     """Create a new scheduled task."""
     try:
         task = await service.create_task(body, owner_id=user.sub)
+    except PluginUnavailableError as exc:
+        raise plugin_unavailable_http_error(None, exc) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return await service.get_task_response(task)
@@ -100,6 +109,8 @@ async def update_scheduled_task(
     await _require_owned_task(task_id, user, service)
     try:
         updated = await service.update_task(task_id, body)
+    except PluginUnavailableError as exc:
+        raise plugin_unavailable_http_error(None, exc) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if updated is None:

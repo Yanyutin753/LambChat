@@ -1,4 +1,5 @@
 import { Suspense, lazy, useMemo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   SkillsPanelSkeleton,
   MarketplacePanelSkeleton,
@@ -92,13 +93,13 @@ type RuntimeAwarePanelProps = {
 
 type PanelComponent = React.LazyExoticComponent<
   React.ComponentType<Record<string, never>>
->;
+> | React.ComponentType<Record<string, never>>;
 
 type RuntimeAwarePanelComponent = React.LazyExoticComponent<
   React.ComponentType<RuntimeAwarePanelProps>
 >;
 
-const corePanelComponents: Record<Exclude<TabType, "chat">, PanelComponent> = {
+const corePanelComponents: Partial<Record<Exclude<TabType, "chat">, PanelComponent>> = {
   skills: SkillsHubPanel,
   marketplace: SkillsHubPanel,
   plugins: SkillsHubPanel,
@@ -106,17 +107,52 @@ const corePanelComponents: Record<Exclude<TabType, "chat">, PanelComponent> = {
   roles: RolesPanel,
   settings: SettingsPanel,
   mcp: MCPPanel,
-  feedback: FeedbackPanel,
   channels: ChannelsPage,
   agents: AgentModelPanel,
   files: RevealedFilesPanel,
   persona: PersonaPlazaPanel,
-  team: TeamBuilderPanel,
   notifications: NotificationPanel,
   memory: MemoryPanel,
   "scheduled-tasks": ScheduledTaskPanel,
-  usage: UsagePanel,
 };
+
+const pluginPanelRenderers: Record<string, PanelComponent> = {
+  "agent_team.TeamBuilderPanel": TeamBuilderPanel,
+  "feedback.FeedbackPanel": FeedbackPanel,
+  "usage_reports.UsagePanel": UsagePanel,
+};
+
+function PluginPanelUnavailable({
+  renderer,
+  tab,
+}: {
+  renderer: string;
+  tab: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex h-full items-center justify-center px-4">
+      <div className="max-w-md rounded-lg border border-dashed border-stone-300 bg-stone-50/70 p-5 text-center text-sm text-stone-600 shadow-sm dark:border-stone-700 dark:bg-stone-900/45 dark:text-stone-300">
+        <div className="mb-2 text-base font-semibold text-stone-800 dark:text-stone-100">
+          {t("pluginRuntime.panelUnavailable", "Plugin panel unavailable")}
+        </div>
+        <div className="space-y-1 text-xs text-stone-500 dark:text-stone-400">
+          <p>{t("pluginRuntime.panelUnavailableHint", "The plugin declared a panel renderer that is not registered in this build.")}</p>
+          <p className="font-mono break-all">{renderer}</p>
+          <p className="font-mono break-all">{tab}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function missingPluginPanelRenderer(panel: { renderer?: string; tab: string }): PanelComponent {
+  const renderer = panel.renderer ?? "";
+  const tab = panel.tab;
+  return function MissingPluginPanelRenderer() {
+    return <PluginPanelUnavailable renderer={renderer} tab={tab} />;
+  };
+}
 
 function renderPanel(
   activeTab: Exclude<TabType, "chat">,
@@ -135,6 +171,10 @@ function renderPanel(
     const RuntimeAwareChannelsPage = ChannelsPage as RuntimeAwarePanelComponent;
     return <RuntimeAwareChannelsPage runtimePlugins={runtimePlugins} />;
   }
+  if (activeTab === "agents") {
+    const RuntimeAwareAgentModelPanel = AgentModelPanel as RuntimeAwarePanelComponent;
+    return <RuntimeAwareAgentModelPanel runtimePlugins={runtimePlugins} />;
+  }
   return <Panel />;
 }
 
@@ -142,7 +182,11 @@ function buildPanelMap(runtimePlugins?: PluginRuntimeContributionStates) {
   return buildPanelContributions(runtimePlugins).reduce<
     Partial<Record<TabType, PanelComponent>>
   >((map, panel) => {
-    map[panel.tab] = corePanelComponents[panel.tab];
+    const rendererPanel = panel.renderer ? pluginPanelRenderers[panel.renderer] : undefined;
+    const corePanel = corePanelComponents[panel.tab];
+    if (rendererPanel || corePanel || panel.renderer) {
+      map[panel.tab] = rendererPanel ?? corePanel ?? missingPluginPanelRenderer(panel);
+    }
     return map;
   }, {});
 }

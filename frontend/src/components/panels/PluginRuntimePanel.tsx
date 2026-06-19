@@ -25,7 +25,10 @@ import { useTranslation } from "react-i18next";
 import { Button, IconButton } from "../common";
 import { EmptyState } from "../common/EmptyState";
 import { PanelHeader } from "../common/PanelHeader";
-import { buildPluginContributionPreview } from "../../extensions/coreContributions";
+import {
+  buildPluginContributionPreview,
+  type PluginContributionSnapshot,
+} from "../../extensions/coreContributions";
 import { useAuth } from "../../hooks/useAuth";
 import { usePluginRuntime } from "../../hooks/usePluginRuntime";
 import {
@@ -59,31 +62,138 @@ function formatToolLabel(tool: PluginRuntimePlugin["tools"][number]): string {
   return `${tool.name} (${tool.legacy_ids.join(" / ")})`;
 }
 
+function formatChatInputOptionLabel(
+  option: PluginRuntimePlugin["frontend"]["chat_input_options"][number],
+  prefix: string,
+): string {
+  const effects = option.suppresses_core_persona_selector
+    ? " suppresses core persona selector"
+    : "";
+  return `${prefix} ${option.id}${effects}`;
+}
+
+function contributionId(value: string | { id: string }): string {
+  return typeof value === "string" ? value : value.id;
+}
+
+function formatToolRendererContribution(
+  value: PluginRuntimePlugin["frontend"]["tool_renderers"][number],
+): string {
+  const tools = typeof value === "string" ? [] : value.tool_names ?? [];
+  return tools.length > 0
+    ? `${contributionId(value)} (${tools.join(" / ")})`
+    : contributionId(value);
+}
+
+function formatFileViewerContribution(
+  value: PluginRuntimePlugin["frontend"]["file_viewers"][number],
+): string {
+  const extensions = typeof value === "string" ? [] : value.extensions ?? [];
+  return extensions.length > 0
+    ? `${contributionId(value)} (${extensions.join(" / ")})`
+    : contributionId(value);
+}
+
+function formatSkillImporterContribution(
+  value: PluginRuntimePlugin["frontend"]["skill_importers"][number],
+): string {
+  return typeof value === "string" ? value : `${value.id} (${value.source})`;
+}
+
+function formatChannelConnectorContribution(
+  value: PluginRuntimePlugin["frontend"]["channel_connectors"][number],
+): string {
+  return typeof value === "string" ? value : `${value.id} (${value.channel_type})`;
+}
+
 function uniqueValues(values: readonly string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function frontendDeclarationLabels(plugin: PluginRuntimePlugin): string[] {
-  const assetSlots = plugin.package?.frontend_assets?.slots ?? [];
-  const messageActions = plugin.frontend.message_actions ?? [];
+function legacyFrontendDeclarationLabels(plugin: PluginRuntimePlugin): string[] {
   return uniqueValues([
     ...plugin.frontend.routes.map((value) => `frontend route ${value}`),
     ...plugin.frontend.panels.map((value) => `panel ${value}`),
     ...plugin.frontend.nav_items.map((value) => `nav ${value}`),
-    ...plugin.frontend.tool_renderers.map((value) => `renderer ${value}`),
-    ...plugin.frontend.file_viewers.map((value) => `viewer ${value}`),
-    ...plugin.frontend.skill_importers.map((value) => `importer ${value}`),
-    ...plugin.frontend.channel_connectors.map((value) => `connector ${value}`),
-    ...messageActions.map((value) => `message action ${value}`),
+  ]);
+}
+
+function structuredFrontendDeclarationLabels(plugin: PluginRuntimePlugin): string[] {
+  const assetSlots = plugin.package?.frontend_assets?.slots ?? [];
+  return uniqueValues([
+    ...plugin.frontend.app_tabs.map((value) => `app tab ${value.path || value.tab}`),
+    ...plugin.frontend.app_panels.map((value) => `app panel ${value.renderer}`),
+    ...plugin.frontend.sidebar_items.map((value) => `sidebar ${value.path}`),
+    ...plugin.frontend.user_menu_items.map((value) => `user menu ${value.path}`),
+    ...plugin.frontend.chat_input_options.map((value) =>
+      formatChatInputOptionLabel(value, "chat option"),
+    ),
+    ...plugin.frontend.chat_input_panels.map((value) => `chat panel ${value.renderer}`),
+    ...plugin.frontend.mention_providers.map((value) => `mention ${value.mode}`),
+    ...plugin.frontend.welcome_surfaces.map((value) => `welcome surface ${value.renderer}`),
+    ...plugin.frontend.project_options.map((value) => `project option ${plugin.plugin_id}.${value.key}`),
+    ...plugin.frontend.session_options.map((value) => `session option ${plugin.plugin_id}.${value.key}`),
+    ...(plugin.frontend.channel_options ?? []).map((value) => `channel option ${plugin.plugin_id}.${value.key}`),
+    ...plugin.frontend.tool_renderers.map((value) => `renderer ${formatToolRendererContribution(value)}`),
+    ...plugin.frontend.file_viewers.map((value) => `viewer ${formatFileViewerContribution(value)}`),
+    ...plugin.frontend.skill_importers.map((value) => `importer ${formatSkillImporterContribution(value)}`),
+    ...plugin.frontend.channel_connectors.map((value) => `connector ${formatChannelConnectorContribution(value)}`),
+    ...plugin.frontend.message_actions.map((value) => `message action ${value.id}`),
+    ...plugin.frontend.assistant_identity_resolvers.map((value) => `assistant identity ${value.resolver}`),
+    ...plugin.frontend.agent_categories.map((value) => `agent category ${value.id}`),
+    ...plugin.frontend.scheduled_task_options.map((value) => `scheduled task option ${plugin.plugin_id}.${value.key}`),
     ...plugin.frontend.settings_sections.map((value) => `settings ${value}`),
     ...plugin.frontend.i18n_namespaces.map((value) => `i18n ${value}`),
     ...assetSlots.map((value) => `asset slot ${value}`),
   ]);
 }
 
+function frontendDeclarationLabels(plugin: PluginRuntimePlugin): string[] {
+  return uniqueValues([
+    ...structuredFrontendDeclarationLabels(plugin),
+    ...legacyFrontendDeclarationLabels(plugin),
+  ]);
+}
+
+function structuredFrontendContributionCount(plugin: PluginRuntimePlugin): number {
+  return (
+    plugin.frontend.app_tabs.length +
+    plugin.frontend.app_panels.length +
+    plugin.frontend.sidebar_items.length +
+    plugin.frontend.user_menu_items.length +
+    plugin.frontend.chat_input_options.length +
+    plugin.frontend.chat_input_panels.length +
+    plugin.frontend.mention_providers.length +
+    plugin.frontend.welcome_surfaces.length +
+    plugin.frontend.project_options.length +
+    plugin.frontend.session_options.length +
+    (plugin.frontend.channel_options ?? []).length +
+    plugin.frontend.scheduled_task_options.length +
+    plugin.frontend.tool_renderers.length +
+    plugin.frontend.file_viewers.length +
+    plugin.frontend.skill_importers.length +
+    plugin.frontend.channel_connectors.length +
+    plugin.frontend.message_actions.length +
+    plugin.frontend.assistant_identity_resolvers.length +
+    plugin.frontend.agent_categories.length +
+    plugin.frontend.settings_sections.length +
+    plugin.frontend.i18n_namespaces.length +
+    (plugin.package?.frontend_assets?.slots.length ?? 0)
+  );
+}
+
+function legacyFrontendContributionCount(plugin: PluginRuntimePlugin): number {
+  return (
+    plugin.frontend.routes.length +
+    plugin.frontend.panels.length +
+    plugin.frontend.nav_items.length
+  );
+}
+
 function declaredRuntimeEntryLabels(plugin: PluginRuntimePlugin): string[] {
   return uniqueValues([
     ...plugin.routes.map((route) => `route ${route.prefix}`),
+    ...plugin.agents.map((agent) => `agent ${agent.id}`),
     ...plugin.tools.map((tool) => `tool ${formatToolLabel(tool)}`),
     ...frontendDeclarationLabels(plugin),
   ]);
@@ -94,21 +204,157 @@ function resourceActionLabels(values: Record<string, number>): string[] {
 }
 
 function pluginContributionLabels(plugin: PluginRuntimePlugin): string[] {
-  const assetSlots = plugin.package?.frontend_assets?.slots ?? [];
-  const messageActions = plugin.frontend.message_actions ?? [];
   return uniqueValues([
     ...plugin.routes.map((route) => `API ${route.prefix}`),
+    ...plugin.agents.map((agent) => `Agent ${agent.id}`),
     ...plugin.tools.map((tool) => `Tool ${formatToolLabel(tool)}`),
-    ...plugin.frontend.routes.map((value) => `Route ${value}`),
-    ...plugin.frontend.panels.map((value) => `Panel ${value}`),
-    ...plugin.frontend.nav_items.map((value) => `Menu ${value}`),
-    ...plugin.frontend.tool_renderers.map((value) => `Renderer ${value}`),
-    ...plugin.frontend.file_viewers.map((value) => `Viewer ${value}`),
-    ...plugin.frontend.skill_importers.map((value) => `Importer ${value}`),
-    ...plugin.frontend.channel_connectors.map((value) => `Connector ${value}`),
-    ...messageActions.map((value) => `Message Action ${value}`),
-    ...assetSlots.map((value) => `Asset Slot ${value}`),
+    ...legacyFrontendDeclarationLabels(plugin).map((label) => `Legacy ${label}`),
+    ...plugin.frontend.app_tabs.map((value) => `App Tab ${value.path || value.tab}`),
+    ...plugin.frontend.app_panels.map((value) => `App Panel ${value.renderer}`),
+    ...plugin.frontend.sidebar_items.map((value) => `Sidebar ${value.path}`),
+    ...plugin.frontend.user_menu_items.map((value) => `User Menu ${value.path}`),
+    ...plugin.frontend.chat_input_options.map((value) =>
+      formatChatInputOptionLabel(value, "Chat Option"),
+    ),
+    ...plugin.frontend.chat_input_panels.map((value) => `Chat Panel ${value.renderer}`),
+    ...plugin.frontend.message_actions.map((value) => `Message Action ${value.id}`),
+    ...plugin.frontend.mention_providers.map((value) => `Mention ${value.mode}`),
+    ...plugin.frontend.welcome_surfaces.map((value) => `Welcome Surface ${value.renderer}`),
+    ...plugin.frontend.assistant_identity_resolvers.map((value) => `Assistant Identity ${value.resolver}`),
+    ...plugin.frontend.agent_categories.map((value) => `Agent Category ${value.id}`),
+    ...plugin.frontend.project_options.map((value) => `Project Option ${plugin.plugin_id}.${value.key}`),
+    ...plugin.frontend.session_options.map((value) => `Session Option ${plugin.plugin_id}.${value.key}`),
+    ...(plugin.frontend.channel_options ?? []).map((value) => `Channel Option ${plugin.plugin_id}.${value.key}`),
+    ...plugin.frontend.scheduled_task_options.map((value) => `Scheduled Task Option ${plugin.plugin_id}.${value.key}`),
+    ...plugin.frontend.tool_renderers.map((value) => `Renderer ${formatToolRendererContribution(value)}`),
+    ...plugin.frontend.file_viewers.map((value) => `Viewer ${formatFileViewerContribution(value)}`),
+    ...plugin.frontend.skill_importers.map((value) => `Importer ${formatSkillImporterContribution(value)}`),
+    ...plugin.frontend.channel_connectors.map((value) => `Connector ${formatChannelConnectorContribution(value)}`),
+    ...plugin.frontend.settings_sections.map((value) => `Settings ${value}`),
+    ...plugin.frontend.i18n_namespaces.map((value) => `I18n ${value}`),
+    ...(plugin.package?.frontend_assets?.slots ?? []).map((value) => `Asset Slot ${value}`),
   ]);
+}
+
+interface PluginContributionGroup {
+  id: string;
+  title: string;
+  entries: string[];
+}
+
+function pluginContributionGroups(plugin: PluginRuntimePlugin): PluginContributionGroup[] {
+  const assetSlots = plugin.package?.frontend_assets?.slots ?? [];
+  const groups: PluginContributionGroup[] = [
+    {
+      id: "backend",
+      title: "Backend",
+      entries: uniqueValues([
+        ...plugin.routes.map((route) => `API ${route.prefix} -> ${route.module}`),
+        ...plugin.tools.map((tool) => `Tool ${formatToolLabel(tool)} -> ${tool.module}`),
+        ...plugin.permissions.map((permission) => `Permission ${permission}`),
+      ]),
+    },
+    {
+      id: "app-ui",
+      title: "App UI",
+      entries: uniqueValues([
+        ...plugin.frontend.app_tabs.map((value) => `Tab ${value.path || value.tab}`),
+        ...plugin.frontend.app_panels.map((value) => `Panel ${value.renderer}`),
+        ...plugin.frontend.sidebar_items.map((value) => `Sidebar ${value.path}`),
+        ...plugin.frontend.user_menu_items.map((value) => `User Menu ${value.path}`),
+        ...plugin.frontend.message_actions.map((value) => `Message Action ${value.id}`),
+      ]),
+    },
+    {
+      id: "chat-ui",
+      title: "Chat UI",
+      entries: uniqueValues([
+        ...plugin.frontend.chat_input_options.map((value) =>
+          formatChatInputOptionLabel(value, "Chat Option"),
+        ),
+        ...plugin.frontend.chat_input_panels.map((value) => `Chat Panel ${value.renderer}`),
+        ...plugin.frontend.mention_providers.map((value) => `Mention ${value.mode} -> ${value.provider}`),
+        ...plugin.frontend.welcome_surfaces.map((value) => `Welcome ${value.agent_id} -> ${value.renderer}`),
+        ...plugin.frontend.assistant_identity_resolvers.map((value) => `Assistant Identity ${value.agent_id} -> ${value.resolver}`),
+      ]),
+    },
+    {
+      id: "agent",
+      title: "Agent",
+      entries: uniqueValues([
+        ...plugin.agents.map((agent) => `Agent ${agent.id} -> ${agent.module}`),
+        ...plugin.frontend.agent_categories.map((value) => `Category ${value.id}`),
+      ]),
+    },
+    {
+      id: "scoped-options",
+      title: "Scoped Options",
+      entries: uniqueValues([
+        ...plugin.frontend.project_options.map((value) => `Project ${plugin.plugin_id}.${value.key}`),
+        ...plugin.frontend.session_options.map((value) => `Session ${plugin.plugin_id}.${value.key}`),
+        ...(plugin.frontend.channel_options ?? []).map((value) => `Channel ${plugin.plugin_id}.${value.key}`),
+        ...plugin.frontend.scheduled_task_options.map((value) => `Scheduled Task ${plugin.plugin_id}.${value.key}`),
+      ]),
+    },
+    {
+      id: "integrations",
+      title: "Integrations",
+      entries: uniqueValues([
+        ...plugin.frontend.tool_renderers.map((value) => `Tool Renderer ${formatToolRendererContribution(value)}`),
+        ...plugin.frontend.file_viewers.map((value) => `File Viewer ${formatFileViewerContribution(value)}`),
+        ...plugin.frontend.skill_importers.map((value) => `Skill Importer ${formatSkillImporterContribution(value)}`),
+        ...plugin.frontend.channel_connectors.map((value) => `Channel Connector ${formatChannelConnectorContribution(value)}`),
+      ]),
+    },
+    {
+      id: "assets-config",
+      title: "Assets And Config",
+      entries: uniqueValues([
+        ...plugin.frontend.settings_sections.map((value) => `Settings Section ${value}`),
+        ...plugin.frontend.i18n_namespaces.map((value) => `I18n ${value}`),
+        ...assetSlots.map((value) => `Asset Slot ${value}`),
+        ...(plugin.package?.data_template.exists
+          ? [plugin.package.layout.data_template || plugin.package.data_template.template || "plugin-data-template"]
+          : []),
+        ...(plugin.package?.layout.has_config_schema ? ["config/schema.json"] : []),
+        ...(plugin.package?.layout.has_config_defaults ? ["config/defaults.json"] : []),
+        ...(plugin.package?.layout.has_resources ? ["resources/resources.yaml"] : []),
+      ]),
+    },
+    {
+      id: "legacy",
+      title: "Legacy Compatibility",
+      entries: legacyFrontendDeclarationLabels(plugin),
+    },
+  ];
+  return groups.filter((group) => group.entries.length > 0);
+}
+
+function emptyContributionSnapshot(): PluginContributionSnapshot {
+  return {
+    appRoutes: [],
+    panels: [],
+    sidebarMoreItems: [],
+    userMenuItems: [],
+    toolRenderers: [],
+    fileViewers: [],
+    skillImporters: [],
+    channelConnectors: [],
+    messageActions: [],
+    chatInputOptions: [],
+    chatInputPanels: [],
+    mentionProviders: [],
+    welcomeSurfaces: [],
+    assistantIdentityResolvers: [],
+    agentCatalogEntries: [],
+    agentCategories: [],
+    projectOptions: [],
+    sessionOptions: [],
+    channelOptions: [],
+    scheduledTaskOptions: [],
+    pluginAssetSlots: [],
+    i18nNamespaces: [],
+  };
 }
 
 function PluginOwnershipOverview({ plugins }: { plugins: PluginRuntimePlugin[] }) {
@@ -168,9 +414,37 @@ export function buildPluginRuntimeImpactSummary(
   plugin: PluginRuntimePlugin,
   runtimePlugins?: PluginRuntimeListResponse["plugins"],
 ) {
-  const contributionPreview = buildPluginContributionPreview(
-    plugin.plugin_id,
-    runtimePlugins,
+  const contributionPreviews = [
+    buildPluginContributionPreview(plugin.plugin_id, runtimePlugins),
+    buildPluginContributionPreview(plugin.plugin_id, runtimePlugins, { agentId: "team" }),
+    buildPluginContributionPreview(plugin.plugin_id, runtimePlugins, { route: "/channels/feishu" }),
+  ];
+  const removedWhenDisabled = contributionPreviews.reduce(
+    (acc: PluginContributionSnapshot, preview): PluginContributionSnapshot => ({
+      appRoutes: uniqueValues([...acc.appRoutes, ...preview.removedWhenDisabled.appRoutes]),
+      panels: uniqueValues([...acc.panels, ...preview.removedWhenDisabled.panels]),
+      sidebarMoreItems: uniqueValues([...acc.sidebarMoreItems, ...preview.removedWhenDisabled.sidebarMoreItems]),
+      userMenuItems: uniqueValues([...acc.userMenuItems, ...preview.removedWhenDisabled.userMenuItems]),
+      toolRenderers: uniqueValues([...acc.toolRenderers, ...preview.removedWhenDisabled.toolRenderers]),
+      fileViewers: uniqueValues([...acc.fileViewers, ...preview.removedWhenDisabled.fileViewers]),
+      skillImporters: uniqueValues([...acc.skillImporters, ...preview.removedWhenDisabled.skillImporters]),
+      channelConnectors: uniqueValues([...acc.channelConnectors, ...preview.removedWhenDisabled.channelConnectors]),
+      messageActions: uniqueValues([...acc.messageActions, ...preview.removedWhenDisabled.messageActions]),
+      chatInputOptions: uniqueValues([...acc.chatInputOptions, ...preview.removedWhenDisabled.chatInputOptions]),
+      chatInputPanels: uniqueValues([...acc.chatInputPanels, ...preview.removedWhenDisabled.chatInputPanels]),
+      mentionProviders: uniqueValues([...acc.mentionProviders, ...preview.removedWhenDisabled.mentionProviders]),
+      welcomeSurfaces: uniqueValues([...acc.welcomeSurfaces, ...preview.removedWhenDisabled.welcomeSurfaces]),
+      assistantIdentityResolvers: uniqueValues([...acc.assistantIdentityResolvers, ...preview.removedWhenDisabled.assistantIdentityResolvers]),
+      agentCatalogEntries: uniqueValues([...acc.agentCatalogEntries, ...preview.removedWhenDisabled.agentCatalogEntries]),
+      agentCategories: uniqueValues([...acc.agentCategories, ...preview.removedWhenDisabled.agentCategories]),
+      projectOptions: uniqueValues([...acc.projectOptions, ...preview.removedWhenDisabled.projectOptions]),
+      sessionOptions: uniqueValues([...acc.sessionOptions, ...preview.removedWhenDisabled.sessionOptions]),
+      channelOptions: uniqueValues([...acc.channelOptions, ...preview.removedWhenDisabled.channelOptions]),
+      scheduledTaskOptions: uniqueValues([...acc.scheduledTaskOptions, ...preview.removedWhenDisabled.scheduledTaskOptions]),
+      pluginAssetSlots: uniqueValues([...acc.pluginAssetSlots, ...preview.removedWhenDisabled.pluginAssetSlots]),
+      i18nNamespaces: uniqueValues([...acc.i18nNamespaces, ...preview.removedWhenDisabled.i18nNamespaces]),
+    }),
+    emptyContributionSnapshot(),
   );
   const declaredEntries = declaredRuntimeEntryLabels(plugin);
 
@@ -178,34 +452,70 @@ export function buildPluginRuntimeImpactSummary(
     activeEntries: plugin.executable ? declaredEntries : [],
     blockedWhenDisabled: uniqueValues([
       ...declaredEntries,
-      ...contributionPreview.removedWhenDisabled.toolRenderers.map(
+      ...removedWhenDisabled.toolRenderers.map(
         (value) => `renderer ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.fileViewers.map(
+      ...removedWhenDisabled.fileViewers.map(
         (value) => `viewer ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.skillImporters.map(
+      ...removedWhenDisabled.skillImporters.map(
         (value) => `importer ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.channelConnectors.map(
+      ...removedWhenDisabled.channelConnectors.map(
         (value) => `connector ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.messageActions.map(
+      ...removedWhenDisabled.messageActions.map(
         (value) => `action ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.pluginAssetSlots.map(
+      ...removedWhenDisabled.chatInputOptions.map(
+        (value) => `chat option ${value}`,
+      ),
+      ...removedWhenDisabled.chatInputPanels.map(
+        (value) => `chat panel ${value}`,
+      ),
+      ...removedWhenDisabled.mentionProviders.map(
+        (value) => `mention ${value}`,
+      ),
+      ...removedWhenDisabled.welcomeSurfaces.map(
+        (value) => `welcome surface ${value}`,
+      ),
+      ...removedWhenDisabled.assistantIdentityResolvers.map(
+        (value) => `assistant identity ${value}`,
+      ),
+      ...removedWhenDisabled.agentCatalogEntries.map(
+        (value) => `agent ${value}`,
+      ),
+      ...removedWhenDisabled.agentCategories.map(
+        (value) => `agent category ${value}`,
+      ),
+      ...removedWhenDisabled.projectOptions.map(
+        (value) => `project option ${value}`,
+      ),
+      ...removedWhenDisabled.sessionOptions.map(
+        (value) => `session option ${value}`,
+      ),
+      ...removedWhenDisabled.channelOptions.map(
+        (value) => `channel option ${value}`,
+      ),
+      ...removedWhenDisabled.scheduledTaskOptions.map(
+        (value) => `scheduled task option ${value}`,
+      ),
+      ...removedWhenDisabled.pluginAssetSlots.map(
         (value) => `asset slot ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.i18nNamespaces.map(
+      ...removedWhenDisabled.i18nNamespaces.map(
         (value) => `i18n ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.appRoutes.map(
+      ...removedWhenDisabled.appRoutes.map(
         (value) => `app route ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.panels.map(
+      ...removedWhenDisabled.panels.map(
         (value) => `panel ${value}`,
       ),
-      ...contributionPreview.removedWhenDisabled.userMenuItems.map(
+      ...removedWhenDisabled.sidebarMoreItems.map(
+        (value) => `sidebar ${value}`,
+      ),
+      ...removedWhenDisabled.userMenuItems.map(
         (value) => `menu ${value}`,
       ),
     ]),
@@ -523,6 +833,41 @@ function CompactStat({ label, value }: { label: string; value: string | number }
   );
 }
 
+function PluginContributionGroupGrid({ groups }: { groups: PluginContributionGroup[] }) {
+  if (groups.length === 0) {
+    return (
+      <div className="rounded-md bg-[var(--theme-bg)] px-3 py-2 text-xs text-theme-text-secondary">
+        No directory-declared contributions
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2 text-xs text-theme-text-secondary xl:grid-cols-2">
+      {groups.map((group) => (
+        <div key={group.id} className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="font-medium text-theme-text">{group.title}</div>
+            <span className="skill-status-pill skill-status-pill--active">
+              {group.entries.length}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {group.entries.slice(0, 8).map((entry) => (
+              <span key={entry} className="skill-meta-pill max-w-full truncate" title={entry}>
+                {entry}
+              </span>
+            ))}
+            {group.entries.length > 8 && (
+              <span className="skill-meta-pill">+{group.entries.length - 8}</span>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PluginSettingsSection({
   plugin,
   settings,
@@ -700,6 +1045,7 @@ function PluginPackageSection({
     frontend_assets: null,
     data_template: {
       exists: false,
+      template: "plugin-data-template",
       file_count: 0,
       total_bytes: 0,
       files: [],
@@ -720,6 +1066,7 @@ function PluginPackageSection({
       has_config_defaults: false,
       has_resources: false,
       has_data_template: false,
+      data_template: "plugin-data-template",
       has_readme: false,
       backend_files: [],
       frontend_files: [],
@@ -733,6 +1080,7 @@ function PluginPackageSection({
     has_config_defaults: false,
     has_resources: false,
     has_data_template: false,
+    data_template: "plugin-data-template",
     has_readme: false,
     backend_files: [],
     frontend_files: [],
@@ -741,6 +1089,7 @@ function PluginPackageSection({
   const frontendAssets = packageInfo.frontend_assets;
   const dataTemplate = packageInfo.data_template ?? {
     exists: false,
+    template: "plugin-data-template",
     file_count: 0,
     total_bytes: 0,
     files: [],
@@ -761,9 +1110,14 @@ function PluginPackageSection({
     ["config/schema.json", packageLayout.has_config_schema],
     ["config/defaults.json", packageLayout.has_config_defaults],
     ["resources/resources.yaml", packageLayout.has_resources],
-    ["plugin-data-template/", packageLayout.has_data_template],
+    [`${packageLayout.data_template || dataTemplate.template || "plugin-data-template"}/`, packageLayout.has_data_template],
     ["README", packageLayout.has_readme],
   ] as const;
+  const requiredDataTemplateFiles = [
+    "config/current.json",
+    "config/defaults.json",
+    "state/audit.jsonl",
+  ];
   const integrity = packageReview?.integrity;
   const showReviewControls =
     canManageRuntime &&
@@ -911,13 +1265,25 @@ function PluginPackageSection({
           {dataTemplate.exists && (
             <div className="mt-3 rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg-subtle)] px-2 py-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="font-medium text-theme-text">plugin-data-template</div>
+                <div className="font-medium text-theme-text">{dataTemplate.template}</div>
                 <span className="skill-status-pill skill-status-pill--active">
                   files {dataTemplate.file_count}
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <span className="skill-meta-pill">bytes {dataTemplate.total_bytes}</span>
+                {requiredDataTemplateFiles.map((file) => (
+                  <span
+                    key={`required-${file}`}
+                    className={
+                      dataTemplate.files.includes(file)
+                        ? "skill-meta-pill"
+                        : "skill-meta-pill skill-meta-pill--muted"
+                    }
+                  >
+                    {file}
+                  </span>
+                ))}
                 {dataTemplate.files.slice(0, 6).map((file) => (
                   <span key={file} className="skill-meta-pill max-w-full truncate">
                     {file}
@@ -1030,23 +1396,16 @@ function PluginCard({
     plugin,
     runtimePlugins,
   );
-  const frontendContributionCount =
-    plugin.frontend.routes.length +
-    plugin.frontend.panels.length +
-    plugin.frontend.nav_items.length +
-    plugin.frontend.tool_renderers.length +
-    plugin.frontend.file_viewers.length +
-    plugin.frontend.skill_importers.length +
-    plugin.frontend.channel_connectors.length +
-    (plugin.frontend.message_actions ?? []).length +
-    plugin.frontend.settings_sections.length +
-    plugin.frontend.i18n_namespaces.length;
+  const structuredFrontendCount = structuredFrontendContributionCount(plugin);
+  const legacyFrontendCount = legacyFrontendContributionCount(plugin);
+  const frontendContributionCount = structuredFrontendCount + legacyFrontendCount;
   const contributionCount =
     plugin.routes.length +
+    plugin.agents.length +
     plugin.tools.length +
     frontendContributionCount;
   const dryRunTotal = countValues(plugin.dry_run_actions);
-  const frontendDeclarations = frontendDeclarationLabels(plugin);
+  const contributionGroups = pluginContributionGroups(plugin);
   const dependencies = plugin.depends_on ?? [];
   const settingsCount =
     settings?.settings.length ??
@@ -1145,7 +1504,10 @@ function PluginCard({
         <div className="border-t border-[var(--theme-border)] px-3 pb-3 pt-2.5">
           <div className="mb-3 flex flex-wrap gap-1.5">
             <CompactStat label={t("pluginRuntime.metrics.routes")} value={plugin.routes.length} />
-            <CompactStat label={t("pluginRuntime.metrics.frontend")} value={frontendContributionCount} />
+            <CompactStat label={t("pluginRuntime.metrics.frontend")} value={structuredFrontendCount} />
+            {legacyFrontendCount > 0 && (
+              <CompactStat label="Legacy UI" value={legacyFrontendCount} />
+            )}
             <CompactStat label={t("pluginRuntime.metrics.dryRun")} value={dryRunTotal} />
             <CompactStat
               label={t("pluginRuntime.metrics.uninstall")}
@@ -1165,39 +1527,7 @@ function PluginCard({
                 <GitBranch size={14} />
                 <span>{t("pluginRuntime.contributions")}</span>
               </div>
-              <div className="space-y-2 text-xs text-theme-text-secondary">
-                {plugin.routes.map((route) => (
-                  <div key={route.name} className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
-                    <div className="font-medium text-theme-text">{route.prefix}</div>
-                    <div className="mt-1 break-all">{route.module}</div>
-                  </div>
-                ))}
-                {plugin.tools.map((tool) => (
-                  <div key={tool.name} className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
-                    <div className="font-medium text-theme-text">
-                      {formatToolLabel(tool)}
-                    </div>
-                    <div className="mt-1 break-all">{tool.module}</div>
-                    {tool.required_permissions.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {tool.required_permissions.map((permission) => (
-                          <span key={permission} className="skill-meta-pill">
-                            {permission}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {frontendDeclarations.length > 0 && (
-                  <div className="rounded-md bg-[var(--theme-bg)] px-3 py-2">
-                    <div className="font-medium text-theme-text">Frontend</div>
-                    <div className="mt-1">
-                      {frontendDeclarations.join(" · ")}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <PluginContributionGroupGrid groups={contributionGroups} />
             </section>
 
             <PluginSettingsSection

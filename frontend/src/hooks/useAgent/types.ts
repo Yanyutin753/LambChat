@@ -6,6 +6,8 @@ import type {
   MessageAttachment,
   PersonaPresetSnapshot,
 } from "../../types";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
+import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
 
 // Event types from backend
 export type EventType =
@@ -128,6 +130,7 @@ export interface EventData {
 }
 
 export interface UseAgentOptions {
+  runtimePlugins?: PluginRuntimeContributionStates;
   onApprovalRequired?: (approval: {
     id: string;
     message: string;
@@ -259,8 +262,13 @@ export interface UseAgentReturn {
   clearMessages: () => void;
   selectAgent: (agentId: string) => void;
   switchAgent: (agentId: string) => void;
-  selectTeam: (teamId: string | null) => void;
   selectedTeamId: string | null;
+  sessionPluginOptions: PluginOptionsMetadata;
+  setSessionPluginOption: (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => void;
   refreshAgents: () => Promise<void>;
   loadHistory: (
     targetSessionId: string,
@@ -284,6 +292,7 @@ export interface SessionConfig {
   persona_snapshot?: PersonaPresetSnapshot;
   disabled_mcp_tools?: string[];
   team_id?: string;
+  plugin_options?: Record<string, Record<string, unknown>>;
 }
 
 // Backend session type (simplified)

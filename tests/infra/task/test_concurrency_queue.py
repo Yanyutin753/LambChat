@@ -7,6 +7,8 @@ import pytest
 
 from src.infra.task import concurrency
 from src.infra.task.concurrency import ConcurrencyResult, UserConcurrencyLimiter
+from src.infra.task.status import TaskStatus
+from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 
 
 class _PagedRedis:
@@ -568,3 +570,82 @@ async def test_dispatch_queued_task_uses_arq_backend_without_local_task(
     assert call["display_message"] == "hello visible"
     assert call["recommendation_input"] == "hello"
     assert call["active_goal"] == {"objective": "ship it"}
+
+
+@pytest.mark.asyncio
+async def test_dispatch_queued_task_rejects_disabled_plugin_owned_agent_before_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    class _FakeExecutor:
+        def __init__(self) -> None:
+            self.ensure_calls: list[tuple] = []
+            self.status_calls: list[tuple] = []
+
+        async def ensure_session(self, *args, **kwargs) -> None:
+            self.ensure_calls.append((args, kwargs))
+
+        async def _update_session_status(self, *args, **kwargs) -> None:
+            self.status_calls.append((args, kwargs))
+
+        async def run_task(self, *args, **kwargs) -> None:
+            raise AssertionError("disabled plugin-owned queued task should not run")
+
+    class _FakeTaskManager:
+        def __init__(self) -> None:
+            self._executor = _FakeExecutor()
+            self._lock = None
+            self._tasks = {}
+
+        def _ensure_executor(self):
+            return self._executor
+
+        async def submit_arq(self, **kwargs):
+            raise AssertionError("disabled plugin-owned queued task should not submit to arq")
+
+        def pop_pending_task(self, run_id: str):
+            raise AssertionError("redis-backed queued task should not use memory fallback")
+
+    async def _fake_executor_fn(*args, **kwargs):
+        raise AssertionError("disabled plugin-owned queued task should not call executor fn")
+        if False:
+            yield None
+
+    redis = _DispatchRedis("{}")
+    redis.active = {"queued-run": 9_999_999_999}
+    limiter = UserConcurrencyLimiter()
+    limiter._redis = redis
+    task_manager = _FakeTaskManager()
+    queue_data = {
+        "run_id": "queued-run",
+        "session_id": "session-1",
+        "user_id": "user-1",
+        "task_context": {
+            "executor_key": "agent_stream",
+            "agent_id": "team",
+            "message": "hello",
+        },
+    }
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
+    monkeypatch.setattr("src.infra.task.manager.get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(concurrency, "get_registered_executor", lambda key: _fake_executor_fn)
+    set_plugin_runtime(runtime)
+
+    try:
+        await limiter._dispatch_queued_task("user-1", "queued-run", "session-1", queue_data)
+    finally:
+        set_plugin_runtime(None)
+
+    assert task_manager._executor.ensure_calls == []
+    assert task_manager._tasks == {}
+    assert task_manager._executor.status_calls
+    args, kwargs = task_manager._executor.status_calls[0]
+    assert args[0] == "session-1"
+    assert args[1] is TaskStatus.FAILED
+    assert "agent_team" in args[2]
+    assert kwargs == {"run_id": "queued-run"}
+    assert redis.active == {}

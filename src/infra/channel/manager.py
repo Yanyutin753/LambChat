@@ -11,6 +11,8 @@ from typing import Any, Callable, Optional
 from src.infra.channel.base import UserChannelManager
 from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
+from src.infra.channel.plugin_connectors import ensure_channel_connector_available_for_type
+from src.kernel.extensions import PluginRuntime
 from src.kernel.schemas.channel import ChannelType
 
 logger = get_logger(__name__)
@@ -34,6 +36,11 @@ class ChannelCoordinator:
         self.message_handler = message_handler
         self._managers: dict[ChannelType, UserChannelManager] = {}
         self._running = False
+        self._plugin_runtime: PluginRuntime | None = None
+
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        """Attach Plugin Runtime so background channel sends follow connector state."""
+        self._plugin_runtime = runtime
 
     async def start(self) -> None:
         """Start all enabled channel managers."""
@@ -107,6 +114,9 @@ class ChannelCoordinator:
         Returns:
             True if sent successfully, False otherwise.
         """
+        if not self._is_channel_connector_available(channel_type):
+            return False
+
         manager = self._managers.get(channel_type)
         if not manager:
             logger.warning(f"No manager for channel type: {channel_type}")
@@ -118,6 +128,24 @@ class ChannelCoordinator:
             return False
 
         return await channel.send_message(chat_id, content)
+
+    def _is_channel_connector_available(self, channel_type: ChannelType) -> bool:
+        runtime = self._plugin_runtime
+        available, connector_id, exc = ensure_channel_connector_available_for_type(
+            channel_type,
+            runtime,
+        )
+        if available:
+            return True
+        if exc is None:
+            logger.warning(
+                "Skipping %s channel send because Plugin Runtime is unavailable for connector %s",
+                channel_type.value,
+                connector_id,
+            )
+            return False
+        logger.info("Skipping %s channel send by Plugin Runtime: %s", channel_type.value, exc)
+        return False
 
     def is_connected(self, user_id: str, channel_type: ChannelType) -> bool:
         """Check if a user's channel is connected."""

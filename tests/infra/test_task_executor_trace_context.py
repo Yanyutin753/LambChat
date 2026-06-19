@@ -4,13 +4,49 @@ import pytest
 
 from src.infra.logging.context import TraceContext
 from src.infra.task.executor import TaskExecutor
+from src.infra.task.status import TaskStatus
+from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 
 
 class _FakeHeartbeat:
+    def __init__(self) -> None:
+        self.started: list[tuple[str, str | None]] = []
+        self.stopped: list[str] = []
+
     async def start(self, run_id: str, user_id: str | None = None) -> None:
+        self.started.append((run_id, user_id))
         return None
 
     async def stop(self, run_id: str) -> None:
+        self.stopped.append(run_id)
+        return None
+
+
+class _FakeStorage:
+    def __init__(self) -> None:
+        self.updates: list[tuple[str, object]] = []
+
+    async def update(self, session_id: str, update) -> None:
+        self.updates.append((session_id, update))
+
+    async def get_by_session_id(self, session_id: str):
+        return None
+
+
+class _FakeDualWriter:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+
+    async def write_event(self, **kwargs) -> None:
+        self.events.append(kwargs)
+
+    async def _flush_redis_buffer(self) -> None:
+        return None
+
+    async def flush_mongo_buffer(self) -> None:
+        return None
+
+    async def expire_stream(self, *args, **kwargs) -> None:
         return None
 
 
@@ -154,3 +190,59 @@ async def test_task_executor_passes_resolved_agent_name_to_presenter(
         executor=fake_agent_executor,
         existing_trace_id="trace-run-level",
     )
+
+
+@pytest.mark.asyncio
+async def test_task_executor_rejects_disabled_plugin_owned_agent_before_executor_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    storage = _FakeStorage()
+    heartbeat = _FakeHeartbeat()
+    writer = _FakeDualWriter()
+    executor = TaskExecutor(storage=storage, run_info={}, heartbeat_manager=heartbeat)
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    executor_called = False
+
+    async def _no_op(*args, **kwargs) -> None:
+        return None
+
+    async def fake_agent_executor(*args, **kwargs):
+        nonlocal executor_called
+        executor_called = True
+        if False:
+            yield None
+
+    monkeypatch.setattr(executor, "_send_task_notification", _no_op)
+    monkeypatch.setattr("src.infra.task.executor.get_dual_writer", lambda: writer)
+    monkeypatch.setattr(
+        "src.infra.task.cancellation.TaskCancellation.clear_interrupt",
+        _no_op,
+    )
+    set_plugin_runtime(runtime)
+
+    try:
+        await executor.run_task(
+            session_id="session-1",
+            run_id="run-1",
+            agent_id="team",
+            message="hello",
+            user_id="user-1",
+            executor=fake_agent_executor,
+            existing_trace_id="trace-run-level",
+        )
+    finally:
+        set_plugin_runtime(None)
+
+    assert executor_called is False
+    assert heartbeat.started == []
+    assert heartbeat.stopped == ["run-1"]
+    assert storage.updates
+    assert storage.updates[0][0] == "session-1"
+    metadata = storage.updates[0][1].metadata
+    assert metadata["task_status"] == TaskStatus.FAILED.value
+    assert "agent_team" in metadata["task_error"]
+    assert writer.events
+    assert writer.events[0]["event_type"] == "error"

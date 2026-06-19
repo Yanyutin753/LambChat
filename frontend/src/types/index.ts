@@ -190,6 +190,9 @@ export type {
 export type {
   ArchivedPluginPackage,
   ArchivedPluginPackagesResponse,
+  ExtensionHostSlotsResponse,
+  ExtensionScopedOption,
+  ExtensionScopedOptionsResponse,
   PluginDataResponse,
   PluginDryRunResource,
   PluginExportResponse,
@@ -288,6 +291,7 @@ export interface Project {
   type: "favorites" | "custom" | "channel";
   icon?: string;
   sort_order: number;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -297,12 +301,14 @@ export interface ProjectCreate {
   type?: "custom";
   icon?: string;
   sort_order?: number;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProjectUpdate {
   name?: string;
   icon?: string;
   sort_order?: number;
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================

@@ -46,6 +46,12 @@ def _generate_run_id() -> str:
     return generate_run_id()
 
 
+def _ensure_agent_executable(agent_id: str) -> None:
+    from src.agents import ensure_agent_executable
+
+    ensure_agent_executable(agent_id)
+
+
 class BackgroundTaskManager:
     """
     后台任务管理器
@@ -272,6 +278,7 @@ class BackgroundTaskManager:
             (run_id, trace_id) 元组
         """
         # 确保 executor 已初始化
+        _ensure_agent_executable(agent_id)
         task_executor = self._ensure_executor()
 
         # 生成 run_id
@@ -376,6 +383,7 @@ class BackgroundTaskManager:
         write_user_message_immediately: bool = False,
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
+        _ensure_agent_executable(agent_id)
         task_executor = self._ensure_executor()
         run_id = run_id or generate_run_id()
         trace_id = trace_id or ""

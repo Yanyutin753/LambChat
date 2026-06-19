@@ -16,6 +16,7 @@ from src.agents.core import (
     # 基类
     BaseGraphAgent,
     GraphBuilder,
+    ensure_agent_executable,
     get_agent_class,
     # 辅助
     get_presenter,
@@ -49,6 +50,7 @@ __all__ = [
     "GraphBuilder",
     # 注册
     "_AGENT_REGISTRY",
+    "ensure_agent_executable",
     "register_agent",
     "set_plugin_runtime",
     "get_agent_class",

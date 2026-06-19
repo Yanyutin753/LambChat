@@ -6,6 +6,9 @@ from src.infra.logging.filter import TraceFilter
 from src.kernel.config import settings
 
 
+DEFAULT_LOG_FORMAT = type(settings).model_fields["LOG_FORMAT"].default
+
+
 def teardown_function() -> None:
     TraceContext.clear()
     TraceContext.clear_request_context()
@@ -105,7 +108,7 @@ def test_trace_filter_uses_request_context_trace_id_as_fallback() -> None:
 
 
 def test_default_log_format_exposes_request_id() -> None:
-    assert "%(trace_context)s" in settings.LOG_FORMAT
+    assert "%(trace_context)s" in DEFAULT_LOG_FORMAT
 
 
 def test_default_log_format_renders_with_trace_filter() -> None:
@@ -118,7 +121,7 @@ def test_default_log_format_renders_with_trace_filter() -> None:
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     handler.addFilter(TraceFilter())
-    handler.setFormatter(logging.Formatter(settings.LOG_FORMAT))
+    handler.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT))
     logger = logging.getLogger("test.request_id_formatter")
     logger.handlers = [handler]
     logger.propagate = False
@@ -143,7 +146,7 @@ def test_default_log_format_hides_missing_trace_context() -> None:
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     handler.addFilter(TraceFilter())
-    handler.setFormatter(logging.Formatter(settings.LOG_FORMAT))
+    handler.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT))
     logger = logging.getLogger("test.missing_context_formatter")
     logger.handlers = [handler]
     logger.propagate = False

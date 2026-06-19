@@ -32,6 +32,25 @@ export interface SessionListResponse {
   has_more: boolean;
 }
 
+export type SessionPluginOptions = Record<string, Record<string, unknown>>;
+
+export interface SessionPluginOptionsResponse {
+  session_id: string;
+  plugin_options: SessionPluginOptions;
+  storage: "session_metadata" | string;
+  source: string;
+}
+
+export interface SessionPluginOptionUpdateResponse
+  extends SessionPluginOptionsResponse {
+  plugin_id: string;
+  key: string;
+  qualified_key: string;
+  value: unknown;
+  plugin_enabled: boolean;
+  effective: boolean;
+}
+
 export interface SessionRunsQuery {
   limit?: number;
   trace_id?: string;
@@ -85,6 +104,7 @@ export function buildSubmitChatBody({
   disabledMcpTools,
   userTimezone,
   teamId,
+  pluginOptions,
   goal,
   retryUserMessage,
 }: {
@@ -99,6 +119,7 @@ export function buildSubmitChatBody({
   disabledMcpTools?: string[];
   userTimezone?: string;
   teamId?: string | null;
+  pluginOptions?: SessionPluginOptions;
   goal?: RunGoalSpec | null;
   retryUserMessage?: boolean;
 }): Record<string, unknown> {
@@ -119,8 +140,11 @@ export function buildSubmitChatBody({
   if (projectId) {
     body.project_id = projectId;
   }
-  if (teamId) {
+  if (teamId && (!pluginOptions || Object.keys(pluginOptions).length === 0)) {
     body.team_id = teamId;
+  }
+  if (pluginOptions && Object.keys(pluginOptions).length > 0) {
+    body.plugin_options = pluginOptions;
   }
   if (goal) {
     body.goal = goal;
@@ -147,6 +171,20 @@ export function buildSessionRunsUrl(
   return `${API_BASE}/api/sessions/${sessionId}/runs${
     queryString ? `?${queryString}` : ""
   }`;
+}
+
+export function buildSessionPluginOptionsUrl(sessionId: string): string {
+  return `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/plugin-options`;
+}
+
+export function buildSessionPluginOptionUrl(
+  sessionId: string,
+  pluginId: string,
+  key: string,
+): string {
+  return `${buildSessionPluginOptionsUrl(sessionId)}/${encodeURIComponent(
+    pluginId,
+  )}/${encodeURIComponent(key)}`;
 }
 
 export const sessionApi = {
@@ -227,6 +265,24 @@ export const sessionApi = {
     options?: SessionRunsQuery,
   ): Promise<{ session_id: string; runs: RunSummary[]; count: number }> {
     return authFetch(buildSessionRunsUrl(sessionId, options));
+  },
+
+  async getPluginOptions(
+    sessionId: string,
+  ): Promise<SessionPluginOptionsResponse> {
+    return authFetch(buildSessionPluginOptionsUrl(sessionId));
+  },
+
+  async updatePluginOption(
+    sessionId: string,
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ): Promise<SessionPluginOptionUpdateResponse> {
+    return authFetch(buildSessionPluginOptionUrl(sessionId, pluginId, key), {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    });
   },
 
   /**
@@ -322,6 +378,7 @@ export const sessionApi = {
     personaPresetId?: string | null,
     enabledSkills?: string[],
     teamId?: string | null,
+    pluginOptions?: SessionPluginOptions,
     goal?: RunGoalSpec | null,
     options?: SubmitChatOptions,
   ): Promise<{
@@ -342,6 +399,7 @@ export const sessionApi = {
       disabledMcpTools,
       userTimezone: getBrowserTimezone(),
       teamId,
+      pluginOptions,
       goal,
       retryUserMessage: options?.retryUserMessage,
     });

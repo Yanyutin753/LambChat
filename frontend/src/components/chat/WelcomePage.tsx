@@ -1,11 +1,5 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
-import {
-  RefreshCw,
-  Sparkles,
-  UserRound,
-  ChevronRight,
-  Plus,
-} from "lucide-react";
+import { RefreshCw, Sparkles, UserRound, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChatInput } from "./ChatInput";
@@ -16,25 +10,18 @@ import { NotificationBanner } from "../notification/NotificationBanner";
 import { ImageWithSkeleton } from "./ChatMessage/ImageWithSkeleton";
 import {
   getSelectedPersonaStarterPrompts,
-  getSelectedTeamStarterPrompts,
   getWelcomePersonaCards,
   getWelcomePersonaCardClass,
   getWelcomePersonaSkeletonClass,
   getWelcomePersonaSkeletonCount,
-  getWelcomeTeamCards,
   getWelcomeSuggestionsContainerClass,
   getWelcomeSuggestionButtonClass,
 } from "./welcomeLayout";
 import { PersonaAvatarWithLoading } from "../persona/PersonaAvatarWithLoading";
 import { useSettingsContext } from "../../contexts/SettingsContext";
-import { teamApi } from "../../services/api/team";
 import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
-import type { Team } from "../../types/team";
-import { TeamAvatar } from "../team/TeamAvatar";
-import {
-  getTeamFallbackAvatar,
-  getTeamFallbackTag,
-} from "../team/teamAvatarUtils";
+import { buildWelcomeSurfaceContributions } from "../../extensions/coreContributions";
+import { WelcomeSurfaceRenderer } from "./welcomeSurfaceRenderers";
 
 const WELCOME_ICON_SRC = "/images/lamb.webp";
 
@@ -63,7 +50,6 @@ interface WelcomePageProps {
     preset: PersonaPreset,
   ) => Promise<PersonaPresetSnapshot | null>;
   onClearPersonaPreset?: () => void;
-  onSelectTeam?: (teamId: string | null) => void;
 }
 
 function WelcomeIcon({
@@ -108,7 +94,6 @@ export const WelcomePage = memo(function WelcomePage({
   onClearActiveGoal,
   onUsePersonaPreset,
   onClearPersonaPreset,
-  onSelectTeam,
 }: WelcomePageProps) {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
@@ -117,10 +102,6 @@ export const WelcomePage = memo(function WelcomePage({
   const [contactAdminOpen, setContactAdminOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [pendingInput, setPendingInput] = useState<string | null>(null);
-  const [teamCards, setTeamCards] = useState<Team[]>([]);
-  const [teamCardsLoading, setTeamCardsLoading] = useState(false);
-  const [teamCardsLoaded, setTeamCardsLoaded] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
 
   const handleGalleryScroll = useCallback(() => {
@@ -154,61 +135,16 @@ export const WelcomePage = memo(function WelcomePage({
     [personaPresets, selectedPersonaPresetId],
   );
 
-  const welcomeTeamCards = useMemo(
-    () => getWelcomeTeamCards(teamCards, selectedTeamId),
-    [teamCards, selectedTeamId],
-  );
-
-  useEffect(() => {
-    if (currentAgent !== "team") {
-      setTeamCardsLoaded(false);
-      return;
-    }
-    let cancelled = false;
-    setTeamCardsLoaded(false);
-    setTeamCardsLoading(true);
-    teamApi
-      .list(0, 50)
-      .then((res) => {
-        if (!cancelled) setTeamCards(res.teams);
-      })
-      .catch((err) => console.error("Failed to load teams:", err))
-      .finally(() => {
-        if (!cancelled) {
-          setTeamCardsLoaded(true);
-          setTeamCardsLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [currentAgent]);
-
   const filteredCards = useMemo(() => {
     if (!mentionQuery) return roleCards;
     const q = mentionQuery.toLowerCase();
     return roleCards.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q) ||
-        p.tags?.some((tag) => tag.toLowerCase().includes(q)),
+      (preset) =>
+        preset.name.toLowerCase().includes(q) ||
+        preset.description?.toLowerCase().includes(q) ||
+        preset.tags?.some((tag) => tag.toLowerCase().includes(q)),
     );
   }, [roleCards, mentionQuery]);
-
-  const filteredTeamCards = useMemo(() => {
-    if (!mentionQuery) return welcomeTeamCards;
-    const q = mentionQuery.toLowerCase();
-    return welcomeTeamCards.filter(
-      (team) =>
-        team.name.toLowerCase().includes(q) ||
-        team.description?.toLowerCase().includes(q) ||
-        team.members.some(
-          (member) =>
-            member.role_name.toLowerCase().includes(q) ||
-            member.role_tags.some((tag) => tag.toLowerCase().includes(q)),
-        ),
-    );
-  }, [welcomeTeamCards, mentionQuery]);
 
   const handleMentionQueryChange = useCallback(
     (query: string | null) => setMentionQuery(query),
@@ -219,7 +155,7 @@ export const WelcomePage = memo(function WelcomePage({
 
   const defaultSuggestions = useMemo(() => {
     const rawValue = settings?.settings?.frontend?.find(
-      (s) => s.key === "WELCOME_SUGGESTIONS",
+      (setting) => setting.key === "WELCOME_SUGGESTIONS",
     )?.value;
     const currentLang = i18n.language?.split("-")[0] || "en";
     if (Array.isArray(rawValue)) return rawValue;
@@ -228,7 +164,7 @@ export const WelcomePage = memo(function WelcomePage({
         string,
         Array<{ icon: string; text: string }>
       >;
-      return langMap[currentLang] || langMap["en"];
+      return langMap[currentLang] || langMap.en || [];
     }
     return [];
   }, [settings, i18n.language]);
@@ -244,42 +180,25 @@ export const WelcomePage = memo(function WelcomePage({
     [promptSources, selectedPersonaPresetId, i18n.language, defaultSuggestions],
   );
 
-  const teamStarterPrompts = useMemo(
-    () =>
-      getSelectedTeamStarterPrompts(
-        teamCards,
-        selectedTeamId,
-        i18n.language,
-        selectedTeamId ? defaultSuggestions : [],
-      ),
-    [teamCards, selectedTeamId, i18n.language, defaultSuggestions],
+  const handleSuggestionClick = useCallback(
+    (text: string) => {
+      if (!canSendMessage) {
+        setContactAdminOpen(true);
+        return;
+      }
+      setPendingInput(text);
+    },
+    [canSendMessage],
   );
-
-  const handleSuggestionClick = (text: string) => {
-    if (!canSendMessage) {
-      setContactAdminOpen(true);
-      return;
-    }
-    setPendingInput(text);
-  };
 
   const handleChangePersona = useCallback(() => {
     if (!onClearPersonaPreset) return;
     setIsRefreshing(true);
     onClearPersonaPreset();
     setMentionQuery(null);
-    setAnimKey((k) => k + 1);
+    setAnimKey((key) => key + 1);
     setTimeout(() => setIsRefreshing(false), 400);
   }, [onClearPersonaPreset]);
-
-  const handleChangeTeam = useCallback(() => {
-    if (!onSelectTeam) return;
-    setIsRefreshing(true);
-    onSelectTeam?.(null);
-    setMentionQuery(null);
-    setAnimKey((k) => k + 1);
-    setTimeout(() => setIsRefreshing(false), 400);
-  }, [onSelectTeam]);
 
   const handlePersonaClick = useCallback(
     async (preset: PersonaPreset) => {
@@ -289,17 +208,19 @@ export const WelcomePage = memo(function WelcomePage({
     [onUsePersonaPreset, personaPresetsMutating],
   );
 
-  const handleTeamClick = useCallback(
-    (team: Team) => {
-      onSelectTeam?.(team.id);
-    },
-    [onSelectTeam],
+  const welcomeSurfaceContributions = useMemo(
+    () =>
+      buildWelcomeSurfaceContributions(chatInputProps.runtimePlugins, {
+        agentId: currentAgent ?? null,
+      }),
+    [chatInputProps.runtimePlugins, currentAgent],
   );
-
+  const activeWelcomeSurface = welcomeSurfaceContributions[0] ?? null;
+  const hasWelcomeSurface = Boolean(activeWelcomeSurface);
   const isAgentReady = !!currentAgent;
   const shouldProjectMentionsToWelcome =
     isAgentReady &&
-    (currentAgent === "team" ? !selectedTeamId : !selectedPersonaPresetId);
+    (hasWelcomeSurface ? !selectedTeamId : !selectedPersonaPresetId);
 
   useEffect(() => {
     if (!shouldProjectMentionsToWelcome) {
@@ -307,73 +228,39 @@ export const WelcomePage = memo(function WelcomePage({
     }
   }, [shouldProjectMentionsToWelcome]);
 
-  const showTeamCards = currentAgent === "team" && !selectedTeamId;
   const showPersonaCards =
-    isAgentReady && currentAgent !== "team" && !selectedPersonaPresetId;
+    isAgentReady && !hasWelcomeSurface && !selectedPersonaPresetId;
   const showStarterPrompts =
     isAgentReady &&
-    currentAgent !== "team" &&
+    !hasWelcomeSurface &&
     !!selectedPersonaPresetId &&
     personaStarterPrompts.length > 0;
-  const showTeamStarterPrompts =
-    currentAgent === "team" &&
-    !!selectedTeamId &&
-    teamStarterPrompts.length > 0;
   const canChangePersona =
     isAgentReady &&
-    currentAgent !== "team" &&
+    !hasWelcomeSurface &&
     !!selectedPersonaPresetId &&
     !!onClearPersonaPreset;
-  const canChangeTeam =
-    currentAgent === "team" && !!selectedTeamId && !!onSelectTeam;
-  const showSelectionActions = canChangePersona || canChangeTeam;
   const activeStarterPrompts =
-    currentAgent === "team"
-      ? teamStarterPrompts.length > 0
-        ? teamStarterPrompts
-        : defaultSuggestions
-      : personaStarterPrompts.length > 0
-        ? personaStarterPrompts
-        : defaultSuggestions;
+    personaStarterPrompts.length > 0 ? personaStarterPrompts : defaultSuggestions;
   const displayCards = mentionQuery ? filteredCards : roleCards;
-  const displayTeamCards = mentionQuery ? filteredTeamCards : welcomeTeamCards;
-  const shouldShowTeamSkeletons =
-    showTeamCards && (teamCardsLoading || !teamCardsLoaded);
   const personaSkeletonCount = getWelcomePersonaSkeletonCount(
     personaPresetsLoading,
     displayCards.length,
   );
-  const teamSkeletonCount = getWelcomePersonaSkeletonCount(
-    shouldShowTeamSkeletons,
-    displayTeamCards.length,
-  );
-  // Whether data has loaded but is empty
-  const isTeamEmpty =
-    showTeamCards && !teamCardsLoading && displayTeamCards.length === 0;
   const isPersonaEmpty =
     showPersonaCards && !personaPresetsLoading && displayCards.length === 0;
-  // Whether to show the choice-card gallery section (persona or team).
-  const showGallerySection = showPersonaCards || showTeamCards;
-  // Whether the gallery has real card content (used for container width variant)
-  const showChoiceCards =
-    (showPersonaCards && !isPersonaEmpty) || (showTeamCards && !isTeamEmpty);
+  const showGallerySection = showPersonaCards;
+  const showChoiceCards = showPersonaCards && !isPersonaEmpty;
 
   return (
-    <div
-      ref={rootRef}
-      className="welcome-root relative flex h-full flex-col items-center justify-center px-4"
-    >
-      {/* Greeting section */}
+    <div className="welcome-root relative flex h-full flex-col items-center justify-center px-4">
       <div className="welcome-hero relative flex flex-col items-center mb-1 sm:mb-2 md:mb-2.5 xl:mb-3 2xl:mb-3 w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
-        {/* App icon (mobile only) */}
         <div className="sm:hidden relative mb-2">
           <WelcomeIcon
             label="LambChat"
             className="welcome-icon relative size-12 object-contain rounded-full"
           />
         </div>
-
-        {/* Greeting */}
         <h1
           className="welcome-greeting max-w-full text-[1.5rem] sm:text-[1.875rem] md:text-[2rem] lg:text-[2.25rem] xl:text-[2.35rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
           style={{ color: "var(--theme-text)" }}
@@ -381,7 +268,6 @@ export const WelcomePage = memo(function WelcomePage({
           <WelcomeIcon className="welcome-icon hidden sm:inline-block size-12 xl:size-14 2xl:size-16 mr-4 align-text-bottom object-contain rounded-full" />
           {greeting}
         </h1>
-        {/* Subtle subtitle prompt */}
         <p
           className="welcome-subtitle mt-1.5 sm:mt-2 md:mt-2.5 xl:mt-3 2xl:mt-3 text-sm sm:text-base md:text-[17px] xl:text-lg 2xl:text-lg text-center font-serif"
           style={{ color: "var(--theme-text-secondary)" }}
@@ -390,7 +276,6 @@ export const WelcomePage = memo(function WelcomePage({
         </p>
       </div>
 
-      {/* ChatInput centered — the focal point */}
       <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
         <ChatInput
           {...chatInputProps}
@@ -404,17 +289,27 @@ export const WelcomePage = memo(function WelcomePage({
           className="mx-auto w-full px-2"
           activeGoal={activeGoal || null}
           onClearActiveGoal={onClearActiveGoal}
-          goalLabel={t("chat.goal.active", "目标")}
-          goalDurationLabel={t("chat.goal.running", "运行")}
-          goalClearLabel={t("chat.goal.clear", "清除目标")}
+          goalLabel={t("chat.goal.active", "Goal")}
+          goalDurationLabel={t("chat.goal.running", "Running")}
+          goalClearLabel={t("chat.goal.clear", "Clear goal")}
           showHelpMenu
         />
       </div>
 
-      {(showGallerySection ||
-        showStarterPrompts ||
-        showTeamStarterPrompts ||
-        showSelectionActions) && (
+      {activeWelcomeSurface && (
+        <WelcomeSurfaceRenderer
+          contribution={activeWelcomeSurface}
+          mentionQuery={mentionQuery}
+          defaultSuggestions={defaultSuggestions}
+          selectedTeamId={selectedTeamId}
+          starterPromptsLabel={starterPromptsLabel}
+          refreshLabel={refreshLabel}
+          onPluginOptionChange={chatInputProps.onPluginOptionChange}
+          onUseSuggestion={handleSuggestionClick}
+        />
+      )}
+
+      {(showGallerySection || showStarterPrompts || canChangePersona) && (
         <div
           className={getWelcomeSuggestionsContainerClass(
             showChoiceCards ? "personas" : "prompts",
@@ -430,45 +325,15 @@ export const WelcomePage = memo(function WelcomePage({
                 className="opacity-60 sm:w-3.5 sm:h-3.5 xl:w-4 xl:h-4 2xl:w-4 2xl:h-4"
               />
               <span>
-                {showTeamCards
-                  ? isTeamEmpty
-                    ? t("team.empty", "暂无团队")
-                    : t("team.plaza", "团队广场")
-                  : showStarterPrompts || showTeamStarterPrompts
-                    ? starterPromptsLabel ||
-                      t("personaPresets.starterPrompts", "开始对话")
-                    : isPersonaEmpty
-                      ? t("persona.empty", "暂无角色")
-                      : personasLabel || t("personaPresets.title", "角色")}
+                {showStarterPrompts
+                  ? starterPromptsLabel ||
+                    t("personaPresets.starterPrompts", "Start a conversation")
+                  : isPersonaEmpty
+                    ? t("persona.empty", "No personas")
+                    : personasLabel || t("personaPresets.title", "Personas")}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {showTeamCards && isTeamEmpty && (
-                <button
-                  onClick={() => navigate("/team")}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
-                  style={{
-                    color: "var(--theme-primary)",
-                    backgroundColor: "var(--theme-primary-light)",
-                  }}
-                >
-                  <Plus size={12} />
-                  <span>{t("team.addNew", "新建团队")}</span>
-                </button>
-              )}
-              {showTeamCards && !isTeamEmpty && (
-                <button
-                  onClick={() => navigate("/team")}
-                  className="flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
-                  style={{
-                    color: "var(--theme-text-secondary)",
-                    backgroundColor: "transparent",
-                  }}
-                >
-                  <span>{t("common.manage", "管理")}</span>
-                  <ChevronRight size={12} />
-                </button>
-              )}
               {showPersonaCards && isPersonaEmpty && (
                 <button
                   onClick={() => navigate("/persona")}
@@ -479,7 +344,7 @@ export const WelcomePage = memo(function WelcomePage({
                   }}
                 >
                   <Plus size={12} />
-                  <span>{t("persona.addNew", "新建角色")}</span>
+                  <span>{t("persona.addNew", "New persona")}</span>
                 </button>
               )}
               {showPersonaCards && !isPersonaEmpty && (
@@ -491,15 +356,13 @@ export const WelcomePage = memo(function WelcomePage({
                     backgroundColor: "transparent",
                   }}
                 >
-                  <span>{t("common.manage", "管理")}</span>
+                  <span>{t("common.manage", "Manage")}</span>
                   <ChevronRight size={12} />
                 </button>
               )}
-              {showSelectionActions && (
+              {canChangePersona && (
                 <button
-                  onClick={
-                    canChangeTeam ? handleChangeTeam : handleChangePersona
-                  }
+                  onClick={handleChangePersona}
                   className="welcome-refresh-btn flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
                   style={{
                     color: "var(--theme-text-secondary)",
@@ -515,11 +378,9 @@ export const WelcomePage = memo(function WelcomePage({
                     }
                   />
                   <span>
-                    {canChangeTeam
-                      ? t("team.change", "更换团队")
-                      : changePersonaLabel ||
-                        refreshLabel ||
-                        t("personaPresets.change", "更换角色")}
+                    {changePersonaLabel ||
+                      refreshLabel ||
+                      t("personaPresets.change", "Change persona")}
                   </span>
                 </button>
               )}
@@ -533,7 +394,7 @@ export const WelcomePage = memo(function WelcomePage({
               showGallerySection
                 ? [
                     "welcome-persona-gallery relative pb-1 sm:pb-0",
-                    (teamSkeletonCount > 0 || personaSkeletonCount > 0) &&
+                    personaSkeletonCount > 0 &&
                       "welcome-persona-gallery--loading",
                   ]
                     .filter(Boolean)
@@ -541,95 +402,6 @@ export const WelcomePage = memo(function WelcomePage({
                 : "welcome-suggestions-grid-wrapper"
             }
           >
-            {showTeamCards &&
-              Array.from({ length: teamSkeletonCount }).map((_, i) => (
-                <div
-                  key={`team-skeleton-${i}`}
-                  className={getWelcomePersonaSkeletonClass()}
-                  style={{
-                    backgroundColor: "var(--theme-bg-card)",
-                    borderColor: "var(--theme-border)",
-                  }}
-                  aria-hidden="true"
-                >
-                  <span className="welcome-skeleton-avatar" />
-                  <span className="welcome-skeleton-info">
-                    <span className="welcome-skeleton-name-row">
-                      <span className="welcome-skeleton-line welcome-skeleton-title" />
-                      <span className="welcome-skeleton-line welcome-skeleton-tag" />
-                    </span>
-                    <span className="welcome-skeleton-line welcome-skeleton-desc" />
-                  </span>
-                </div>
-              ))}
-            {showTeamCards &&
-              displayTeamCards.map((team, i) => {
-                const activeCount = team.members.filter(
-                  (m) => m.enabled,
-                ).length;
-                return (
-                  <button
-                    key={team.id}
-                    onClick={() => handleTeamClick(team)}
-                    disabled={!onSelectTeam}
-                    className={getWelcomePersonaCardClass(i)}
-                    style={{
-                      backgroundColor: "var(--theme-bg-card)",
-                      borderColor: "var(--theme-border)",
-                      animationDelay: `${i * 60}ms`,
-                    }}
-                  >
-                    <span className="welcome-card-shimmer" aria-hidden="true" />
-                    <span className="welcome-persona-header relative flex items-center gap-3">
-                      <TeamAvatar
-                        avatar={team.avatar}
-                        fallbackAvatar={getTeamFallbackAvatar(team)}
-                        fallbackTag={getTeamFallbackTag(team)}
-                        label={team.name}
-                        className="welcome-persona-avatar relative flex items-center justify-center size-11 rounded-xl shrink-0 overflow-hidden transition-transform duration-300 group-hover:scale-105"
-                        imgClassName="h-full w-full object-cover"
-                        iconSize={22}
-                        style={{
-                          background:
-                            "linear-gradient(135deg, var(--theme-primary-light) 0%, color-mix(in srgb, var(--theme-primary) 10%, var(--theme-bg-card)) 100%)",
-                          color: "var(--theme-primary)",
-                        }}
-                      />
-                      <span className="welcome-persona-info min-w-0 flex-1">
-                        <span className="welcome-persona-name-row relative flex items-center gap-1.5">
-                          <span
-                            className="welcome-persona-name truncate text-[13px] sm:text-[14px] font-bold leading-[1.3] transition-colors duration-300 group-hover:text-[var(--theme-text)] font-serif"
-                            style={{ color: "var(--theme-text)" }}
-                          >
-                            {team.name}
-                          </span>
-                          <span
-                            className="welcome-persona-tag shrink-0 inline-flex rounded-full px-1.5 py-[1px] text-[10px] leading-none font-medium"
-                            style={{
-                              backgroundColor: "var(--theme-primary-light)",
-                              color: "var(--theme-primary)",
-                            }}
-                          >
-                            {t("team.memberCount", "{{count}} 人", {
-                              count: activeCount,
-                            })}
-                          </span>
-                        </span>
-                        <span
-                          className="welcome-persona-description block mt-1 text-[12px] leading-[1.5]"
-                          style={{
-                            color:
-                              "var(--theme-text-tertiary, var(--theme-text-secondary))",
-                          }}
-                        >
-                          {team.description ||
-                            t("team.defaultDescription", "协同工作的角色团队")}
-                        </span>
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
             {showPersonaCards &&
               Array.from({ length: personaSkeletonCount }).map((_, i) => (
                 <div
@@ -725,12 +497,12 @@ export const WelcomePage = memo(function WelcomePage({
             )}
             <div
               className={
-                showStarterPrompts || showTeamStarterPrompts
+                showStarterPrompts
                   ? "welcome-suggestions-grid grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 md:gap-2.5 xl:gap-3 2xl:gap-3"
                   : undefined
               }
             >
-              {(showStarterPrompts || showTeamStarterPrompts) &&
+              {showStarterPrompts &&
                 activeStarterPrompts.map((suggestion, i) => (
                   <button
                     key={suggestion.text}
@@ -742,7 +514,6 @@ export const WelcomePage = memo(function WelcomePage({
                       animationDelay: `${i * 60}ms`,
                     }}
                   >
-                    {/* Hover shimmer layer */}
                     <span className="welcome-card-shimmer" aria-hidden="true" />
                     <span
                       className="relative flex items-center justify-center size-6 sm:size-7 xl:size-8 2xl:size-8 rounded-lg text-[13px] sm:text-[15px] xl:text-lg 2xl:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
@@ -751,7 +522,7 @@ export const WelcomePage = memo(function WelcomePage({
                         color: "var(--theme-primary)",
                       }}
                     >
-                      {suggestion.icon || "✨"}
+                      {suggestion.icon || "+"}
                     </span>
                     <span
                       className="relative text-[12.5px] sm:text-[13.5px] leading-[1.4] sm:leading-[1.45] truncate transition-colors duration-300 group-hover:text-[var(--theme-text)]"

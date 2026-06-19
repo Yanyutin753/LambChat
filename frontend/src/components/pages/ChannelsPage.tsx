@@ -12,15 +12,17 @@ import { Permission } from "../../types";
 import { APP_NAME } from "../../constants";
 import { channelApi } from "../../services/api/channel";
 import { ChannelPanel } from "../panels/ChannelPanel";
-import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
 import { ChannelsGridSkeleton } from "../skeletons";
 import { SkillBaseCard } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
 import {
+  findChannelConnectorContribution,
   hasChannelConnectorContribution,
+  hasRuntimeManagedChannelConnector,
   type PluginRuntimeContributionStates,
 } from "../../extensions/coreContributions";
+import { getChannelConnectorPanelRenderer } from "./channelConnectorPanelRenderers";
 import type {
   ChannelMetadata,
   ChannelConfigStatus,
@@ -83,11 +85,12 @@ export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
     setIsLoading(true);
     try {
       const types = await channelApi.getTypes();
-      const visibleTypes = types.filter((ct) =>
-        ct.channel_type === "feishu"
-          ? hasChannelConnectorContribution(ct.channel_type, runtimePlugins)
-          : true,
-      );
+      const visibleTypes = types.filter((ct) => {
+        if (!hasRuntimeManagedChannelConnector(ct.channel_type, runtimePlugins)) {
+          return true;
+        }
+        return hasChannelConnectorContribution(ct.channel_type, runtimePlugins);
+      });
       setChannelTypes(visibleTypes);
 
       // Load instances for all channel types in parallel
@@ -156,7 +159,14 @@ export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
     );
     if (!metadata) return null;
 
-    if (selectedChannel === "feishu") {
+    const connector = findChannelConnectorContribution(
+      selectedChannel,
+      runtimePlugins,
+    );
+    const ConnectorPanel = getChannelConnectorPanelRenderer(
+      connector?.panelRenderer,
+    );
+    if (ConnectorPanel) {
       const instance = instances[selectedChannel]?.find(
         (i) => i.instance_id === selectedInstance,
       );
@@ -165,7 +175,7 @@ export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
           ? statuses[`${selectedChannel}:${selectedInstance}`]
           : null;
       return (
-        <FeishuPanel
+        <ConnectorPanel
           instanceId={selectedInstance}
           initialConfig={instance}
           initialStatus={status}

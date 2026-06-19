@@ -19,17 +19,19 @@ const sidebarRailSource = readFileSync(
   "utf8",
 );
 
-test("persona and team entries live in the more menu", () => {
-  const moreMenuMatch = coreContributionsSource.match(
+test("persona lives in the core more menu while team is plugin-owned", () => {
+  const coreMoreMenuMatch = coreContributionsSource.match(
     /CORE_SIDEBAR_MORE_NAV[\s\S]*?\];/,
   );
 
-  assert.ok(moreMenuMatch, "more menu item config should exist");
-  assert.match(moreMenuMatch[0], /path:\s*"\/persona"/);
-  assert.match(moreMenuMatch[0], /path:\s*"\/team"/);
-  assert.doesNotMatch(moreMenuMatch[0], /href:\s*GITHUB_URL/);
-  assert.doesNotMatch(moreMenuMatch[0], /label:\s*t\("nav\.contribute"/);
-  assert.match(useMoreMenuSource, /CORE_SIDEBAR_MORE_NAV\.map/);
+  assert.ok(coreMoreMenuMatch, "core more menu item config should exist");
+  assert.match(coreMoreMenuMatch[0], /path:\s*"\/persona"/);
+  assert.doesNotMatch(coreMoreMenuMatch[0], /path:\s*"\/team"/);
+  assert.doesNotMatch(coreContributionsSource, /BUILTIN_PLUGIN_SIDEBAR_MORE_NAV/);
+  assert.doesNotMatch(coreMoreMenuMatch[0], /href:\s*GITHUB_URL/);
+  assert.doesNotMatch(coreMoreMenuMatch[0], /label:\s*t\("nav\.contribute"/);
+  assert.match(useMoreMenuSource, /buildSidebarMoreNavContributions\(runtimePlugins\)/);
+  assert.match(coreContributionsSource, /plugin\.frontend\?\.sidebar_items/);
 });
 
 test("persona and team are not rendered as primary sidebar actions", () => {

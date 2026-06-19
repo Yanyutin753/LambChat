@@ -338,6 +338,54 @@ async def test_internal_plugin_tool_execution_rechecks_plugin_runtime(
 
 
 @pytest.mark.asyncio
+async def test_internal_builtin_plugin_tools_fail_closed_without_plugin_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain_core.tools import BaseTool
+
+    from src.infra.tool import internal_registry
+
+    class _FakeTool(BaseTool):
+        name: str
+        description: str = ""
+
+        def _run(self, *args, **kwargs):
+            return "sync"
+
+        async def _arun(self, *args, **kwargs):
+            return "async"
+
+    async def _empty_policies():
+        return {}
+
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", None)
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
+    monkeypatch.setattr(
+        internal_registry,
+        "build_internal_tools",
+        lambda: [
+            _FakeTool(name="feedback.summary"),
+            _FakeTool(name="image_generate"),
+            _FakeTool(name="env_var_list"),
+        ],
+    )
+
+    infos = await internal_registry.get_internal_tool_infos(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+    tools = await internal_registry.get_internal_tools_for_user(
+        user_id="user-1",
+        user_roles=[],
+        is_admin=False,
+    )
+
+    assert [info.name for info in infos] == ["env_var_list"]
+    assert [tool.name for tool in tools] == ["env_var_list"]
+
+
+@pytest.mark.asyncio
 async def test_internal_scheduled_task_tool_infos_follow_role_permissions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -485,11 +533,21 @@ async def test_internal_image_generate_tool_infos_include_supported_parameters(
         get_image_generation_tool,
         get_reference_image_generation_tool,
     )
+    from src.kernel.extensions import PluginRuntime
+    from src.kernel.extensions.builtin_plugins import build_image_generation_plugin_manifest
 
     async def _empty_policies():
         return {}
 
-    monkeypatch.setattr(internal_registry, "_plugin_runtime", None)
+    monkeypatch.setattr(
+        "src.kernel.extensions.builtin_plugins.settings.ENABLE_IMAGE_GENERATION",
+        True,
+    )
+    monkeypatch.setattr(
+        internal_registry,
+        "_plugin_runtime",
+        PluginRuntime([build_image_generation_plugin_manifest()]),
+    )
     monkeypatch.setattr(internal_registry, "get_internal_tool_policies", _empty_policies)
     monkeypatch.setattr(
         internal_registry,

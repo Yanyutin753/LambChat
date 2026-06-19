@@ -4,6 +4,8 @@ import {
   buildCheckpointForkUrl,
   buildMessageCheckpointUrl,
   buildMessageForkUrl,
+  buildSessionPluginOptionUrl,
+  buildSessionPluginOptionsUrl,
   buildSessionRunsUrl,
   buildSubmitChatBody,
 } from "../session.ts";
@@ -72,11 +74,12 @@ test("includes persona preset fields in the submit chat body", () => {
   );
 });
 
-test("includes team_id in the submit chat body when a team is selected", () => {
+test("includes plugin session options without writing legacy team_id when a team is selected", () => {
   assert.deepEqual(
     buildSubmitChatBody({
       message: "hello",
       teamId: "team-1",
+      pluginOptions: { agent_team: { SELECTED_TEAM_ID: "team-1" } },
     }),
     {
       message: "hello",
@@ -87,7 +90,27 @@ test("includes team_id in the submit chat body when a team is selected", () => {
       enabled_skills: undefined,
       persona_preset_id: undefined,
       disabled_mcp_tools: undefined,
-      team_id: "team-1",
+      plugin_options: { agent_team: { SELECTED_TEAM_ID: "team-1" } },
+    },
+  );
+});
+
+test("keeps legacy team_id only when no plugin session options are supplied", () => {
+  assert.deepEqual(
+    buildSubmitChatBody({
+      message: "hello",
+      teamId: "legacy-team",
+    }),
+    {
+      message: "hello",
+      session_id: undefined,
+      agent_options: undefined,
+      attachments: undefined,
+      disabled_skills: undefined,
+      enabled_skills: undefined,
+      persona_preset_id: undefined,
+      disabled_mcp_tools: undefined,
+      team_id: "legacy-team",
     },
   );
 });
@@ -117,6 +140,17 @@ test("includes a run-scoped goal in the submit chat body", () => {
         max_iterations: 3,
       },
     },
+  );
+});
+
+test("builds session plugin options urls", () => {
+  assert.equal(
+    buildSessionPluginOptionsUrl("session 1"),
+    "/api/sessions/session%201/plugin-options",
+  );
+  assert.equal(
+    buildSessionPluginOptionUrl("session 1", "agent_team", "SELECTED_TEAM_ID"),
+    "/api/sessions/session%201/plugin-options/agent_team/SELECTED_TEAM_ID",
   );
 });
 

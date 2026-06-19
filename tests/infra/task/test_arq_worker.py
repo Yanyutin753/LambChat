@@ -7,6 +7,8 @@ import pytest
 
 from src.infra.task import arq_worker
 from src.infra.task.exceptions import TaskInterruptedError
+from src.infra.task.status import TaskStatus
+from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 
 
 class _FakePayloadStore:
@@ -222,6 +224,60 @@ async def test_run_agent_task_cleans_up_when_executor_is_unknown(
     assert task_executor.status_calls
     assert payload_store.deleted == ["run-1"]
     assert limiter.release_calls == [("user-1", "run-1", True)]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_task_rejects_disabled_plugin_owned_agent_at_execution_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "team",
+        "message": "hello",
+        "display_message": "hello display",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "user_message_written": True,
+    }
+    payload_store = _FakePayloadStore(payload)
+    task_executor = _FakeTaskExecutor()
+    limiter = _FakeLimiter()
+    task_manager = SimpleNamespace(
+        _run_info={},
+        _ensure_executor=lambda: task_executor,
+    )
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+
+    async def _executor_fn(*args, **kwargs):
+        raise AssertionError("disabled plugin-owned agent should not run")
+        if False:
+            yield None
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda key: _executor_fn)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    set_plugin_runtime(runtime)
+
+    try:
+        await arq_worker.run_agent_task({"payload_store": payload_store}, "run-1")
+    finally:
+        set_plugin_runtime(None)
+
+    assert task_executor.run_calls == []
+    assert task_executor.status_calls
+    args, kwargs = task_executor.status_calls[0]
+    assert args[0] == "session-1"
+    assert args[1] is TaskStatus.FAILED
+    assert "agent_team" in args[2]
+    assert kwargs == {"run_id": "run-1"}
+    assert payload_store.deleted == ["run-1"]
+    assert limiter.release_calls == [("user-1", "run-1", True)]
+    assert task_manager._run_info == {}
 
 
 @pytest.mark.asyncio

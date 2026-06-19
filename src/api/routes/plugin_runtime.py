@@ -76,15 +76,55 @@ class PluginRuntimeToolResponse(BaseModel):
     legacy_ids: list[str]
 
 
+class PluginRuntimeEffectResponse(BaseModel):
+    action: str
+    effect: str
+
+
+class PluginRuntimeAgentResponse(BaseModel):
+    id: str
+    module: str
+    name: str
+    description: str
+    icon: str
+    sort_order: int
+    category: str | None = None
+    required_permissions: list[str]
+
+
+class PluginRuntimeMessageActionResponse(BaseModel):
+    id: str
+    target: str
+    renderer: str
+    order: int
+    permissions: list[str]
+    visible_when: dict[str, Any] | None = None
+
+
 class PluginRuntimeFrontendResponse(BaseModel):
     routes: list[str]
     panels: list[str]
     nav_items: list[str]
-    tool_renderers: list[str]
-    file_viewers: list[str]
-    skill_importers: list[str]
-    channel_connectors: list[str]
-    message_actions: list[str]
+    app_tabs: list[dict[str, Any]]
+    app_panels: list[dict[str, Any]]
+    sidebar_items: list[dict[str, Any]]
+    user_menu_items: list[dict[str, Any]]
+    tool_renderers: list[dict[str, Any]]
+    file_viewers: list[dict[str, Any]]
+    upload_handlers: list[dict[str, Any]]
+    skill_importers: list[dict[str, Any]]
+    channel_connectors: list[dict[str, Any]]
+    message_actions: list[PluginRuntimeMessageActionResponse]
+    chat_input_options: list[dict[str, Any]]
+    chat_input_panels: list[dict[str, Any]]
+    mention_providers: list[dict[str, Any]]
+    welcome_surfaces: list[dict[str, Any]]
+    assistant_identity_resolvers: list[dict[str, Any]]
+    agent_categories: list[dict[str, Any]]
+    project_options: list[dict[str, Any]]
+    session_options: list[dict[str, Any]]
+    channel_options: list[dict[str, Any]]
+    scheduled_task_options: list[dict[str, Any]]
     settings_sections: list[str]
     i18n_namespaces: list[str]
     required_permissions: list[str]
@@ -129,7 +169,9 @@ class PluginRuntimePluginResponse(BaseModel):
     depends_on: list[str]
     permissions: list[str]
     routes: list[PluginRuntimeRouteResponse]
+    agents: list[PluginRuntimeAgentResponse]
     tools: list[PluginRuntimeToolResponse]
+    runtime_effects: list[PluginRuntimeEffectResponse]
     frontend: PluginRuntimeFrontendResponse
     resource_count: int
     resource_types: dict[str, int]
@@ -150,6 +192,9 @@ class PluginRuntimeContributionStateResponse(BaseModel):
     enabled: bool
     executable: bool
     status: str
+    agents: list[PluginRuntimeAgentResponse] = []
+    tools: list[PluginRuntimeToolResponse] = []
+    frontend: PluginRuntimeFrontendResponse | None = None
 
 
 class PluginRuntimeContributionStatesResponse(BaseModel):
@@ -636,6 +681,7 @@ def _attach_descriptor_metadata(manifest, descriptor: PluginFolderDescriptor):
             "package_validated_at": descriptor.validated_at.isoformat(),
             "package_errors": list(descriptor.errors),
             "package_layout": descriptor.layout.model_dump(),
+            "package_data_template": descriptor.layout.data_template,
         }
     )
 
@@ -644,26 +690,6 @@ def _package_manifest_with_static_fallback(package_manifest, *, static_manifest,
     fallback_fields = _static_fallback_fields(package_manifest, static_manifest)
     return package_manifest.model_copy(
         update={
-            "settings": package_manifest.settings or static_manifest.settings,
-            "legacy_system_settings": (
-                package_manifest.legacy_system_settings
-                or static_manifest.legacy_system_settings
-            ),
-            "routers": package_manifest.routers or static_manifest.routers,
-            "tools": package_manifest.tools or static_manifest.tools,
-            "lifespan_hooks": (
-                package_manifest.lifespan_hooks or static_manifest.lifespan_hooks
-            ),
-            "scheduler_jobs": (
-                package_manifest.scheduler_jobs or static_manifest.scheduler_jobs
-            ),
-            "migrations": package_manifest.migrations or static_manifest.migrations,
-            "resources": package_manifest.resources or static_manifest.resources,
-            "frontend": (
-                package_manifest.frontend
-                if package_manifest.frontend.model_dump(exclude_defaults=True)
-                else static_manifest.frontend
-            ),
             "package_source_type": descriptor.source_type,
             "package_source_path": str(descriptor.folder),
             "package_manifest_path": str(descriptor.manifest_path),
@@ -672,6 +698,7 @@ def _package_manifest_with_static_fallback(package_manifest, *, static_manifest,
             "package_errors": list(descriptor.errors),
             "package_layout": descriptor.layout.model_dump(),
             "package_config_defaults": package_manifest.package_config_defaults,
+            "package_data_template": package_manifest.package_data_template,
             "package_frontend_assets": package_manifest.package_frontend_assets,
             "package_manifest_authority": "folder_package",
             "package_static_fallback_used": bool(fallback_fields),
@@ -694,6 +721,8 @@ def _static_fallback_fields(package_manifest, static_manifest) -> list[str]:
         fields.append("lifespan_hooks")
     if not package_manifest.scheduler_jobs and static_manifest.scheduler_jobs:
         fields.append("scheduler_jobs")
+    if not package_manifest.event_listeners and static_manifest.event_listeners:
+        fields.append("event_listeners")
     if not package_manifest.migrations and static_manifest.migrations:
         fields.append("migrations")
     if not package_manifest.resources and static_manifest.resources:
@@ -722,8 +751,22 @@ def _merge_manifest_frontend(manifest, package_manifest) -> object:
     package_values = package_manifest.frontend.model_dump()
     for key, package_list in package_values.items():
         existing = values.get(key, []) or []
-        seen = set(existing)
         merged = list(existing)
+        if package_list and all(isinstance(item, dict) for item in package_list):
+            seen = {
+                str(item.get("id") or "")
+                for item in existing
+                if isinstance(item, dict)
+            }
+            for item in package_list or []:
+                contribution_id = str(item.get("id") or "") if isinstance(item, dict) else ""
+                if contribution_id in seen:
+                    continue
+                seen.add(contribution_id)
+                merged.append(item)
+            values[key] = merged
+            continue
+        seen = set(existing)
         for item in package_list or []:
             if item in seen:
                 continue
@@ -761,6 +804,70 @@ def _archived_package_response(item) -> ArchivedPluginPackageResponse:
     )
 
 
+def _frontend_response(manifest) -> PluginRuntimeFrontendResponse:
+    return PluginRuntimeFrontendResponse(
+        routes=manifest.frontend.routes,
+        panels=manifest.frontend.panels,
+        nav_items=manifest.frontend.nav_items,
+        app_tabs=[item.model_dump(mode="json") for item in manifest.frontend.app_tabs],
+        app_panels=[item.model_dump(mode="json") for item in manifest.frontend.app_panels],
+        sidebar_items=[item.model_dump(mode="json") for item in manifest.frontend.sidebar_items],
+        user_menu_items=[item.model_dump(mode="json") for item in manifest.frontend.user_menu_items],
+        tool_renderers=[item.model_dump(mode="json") for item in manifest.frontend.tool_renderers],
+        file_viewers=[item.model_dump(mode="json") for item in manifest.frontend.file_viewers],
+        upload_handlers=[item.model_dump(mode="json") for item in manifest.frontend.upload_handlers],
+        skill_importers=[item.model_dump(mode="json") for item in manifest.frontend.skill_importers],
+        channel_connectors=[item.model_dump(mode="json") for item in manifest.frontend.channel_connectors],
+        message_actions=[item.model_dump(mode="json") for item in manifest.frontend.message_actions],
+        chat_input_options=[item.model_dump(mode="json") for item in manifest.frontend.chat_input_options],
+        chat_input_panels=[item.model_dump(mode="json") for item in manifest.frontend.chat_input_panels],
+        mention_providers=[item.model_dump(mode="json") for item in manifest.frontend.mention_providers],
+        welcome_surfaces=[item.model_dump(mode="json") for item in manifest.frontend.welcome_surfaces],
+        assistant_identity_resolvers=[
+            item.model_dump(mode="json") for item in manifest.frontend.assistant_identity_resolvers
+        ],
+        agent_categories=[item.model_dump(mode="json") for item in manifest.frontend.agent_categories],
+        project_options=[item.model_dump(mode="json") for item in manifest.frontend.project_options],
+        session_options=[item.model_dump(mode="json") for item in manifest.frontend.session_options],
+        channel_options=[item.model_dump(mode="json") for item in manifest.frontend.channel_options],
+        scheduled_task_options=[item.model_dump(mode="json") for item in manifest.frontend.scheduled_task_options],
+        settings_sections=manifest.frontend.settings_sections,
+        i18n_namespaces=manifest.frontend.i18n_namespaces,
+        required_permissions=manifest.frontend.required_permissions,
+    )
+
+
+def _empty_frontend_response() -> PluginRuntimeFrontendResponse:
+    return PluginRuntimeFrontendResponse(
+        routes=[],
+        panels=[],
+        nav_items=[],
+        app_tabs=[],
+        app_panels=[],
+        sidebar_items=[],
+        user_menu_items=[],
+        tool_renderers=[],
+        file_viewers=[],
+        upload_handlers=[],
+        skill_importers=[],
+        channel_connectors=[],
+        message_actions=[],
+        chat_input_options=[],
+        chat_input_panels=[],
+        mention_providers=[],
+        welcome_surfaces=[],
+        assistant_identity_resolvers=[],
+        agent_categories=[],
+        project_options=[],
+        session_options=[],
+        channel_options=[],
+        scheduled_task_options=[],
+        settings_sections=[],
+        i18n_namespaces=[],
+        required_permissions=[],
+    )
+
+
 def _resource_type_counts(records: list[PluginResourceRecord]) -> dict[str, int]:
     return dict(Counter(record.resource_type.value for record in records))
 
@@ -775,11 +882,15 @@ def _issue_response(issue: PluginRuntimeIssue) -> PluginRuntimeIssueResponse:
 
 
 def _default_runtime_side_effect(plugin_id: str) -> PluginRuntimeSideEffectResponse:
-    if plugin_id == FEISHU_CONNECTOR_PLUGIN_ID:
+    manifest = next(
+        (item for item in BUILTIN_PLUGIN_MANIFESTS if item.id == plugin_id),
+        None,
+    )
+    if manifest and manifest.runtime_effects:
         return PluginRuntimeSideEffectResponse(
             action="none",
             status="available",
-            message="Feishu connector start/stop side effects are available during runtime state changes.",
+            message="Runtime side effects are declared for this plugin and available during runtime state changes.",
         )
     return PluginRuntimeSideEffectResponse(
         action="none",
@@ -825,6 +936,19 @@ def _state_response(
             )
             for route in (manifest.routers if manifest else [])
         ],
+        agents=[
+            PluginRuntimeAgentResponse(
+                id=agent.id,
+                module=agent.module,
+                name=agent.name,
+                description=agent.description,
+                icon=agent.icon,
+                sort_order=agent.sort_order,
+                category=agent.category,
+                required_permissions=agent.required_permissions,
+            )
+            for agent in (manifest.agents if manifest else [])
+        ],
         tools=[
             PluginRuntimeToolResponse(
                 name=tool.name,
@@ -834,19 +958,11 @@ def _state_response(
             )
             for tool in (manifest.tools if manifest else [])
         ],
-        frontend=PluginRuntimeFrontendResponse(
-            routes=manifest.frontend.routes if manifest else [],
-            panels=manifest.frontend.panels if manifest else [],
-            nav_items=manifest.frontend.nav_items if manifest else [],
-            tool_renderers=manifest.frontend.tool_renderers if manifest else [],
-            file_viewers=manifest.frontend.file_viewers if manifest else [],
-            skill_importers=manifest.frontend.skill_importers if manifest else [],
-            channel_connectors=manifest.frontend.channel_connectors if manifest else [],
-            message_actions=manifest.frontend.message_actions if manifest else [],
-            settings_sections=manifest.frontend.settings_sections if manifest else [],
-            i18n_namespaces=manifest.frontend.i18n_namespaces if manifest else [],
-            required_permissions=manifest.frontend.required_permissions if manifest else [],
-        ),
+        runtime_effects=[
+            PluginRuntimeEffectResponse(action=item.action, effect=item.effect)
+            for item in (manifest.runtime_effects if manifest else [])
+        ],
+        frontend=_frontend_response(manifest) if manifest else _empty_frontend_response(),
         resource_count=len(resources),
         resource_types=_resource_type_counts(resources),
         dry_run_actions=dict(dry_run_actions),
@@ -884,11 +1000,35 @@ def _state_response(
 def _contribution_state_response(
     state: PluginRuntimeState,
 ) -> PluginRuntimeContributionStateResponse:
+    manifest = state.manifest
     return PluginRuntimeContributionStateResponse(
         plugin_id=state.plugin_id,
         enabled=state.enabled,
         executable=state.executable,
         status=state.status.value,
+        agents=[
+            PluginRuntimeAgentResponse(
+                id=agent.id,
+                module=agent.module,
+                name=agent.name,
+                description=agent.description,
+                icon=agent.icon,
+                sort_order=agent.sort_order,
+                category=agent.category,
+                required_permissions=agent.required_permissions,
+            )
+            for agent in (manifest.agents if manifest else [])
+        ],
+        tools=[
+            PluginRuntimeToolResponse(
+                name=tool.name,
+                module=tool.module,
+                required_permissions=tool.required_permissions,
+                legacy_ids=tool.legacy_ids,
+            )
+            for tool in (manifest.tools if manifest else [])
+        ],
+        frontend=_frontend_response(manifest) if manifest else None,
     )
 
 
@@ -1140,7 +1280,10 @@ def _package_summary(manifest) -> dict[str, Any]:
         "static_fallback_used": manifest.package_static_fallback_used,
         "static_fallback_fields": manifest.package_static_fallback_fields,
         "config_defaults": manifest.package_config_defaults,
-        "data_template": _package_data_template_summary(package_root),
+        "data_template": _package_data_template_summary(
+            package_root,
+            data_template=manifest.package_data_template,
+        ),
         "data_policy": _package_data_policy(manifest),
         "standard_files": standard_files,
         "file_count": file_count,
@@ -1160,7 +1303,10 @@ def _manifest_data_template_summary(manifest) -> dict[str, Any]:
         }
     from pathlib import Path
 
-    return _package_data_template_summary(Path(manifest.package_source_path).resolve())
+    return _package_data_template_summary(
+        Path(manifest.package_source_path).resolve(),
+        data_template=manifest.package_data_template,
+    )
 
 
 def _package_data_policy(manifest) -> dict[str, Any]:
@@ -1192,11 +1338,25 @@ def _skip_package_summary_path(path) -> bool:
     return any(part in ignored_parts for part in path.parts)
 
 
-def _package_data_template_summary(package_root) -> dict[str, Any]:
-    template_root = (package_root / "plugin-data-template").resolve()
+def _package_data_template_summary(package_root, *, data_template: str = "plugin-data-template") -> dict[str, Any]:
+    template_name = str(data_template or "plugin-data-template").replace("\\", "/").strip()
+    if not template_name:
+        template_name = "plugin-data-template"
+    template_root = (package_root / template_name).resolve()
+    try:
+        template_root.relative_to(package_root.resolve())
+    except ValueError:
+        return {
+            "exists": False,
+            "template": template_name,
+            "file_count": 0,
+            "total_bytes": 0,
+            "files": [],
+        }
     if not template_root.is_dir() or template_root.is_symlink():
         return {
             "exists": False,
+            "template": template_name,
             "file_count": 0,
             "total_bytes": 0,
             "files": [],
@@ -1220,6 +1380,7 @@ def _package_data_template_summary(package_root) -> dict[str, Any]:
             files.append("/".join(relative.parts))
     return {
         "exists": True,
+        "template": template_name,
         "file_count": file_count,
         "total_bytes": total_bytes,
         "files": files,
@@ -1311,9 +1472,15 @@ async def _plugin_settings_response(
     *,
     state: PluginRuntimeState,
     service: PluginSettingsService,
+    scope: str = "system",
+    subject_id: str | None = None,
 ) -> PluginSettingsResponse:
     manifest = state.manifest
-    settings = await service.list_settings(manifest)
+    settings = await service.list_settings(
+        manifest,
+        scope=scope,
+        subject_id=subject_id,
+    )
     groups = Counter(item["group"] for item in settings)
     return PluginSettingsResponse(
         plugin_id=state.plugin_id,
@@ -1473,6 +1640,14 @@ def _runtime_capabilities() -> dict[str, Any]:
             evidence="Plugin-owned listener dispatch checks runtime state before invoking handlers.",
         ),
         PluginRuntimeGuardSurfaceResponse(
+            id="channel_connector_guard",
+            label="Channel connectors",
+            status="enforced",
+            enforced=True,
+            failure_mode="fail_closed",
+            evidence="Plugin-owned channel connector metadata, config reloads, and background sends check runtime state before using connector managers.",
+        ),
+        PluginRuntimeGuardSurfaceResponse(
             id="lifecycle_hook_guard",
             label="Lifecycle hooks",
             status="enforced",
@@ -1531,50 +1706,73 @@ def _runtime_capabilities() -> dict[str, Any]:
 
 async def _apply_builtin_plugin_runtime_side_effect(
     *,
+    runtime: PluginRuntime,
     plugin_id: str,
     enabled: bool,
 ) -> PluginRuntimeSideEffectResponse:
     """Apply non-destructive runtime side effects for static built-in plugins."""
-    if plugin_id != FEISHU_CONNECTOR_PLUGIN_ID:
+    manifest = next(
+        (item for item in runtime.manifests(enabled_only=False) if item.id == plugin_id),
+        None,
+    )
+    requested_action = "enable" if enabled else "disable"
+    effect = next(
+        (
+            item.effect
+            for item in (manifest.runtime_effects if manifest else [])
+            if item.action == requested_action
+        ),
+        None,
+    )
+    if effect is None:
         return PluginRuntimeSideEffectResponse(
-            action="enable" if enabled else "disable",
+            action=requested_action,
             status="not_applicable",
             message="No runtime side effect is registered for this static plugin.",
         )
-    action = "start_feishu_connector" if enabled else "stop_feishu_connector"
+
     try:
-        if enabled:
+        if effect == "start_feishu_connector":
             from src.infra.channel.feishu.handler import setup_feishu_handler
 
             await setup_feishu_handler(
                 default_agent=settings.DEFAULT_AGENT,
                 show_tools=True,
+                plugin_runtime=runtime,
             )
             logger.info("Feishu connector started after Plugin Runtime enable")
             return PluginRuntimeSideEffectResponse(
-                action=action,
+                action=effect,
                 status="succeeded",
                 message="Feishu connector startup was requested successfully.",
             )
 
-        from src.infra.channel.feishu import stop_feishu_channels
+        if effect == "stop_feishu_connector":
+            from src.infra.channel.feishu import stop_feishu_channels
 
-        await stop_feishu_channels()
-        logger.info("Feishu connector stopped after Plugin Runtime disable")
+            await stop_feishu_channels()
+            logger.info("Feishu connector stopped after Plugin Runtime disable")
+            return PluginRuntimeSideEffectResponse(
+                action=effect,
+                status="succeeded",
+                message="Feishu connector stop was requested successfully.",
+            )
+
         return PluginRuntimeSideEffectResponse(
-            action=action,
-            status="succeeded",
-            message="Feishu connector stop was requested successfully.",
+            action=effect,
+            status="not_applicable",
+            message="No runtime side effect executor is registered for this effect.",
         )
     except Exception as exc:  # noqa: BLE001 - runtime side effect must not corrupt state
         message = str(exc) or exc.__class__.__name__
         logger.warning(
-            "Feishu connector runtime side effect failed after %s: %s",
-            "enable" if enabled else "disable",
+            "Plugin runtime side effect failed for %s after %s: %s",
+            plugin_id,
+            requested_action,
             message,
         )
         return PluginRuntimeSideEffectResponse(
-            action=action,
+            action=effect,
             status="failed",
             message=message,
         )
@@ -1744,6 +1942,14 @@ async def list_plugin_runtime_contribution_states(
     )
 
 
+@router.get("/contributions", response_model=PluginRuntimeContributionStatesResponse)
+async def list_plugin_runtime_contributions(
+    request: Request,
+) -> PluginRuntimeContributionStatesResponse:
+    """Return runtime-filterable plugin contributions for frontend host slots."""
+    return await list_plugin_runtime_contribution_states(request)
+
+
 @router.get("/{plugin_id}", response_model=PluginRuntimePluginResponse)
 async def get_plugin_runtime(
     plugin_id: str,
@@ -1758,6 +1964,8 @@ async def get_plugin_runtime(
 async def list_plugin_settings(
     plugin_id: str,
     request: Request,
+    scope: str = "system",
+    subject_id: str | None = None,
     _: object = Depends(require_permissions("settings:manage")),
 ) -> PluginSettingsResponse:
     runtime = _get_runtime(request)
@@ -1765,6 +1973,8 @@ async def list_plugin_settings(
     return await _plugin_settings_response(
         state=state,
         service=_settings_service(request),
+        scope=scope,
+        subject_id=subject_id,
     )
 
 
@@ -1774,6 +1984,8 @@ async def update_plugin_setting(
     key: str,
     data: PluginSettingUpdate,
     request: Request,
+    scope: str = "system",
+    subject_id: str | None = None,
     user: object = Depends(require_permissions("settings:manage")),
 ) -> PluginSettingsResponse:
     runtime = _get_runtime(request)
@@ -1785,10 +1997,17 @@ async def update_plugin_setting(
             key=key,
             value=data.value,
             updated_by=getattr(user, "sub", None),
+            scope=scope,
+            subject_id=subject_id,
         )
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return await _plugin_settings_response(state=state, service=service)
+    return await _plugin_settings_response(
+        state=state,
+        service=service,
+        scope=scope,
+        subject_id=subject_id,
+    )
 
 
 @router.post("/{plugin_id}/settings/{key}/reset", response_model=PluginSettingsResponse)
@@ -1796,16 +2015,28 @@ async def reset_plugin_setting(
     plugin_id: str,
     key: str,
     request: Request,
+    scope: str = "system",
+    subject_id: str | None = None,
     _: object = Depends(require_permissions("settings:manage")),
 ) -> PluginSettingsResponse:
     runtime = _get_runtime(request)
     state = _require_state(runtime, plugin_id)
     service = _settings_service(request)
     try:
-        await service.reset_setting(state.manifest, key=key)
+        await service.reset_setting(
+            state.manifest,
+            key=key,
+            scope=scope,
+            subject_id=subject_id,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return await _plugin_settings_response(state=state, service=service)
+    return await _plugin_settings_response(
+        state=state,
+        service=service,
+        scope=scope,
+        subject_id=subject_id,
+    )
 
 
 @router.post("/{plugin_id}/settings/import-legacy", response_model=PluginSettingsResponse)
@@ -1929,6 +2160,7 @@ async def enable_plugin_runtime(
             actor_username=getattr(user, "username", None),
         )
         runtime_side_effect = await _apply_builtin_plugin_runtime_side_effect(
+            runtime=runtime,
             plugin_id=plugin_id,
             enabled=True,
         )
@@ -1972,6 +2204,7 @@ async def disable_plugin_runtime(
             actor_username=getattr(user, "username", None),
         )
         runtime_side_effect = await _apply_builtin_plugin_runtime_side_effect(
+            runtime=runtime,
             plugin_id=plugin_id,
             enabled=False,
         )
@@ -2153,7 +2386,7 @@ async def export_plugin_runtime(
                 for key, value in item.items()
                 if key not in {"legacy_system_setting_keys", "json_schema", "visible_when"}
             }
-            for item in await service.list_settings(manifest, mask_sensitive=True)
+            for item in await service.export_settings(manifest, mask_sensitive=True)
         ]
     return PluginExportResponse(
         schema_version="lambchat.plugin.export.v1",
@@ -2273,6 +2506,8 @@ async def import_plugin_runtime(
                     manifest,
                     key=key,
                     value=value,
+                    scope=str(item.get("scope") or "system"),
+                    subject_id=item.get("subject_id"),
                     updated_by=getattr(user, "sub", None),
                 )
                 imported_settings.append(key)
