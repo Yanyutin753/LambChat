@@ -18,7 +18,10 @@ def test_github_installer_manifest_preserves_legacy_api_and_permissions() -> Non
     assert manifest.routers[0].prefix == "/api/github"
     assert manifest.routers[0].module == "src.api.routes.github"
     assert manifest.routers[0].tags == ["GitHub"]
-    assert manifest.frontend.skill_importers == ["github_installer:github-import"]
+    assert [importer.id for importer in manifest.frontend.skill_importers] == [
+        "github_installer:github-import"
+    ]
+    assert manifest.frontend.skill_importers[0].source == "github"
     assert manifest.frontend.i18n_namespaces == ["github_installer:skills"]
     assert set(manifest.declared_permissions()) == {
         Permission.SKILL_READ.value,

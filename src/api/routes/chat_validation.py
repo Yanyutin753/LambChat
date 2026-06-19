@@ -2,6 +2,7 @@
 
 from src.kernel.extensions.plugin_options import plugin_session_options_suppress_core_persona
 from src.kernel.schemas.agent import AgentRequest
+from src.kernel.extensions.plugin_options import plugin_session_options_suppress_core_persona
 
 
 def validate_team_agent_request(

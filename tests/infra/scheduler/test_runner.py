@@ -29,7 +29,12 @@ from src.kernel.schemas.scheduled_task import (
     ScheduledTaskStatus,
     TriggerType,
 )
-from src.plugins.workflow.chat_integration import workflow_result_interface
+from src.kernel.extensions import (
+    PluginManifest,
+    PluginRuntime,
+    PluginUnavailableError,
+    build_agent_team_plugin_manifest,
+)
 
 
 def _make_task(**overrides: Any) -> ScheduledTask:
@@ -982,14 +987,12 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
         "scheduled_task_run_id": "run_1",
-        "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
     }
     assert session_manager.metadata == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
         "scheduled_task_run_id": "run_1",
-        "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
     }
 
@@ -1240,7 +1243,9 @@ async def test_execute_agent_prefers_plugin_option_team_id_for_team_agent(
         input_payload={
             "message": "Plan the launch",
             "team_id": "legacy-team",
-            "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "plugin-team"}},
+            "plugin_options": {
+                "agent_team": {"SELECTED_TEAM_ID": "plugin-team"}
+            },
         },
     )
     submitted: dict[str, Any] = {}
@@ -1367,69 +1372,6 @@ async def test_execute_agent_carries_generic_scheduled_task_plugin_options_to_se
 
 
 @pytest.mark.asyncio
-async def test_execute_agent_carries_workflow_scheduled_task_options_to_agent_stream(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    runtime = PluginRuntime([build_workflow_plugin_manifest()])
-    runtime.enable_plugin("workflow")
-    task = _make_task(
-        agent_id="fast",
-        input_payload={
-            "message": "Run the nightly workflow",
-            "workflow_id": "wf-1",
-            "workflow_version_id": "wfv-1",
-            "workflow_input": {"topic": "nightly", "count": 3},
-        },
-    )
-    submitted: dict[str, Any] = {}
-
-    class _FakeTaskManager:
-        async def submit(self, **kwargs: Any) -> tuple[str, str]:
-            submitted.update(kwargs)
-            return "run_1", "trace_1"
-
-        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
-            return TaskStatus.COMPLETED
-
-    class _FakeSessionManager:
-        async def update_session_metadata(
-            self,
-            session_id: str,
-            metadata: dict[str, Any],
-        ) -> None:
-            submitted["updated_metadata"] = metadata
-
-    fake_manager_module = types.ModuleType("src.infra.task.manager")
-    fake_manager_module.get_task_manager = lambda: _FakeTaskManager()
-    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
-    monkeypatch.setitem(sys.modules, "src.infra.task.manager", fake_manager_module)
-    monkeypatch.setattr(
-        "src.infra.task.concurrency.get_registered_executor",
-        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
-    )
-    monkeypatch.setattr(
-        "src.infra.session.manager.SessionManager",
-        lambda: _FakeSessionManager(),
-    )
-    runner = ScheduledTaskRunner()
-    runner.set_plugin_runtime(runtime)
-
-    await runner._execute_agent(task, run_id="run_1", session_id="session_1")
-
-    expected_options = {
-        "workflow": {
-            "WORKFLOW_ID": "wf-1",
-            "WORKFLOW_VERSION_ID": "wfv-1",
-            "WORKFLOW_INPUT_JSON": {"topic": "nightly", "count": 3},
-        }
-    }
-    assert submitted["team_id"] is None
-    assert submitted["plugin_options"] == expected_options
-    assert submitted["session_metadata"]["plugin_options"] == expected_options
-    assert submitted["updated_metadata"]["plugin_options"] == expected_options
-
-
-@pytest.mark.asyncio
 async def test_execute_agent_rejects_disabled_plugin_owned_team_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1549,7 +1491,6 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
         "scheduled_task_run_id": "run_1",
-        "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
     }
     assert submitted["write_user_message_immediately"] is True

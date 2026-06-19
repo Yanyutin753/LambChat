@@ -160,8 +160,108 @@ test("includes retry_user_message only for regenerated replies", () => {
       enabled_skills: undefined,
       persona_preset_id: undefined,
       disabled_mcp_tools: undefined,
-      retry_user_message: true,
+      user_timezone: "Asia/Shanghai",
     },
+  );
+});
+
+test("includes persona preset fields in the submit chat body", () => {
+  assert.deepEqual(
+    buildSubmitChatBody({
+      message: "hello",
+      personaPresetId: "preset-1",
+      enabledSkills: ["planning"],
+    }),
+    {
+      message: "hello",
+      session_id: undefined,
+      agent_options: undefined,
+      attachments: undefined,
+      disabled_skills: undefined,
+      enabled_skills: ["planning"],
+      persona_preset_id: "preset-1",
+      disabled_mcp_tools: undefined,
+    },
+  );
+});
+
+test("includes plugin session options without writing legacy team_id when a team is selected", () => {
+  assert.deepEqual(
+    buildSubmitChatBody({
+      message: "hello",
+      teamId: "team-1",
+      pluginOptions: { agent_team: { SELECTED_TEAM_ID: "team-1" } },
+    }),
+    {
+      message: "hello",
+      session_id: undefined,
+      agent_options: undefined,
+      attachments: undefined,
+      disabled_skills: undefined,
+      enabled_skills: undefined,
+      persona_preset_id: undefined,
+      disabled_mcp_tools: undefined,
+      plugin_options: { agent_team: { SELECTED_TEAM_ID: "team-1" } },
+    },
+  );
+});
+
+test("keeps legacy team_id only when no plugin session options are supplied", () => {
+  assert.deepEqual(
+    buildSubmitChatBody({
+      message: "hello",
+      teamId: "legacy-team",
+    }),
+    {
+      message: "hello",
+      session_id: undefined,
+      agent_options: undefined,
+      attachments: undefined,
+      disabled_skills: undefined,
+      enabled_skills: undefined,
+      persona_preset_id: undefined,
+      disabled_mcp_tools: undefined,
+      team_id: "legacy-team",
+    },
+  );
+});
+
+test("includes a run-scoped goal in the submit chat body", () => {
+  assert.deepEqual(
+    buildSubmitChatBody({
+      message: "continue",
+      goal: {
+        objective: "finish docs",
+        rubric: "- docs updated",
+        max_iterations: 3,
+      },
+    }),
+    {
+      message: "continue",
+      session_id: undefined,
+      agent_options: undefined,
+      attachments: undefined,
+      disabled_skills: undefined,
+      enabled_skills: undefined,
+      persona_preset_id: undefined,
+      disabled_mcp_tools: undefined,
+      goal: {
+        objective: "finish docs",
+        rubric: "- docs updated",
+        max_iterations: 3,
+      },
+    },
+  );
+});
+
+test("builds session plugin options urls", () => {
+  assert.equal(
+    buildSessionPluginOptionsUrl("session 1"),
+    "/api/sessions/session%201/plugin-options",
+  );
+  assert.equal(
+    buildSessionPluginOptionUrl("session 1", "agent_team", "SELECTED_TEAM_ID"),
+    "/api/sessions/session%201/plugin-options/agent_team/SELECTED_TEAM_ID",
   );
 });
 

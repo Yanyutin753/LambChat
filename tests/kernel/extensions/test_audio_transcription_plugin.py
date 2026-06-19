@@ -23,8 +23,10 @@ def test_audio_transcription_plugin_manifest_preserves_legacy_tool_name(monkeypa
         ("audio_transcribe", ["audio_transcribe"])
     ]
     assert manifest.tools[0].required_permissions == [Permission.MCP_READ.value]
-    assert manifest.frontend.tool_renderers == [
-        "audio_transcription:audio-transcribe"
+    assert manifest.frontend.tool_renderers[0].id == "audio_transcription:audio-transcribe"
+    assert manifest.frontend.tool_renderers[0].tool_names == [
+        "audio_transcription.audio_transcribe",
+        "audio_transcribe",
     ]
     assert manifest.setting_keys() == ["API_KEY", "BASE_URL", "MODEL", "MAX_DOWNLOAD_BYTES"]
     assert "ENABLE_AUDIO_TRANSCRIPTION" in manifest.legacy_setting_keys()

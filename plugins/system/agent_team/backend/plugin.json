@@ -2,13 +2,25 @@
   "schema": "lambchat.plugin.backend.v1",
   "plugin_id": "agent_team",
   "backend": {
-    "routers": [
+    "routes": [
       {
         "name": "agent_team-api",
         "prefix": "/api/teams",
         "module": "src.api.routes.team",
         "required_permissions": ["team:read", "team:write", "team:delete"],
         "tags": ["Teams"]
+      }
+    ],
+    "agents": [
+      {
+        "id": "team",
+        "module": "src.agents.team_agent.graph.TeamAgent",
+        "name": "agents.team.name",
+        "description": "agents.team.description",
+        "icon": "Users",
+        "sort_order": 15,
+        "category": "agent_team:team-builder",
+        "required_permissions": ["team:read"]
       }
     ],
     "tools": [

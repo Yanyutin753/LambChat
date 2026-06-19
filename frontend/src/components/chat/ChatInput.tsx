@@ -220,8 +220,7 @@ export const ChatInput = memo(function ChatInput({
   const pluginShortcutOptions = chatInputOptions.filter(
     (option) => option.shortcut && option.panel && pluginShortcutPanelIds.has(option.panel),
   );
-  const mentionMode: "team" | "persona" =
-    activePluginMentionProvider?.mode === "team" ? "team" : "persona";
+  const mentionMode = activePluginMentionProvider?.mode ?? "persona";
   const mentionEnabled =
     activePluginMentionProvider ? true : !!onUsePersonaPreset;
 

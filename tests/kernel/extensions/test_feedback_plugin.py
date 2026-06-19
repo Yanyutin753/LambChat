@@ -76,10 +76,15 @@ def test_feedback_plugin_manifest_preserves_legacy_api_and_permissions() -> None
         Permission.FEEDBACK_READ.value,
         Permission.FEEDBACK_ADMIN.value,
     ]
-    assert manifest.frontend.routes == ["feedback-route"]
-    assert manifest.frontend.panels == ["feedback-panel"]
-    assert manifest.frontend.nav_items == ["feedback-nav"]
-    assert manifest.frontend.message_actions == ["feedback:message-feedback"]
+    assert manifest.frontend.routes == []
+    assert manifest.frontend.panels == []
+    assert manifest.frontend.nav_items == []
+    assert manifest.frontend.app_tabs[0].path == "/feedback"
+    assert manifest.frontend.app_panels[0].renderer == "feedback.FeedbackPanel"
+    assert manifest.frontend.user_menu_items[0].path == "/feedback"
+    assert [item.id for item in manifest.frontend.message_actions] == ["feedback:message-feedback"]
+    assert manifest.frontend.message_actions[0].target == "assistant_message"
+    assert manifest.frontend.message_actions[0].renderer == "feedback.FeedbackButtons"
 
 
 def test_feedback_plugin_manifest_is_runtime_executable() -> None:
@@ -127,9 +132,9 @@ def test_feedback_plugin_resources_enter_ledger() -> None:
     )
 
     assert (PluginResourceType.BACKEND_ROUTE, "feedback-api") in resource_keys
-    assert (PluginResourceType.FRONTEND_ROUTE, "feedback-route") in resource_keys
-    assert (PluginResourceType.PANEL, "feedback-panel") in resource_keys
-    assert (PluginResourceType.NAV_ITEM, "feedback-nav") in resource_keys
+    assert (PluginResourceType.APP_TAB, "feedback:feedback-tab") in resource_keys
+    assert (PluginResourceType.APP_PANEL, "feedback:feedback-panel") in resource_keys
+    assert (PluginResourceType.USER_MENU_ITEM, "feedback:feedback-nav") in resource_keys
     assert (PluginResourceType.MESSAGE_ACTION, "feedback:message-feedback") in resource_keys
     assert (PluginResourceType.TOOL, "feedback.summary") in resource_keys
     assert (PluginResourceType.PERMISSION, Permission.FEEDBACK_ADMIN.value) in resource_keys

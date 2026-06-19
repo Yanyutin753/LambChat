@@ -35,9 +35,6 @@ test("project plugin options modal is contribution-driven", () => {
   assert.match(modalSource, /if \(option\.effective !== false\) return true/);
   assert.match(modalSource, /return hasStoredValue\(values, option\)/);
   assert.match(modalSource, /const fieldDisabled = saving \|\| inactive/);
-  assert.match(modalSource, /const pluginValues =/);
-  assert.match(modalSource, /pluginValues,/);
-  assert.match(modalSource, /onPluginValueChange/);
   assert.match(modalSource, /for \(const option of visibleOptions\)/);
 });
 
@@ -57,12 +54,4 @@ test("agent team project default team uses a controlled renderer", () => {
   assert.match(rendererSource, /placeholder="Team ID"/);
   assert.match(rendererSource, /teamApi[\s\S]*\.list/);
   assert.match(rendererSource, /if \(!option\.effective\) \{[\s\S]*return;[\s\S]*\}/);
-});
-
-test("workflow workflow project and session options use a controlled workflow renderer", () => {
-  assert.match(rendererSource, /WorkflowPluginSelectOption/);
-  assert.match(rendererSource, /WorkflowPluginVersionSelectOption/);
-  assert.match(rendererSource, /"workflow\.WorkflowSelectOption"/);
-  assert.match(rendererSource, /"workflow\.WorkflowVersionSelectOption"/);
-  assert.match(rendererSource, /inactive=\{!props\.option\.effective\}/);
 });

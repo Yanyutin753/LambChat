@@ -7,6 +7,7 @@ from typing import Any
 from src.agents import ensure_agent_executable
 from src.infra.distributed_validation import validate_distributed_runtime_settings
 from src.infra.logging import get_logger
+from src.kernel.extensions import PluginUnavailableError
 from src.kernel.config import settings
 from src.kernel.extensions import (
     WORKFLOW_PLUGIN_ID,

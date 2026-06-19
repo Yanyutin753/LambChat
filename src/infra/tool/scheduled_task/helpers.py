@@ -9,6 +9,7 @@ from src.infra.user.storage import UserStorage
 from src.kernel.extensions.plugin_options import selected_agent_team_id_from_metadata
 from src.kernel.schemas.scheduled_task import ChannelDeliveryConfig
 from src.kernel.schemas.user import TokenPayload
+from src.kernel.extensions.plugin_options import selected_agent_team_id_from_metadata
 
 logger = get_logger(__name__)
 

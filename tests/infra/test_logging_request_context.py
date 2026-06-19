@@ -11,6 +11,9 @@ from src.kernel.config import settings
 DEFAULT_LOG_FORMAT = type(settings).model_fields["LOG_FORMAT"].default
 
 
+DEFAULT_LOG_FORMAT = type(settings).model_fields["LOG_FORMAT"].default
+
+
 def teardown_function() -> None:
     TraceContext.clear()
     TraceContext.clear_request_context()

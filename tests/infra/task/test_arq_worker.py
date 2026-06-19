@@ -9,12 +9,7 @@ from src.infra.extensions import InMemoryPluginRuntimeStateStorage
 from src.infra.task import arq_worker
 from src.infra.task.exceptions import TaskInterruptedError
 from src.infra.task.status import TaskStatus
-from src.kernel.extensions import (
-    PluginRuntime,
-    PluginRuntimeStatus,
-    build_agent_team_plugin_manifest,
-    build_workflow_plugin_manifest,
-)
+from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 
 
 class _FakePayloadStore:

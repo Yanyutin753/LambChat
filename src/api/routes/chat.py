@@ -24,6 +24,7 @@ from src.infra.async_utils import run_blocking_io
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.extensions import get_plugin_settings_service
 from src.infra.goal import GoalSpec, coerce_goal_spec
+from src.infra.extensions import get_plugin_settings_service
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.session.manager import SessionManager
@@ -44,6 +45,7 @@ from src.kernel.extensions.plugin_options import (
     plugin_id_for_agent,
     plugin_option_from_metadata,
     plugin_session_option_visible_for_agent,
+    selected_agent_team_id_from_metadata,
     with_plugin_option,
 )
 from src.kernel.schemas.agent import AgentRequest
@@ -380,37 +382,13 @@ def _runtime_states_for_project_defaults(runtime) -> list[object]:
     manifests = getattr(runtime, "manifests", None)
     if callable(manifests):
         try:
-            return [
-                type("RuntimeState", (), {"manifest": manifest, "executable": True})()
-                for manifest in manifests(enabled_only=False)
-            ]
+            return [type("RuntimeState", (), {"manifest": manifest, "executable": True})() for manifest in manifests(enabled_only=False)]
         except TypeError:
-            return [
-                type("RuntimeState", (), {"manifest": manifest, "executable": True})()
-                for manifest in manifests()
-            ]
+            return [type("RuntimeState", (), {"manifest": manifest, "executable": True})() for manifest in manifests()]
     get_state = getattr(runtime, "get_state", None)
     if callable(get_state):
-        plugin_ids: list[str] = []
-        for manifest in getattr(runtime, "_manifests", {}).values():
-            if any(option.applies_to_session_key for option in manifest.frontend.project_options):
-                plugin_ids.append(manifest.id)
-        if not plugin_ids:
-            from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
-
-            plugin_ids = [
-                manifest.id
-                for manifest in BUILTIN_PLUGIN_MANIFESTS
-                if any(
-                    option.applies_to_session_key for option in manifest.frontend.project_options
-                )
-            ]
-        result = []
-        for plugin_id in dict.fromkeys(plugin_ids):
-            state = get_state(plugin_id)
-            if state is not None:
-                result.append(state)
-        return result
+        state = get_state(AGENT_TEAM_PLUGIN_ID)
+        return [state] if state is not None else []
     return []
 
 
@@ -423,10 +401,6 @@ def _merge_missing_plugin_options(
         for key, value in values.items():
             if plugin_option_from_metadata(merged, plugin_id=plugin_id, key=key) not in (None, ""):
                 continue
-            if not _can_merge_plugin_option_default(
-                merged["plugin_options"], defaults, plugin_id, key
-            ):
-                continue
             merged = with_plugin_option(
                 merged,
                 plugin_id=plugin_id,
@@ -434,87 +408,6 @@ def _merge_missing_plugin_options(
                 value=value,
             )
     return merged["plugin_options"]
-
-
-def _can_merge_plugin_option_default(
-    current: dict[str, dict[str, object]],
-    defaults: dict[str, dict[str, object]],
-    plugin_id: str,
-    key: str,
-) -> bool:
-    if plugin_id != _WORKFLOW_PLUGIN_ID or key != _WORKFLOW_PLUGIN_VERSION_KEY:
-        return True
-    default_workflow_id = _non_empty_plugin_option(
-        defaults,
-        plugin_id=_WORKFLOW_PLUGIN_ID,
-        key=_WORKFLOW_PLUGIN_ID_KEY,
-    )
-    current_workflow_id = _non_empty_plugin_option(
-        current,
-        plugin_id=_WORKFLOW_PLUGIN_ID,
-        key=_WORKFLOW_PLUGIN_ID_KEY,
-    )
-    if current_workflow_id:
-        return current_workflow_id == default_workflow_id
-    return bool(default_workflow_id)
-
-
-def _non_empty_plugin_option(
-    plugin_options: dict[str, dict[str, object]],
-    *,
-    plugin_id: str,
-    key: str,
-) -> str | None:
-    value = plugin_options.get(plugin_id, {}).get(key)
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
-
-
-def _agent_options_with_plugin_result(
-    agent_options: dict | None,
-    *,
-    plugin_id: str,
-    result: dict,
-) -> dict:
-    merged = dict(agent_options or {})
-    raw_plugin_results = merged.get("_plugin_results")
-    plugin_results = dict(raw_plugin_results) if isinstance(raw_plugin_results, dict) else {}
-    plugin_results[plugin_id] = result
-    merged["_plugin_results"] = plugin_results
-    return merged
-
-
-def apply_existing_session_plugin_options(
-    request: AgentRequest,
-    *,
-    agent_id: str,
-    existing_metadata: dict | None,
-    plugin_runtime=None,
-) -> None:
-    """Inherit saved session plugin options when a follow-up omits them."""
-    if not existing_metadata:
-        return
-    saved_options = declared_plugin_options_from_metadata(
-        plugin_runtime,
-        existing_metadata,
-        scope="session",
-        agent_id=agent_id,
-        executable_only=True,
-    )
-    if saved_options:
-        request.plugin_options = _merge_missing_plugin_options(
-            request.plugin_options,
-            saved_options,
-        )
-    if agent_uses_agent_team_options(agent_id, runtime=plugin_runtime):
-        team_id = plugin_option_from_metadata(
-            {"plugin_options": request.plugin_options or {}},
-            plugin_id=AGENT_TEAM_PLUGIN_ID,
-            key=AGENT_TEAM_SELECTED_TEAM_OPTION,
-        )
-        if isinstance(team_id, str) and team_id.strip():
-            request.team_id = team_id.strip()
 
 
 async def apply_project_plugin_session_defaults(

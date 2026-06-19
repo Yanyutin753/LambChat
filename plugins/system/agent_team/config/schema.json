@@ -1,1 +1,44 @@
-[]
+{
+  "settings": [
+    {
+      "key": "DEFAULT_TEAM_ID",
+      "type": "string",
+      "label": "agentTeam.settings.defaultTeam",
+      "description": "Default Agent Team selected for this project.",
+      "default": "",
+      "scope": "project",
+      "group": "project",
+      "order": 10
+    },
+    {
+      "key": "SELECTED_TEAM_ID",
+      "type": "string",
+      "label": "agentTeam.session.selectedTeam",
+      "description": "Agent Team selected for the current chat session.",
+      "default": "",
+      "scope": "session",
+      "group": "session",
+      "order": 10
+    },
+    {
+      "key": "SELECTED_TEAM_ID",
+      "type": "string",
+      "label": "agentTeam.channel.selectedTeam",
+      "description": "Agent Team selected for plugin-owned channel runs.",
+      "default": "",
+      "scope": "channel",
+      "group": "channel",
+      "order": 10
+    },
+    {
+      "key": "SELECTED_TEAM_ID",
+      "type": "string",
+      "label": "agentTeam.scheduledTask.selectedTeam",
+      "description": "Agent Team selected for plugin-owned scheduled task runs.",
+      "default": "",
+      "scope": "scheduled_task",
+      "group": "scheduled_task",
+      "order": 10
+    }
+  ]
+}

@@ -25,6 +25,13 @@ from src.kernel.schemas.scheduled_task import (
     ScheduledTaskUpdate,
     TriggerType,
 )
+from src.kernel.extensions import (
+    AGENT_TEAM_PLUGIN_ID,
+    PluginManifest,
+    PluginRuntime,
+    PluginUnavailableError,
+    build_agent_team_plugin_manifest,
+)
 
 
 def _make_task(**overrides: Any) -> ScheduledTask:

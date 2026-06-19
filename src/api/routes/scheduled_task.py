@@ -20,6 +20,7 @@ from src.kernel.schemas.scheduled_task import (
     TaskSessionResponse,
 )
 from src.kernel.schemas.user import TokenPayload
+from src.kernel.extensions import PluginUnavailableError
 from src.kernel.types import Permission
 
 router = APIRouter()

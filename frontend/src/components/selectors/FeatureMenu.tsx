@@ -43,7 +43,6 @@ const FILE_CATEGORY_ICONS: Record<FileCategory, React.ElementType> = {
 
 const PLUGIN_OPTION_ICONS: Record<string, React.ElementType> = {
   UsersRound,
-  Workflow,
   Plug,
 };
 

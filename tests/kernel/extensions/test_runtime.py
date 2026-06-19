@@ -124,6 +124,54 @@ def test_plugin_runtime_validates_contribution_namespaces() -> None:
     assert "shared-nav" in state.issues[-1].message
 
 
+def test_plugin_manifest_rejects_foreign_structured_frontend_contribution_id() -> None:
+    with pytest.raises(ValueError, match="owned by plugin feedback"):
+        _plugin(
+            frontend={
+                "message_actions": [
+                    {
+                        "id": "other_plugin:message-action",
+                        "target": "assistant_message",
+                        "renderer": "feedback.FeedbackButtons",
+                    }
+                ]
+            }
+        )
+
+
+def test_plugin_manifest_rejects_foreign_structured_frontend_renderer_reference() -> None:
+    with pytest.raises(ValueError, match="renderers and contribution references must be owned by plugin feedback"):
+        _plugin(
+            frontend={
+                "message_actions": [
+                    {
+                        "id": "feedback:message-action",
+                        "target": "assistant_message",
+                        "renderer": "other_plugin.FeedbackButtons",
+                    }
+                ]
+            }
+        )
+
+
+def test_plugin_manifest_rejects_scoped_option_binding_without_setting() -> None:
+    with pytest.raises(ValueError, match="scheduled_task:SELECTED_TEAM_ID"):
+        _plugin(
+            id="agent_team",
+            name="Agent Team",
+            frontend={
+                "scheduled_task_options": [
+                    {
+                        "key": "SELECTED_TEAM_ID",
+                        "type": "string",
+                        "label": "Selected team",
+                        "legacy_payload_keys": ["team_id"],
+                    }
+                ]
+            },
+        )
+
+
 def test_plugin_runtime_duplicate_ids_enter_error_state() -> None:
     runtime = PluginRuntime(
         [
@@ -156,6 +204,35 @@ def test_plugin_runtime_guard_rejects_missing_disabled_and_error_plugins() -> No
         runtime.ensure_enabled("disabled")
     with pytest.raises(PluginUnavailableError):
         runtime.ensure_enabled("bad")
+
+
+def test_plugin_runtime_guards_plugin_owned_agent_entries() -> None:
+    runtime = PluginRuntime(
+        [
+            _plugin(
+                id="agent_team",
+                name="Agent Team",
+                permissions=["team:read"],
+                agents=[
+                    {
+                        "id": "team",
+                        "module": "src.agents.team_agent.graph.TeamAgent",
+                        "required_permissions": ["team:read"],
+                    }
+                ],
+            )
+        ]
+    )
+
+    assert runtime.plugin_for_agent("team") == "agent_team"
+    assert runtime.ensure_agent_available("team").plugin_id == "agent_team"
+    assert runtime.ensure_agent_available("search") is None
+
+    runtime.disable_plugin("agent_team")
+
+    with pytest.raises(PluginUnavailableError):
+        runtime.ensure_agent_available("team")
+    assert runtime.plugin_for_agent("team") == "agent_team"
 
 
 def test_plugin_runtime_supports_controlled_enable_disable_without_uninstalling() -> None:
@@ -393,6 +470,7 @@ def test_plugin_runtime_filters_and_guards_scheduler_jobs_and_listeners() -> Non
         [
             _plugin(
                 scheduler_jobs=["feedback.sync"],
+                event_listeners=["feedback.package-listener"],
                 resources=[
                     {
                         "id": "feedback.listener",
@@ -408,6 +486,7 @@ def test_plugin_runtime_filters_and_guards_scheduler_jobs_and_listeners() -> Non
                 permissions=["disabled:read"],
                 enabled_by_default=False,
                 scheduler_jobs=["disabled.sync"],
+                event_listeners=["disabled.package-listener"],
                 resources=[
                     {
                         "id": "disabled.listener",
@@ -426,17 +505,23 @@ def test_plugin_runtime_filters_and_guards_scheduler_jobs_and_listeners() -> Non
         "disabled.sync",
     ]
     assert [record.resource_id for record in runtime.listeners()] == [
+        "feedback.package-listener",
         "feedback.listener"
     ]
     assert [record.resource_id for record in runtime.listeners(enabled_only=False)] == [
+        "feedback.package-listener",
         "feedback.listener",
+        "disabled.package-listener",
         "disabled.listener",
     ]
     assert runtime.ensure_scheduler_job_available("feedback.sync").plugin_id == "feedback"
+    assert runtime.ensure_listener_available("feedback.package-listener").plugin_id == "feedback"
     assert runtime.ensure_listener_available("feedback.listener").plugin_id == "feedback"
 
     with pytest.raises(PluginUnavailableError):
         runtime.ensure_scheduler_job_available("disabled.sync")
+    with pytest.raises(PluginUnavailableError):
+        runtime.ensure_listener_available("disabled.package-listener")
     with pytest.raises(PluginUnavailableError):
         runtime.ensure_listener_available("disabled.listener")
 
@@ -447,6 +532,8 @@ def test_plugin_runtime_filters_and_guards_scheduler_jobs_and_listeners() -> Non
     with pytest.raises(PluginUnavailableError):
         runtime.ensure_scheduler_job_available("feedback.sync")
     with pytest.raises(PluginUnavailableError):
+        runtime.ensure_listener_available("feedback.package-listener")
+    with pytest.raises(PluginUnavailableError):
         runtime.ensure_listener_available("feedback.listener")
 
 
@@ -454,7 +541,28 @@ def test_plugin_runtime_builds_resource_ledger_from_manifest_declarations() -> N
     runtime = PluginRuntime(
         [
             _plugin(
-                settings={"feedback:settings": {"enabled": True}},
+                settings=[
+                    {
+                        "key": "DEFAULT_FEEDBACK_VIEW",
+                        "type": "string",
+                        "scope": "project",
+                    },
+                    {
+                        "key": "ACTIVE_FEEDBACK_FILTER",
+                        "type": "string",
+                        "scope": "session",
+                    },
+                    {
+                        "key": "ACTIVE_FEEDBACK_CHANNEL",
+                        "type": "string",
+                        "scope": "channel",
+                    },
+                    {
+                        "key": "ACTIVE_FEEDBACK_TASK",
+                        "type": "string",
+                        "scope": "scheduled_task",
+                    },
+                ],
                 routers=[
                     {
                         "name": "feedback-api",
@@ -472,9 +580,93 @@ def test_plugin_runtime_builds_resource_ledger_from_manifest_declarations() -> N
                     "routes": ["feedback-route"],
                     "panels": ["feedback-panel"],
                     "nav_items": ["feedback-nav"],
+                    "app_tabs": [
+                        {
+                            "id": "feedback:tab",
+                            "tab": "feedback",
+                            "path": "/feedback",
+                        }
+                    ],
+                    "app_panels": [
+                        {
+                            "id": "feedback:panel",
+                            "tab": "feedback",
+                            "renderer": "feedback.Panel",
+                        }
+                    ],
+                    "sidebar_items": [
+                        {
+                            "id": "feedback:sidebar",
+                            "path": "/feedback",
+                            "label": "feedback.nav",
+                        }
+                    ],
+                    "user_menu_items": [
+                        {
+                            "id": "feedback:user-menu",
+                            "path": "/feedback",
+                            "label": "feedback.nav",
+                            "group": "system",
+                        }
+                    ],
+                    "chat_input_options": [
+                        {
+                            "id": "feedback:quick-reply",
+                            "label": "feedback.quickReply",
+                            "panel": "feedback:quick-reply-panel",
+                        }
+                    ],
+                    "chat_input_panels": [
+                        {
+                            "id": "feedback:quick-reply-panel",
+                            "renderer": "feedback.QuickReplyPanel",
+                        }
+                    ],
+                    "mention_providers": [
+                        {
+                            "id": "feedback:mentions",
+                            "mode": "feedback",
+                            "provider": "feedback.search",
+                        }
+                    ],
+                    "agent_categories": [
+                        {
+                            "id": "feedback:agents",
+                            "label": "feedback.agents",
+                        }
+                    ],
+                    "project_options": [
+                        {
+                            "key": "DEFAULT_FEEDBACK_VIEW",
+                            "type": "string",
+                            "label": "feedback.defaultView",
+                        }
+                    ],
+                    "session_options": [
+                        {
+                            "key": "ACTIVE_FEEDBACK_FILTER",
+                            "type": "string",
+                            "label": "feedback.activeFilter",
+                        }
+                    ],
+                    "channel_options": [
+                        {
+                            "key": "ACTIVE_FEEDBACK_CHANNEL",
+                            "type": "string",
+                            "label": "feedback.activeChannel",
+                        }
+                    ],
+                    "scheduled_task_options": [
+                        {
+                            "key": "ACTIVE_FEEDBACK_TASK",
+                            "type": "string",
+                            "label": "feedback.activeTask",
+                        }
+                    ],
                     "i18n_namespaces": ["feedback"],
                 },
                 scheduler_jobs=["feedback-sync"],
+                event_listeners=["feedback-listener"],
                 migrations=["feedback-v1"],
             )
         ]
@@ -500,6 +692,119 @@ def test_plugin_runtime_builds_resource_ledger_from_manifest_declarations() -> N
         resource_type=PluginResourceType.FRONTEND_ROUTE,
         resource_id="feedback-route",
     ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.APP_TAB,
+        resource_id="feedback:tab",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.APP_PANEL,
+        resource_id="feedback:panel",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SIDEBAR_ITEM,
+        resource_id="feedback:sidebar",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.USER_MENU_ITEM,
+        resource_id="feedback:user-menu",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.CHAT_INPUT_OPTION,
+        resource_id="feedback:quick-reply",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.CHAT_INPUT_PANEL,
+        resource_id="feedback:quick-reply-panel",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.MENTION_PROVIDER,
+        resource_id="feedback:mentions",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.AGENT_CATEGORY,
+        resource_id="feedback:agents",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.PROJECT_OPTION,
+        resource_id="feedback.DEFAULT_FEEDBACK_VIEW",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SESSION_OPTION,
+        resource_id="feedback.ACTIVE_FEEDBACK_FILTER",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.CHANNEL_OPTION,
+        resource_id="feedback.ACTIVE_FEEDBACK_CHANNEL",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SCHEDULED_TASK_OPTION,
+        resource_id="feedback.ACTIVE_FEEDBACK_TASK",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.project.DEFAULT_FEEDBACK_VIEW",
+    ).scope.value == "project"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.session.ACTIVE_FEEDBACK_FILTER",
+    ).scope.value == "session"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.channel.ACTIVE_FEEDBACK_CHANNEL",
+    ).scope.value == "channel"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.scheduled_task.ACTIVE_FEEDBACK_TASK",
+    ).scope.value == "scheduled_task"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.LISTENER,
+        resource_id="feedback-listener",
+    ) is not None
+
+
+def test_plugin_runtime_keeps_same_setting_key_distinct_across_scopes() -> None:
+    runtime = PluginRuntime(
+        [
+            _plugin(
+                id="agent_team",
+                name="Agent Team",
+                permissions=["agent_team:read"],
+                settings=[
+                    {"key": "SELECTED_TEAM_ID", "type": "string", "scope": "session"},
+                    {"key": "SELECTED_TEAM_ID", "type": "string", "scope": "channel"},
+                    {"key": "SELECTED_TEAM_ID", "type": "string", "scope": "scheduled_task"},
+                ],
+            )
+        ]
+    )
+
+    setting_records = runtime.resource_ledger.list(
+        plugin_id="agent_team",
+        resource_type=PluginResourceType.SETTING,
+    )
+
+    assert {(record.resource_id, record.scope.value) for record in setting_records} == {
+        ("agent_team.session.SELECTED_TEAM_ID", "session"),
+        ("agent_team.channel.SELECTED_TEAM_ID", "channel"),
+        ("agent_team.scheduled_task.SELECTED_TEAM_ID", "scheduled_task"),
+    }
 
 
 def test_plugin_runtime_resource_conflicts_enter_plugin_error_state() -> None:

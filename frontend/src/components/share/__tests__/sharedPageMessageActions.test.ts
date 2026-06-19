@@ -20,9 +20,19 @@ test("shared page hides feedback and share actions on chat messages", () => {
 
   assert.match(sharedPageSource, /showFeedbackAndShareActions=\{false\}/);
   assert.match(chatMessageSource, /showFeedbackAndShareActions\?: boolean/);
-  assert.match(
-    chatMessageSource,
-    /canUseFeedbackAction &&\s*isAuthenticated &&\s*sessionId &&/,
+  assert.match(chatMessageSource, /buildMessageActionContributions\(runtimePlugins, \{/);
+  assert.match(chatMessageSource, /target: "assistant_message"/);
+  assert.match(chatMessageSource, /MESSAGE_ACTION_RENDERERS/);
+  assert.doesNotMatch(chatMessageSource, /FeedbackButtons/);
+  assert.match(messageActionRenderersSource, /FeedbackButtons/);
+  assert.match(chatMessageSource, /isAuthenticated &&\s*sessionId &&/);
+  assert.doesNotMatch(chatMessageSource, /canUseFeedbackAction/);
+});
+
+test("shared page passes public plugin runtime state into chat messages", () => {
+  const sharedPageSource = readFileSync(
+    resolve(__dirname, "../SharedPage.tsx"),
+    "utf8",
   );
 
   assert.match(sharedPageSource, /useExtensionContributions/);
@@ -34,17 +44,6 @@ test("shared page hides feedback and share actions on chat messages", () => {
   assert.match(sharedPageSource, /runtimePlugins=\{runtimePlugins\}/);
   assert.doesNotMatch(sharedPageSource, /pluginRuntimeApi\.listContributions\(\)/);
   assert.doesNotMatch(sharedPageSource, /setRuntimePlugins/);
-});
-
-test("shared page passes public plugin runtime state into chat messages", () => {
-  const sharedPageSource = readFileSync(
-    resolve(__dirname, "../SharedPage.tsx"),
-    "utf8",
-  );
-
-  assert.match(sharedPageSource, /pluginRuntimeApi\.listContributionStates\(\)/);
-  assert.match(sharedPageSource, /setRuntimePlugins\(response\.plugins\)/);
-  assert.match(sharedPageSource, /runtimePlugins=\{runtimePlugins\}/);
 });
 
 test("shared page shows team identity for shared team sessions", () => {

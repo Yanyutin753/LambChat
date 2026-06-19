@@ -62,9 +62,7 @@ test("team toolbar chip only renders after a team is selected", () => {
     toolbarSource,
     /entry\?\.hasSelection\(selectedPluginRendererProps\(option\)\)/,
   );
-  assert.match(toolbarSource, /const SelectedRenderer = entry\.Component/);
-  assert.match(toolbarSource, /<SelectedRenderer/);
-  assert.doesNotMatch(toolbarSource, /entry\.render\(/);
+  assert.match(toolbarSource, /entry\.render\(/);
   assert.doesNotMatch(toolbarSource, /selectedPluginOptions\.length > 0 && !!selectedTeamId/);
   assert.doesNotMatch(toolbarSource, /onActivePanelChange\("team"\)/);
   assert.doesNotMatch(toolbarSource, /teamPluginPanelId/);
@@ -73,8 +71,7 @@ test("team toolbar chip only renders after a team is selected", () => {
   assert.doesNotMatch(toolbarSource, /text-amber-500/);
   assert.match(chatInputSelectedRenderersSource, /"agent_team\.SelectedTeamChip"/);
   assert.match(chatInputSelectedRenderersSource, /hasSelection/);
-  assert.match(chatInputSelectedRenderersSource, /Component: AgentTeamSelectedChip/);
-  assert.doesNotMatch(chatInputSelectedRenderersSource, /render: AgentTeamSelectedChip/);
+  assert.match(chatInputSelectedRenderersSource, /render: AgentTeamSelectedChip/);
   assert.match(chatInputSelectedRenderersSource, /teamApi/);
   assert.match(chatInputSelectedRenderersSource, /TeamAvatar/);
   assert.match(chatInputSelectedRenderersSource, /getTeamFallbackAvatar/);
@@ -248,8 +245,6 @@ test("assistant message header shows the selected team in team mode", () => {
   assert.match(chatAssistantIdentityRenderersSource, /contributionAgentId/);
   assert.match(chatAssistantIdentityRenderersSource, /contribution\.agentId !== currentAgent/);
   assert.match(chatAssistantIdentityRenderersSource, /agent_team\.TeamAssistantIdentity/);
-  assert.match(chatAssistantIdentityRenderersSource, /const agentTeamIdentity = useAgentTeamIdentity\(context\)/);
-  assert.doesNotMatch(chatAssistantIdentityRenderersSource, /resolver\?\.useIdentity\(context\)/);
   assert.doesNotMatch(chatAssistantIdentityRenderersSource, /selectedTeamId: string \| null/);
   assert.match(chatViewSource, /personaAvatar=\{assistantIdentity\.avatar\}/);
   assert.match(chatViewSource, /personaName=\{assistantIdentity\.name\}/);

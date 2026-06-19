@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   Brain,
+  Star,
   MessageCircle,
   Server,
   Settings,
@@ -16,12 +17,6 @@ import {
 import { Permission } from "../types";
 import type { SettingCategory } from "../types/settings";
 import type { TabType } from "../components/layout/AppContent/types";
-import {
-  FEEDBACK_APP_ROUTE_CONTRIBUTION,
-  FEEDBACK_FRONTEND_PLUGIN_CONTRIBUTIONS,
-  FEEDBACK_MESSAGE_ACTION_CONTRIBUTION,
-  FEEDBACK_USER_MENU_CONTRIBUTION,
-} from "../plugins/feedback/contributions";
 
 export type CoreContributionArea =
   | "app_route"
@@ -31,9 +26,21 @@ export type CoreContributionArea =
   | "settings_section"
   | "tool_renderer"
   | "file_viewer"
+  | "upload_handler"
   | "skill_importer"
   | "channel_connector"
   | "message_action"
+  | "chat_input_option"
+  | "chat_input_panel"
+  | "mention_provider"
+  | "welcome_surface"
+  | "assistant_identity_resolver"
+  | "agent_catalog_entry"
+  | "agent_category"
+  | "project_option"
+  | "session_option"
+  | "channel_option"
+  | "scheduled_task_option"
   | "plugin_asset_slot"
   | "i18n_namespace";
 
@@ -56,6 +63,7 @@ export interface CorePanelContribution {
   id: Exclude<TabType, "chat">;
   pluginId?: string;
   tab: Exclude<TabType, "chat">;
+  renderer?: string;
   area: "panel";
 }
 
@@ -100,6 +108,15 @@ export interface CoreFileViewerContribution {
   area: "file_viewer";
 }
 
+export interface CoreUploadHandlerContribution {
+  id: string;
+  pluginId: string;
+  accept: readonly string[];
+  maxBytes?: number | null;
+  handler?: string | null;
+  area: "upload_handler";
+}
+
 export interface CoreSkillImporterContribution {
   id: string;
   source: "github" | "zip";
@@ -110,14 +127,288 @@ export interface CoreChannelConnectorContribution {
   id: string;
   pluginId: string;
   channelType: string;
+  panelRenderer?: string | null;
   area: "channel_connector";
 }
 
 export interface CoreMessageActionContribution {
   id: string;
   pluginId: string;
-  action: "feedback";
+  target: "assistant_message" | "user_message" | "tool_result" | "shared_message" | string;
+  renderer: string;
+  order: number;
+  permissions?: string[];
+  visibleWhen?: PluginContributionVisibleWhen | null;
   area: "message_action";
+}
+
+export interface PluginContributionVisibilityContext {
+  agentId?: string | null;
+  route?: string | null;
+  scope?: string | null;
+  permissions?: readonly string[];
+}
+
+export interface PluginMessageActionContext extends PluginContributionVisibilityContext {
+  target?: CoreMessageActionContribution["target"];
+}
+
+interface PluginContributionVisibleWhen {
+  agent_id?: string | null;
+  route?: string | null;
+  scope?: string | null;
+  permissions?: string[];
+}
+
+export interface PluginOptionBindingContribution {
+  pluginId: string;
+  key: string;
+  scope: string;
+}
+
+interface PluginRuntimeAppTab {
+  id: string;
+  tab: string;
+  path: string;
+  label?: string;
+  panel?: string | null;
+  order: number;
+  insert_after?: string | null;
+  permissions?: string[];
+  seo_title?: string;
+  seo_description?: string;
+  redirect_to?: string | null;
+  show_no_permission_toast?: boolean;
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
+interface PluginRuntimeAppPanel {
+  id: string;
+  tab: string;
+  renderer: string;
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
+interface PluginRuntimeSidebarItem {
+  id: string;
+  path: string;
+  label: string;
+  icon: string;
+  order: number;
+  permissions?: string[];
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
+interface PluginRuntimeUserMenuItem extends PluginRuntimeSidebarItem {
+  group: "admin" | "system";
+}
+
+interface PluginRuntimeMessageAction {
+  id: string;
+  target?: string;
+  renderer: string;
+  order?: number;
+  permissions?: string[];
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
+interface PluginRuntimeToolRenderer {
+  id: string;
+  tool_names?: string[];
+}
+
+interface PluginRuntimeFileViewer {
+  id: string;
+  extensions?: string[];
+}
+
+interface PluginRuntimeUploadHandler {
+  id: string;
+  accept?: string[];
+  max_bytes?: number | null;
+  handler?: string | null;
+}
+
+interface PluginRuntimeSkillImporter {
+  id: string;
+  source: "github" | "zip";
+}
+
+interface PluginRuntimeChannelConnector {
+  id: string;
+  channel_type: string;
+  panel_renderer?: string | null;
+}
+
+export interface CoreChatInputOptionContribution {
+  id: string;
+  pluginId: string;
+  slot: "enhance" | "settings" | "upload" | string;
+  label: string;
+  icon: string;
+  panel?: string | null;
+  selectedRenderer?: string | null;
+  suppressesCorePersonaSelector: boolean;
+  shortcut?: string | null;
+  order: number;
+  optionBinding?: PluginOptionBindingContribution | null;
+  visibleWhen?: PluginContributionVisibleWhen | null;
+  area: "chat_input_option";
+}
+
+export interface CoreChatInputPanelContribution {
+  id: string;
+  pluginId: string;
+  renderer: string;
+  createPath?: string | null;
+  managePath?: string | null;
+  optionBinding?: PluginOptionBindingContribution | null;
+  visibleWhen?: PluginContributionVisibleWhen | null;
+  area: "chat_input_panel";
+}
+
+export interface CoreMentionProviderContribution {
+  id: string;
+  pluginId: string;
+  trigger: string;
+  mode: string;
+  provider: string;
+  optionBinding?: PluginOptionBindingContribution | null;
+  visibleWhen?: PluginContributionVisibleWhen | null;
+  area: "mention_provider";
+}
+
+export interface CoreWelcomeSurfaceContribution {
+  id: string;
+  pluginId: string;
+  agentId: string;
+  renderer: string;
+  order: number;
+  optionBinding?: PluginOptionBindingContribution | null;
+  visibleWhen?: PluginContributionVisibleWhen | null;
+  area: "welcome_surface";
+}
+
+export interface CoreAssistantIdentityResolverContribution {
+  id: string;
+  pluginId: string;
+  agentId: string;
+  resolver: string;
+  order: number;
+  optionBinding?: PluginOptionBindingContribution | null;
+  visibleWhen?: PluginContributionVisibleWhen | null;
+  area: "assistant_identity_resolver";
+}
+
+export interface CoreAgentCategoryContribution {
+  id: string;
+  pluginId: string;
+  label: string;
+  description: string;
+  icon: string;
+  order: number;
+  visibleWhen?: PluginContributionVisibleWhen | null;
+  area: "agent_category";
+}
+
+export interface CoreAgentCatalogEntryContribution {
+  id: string;
+  pluginId: string;
+  name: string;
+  description: string;
+  icon: string;
+  category?: string | null;
+  order: number;
+  sortOrder: number;
+  requiredPermissions: readonly string[];
+  area: "agent_catalog_entry";
+}
+
+interface PluginRuntimeAgent {
+  id: string;
+  module?: string;
+  name?: string;
+  description?: string;
+  icon?: string;
+  sort_order?: number;
+  category?: string | null;
+  required_permissions?: string[];
+}
+
+export interface CoreScopedPluginOptionContribution {
+  id: string;
+  pluginId: string;
+  pluginEnabled: boolean;
+  effective: boolean;
+  pluginStatus: string;
+  key: string;
+  type: "string" | "text" | "number" | "boolean" | "select" | "json" | string;
+  label: string;
+  description: string;
+  defaultValue?: unknown;
+  group: string;
+  order: number;
+  options?: string[] | null;
+  jsonSchema?: Record<string, unknown> | null;
+  renderer?: string | null;
+  suppressesCorePersonaSelector: boolean;
+  legacyPayloadKeys: readonly string[];
+  appliesToSessionKey?: string | null;
+  visibleWhen?: PluginContributionVisibleWhen | null;
+  area: "project_option" | "session_option" | "channel_option" | "scheduled_task_option";
+}
+
+interface PluginRuntimeAgentCategory {
+  id: string;
+  label: string;
+  description?: string;
+  icon: string;
+  order: number;
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
+interface PluginRuntimeAssistantIdentityResolver {
+  id: string;
+  agent_id: string;
+  resolver: string;
+  order: number;
+  option_binding?: PluginRuntimeOptionBinding | null;
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
+interface PluginRuntimeScopedOption {
+  key: string;
+  type: string;
+  label: string;
+  description?: string;
+  default?: unknown;
+  group?: string;
+  order: number;
+  options?: string[] | null;
+  json_schema?: Record<string, unknown> | null;
+  renderer?: string | null;
+  suppresses_core_persona_selector?: boolean;
+  legacy_payload_keys?: string[];
+  applies_to_session_key?: string | null;
+  visible_when?: PluginContributionVisibleWhen | null;
+}
+
+interface PluginRuntimeOptionBinding {
+  plugin_id?: string | null;
+  key: string;
+  scope?: string;
+}
+
+function optionBindingFromRuntime(
+  pluginId: string,
+  binding: PluginRuntimeOptionBinding | null | undefined,
+): PluginOptionBindingContribution | null {
+  if (!binding?.key) return null;
+  return {
+    pluginId: binding.plugin_id || pluginId,
+    key: binding.key,
+    scope: binding.scope || "session",
+  };
 }
 
 export interface CoreI18nNamespaceContribution {
@@ -137,26 +428,12 @@ export interface CorePluginAssetSlotContribution {
   area: "plugin_asset_slot";
 }
 
-export interface BuiltinPluginToolRendererContribution
-  extends CoreToolRendererContribution {
-  pluginId: string;
-}
-
-export interface BuiltinPluginFileViewerContribution
-  extends CoreFileViewerContribution {
-  pluginId: string;
-}
-
-export interface BuiltinPluginSkillImporterContribution
-  extends CoreSkillImporterContribution {
-  pluginId: string;
-}
-
 export interface PluginRuntimeContributionState {
   plugin_id: string;
   enabled: boolean;
   executable: boolean;
   status: string;
+  agents?: PluginRuntimeAgent[];
   tools?: Array<{
     name: string;
     legacy_ids?: string[];
@@ -165,13 +442,61 @@ export interface PluginRuntimeContributionState {
     routes?: string[];
     panels?: string[];
     nav_items?: string[];
-    tool_renderers?: string[];
-    file_viewers?: string[];
-    skill_importers?: string[];
-    channel_connectors?: string[];
-    message_actions?: string[];
+    app_tabs?: PluginRuntimeAppTab[];
+    app_panels?: PluginRuntimeAppPanel[];
+    sidebar_items?: PluginRuntimeSidebarItem[];
+    user_menu_items?: PluginRuntimeUserMenuItem[];
+    tool_renderers?: Array<string | PluginRuntimeToolRenderer>;
+    file_viewers?: Array<string | PluginRuntimeFileViewer>;
+    upload_handlers?: Array<string | PluginRuntimeUploadHandler>;
+    skill_importers?: Array<string | PluginRuntimeSkillImporter>;
+    channel_connectors?: Array<string | PluginRuntimeChannelConnector>;
+    message_actions?: Array<string | PluginRuntimeMessageAction>;
+    chat_input_options?: Array<{
+      id: string;
+      slot: string;
+      label: string;
+      icon: string;
+      panel?: string | null;
+      selected_renderer?: string | null;
+      suppresses_core_persona_selector?: boolean;
+      shortcut?: string | null;
+      order: number;
+      option_binding?: PluginRuntimeOptionBinding | null;
+      visible_when?: PluginContributionVisibleWhen | null;
+    }>;
+    chat_input_panels?: Array<{
+      id: string;
+      renderer: string;
+      create_path?: string | null;
+      manage_path?: string | null;
+      option_binding?: PluginRuntimeOptionBinding | null;
+      visible_when?: PluginContributionVisibleWhen | null;
+    }>;
+    mention_providers?: Array<{
+      id: string;
+      trigger: string;
+      mode: string;
+      provider: string;
+      option_binding?: PluginRuntimeOptionBinding | null;
+      visible_when?: PluginContributionVisibleWhen | null;
+    }>;
+    welcome_surfaces?: Array<{
+      id: string;
+      agent_id: string;
+      renderer: string;
+      order: number;
+      option_binding?: PluginRuntimeOptionBinding | null;
+      visible_when?: PluginContributionVisibleWhen | null;
+    }>;
+    assistant_identity_resolvers?: PluginRuntimeAssistantIdentityResolver[];
+    agent_categories?: PluginRuntimeAgentCategory[];
+    project_options?: PluginRuntimeScopedOption[];
+    session_options?: PluginRuntimeScopedOption[];
+    channel_options?: PluginRuntimeScopedOption[];
+    scheduled_task_options?: PluginRuntimeScopedOption[];
     i18n_namespaces?: string[];
-  };
+  } | null;
   package?: {
     frontend_assets?: {
       plugin_id: string;
@@ -197,6 +522,17 @@ export interface PluginContributionSnapshot {
   skillImporters: readonly string[];
   channelConnectors: readonly string[];
   messageActions: readonly string[];
+  chatInputOptions: readonly string[];
+  chatInputPanels: readonly string[];
+  mentionProviders: readonly string[];
+  welcomeSurfaces: readonly string[];
+  assistantIdentityResolvers: readonly string[];
+  agentCatalogEntries: readonly string[];
+  agentCategories: readonly string[];
+  projectOptions: readonly string[];
+  sessionOptions: readonly string[];
+  channelOptions: readonly string[];
+  scheduledTaskOptions: readonly string[];
   pluginAssetSlots: readonly string[];
   i18nNamespaces: readonly string[];
 }
@@ -360,57 +696,6 @@ export const CORE_PANEL_CONTRIBUTIONS: readonly CorePanelContribution[] =
     area: "panel" as const,
   }));
 
-export const BUILTIN_PLUGIN_APP_ROUTES: readonly CoreAppRouteContribution[] = [
-  FEEDBACK_APP_ROUTE_CONTRIBUTION,
-  {
-    id: "team",
-    pluginId: "agent_team",
-    insertAfterId: "agents",
-    path: "/team",
-    seoTitle: "seo.team.title",
-    seoDescription: "seo.team.description",
-    tab: "team",
-    permissions: [Permission.TEAM_READ],
-    area: "app_route",
-  },
-  {
-    id: "usage",
-    pluginId: "usage_reports",
-    insertAfterId: "scheduled-tasks",
-    path: "/usage",
-    seoTitle: "seo.usage.title",
-    seoDescription: "seo.usage.description",
-    tab: "usage",
-    permissions: [Permission.USAGE_READ],
-    redirectTo: "/chat",
-    showNoPermissionToast: true,
-    area: "app_route",
-  },
-];
-
-const BUILTIN_PLUGIN_APP_ROUTE_BY_CONTRIBUTION_ID: Readonly<
-  Record<string, CoreAppRouteContribution>
-> = {
-  "feedback-route": FEEDBACK_APP_ROUTE_CONTRIBUTION,
-  "agent_team:team-route": BUILTIN_PLUGIN_APP_ROUTES.find(
-    (route) => route.id === "team",
-  )!,
-  "usage_reports:usage-route": BUILTIN_PLUGIN_APP_ROUTES.find(
-    (route) => route.id === "usage",
-  )!,
-};
-
-export const BUILTIN_PLUGIN_PANEL_CONTRIBUTIONS: readonly CorePanelContribution[] =
-  BUILTIN_PLUGIN_APP_ROUTES.map((route) => ({
-    id: route.id,
-    tab: route.tab,
-    area: "panel" as const,
-  }));
-
-export const BUILTIN_PLUGIN_MESSAGE_ACTIONS: readonly CoreMessageActionContribution[] = [
-  FEEDBACK_MESSAGE_ACTION_CONTRIBUTION,
-];
-
 export const APP_ROUTE_CONTRIBUTIONS: readonly CoreAppRouteContribution[] = [
   ...buildAppRouteContributions(),
 ] as const;
@@ -469,25 +754,6 @@ export const CORE_SIDEBAR_MORE_NAV: readonly CoreSidebarNavContribution[] = [
   },
 ];
 
-export const BUILTIN_PLUGIN_SIDEBAR_MORE_NAV: readonly CoreSidebarNavContribution[] = [
-  {
-    id: "team",
-    pluginId: "agent_team",
-    path: "/team",
-    labelKey: "nav.team",
-    fallbackLabel: "团队构建",
-    icon: Users,
-    requiredAnyPermissions: [Permission.TEAM_READ],
-    area: "sidebar_more_menu",
-  },
-];
-
-const BUILTIN_PLUGIN_SIDEBAR_MORE_NAV_BY_CONTRIBUTION_ID: Readonly<
-  Record<string, CoreSidebarNavContribution>
-> = {
-  "agent_team:team-nav": BUILTIN_PLUGIN_SIDEBAR_MORE_NAV[0],
-};
-
 export const CORE_USER_MENU_ITEMS: readonly CoreUserMenuContribution[] = [
   {
     id: "users",
@@ -536,56 +802,170 @@ export const CORE_USER_MENU_ITEMS: readonly CoreUserMenuContribution[] = [
   },
 ];
 
-export const BUILTIN_PLUGIN_USER_MENU_ITEMS: readonly CoreUserMenuContribution[] = [
-  FEEDBACK_USER_MENU_CONTRIBUTION,
-  {
-    id: "usage",
-    pluginId: "usage_reports",
-    path: "/usage",
-    labelKey: "nav.usage",
-    icon: BarChart3,
-    requiredAnyPermissions: [Permission.USAGE_READ],
-    group: "system",
-    area: "user_menu",
-  },
-];
-
-const BUILTIN_PLUGIN_USER_MENU_BY_CONTRIBUTION_ID: Readonly<
-  Record<string, CoreUserMenuContribution>
-> = {
-  "feedback-nav": FEEDBACK_USER_MENU_CONTRIBUTION,
-  "usage_reports:usage-menu": BUILTIN_PLUGIN_USER_MENU_ITEMS.find(
-    (item) => item.id === "usage",
-  )!,
-};
-
-export { FEEDBACK_FRONTEND_PLUGIN_CONTRIBUTIONS };
-
 export const USER_MENU_CONTRIBUTIONS: readonly CoreUserMenuContribution[] = [
   ...buildUserMenuContributions(),
 ] as const;
 
-function isBuiltinPluginContributionEnabled(
-  pluginId: string,
-  runtimePlugins: PluginRuntimeContributionStates,
-): boolean {
-  if (!runtimePlugins) return true;
-  const runtimePlugin = runtimePlugins.find((plugin) => plugin.plugin_id === pluginId);
-  return Boolean(runtimePlugin?.enabled && runtimePlugin.executable);
+export function isRuntimePluginExecutable(plugin: PluginRuntimeContributionState): boolean {
+  return Boolean(plugin.enabled && plugin.executable);
 }
 
-function filterBuiltinPluginContributions<T extends { id: string }>(
-  contributions: readonly T[],
+export function isRuntimePluginExecutableById(
   runtimePlugins: PluginRuntimeContributionStates,
-): T[] {
-  return contributions.filter((contribution) =>
-    isBuiltinPluginContributionEnabled(
-      "pluginId" in contribution && typeof contribution.pluginId === "string"
-        ? contribution.pluginId
-        : contribution.id,
-      runtimePlugins,
-    ),
-  );
+  pluginId: string,
+): boolean {
+  const plugin = runtimePlugins?.find((item) => item.plugin_id === pluginId);
+  return plugin ? isRuntimePluginExecutable(plugin) : false;
+}
+
+function matchesVisibleWhen(
+  visibleWhen: PluginContributionVisibleWhen | null | undefined,
+  context?: PluginContributionVisibilityContext,
+): boolean {
+  if (!visibleWhen) return true;
+  if (
+    visibleWhen.agent_id &&
+    visibleWhen.agent_id !== (context?.agentId ?? null)
+  ) {
+    return false;
+  }
+  if (visibleWhen.route && visibleWhen.route !== (context?.route ?? null)) {
+    return false;
+  }
+  if (visibleWhen.scope && visibleWhen.scope !== (context?.scope ?? null)) {
+    return false;
+  }
+  if (visibleWhen.permissions?.length) {
+    const available = new Set(context?.permissions ?? []);
+    return visibleWhen.permissions.every((permission) => available.has(permission));
+  }
+  return true;
+}
+
+function sortByOrderThenId<T extends { order?: number; id: string }>(items: T[]): T[] {
+  return items.sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || a.id.localeCompare(b.id));
+}
+
+function asKnownTab(tab: string): Exclude<TabType, "chat"> | null {
+  const normalized = tab.trim();
+  if (!normalized || normalized === "chat") return null;
+  return normalized as Exclude<TabType, "chat">;
+}
+
+function asPermissionValues(values: readonly string[] | undefined): Permission[] | undefined {
+  if (!values?.length) return undefined;
+  return values as Permission[];
+}
+
+function iconByName(name: string): LucideIcon {
+  const icons: Record<string, LucideIcon> = {
+    BarChart3,
+    Plug,
+    Star,
+    Users,
+  };
+  return icons[name] ?? Plug;
+}
+
+function menuIdFromPath(path: string, fallbackId: string, pluginId: string): string {
+  const normalized = path.replace(/^\/+/, "").split(/[/?#]/)[0];
+  return normalized || unqualifiedContributionId(fallbackId, pluginId);
+}
+
+function routeFromRuntimeAppTab(
+  plugin: PluginRuntimeContributionState,
+  tab: PluginRuntimeAppTab,
+): CoreAppRouteContribution | null {
+  const knownTab = asKnownTab(tab.tab);
+  if (!knownTab) return null;
+  return {
+    id: knownTab,
+    pluginId: plugin.plugin_id,
+    insertAfterId: tab.insert_after ? asKnownTab(tab.insert_after) ?? undefined : undefined,
+    path: tab.path,
+    seoTitle: tab.seo_title || `seo.${knownTab}.title`,
+    seoDescription: tab.seo_description || `seo.${knownTab}.description`,
+    tab: knownTab,
+    permissions: asPermissionValues(tab.permissions),
+    redirectTo: tab.redirect_to ?? undefined,
+    showNoPermissionToast: Boolean(tab.show_no_permission_toast),
+    area: "app_route",
+  };
+}
+
+function panelFromRuntimeAppPanel(
+  plugin: PluginRuntimeContributionState,
+  panel: PluginRuntimeAppPanel,
+): CorePanelContribution | null {
+  const knownTab = asKnownTab(panel.tab);
+  if (!knownTab) return null;
+  return {
+    id: knownTab,
+    pluginId: plugin.plugin_id,
+    tab: knownTab,
+    renderer: panel.renderer,
+    area: "panel",
+  };
+}
+
+function sidebarItemFromRuntime(
+  plugin: PluginRuntimeContributionState,
+  item: PluginRuntimeSidebarItem,
+): CoreSidebarNavContribution {
+  return {
+    id: menuIdFromPath(item.path, item.id, plugin.plugin_id),
+    pluginId: plugin.plugin_id,
+    path: item.path,
+    labelKey: item.label,
+    icon: iconByName(item.icon),
+    requiredAnyPermissions: asPermissionValues(item.permissions),
+    area: "sidebar_more_menu",
+  };
+}
+
+function userMenuItemFromRuntime(
+  plugin: PluginRuntimeContributionState,
+  item: PluginRuntimeUserMenuItem,
+): CoreUserMenuContribution {
+  return {
+    id: menuIdFromPath(item.path, item.id, plugin.plugin_id),
+    pluginId: plugin.plugin_id,
+    path: item.path,
+    labelKey: item.label,
+    icon: iconByName(item.icon),
+    requiredAnyPermissions: asPermissionValues(item.permissions) ?? [],
+    group: item.group,
+    area: "user_menu",
+  };
+}
+
+function scopedOptionFromRuntime(
+  plugin: PluginRuntimeContributionState,
+  option: PluginRuntimeScopedOption,
+  area: "project_option" | "session_option" | "channel_option" | "scheduled_task_option",
+): CoreScopedPluginOptionContribution {
+  return {
+    id: `${plugin.plugin_id}.${option.key}`,
+    pluginId: plugin.plugin_id,
+    pluginEnabled: Boolean(plugin.enabled),
+    effective: isRuntimePluginExecutable(plugin),
+    pluginStatus: plugin.status,
+    key: option.key,
+    type: option.type,
+    label: option.label,
+    description: option.description ?? "",
+    defaultValue: option.default,
+    group: option.group ?? "general",
+    order: option.order,
+    options: option.options,
+    jsonSchema: option.json_schema,
+    renderer: option.renderer,
+    suppressesCorePersonaSelector: Boolean(option.suppresses_core_persona_selector),
+    legacyPayloadKeys: option.legacy_payload_keys ?? [],
+    appliesToSessionKey: option.applies_to_session_key,
+    visibleWhen: option.visible_when,
+    area,
+  };
 }
 
 export function buildAppRouteContributions(
@@ -594,13 +974,15 @@ export function buildAppRouteContributions(
   const pluginRoutes = runtimePlugins
     ? runtimePlugins.flatMap((plugin) => {
         if (!plugin.enabled || !plugin.executable) return [];
-        return (plugin.frontend?.routes ?? []).flatMap((routeId) => {
-          const route = BUILTIN_PLUGIN_APP_ROUTE_BY_CONTRIBUTION_ID[routeId];
-          if (!route) return [];
-          return [route];
-        });
+        const structuredRoutes = sortByOrderThenId(
+          (plugin.frontend?.app_tabs ?? []).flatMap((tab) => {
+            const route = routeFromRuntimeAppTab(plugin, tab);
+            return route ? [route] : [];
+          }),
+        );
+        return structuredRoutes;
       })
-    : filterBuiltinPluginContributions(BUILTIN_PLUGIN_APP_ROUTES, runtimePlugins);
+    : [];
   return CORE_APP_ROUTES.reduce<CoreAppRouteContribution[]>((routes, coreRoute) => {
     routes.push(coreRoute);
     routes.push(
@@ -618,21 +1000,25 @@ export function buildPanelContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
 ): readonly CorePanelContribution[] {
   if (runtimePlugins) {
-    const declaredPanelIds = new Set(
-      runtimePlugins.flatMap((plugin) =>
-        plugin.enabled && plugin.executable ? (plugin.frontend?.panels ?? []) : [],
-      ),
-    );
+    const structuredPanels = runtimePlugins.flatMap((plugin) => {
+      if (!plugin.enabled || !plugin.executable) return [];
+      return (plugin.frontend?.app_panels ?? []).flatMap((panel) => {
+        const contribution = panelFromRuntimeAppPanel(plugin, panel);
+        return contribution ? [contribution] : [];
+      });
+    });
+    if (structuredPanels.length) {
+      const byTab = new Map(structuredPanels.map((panel) => [panel.tab, panel]));
+      return buildAppRouteContributions(runtimePlugins).flatMap((route) => {
+        if (!route.pluginId) {
+          return [{ id: route.id, tab: route.tab, area: "panel" as const }];
+        }
+        const panel = byTab.get(route.tab);
+        return panel ? [panel] : [];
+      });
+    }
     return buildAppRouteContributions(runtimePlugins)
-      .filter((route) => {
-        if (!route.pluginId) return true;
-        return declaredPanelIds.has(`${route.pluginId}:${route.id}-panel`) ||
-          declaredPanelIds.has(`${route.pluginId}:${route.id}`) ||
-          declaredPanelIds.has(`${route.pluginId}:${route.tab}-panel`) ||
-          declaredPanelIds.has(`${route.pluginId}:${route.tab}`) ||
-          declaredPanelIds.has(route.id) ||
-          declaredPanelIds.has(`${route.id}-panel`);
-      })
+      .filter((route) => !route.pluginId)
       .map((route) => ({
         id: route.id,
         tab: route.tab,
@@ -652,13 +1038,14 @@ export function buildUserMenuContributions(
   const pluginMenuItems = runtimePlugins
     ? runtimePlugins.flatMap((plugin) => {
         if (!plugin.enabled || !plugin.executable) return [];
-        return (plugin.frontend?.nav_items ?? []).flatMap((itemId) => {
-          const item = BUILTIN_PLUGIN_USER_MENU_BY_CONTRIBUTION_ID[itemId];
-          if (!item) return [];
-          return [item];
-        });
+        const structuredItems = sortByOrderThenId(
+          (plugin.frontend?.user_menu_items ?? [])
+            .filter((item) => matchesVisibleWhen(item.visible_when))
+            .map((item) => userMenuItemFromRuntime(plugin, item)),
+        );
+        return structuredItems;
       })
-    : filterBuiltinPluginContributions(BUILTIN_PLUGIN_USER_MENU_ITEMS, runtimePlugins);
+    : [];
   return [
     ...CORE_USER_MENU_ITEMS.slice(0, 3),
     ...pluginMenuItems,
@@ -672,13 +1059,14 @@ export function buildSidebarMoreNavContributions(
   const pluginNavItems = runtimePlugins
     ? runtimePlugins.flatMap((plugin) => {
         if (!plugin.enabled || !plugin.executable) return [];
-        return (plugin.frontend?.nav_items ?? []).flatMap((itemId) => {
-          const item = BUILTIN_PLUGIN_SIDEBAR_MORE_NAV_BY_CONTRIBUTION_ID[itemId];
-          if (!item) return [];
-          return [item];
-        });
+        const structuredItems = sortByOrderThenId(
+          (plugin.frontend?.sidebar_items ?? [])
+            .filter((item) => matchesVisibleWhen(item.visible_when))
+            .map((item) => sidebarItemFromRuntime(plugin, item)),
+        );
+        return structuredItems;
       })
-    : filterBuiltinPluginContributions(BUILTIN_PLUGIN_SIDEBAR_MORE_NAV, runtimePlugins);
+    : [];
   return [
     ...CORE_SIDEBAR_MORE_NAV.slice(0, 1),
     ...pluginNavItems,
@@ -688,6 +1076,7 @@ export function buildSidebarMoreNavContributions(
 
 function snapshotContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
 ): PluginContributionSnapshot {
   return {
     appRoutes: buildAppRouteContributions(runtimePlugins).map(
@@ -715,6 +1104,40 @@ function snapshotContributions(
     messageActions: buildMessageActionContributions(runtimePlugins).map(
       (action) => action.id,
     ),
+    chatInputOptions: buildChatInputOptionContributions(runtimePlugins, context).map(
+      (option) => option.id,
+    ),
+    chatInputPanels: buildChatInputPanelContributions(runtimePlugins, context).map(
+      (panel) => panel.id,
+    ),
+    mentionProviders: buildMentionProviderContributions(runtimePlugins, context).map(
+      (provider) => provider.id,
+    ),
+    welcomeSurfaces: buildWelcomeSurfaceContributions(runtimePlugins, context).map(
+      (surface) => surface.id,
+    ),
+    assistantIdentityResolvers: buildAssistantIdentityResolverContributions(
+      runtimePlugins,
+      context,
+    ).map((resolver) => resolver.id),
+    agentCatalogEntries: buildAgentCatalogEntryContributions(runtimePlugins).map(
+      (entry) => entry.id,
+    ),
+    agentCategories: buildAgentCategoryContributions(runtimePlugins).map(
+      (category) => category.id,
+    ),
+    projectOptions: buildProjectOptionContributions(runtimePlugins, context).map(
+      (option) => option.id,
+    ),
+    sessionOptions: buildSessionOptionContributions(runtimePlugins, context).map(
+      (option) => option.id,
+    ),
+    channelOptions: buildChannelOptionContributions(runtimePlugins, context).map(
+      (option) => option.id,
+    ),
+    scheduledTaskOptions: buildScheduledTaskOptionContributions(runtimePlugins, context).map(
+      (option) => option.id,
+    ),
     pluginAssetSlots: buildPluginAssetSlotContributions(runtimePlugins).map(
       (slot) => slot.id,
     ),
@@ -735,8 +1158,9 @@ function removedValues(
 export function buildPluginContributionPreview(
   pluginId: string,
   runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
 ): PluginContributionPreview {
-  const current = snapshotContributions(runtimePlugins);
+  const current = snapshotContributions(runtimePlugins, context);
   const states = runtimePlugins ? [...runtimePlugins] : [];
   const existingIndex = states.findIndex((plugin) => plugin.plugin_id === pluginId);
   const disabledState: PluginRuntimeContributionState = {
@@ -752,7 +1176,7 @@ export function buildPluginContributionPreview(
     states.push(disabledState);
   }
 
-  const simulatedDisabled = snapshotContributions(states);
+  const simulatedDisabled = snapshotContributions(states, context);
   return {
     current,
     simulatedDisabled,
@@ -783,6 +1207,50 @@ export function buildPluginContributionPreview(
       messageActions: removedValues(
         current.messageActions,
         simulatedDisabled.messageActions,
+      ),
+      chatInputOptions: removedValues(
+        current.chatInputOptions,
+        simulatedDisabled.chatInputOptions,
+      ),
+      chatInputPanels: removedValues(
+        current.chatInputPanels,
+        simulatedDisabled.chatInputPanels,
+      ),
+      mentionProviders: removedValues(
+        current.mentionProviders,
+        simulatedDisabled.mentionProviders,
+      ),
+      welcomeSurfaces: removedValues(
+        current.welcomeSurfaces,
+        simulatedDisabled.welcomeSurfaces,
+      ),
+      assistantIdentityResolvers: removedValues(
+        current.assistantIdentityResolvers,
+        simulatedDisabled.assistantIdentityResolvers,
+      ),
+      agentCatalogEntries: removedValues(
+        current.agentCatalogEntries,
+        simulatedDisabled.agentCatalogEntries,
+      ),
+      agentCategories: removedValues(
+        current.agentCategories,
+        simulatedDisabled.agentCategories,
+      ),
+      projectOptions: removedValues(
+        current.projectOptions,
+        simulatedDisabled.projectOptions,
+      ),
+      sessionOptions: removedValues(
+        current.sessionOptions,
+        simulatedDisabled.sessionOptions,
+      ),
+      channelOptions: removedValues(
+        current.channelOptions,
+        simulatedDisabled.channelOptions,
+      ),
+      scheduledTaskOptions: removedValues(
+        current.scheduledTaskOptions,
+        simulatedDisabled.scheduledTaskOptions,
       ),
       pluginAssetSlots: removedValues(
         current.pluginAssetSlots,
@@ -817,7 +1285,6 @@ const CORE_SETTING_CATEGORIES = [
   "sandbox",
   "skills",
   "tools",
-  "audio_transcription",
   "tracing",
   "user",
   "oauth",
@@ -871,150 +1338,24 @@ export const CORE_TOOL_RENDERERS: readonly CoreToolRendererContribution[] = [
   { id: "search-tools", toolNames: ["search_tools"], area: "tool_renderer" },
 ];
 
-export const BUILTIN_PLUGIN_TOOL_RENDERERS: readonly BuiltinPluginToolRendererContribution[] = [
-  {
-    id: "agent-team",
-    pluginId: "agent_team",
-    toolNames: ["search_persona_presets", "create_agent_team"],
-    area: "tool_renderer",
-  },
-  {
-    id: "image-generate",
-    pluginId: "image_generation",
-    toolNames: ["image_generate"],
-    area: "tool_renderer",
-  },
-  {
-    id: "audio-transcribe",
-    pluginId: "audio_transcription",
-    toolNames: ["audio_transcribe"],
-    area: "tool_renderer",
-  },
-];
-
-export const BUILTIN_PLUGIN_FILE_VIEWERS: readonly BuiltinPluginFileViewerContribution[] = [
-  {
-    id: "pdf",
-    pluginId: "advanced_file_viewers",
-    extensions: ["pdf"],
-    area: "file_viewer",
-  },
-  {
-    id: "ppt",
-    pluginId: "advanced_file_viewers",
-    extensions: ["ppt", "pptx"],
-    area: "file_viewer",
-  },
-  {
-    id: "word",
-    pluginId: "advanced_file_viewers",
-    extensions: ["docx"],
-    area: "file_viewer",
-  },
-  {
-    id: "excel",
-    pluginId: "advanced_file_viewers",
-    extensions: ["xls", "xlsx", "csv"],
-    area: "file_viewer",
-  },
-  {
-    id: "cad",
-    pluginId: "advanced_file_viewers",
-    extensions: ["dxf", "dwg"],
-    area: "file_viewer",
-  },
-  {
-    id: "excalidraw",
-    pluginId: "advanced_file_viewers",
-    extensions: ["excalidraw"],
-    area: "file_viewer",
-  },
-  {
-    id: "html",
-    pluginId: "advanced_file_viewers",
-    extensions: ["html", "htm"],
-    area: "file_viewer",
-  },
-  {
-    id: "markdown",
-    pluginId: "advanced_file_viewers",
-    extensions: ["md", "markdown"],
-    area: "file_viewer",
-  },
-  {
-    id: "code",
-    pluginId: "advanced_file_viewers",
-    extensions: ["*"],
-    area: "file_viewer",
-  },
-];
-
-const BUILTIN_PLUGIN_FILE_VIEWER_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
-  pdf: ["pdf"],
-  ppt: ["ppt", "pptx"],
-  word: ["docx"],
-  excel: ["xls", "xlsx", "csv"],
-  cad: ["dxf", "dwg"],
-  excalidraw: ["excalidraw"],
-  html: ["html", "htm"],
-  markdown: ["md", "markdown"],
-  code: ["*"],
-};
-
-const BUILTIN_PLUGIN_SKILL_IMPORTER_SOURCES: Readonly<
-  Record<string, CoreSkillImporterContribution["source"]>
-> = {
-  "github-import": "github",
-};
-
-const BUILTIN_PLUGIN_CHANNEL_CONNECTOR_TYPES: Readonly<Record<string, string>> = {
-  feishu: "feishu",
-};
-
-const BUILTIN_PLUGIN_MESSAGE_ACTION_BY_ID: Readonly<
-  Record<string, CoreMessageActionContribution>
-> = {
-  "feedback:message-feedback": FEEDBACK_MESSAGE_ACTION_CONTRIBUTION,
-};
-
-export const BUILTIN_PLUGIN_SKILL_IMPORTERS: readonly BuiltinPluginSkillImporterContribution[] = [
-  {
-    id: "github-import",
-    pluginId: "github_installer",
-    source: "github",
-    area: "skill_importer",
-  },
-];
-
-export const BUILTIN_PLUGIN_CHANNEL_CONNECTORS: readonly CoreChannelConnectorContribution[] = [
-  {
-    id: "feishu_connector:feishu",
-    pluginId: "feishu_connector",
-    channelType: "feishu",
-    area: "channel_connector",
-  },
-];
-
-export const BUILTIN_PLUGIN_I18N_NAMESPACES: readonly CoreI18nNamespaceContribution[] = [
-  {
-    id: "advanced_file_viewers:documents",
-    pluginId: "advanced_file_viewers",
-    namespace: "advanced_file_viewers:documents",
-    area: "i18n_namespace",
-  },
-  {
-    id: "github_installer:skills",
-    pluginId: "github_installer",
-    namespace: "github_installer:skills",
-    area: "i18n_namespace",
-  },
-  {
-    id: "feishu_connector:channels",
-    pluginId: "feishu_connector",
-    namespace: "feishu_connector:channels",
-    area: "i18n_namespace",
-  },
-];
+function runtimeMessageActionToContribution(
+  plugin: PluginRuntimeContributionState,
+  action: string | PluginRuntimeMessageAction,
+): CoreMessageActionContribution | null {
+  if (typeof action === "string") {
+    return null;
+  }
+  return {
+    id: action.id,
+    pluginId: plugin.plugin_id,
+    target: action.target ?? "assistant_message",
+    renderer: action.renderer,
+    order: action.order ?? 100,
+    permissions: action.permissions,
+    visibleWhen: action.visible_when,
+    area: "message_action" as const,
+  };
+}
 
 export function buildToolRendererContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
@@ -1024,25 +1365,18 @@ export function buildToolRendererContributions(
       ...CORE_TOOL_RENDERERS,
       ...runtimePlugins.flatMap((plugin) => {
         if (!plugin.enabled || !plugin.executable) return [];
-        const rendererIds = plugin.frontend?.tool_renderers ?? [];
-        const toolNames = plugin.tools?.flatMap((tool) => [
-          tool.name,
-          ...(tool.legacy_ids ?? []),
-        ]) ?? [];
-        return rendererIds.map((qualifiedId) => ({
-          id: unqualifiedContributionId(qualifiedId, plugin.plugin_id),
-          toolNames,
-          area: "tool_renderer" as const,
-        }));
+        return (plugin.frontend?.tool_renderers ?? []).flatMap((renderer) => {
+          if (typeof renderer === "string") return [];
+          return {
+            id: unqualifiedContributionId(renderer.id, plugin.plugin_id),
+            toolNames: renderer.tool_names ?? [],
+            area: "tool_renderer" as const,
+          };
+        });
       }),
     ];
   }
-  return [
-    ...CORE_TOOL_RENDERERS,
-    ...BUILTIN_PLUGIN_TOOL_RENDERERS.filter((renderer) =>
-      isBuiltinPluginContributionEnabled(renderer.pluginId, runtimePlugins),
-    ),
-  ];
+  return CORE_TOOL_RENDERERS;
 }
 
 export function buildFileViewerContributions(
@@ -1051,13 +1385,13 @@ export function buildFileViewerContributions(
   if (runtimePlugins) {
     return runtimePlugins.flatMap((plugin) => {
       if (!plugin.enabled || !plugin.executable) return [];
-      return (plugin.frontend?.file_viewers ?? []).flatMap((qualifiedId) => {
-        const id = unqualifiedContributionId(qualifiedId, plugin.plugin_id);
-        const extensions = BUILTIN_PLUGIN_FILE_VIEWER_EXTENSIONS[id];
-        if (!extensions) return [];
+      return (plugin.frontend?.file_viewers ?? []).flatMap((viewer) => {
+        if (typeof viewer === "string") return [];
+        const extensions = viewer.extensions ?? [];
+        if (extensions.length === 0) return [];
         return [
           {
-            id,
+            id: unqualifiedContributionId(viewer.id, plugin.plugin_id),
             extensions,
             area: "file_viewer" as const,
           },
@@ -1065,9 +1399,31 @@ export function buildFileViewerContributions(
       });
     });
   }
-  return BUILTIN_PLUGIN_FILE_VIEWERS.filter((viewer) =>
-    isBuiltinPluginContributionEnabled(viewer.pluginId, runtimePlugins),
-  );
+  return [];
+}
+
+export function buildUploadHandlerContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+): readonly CoreUploadHandlerContribution[] {
+  if (runtimePlugins) {
+    return runtimePlugins.flatMap((plugin) => {
+      if (!plugin.enabled || !plugin.executable) return [];
+      return (plugin.frontend?.upload_handlers ?? []).flatMap((handler) => {
+        if (typeof handler === "string") return [];
+        return [
+          {
+            id: handler.id,
+            pluginId: plugin.plugin_id,
+            accept: handler.accept ?? [],
+            maxBytes: handler.max_bytes ?? null,
+            handler: handler.handler ?? null,
+            area: "upload_handler" as const,
+          },
+        ];
+      });
+    });
+  }
+  return [];
 }
 
 function unqualifiedContributionId(value: string, pluginId: string): string {
@@ -1081,23 +1437,19 @@ export function buildSkillImporterContributions(
   if (runtimePlugins) {
     return runtimePlugins.flatMap((plugin) => {
       if (!plugin.enabled || !plugin.executable) return [];
-      return (plugin.frontend?.skill_importers ?? []).flatMap((qualifiedId) => {
-        const id = unqualifiedContributionId(qualifiedId, plugin.plugin_id);
-        const source = BUILTIN_PLUGIN_SKILL_IMPORTER_SOURCES[id];
-        if (!source) return [];
+      return (plugin.frontend?.skill_importers ?? []).flatMap((importer) => {
+        if (typeof importer === "string") return [];
         return [
           {
-            id,
-            source,
+            id: unqualifiedContributionId(importer.id, plugin.plugin_id),
+            source: importer.source,
             area: "skill_importer" as const,
           },
         ];
       });
     });
   }
-  return BUILTIN_PLUGIN_SKILL_IMPORTERS.filter((importer) =>
-    isBuiltinPluginContributionEnabled(importer.pluginId, runtimePlugins),
-  );
+  return [];
 }
 
 export function buildChannelConnectorContributions(
@@ -1106,41 +1458,338 @@ export function buildChannelConnectorContributions(
   if (runtimePlugins) {
     return runtimePlugins.flatMap((plugin) => {
       if (!plugin.enabled || !plugin.executable) return [];
-      return (plugin.frontend?.channel_connectors ?? []).flatMap((qualifiedId) => {
-        const id = unqualifiedContributionId(qualifiedId, plugin.plugin_id);
-        const channelType = BUILTIN_PLUGIN_CHANNEL_CONNECTOR_TYPES[id];
+      return (plugin.frontend?.channel_connectors ?? []).flatMap((connector) => {
+        if (typeof connector === "string") return [];
+        const channelType = connector.channel_type;
         if (!channelType) return [];
         return [
           {
-            id: qualifiedId,
+            id: connector.id,
             pluginId: plugin.plugin_id,
             channelType,
+            panelRenderer: connector.panel_renderer ?? null,
             area: "channel_connector" as const,
           },
         ];
       });
     });
   }
-  return BUILTIN_PLUGIN_CHANNEL_CONNECTORS.filter((connector) =>
-    isBuiltinPluginContributionEnabled(connector.pluginId, runtimePlugins),
-  );
+  return [];
 }
 
 export function buildMessageActionContributions(
   runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginMessageActionContext,
 ): readonly CoreMessageActionContribution[] {
+  const matchesContext = (action: CoreMessageActionContribution) => {
+    if (context?.target && action.target !== context.target) return false;
+    return matchesVisibleWhen(action.visibleWhen, context);
+  };
   if (runtimePlugins) {
-    return runtimePlugins.flatMap((plugin) => {
+    return sortByOrderThenId(runtimePlugins.flatMap((plugin) => {
       if (!plugin.enabled || !plugin.executable) return [];
-      return (plugin.frontend?.message_actions ?? []).flatMap((actionId) => {
-        const action = BUILTIN_PLUGIN_MESSAGE_ACTION_BY_ID[actionId];
-        if (!action) return [];
-        return [action];
+      return (plugin.frontend?.message_actions ?? []).flatMap((action) => {
+        const contribution = runtimeMessageActionToContribution(plugin, action);
+        return contribution && matchesContext(contribution) ? [contribution] : [];
       });
-    });
+    }));
   }
-  return BUILTIN_PLUGIN_MESSAGE_ACTIONS.filter((action) =>
-    isBuiltinPluginContributionEnabled(action.pluginId, runtimePlugins),
+  return [];
+}
+
+export function buildChatInputOptionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreChatInputOptionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.chat_input_options ?? []).flatMap((option) => {
+        if (!matchesVisibleWhen(option.visible_when, context)) return [];
+        return [
+          {
+            id: option.id,
+            pluginId: plugin.plugin_id,
+            slot: option.slot,
+            label: option.label,
+            icon: option.icon,
+            panel: option.panel,
+            selectedRenderer: option.selected_renderer,
+            suppressesCorePersonaSelector: Boolean(
+              option.suppresses_core_persona_selector,
+            ),
+            shortcut: option.shortcut,
+            order: option.order,
+            optionBinding: optionBindingFromRuntime(
+              plugin.plugin_id,
+              option.option_binding,
+            ),
+            visibleWhen: option.visible_when,
+            area: "chat_input_option" as const,
+          },
+        ];
+      });
+    }),
+  );
+}
+
+export function buildChatInputPanelContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreChatInputPanelContribution[] {
+  if (!runtimePlugins) return [];
+  return runtimePlugins.flatMap((plugin) => {
+    if (!isRuntimePluginExecutable(plugin)) return [];
+    return (plugin.frontend?.chat_input_panels ?? []).flatMap((panel) => {
+      if (!matchesVisibleWhen(panel.visible_when, context)) return [];
+      return [
+          {
+            id: panel.id,
+            pluginId: plugin.plugin_id,
+            renderer: panel.renderer,
+            createPath: panel.create_path,
+            managePath: panel.manage_path,
+            optionBinding: optionBindingFromRuntime(
+              plugin.plugin_id,
+              panel.option_binding,
+            ),
+            visibleWhen: panel.visible_when,
+            area: "chat_input_panel" as const,
+          },
+      ];
+    });
+  });
+}
+
+export function buildMentionProviderContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreMentionProviderContribution[] {
+  if (!runtimePlugins) return [];
+  return runtimePlugins.flatMap((plugin) => {
+    if (!isRuntimePluginExecutable(plugin)) return [];
+    return (plugin.frontend?.mention_providers ?? []).flatMap((provider) => {
+      if (!matchesVisibleWhen(provider.visible_when, context)) return [];
+      return [
+        {
+          id: provider.id,
+          pluginId: plugin.plugin_id,
+          trigger: provider.trigger,
+          mode: provider.mode,
+          provider: provider.provider,
+          optionBinding: optionBindingFromRuntime(
+            plugin.plugin_id,
+            provider.option_binding,
+          ),
+          visibleWhen: provider.visible_when,
+          area: "mention_provider" as const,
+        },
+      ];
+    });
+  });
+}
+
+export function buildWelcomeSurfaceContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreWelcomeSurfaceContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.welcome_surfaces ?? []).flatMap((surface) => {
+        if (!matchesVisibleWhen(surface.visible_when, context)) return [];
+        return [
+          {
+            id: surface.id,
+            pluginId: plugin.plugin_id,
+            agentId: surface.agent_id,
+            renderer: surface.renderer,
+            order: surface.order,
+            optionBinding: optionBindingFromRuntime(
+              plugin.plugin_id,
+              surface.option_binding,
+            ),
+            visibleWhen: surface.visible_when,
+            area: "welcome_surface" as const,
+          },
+        ];
+      });
+    }),
+  );
+}
+
+export function buildAssistantIdentityResolverContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreAssistantIdentityResolverContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.assistant_identity_resolvers ?? []).flatMap((resolver) => {
+        if (context && !matchesVisibleWhen(resolver.visible_when, context)) return [];
+        return [
+          {
+            id: resolver.id,
+            pluginId: plugin.plugin_id,
+            agentId: resolver.agent_id,
+            resolver: resolver.resolver,
+            order: resolver.order,
+            optionBinding: optionBindingFromRuntime(
+              plugin.plugin_id,
+              resolver.option_binding,
+            ),
+            visibleWhen: resolver.visible_when,
+            area: "assistant_identity_resolver" as const,
+          },
+        ];
+      });
+    }),
+  );
+}
+
+export function findAssistantIdentityResolverContribution(
+  resolverId: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): CoreAssistantIdentityResolverContribution | undefined {
+  return buildAssistantIdentityResolverContributions(runtimePlugins, context).find(
+    (resolver) => resolver.id === resolverId || resolver.resolver === resolverId,
+  );
+}
+
+export function buildAgentCategoryContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreAgentCategoryContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.agent_categories ?? []).flatMap((category) => {
+        if (!matchesVisibleWhen(category.visible_when, context)) return [];
+        return [
+          {
+            id: category.id,
+            pluginId: plugin.plugin_id,
+            label: category.label,
+            description: category.description ?? "",
+            icon: category.icon,
+            order: category.order,
+            visibleWhen: category.visible_when,
+            area: "agent_category" as const,
+          },
+        ];
+      });
+    }),
+  );
+}
+
+export function buildAgentCatalogEntryContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+): readonly CoreAgentCatalogEntryContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.agents ?? []).map((agent) => ({
+        id: agent.id,
+        pluginId: plugin.plugin_id,
+        name: agent.name ?? agent.id,
+        description: agent.description ?? "",
+        icon: agent.icon ?? "Bot",
+        category: agent.category ?? null,
+        order: agent.sort_order ?? 100,
+        sortOrder: agent.sort_order ?? 100,
+        requiredPermissions: agent.required_permissions ?? [],
+        area: "agent_catalog_entry" as const,
+      }));
+    }),
+  );
+}
+
+export function findAgentCatalogEntryContribution(
+  agentId: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): CoreAgentCatalogEntryContribution | undefined {
+  return buildAgentCatalogEntryContributions(runtimePlugins).find(
+    (entry) => entry.id === agentId,
+  );
+}
+
+export function hasAgentCatalogEntryContribution(
+  agentId: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): boolean {
+  return findAgentCatalogEntryContribution(agentId, runtimePlugins) !== undefined;
+}
+
+export function buildProjectOptionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+  options?: { includeInactive?: boolean },
+): readonly CoreScopedPluginOptionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!options?.includeInactive && !isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.project_options ?? []).flatMap((option) => {
+        if (!matchesVisibleWhen(option.visible_when, context)) return [];
+        return [scopedOptionFromRuntime(plugin, option, "project_option")];
+      });
+    }),
+  );
+}
+
+export function buildSessionOptionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+): readonly CoreScopedPluginOptionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.session_options ?? []).flatMap((option) => {
+        if (!matchesVisibleWhen(option.visible_when, context)) return [];
+        return [scopedOptionFromRuntime(plugin, option, "session_option")];
+      });
+    }),
+  );
+}
+
+export function buildChannelOptionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+  options?: { includeInactive?: boolean },
+): readonly CoreScopedPluginOptionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!options?.includeInactive && !isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.channel_options ?? []).flatMap((option) => {
+        if (!matchesVisibleWhen(option.visible_when, context)) return [];
+        return [scopedOptionFromRuntime(plugin, option, "channel_option")];
+      });
+    }),
+  );
+}
+
+export function buildScheduledTaskOptionContributions(
+  runtimePlugins?: PluginRuntimeContributionStates,
+  context?: PluginContributionVisibilityContext,
+  options?: { includeInactive?: boolean },
+): readonly CoreScopedPluginOptionContribution[] {
+  if (!runtimePlugins) return [];
+  return sortByOrderThenId(
+    runtimePlugins.flatMap((plugin) => {
+      if (!options?.includeInactive && !isRuntimePluginExecutable(plugin)) return [];
+      return (plugin.frontend?.scheduled_task_options ?? []).flatMap((option) => {
+        if (!matchesVisibleWhen(option.visible_when, context)) return [];
+        return [scopedOptionFromRuntime(plugin, option, "scheduled_task_option")];
+      });
+    }),
   );
 }
 
@@ -1158,9 +1807,7 @@ export function buildI18nNamespaceContributions(
       }));
     });
   }
-  return BUILTIN_PLUGIN_I18N_NAMESPACES.filter((namespace) =>
-    isBuiltinPluginContributionEnabled(namespace.pluginId, runtimePlugins),
-  );
+  return [];
 }
 
 export function buildPluginAssetSlotContributions(
@@ -1192,6 +1839,29 @@ export function hasChannelConnectorContribution(
   );
 }
 
+export function findChannelConnectorContribution(
+  channelType: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): CoreChannelConnectorContribution | undefined {
+  return buildChannelConnectorContributions(runtimePlugins).find(
+    (connector) => connector.channelType === channelType,
+  );
+}
+
+export function hasRuntimeManagedChannelConnector(
+  channelType: string,
+  runtimePlugins?: PluginRuntimeContributionStates,
+): boolean {
+  return Boolean(
+    runtimePlugins?.some((plugin) =>
+      (plugin.frontend?.channel_connectors ?? []).some(
+        (connector) =>
+          typeof connector !== "string" && connector.channel_type === channelType,
+      ),
+    ),
+  );
+}
+
 export function hasFileViewerContribution(
   viewerId: string,
   runtimePlugins?: PluginRuntimeContributionStates,
@@ -1211,11 +1881,12 @@ export function hasSkillImporterContribution(
 }
 
 export function hasMessageActionContribution(
-  action: CoreMessageActionContribution["action"],
+  actionIdOrPluginId: string,
   runtimePlugins?: PluginRuntimeContributionStates,
 ): boolean {
   return buildMessageActionContributions(runtimePlugins).some(
-    (contribution) => contribution.action === action,
+    (contribution) =>
+      contribution.id === actionIdOrPluginId || contribution.pluginId === actionIdOrPluginId,
   );
 }
 
@@ -1246,9 +1917,10 @@ export function findCoreAppRoute(
 
 export function findAppRouteContribution(
   tab: TabType,
+  runtimePlugins?: PluginRuntimeContributionStates,
 ): CoreAppRouteContribution | undefined {
   if (tab === "chat") return undefined;
-  return APP_ROUTE_CONTRIBUTIONS.find((route) => route.tab === tab);
+  return buildAppRouteContributions(runtimePlugins).find((route) => route.tab === tab);
 }
 
 export function findCorePanelContribution(
@@ -1260,9 +1932,10 @@ export function findCorePanelContribution(
 
 export function findPanelContribution(
   tab: TabType,
+  runtimePlugins?: PluginRuntimeContributionStates,
 ): CorePanelContribution | undefined {
   if (tab === "chat") return undefined;
-  return PANEL_CONTRIBUTIONS.find((panel) => panel.tab === tab);
+  return buildPanelContributions(runtimePlugins).find((panel) => panel.tab === tab);
 }
 
 export function getCoreToolRenderer(

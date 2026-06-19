@@ -34,20 +34,6 @@ def plugin_option_from_metadata(
     return plugin_options_from_metadata(metadata).get(plugin_id, {}).get(key)
 
 
-def plugin_result_from_agent_options(
-    agent_options: dict[str, Any] | None,
-    *,
-    plugin_id: str,
-) -> Any:
-    """Return one structured plugin result from runtime agent options."""
-    if not isinstance(agent_options, dict):
-        return None
-    plugin_results = agent_options.get("_plugin_results")
-    if not isinstance(plugin_results, dict):
-        return None
-    return plugin_results.get(plugin_id)
-
-
 def filter_declared_plugin_options(
     runtime: Any,
     metadata: dict[str, Any] | None,
@@ -73,7 +59,9 @@ def filter_declared_plugin_options(
         if manifest is None:
             continue
         declared_keys = _declared_option_keys_for_scope(manifest, scope)
-        plugin_values = {key: value for key, value in values.items() if key in declared_keys}
+        plugin_values = {
+            key: value for key, value in values.items() if key in declared_keys
+        }
         if plugin_values:
             filtered[plugin_id] = plugin_values
     return filtered
@@ -270,9 +258,7 @@ def _option_visible_for_agent(option: Any, agent_id: str | None) -> bool:
 def _declared_option_keys_for_scope(manifest: Any, scope: str) -> set[str]:
     declared: set[str] = set()
     declared.update(
-        option.key
-        for option in _frontend_options_for_scope(manifest, scope)
-        if getattr(option, "key", None)
+        option.key for option in _frontend_options_for_scope(manifest, scope) if getattr(option, "key", None)
     )
     declared.update(
         setting.key
@@ -340,9 +326,7 @@ def plugin_agent_ids(
         if getattr(manifest, "id", None) != normalized_plugin_id:
             continue
         agent_ids.extend(
-            agent.id
-            for agent in getattr(manifest, "agents", []) or []
-            if getattr(agent, "id", None)
+            agent.id for agent in getattr(manifest, "agents", []) or [] if getattr(agent, "id", None)
         )
     return agent_ids
 
@@ -365,9 +349,7 @@ def agent_uses_agent_team_options(
     manifests: Any = None,
 ) -> bool:
     """Return whether an agent should consume Agent Team scoped options."""
-    return (
-        plugin_id_for_agent(agent_id, runtime=runtime, manifests=manifests) == AGENT_TEAM_PLUGIN_ID
-    )
+    return plugin_id_for_agent(agent_id, runtime=runtime, manifests=manifests) == AGENT_TEAM_PLUGIN_ID
 
 
 def plugin_session_option_visible_for_agent(
@@ -492,13 +474,7 @@ def with_plugin_option(
 
 
 def _validate_plugin_option_path(*, plugin_id: str, key: str) -> None:
-    if not plugin_id or any(
-        part in {"", ".", ".."} for part in plugin_id.replace("\\", "/").split("/")
-    ):
+    if not plugin_id or any(part in {"", ".", ".."} for part in plugin_id.replace("\\", "/").split("/")):
         raise ValueError("plugin_id must be a safe plugin id")
-    if (
-        not key
-        or "." in key
-        or any(part in {"", ".", ".."} for part in key.replace("\\", "/").split("/"))
-    ):
+    if not key or "." in key or any(part in {"", ".", ".."} for part in key.replace("\\", "/").split("/")):
         raise ValueError("plugin option key must be a safe plugin-local key")

@@ -204,10 +204,15 @@ test("empty plugin option declarations do not suppress core persona payload", ()
         pluginOptionDeclarations: [],
       },
     ),
-  ).toEqual({
-    message: "run",
-    persona_preset_id: "persona-1",
-  });
+    {
+      message: "run",
+      persona_preset_id: "persona-1",
+      plugin_options: {
+        agent_team: { SELECTED_TEAM_ID: "team-old" },
+        another_plugin: { KEEP: true },
+      },
+    },
+  );
 });
 
 test("plugin option declarations suppress core persona only when requested", () => {

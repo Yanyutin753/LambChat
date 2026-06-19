@@ -20,13 +20,9 @@ test("plugin-owned app panels are not core panel fallbacks", () => {
   assert.doesNotMatch(corePanelComponents, /\bfeedback:\s*FeedbackPanel/);
   assert.doesNotMatch(corePanelComponents, /\bteam:\s*TeamBuilderPanel/);
   assert.doesNotMatch(corePanelComponents, /\busage:\s*UsagePanel/);
-  assert.doesNotMatch(corePanelComponents, /\bworkflows:\s*WorkflowPanel/);
-  assert.doesNotMatch(corePanelComponents, /\b"workflows-editor":\s*WorkflowPanel/);
-  assert.doesNotMatch(corePanelComponents, /\b"workflows-run":\s*WorkflowPanel/);
 
   assert.match(pluginPanelRenderers, /"feedback\.FeedbackPanel":\s*FeedbackPanel/);
   assert.match(pluginPanelRenderers, /"agent_team\.TeamBuilderPanel":\s*TeamBuilderPanel/);
-  assert.match(pluginPanelRenderers, /"workflow\.WorkflowPanel":\s*WorkflowPanel/);
   assert.match(pluginPanelRenderers, /"usage_reports\.UsagePanel":\s*UsagePanel/);
   assert.match(tabContentSource, /buildPanelContributions\(runtimePlugins\)/);
 });
@@ -46,15 +42,4 @@ test("core agents panel receives runtime plugin state for plugin-owned agent cat
   assert.match(tabContentSource, /if \(activeTab === "agents"\)/);
   assert.match(tabContentSource, /RuntimeAwareAgentModelPanel/);
   assert.match(tabContentSource, /<RuntimeAwareAgentModelPanel runtimePlugins=\{runtimePlugins\}/);
-});
-
-test("workflow plugin panels receive route mode instead of becoming core pages", () => {
-  assert.match(
-    tabContentSource,
-    /activeTab === "workflows" \|\| activeTab === "workflows-editor" \|\| activeTab === "workflows-run"/,
-  );
-  assert.match(tabContentSource, /WorkflowAwarePanel/);
-  assert.match(tabContentSource, /<WorkflowAwarePanel activeTab=\{activeTab\}/);
-  assert.doesNotMatch(tabContentSource, /if \(activeTab === "workflows-editor"\)[\s\S]*<Panel \/>/);
-  assert.doesNotMatch(tabContentSource, /if \(activeTab === "workflows-run"\)[\s\S]*<Panel \/>/);
 });

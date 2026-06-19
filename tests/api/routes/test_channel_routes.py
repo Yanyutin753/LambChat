@@ -6,12 +6,16 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import channels as channels_route
+from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
 from src.infra.channel.feishu import registration as feishu_registration
 from src.kernel.extensions import (
+    AGENT_TEAM_PLUGIN_ID,
     FEISHU_CONNECTOR_PLUGIN_ID,
     PluginRuntime,
+    build_agent_team_plugin_manifest,
     build_feishu_connector_plugin_manifest,
 )
+from src.kernel.extensions.manifest import PluginManifest
 from src.kernel.schemas.channel import ChannelConfigCreate, ChannelConfigUpdate, ChannelType
 
 
@@ -35,10 +39,10 @@ class _FakeRegistry:
     def get_channel_metadata(self):
         return [
             {
-                "channel_type": "feishu",
-                "display_name": "Feishu",
-                "description": "Feishu channel",
-                "icon": "feishu",
+                "channel_type": self._channel_type,
+                "display_name": self._channel_type.title(),
+                "description": f"{self._channel_type} channel",
+                "icon": self._channel_type,
                 "capabilities": [],
                 "config_schema": {},
                 "requires_webhook": False,
@@ -220,9 +224,42 @@ class _FakePersonaManager:
         return SimpleNamespace(id=preset_id)
 
 
+def _memory_plugin_settings(monkeypatch: pytest.MonkeyPatch) -> PluginSettingsService:
+    service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
+    monkeypatch.setattr(channels_route, "_get_plugin_settings_service", lambda _request=None: service)
+    return service
+
+
 def _disabled_feishu_runtime():
     runtime = PluginRuntime([build_feishu_connector_plugin_manifest()])
     runtime.disable_plugin(FEISHU_CONNECTOR_PLUGIN_ID)
+    return runtime
+
+
+def _disabled_alternate_feishu_runtime():
+    manifest = PluginManifest(
+        id="alternate_feishu_connector",
+        name="Alternate Feishu Connector",
+        version="1.0.0",
+        api_version="v1",
+        frontend={
+            "channel_connectors": [
+                {
+                    "id": "alternate_feishu_connector:feishu",
+                    "channel_type": "feishu",
+                    "panel_renderer": "alternate_feishu_connector.FeishuPanel",
+                }
+            ]
+        },
+    )
+    runtime = PluginRuntime([manifest])
+    runtime.disable_plugin("alternate_feishu_connector")
+    return runtime
+
+
+def _disabled_agent_team_runtime():
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin(AGENT_TEAM_PLUGIN_ID)
     return runtime
 
 
@@ -234,6 +271,19 @@ async def test_channel_types_hide_feishu_when_connector_is_disabled(
 
     response = await channels_route.get_channel_types(
         plugin_runtime=_disabled_feishu_runtime()
+    )
+
+    assert [channel.channel_type.value for channel in response.types] == []
+
+
+@pytest.mark.asyncio
+async def test_channel_types_hide_any_plugin_declared_connector_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    response = await channels_route.get_channel_types(
+        plugin_runtime=_disabled_alternate_feishu_runtime()
     )
 
     assert [channel.channel_type.value for channel in response.types] == []
@@ -257,6 +307,26 @@ async def test_feishu_channel_operations_fail_closed_when_connector_is_disabled(
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail["error"] == "plugin_unavailable"
     assert exc_info.value.detail["plugin_id"] == FEISHU_CONNECTOR_PLUGIN_ID
+
+
+@pytest.mark.asyncio
+async def test_channel_operations_report_declaring_connector_plugin_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await channels_route.list_channel_instances(
+            ChannelType.FEISHU,
+            plugin_runtime=_disabled_alternate_feishu_runtime(),
+            user=SimpleNamespace(sub="user-1"),
+            storage=storage,
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error"] == "plugin_unavailable"
+    assert exc_info.value.detail["plugin_id"] == "alternate_feishu_connector"
 
 
 @pytest.mark.asyncio

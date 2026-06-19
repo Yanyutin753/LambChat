@@ -27,7 +27,7 @@ EXTENSION_HOST_SLOTS: tuple[ExtensionHostSlot, ...] = (
         id="app.route",
         manifest_key="app_tabs",
         area="app_route",
-        description="Top-level plugin application route such as /feedback, /agent-team, or /usage.",
+        description="Top-level plugin application route such as /feedback, /team, or /usage.",
         disabled_behavior="Route and navigation entry are omitted from executable contributions.",
         supports_visible_when=True,
     ),
@@ -365,45 +365,24 @@ CONTROLLED_FRONTEND_REFERENCES: dict[str, frozenset[str]] = {
     "app_panels.renderer": frozenset(
         {
             "agent_team.TeamBuilderPanel",
-            "workflow.WorkflowPanel",
             "feedback.FeedbackPanel",
             "usage_reports.UsagePanel",
         }
     ),
     "message_actions.renderer": frozenset({"feedback.FeedbackButtons"}),
     "chat_input_options.selected_renderer": frozenset(
-        {"agent_team.SelectedTeamChip", "workflow.SelectedWorkflowChip"}
+        {"agent_team.SelectedTeamChip"}
     ),
-    "chat_input_panels.renderer": frozenset(
-        {"agent_team.TeamPickerModal", "workflow.WorkflowPickerModal"}
-    ),
+    "chat_input_panels.renderer": frozenset({"agent_team.TeamPickerModal"}),
     "mention_providers.provider": frozenset({"agent_team.searchTeams"}),
     "welcome_surfaces.renderer": frozenset({"agent_team.TeamWelcomeSurface"}),
-    "assistant_identity_resolvers.resolver": frozenset({"agent_team.TeamAssistantIdentity"}),
-    "project_options.renderer": frozenset(
-        {
-            "agent_team.TeamSelectOption",
-            "workflow.WorkflowSelectOption",
-            "workflow.WorkflowVersionSelectOption",
-        }
+    "assistant_identity_resolvers.resolver": frozenset(
+        {"agent_team.TeamAssistantIdentity"}
     ),
-    "session_options.renderer": frozenset(
-        {
-            "agent_team.TeamSelectOption",
-            "workflow.WorkflowInputOption",
-            "workflow.WorkflowSelectOption",
-            "workflow.WorkflowVersionSelectOption",
-        }
-    ),
+    "project_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
+    "session_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
     "channel_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
-    "scheduled_task_options.renderer": frozenset(
-        {
-            "agent_team.TeamSelectOption",
-            "workflow.WorkflowInputOption",
-            "workflow.WorkflowSelectOption",
-            "workflow.WorkflowVersionSelectOption",
-        }
-    ),
+    "scheduled_task_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
     "channel_connectors.panel_renderer": frozenset({"feishu_connector.FeishuPanel"}),
 }
 

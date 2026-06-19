@@ -15,7 +15,17 @@ def test_feishu_connector_manifest_declares_channel_connector() -> None:
 
     assert manifest.id == FEISHU_CONNECTOR_PLUGIN_ID
     assert manifest.name == "Feishu Connector"
-    assert manifest.frontend.channel_connectors == [FEISHU_CONNECTOR_ID]
+    assert [connector.id for connector in manifest.frontend.channel_connectors] == [
+        FEISHU_CONNECTOR_ID
+    ]
+    assert manifest.frontend.channel_connectors[0].channel_type == "feishu"
+    assert manifest.frontend.channel_connectors[0].panel_renderer == (
+        "feishu_connector.FeishuPanel"
+    )
+    assert [(effect.action, effect.effect) for effect in manifest.runtime_effects] == [
+        ("enable", "start_feishu_connector"),
+        ("disable", "stop_feishu_connector"),
+    ]
     assert manifest.enabled_by_default is True
     assert manifest.core is False
 

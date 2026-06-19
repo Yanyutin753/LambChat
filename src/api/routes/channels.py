@@ -16,7 +16,7 @@ from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.channel.channel_storage import ChannelStorage
 from src.infra.channel.pubsub import publish_channel_config_changed
 from src.infra.channel.registry import get_registry
-from src.infra.extensions import PluginSettingsService, get_plugin_settings_service
+from src.infra.extensions import get_plugin_settings_service
 from src.infra.extensions.scoped_options import (
     plugin_options_with_settings,
     sync_plugin_options_to_settings,
@@ -25,10 +25,13 @@ from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.extensions import (
-    FEISHU_CONNECTOR_ID,
-    FEISHU_CONNECTOR_PLUGIN_ID,
+    BUILTIN_PLUGIN_MANIFESTS,
     PluginRuntime,
     PluginUnavailableError,
+)
+from src.kernel.extensions.plugin_options import (
+    declared_plugin_options_from_metadata,
+    plugin_options_from_metadata,
 )
 from src.kernel.schemas.channel import (
     ChannelConfigCreate,
@@ -60,22 +63,43 @@ def get_plugin_runtime(request: Request) -> PluginRuntime | None:
     return None
 
 
-def _plugin_unavailable_http_error(exc: PluginUnavailableError) -> HTTPException:
-    return HTTPException(
-        status_code=503,
-        detail={
-            "error": "plugin_unavailable",
-            "plugin_id": FEISHU_CONNECTOR_PLUGIN_ID,
-            "message": str(exc),
-        },
-    )
+def _runtime_or_builtin(plugin_runtime: object) -> PluginRuntime:
+    if isinstance(plugin_runtime, PluginRuntime):
+        return plugin_runtime
+    return PluginRuntime(BUILTIN_PLUGIN_MANIFESTS, core_dependencies=("skill_core",))
 
 
-def _is_feishu_connector_available(plugin_runtime: object) -> bool:
-    if not isinstance(plugin_runtime, PluginRuntime):
+def _get_plugin_settings_service(request: Request | None):
+    if request is not None:
+        service = getattr(request.app.state, "plugin_settings_service", None)
+        if service is not None:
+            return service
+    return get_plugin_settings_service()
+
+
+def _connector_for_channel_type(
+    channel_type: ChannelType | str,
+    plugin_runtime: object,
+) -> tuple[str, str] | None:
+    runtime = _runtime_or_builtin(plugin_runtime)
+    value = channel_type.value if isinstance(channel_type, ChannelType) else str(channel_type)
+    for manifest in runtime.manifests(enabled_only=False):
+        for connector in manifest.frontend.channel_connectors:
+            if connector.channel_type == value:
+                return connector.id, manifest.id
+    return None
+
+
+def _is_channel_connector_available(
+    channel_type: ChannelType | str,
+    plugin_runtime: object,
+) -> bool:
+    connector = _connector_for_channel_type(channel_type, plugin_runtime)
+    if connector is None or not isinstance(plugin_runtime, PluginRuntime):
         return True
+    connector_id, _plugin_id = connector
     try:
-        plugin_runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
+        plugin_runtime.ensure_channel_connector_available(connector_id)
     except PluginUnavailableError:
         return False
     return True
@@ -85,14 +109,41 @@ def _ensure_channel_connector_available(
     channel_type: ChannelType,
     plugin_runtime: object,
 ) -> None:
-    if channel_type != ChannelType.FEISHU:
+    connector = _connector_for_channel_type(channel_type, plugin_runtime)
+    if connector is None:
         return
     if not isinstance(plugin_runtime, PluginRuntime):
         return
+    connector_id, plugin_id = connector
     try:
-        plugin_runtime.ensure_channel_connector_available(FEISHU_CONNECTOR_ID)
+        plugin_runtime.ensure_channel_connector_available(connector_id)
     except PluginUnavailableError as exc:
-        raise _plugin_unavailable_http_error(exc) from exc
+        raise plugin_unavailable_http_error(plugin_id, exc) from exc
+
+
+def _normalized_channel_plugin_options(
+    plugin_options: dict[str, dict[str, Any]] | None,
+) -> dict[str, dict[str, Any]]:
+    return plugin_options_from_metadata({"plugin_options": plugin_options or {}})
+
+
+def _declared_channel_plugin_options_from_payload(
+    *,
+    plugin_runtime: object,
+    agent_id: str | None,
+    plugin_options: dict[str, dict[str, Any]] | None,
+    payload: dict[str, Any] | None = None,
+    legacy_payload_keys_provided: set[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    metadata = dict(payload or {})
+    metadata["plugin_options"] = _normalized_channel_plugin_options(plugin_options)
+    return declared_plugin_options_from_metadata(
+        _runtime_or_builtin(plugin_runtime),
+        metadata,
+        scope="channel",
+        agent_id=agent_id,
+        legacy_payload_keys_provided=legacy_payload_keys_provided,
+    )
 
 
 async def _validate_agent_id(agent_id: str | None, user: TokenPayload) -> None:
@@ -180,12 +231,14 @@ async def get_channel_types(
     """Get all available channel types with metadata"""
     registry = get_registry()
     metadata_list = registry.get_channel_metadata()
-    if not _is_feishu_connector_available(plugin_runtime):
-        metadata_list = [
-            metadata
-            for metadata in metadata_list
-            if metadata.get("channel_type") != ChannelType.FEISHU.value
-        ]
+    metadata_list = [
+        metadata
+        for metadata in metadata_list
+        if _is_channel_connector_available(
+            str(metadata.get("channel_type", "")),
+            plugin_runtime,
+        )
+    ]
     return ChannelTypeListResponse(types=metadata_list)
 
 
@@ -254,6 +307,7 @@ async def list_user_channels(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
+    request: Request = None,
 ):
     """List all configured channel instances for current user"""
     registry = get_registry()
@@ -267,11 +321,11 @@ async def list_user_channels(
 
     responses = []
     runtime = _runtime_or_builtin(plugin_runtime)
-    settings_service = _settings_service_or_default(plugin_settings_service)
+    settings_service = _get_plugin_settings_service(request)
     for config in configs:
         try:
             channel_type = ChannelType(config.get("channel_type"))
-            if channel_type == ChannelType.FEISHU and not _is_feishu_connector_available(plugin_runtime):
+            if not _is_channel_connector_available(channel_type, plugin_runtime):
                 continue
             metadata = registry.get_channel_class(channel_type)
             if metadata:
@@ -331,6 +385,7 @@ async def list_channel_instances(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
+    request: Request = None,
 ):
     """List all instances of a specific channel type"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -350,7 +405,7 @@ async def list_channel_instances(
 
     metadata = channel_class.get_metadata()
     runtime = _runtime_or_builtin(plugin_runtime)
-    settings_service = _settings_service_or_default(plugin_settings_service)
+    settings_service = _get_plugin_settings_service(request)
     responses = []
     for config in configs:
         sensitive_fields = set()
@@ -406,6 +461,7 @@ async def get_channel_instance(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
+    request: Request = None,
 ):
     """Get a specific channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -420,7 +476,7 @@ async def get_channel_instance(
 
     config["plugin_options"] = await plugin_options_with_settings(
         runtime=_runtime_or_builtin(plugin_runtime),
-        service=_settings_service_or_default(plugin_settings_service),
+        service=_get_plugin_settings_service(request),
         scope="channel",
         subject_id=instance_id,
         plugin_options=config.get("plugin_options") or {},
@@ -442,6 +498,7 @@ async def create_channel_instance(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
+    request: Request = None,
 ):
     """Create a new channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -509,7 +566,7 @@ async def create_channel_instance(
         )
         await sync_plugin_options_to_settings(
             runtime=_runtime_or_builtin(plugin_runtime),
-            service=_settings_service_or_default(plugin_settings_service),
+            service=_get_plugin_settings_service(request),
             scope="channel",
             subject_id=config.get("instance_id", ""),
             plugin_options=plugin_options,
@@ -551,6 +608,7 @@ async def update_channel_instance(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
+    request: Request = None,
 ):
     """Update a specific channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -598,9 +656,7 @@ async def update_channel_instance(
 
     plugin_options_value: dict[str, dict[str, object]] | None = ...  # type: ignore[assignment]
     if "plugin_options" in data.model_fields_set:
-        next_agent_id = (
-            data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
-        )
+        next_agent_id = data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
         legacy_payload: dict[str, Any] = {}
         if "team_id" in data.model_fields_set:
             legacy_payload["team_id"] = data.team_id
@@ -612,9 +668,7 @@ async def update_channel_instance(
             legacy_payload_keys_provided=set(legacy_payload),
         )
     elif "team_id" in data.model_fields_set:
-        next_agent_id = (
-            data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
-        )
+        next_agent_id = data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
         plugin_options_value = _declared_channel_plugin_options_from_payload(
             plugin_runtime=plugin_runtime,
             agent_id=next_agent_id,
@@ -652,7 +706,7 @@ async def update_channel_instance(
     if plugin_options_value is not ...:
         await sync_plugin_options_to_settings(
             runtime=_runtime_or_builtin(plugin_runtime),
-            service=_settings_service_or_default(plugin_settings_service),
+            service=_get_plugin_settings_service(request),
             scope="channel",
             subject_id=instance_id,
             plugin_options=plugin_options_value,

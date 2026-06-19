@@ -213,7 +213,16 @@ def _runtime_acceptance_checks() -> dict[str, bool]:
             }
         ],
         tools=[{"name": "feedback.summary", "module": "plugins.feedback.tools"}],
-        frontend={"nav_items": ["feedback:nav"]},
+        frontend={
+            "sidebar_items": [
+                {
+                    "id": "feedback:nav",
+                    "path": "/feedback",
+                    "label": "nav.feedback",
+                    "icon": "MessageSquare",
+                }
+            ]
+        },
         lifespan_hooks=[
             {
                 "name": "feedback:start",
@@ -246,7 +255,16 @@ def _runtime_acceptance_checks() -> dict[str, bool]:
                     }
                 ],
                 tools=[{"name": "summarize", "module": "plugins.bad.tools"}],
-                frontend={"nav_items": ["shared-nav"]},
+                frontend={
+                    "sidebar_items": [
+                        {
+                            "id": "bad:shared-nav",
+                            "path": "/shared",
+                            "label": "nav.shared",
+                            "icon": "Plug",
+                        }
+                    ]
+                },
             )
         ]
     )

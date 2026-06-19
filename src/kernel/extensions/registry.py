@@ -10,6 +10,7 @@ from src.kernel.extensions.manifest import (
     ExtensionManifest,
     ExtensionType,
     PluginLifecycleHook,
+    PluginAgentCatalogEntry,
     PluginManifest,
     PluginRoute,
     PluginTool,
@@ -98,6 +99,26 @@ class PluginToolRegistration:
     @property
     def legacy_ids(self) -> list[str]:
         return self.tool.legacy_ids
+
+
+@dataclass(frozen=True)
+class PluginAgentRegistration:
+    """An agent catalog declaration with plugin ownership metadata."""
+
+    plugin_id: str
+    agent: PluginAgentCatalogEntry
+
+    @property
+    def id(self) -> str:
+        return self.agent.id
+
+    @property
+    def module(self) -> str:
+        return self.agent.module
+
+    @property
+    def required_permissions(self) -> list[str]:
+        return self.agent.required_permissions
 
 
 class ExtensionRegistry:
@@ -193,6 +214,17 @@ class PluginRegistry:
             for route in manifest.routers:
                 registrations.append(
                     PluginRouteRegistration(plugin_id=manifest.id, route=route)
+                )
+        return registrations
+
+    def agents(self, *, enabled_only: bool = True) -> List[PluginAgentRegistration]:
+        registrations: List[PluginAgentRegistration] = []
+        for manifest in self._items.values():
+            if enabled_only and not manifest.enabled_by_default:
+                continue
+            for agent in manifest.agents:
+                registrations.append(
+                    PluginAgentRegistration(plugin_id=manifest.id, agent=agent)
                 )
         return registrations
 

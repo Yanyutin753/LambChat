@@ -2,7 +2,7 @@
   "schema": "lambchat.plugin.backend.v1",
   "plugin_id": "usage_reports",
   "backend": {
-    "routers": [
+    "routes": [
       {
         "name": "usage_reports-api",
         "prefix": "/api/usage",

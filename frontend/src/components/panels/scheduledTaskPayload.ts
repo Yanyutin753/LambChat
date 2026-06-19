@@ -100,52 +100,6 @@ function applyDeclaredPluginOptions(
   return nextPayload;
 }
 
-export function getScheduledTaskAttachments(
-  payload: Record<string, unknown> | undefined,
-): MessageAttachment[] {
-  const rawAttachments = payload?.attachments;
-  if (!Array.isArray(rawAttachments)) return [];
-
-  return rawAttachments.flatMap((item): MessageAttachment[] => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const record = item as Record<string, unknown>;
-    const key = getString(record.key);
-    const name = getString(record.name);
-    const type = record.type;
-    const mimeType = getString(record.mimeType);
-    const size = getFiniteSize(record.size);
-    if (!key || !name || !isFileCategory(type) || !mimeType || size === null) {
-      return [];
-    }
-
-    return [
-      {
-        id: getString(record.id) || key,
-        key,
-        name,
-        type,
-        mimeType,
-        size,
-        ...(getString(record.url) ? { url: getString(record.url) } : {}),
-      },
-    ];
-  });
-}
-
-export function withScheduledTaskAttachments(
-  payload: Record<string, unknown>,
-  attachments: MessageAttachment[],
-): Record<string, unknown> {
-  const nextPayload = { ...payload };
-  const uploadedAttachments = getScheduledTaskAttachments({ attachments });
-  if (uploadedAttachments.length > 0) {
-    nextPayload.attachments = uploadedAttachments;
-  } else {
-    delete nextPayload.attachments;
-  }
-  return nextPayload;
-}
-
 export function buildScheduledTaskInputPayload(
   payload: Record<string, unknown>,
   {

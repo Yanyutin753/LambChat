@@ -2,20 +2,13 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { teamApi } from "../../services/api/team";
 import type { CoreScopedPluginOptionContribution } from "../../extensions/coreContributions";
-import {
-  WorkflowPluginInputOption,
-  WorkflowPluginSelectOption,
-  WorkflowPluginVersionSelectOption,
-} from "../../plugins/workflow/WorkflowSelectOption";
 import type { Team } from "../../types/team";
 
 interface ProjectOptionRendererProps {
   option: CoreScopedPluginOptionContribution;
   value: unknown;
-  pluginValues?: Record<string, unknown>;
   disabled?: boolean;
   onChange: (value: unknown) => void;
-  onPluginValueChange?: (key: string, value: unknown) => void;
 }
 
 type ProjectOptionRenderer = (props: ProjectOptionRendererProps) => ReactNode;
@@ -86,15 +79,6 @@ function AgentTeamDefaultTeamSelect({
 
 const PROJECT_OPTION_RENDERERS: Record<string, ProjectOptionRenderer> = {
   "agent_team.TeamSelectOption": AgentTeamDefaultTeamSelect,
-  "workflow.WorkflowSelectOption": (props) => (
-    <WorkflowPluginSelectOption {...props} inactive={!props.option.effective} />
-  ),
-  "workflow.WorkflowVersionSelectOption": (props) => (
-    <WorkflowPluginVersionSelectOption {...props} inactive={!props.option.effective} />
-  ),
-  "workflow.WorkflowInputOption": (props) => (
-    <WorkflowPluginInputOption {...props} inactive={!props.option.effective} />
-  ),
 };
 
 export function renderProjectOptionField(props: ProjectOptionRendererProps) {

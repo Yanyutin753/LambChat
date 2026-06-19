@@ -24,6 +24,10 @@ def _plugin_owned_setting_keys() -> dict[str, str]:
         return {}
 
 
+def _plugin_owner_for_setting(key: str) -> str | None:
+    return _plugin_owned_setting_keys().get(key)
+
+
 class SettingsStorage:
     """Settings storage using MongoDB"""
 
@@ -116,7 +120,7 @@ class SettingsStorage:
 
     async def get(self, key: str) -> Optional[SettingItem]:
         """Get single setting by key (with sensitive values masked)"""
-        if key in _plugin_owned_setting_keys():
+        if _plugin_owner_for_setting(key):
             return None
         return await self._get_internal(key, mask_sensitive=True)
 

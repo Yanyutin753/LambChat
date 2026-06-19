@@ -88,7 +88,7 @@ def test_validate_team_agent_request_uses_runtime_agent_declaration() -> None:
         plugin_for_agent=lambda agent_id: "agent_team" if agent_id == "team_plus" else None
     )
 
-    source = Path("src/api/routes/chat.py").read_text(encoding="utf-8")
+    validate_team_agent_request("team_plus", request, plugin_runtime=runtime)
 
     assert request.persona_preset_id is None
     assert request.persona_system_prompt is None

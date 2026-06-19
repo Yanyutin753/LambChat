@@ -6,6 +6,7 @@ from pathlib import Path
 from src.kernel.extensions import PluginPackageScanner
 from src.kernel.extensions.host_slots import CONTROLLED_FRONTEND_REFERENCES
 
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -25,7 +26,7 @@ REGISTRY_SOURCES = {
 }
 
 PLUGIN_REFERENCE_RE = re.compile(
-    r"[\"']((?:agent_team|workflow|feedback|usage_reports|feishu_connector)\.[A-Za-z0-9_]+)[\"']"
+    r"[\"']((?:agent_team|feedback|usage_reports|feishu_connector)\.[A-Za-z0-9_]+)[\"']"
 )
 
 

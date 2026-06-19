@@ -56,7 +56,12 @@ def _plugin_runtime_admin() -> TokenPayload:
         sub="admin-1",
         username="admin",
         roles=["admin"],
-        permissions=["marketplace:read", "marketplace:admin", "settings:manage"],
+        permissions=[
+            "marketplace:read",
+            "marketplace:admin",
+            "settings:manage",
+            "agent:admin",
+        ],
     )
 
 
@@ -80,6 +85,7 @@ def test_core_route_registry_preserves_existing_registration_order():
         "skills",
         "marketplace",
         "plugin_runtime",
+        "extension_host",
         "settings",
         "memory",
         "mcp",
@@ -116,6 +122,7 @@ def test_core_route_registry_declares_key_core_prefixes_and_tags():
     assert by_id["env_vars"].prefix == "/api/env-vars"
     assert by_id["marketplace"].prefix == "/api/marketplace"
     assert by_id["plugin_runtime"].prefix == "/api/extensions/plugins"
+    assert by_id["extension_host"].prefix == "/api/extensions"
     assert "github" not in by_id
     assert by_id["scheduled_tasks"].tags == ("Scheduled Tasks",)
 
@@ -177,6 +184,7 @@ def test_core_route_registry_declares_real_router_modules_without_eager_imports(
     assert by_id["mcp_admin"].router_name == "admin_router"
     assert by_id["marketplace"].module == "src.api.routes.marketplace"
     assert by_id["plugin_runtime"].module == "src.api.routes.plugin_runtime"
+    assert by_id["extension_host"].module == "src.api.routes.extensions"
 
 
 def test_core_stability_matrix_routes_exist_when_builtin_plugins_are_disabled() -> None:
@@ -245,16 +253,34 @@ def test_plugin_runtime_can_be_attached_to_scheduler_guard(monkeypatch) -> None:
         def set_plugin_runtime(self, value):
             attached["pubsub"] = value
 
+    class _FakeChannelConfigPubSub:
+        def set_plugin_runtime(self, value):
+            attached["channel_config"] = value
+
+    class _FakeChannelCoordinator:
+        def set_plugin_runtime(self, value):
+            attached["channel_coordinator"] = value
+
     monkeypatch.setattr(
         "src.infra.scheduler.runtime.get_runtime_scheduler",
         lambda: _FakeScheduler(),
     )
     monkeypatch.setattr("src.infra.pubsub_hub.get_pubsub_hub", lambda: _FakePubSubHub())
+    monkeypatch.setattr(
+        "src.infra.channel.pubsub.get_channel_config_pubsub",
+        lambda: _FakeChannelConfigPubSub(),
+    )
+    monkeypatch.setattr(
+        "src.infra.channel.manager.get_channel_coordinator",
+        lambda: _FakeChannelCoordinator(),
+    )
 
     api_main._attach_plugin_runtime_to_scheduler(app)
 
     assert attached["scheduler"] is runtime
     assert attached["pubsub"] is runtime
+    assert attached["channel_config"] is runtime
+    assert attached["channel_coordinator"] is runtime
 
 
 def test_plugin_runtime_lifecycle_hooks_are_executed_by_app_lifecycle_runner() -> None:
@@ -434,6 +460,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
         "tool_guard",
         "scheduler_guard",
         "listener_guard",
+        "channel_connector_guard",
         "uninstall_guard",
         "hot_install_guard",
         "package_integrity_guard",
@@ -442,6 +469,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert guard_surfaces["tool_guard"]["failure_mode"] == "fail_closed"
     assert guard_surfaces["scheduler_guard"]["enforced"] is True
     assert guard_surfaces["listener_guard"]["enforced"] is True
+    assert guard_surfaces["channel_connector_guard"]["failure_mode"] == "fail_closed"
     assert guard_surfaces["uninstall_guard"]["status"] == "controlled_execution"
     assert guard_surfaces["hot_install_guard"]["status"] == "blocked"
     assert guard_surfaces["package_integrity_guard"]["failure_mode"] == "unsigned_enable_blocked"
@@ -453,8 +481,15 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert feedback["package"]["source_path"].endswith("plugins\\system\\feedback") or feedback["package"]["source_path"].endswith("plugins/system/feedback")
     assert feedback["package"]["data_dir"].endswith("plugin-data\\feedback") or feedback["package"]["data_dir"].endswith("plugin-data/feedback")
     assert feedback["package"]["layout"]["has_data_template"] is True
+    assert feedback["package"]["layout"]["data_template"] == "plugin-data-template"
     assert feedback["package"]["data_template"]["exists"] is True
+    assert feedback["package"]["data_template"]["template"] == "plugin-data-template"
+    assert "config/current.json" in feedback["package"]["data_template"]["files"]
+    assert "config/defaults.json" in feedback["package"]["data_template"]["files"]
     assert "state/audit.jsonl" in feedback["package"]["data_template"]["files"]
+    agent_team = next(plugin for plugin in payload["plugins"] if plugin["plugin_id"] == AGENT_TEAM_PLUGIN_ID)
+    team_agent = next(agent for agent in agent_team["agents"] if agent["id"] == "team")
+    assert team_agent["category"] == "agent_team:team-builder"
     acceptance_matrix = payload["runtime"]["acceptance_matrix"]
     assert acceptance_matrix["passed"] is True
     assert acceptance_matrix["total"] == 11
@@ -510,8 +545,22 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
             "legacy_ids": [],
         }
     ]
-    assert feedback["frontend"]["routes"] == ["feedback-route"]
-    assert feedback["frontend"]["message_actions"] == ["feedback:message-feedback"]
+    assert feedback["frontend"]["routes"] == []
+    assert feedback["frontend"]["panels"] == []
+    assert feedback["frontend"]["nav_items"] == []
+    assert feedback["frontend"]["app_tabs"][0]["path"] == "/feedback"
+    assert feedback["frontend"]["app_panels"][0]["renderer"] == "feedback.FeedbackPanel"
+    assert feedback["frontend"]["user_menu_items"][0]["path"] == "/feedback"
+    assert feedback["frontend"]["message_actions"] == [
+        {
+            "id": "feedback:message-feedback",
+            "target": "assistant_message",
+            "renderer": "feedback.FeedbackButtons",
+            "order": 20,
+            "permissions": ["feedback:write"],
+            "visible_when": None,
+        }
+    ]
     assert feedback["runtime_side_effect"] == {
         "action": "none",
         "status": "not_applicable",
@@ -520,19 +569,49 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert feedback["resource_types"]["db_collection"] == 1
     assert feedback["resource_types"]["db_index"] == 4
     assert feedback["resource_types"]["message_action"] == 1
+    assert feedback["resource_types"]["app_tab"] == 1
+    assert feedback["resource_types"]["app_panel"] == 1
+    assert feedback["resource_types"]["user_menu_item"] == 1
     assert feedback["resource_types"]["tool"] == 1
     assert feedback["dry_run_actions"] == {"archive": 8, "keep": 11}
     agent_team = plugins_by_id[AGENT_TEAM_PLUGIN_ID]
     assert agent_team["status"] == "enabled"
     assert agent_team["routes"][0]["prefix"] == "/api/teams"
-    assert agent_team["frontend"]["routes"] == ["agent_team:team-route"]
-    assert agent_team["frontend"]["nav_items"] == ["agent_team:team-nav"]
-    assert agent_team["frontend"]["tool_renderers"] == ["agent_team:agent-team"]
+    assert agent_team["frontend"]["routes"] == []
+    assert agent_team["frontend"]["panels"] == []
+    assert agent_team["frontend"]["nav_items"] == []
+    assert agent_team["frontend"]["app_tabs"][0]["path"] == "/team"
+    assert agent_team["frontend"]["app_panels"][0]["renderer"] == "agent_team.TeamBuilderPanel"
+    assert agent_team["frontend"]["sidebar_items"][0]["path"] == "/team"
+    assert agent_team["frontend"]["tool_renderers"] == [
+        {
+            "id": "agent_team:agent-team",
+            "tool_names": [
+                "agent_team.search_persona_presets",
+                "agent_team.create_agent_team",
+                "search_persona_presets",
+                "create_agent_team",
+            ],
+        }
+    ]
+    assert agent_team["agents"] == [
+        {
+            "id": "team",
+            "module": "src.agents.team_agent.graph.TeamAgent",
+            "name": "agents.team.name",
+            "description": "agents.team.description",
+            "icon": "Users",
+            "sort_order": 15,
+            "category": "agent_team:team-builder",
+            "required_permissions": ["team:read"],
+        }
+    ]
     assert {tool["name"] for tool in agent_team["tools"]} == {
         "agent_team.search_persona_presets",
         "agent_team.create_agent_team",
     }
     assert agent_team["resource_types"]["backend_route"] == 1
+    assert agent_team["resource_types"]["agent"] == 1
     assert agent_team["resource_types"]["tool"] == 2
     assert agent_team["resource_types"]["db_collection"] == 1
     assert agent_team["resource_types"]["db_document"] == 2
@@ -547,7 +626,10 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
         }
     ]
     assert image_generation["frontend"]["tool_renderers"] == [
-        "image_generation:image-generate"
+        {
+            "id": "image_generation:image-generate",
+            "tool_names": ["image_generation.image_generate", "image_generate"],
+        }
     ]
     assert image_generation["resource_types"]["tool"] == 1
     assert image_generation["resource_types"]["tool_renderer"] == 1
@@ -564,7 +646,10 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
         }
     ]
     assert audio_transcription["frontend"]["tool_renderers"] == [
-        "audio_transcription:audio-transcribe"
+        {
+            "id": "audio_transcription:audio-transcribe",
+            "tool_names": ["audio_transcription.audio_transcribe", "audio_transcribe"],
+        }
     ]
     assert audio_transcription["resource_types"]["tool"] == 1
     assert audio_transcription["resource_types"]["tool_renderer"] == 1
@@ -573,13 +658,19 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     usage_reports = plugins_by_id[USAGE_REPORTS_PLUGIN_ID]
     assert usage_reports["status"] == "enabled"
     assert usage_reports["routes"][0]["prefix"] == "/api/usage"
-    assert usage_reports["frontend"]["routes"] == ["usage_reports:usage-route"]
-    assert usage_reports["frontend"]["panels"] == ["usage_reports:usage-panel"]
-    assert usage_reports["frontend"]["nav_items"] == ["usage_reports:usage-menu"]
+    assert usage_reports["frontend"]["routes"] == []
+    assert usage_reports["frontend"]["panels"] == []
+    assert usage_reports["frontend"]["nav_items"] == []
+    assert usage_reports["frontend"]["app_tabs"][0]["path"] == "/usage"
+    assert usage_reports["frontend"]["app_panels"][0]["renderer"] == "usage_reports.UsagePanel"
+    assert usage_reports["frontend"]["user_menu_items"][0]["path"] == "/usage"
     assert usage_reports["resource_types"]["backend_route"] == 1
-    assert usage_reports["resource_types"]["frontend_route"] == 1
-    assert usage_reports["resource_types"]["panel"] == 1
-    assert usage_reports["resource_types"]["nav_item"] == 1
+    assert "frontend_route" not in usage_reports["resource_types"]
+    assert "panel" not in usage_reports["resource_types"]
+    assert "nav_item" not in usage_reports["resource_types"]
+    assert usage_reports["resource_types"]["app_tab"] == 1
+    assert usage_reports["resource_types"]["app_panel"] == 1
+    assert usage_reports["resource_types"]["user_menu_item"] == 1
     assert usage_reports["resource_types"]["permission"] == 2
     assert usage_reports["resource_types"]["db_collection"] == 1
     assert usage_reports["resource_types"]["db_index"] == 4
@@ -587,7 +678,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert advanced_file_viewers["status"] == "enabled"
     assert advanced_file_viewers["routes"] == []
     assert advanced_file_viewers["tools"] == []
-    assert advanced_file_viewers["frontend"]["file_viewers"] == [
+    assert [viewer["id"] for viewer in advanced_file_viewers["frontend"]["file_viewers"]] == [
         "advanced_file_viewers:pdf",
         "advanced_file_viewers:ppt",
         "advanced_file_viewers:word",
@@ -598,6 +689,8 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
         "advanced_file_viewers:markdown",
         "advanced_file_viewers:code",
     ]
+    assert advanced_file_viewers["frontend"]["file_viewers"][0]["extensions"] == ["pdf"]
+    assert advanced_file_viewers["frontend"]["file_viewers"][-1]["extensions"] == ["*"]
     assert advanced_file_viewers["resource_types"]["file_viewer"] == 9
     assert advanced_file_viewers["resource_types"]["cache_key"] == 1
     assert advanced_file_viewers["resource_types"]["file"] == 1
@@ -605,7 +698,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert github_installer["status"] == "enabled"
     assert github_installer["routes"][0]["prefix"] == "/api/github"
     assert github_installer["frontend"]["skill_importers"] == [
-        "github_installer:github-import"
+        {"id": "github_installer:github-import", "source": "github"}
     ]
     assert github_installer["resource_types"]["backend_route"] == 1
     assert github_installer["resource_types"]["skill_importer"] == 1
@@ -616,11 +709,21 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert feishu_connector["status"] == "enabled"
     assert feishu_connector["routes"] == []
     assert feishu_connector["tools"] == []
-    assert feishu_connector["frontend"]["channel_connectors"] == [FEISHU_CONNECTOR_ID]
+    assert feishu_connector["frontend"]["channel_connectors"] == [
+        {
+            "id": FEISHU_CONNECTOR_ID,
+            "channel_type": "feishu",
+            "panel_renderer": "feishu_connector.FeishuPanel",
+        }
+    ]
+    assert feishu_connector["runtime_effects"] == [
+        {"action": "enable", "effect": "start_feishu_connector"},
+        {"action": "disable", "effect": "stop_feishu_connector"},
+    ]
     assert feishu_connector["runtime_side_effect"] == {
         "action": "none",
         "status": "available",
-        "message": "Feishu connector start/stop side effects are available during runtime state changes.",
+        "message": "Runtime side effects are declared for this plugin and available during runtime state changes.",
     }
     assert feishu_connector["resource_types"]["channel_connector"] == 1
     assert feishu_connector["resource_types"]["listener"] == 1
@@ -678,6 +781,57 @@ def test_plugin_runtime_settings_api_exposes_plugin_owned_settings() -> None:
     assert updated_settings["MODEL"]["source"] == "manual"
 
 
+def test_plugin_runtime_settings_api_supports_scoped_plugin_settings() -> None:
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "plugin_runtime",
+                "src.api.routes.plugin_runtime",
+                prefix="/api/extensions/plugins",
+            ),
+        ),
+    )
+    runtime = register_builtin_plugin_routes(app)
+    agent_team_state = runtime.get_state(AGENT_TEAM_PLUGIN_ID)
+    from src.kernel.extensions.manifest import PluginSettingDefinition
+
+    agent_team_manifest = agent_team_state.manifest.model_copy(
+        update={
+            "settings": [
+                PluginSettingDefinition(
+                    key="SELECTED_TEAM_ID",
+                    type="string",
+                    scope="session",
+                    default="",
+                    label="agentTeam.session.selectedTeam",
+                )
+            ]
+        }
+    )
+    agent_team_state.manifest = agent_team_manifest
+    app.state.plugin_settings_service = PluginSettingsService(
+        storage=InMemoryPluginSettingsStorage()
+    )
+    app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+    client = TestClient(app)
+
+    system_response = client.get(f"/api/extensions/plugins/{AGENT_TEAM_PLUGIN_ID}/settings")
+    session_response = client.put(
+        f"/api/extensions/plugins/{AGENT_TEAM_PLUGIN_ID}/settings/SELECTED_TEAM_ID",
+        params={"scope": "session", "subject_id": "session-1"},
+        json={"value": "team-1"},
+    )
+
+    assert system_response.status_code == 200
+    assert system_response.json()["settings"] == []
+    assert session_response.status_code == 200
+    assert session_response.json()["settings"][0]["key"] == "SELECTED_TEAM_ID"
+    assert session_response.json()["settings"][0]["value"] == "team-1"
+    assert session_response.json()["settings"][0]["scope"] == "session"
+
+
 def test_plugin_owned_system_settings_are_not_exposed_as_global_settings() -> None:
     from src.infra.extensions import plugin_owned_system_setting_keys
 
@@ -687,7 +841,7 @@ def test_plugin_owned_system_settings_are_not_exposed_as_global_settings() -> No
     assert owned["AUDIO_TRANSCRIPTION_API_KEY"] == AUDIO_TRANSCRIPTION_PLUGIN_ID
 
 
-def test_plugin_runtime_contribution_states_are_minimal_and_public_safe() -> None:
+def test_plugin_runtime_contribution_states_include_public_safe_contributions() -> None:
     app = FastAPI()
     register_core_routes(
         app,
@@ -722,9 +876,349 @@ def test_plugin_runtime_contribution_states_are_minimal_and_public_safe() -> Non
         "enabled",
         "executable",
         "status",
+        "agents",
+        "tools",
+        "frontend",
     }
     assert plugins_by_id[FEEDBACK_PLUGIN_ID]["enabled"] is True
     assert plugins_by_id[FEEDBACK_PLUGIN_ID]["executable"] is True
+    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"] == "feedback:message-feedback"
+    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["renderer"] == "feedback.FeedbackButtons"
+    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["app_tabs"][0]["path"] == "/feedback"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["id"] == "agent_team:select-team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["selected_renderer"] == "agent_team.SelectedTeamChip"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["shortcut"] == "mod+t"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["option_binding"] == {
+        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+        "key": "SELECTED_TEAM_ID",
+        "scope": "session",
+    }
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["id"] == "agent_team:team-picker"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["option_binding"] == {
+        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+        "key": "SELECTED_TEAM_ID",
+        "scope": "session",
+    }
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["id"] == "agent_team:team-welcome"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["renderer"] == "agent_team.TeamWelcomeSurface"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["mention_providers"][0]["option_binding"] == {
+        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+        "key": "SELECTED_TEAM_ID",
+        "scope": "session",
+    }
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["option_binding"] == {
+        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+        "key": "SELECTED_TEAM_ID",
+        "scope": "session",
+    }
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["agents"][0]["id"] == "team"
+
+
+def test_plugin_runtime_contributions_endpoint_aliases_frontend_contributions() -> None:
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "plugin_runtime",
+                "src.api.routes.plugin_runtime",
+                prefix="/api/extensions/plugins",
+            ),
+        ),
+    )
+    register_builtin_plugin_routes(app)
+
+    response = TestClient(app).get("/api/extensions/plugins/contributions")
+
+    assert response.status_code == 200
+    plugins_by_id = {plugin["plugin_id"]: plugin for plugin in response.json()["plugins"]}
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["session_options"] == [
+        {
+            "key": "SELECTED_TEAM_ID",
+            "type": "string",
+            "label": "agentTeam.session.selectedTeam",
+            "description": "Agent Team selected for the current chat session.",
+            "default": None,
+            "group": "session",
+            "order": 10,
+            "options": None,
+            "json_schema": None,
+            "renderer": None,
+            "suppresses_core_persona_selector": True,
+            "legacy_payload_keys": ["team_id"],
+            "applies_to_session_key": None,
+            "visible_when": {
+                "agent_id": "team",
+                "route": None,
+                "scope": None,
+                "permissions": [],
+            },
+        }
+    ]
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["channel_options"] == [
+        {
+            "key": "SELECTED_TEAM_ID",
+            "type": "string",
+            "label": "agentTeam.channel.selectedTeam",
+            "description": "Agent Team selected for plugin-owned channel runs.",
+            "default": None,
+            "group": "channel",
+            "order": 10,
+            "options": None,
+            "json_schema": None,
+            "renderer": "agent_team.TeamSelectOption",
+            "suppresses_core_persona_selector": True,
+            "legacy_payload_keys": ["team_id"],
+                "applies_to_session_key": None,
+                "visible_when": {
+                    "agent_id": None,
+                    "route": "/channels/feishu",
+                    "scope": None,
+                    "permissions": [],
+                },
+        }
+    ]
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["scheduled_task_options"][0]["renderer"]
+        == "agent_team.TeamSelectOption"
+    )
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["scheduled_task_options"][0]["legacy_payload_keys"] == [
+        "team_id"
+    ]
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["visible_when"] == {
+        "agent_id": "team",
+        "route": None,
+        "scope": None,
+        "permissions": [],
+    }
+    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"] == "feedback:message-feedback"
+    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["target"] == "assistant_message"
+
+
+def test_extension_host_contributions_endpoint_exposes_frontend_contributions() -> None:
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "extension_host",
+                "src.api.routes.extensions",
+                prefix="/api/extensions",
+            ),
+        ),
+    )
+    register_builtin_plugin_routes(app)
+
+    response = TestClient(app).get("/api/extensions/contributions")
+
+    assert response.status_code == 200
+    plugins_by_id = {plugin["plugin_id"]: plugin for plugin in response.json()["plugins"]}
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["id"] == "agent_team:select-team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["option_binding"] == {
+        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+        "key": "SELECTED_TEAM_ID",
+        "scope": "session",
+    }
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["option_binding"] == {
+        "plugin_id": AGENT_TEAM_PLUGIN_ID,
+        "key": "SELECTED_TEAM_ID",
+        "scope": "session",
+    }
+    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["renderer"] == "feedback.FeedbackButtons"
+
+
+def test_extension_host_slots_endpoint_exposes_plugin_slot_contract() -> None:
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "extension_host",
+                "src.api.routes.extensions",
+                prefix="/api/extensions",
+            ),
+        ),
+    )
+
+    response = TestClient(app).get("/api/extensions/slots")
+
+    assert response.status_code == 200
+    payload = response.json()
+    slots_by_id = {slot["id"]: slot for slot in payload["slots"]}
+    assert payload["total"] == len(payload["slots"])
+    assert {
+        "app.route",
+        "app.panel",
+        "message.action",
+        "chat.input_option",
+        "agent.category",
+        "agent.catalog_entry",
+        "settings.system",
+        "settings.project",
+        "settings.session",
+        "resource.ledger",
+        "plugin.asset_slot",
+    } <= set(slots_by_id)
+    assert slots_by_id["message.action"]["manifest_key"] == "message_actions"
+    assert slots_by_id["message.action"]["renderer_registry"] == "MESSAGE_ACTION_RENDERERS"
+    assert slots_by_id["message.action"]["supports_visible_when"] is True
+    assert "omitted" in slots_by_id["message.action"]["disabled_behavior"]
+    assert slots_by_id["settings.project"]["data_scope"] == "project"
+    assert slots_by_id["settings.session"]["data_scope"] == "session"
+    assert slots_by_id["agent.catalog_entry"]["manifest_key"] == "backend.agents"
+
+
+def test_extension_host_contributions_endpoint_filters_disabled_plugins_and_management_fields() -> None:
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "extension_host",
+                "src.api.routes.extensions",
+                prefix="/api/extensions",
+            ),
+        ),
+    )
+    runtime = register_builtin_plugin_routes(app)
+    runtime.disable_plugin(AGENT_TEAM_PLUGIN_ID)
+    runtime.disable_plugin(FEEDBACK_PLUGIN_ID)
+    client = TestClient(app)
+
+    active_response = client.get("/api/extensions/contributions")
+    inactive_response = client.get("/api/extensions/contributions?include_inactive=true")
+
+    assert active_response.status_code == 200
+    active_payload = active_response.json()
+    active_plugins_by_id = {
+        plugin["plugin_id"]: plugin for plugin in active_payload["plugins"]
+    }
+    assert AGENT_TEAM_PLUGIN_ID not in active_plugins_by_id
+    assert FEEDBACK_PLUGIN_ID not in active_plugins_by_id
+    assert all(plugin["executable"] is True for plugin in active_payload["plugins"])
+    assert active_payload["total"] == len(active_payload["plugins"])
+    for plugin in active_payload["plugins"]:
+        assert set(plugin) == {
+            "plugin_id",
+            "enabled",
+            "executable",
+            "status",
+            "agents",
+            "tools",
+            "frontend",
+        }
+        assert "settings" not in plugin
+        assert "resources" not in plugin
+        assert "dry_run_actions" not in plugin
+        assert "package" not in plugin
+        assert "issues" not in plugin
+
+    assert inactive_response.status_code == 200
+    inactive_plugins_by_id = {
+        plugin["plugin_id"]: plugin for plugin in inactive_response.json()["plugins"]
+    }
+    assert inactive_plugins_by_id[AGENT_TEAM_PLUGIN_ID]["executable"] is False
+    assert inactive_plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["agent_categories"][0]["id"] == "agent_team:team-builder"
+    assert inactive_plugins_by_id[FEEDBACK_PLUGIN_ID]["executable"] is False
+    assert inactive_plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"] == "feedback:message-feedback"
+
+
+def test_extension_host_scoped_option_endpoints_follow_runtime_state() -> None:
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "extension_host",
+                "src.api.routes.extensions",
+                prefix="/api/extensions",
+            ),
+        ),
+    )
+    runtime = register_builtin_plugin_routes(app)
+    client = TestClient(app)
+
+    project_before = client.get("/api/extensions/contributions/project-options")
+    session_before = client.get("/api/extensions/contributions/session-options")
+    channel_before = client.get("/api/extensions/contributions/channel-options")
+    scheduled_task_before = client.get("/api/extensions/contributions/scheduled-task-options")
+    runtime.disable_plugin(AGENT_TEAM_PLUGIN_ID)
+    project_after = client.get("/api/extensions/contributions/project-options")
+    channel_after = client.get("/api/extensions/contributions/channel-options")
+    scheduled_task_after = client.get("/api/extensions/contributions/scheduled-task-options")
+    project_inactive = client.get(
+        "/api/extensions/contributions/project-options?include_inactive=true"
+    )
+    session_inactive = client.get(
+        "/api/extensions/contributions/session-options?include_inactive=true"
+    )
+    channel_inactive = client.get(
+        "/api/extensions/contributions/channel-options?include_inactive=true"
+    )
+    scheduled_task_inactive = client.get(
+        "/api/extensions/contributions/scheduled-task-options?include_inactive=true"
+    )
+
+    assert project_before.status_code == 200
+    assert session_before.status_code == 200
+    assert channel_before.status_code == 200
+    assert scheduled_task_before.status_code == 200
+    assert project_before.json()["scope"] == "project"
+    assert session_before.json()["scope"] == "session"
+    assert channel_before.json()["scope"] == "channel"
+    assert scheduled_task_before.json()["scope"] == "scheduled_task"
+    assert project_before.json()["options"] == [
+        {
+            "id": "agent_team.DEFAULT_TEAM_ID",
+            "plugin_id": AGENT_TEAM_PLUGIN_ID,
+            "plugin_enabled": True,
+            "effective": True,
+            "plugin_status": "enabled",
+            "key": "DEFAULT_TEAM_ID",
+            "type": "string",
+            "label": "agentTeam.settings.defaultTeam",
+            "description": "Default Agent Team selected for this project.",
+            "default_value": None,
+            "group": "project",
+            "order": 10,
+            "options": None,
+            "json_schema": None,
+            "renderer": "agent_team.TeamSelectOption",
+            "suppresses_core_persona_selector": False,
+            "legacy_payload_keys": [],
+            "applies_to_session_key": "SELECTED_TEAM_ID",
+            "visible_when": None,
+            "area": "project_option",
+        }
+    ]
+    assert session_before.json()["options"][0]["id"] == "agent_team.SELECTED_TEAM_ID"
+    assert session_before.json()["options"][0]["area"] == "session_option"
+    assert channel_before.json()["options"][0]["id"] == "agent_team.SELECTED_TEAM_ID"
+    assert channel_before.json()["options"][0]["area"] == "channel_option"
+    assert channel_before.json()["options"][0]["renderer"] == "agent_team.TeamSelectOption"
+    assert channel_before.json()["options"][0]["suppresses_core_persona_selector"] is True
+    assert channel_before.json()["options"][0]["legacy_payload_keys"] == ["team_id"]
+    assert channel_before.json()["options"][0]["visible_when"]["route"] == "/channels/feishu"
+    assert scheduled_task_before.json()["options"][0]["id"] == "agent_team.SELECTED_TEAM_ID"
+    assert scheduled_task_before.json()["options"][0]["area"] == "scheduled_task_option"
+    assert scheduled_task_before.json()["options"][0]["renderer"] == "agent_team.TeamSelectOption"
+    assert scheduled_task_before.json()["options"][0]["suppresses_core_persona_selector"] is True
+    assert scheduled_task_before.json()["options"][0]["legacy_payload_keys"] == ["team_id"]
+    assert scheduled_task_before.json()["options"][0]["visible_when"]["agent_id"] == "team"
+    assert project_after.json()["options"] == []
+    assert channel_after.json()["options"] == []
+    assert scheduled_task_after.json()["options"] == []
+    inactive_option = project_inactive.json()["options"][0]
+    assert inactive_option["id"] == "agent_team.DEFAULT_TEAM_ID"
+    assert inactive_option["effective"] is False
+    assert inactive_option["plugin_status"] == "disabled"
+    assert session_inactive.json()["options"][0]["effective"] is False
+    assert channel_inactive.json()["options"][0]["effective"] is False
+    assert scheduled_task_inactive.json()["options"][0]["effective"] is False
 
 
 def test_plugin_runtime_response_includes_state_source_metadata() -> None:
@@ -780,6 +1274,9 @@ def test_plugin_runtime_resource_and_dry_run_detail_routes() -> None:
     resource_payload = resources.json()
     assert resource_payload["total"] == 19
     assert resource_payload["resource_types"]["message_action"] == 1
+    assert resource_payload["resource_types"]["app_tab"] == 1
+    assert resource_payload["resource_types"]["app_panel"] == 1
+    assert resource_payload["resource_types"]["user_menu_item"] == 1
     assert resource_payload["resource_types"]["plugin_package_folder"] == 1
     assert resource_payload["resource_types"]["plugin_data_folder"] == 1
     assert any(
@@ -797,6 +1294,24 @@ def test_plugin_runtime_resource_and_dry_run_detail_routes() -> None:
     assert any(
         item["resource_id"] == "feedback.summary"
         and item["resource_type"] == "tool"
+        and item["cleanup_strategy"] == "keep"
+        for item in resource_payload["resources"]
+    )
+    assert any(
+        item["resource_id"] == "feedback:feedback-tab"
+        and item["resource_type"] == "app_tab"
+        and item["cleanup_strategy"] == "keep"
+        for item in resource_payload["resources"]
+    )
+    assert any(
+        item["resource_id"] == "feedback:feedback-panel"
+        and item["resource_type"] == "app_panel"
+        and item["cleanup_strategy"] == "keep"
+        for item in resource_payload["resources"]
+    )
+    assert any(
+        item["resource_id"] == "feedback:feedback-nav"
+        and item["resource_type"] == "user_menu_item"
         and item["cleanup_strategy"] == "keep"
         for item in resource_payload["resources"]
     )
@@ -915,7 +1430,11 @@ def test_plugin_runtime_package_and_data_routes() -> None:
     assert package_payload["package_summary"]["layout"]["has_config_schema"] is True
     assert package_payload["package_summary"]["layout"]["has_resources"] is True
     assert package_payload["package_summary"]["layout"]["has_data_template"] is True
+    assert package_payload["package_summary"]["layout"]["data_template"] == "plugin-data-template"
     assert package_payload["package_summary"]["data_template"]["exists"] is True
+    assert package_payload["package_summary"]["data_template"]["template"] == "plugin-data-template"
+    assert "config/current.json" in package_payload["package_summary"]["data_template"]["files"]
+    assert "config/defaults.json" in package_payload["package_summary"]["data_template"]["files"]
     assert "state/audit.jsonl" in package_payload["package_summary"]["data_template"]["files"]
     assert package_payload["package_summary"]["standard_files"]["plugin.yaml"] is True
     assert package_payload["package_summary"]["standard_files"]["config/schema.json"] is True
@@ -1017,10 +1536,131 @@ def test_builtin_folder_package_is_authoritative_for_feedback_runtime() -> None:
     assert feedback["package"]["static_fallback_used"] is False
     assert feedback["routes"][0]["prefix"] == "/api/feedback"
     assert feedback["tools"][0]["name"] == "feedback.summary"
-    assert feedback["frontend"]["routes"] == ["feedback-route"]
+    assert feedback["frontend"]["routes"] == []
+    assert feedback["frontend"]["app_tabs"][0]["path"] == "/feedback"
     assert feedback["depends_on"] == []
     assert feedback["resource_types"]["db_index"] == 4
     assert feedback["resource_types"]["message_action"] == 1
+
+
+def test_builtin_folder_package_missing_contributions_are_not_static_filled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    data_root = tmp_path / "plugin-data"
+    feedback_folder = plugin_root / "system" / FEEDBACK_PLUGIN_ID
+    feedback_folder.mkdir(parents=True)
+    (feedback_folder / "plugin.yaml").write_text(
+        """
+id: feedback
+name: Feedback Folder Only
+version: 9.9.9
+api_version: v1
+permissions:
+  - feedback:read
+settings: []
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(settings, "PLUGIN_PACKAGE_PATH", str(plugin_root))
+    monkeypatch.setattr(settings, "PLUGIN_DATA_PATH", str(data_root))
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "plugin_runtime",
+                "src.api.routes.plugin_runtime",
+                prefix="/api/extensions/plugins",
+            ),
+        ),
+    )
+    runtime = register_builtin_plugin_routes(app)
+    app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+    client = TestClient(app)
+
+    feedback = client.get(f"/api/extensions/plugins/{FEEDBACK_PLUGIN_ID}").json()
+
+    manifest = runtime.get_state(FEEDBACK_PLUGIN_ID).manifest
+    assert manifest is not None
+    assert manifest.name == "Feedback Folder Only"
+    assert manifest.routers == []
+    assert manifest.tools == []
+    assert manifest.frontend.app_tabs == []
+    assert feedback["name"] == "Feedback Folder Only"
+    assert feedback["routes"] == []
+    assert feedback["tools"] == []
+    assert feedback["frontend"]["app_tabs"] == []
+    assert feedback["package"]["manifest_authority"] == "folder_package"
+    assert set(feedback["package"]["static_fallback_fields"]) >= {
+        "routers",
+        "tools",
+        "resources",
+        "frontend",
+    }
+
+
+def test_plugin_package_scan_missing_contributions_are_not_static_filled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    plugin_root = tmp_path / "plugins"
+    data_root = tmp_path / "plugin-data"
+    feedback_folder = plugin_root / "system" / FEEDBACK_PLUGIN_ID
+    feedback_folder.mkdir(parents=True)
+    (feedback_folder / "plugin.yaml").write_text(
+        """
+id: feedback
+name: Feedback Scan Folder Only
+version: 9.9.9
+api_version: v1
+permissions:
+  - feedback:read
+settings: []
+""",
+        encoding="utf-8",
+    )
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "plugin_runtime",
+                "src.api.routes.plugin_runtime",
+                prefix="/api/extensions/plugins",
+            ),
+        ),
+    )
+    register_builtin_plugin_routes(app)
+    app.state.plugin_runtime_state_storage = InMemoryPluginRuntimeStateStorage()
+    app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+    monkeypatch.setattr(settings, "PLUGIN_PACKAGE_PATH", str(plugin_root))
+    monkeypatch.setattr(settings, "PLUGIN_DATA_PATH", str(data_root))
+    client = TestClient(app)
+
+    scan = client.post("/api/extensions/plugins/packages/scan")
+    feedback = client.get(f"/api/extensions/plugins/{FEEDBACK_PLUGIN_ID}").json()
+
+    manifest = app.state.plugin_runtime.get_state(FEEDBACK_PLUGIN_ID).manifest
+    assert scan.status_code == 200
+    assert scan.json()["total"] == 1
+    assert manifest is not None
+    assert manifest.name == "Feedback Scan Folder Only"
+    assert manifest.routers == []
+    assert manifest.tools == []
+    assert manifest.frontend.app_tabs == []
+    assert feedback["name"] == "Feedback Scan Folder Only"
+    assert feedback["routes"] == []
+    assert feedback["tools"] == []
+    assert feedback["frontend"]["app_tabs"] == []
+    assert feedback["package"]["manifest_authority"] == "folder_package"
+    assert set(feedback["package"]["static_fallback_fields"]) >= {
+        "routers",
+        "tools",
+        "resources",
+        "frontend",
+    }
 
 
 def test_plugin_runtime_package_export_includes_plugin_defaults() -> None:
@@ -1398,6 +2038,96 @@ def test_plugin_runtime_export_import_and_uninstall_controls() -> None:
     assert imported.json()["plugin_id"] == IMAGE_GENERATION_PLUGIN_ID
 
 
+def test_plugin_runtime_export_import_preserves_scoped_plugin_settings() -> None:
+    app = FastAPI()
+    register_core_routes(
+        app,
+        registrations=(
+            CoreRouteRegistration(
+                "plugin_runtime",
+                "src.api.routes.plugin_runtime",
+                prefix="/api/extensions/plugins",
+            ),
+        ),
+    )
+    runtime = register_builtin_plugin_routes(app)
+    app.state.plugin_runtime_state_storage = InMemoryPluginRuntimeStateStorage()
+    settings_storage = InMemoryPluginSettingsStorage()
+    app.state.plugin_settings_service = PluginSettingsService(storage=settings_storage)
+    app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+    agent_team_manifest = runtime.get_state(AGENT_TEAM_PLUGIN_ID).manifest
+    asyncio.run(
+        app.state.plugin_settings_service.set_setting(
+            agent_team_manifest,
+            key="SELECTED_TEAM_ID",
+            value="team-channel",
+            scope="channel",
+            subject_id="channel-1",
+            updated_by="admin-1",
+        )
+    )
+    asyncio.run(
+        app.state.plugin_settings_service.set_setting(
+            agent_team_manifest,
+            key="SELECTED_TEAM_ID",
+            value="team-task",
+            scope="scheduled_task",
+            subject_id="task-1",
+            updated_by="admin-1",
+        )
+    )
+    client = TestClient(app)
+
+    exported = client.get(f"/api/extensions/plugins/{AGENT_TEAM_PLUGIN_ID}/export")
+    import_app = FastAPI()
+    register_core_routes(
+        import_app,
+        registrations=(
+            CoreRouteRegistration(
+                "plugin_runtime",
+                "src.api.routes.plugin_runtime",
+                prefix="/api/extensions/plugins",
+            ),
+        ),
+    )
+    register_builtin_plugin_routes(import_app)
+    import_app.state.plugin_runtime_state_storage = InMemoryPluginRuntimeStateStorage()
+    import_storage = InMemoryPluginSettingsStorage()
+    import_app.state.plugin_settings_service = PluginSettingsService(storage=import_storage)
+    import_app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+    imported = TestClient(import_app).post(
+        "/api/extensions/plugins/import",
+        json={"payload": exported.json(), "restore_state": False},
+    )
+
+    assert exported.status_code == 200
+    settings_by_scope_subject = {
+        (item["scope"], item["subject_id"], item["key"]): item
+        for item in exported.json()["settings"]
+    }
+    assert settings_by_scope_subject[("channel", "channel-1", "SELECTED_TEAM_ID")]["value"] == "team-channel"
+    assert settings_by_scope_subject[("scheduled_task", "task-1", "SELECTED_TEAM_ID")]["value"] == "team-task"
+    assert imported.status_code == 200
+    channel_record = asyncio.run(
+        import_storage.get(
+            plugin_id=AGENT_TEAM_PLUGIN_ID,
+            key="SELECTED_TEAM_ID",
+            scope="channel",
+            subject_id="channel-1",
+        )
+    )
+    task_record = asyncio.run(
+        import_storage.get(
+            plugin_id=AGENT_TEAM_PLUGIN_ID,
+            key="SELECTED_TEAM_ID",
+            scope="scheduled_task",
+            subject_id="task-1",
+        )
+    )
+    assert channel_record.value == "team-channel"
+    assert task_record.value == "team-task"
+
+
 def test_plugin_runtime_uninstall_archives_user_installed_package_and_keeps_data(
     tmp_path: Path,
     monkeypatch,
@@ -1740,11 +2470,144 @@ def test_plugin_runtime_control_routes_disable_enable_feedback_guard() -> None:
     assert runtime.get_state(FEEDBACK_PLUGIN_ID).status is PluginRuntimeStatus.ENABLED
 
 
-def test_agent_team_plugin_route_is_guarded_by_runtime_state() -> None:
+def test_feedback_route_module_fails_closed_when_plugin_disabled_direct_include() -> None:
+    from src.plugins.feedback import routes as feedback_routes
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id=FEEDBACK_PLUGIN_ID,
+                name="Feedback",
+                version="1.0.0",
+                api_version="1",
+                enabled_by_default=False,
+            )
+        ]
+    )
+    app = FastAPI()
+    app.state.plugin_runtime = runtime
+    app.include_router(feedback_routes.router, prefix="/api/feedback")
+    app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+
+    response = TestClient(app).get("/api/feedback/")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["error"] == "plugin_unavailable"
+    assert response.json()["detail"]["plugin_id"] == FEEDBACK_PLUGIN_ID
+
+
+def test_usage_route_module_fails_closed_when_plugin_disabled_direct_include() -> None:
+    from src.api.routes import usage as usage_routes
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id=USAGE_REPORTS_PLUGIN_ID,
+                name="Usage Reports",
+                version="1.0.0",
+                api_version="1",
+                enabled_by_default=False,
+            )
+        ]
+    )
+    app = FastAPI()
+    app.state.plugin_runtime = runtime
+    app.include_router(usage_routes.router, prefix="/api/usage")
+    app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+
+    response = TestClient(app).get("/api/usage/logs")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["error"] == "plugin_unavailable"
+    assert response.json()["detail"]["plugin_id"] == USAGE_REPORTS_PLUGIN_ID
+
+
+def test_github_installer_route_module_fails_closed_when_plugin_disabled_direct_include() -> None:
+    from src.api.routes import github as github_routes
+
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id=GITHUB_INSTALLER_PLUGIN_ID,
+                name="GitHub Installer",
+                version="1.0.0",
+                api_version="1",
+                enabled_by_default=False,
+            )
+        ]
+    )
+    app = FastAPI()
+    app.state.plugin_runtime = runtime
+    app.include_router(github_routes.router, prefix="/api/github")
+    app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+
+    response = TestClient(app).post(
+        "/api/github/preview",
+        json={"repo_url": "owner/repo", "branch": "main"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["error"] == "plugin_unavailable"
+    assert response.json()["detail"]["plugin_id"] == GITHUB_INSTALLER_PLUGIN_ID
+
+
+def test_agent_team_plugin_route_is_guarded_by_runtime_state(monkeypatch) -> None:
+    class _AgentConfigStorage:
+        def __init__(self) -> None:
+            self.catalog = []
+
+        async def get_user_preference(self, user_id: str):
+            return None
+
+        async def get_role_agents(self, role_id: str):
+            return None
+
+        async def get_catalog_config(self):
+            return self.catalog
+
+        async def get_global_config(self):
+            return []
+
+        async def set_catalog_config(self, agents, *, prune_missing: bool = True):
+            self.catalog = agents
+            return agents
+
+    class _UserStorage:
+        async def get_by_id(self, user_id: str):
+            return type("User", (), {"roles": []})()
+
+    monkeypatch.setattr(
+        "src.infra.agent.config_storage.get_agent_config_storage",
+        lambda: _AgentConfigStorage(),
+    )
+    monkeypatch.setattr(
+        "src.api.routes.agent.config.get_agent_config_storage",
+        lambda: _AgentConfigStorage(),
+    )
+    monkeypatch.setattr("src.infra.user.storage.UserStorage", lambda: _UserStorage())
+
+    async def _allowed_model_ids(user):
+        return []
+
+    monkeypatch.setattr(
+        "src.infra.agent.model_access.resolve_user_allowed_model_ids",
+        _allowed_model_ids,
+    )
+
     app = FastAPI()
     register_core_routes(
         app,
         registrations=(
+            CoreRouteRegistration(
+                "agent",
+                "src.api.routes.agent",
+                prefix="/api",
+            ),
+            CoreRouteRegistration(
+                "agent_config",
+                "src.api.routes.agent.config",
+                prefix="/api/agent/config",
+            ),
             CoreRouteRegistration(
                 "plugin_runtime",
                 "src.api.routes.plugin_runtime",
@@ -1753,18 +2616,35 @@ def test_agent_team_plugin_route_is_guarded_by_runtime_state() -> None:
         ),
     )
     runtime = register_builtin_plugin_routes(app)
+    from src.agents import set_plugin_runtime as set_agent_plugin_runtime
+
+    set_agent_plugin_runtime(runtime)
     app.state.plugin_runtime_state_storage = InMemoryPluginRuntimeStateStorage()
     app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
+    app.dependency_overrides[api_deps.get_current_user_optional] = _plugin_runtime_admin
     client = TestClient(app)
 
+    agents_before = client.get("/api/agents")
+    catalog_before = client.get("/api/agent/config/catalog")
     disabled = client.post(f"/api/extensions/plugins/{AGENT_TEAM_PLUGIN_ID}/disable")
+    agents_after = client.get("/api/agents")
+    catalog_after = client.get("/api/agent/config/catalog")
     blocked_teams = client.get("/api/teams/")
 
+    assert agents_before.status_code == 200
+    assert "team" in {agent["id"] for agent in agents_before.json()["agents"]}
+    assert catalog_before.status_code == 200
+    assert "team" in {agent["id"] for agent in catalog_before.json()["agents"]}
     assert disabled.status_code == 200
     assert disabled.json()["status"] == "disabled"
     assert runtime.get_state(AGENT_TEAM_PLUGIN_ID).status is PluginRuntimeStatus.DISABLED
+    assert agents_after.status_code == 200
+    assert "team" not in {agent["id"] for agent in agents_after.json()["agents"]}
+    assert catalog_after.status_code == 200
+    assert "team" not in {agent["id"] for agent in catalog_after.json()["agents"]}
     assert blocked_teams.status_code == 503
     assert blocked_teams.json()["detail"]["error"] == "plugin_unavailable"
+    set_agent_plugin_runtime(None)
 
 
 def test_plugin_runtime_control_routes_apply_feishu_connector_runtime_side_effects(
@@ -1789,7 +2669,10 @@ def test_plugin_runtime_control_routes_apply_feishu_connector_runtime_side_effec
     async def fake_stop_feishu_channels() -> None:
         calls.append("stop")
 
-    async def fake_setup_feishu_handler(*, default_agent: str, show_tools: bool) -> None:
+    async def fake_setup_feishu_handler(
+        *, default_agent: str, show_tools: bool, plugin_runtime=None
+    ) -> None:
+        assert plugin_runtime is runtime
         calls.append(f"start:{default_agent}:{show_tools}")
 
     monkeypatch.setattr(
@@ -1821,6 +2704,45 @@ def test_plugin_runtime_control_routes_apply_feishu_connector_runtime_side_effec
     }
     assert calls == ["stop", f"start:{settings.DEFAULT_AGENT}:True"]
     assert runtime.get_state(FEISHU_CONNECTOR_PLUGIN_ID).status is PluginRuntimeStatus.ENABLED
+
+
+def test_plugin_runtime_side_effects_are_manifest_declared(monkeypatch) -> None:
+    from src.api.routes import plugin_runtime as plugin_runtime_routes
+
+    calls: list[str] = []
+
+    async def fake_stop_feishu_channels() -> None:
+        calls.append("stop")
+
+    monkeypatch.setattr(
+        "src.infra.channel.feishu.stop_feishu_channels",
+        fake_stop_feishu_channels,
+    )
+    runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="custom_channel_connector",
+                name="Custom Channel Connector",
+                version="1.0.0",
+                api_version="v1",
+                runtime_effects=[
+                    {"action": "disable", "effect": "stop_feishu_connector"},
+                ],
+            )
+        ]
+    )
+
+    response = asyncio.run(
+        plugin_runtime_routes._apply_builtin_plugin_runtime_side_effect(
+            runtime=runtime,
+            plugin_id="custom_channel_connector",
+            enabled=False,
+        )
+    )
+
+    assert calls == ["stop"]
+    assert response.action == "stop_feishu_connector"
+    assert response.status == "succeeded"
 
 
 def test_plugin_runtime_control_routes_expose_feishu_side_effect_failures(

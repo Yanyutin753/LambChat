@@ -8,5 +8,11 @@ permissions:
   - channel:read
   - channel:write
   - channel:delete
+backend:
+  runtime_effects:
+    - action: enable
+      effect: start_feishu_connector
+    - action: disable
+      effect: stop_feishu_connector
 enabled_by_default: true
 data_template: plugin-data-template
