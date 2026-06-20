@@ -17,6 +17,10 @@ from src.infra.share.storage import ShareStorage
 from src.infra.team.storage import TeamStorage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import to_iso
+from src.kernel.extensions.plugin_options import (
+    agent_uses_agent_team_options,
+    selected_agent_team_id_from_metadata,
+)
 from src.kernel.schemas.share import (
     ShareCreate,
     SharedContentOwner,
@@ -29,10 +33,6 @@ from src.kernel.schemas.share import (
 )
 from src.kernel.schemas.user import TokenPayload
 from src.kernel.types import Permission
-from src.kernel.extensions.plugin_options import (
-    agent_uses_agent_team_options,
-    selected_agent_team_id_from_metadata,
-)
 
 router = APIRouter()
 logger = get_logger(__name__)

@@ -38,10 +38,7 @@ def _declared_builtin_plugin_agent_ids() -> set[str]:
     from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
 
     return {
-        agent.id
-        for manifest in BUILTIN_PLUGIN_MANIFESTS
-        for agent in manifest.agents
-        if agent.id
+        agent.id for manifest in BUILTIN_PLUGIN_MANIFESTS for agent in manifest.agents if agent.id
     }
 
 

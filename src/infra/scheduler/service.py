@@ -17,17 +17,22 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from src.infra.logging import get_logger
 from src.infra.extensions import get_plugin_settings_service
 from src.infra.extensions.scoped_options import (
     plugin_options_with_settings,
     sync_plugin_options_to_settings,
 )
+from src.infra.logging import get_logger
 from src.infra.scheduler.runner import get_scheduled_task_runner
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import ensure_utc, utc_now
+from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS, PluginRuntime
+from src.kernel.extensions.plugin_options import (
+    declared_plugin_options_from_metadata,
+    plugin_options_from_metadata,
+)
 from src.kernel.schemas.scheduled_task import (
     CronTriggerConfig,
     DateTriggerConfig,
@@ -39,11 +44,6 @@ from src.kernel.schemas.scheduled_task import (
     ScheduledTaskUpdate,
     TaskRunResponse,
     TriggerType,
-)
-from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS, PluginRuntime
-from src.kernel.extensions.plugin_options import (
-    declared_plugin_options_from_metadata,
-    plugin_options_from_metadata,
 )
 
 logger = get_logger(__name__)

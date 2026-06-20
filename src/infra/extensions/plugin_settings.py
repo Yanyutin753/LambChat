@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from builtins import list as builtin_list
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -56,16 +57,21 @@ class InMemoryPluginSettingsStorage:
         plugin_id: str,
         scope: str = "system",
         subject_id: str | None = None,
-    ) -> list[PluginSettingRecord]:
+    ) -> builtin_list[PluginSettingRecord]:
         return [
             record
-            for (record_plugin_id, record_scope, _key, record_subject_id), record in self.records.items()
+            for (
+                record_plugin_id,
+                record_scope,
+                _key,
+                record_subject_id,
+            ), record in self.records.items()
             if record_plugin_id == plugin_id
             and record_scope == scope
             and record_subject_id == subject_id
         ]
 
-    async def list_all(self, *, plugin_id: str) -> list[PluginSettingRecord]:
+    async def list_all(self, *, plugin_id: str) -> builtin_list[PluginSettingRecord]:
         return [
             record
             for (record_plugin_id, _scope, _key, _subject_id), record in self.records.items()
@@ -115,7 +121,7 @@ class MongoPluginSettingsStorage:
     COLLECTION = "plugin_settings"
 
     def __init__(self) -> None:
-        self._collection = None
+        self._collection: Any | None = None
         self._indexes_created = False
 
     @property
@@ -158,14 +164,14 @@ class MongoPluginSettingsStorage:
         plugin_id: str,
         scope: str = "system",
         subject_id: str | None = None,
-    ) -> list[PluginSettingRecord]:
+    ) -> builtin_list[PluginSettingRecord]:
         await self.ensure_indexes()
         cursor = self.collection.find(
             {"plugin_id": plugin_id, "scope": scope, "subject_id": subject_id}
         )
         return [_record_from_doc(doc) async for doc in cursor]
 
-    async def list_all(self, *, plugin_id: str) -> list[PluginSettingRecord]:
+    async def list_all(self, *, plugin_id: str) -> builtin_list[PluginSettingRecord]:
         await self.ensure_indexes()
         cursor = self.collection.find({"plugin_id": plugin_id})
         return [_record_from_doc(doc) async for doc in cursor]
@@ -261,7 +267,9 @@ class PluginSettingsService:
         scoped_definitions = [
             definition for definition in manifest.settings if definition.scope == scope
         ]
-        for definition in sorted(scoped_definitions, key=lambda item: (item.group, item.order, item.key)):
+        for definition in sorted(
+            scoped_definitions, key=lambda item: (item.group, item.order, item.key)
+        ):
             record = records.get(definition.key)
             value, source = await self._resolved_value(manifest, definition, record)
             if mask_sensitive and definition.sensitive and value not in (None, ""):
@@ -314,7 +322,9 @@ class PluginSettingsService:
                 stored_records = []
 
         exported_keys: set[tuple[str, str, str | None]] = set()
-        definitions = {(definition.scope, definition.key): definition for definition in manifest.settings}
+        definitions: dict[tuple[str, str], PluginSettingDefinition] = {
+            (definition.scope, definition.key): definition for definition in manifest.settings
+        }
         for record in sorted(
             stored_records,
             key=lambda item: (item.scope, item.subject_id or "", item.key),
@@ -342,13 +352,13 @@ class PluginSettingsService:
             export_key = (definition.scope, definition.key, None)
             if export_key in exported_keys:
                 continue
-            record = None
-            value, source = await self._resolved_value(manifest, definition, record)
+            default_record: PluginSettingRecord | None = None
+            value, source = await self._resolved_value(manifest, definition, default_record)
             exported.append(
                 self._setting_payload(
                     manifest,
                     definition,
-                    record,
+                    default_record,
                     value=value,
                     source=source,
                     mask_sensitive=mask_sensitive,

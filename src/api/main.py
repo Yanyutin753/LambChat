@@ -55,6 +55,7 @@ STATIC_CACHE_CONTROL_BY_PREFIX = {
 MANIFEST_CACHE_CONTROL = "public, max-age=86400"
 SERVICE_WORKER_CACHE_CONTROL = "no-cache"
 OFFLINE_PAGE_CACHE_CONTROL = "no-cache"
+INDEX_HTML_CACHE_CONTROL = "no-cache"
 INDEX_HTML_CACHE_MAX_ENTRIES = 4
 INDEX_HTML_MAX_BYTES = 2 * 1024 * 1024
 _INDEX_HTML_CACHE: OrderedDict[Path, tuple[int, int, str]] = OrderedDict()
@@ -161,6 +162,8 @@ def _cache_control_for_static_path(path: str) -> str | None:
         return SERVICE_WORKER_CACHE_CONTROL
     if normalized_path == "offline.html":
         return OFFLINE_PAGE_CACHE_CONTROL
+    if normalized_path == "index.html":
+        return INDEX_HTML_CACHE_CONTROL
     return None
 
 
@@ -454,8 +457,8 @@ async def _initialize_plugin_settings(app: FastAPI) -> None:
 def _attach_plugin_runtime_to_runtime_guards(app: FastAPI) -> None:
     runtime = getattr(app.state, "plugin_runtime", None)
     try:
-        from src.infra.scheduler.runtime import get_runtime_scheduler
         from src.infra.scheduler.runner import get_scheduled_task_runner
+        from src.infra.scheduler.runtime import get_runtime_scheduler
 
         get_runtime_scheduler().set_plugin_runtime(runtime)
         get_scheduled_task_runner().set_plugin_runtime(runtime)
@@ -918,7 +921,11 @@ def create_app() -> FastAPI:
                     reason=reason,
                 )
                 rendered = inject_share_seo_into_html(html_doc, seo)
-                return HTMLResponse(content=rendered, status_code=exc.status_code)
+                return HTMLResponse(
+                    content=rendered,
+                    status_code=exc.status_code,
+                    headers={"Cache-Control": INDEX_HTML_CACHE_CONTROL},
+                )
 
             seo = build_shared_page_seo(
                 base_url=base_url,
@@ -930,7 +937,10 @@ def create_app() -> FastAPI:
                 indexable=False,
             )
             rendered = inject_share_seo_into_html(html_doc, seo)
-            return HTMLResponse(content=rendered)
+            return HTMLResponse(
+                content=rendered,
+                headers={"Cache-Control": INDEX_HTML_CACHE_CONTROL},
+            )
 
         # SPA fallback - serve index.html for all unmatched routes
         @app.get("/{full_path:path}")
@@ -950,7 +960,10 @@ def create_app() -> FastAPI:
                 seo = build_public_route_seo(base_url=base_url, path=path)
                 html_doc = await run_blocking_io(_read_index_html, index_file)
                 rendered = inject_public_route_seo_into_html(html_doc, seo)
-                return HTMLResponse(content=rendered)
+                return HTMLResponse(
+                    content=rendered,
+                    headers={"Cache-Control": INDEX_HTML_CACHE_CONTROL},
+                )
             return {"error": "Frontend not built. Run 'npm run build' in frontend directory."}
 
     elif frontend_target and frontend_target[0] == "redirect":

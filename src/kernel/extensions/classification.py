@@ -43,37 +43,73 @@ class PluginMigrationGate:
 
 
 CORE_CAPABILITIES: tuple[CapabilityClassification, ...] = (
-    CapabilityClassification("chat", ExtensionClassification.CORE, "conversation protocol", ("chat",)),
-    CapabilityClassification("sessions", ExtensionClassification.CORE, "session storage", ("sessions",)),
-    CapabilityClassification("projects", ExtensionClassification.CORE, "project ownership", ("projects",)),
+    CapabilityClassification(
+        "chat", ExtensionClassification.CORE, "conversation protocol", ("chat",)
+    ),
+    CapabilityClassification(
+        "sessions", ExtensionClassification.CORE, "session storage", ("sessions",)
+    ),
+    CapabilityClassification(
+        "projects", ExtensionClassification.CORE, "project ownership", ("projects",)
+    ),
     CapabilityClassification(
         "scheduled_tasks",
         ExtensionClassification.CORE,
         "task scheduling base capability",
         ("scheduled_tasks",),
     ),
-    CapabilityClassification("mcp_core", ExtensionClassification.CORE, "MCP runtime", ("mcp", "mcp_admin")),
-    CapabilityClassification("skill_core", ExtensionClassification.CORE, "Skill base capability", ("skills",)),
-    CapabilityClassification("memory", ExtensionClassification.CORE, "memory base capability", ("memory",)),
+    CapabilityClassification(
+        "mcp_core", ExtensionClassification.CORE, "MCP runtime", ("mcp", "mcp_admin")
+    ),
+    CapabilityClassification(
+        "skill_core", ExtensionClassification.CORE, "Skill base capability", ("skills",)
+    ),
+    CapabilityClassification(
+        "memory", ExtensionClassification.CORE, "memory base capability", ("memory",)
+    ),
     CapabilityClassification("auth", ExtensionClassification.CORE, "authentication", ("auth",)),
     CapabilityClassification("users", ExtensionClassification.CORE, "user management", ("users",)),
-    CapabilityClassification("rbac", ExtensionClassification.CORE, "RBAC role management", ("roles",)),
-    CapabilityClassification("settings", ExtensionClassification.CORE, "core settings", ("settings",)),
-    CapabilityClassification("upload", ExtensionClassification.CORE, "upload/file access base", ("upload",)),
-    CapabilityClassification("files", ExtensionClassification.CORE, "revealed files base", ("files",)),
+    CapabilityClassification(
+        "rbac", ExtensionClassification.CORE, "RBAC role management", ("roles",)
+    ),
+    CapabilityClassification(
+        "settings", ExtensionClassification.CORE, "core settings", ("settings",)
+    ),
+    CapabilityClassification(
+        "upload", ExtensionClassification.CORE, "upload/file access base", ("upload",)
+    ),
+    CapabilityClassification(
+        "files", ExtensionClassification.CORE, "revealed files base", ("files",)
+    ),
     CapabilityClassification("usage", ExtensionClassification.CORE, "usage collection base"),
-    CapabilityClassification("share", ExtensionClassification.CORE, "share permission base", ("share",)),
-    CapabilityClassification("human_approval", ExtensionClassification.CORE, "approval protocol", ("human",)),
-    CapabilityClassification("env_vars", ExtensionClassification.CORE, "secret/env key storage", ("env_vars",)),
-    CapabilityClassification("notifications", ExtensionClassification.CORE, "notification base", ("notifications",)),
+    CapabilityClassification(
+        "share", ExtensionClassification.CORE, "share permission base", ("share",)
+    ),
+    CapabilityClassification(
+        "human_approval", ExtensionClassification.CORE, "approval protocol", ("human",)
+    ),
+    CapabilityClassification(
+        "env_vars", ExtensionClassification.CORE, "secret/env key storage", ("env_vars",)
+    ),
+    CapabilityClassification(
+        "notifications", ExtensionClassification.CORE, "notification base", ("notifications",)
+    ),
     CapabilityClassification("push", ExtensionClassification.CORE, "push delivery base", ("push",)),
-    CapabilityClassification("extension_center", ExtensionClassification.CORE, "extension center", ("marketplace",)),
+    CapabilityClassification(
+        "extension_center", ExtensionClassification.CORE, "extension center", ("marketplace",)
+    ),
 )
 
 EXTENSION_ONLY_CAPABILITIES: tuple[CapabilityClassification, ...] = (
-    CapabilityClassification("skill", ExtensionClassification.EXTENSION_ONLY, "managed by Skill core service"),
-    CapabilityClassification("mcp_profile", ExtensionClassification.EXTENSION_ONLY, "managed by MCP core service"),
-    CapabilityClassification("theme", ExtensionClassification.EXTENSION_ONLY, "display/config extension"),
+    CapabilityClassification(
+        "skill", ExtensionClassification.EXTENSION_ONLY, "managed by Skill core service"
+    ),
+    CapabilityClassification(
+        "mcp_profile", ExtensionClassification.EXTENSION_ONLY, "managed by MCP core service"
+    ),
+    CapabilityClassification(
+        "theme", ExtensionClassification.EXTENSION_ONLY, "display/config extension"
+    ),
 )
 
 LOW_COUPLING_PLUGIN_CANDIDATES: tuple[CapabilityClassification, ...] = (
@@ -91,11 +127,23 @@ LOW_COUPLING_PLUGIN_CANDIDATES: tuple[CapabilityClassification, ...] = (
             "core_stability_tests",
         ),
     ),
-    CapabilityClassification("github_installer", ExtensionClassification.LOW_COUPLING_PLUGIN, "external GitHub installer"),
-    CapabilityClassification("image_generation", ExtensionClassification.LOW_COUPLING_PLUGIN, "optional media provider"),
-    CapabilityClassification("audio_transcription", ExtensionClassification.LOW_COUPLING_PLUGIN, "optional media provider"),
-    CapabilityClassification("advanced_file_viewers", ExtensionClassification.LOW_COUPLING_PLUGIN, "optional viewers"),
-    CapabilityClassification("usage_reports", ExtensionClassification.LOW_COUPLING_PLUGIN, "usage reporting enhancement"),
+    CapabilityClassification(
+        "github_installer", ExtensionClassification.LOW_COUPLING_PLUGIN, "external GitHub installer"
+    ),
+    CapabilityClassification(
+        "image_generation", ExtensionClassification.LOW_COUPLING_PLUGIN, "optional media provider"
+    ),
+    CapabilityClassification(
+        "audio_transcription",
+        ExtensionClassification.LOW_COUPLING_PLUGIN,
+        "optional media provider",
+    ),
+    CapabilityClassification(
+        "advanced_file_viewers", ExtensionClassification.LOW_COUPLING_PLUGIN, "optional viewers"
+    ),
+    CapabilityClassification(
+        "usage_reports", ExtensionClassification.LOW_COUPLING_PLUGIN, "usage reporting enhancement"
+    ),
     CapabilityClassification(
         "share_publishers",
         ExtensionClassification.LOW_COUPLING_PLUGIN,
@@ -110,10 +158,29 @@ LOW_COUPLING_PLUGIN_CANDIDATES: tuple[CapabilityClassification, ...] = (
 )
 
 MEDIUM_COUPLING_PLUGIN_CANDIDATES: tuple[CapabilityClassification, ...] = (
-    CapabilityClassification("channels", ExtensionClassification.MEDIUM_COUPLING_PLUGIN, "listener/delivery coupling", ("channels",)),
-    CapabilityClassification("agent_team", ExtensionClassification.MEDIUM_COUPLING_PLUGIN, "chat context and team model coupling", ("teams",)),
-    CapabilityClassification("persona", ExtensionClassification.MEDIUM_COUPLING_PLUGIN, "prompt/context coupling", ("persona_presets",)),
-    CapabilityClassification("user_agent", ExtensionClassification.MEDIUM_COUPLING_PLUGIN, "future independent agent model"),
+    CapabilityClassification(
+        "channels",
+        ExtensionClassification.MEDIUM_COUPLING_PLUGIN,
+        "listener/delivery coupling",
+        ("channels",),
+    ),
+    CapabilityClassification(
+        "agent_team",
+        ExtensionClassification.MEDIUM_COUPLING_PLUGIN,
+        "chat context and team model coupling",
+        ("teams",),
+    ),
+    CapabilityClassification(
+        "persona",
+        ExtensionClassification.MEDIUM_COUPLING_PLUGIN,
+        "prompt/context coupling",
+        ("persona_presets",),
+    ),
+    CapabilityClassification(
+        "user_agent",
+        ExtensionClassification.MEDIUM_COUPLING_PLUGIN,
+        "future independent agent model",
+    ),
 )
 
 PLUGIN_MIGRATION_GATES: tuple[PluginMigrationGate, ...] = (
@@ -190,6 +257,4 @@ def plugin_candidate_ids() -> set[str]:
 
 
 def required_migration_gate_ids() -> set[str]:
-    return {
-        gate.id for gate in PLUGIN_MIGRATION_GATES if gate.required_before_business_migration
-    }
+    return {gate.id for gate in PLUGIN_MIGRATION_GATES if gate.required_before_business_migration}

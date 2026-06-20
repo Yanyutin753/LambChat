@@ -68,7 +68,9 @@ class PluginPackageLifecycleService:
             "plugin-data is retained by default and is not physically deleted.",
         ]
         if source_type != "installed" or not source_path:
-            warnings.append("only user-installed package folders are archived by uninstall execution.")
+            warnings.append(
+                "only user-installed package folders are archived by uninstall execution."
+            )
             return PluginPackageUninstallResult(
                 plugin_id=plugin_id,
                 action="state_only",
@@ -222,7 +224,7 @@ def _archived_at_from_id(archive_id: str, plugin_id: str) -> datetime | None:
     prefix = f"{plugin_id}-"
     if not archive_id.startswith(prefix):
         return None
-    raw = archive_id[len(prefix):].split("-", 1)[0]
+    raw = archive_id[len(prefix) :].split("-", 1)[0]
     if len(raw) != 14 or not raw.isdigit():
         return None
     return datetime.strptime(raw, "%Y%m%d%H%M%S").replace(tzinfo=UTC)
@@ -232,6 +234,6 @@ def _read_plugin_id(manifest_path: Path) -> str:
     for line in manifest_path.read_text(encoding="utf-8").splitlines():
         key, separator, value = line.partition(":")
         if separator and key.strip() == "id":
-            plugin_id = value.strip().strip('"\'')
+            plugin_id = value.strip().strip("\"'")
             return _safe_segment(plugin_id)
     raise ValueError("plugin.yaml id is missing")

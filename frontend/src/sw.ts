@@ -5,42 +5,73 @@ import { clientsClaim } from "workbox-core";
 import { ExpirationPlugin } from "workbox-expiration";
 import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
 import { registerRoute } from "workbox-routing";
-import {
-  CacheFirst,
-  NetworkFirst,
-  StaleWhileRevalidate,
-} from "workbox-strategies";
+import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
 import { isPwaSkipWaitingMessage } from "./pwaGuards";
-import { getPwaRequestKind } from "./pwaRouting";
+import {
+  getPwaRequestKind,
+  isBackendPath,
+  isStaticAssetPath,
+} from "./pwaRouting";
 
 declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<unknown>;
 };
 
-const APP_SHELL_CACHE = "lambchat-app-shell-v2";
 const STATIC_CACHE = "lambchat-static-v2";
 const FONT_STYLES_CACHE = "lambchat-font-styles-v2";
 const FONT_FILES_CACHE = "lambchat-font-files-v2";
 const OFFLINE_URL = "/offline.html";
+const RETIRED_RUNTIME_CACHES = [
+  "lambchat-app-shell-v1",
+  "lambchat-app-shell-v2",
+];
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 clientsClaim();
 
+self.addEventListener("install", (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      await Promise.all(RETIRED_RUNTIME_CACHES.map((name) => caches.delete(name)));
+      await self.clients.claim();
+
+      const clients = await self.clients.matchAll({
+        includeUncontrolled: true,
+        type: "window",
+      });
+
+      await Promise.all(
+        clients.map(async (client) => {
+          try {
+            const url = new URL(client.url);
+            if (
+              url.origin !== self.location.origin ||
+              isBackendPath(url.pathname) ||
+              isStaticAssetPath(url.pathname)
+            ) {
+              return;
+            }
+            if ("navigate" in client && typeof client.navigate === "function") {
+              await client.navigate(client.url);
+            }
+          } catch {
+            // A failed refresh should not prevent the new service worker from activating.
+          }
+        }),
+      );
+    })(),
+  );
+});
+
 self.addEventListener("message", (event) => {
   if (!isPwaSkipWaitingMessage(event.data)) return;
 
   event.waitUntil(self.skipWaiting());
-});
-
-const navigationStrategy = new NetworkFirst({
-  cacheName: APP_SHELL_CACHE,
-  networkTimeoutSeconds: 4,
-  plugins: [
-    new CacheableResponsePlugin({
-      statuses: [200],
-    }),
-  ],
 });
 
 async function getOfflineFallback(): Promise<Response> {
@@ -68,7 +99,7 @@ registerRoute(
     }) === "navigation",
   async (options) => {
     try {
-      return (await navigationStrategy.handle(options)) || getOfflineFallback();
+      return await fetch(options.request);
     } catch {
       return getOfflineFallback();
     }

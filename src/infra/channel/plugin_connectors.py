@@ -13,9 +13,7 @@ def connector_id_for_channel_type(
     """Return the plugin connector id declared for a channel type, if any."""
     value = channel_type.value if isinstance(channel_type, ChannelType) else str(channel_type)
     manifests = (
-        runtime.manifests(enabled_only=False)
-        if runtime is not None
-        else BUILTIN_PLUGIN_MANIFESTS
+        runtime.manifests(enabled_only=False) if runtime is not None else BUILTIN_PLUGIN_MANIFESTS
     )
     for manifest in manifests:
         for connector in manifest.frontend.channel_connectors:

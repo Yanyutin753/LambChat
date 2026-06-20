@@ -17,7 +17,9 @@ def _manifest(runtime: PluginRuntime, plugin_id: str) -> PluginManifest | None:
     return state.manifest if state is not None else None
 
 
-def _declared_options(manifest: PluginManifest, scope: PluginOptionScope) -> list[PluginScopedOption]:
+def _declared_options(
+    manifest: PluginManifest, scope: PluginOptionScope
+) -> list[PluginScopedOption]:
     if scope == "project":
         return list(manifest.frontend.project_options)
     if scope == "session":

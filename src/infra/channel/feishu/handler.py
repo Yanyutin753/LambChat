@@ -1098,9 +1098,7 @@ def create_feishu_message_handler(
                         runtime=runtime,
                     )
                     persona_preset_id = (
-                        None
-                        if uses_agent_team_options
-                        else ch_config.get("persona_preset_id")
+                        None if uses_agent_team_options else ch_config.get("persona_preset_id")
                     )
                     channel_name = ch_config.get("name")
                     stream_reply = bool(ch_config.get("stream_reply", True))

@@ -70,11 +70,7 @@ async def list_extension_contributions(
 ) -> PluginRuntimeContributionStatesResponse:
     """Return runtime-filterable contributions for frontend host slots."""
     runtime = _get_runtime(request)
-    states = [
-        state
-        for state in runtime.states()
-        if include_inactive or state.executable
-    ]
+    states = [state for state in runtime.states() if include_inactive or state.executable]
     return PluginRuntimeContributionStatesResponse(
         plugins=[_contribution_state_response(state) for state in states],
         total=len(states),
@@ -152,7 +148,9 @@ def _scoped_options_response(
     include_inactive: bool,
 ) -> ExtensionScopedOptionsResponse:
     runtime = _get_runtime(request)
-    area_by_scope: dict[str, Literal["project_option", "session_option", "channel_option", "scheduled_task_option"]] = {
+    area_by_scope: dict[
+        str, Literal["project_option", "session_option", "channel_option", "scheduled_task_option"]
+    ] = {
         "project": "project_option",
         "session": "session_option",
         "channel": "channel_option",

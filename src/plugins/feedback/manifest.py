@@ -247,9 +247,9 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
                 and [item.path for item in manifest.frontend.app_tabs] == ["/feedback"]
                 and [item.renderer for item in manifest.frontend.app_panels]
                 == ["feedback.FeedbackPanel"]
-                and [item.path for item in manifest.frontend.user_menu_items]
-                == ["/feedback"]
-                and [item.id for item in manifest.frontend.message_actions] == ["feedback:message-feedback"]
+                and [item.path for item in manifest.frontend.user_menu_items] == ["/feedback"]
+                and [item.id for item in manifest.frontend.message_actions]
+                == ["feedback:message-feedback"]
                 and manifest.lifespan_hooks[0].name == "feedback:shutdown"
             ),
             evidence="Enabled Feedback exposes /api/feedback, feedback.summary, structured frontend tab/panel/menu, and shutdown hook through src.plugins.feedback adapters.",

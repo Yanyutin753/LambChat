@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from src.api.deps import require_permissions
 from src.api.routes.plugin_guard import plugin_unavailable_http_error
 from src.infra.scheduler.service import ScheduledTaskService
+from src.kernel.extensions import PluginUnavailableError
 from src.kernel.schemas.scheduled_task import (
     ScheduledTask,
     ScheduledTaskCreate,
@@ -19,7 +20,6 @@ from src.kernel.schemas.scheduled_task import (
     TaskSessionResponse,
 )
 from src.kernel.schemas.user import TokenPayload
-from src.kernel.extensions import PluginUnavailableError
 from src.kernel.types import Permission
 
 router = APIRouter()

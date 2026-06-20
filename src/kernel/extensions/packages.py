@@ -11,11 +11,6 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
-from src.kernel.extensions.manifest import (
-    PluginFrontendAssetBundle,
-    PluginInstallType,
-    PluginManifest,
-)
 from src.kernel.extensions.host_slots import (
     BACKEND_PLUGIN_MANIFEST_KEYS,
     CONTROLLED_FRONTEND_REFERENCE_FIELDS,
@@ -23,6 +18,11 @@ from src.kernel.extensions.host_slots import (
     FRONTEND_MANIFEST_CONTRIBUTION_KEYS,
     STRUCTURED_FRONTEND_MANIFEST_KEYS,
     STRUCTURED_OR_LEGACY_STRING_FRONTEND_MANIFEST_KEYS,
+)
+from src.kernel.extensions.manifest import (
+    PluginFrontendAssetBundle,
+    PluginInstallType,
+    PluginManifest,
 )
 
 PluginPackageSourceType = Literal["system", "preinstalled", "installed", "staged"]
@@ -250,7 +250,9 @@ class PluginPackageScanner:
                     config_defaults=config_defaults,
                 ),
                 resources=self._merge_resources(package.resources, external_resources),
-                frontend=self._merge_frontend(package.frontend, external_frontend, plugin_id=package.id),
+                frontend=self._merge_frontend(
+                    package.frontend, external_frontend, plugin_id=package.id
+                ),
             )
             manifest = self._compile_manifest(
                 package,
@@ -340,7 +342,9 @@ class PluginPackageScanner:
         elif isinstance(payload, dict) and isinstance(payload.get("resources"), list):
             resources = payload["resources"]
         else:
-            raise ValueError("resources/resources.yaml must contain a list or a mapping with resources")
+            raise ValueError(
+                "resources/resources.yaml must contain a list or a mapping with resources"
+            )
         if not all(isinstance(item, dict) for item in resources):
             raise ValueError("resources/resources.yaml resources must be mappings")
         return resources
@@ -423,7 +427,9 @@ class PluginPackageScanner:
                 if not isinstance(value, list):
                     raise ValueError(f"frontend/plugin.json {key} must be a list")
                 if not all(isinstance(item, (dict, str)) for item in value):
-                    raise ValueError(f"frontend/plugin.json {key} must be a list of mappings or strings")
+                    raise ValueError(
+                        f"frontend/plugin.json {key} must be a list of mappings or strings"
+                    )
             elif not isinstance(value, list) or not all(isinstance(item, str) for item in value):
                 raise ValueError(f"frontend/plugin.json {key} must be a list of strings")
             result[key] = value
@@ -449,11 +455,11 @@ class PluginPackageScanner:
             for item in values:
                 if not isinstance(item, dict):
                     continue
-                for field in fields:
-                    reference = item.get(field)
+                for reference_field in fields:
+                    reference = item.get(reference_field)
                     if not reference:
                         continue
-                    contract_key = f"{contribution_key}.{field}"
+                    contract_key = f"{contribution_key}.{reference_field}"
                     allowed = CONTROLLED_FRONTEND_REFERENCES.get(contract_key, frozenset())
                     if str(reference) not in allowed:
                         missing.append(f"{contract_key}={reference}")
@@ -613,7 +619,9 @@ class PluginPackageScanner:
             normalized = dict(value)
             existing = merged.get(key)
             if existing is not None and existing != normalized:
-                raise ValueError(f"duplicate plugin backend {label} with conflicting definition: {key}")
+                raise ValueError(
+                    f"duplicate plugin backend {label} with conflicting definition: {key}"
+                )
             merged[key] = normalized
         return list(merged.values())
 
@@ -651,7 +659,9 @@ class PluginPackageScanner:
             normalized = dict(resource)
             existing = merged.get(key)
             if existing is not None and existing != normalized:
-                raise ValueError(f"duplicate plugin resource with conflicting definition: {resource_type}:{resource_id}")
+                raise ValueError(
+                    f"duplicate plugin resource with conflicting definition: {resource_type}:{resource_id}"
+                )
             merged[key] = normalized
         return list(merged.values())
 
@@ -672,7 +682,9 @@ class PluginPackageScanner:
             if values and all(isinstance(item, dict) for item in values):
                 if not all(isinstance(item, dict) for item in existing):
                     raise ValueError(f"plugin frontend {key} must be a list of mappings")
-                merged_values = self._merge_frontend_mappings(existing, values, key=key, plugin_id=plugin_id)
+                merged_values = self._merge_frontend_mappings(
+                    existing, values, key=key, plugin_id=plugin_id
+                )
             else:
                 if not all(isinstance(item, str) for item in existing):
                     raise ValueError(f"plugin frontend {key} must be a list of strings")
@@ -695,12 +707,19 @@ class PluginPackageScanner:
         plugin_id: str,
     ) -> list[dict[str, Any]]:
         merged: dict[str, dict[str, Any]] = {}
-        key_field = "key" if key in {"project_options", "session_options", "channel_options", "scheduled_task_options"} else "id"
+        key_field = (
+            "key"
+            if key
+            in {"project_options", "session_options", "channel_options", "scheduled_task_options"}
+            else "id"
+        )
         for value in [*manifest_values, *external_values]:
             contribution_id = str(value.get(key_field) or "")
             if not contribution_id:
                 raise ValueError(f"plugin frontend {key} {key_field} cannot be blank")
-            if key_field == "id" and not _is_plugin_owned_contribution_id(contribution_id, plugin_id):
+            if key_field == "id" and not _is_plugin_owned_contribution_id(
+                contribution_id, plugin_id
+            ):
                 raise ValueError(
                     f"plugin frontend {key} id must be owned by plugin {plugin_id}: {contribution_id}"
                 )
@@ -755,7 +774,9 @@ class PluginPackageScanner:
             package_validated_at=validated_at.isoformat(),
             package_config_defaults=config_defaults,
             package_data_template=package.data_template,
-            package_layout=self._inspect_layout(folder, data_template=package.data_template).model_dump(),
+            package_layout=self._inspect_layout(
+                folder, data_template=package.data_template
+            ).model_dump(),
             package_frontend_assets=frontend_assets,
             package_manifest_authority="folder_package",
             package_static_fallback_used=False,
@@ -794,4 +815,6 @@ def _install_type_for_source(source_type: PluginPackageSourceType) -> PluginInst
 
 
 def _is_plugin_owned_contribution_id(value: str, plugin_id: str) -> bool:
-    return value == plugin_id or value.startswith(f"{plugin_id}:") or value.startswith(f"{plugin_id}.")
+    return (
+        value == plugin_id or value.startswith(f"{plugin_id}:") or value.startswith(f"{plugin_id}.")
+    )

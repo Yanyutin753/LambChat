@@ -151,7 +151,9 @@ def _get_plugin_runtime(request: Request) -> PluginRuntime:
 
 
 def _get_plugin_settings_service(request: Request):
-    return getattr(request.app.state, "plugin_settings_service", None) or get_plugin_settings_service()
+    return (
+        getattr(request.app.state, "plugin_settings_service", None) or get_plugin_settings_service()
+    )
 
 
 def _session_option_definition(runtime: PluginRuntime, plugin_id: str, key: str):

@@ -32,7 +32,6 @@ from src.infra.logging import get_logger
 from src.kernel.config import settings
 from src.kernel.extensions import (
     BUILTIN_PLUGIN_MANIFESTS,
-    FEISHU_CONNECTOR_PLUGIN_ID,
     PluginResourceRecord,
     PluginRuntime,
     PluginRuntimeIssue,
@@ -615,7 +614,9 @@ def _plugin_packages_response(request: Request) -> PluginPackagesResponse:
     )
 
 
-def _descriptor_with_manifest(descriptor: PluginFolderDescriptor, manifest) -> PluginFolderDescriptor:
+def _descriptor_with_manifest(
+    descriptor: PluginFolderDescriptor, manifest
+) -> PluginFolderDescriptor:
     return PluginFolderDescriptor(
         plugin_id=descriptor.plugin_id,
         source_type=descriptor.source_type,
@@ -629,7 +630,9 @@ def _descriptor_with_manifest(descriptor: PluginFolderDescriptor, manifest) -> P
     )
 
 
-async def _refresh_runtime_from_packages(request: Request, *, plugin_root, data_root) -> PluginRuntime:
+async def _refresh_runtime_from_packages(
+    request: Request, *, plugin_root, data_root
+) -> PluginRuntime:
     scan = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan()
     data_service = PluginDataServiceClass(data_root=data_root)
     descriptors = scan.by_plugin_id()
@@ -727,10 +730,9 @@ def _static_fallback_fields(package_manifest, static_manifest) -> list[str]:
         fields.append("migrations")
     if not package_manifest.resources and static_manifest.resources:
         fields.append("resources")
-    if (
-        not package_manifest.frontend.model_dump(exclude_defaults=True)
-        and static_manifest.frontend.model_dump(exclude_defaults=True)
-    ):
+    if not package_manifest.frontend.model_dump(
+        exclude_defaults=True
+    ) and static_manifest.frontend.model_dump(exclude_defaults=True):
         fields.append("frontend")
     return fields
 
@@ -753,11 +755,7 @@ def _merge_manifest_frontend(manifest, package_manifest) -> object:
         existing = values.get(key, []) or []
         merged = list(existing)
         if package_list and all(isinstance(item, dict) for item in package_list):
-            seen = {
-                str(item.get("id") or "")
-                for item in existing
-                if isinstance(item, dict)
-            }
+            seen = {str(item.get("id") or "") for item in existing if isinstance(item, dict)}
             for item in package_list or []:
                 contribution_id = str(item.get("id") or "") if isinstance(item, dict) else ""
                 if contribution_id in seen:
@@ -812,25 +810,53 @@ def _frontend_response(manifest) -> PluginRuntimeFrontendResponse:
         app_tabs=[item.model_dump(mode="json") for item in manifest.frontend.app_tabs],
         app_panels=[item.model_dump(mode="json") for item in manifest.frontend.app_panels],
         sidebar_items=[item.model_dump(mode="json") for item in manifest.frontend.sidebar_items],
-        user_menu_items=[item.model_dump(mode="json") for item in manifest.frontend.user_menu_items],
+        user_menu_items=[
+            item.model_dump(mode="json") for item in manifest.frontend.user_menu_items
+        ],
         tool_renderers=[item.model_dump(mode="json") for item in manifest.frontend.tool_renderers],
         file_viewers=[item.model_dump(mode="json") for item in manifest.frontend.file_viewers],
-        upload_handlers=[item.model_dump(mode="json") for item in manifest.frontend.upload_handlers],
-        skill_importers=[item.model_dump(mode="json") for item in manifest.frontend.skill_importers],
-        channel_connectors=[item.model_dump(mode="json") for item in manifest.frontend.channel_connectors],
-        message_actions=[item.model_dump(mode="json") for item in manifest.frontend.message_actions],
-        chat_input_options=[item.model_dump(mode="json") for item in manifest.frontend.chat_input_options],
-        chat_input_panels=[item.model_dump(mode="json") for item in manifest.frontend.chat_input_panels],
-        mention_providers=[item.model_dump(mode="json") for item in manifest.frontend.mention_providers],
-        welcome_surfaces=[item.model_dump(mode="json") for item in manifest.frontend.welcome_surfaces],
+        upload_handlers=[
+            item.model_dump(mode="json") for item in manifest.frontend.upload_handlers
+        ],
+        skill_importers=[
+            item.model_dump(mode="json") for item in manifest.frontend.skill_importers
+        ],
+        channel_connectors=[
+            item.model_dump(mode="json") for item in manifest.frontend.channel_connectors
+        ],
+        message_actions=[
+            item.model_dump(mode="json") for item in manifest.frontend.message_actions
+        ],
+        chat_input_options=[
+            item.model_dump(mode="json") for item in manifest.frontend.chat_input_options
+        ],
+        chat_input_panels=[
+            item.model_dump(mode="json") for item in manifest.frontend.chat_input_panels
+        ],
+        mention_providers=[
+            item.model_dump(mode="json") for item in manifest.frontend.mention_providers
+        ],
+        welcome_surfaces=[
+            item.model_dump(mode="json") for item in manifest.frontend.welcome_surfaces
+        ],
         assistant_identity_resolvers=[
             item.model_dump(mode="json") for item in manifest.frontend.assistant_identity_resolvers
         ],
-        agent_categories=[item.model_dump(mode="json") for item in manifest.frontend.agent_categories],
-        project_options=[item.model_dump(mode="json") for item in manifest.frontend.project_options],
-        session_options=[item.model_dump(mode="json") for item in manifest.frontend.session_options],
-        channel_options=[item.model_dump(mode="json") for item in manifest.frontend.channel_options],
-        scheduled_task_options=[item.model_dump(mode="json") for item in manifest.frontend.scheduled_task_options],
+        agent_categories=[
+            item.model_dump(mode="json") for item in manifest.frontend.agent_categories
+        ],
+        project_options=[
+            item.model_dump(mode="json") for item in manifest.frontend.project_options
+        ],
+        session_options=[
+            item.model_dump(mode="json") for item in manifest.frontend.session_options
+        ],
+        channel_options=[
+            item.model_dump(mode="json") for item in manifest.frontend.channel_options
+        ],
+        scheduled_task_options=[
+            item.model_dump(mode="json") for item in manifest.frontend.scheduled_task_options
+        ],
         settings_sections=manifest.frontend.settings_sections,
         i18n_namespaces=manifest.frontend.i18n_namespaces,
         required_permissions=manifest.frontend.required_permissions,
@@ -966,19 +992,14 @@ def _state_response(
         resource_count=len(resources),
         resource_types=_resource_type_counts(resources),
         dry_run_actions=dict(dry_run_actions),
-        runtime_side_effect=runtime_side_effect
-        or _default_runtime_side_effect(state.plugin_id),
+        runtime_side_effect=runtime_side_effect or _default_runtime_side_effect(state.plugin_id),
         package=PluginRuntimePackageResponse(
             source_type=manifest.package_source_type if manifest else "not_installed",
             manifest_authority=(
                 manifest.package_manifest_authority if manifest else "static_manifest"
             ),
-            static_fallback_used=(
-                manifest.package_static_fallback_used if manifest else False
-            ),
-            static_fallback_fields=(
-                manifest.package_static_fallback_fields if manifest else []
-            ),
+            static_fallback_used=(manifest.package_static_fallback_used if manifest else False),
+            static_fallback_fields=(manifest.package_static_fallback_fields if manifest else []),
             source_path=manifest.package_source_path if manifest else None,
             manifest_path=manifest.package_manifest_path if manifest else None,
             data_dir=manifest.package_data_dir if manifest else None,
@@ -1177,12 +1198,10 @@ def _dry_run_package_data_policy(dry_run) -> dict[str, Any]:
     protected_types = {
         resource.resource_type
         for resource in dry_run.resources
-        if resource.resource_type.startswith("plugin_data")
-        and resource.action.value != "delete"
+        if resource.resource_type.startswith("plugin_data") and resource.action.value != "delete"
     }
     runtime_data_delete_allowed = any(
-        resource.resource_type.startswith("plugin_data")
-        and resource.action.value == "delete"
+        resource.resource_type.startswith("plugin_data") and resource.action.value == "delete"
         for resource in dry_run.resources
     )
     return {
@@ -1338,7 +1357,9 @@ def _skip_package_summary_path(path) -> bool:
     return any(part in ignored_parts for part in path.parts)
 
 
-def _package_data_template_summary(package_root, *, data_template: str = "plugin-data-template") -> dict[str, Any]:
+def _package_data_template_summary(
+    package_root, *, data_template: str = "plugin-data-template"
+) -> dict[str, Any]:
     template_name = str(data_template or "plugin-data-template").replace("\\", "/").strip()
     if not template_name:
         template_name = "plugin-data-template"
@@ -1476,6 +1497,8 @@ async def _plugin_settings_response(
     subject_id: str | None = None,
 ) -> PluginSettingsResponse:
     manifest = state.manifest
+    if manifest is None:
+        raise HTTPException(status_code=409, detail="plugin manifest is unavailable")
     settings = await service.list_settings(
         manifest,
         scope=scope,
@@ -1527,9 +1550,7 @@ def _acceptance_sections_passed(
     acceptance: PluginRuntimeAcceptanceMatrixResponse,
 ) -> set[str]:
     failed_sections = {
-        requirement.section
-        for requirement in acceptance.requirements
-        if not requirement.passed
+        requirement.section for requirement in acceptance.requirements if not requirement.passed
     }
     return set(acceptance.sections) - failed_sections
 
@@ -1697,8 +1718,7 @@ def _runtime_capabilities() -> dict[str, Any]:
         "guard_surfaces": [surface.model_dump() for surface in guard_surfaces],
         "acceptance_matrix": acceptance.model_dump(),
         "phase_progress": [
-            phase.model_dump()
-            for phase in _phase_progress_response(acceptance, feedback_migration)
+            phase.model_dump() for phase in _phase_progress_response(acceptance, feedback_migration)
         ],
         "feedback_migration": feedback_migration.model_dump(),
     }
@@ -1990,10 +2010,13 @@ async def update_plugin_setting(
 ) -> PluginSettingsResponse:
     runtime = _get_runtime(request)
     state = _require_state(runtime, plugin_id)
+    manifest = state.manifest
+    if manifest is None:
+        raise HTTPException(status_code=409, detail="plugin manifest is unavailable")
     service = _settings_service(request)
     try:
         await service.set_setting(
-            state.manifest,
+            manifest,
             key=key,
             value=data.value,
             updated_by=getattr(user, "sub", None),
@@ -2021,10 +2044,13 @@ async def reset_plugin_setting(
 ) -> PluginSettingsResponse:
     runtime = _get_runtime(request)
     state = _require_state(runtime, plugin_id)
+    manifest = state.manifest
+    if manifest is None:
+        raise HTTPException(status_code=409, detail="plugin manifest is unavailable")
     service = _settings_service(request)
     try:
         await service.reset_setting(
-            state.manifest,
+            manifest,
             key=key,
             scope=scope,
             subject_id=subject_id,
@@ -2047,8 +2073,11 @@ async def import_plugin_legacy_settings(
 ) -> PluginSettingsResponse:
     runtime = _get_runtime(request)
     state = _require_state(runtime, plugin_id)
+    manifest = state.manifest
+    if manifest is None:
+        raise HTTPException(status_code=409, detail="plugin manifest is unavailable")
     service = _settings_service(request)
-    await service.import_legacy(state.manifest, updated_by=getattr(user, "sub", None))
+    await service.import_legacy(manifest, updated_by=getattr(user, "sub", None))
     return await _plugin_settings_response(state=state, service=service)
 
 
@@ -2478,7 +2507,10 @@ async def import_plugin_runtime(
     if schema_version != "lambchat.plugin.export.v1":
         raise HTTPException(
             status_code=400,
-            detail={"error": "unsupported_plugin_export", "message": "Unsupported plugin export schema."},
+            detail={
+                "error": "unsupported_plugin_export",
+                "message": "Unsupported plugin export schema.",
+            },
         )
     plugin_id = str(payload.get("plugin_id") or "")
     if not plugin_id:
@@ -2486,9 +2518,7 @@ async def import_plugin_runtime(
     runtime = _get_runtime(request)
     state = _require_state(runtime, plugin_id)
     manifest = state.manifest
-    warnings = [
-        "Import does not execute remote code or hot-load plugin packages in this phase."
-    ]
+    warnings = ["Import does not execute remote code or hot-load plugin packages in this phase."]
     imported_settings: list[str] = []
     skipped_settings: list[str] = []
     if data.import_settings and manifest is not None:
@@ -2541,7 +2571,9 @@ async def import_plugin_runtime(
             )
             state = restored
         else:
-            warnings.append("Runtime state was not restored because the export state is not controllable.")
+            warnings.append(
+                "Runtime state was not restored because the export state is not controllable."
+            )
     return PluginImportResponse(
         plugin_id=plugin_id,
         status=state.status.value,
@@ -2659,9 +2691,7 @@ async def uninstall_plugin_runtime(
         plugin_data_retained=package_result.data_retained,
         plugin_data_dir=package_result.data_dir,
         package_integrity=(
-            package_result.integrity.model_dump()
-            if package_result.integrity is not None
-            else None
+            package_result.integrity.model_dump() if package_result.integrity is not None else None
         ),
         warnings=[*validation.warnings, *package_result.warnings],
         audit_action="uninstall",

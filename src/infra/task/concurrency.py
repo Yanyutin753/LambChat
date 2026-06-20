@@ -639,17 +639,17 @@ class UserConcurrencyLimiter:
 
             # --- Create and run the background task locally ---
             async with task_manager._lock:
-                executor = task_manager._executor
-                if executor is None:
+                queued_executor = task_manager._executor
+                if queued_executor is None:
                     logger.error("No executor available for queued task %s", run_id)
                     await self._release_active_slot_locked(user_id, run_id)
                     return
 
                 # Ensure session record exists in MongoDB before executing
-                await executor.ensure_session(session_id, agent_id, dispatch_user_id)
+                await queued_executor.ensure_session(session_id, agent_id, dispatch_user_id)
 
                 task = asyncio.create_task(
-                    executor.run_task(
+                    queued_executor.run_task(
                         session_id=session_id,
                         run_id=run_id,
                         agent_id=agent_id,

@@ -307,7 +307,7 @@ async def list_user_channels(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
+    request: Request | None = None,
 ):
     """List all configured channel instances for current user"""
     registry = get_registry()
@@ -385,7 +385,7 @@ async def list_channel_instances(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
+    request: Request | None = None,
 ):
     """List all instances of a specific channel type"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -461,7 +461,7 @@ async def get_channel_instance(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
+    request: Request | None = None,
 ):
     """Get a specific channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -498,7 +498,7 @@ async def create_channel_instance(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
+    request: Request | None = None,
 ):
     """Create a new channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -608,7 +608,7 @@ async def update_channel_instance(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
+    request: Request | None = None,
 ):
     """Update a specific channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -656,7 +656,9 @@ async def update_channel_instance(
 
     plugin_options_value: dict[str, dict[str, object]] | None = ...  # type: ignore[assignment]
     if "plugin_options" in data.model_fields_set:
-        next_agent_id = data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        next_agent_id = (
+            data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        )
         legacy_payload: dict[str, Any] = {}
         if "team_id" in data.model_fields_set:
             legacy_payload["team_id"] = data.team_id
@@ -668,7 +670,9 @@ async def update_channel_instance(
             legacy_payload_keys_provided=set(legacy_payload),
         )
     elif "team_id" in data.model_fields_set:
-        next_agent_id = data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        next_agent_id = (
+            data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        )
         plugin_options_value = _declared_channel_plugin_options_from_payload(
             plugin_runtime=plugin_runtime,
             agent_id=next_agent_id,

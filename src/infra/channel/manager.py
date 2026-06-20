@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import Any, Callable, Optional
 
 from src.infra.channel.base import UserChannelManager
+from src.infra.channel.plugin_connectors import ensure_channel_connector_available_for_type
 from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
-from src.infra.channel.plugin_connectors import ensure_channel_connector_available_for_type
 from src.kernel.extensions import PluginRuntime
 from src.kernel.schemas.channel import ChannelType
 

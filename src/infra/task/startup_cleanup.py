@@ -9,8 +9,8 @@ from typing import Any, Awaitable, Callable, TypeVar, cast
 
 from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.logging import get_logger
-from src.kernel.extensions import PluginUnavailableError
 from src.kernel.config import settings
+from src.kernel.extensions import PluginUnavailableError
 
 from .status import TaskStatus
 

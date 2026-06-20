@@ -14,9 +14,9 @@ from typing import Any, Literal
 from src.kernel.extensions.manifest import PluginManifest
 from src.kernel.extensions.registry import (
     LifecyclePhase,
+    PluginAgentRegistration,
     PluginLifecycleHookRegistration,
     PluginRegistry,
-    PluginAgentRegistration,
     PluginRouteRegistration,
     PluginToolRegistration,
 )
@@ -245,13 +245,9 @@ class PluginRuntime:
         """Enable a loaded plugin without installing packages or changing resources."""
         state = self.get_state(plugin_id)
         if state is None:
-            raise PluginRuntimeStateTransitionError(
-                f"plugin is not installed: {plugin_id}"
-            )
+            raise PluginRuntimeStateTransitionError(f"plugin is not installed: {plugin_id}")
         if state.manifest is None:
-            raise PluginRuntimeStateTransitionError(
-                f"plugin manifest is unavailable: {plugin_id}"
-            )
+            raise PluginRuntimeStateTransitionError(f"plugin manifest is unavailable: {plugin_id}")
         if state.status is PluginRuntimeStatus.ERROR:
             raise PluginRuntimeStateTransitionError(
                 f"plugin is in error state and cannot be enabled: {plugin_id}"
@@ -284,9 +280,7 @@ class PluginRuntime:
         """Disable a loaded plugin without uninstalling packages or deleting resources."""
         state = self.get_state(plugin_id)
         if state is None:
-            raise PluginRuntimeStateTransitionError(
-                f"plugin is not installed: {plugin_id}"
-            )
+            raise PluginRuntimeStateTransitionError(f"plugin is not installed: {plugin_id}")
         if state.status is PluginRuntimeStatus.ERROR:
             raise PluginRuntimeStateTransitionError(
                 f"plugin is in error state and cannot be disabled: {plugin_id}"
@@ -327,9 +321,7 @@ class PluginRuntime:
             raise PluginRuntimeUninstallError(f"plugin is not installed: {plugin_id}")
         manifest = state.manifest
         if manifest is None:
-            raise PluginRuntimeUninstallError(
-                f"plugin manifest is unavailable: {plugin_id}"
-            )
+            raise PluginRuntimeUninstallError(f"plugin manifest is unavailable: {plugin_id}")
         if not manifest.uninstallable:
             raise PluginRuntimeUninstallError(
                 f"plugin is protected and can only be disabled: {plugin_id}"
@@ -341,9 +333,7 @@ class PluginRuntime:
         if state.status is PluginRuntimeStatus.UNINSTALLED:
             return state
         if state.status is PluginRuntimeStatus.UNINSTALLING:
-            raise PluginRuntimeUninstallError(
-                f"plugin is already uninstalling: {plugin_id}"
-            )
+            raise PluginRuntimeUninstallError(f"plugin is already uninstalling: {plugin_id}")
         self._set_controlled_status(
             state,
             PluginRuntimeStatus.UNINSTALLED,
@@ -615,13 +605,24 @@ class PluginRuntime:
                 item.id for item in manifest.frontend.assistant_identity_resolvers
             ],
             agent_categories=[item.id for item in manifest.frontend.agent_categories],
-            project_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.project_options],
-            session_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.session_options],
-            channel_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.channel_options],
-            scheduled_task_options=[f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options],
+            project_options=[
+                f"{manifest.id}.{item.key}" for item in manifest.frontend.project_options
+            ],
+            session_options=[
+                f"{manifest.id}.{item.key}" for item in manifest.frontend.session_options
+            ],
+            channel_options=[
+                f"{manifest.id}.{item.key}" for item in manifest.frontend.channel_options
+            ],
+            scheduled_task_options=[
+                f"{manifest.id}.{item.key}" for item in manifest.frontend.scheduled_task_options
+            ],
             permissions=manifest.declared_permissions(),
             settings=[
-                (_scoped_setting_resource_id(manifest.id, setting.key, setting.scope), setting.scope)
+                (
+                    _scoped_setting_resource_id(manifest.id, setting.key, setting.scope),
+                    setting.scope,
+                )
                 for setting in manifest.settings
             ],
             scheduler_jobs=manifest.scheduler_jobs,
@@ -748,7 +749,9 @@ def _is_plugin_namespaced(value: str, plugin_id: str) -> bool:
     normalized = value.strip()
     if normalized == plugin_id:
         return True
-    return normalized.startswith((f"{plugin_id}:", f"{plugin_id}.", f"{plugin_id}-", f"{plugin_id}_"))
+    return normalized.startswith(
+        (f"{plugin_id}:", f"{plugin_id}.", f"{plugin_id}-", f"{plugin_id}_")
+    )
 
 
 def _invalid_contribution_ids(manifest: PluginManifest) -> list[str]:
@@ -756,10 +759,7 @@ def _invalid_contribution_ids(manifest: PluginManifest) -> list[str]:
     values.extend(route.name for route in manifest.routers)
     values.extend(tool.name for tool in manifest.tools)
     allowed_legacy_ids = {
-        legacy_id
-        for tool in manifest.tools
-        for legacy_id in tool.legacy_ids
-        if legacy_id.strip()
+        legacy_id for tool in manifest.tools for legacy_id in tool.legacy_ids if legacy_id.strip()
     }
     values.extend(manifest.frontend.routes)
     values.extend(manifest.frontend.panels)
@@ -850,7 +850,9 @@ def _package_resource_records(manifest: PluginManifest) -> list[PluginResourceRe
                     created_by_plugin_version=manifest.version,
                     retention_policy=PluginResourceRetentionPolicy.KEEP_USER_DATA,
                     cleanup_strategy=PluginResourceCleanupStrategy.KEEP,
-                    metadata={"sensitive_policy": "secrets are stored in plugin_settings, not plain files"},
+                    metadata={
+                        "sensitive_policy": "secrets are stored in plugin_settings, not plain files"
+                    },
                 ),
                 PluginResourceRecord(
                     plugin_id=manifest.id,

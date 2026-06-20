@@ -22,8 +22,8 @@ from src.api.routes.plugin_guard import plugin_unavailable_http_error
 from src.api.routes.session import verify_session_ownership
 from src.infra.async_utils import run_blocking_io
 from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
-from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.extensions import get_plugin_settings_service
+from src.infra.goal import GoalSpec, coerce_goal_spec
 from src.infra.logging import get_logger
 from src.infra.persona_preset.manager import PersonaPresetManager
 from src.infra.session.manager import SessionManager
@@ -44,7 +44,6 @@ from src.kernel.extensions.plugin_options import (
     plugin_id_for_agent,
     plugin_option_from_metadata,
     plugin_session_option_visible_for_agent,
-    selected_agent_team_id_from_metadata,
     with_plugin_option,
 )
 from src.kernel.schemas.agent import AgentRequest
@@ -356,9 +355,15 @@ def _runtime_states_for_project_defaults(runtime) -> list[object]:
     manifests = getattr(runtime, "manifests", None)
     if callable(manifests):
         try:
-            return [type("RuntimeState", (), {"manifest": manifest, "executable": True})() for manifest in manifests(enabled_only=False)]
+            return [
+                type("RuntimeState", (), {"manifest": manifest, "executable": True})()
+                for manifest in manifests(enabled_only=False)
+            ]
         except TypeError:
-            return [type("RuntimeState", (), {"manifest": manifest, "executable": True})() for manifest in manifests()]
+            return [
+                type("RuntimeState", (), {"manifest": manifest, "executable": True})()
+                for manifest in manifests()
+            ]
     get_state = getattr(runtime, "get_state", None)
     if callable(get_state):
         state = get_state(AGENT_TEAM_PLUGIN_ID)

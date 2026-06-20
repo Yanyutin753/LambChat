@@ -24,7 +24,6 @@ from src.infra.session.storage import SessionStorage
 from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
 from src.kernel.extensions.plugin_options import (
     filter_declared_plugin_options,
-    plugin_options_from_metadata,
     with_plugin_option,
 )
 from src.kernel.extensions.runtime import PluginRuntime
@@ -46,7 +45,9 @@ def _get_plugin_runtime(request: Request) -> PluginRuntime:
 
 
 def _get_plugin_settings_service(request: Request):
-    return getattr(request.app.state, "plugin_settings_service", None) or get_plugin_settings_service()
+    return (
+        getattr(request.app.state, "plugin_settings_service", None) or get_plugin_settings_service()
+    )
 
 
 def _project_option_definition(runtime: PluginRuntime, plugin_id: str, key: str):

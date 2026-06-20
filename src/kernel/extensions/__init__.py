@@ -49,18 +49,6 @@ from src.kernel.extensions.dry_run import (
     build_uninstall_dry_run,
     validate_uninstall_dry_run,
 )
-from src.kernel.extensions.manifest import (
-    ExtensionCompatibility,
-    ExtensionManifest,
-    ExtensionType,
-    InstallState,
-    PluginInstallType,
-    PluginAgentCatalogEntry,
-    PluginManifest,
-    PluginResourceDeclaration,
-    PluginSettingDefinition,
-    PluginSettingVisibility,
-)
 from src.kernel.extensions.host_slots import (
     BACKEND_PLUGIN_MANIFEST_KEYS,
     CONTROLLED_FRONTEND_REFERENCE_FIELDS,
@@ -70,6 +58,18 @@ from src.kernel.extensions.host_slots import (
     STRUCTURED_FRONTEND_MANIFEST_KEYS,
     STRUCTURED_OR_LEGACY_STRING_FRONTEND_MANIFEST_KEYS,
     ExtensionHostSlot,
+)
+from src.kernel.extensions.manifest import (
+    ExtensionCompatibility,
+    ExtensionManifest,
+    ExtensionType,
+    InstallState,
+    PluginAgentCatalogEntry,
+    PluginInstallType,
+    PluginManifest,
+    PluginResourceDeclaration,
+    PluginSettingDefinition,
+    PluginSettingVisibility,
 )
 from src.kernel.extensions.marketplace import (
     ExtensionMarketplaceEntry,
@@ -85,8 +85,8 @@ from src.kernel.extensions.packages import (
 )
 from src.kernel.extensions.registry import (
     ExtensionRegistry,
-    PluginLifecycleHookRegistration,
     PluginAgentRegistration,
+    PluginLifecycleHookRegistration,
     PluginRegistry,
     PluginRouteRegistration,
     PluginToolRegistration,

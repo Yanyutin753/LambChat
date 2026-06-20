@@ -7,8 +7,8 @@ import uuid
 from typing import Any, Optional
 
 from src.infra.async_utils import run_blocking_io
-from src.infra.channel.registry import get_registry
 from src.infra.channel.plugin_connectors import ensure_channel_connector_available_for_type
+from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
 from src.infra.pubsub_hub import get_pubsub_hub
 from src.infra.storage.redis import get_redis_client

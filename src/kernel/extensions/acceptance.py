@@ -269,16 +269,18 @@ def _runtime_acceptance_checks() -> dict[str, bool]:
         ]
     )
     valid_runtime = PluginRuntime([valid])
+    duplicate_feedback_state = duplicate_runtime.get_state("feedback")
+    invalid_bad_state = invalid_runtime.get_state("bad")
+    valid_feedback_state = valid_runtime.get_state("feedback")
 
     return {
-        "manifest_validation_and_unique_plugin_ids": duplicate_runtime.get_state(
-            "feedback"
-        ).status
-        is PluginRuntimeStatus.ERROR,
-        "namespaced_runtime_contributions": invalid_runtime.get_state("bad").status
-        is PluginRuntimeStatus.ERROR,
+        "manifest_validation_and_unique_plugin_ids": duplicate_feedback_state is not None
+        and duplicate_feedback_state.status is PluginRuntimeStatus.ERROR,
+        "namespaced_runtime_contributions": invalid_bad_state is not None
+        and invalid_bad_state.status is PluginRuntimeStatus.ERROR,
         "states_guards_and_lifecycle_hooks": (
-            valid_runtime.get_state("feedback").status is PluginRuntimeStatus.ENABLED
+            valid_feedback_state is not None
+            and valid_feedback_state.status is PluginRuntimeStatus.ENABLED
             and [hook.name for hook in valid_runtime.lifecycle_hooks(phase="startup")]
             == ["feedback:start"]
             and [hook.name for hook in valid_runtime.lifecycle_hooks(phase="shutdown")]
@@ -299,6 +301,8 @@ def _extension_center_acceptance_checks() -> dict[str, bool]:
         type=ExtensionType.MCP.value,
         name="GitHub MCP",
     )
+    skill_manifest = skill_entry.as_manifest()
+    mcp_manifest = mcp_entry.as_manifest()
 
     marketplace_fields = set(ExtensionMarketplaceEntry.model_fields)
     resource_control_fields = {
@@ -311,8 +315,10 @@ def _extension_center_acceptance_checks() -> dict[str, bool]:
     return {
         "only_plugin_type_enters_plugin_runtime": (
             extension_uses_plugin_runtime(plugin_entry)
-            and not extension_uses_plugin_runtime(skill_entry.as_manifest())
-            and not extension_uses_plugin_runtime(mcp_entry.as_manifest())
+            and skill_manifest is not None
+            and not extension_uses_plugin_runtime(skill_manifest)
+            and mcp_manifest is not None
+            and not extension_uses_plugin_runtime(mcp_manifest)
         ),
         "extension_center_does_not_manage_plugin_resources": marketplace_fields.isdisjoint(
             resource_control_fields
@@ -346,6 +352,7 @@ def _disabled_semantics_checks() -> dict[str, bool]:
         ]
     )
     guarded_runtime.disable_plugin("feedback")
+    disabled_feedback_state = feedback_runtime.get_state(FEEDBACK_PLUGIN_ID)
 
     return {
         "disabled_contributions_fail_closed_and_keep_data": (
@@ -356,10 +363,8 @@ def _disabled_semantics_checks() -> dict[str, bool]:
             and guarded_runtime.listeners() == []
             and feedback_runtime.resource_ledger.list(plugin_id=FEEDBACK_PLUGIN_ID) != []
         ),
-        "repeated_disable_is_idempotent": feedback_runtime.get_state(
-            FEEDBACK_PLUGIN_ID
-        ).status
-        is PluginRuntimeStatus.DISABLED,
+        "repeated_disable_is_idempotent": disabled_feedback_state is not None
+        and disabled_feedback_state.status is PluginRuntimeStatus.DISABLED,
     }
 
 
@@ -410,12 +415,9 @@ def _dry_run_acceptance_checks() -> dict[str, bool]:
         "dry_run_classifies_all_actions": (
             [resource.resource_id for resource in dry_run.will_delete] == ["delete-me"]
             and [resource.resource_id for resource in dry_run.will_keep] == ["keep-me"]
-            and [resource.resource_id for resource in dry_run.will_archive]
-            == ["archive-me"]
-            and [resource.resource_id for resource in dry_run.needs_manual_review]
-            == ["review-me"]
-            and [resource.resource_id for resource in dry_run.forbidden_to_delete]
-            == ["core-owned"]
+            and [resource.resource_id for resource in dry_run.will_archive] == ["archive-me"]
+            and [resource.resource_id for resource in dry_run.needs_manual_review] == ["review-me"]
+            and [resource.resource_id for resource in dry_run.forbidden_to_delete] == ["core-owned"]
             and {resource.plugin_id for resource in dry_run.resources} == {"feedback"}
         ),
         "real_uninstall_requires_valid_dry_run": (

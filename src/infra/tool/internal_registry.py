@@ -66,10 +66,7 @@ def _plugin_tool_error(tool_name: str) -> str | None:
     runtime = _plugin_runtime
     if runtime is None:
         if tool_name in _declared_builtin_plugin_tool_names():
-            return (
-                f"[Plugin Tool Error] {tool_name} unavailable: "
-                "Plugin Runtime is unavailable"
-            )
+            return f"[Plugin Tool Error] {tool_name} unavailable: Plugin Runtime is unavailable"
         return None
     registrations = runtime.tools(enabled_only=False)
     if not any(
