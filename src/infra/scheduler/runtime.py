@@ -231,7 +231,7 @@ class RuntimeScheduler:
         value = job.enabled() if callable(job.enabled) else job.enabled
         return bool(value)
 
-    def _plugin_skip_reason(self, job: ScheduledJob) -> dict[str, str] | None:
+    def _plugin_skip_reason(self, job: ScheduledJob) -> dict[str, object] | None:
         if not job.plugin_id:
             return None
         if self._plugin_runtime is None:

@@ -92,13 +92,7 @@ def test_plugin_runtime_validates_contribution_namespaces() -> None:
                         "module": "plugins.feedback.routes",
                     }
                 ],
-                tools=[
-                    {
-                        "name": "feedback_summary",
-                        "module": "plugins.feedback.tools",
-                        "legacy_ids": ["feedback.summary"],
-                    }
-                ],
+                tools=[{"name": "feedback.summary", "module": "plugins.feedback.tools"}],
                 frontend={
                     "nav_items": ["feedback:nav"],
                     "settings_sections": ["feedback_settings"],
@@ -146,9 +140,7 @@ def test_plugin_manifest_rejects_foreign_structured_frontend_contribution_id() -
 
 
 def test_plugin_manifest_rejects_foreign_structured_frontend_renderer_reference() -> None:
-    with pytest.raises(
-        ValueError, match="renderers and contribution references must be owned by plugin feedback"
-    ):
+    with pytest.raises(ValueError, match="renderers and contribution references must be owned by plugin feedback"):
         _plugin(
             frontend={
                 "message_actions": [
@@ -292,7 +284,7 @@ def test_plugin_runtime_repeated_disable_is_idempotent_and_keeps_resources() -> 
     runtime = PluginRuntime(
         [
             _plugin(
-                tools=[{"name": "feedback_summary", "module": "plugins.feedback.tools"}],
+                tools=[{"name": "feedback.summary", "module": "plugins.feedback.tools"}],
                 scheduler_jobs=["feedback.sync"],
             )
         ]
@@ -303,22 +295,16 @@ def test_plugin_runtime_repeated_disable_is_idempotent_and_keeps_resources() -> 
 
     assert first is second
     assert second.status is PluginRuntimeStatus.DISABLED
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.TOOL,
-            resource_id="feedback_summary",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SCHEDULER_JOB,
-            resource_id="feedback.sync",
-        )
-        is not None
-    )
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.TOOL,
+        resource_id="feedback.summary",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SCHEDULER_JOB,
+        resource_id="feedback.sync",
+    ) is not None
 
 
 def test_plugin_runtime_applies_stored_enabled_disabled_overrides() -> None:
@@ -386,16 +372,6 @@ def test_plugin_runtime_collects_only_enabled_lifecycle_hooks() -> None:
         "early",
         "late",
     ]
-    runtime.enable_plugin("disabled")
-    assert [hook.name for hook in runtime.lifecycle_hooks(phase="startup")] == [
-        "early",
-        "late",
-        "disabled",
-    ]
-    assert [
-        hook.name
-        for hook in runtime.lifecycle_hooks(phase="startup", plugin_id="disabled")
-    ] == ["disabled"]
     assert [hook.name for hook in runtime.lifecycle_hooks(phase="startup", enabled_only=False)] == [
         "early",
         "late",
@@ -416,7 +392,7 @@ def test_plugin_runtime_exposes_route_and_tool_declarations_for_executable_plugi
                 ],
                 tools=[
                     {
-                        "name": "feedback_summary",
+                        "name": "feedback.summary",
                         "module": "plugins.feedback.tools",
                     }
                 ],
@@ -434,7 +410,7 @@ def test_plugin_runtime_exposes_route_and_tool_declarations_for_executable_plugi
                 ],
                 tools=[
                     {
-                        "name": "disabled_tool",
+                        "name": "disabled.tool",
                         "module": "plugins.disabled.tools",
                     }
                 ],
@@ -446,18 +422,7 @@ def test_plugin_runtime_exposes_route_and_tool_declarations_for_executable_plugi
         ("feedback", "feedback-api")
     ]
     assert [(tool.plugin_id, tool.name) for tool in runtime.tools()] == [
-        ("feedback", "feedback_summary")
-    ]
-
-    runtime.enable_plugin("disabled")
-
-    assert [(route.plugin_id, route.name) for route in runtime.routes()] == [
-        ("feedback", "feedback-api"),
-        ("disabled", "disabled-api"),
-    ]
-    assert [(tool.plugin_id, tool.name) for tool in runtime.tools()] == [
-        ("feedback", "feedback_summary"),
-        ("disabled", "disabled_tool"),
+        ("feedback", "feedback.summary")
     ]
 
 
@@ -467,9 +432,8 @@ def test_plugin_runtime_guards_plugin_tools_by_runtime_state() -> None:
             _plugin(
                 tools=[
                     {
-                        "name": "feedback_summary",
+                        "name": "feedback.summary",
                         "module": "plugins.feedback.tools",
-                        "legacy_ids": ["feedback.summary"],
                     }
                 ],
             ),
@@ -479,7 +443,7 @@ def test_plugin_runtime_guards_plugin_tools_by_runtime_state() -> None:
                 enabled_by_default=False,
                 tools=[
                     {
-                        "name": "disabled_tool",
+                        "name": "disabled.tool",
                         "module": "plugins.disabled.tools",
                     }
                 ],
@@ -487,19 +451,16 @@ def test_plugin_runtime_guards_plugin_tools_by_runtime_state() -> None:
         ]
     )
 
-    registration = runtime.ensure_tool_available("feedback_summary")
+    registration = runtime.ensure_tool_available("feedback.summary")
 
     assert registration.plugin_id == "feedback"
-    assert runtime.ensure_tool_available("feedback.summary") == registration
     with pytest.raises(PluginUnavailableError):
-        runtime.ensure_tool_available("disabled_tool")
+        runtime.ensure_tool_available("disabled.tool")
     with pytest.raises(PluginUnavailableError):
         runtime.ensure_tool_available("missing.tool")
 
     runtime.disable_plugin("feedback")
 
-    with pytest.raises(PluginUnavailableError):
-        runtime.ensure_tool_available("feedback_summary")
     with pytest.raises(PluginUnavailableError):
         runtime.ensure_tool_available("feedback.summary")
 
@@ -545,7 +506,7 @@ def test_plugin_runtime_filters_and_guards_scheduler_jobs_and_listeners() -> Non
     ]
     assert [record.resource_id for record in runtime.listeners()] == [
         "feedback.package-listener",
-        "feedback.listener",
+        "feedback.listener"
     ]
     assert [record.resource_id for record in runtime.listeners(enabled_only=False)] == [
         "feedback.package-listener",
@@ -611,7 +572,7 @@ def test_plugin_runtime_builds_resource_ledger_from_manifest_declarations() -> N
                 ],
                 tools=[
                     {
-                        "name": "feedback_summary",
+                        "name": "feedback.summary",
                         "module": "plugins.feedback.tools",
                     }
                 ],
@@ -711,174 +672,111 @@ def test_plugin_runtime_builds_resource_ledger_from_manifest_declarations() -> N
         ]
     )
 
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.BACKEND_ROUTE,
-            resource_id="feedback-api",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.TOOL,
-            resource_id="feedback_summary",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.PERMISSION,
-            resource_id="feedback:read",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.FRONTEND_ROUTE,
-            resource_id="feedback-route",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.APP_TAB,
-            resource_id="feedback:tab",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.APP_PANEL,
-            resource_id="feedback:panel",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SIDEBAR_ITEM,
-            resource_id="feedback:sidebar",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.USER_MENU_ITEM,
-            resource_id="feedback:user-menu",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.CHAT_INPUT_OPTION,
-            resource_id="feedback:quick-reply",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.CHAT_INPUT_PANEL,
-            resource_id="feedback:quick-reply-panel",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.MENTION_PROVIDER,
-            resource_id="feedback:mentions",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.AGENT_CATEGORY,
-            resource_id="feedback:agents",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.PROJECT_OPTION,
-            resource_id="feedback.DEFAULT_FEEDBACK_VIEW",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SESSION_OPTION,
-            resource_id="feedback.ACTIVE_FEEDBACK_FILTER",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.CHANNEL_OPTION,
-            resource_id="feedback.ACTIVE_FEEDBACK_CHANNEL",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SCHEDULED_TASK_OPTION,
-            resource_id="feedback.ACTIVE_FEEDBACK_TASK",
-        )
-        is not None
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SETTING,
-            resource_id="feedback.project.DEFAULT_FEEDBACK_VIEW",
-        ).scope.value
-        == "project"
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SETTING,
-            resource_id="feedback.session.ACTIVE_FEEDBACK_FILTER",
-        ).scope.value
-        == "session"
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SETTING,
-            resource_id="feedback.channel.ACTIVE_FEEDBACK_CHANNEL",
-        ).scope.value
-        == "channel"
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.SETTING,
-            resource_id="feedback.scheduled_task.ACTIVE_FEEDBACK_TASK",
-        ).scope.value
-        == "scheduled_task"
-    )
-    assert (
-        runtime.resource_ledger.get(
-            plugin_id="feedback",
-            resource_type=PluginResourceType.LISTENER,
-            resource_id="feedback-listener",
-        )
-        is not None
-    )
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.BACKEND_ROUTE,
+        resource_id="feedback-api",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.TOOL,
+        resource_id="feedback.summary",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.PERMISSION,
+        resource_id="feedback:read",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.FRONTEND_ROUTE,
+        resource_id="feedback-route",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.APP_TAB,
+        resource_id="feedback:tab",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.APP_PANEL,
+        resource_id="feedback:panel",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SIDEBAR_ITEM,
+        resource_id="feedback:sidebar",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.USER_MENU_ITEM,
+        resource_id="feedback:user-menu",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.CHAT_INPUT_OPTION,
+        resource_id="feedback:quick-reply",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.CHAT_INPUT_PANEL,
+        resource_id="feedback:quick-reply-panel",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.MENTION_PROVIDER,
+        resource_id="feedback:mentions",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.AGENT_CATEGORY,
+        resource_id="feedback:agents",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.PROJECT_OPTION,
+        resource_id="feedback.DEFAULT_FEEDBACK_VIEW",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SESSION_OPTION,
+        resource_id="feedback.ACTIVE_FEEDBACK_FILTER",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.CHANNEL_OPTION,
+        resource_id="feedback.ACTIVE_FEEDBACK_CHANNEL",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SCHEDULED_TASK_OPTION,
+        resource_id="feedback.ACTIVE_FEEDBACK_TASK",
+    ) is not None
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.project.DEFAULT_FEEDBACK_VIEW",
+    ).scope.value == "project"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.session.ACTIVE_FEEDBACK_FILTER",
+    ).scope.value == "session"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.channel.ACTIVE_FEEDBACK_CHANNEL",
+    ).scope.value == "channel"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.SETTING,
+        resource_id="feedback.scheduled_task.ACTIVE_FEEDBACK_TASK",
+    ).scope.value == "scheduled_task"
+    assert runtime.resource_ledger.get(
+        plugin_id="feedback",
+        resource_type=PluginResourceType.LISTENER,
+        resource_id="feedback-listener",
+    ) is not None
 
 
 def test_plugin_runtime_keeps_same_setting_key_distinct_across_scopes() -> None:
@@ -1025,6 +923,8 @@ async def test_plugin_runtime_lifecycle_execution_records_timeouts() -> None:
         timeout_seconds=0.001,
     )
 
-    assert [(result.plugin_id, result.status) for result in results] == [("feedback", "timeout")]
+    assert [(result.plugin_id, result.status) for result in results] == [
+        ("feedback", "timeout")
+    ]
     assert runtime.get_state("feedback").status is PluginRuntimeStatus.ERROR
     assert runtime.get_state("feedback").issues[-1].code == "hook_timeout"

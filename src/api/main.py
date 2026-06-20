@@ -457,8 +457,8 @@ async def _initialize_plugin_settings(app: FastAPI) -> None:
 def _attach_plugin_runtime_to_runtime_guards(app: FastAPI) -> None:
     runtime = getattr(app.state, "plugin_runtime", None)
     try:
-        from src.infra.scheduler.runtime import get_runtime_scheduler
         from src.infra.scheduler.runner import get_scheduled_task_runner
+        from src.infra.scheduler.runtime import get_runtime_scheduler
 
         get_runtime_scheduler().set_plugin_runtime(runtime)
         get_scheduled_task_runner().set_plugin_runtime(runtime)

@@ -263,15 +263,18 @@ class PluginFrontendVisibleWhen(BaseModel):
 
     agent_id: str | None = None
     route: str | None = None
-    scope: Literal[
-        "system",
-        "user",
-        "role",
-        "project",
-        "session",
-        "channel",
-        "scheduled_task",
-    ] | None = None
+    scope: (
+        Literal[
+            "system",
+            "user",
+            "role",
+            "project",
+            "session",
+            "channel",
+            "scheduled_task",
+        ]
+        | None
+    ) = None
     permissions: list[str] = Field(default_factory=list)
 
     @field_validator("agent_id", "route")
@@ -417,7 +420,17 @@ class PluginAppTab(BaseModel):
     show_no_permission_toast: bool = False
     visible_when: PluginFrontendVisibleWhen | None = None
 
-    @field_validator("id", "tab", "path", "label", "panel", "insert_after", "seo_title", "seo_description", "redirect_to")
+    @field_validator(
+        "id",
+        "tab",
+        "path",
+        "label",
+        "panel",
+        "insert_after",
+        "seo_title",
+        "seo_description",
+        "redirect_to",
+    )
     @classmethod
     def normalize_strings(cls, value: str | None) -> str | None:
         if value is None:
@@ -576,7 +589,9 @@ class PluginMessageAction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(..., min_length=1)
-    target: Literal["assistant_message", "user_message", "tool_result", "shared_message"] = "assistant_message"
+    target: Literal["assistant_message", "user_message", "tool_result", "shared_message"] = (
+        "assistant_message"
+    )
     renderer: str = Field(..., min_length=1)
     order: int = 100
     permissions: list[str] = Field(default_factory=list)
@@ -800,7 +815,9 @@ class PluginFrontendContribution(BaseModel):
     chat_input_panels: list[PluginChatInputPanel] = Field(default_factory=list)
     mention_providers: list[PluginMentionProvider] = Field(default_factory=list)
     welcome_surfaces: list[PluginWelcomeSurface] = Field(default_factory=list)
-    assistant_identity_resolvers: list[PluginAssistantIdentityResolver] = Field(default_factory=list)
+    assistant_identity_resolvers: list[PluginAssistantIdentityResolver] = Field(
+        default_factory=list
+    )
     agent_categories: list[PluginAgentCategory] = Field(default_factory=list)
     project_options: list[PluginScopedOption] = Field(default_factory=list)
     session_options: list[PluginScopedOption] = Field(default_factory=list)
@@ -872,12 +889,7 @@ class PluginFrontendContribution(BaseModel):
             return []
         if not isinstance(value, list):
             return value
-        return [
-            {"id": item, "accept": []}
-            if isinstance(item, str)
-            else item
-            for item in value
-        ]
+        return [{"id": item, "accept": []} if isinstance(item, str) else item for item in value]
 
     @field_validator("skill_importers", mode="before")
     @classmethod
@@ -926,7 +938,10 @@ def _default_tool_renderer_tool_names(renderer_id: str) -> list[str]:
         "agent-team": ["search_persona_presets", "create_agent_team"],
         "image_generation:image-generate": ["image_generation.image_generate", "image_generate"],
         "image-generate": ["image_generate"],
-        "audio_transcription:audio-transcribe": ["audio_transcription.audio_transcribe", "audio_transcribe"],
+        "audio_transcription:audio-transcribe": [
+            "audio_transcription.audio_transcribe",
+            "audio_transcribe",
+        ],
         "audio-transcribe": ["audio_transcribe"],
     }
     return mapping.get(renderer_id, [])
@@ -1091,10 +1106,14 @@ class PluginManifest(BaseModel):
 
     @property
     def uninstallable(self) -> bool:
-        return self.install_type in {
-            PluginInstallType.PREINSTALLED,
-            PluginInstallType.USER_INSTALLED,
-        } and not self.core
+        return (
+            self.install_type
+            in {
+                PluginInstallType.PREINSTALLED,
+                PluginInstallType.USER_INSTALLED,
+            }
+            and not self.core
+        )
 
     @field_validator("id")
     @classmethod
@@ -1172,7 +1191,11 @@ class PluginManifest(BaseModel):
             *(item.renderer for item in frontend.app_panels),
             *(item.renderer for item in frontend.message_actions),
             *(item.panel for item in frontend.chat_input_options if item.panel),
-            *(item.selected_renderer for item in frontend.chat_input_options if item.selected_renderer),
+            *(
+                item.selected_renderer
+                for item in frontend.chat_input_options
+                if item.selected_renderer
+            ),
             *(item.renderer for item in frontend.chat_input_panels),
             *(item.provider for item in frontend.mention_providers),
             *(item.renderer for item in frontend.welcome_surfaces),
@@ -1211,7 +1234,11 @@ class PluginManifest(BaseModel):
         option_bindings = [
             *(item.option_binding for item in frontend.mention_providers if item.option_binding),
             *(item.option_binding for item in frontend.welcome_surfaces if item.option_binding),
-            *(item.option_binding for item in frontend.assistant_identity_resolvers if item.option_binding),
+            *(
+                item.option_binding
+                for item in frontend.assistant_identity_resolvers
+                if item.option_binding
+            ),
             *(item.option_binding for item in frontend.chat_input_options if item.option_binding),
             *(item.option_binding for item in frontend.chat_input_panels if item.option_binding),
         ]
@@ -1248,10 +1275,14 @@ class PluginManifest(BaseModel):
         }
         for option in self.frontend.project_options:
             target_key = option.applies_to_session_key
-            if target_key and target_key not in session_keys and target_key not in session_setting_keys:
+            if (
+                target_key
+                and target_key not in session_keys
+                and target_key not in session_setting_keys
+            ):
                 invalid_project_mappings.append(f"project:{option.key}->{target_key}")
-        for option in self.frontend.chat_input_options:
-            binding = option.option_binding
+        for chat_input_option in self.frontend.chat_input_options:
+            binding = chat_input_option.option_binding
             if binding and (binding.scope, binding.key) not in settings_by_scope:
                 missing.append(f"{binding.scope}:{binding.key}")
         for panel in self.frontend.chat_input_panels:

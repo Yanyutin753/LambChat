@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from importlib import import_module
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, cast
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -73,8 +74,12 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         prefix="/api/persona-presets",
         tags=("Persona Presets",),
     ),
-    CoreRouteRegistration("sessions", "src.api.routes.session", prefix="/api/sessions", tags=("Sessions",)),
-    CoreRouteRegistration("projects", "src.api.routes.project", prefix="/api/projects", tags=("Projects",)),
+    CoreRouteRegistration(
+        "sessions", "src.api.routes.session", prefix="/api/sessions", tags=("Sessions",)
+    ),
+    CoreRouteRegistration(
+        "projects", "src.api.routes.project", prefix="/api/projects", tags=("Projects",)
+    ),
     CoreRouteRegistration("share", "src.api.routes.share", prefix="/api/share", tags=("Share",)),
     CoreRouteRegistration("skills", "src.api.routes.skill", prefix="/api/skills", tags=("Skills",)),
     CoreRouteRegistration(
@@ -101,7 +106,9 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         prefix="/api/settings",
         tags=("Settings",),
     ),
-    CoreRouteRegistration("memory", "src.api.routes.memory", prefix="/api/memory", tags=("Memory",)),
+    CoreRouteRegistration(
+        "memory", "src.api.routes.memory", prefix="/api/memory", tags=("Memory",)
+    ),
     CoreRouteRegistration("mcp", "src.api.routes.mcp", prefix="/api/mcp", tags=("MCP",)),
     CoreRouteRegistration(
         "mcp_admin",
@@ -116,8 +123,12 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         prefix="/api/env-vars",
         tags=("Environment Variables",),
     ),
-    CoreRouteRegistration("upload", "src.api.routes.upload", prefix="/api/upload", tags=("Upload",)),
-    CoreRouteRegistration("files", "src.api.routes.revealed_file", prefix="/api/files", tags=("Files",)),
+    CoreRouteRegistration(
+        "upload", "src.api.routes.upload", prefix="/api/upload", tags=("Upload",)
+    ),
+    CoreRouteRegistration(
+        "files", "src.api.routes.revealed_file", prefix="/api/files", tags=("Files",)
+    ),
     CoreRouteRegistration("human", "src.api.routes.human", prefix="/human", tags=("Human",)),
     CoreRouteRegistration(
         "notifications",
@@ -126,7 +137,9 @@ CORE_ROUTE_REGISTRATIONS: tuple[CoreRouteRegistration, ...] = (
         tags=("Notifications",),
     ),
     CoreRouteRegistration("push", "src.api.routes.push", prefix="/api/push", tags=("Push",)),
-    CoreRouteRegistration("channels", "src.api.routes.channels", prefix="/api/channels", tags=("Channels",)),
+    CoreRouteRegistration(
+        "channels", "src.api.routes.channels", prefix="/api/channels", tags=("Channels",)
+    ),
     CoreRouteRegistration(
         "scheduled_tasks",
         "src.api.routes.scheduled_task",
@@ -169,9 +182,7 @@ def register_plugin_routes(
     interrupt core application startup.
     """
     route_registrations = (
-        list(registrations)
-        if registrations is not None
-        else runtime.routes(enabled_only=False)
+        list(registrations) if registrations is not None else runtime.routes(enabled_only=False)
     )
     for registration in route_registrations:
         state = runtime.get_state(registration.plugin_id)
@@ -181,7 +192,9 @@ def register_plugin_routes(
             app.include_router(
                 _resolve_plugin_router(registration),
                 prefix=registration.prefix,
-                tags=registration.tags or [f"Plugin:{registration.plugin_id}"],
+                tags=cast(
+                    list[str | Enum], registration.tags or [f"Plugin:{registration.plugin_id}"]
+                ),
                 dependencies=[Depends(plugin_enabled_dependency(runtime, registration.plugin_id))],
             )
         except Exception as exc:  # noqa: BLE001 - plugin isolation boundary
@@ -358,10 +371,9 @@ def _static_fallback_fields(
         fields.append("migrations")
     if not package_manifest.resources and static_manifest.resources:
         fields.append("resources")
-    if (
-        not package_manifest.frontend.model_dump(exclude_defaults=True)
-        and static_manifest.frontend.model_dump(exclude_defaults=True)
-    ):
+    if not package_manifest.frontend.model_dump(
+        exclude_defaults=True
+    ) and static_manifest.frontend.model_dump(exclude_defaults=True):
         fields.append("frontend")
     return fields
 

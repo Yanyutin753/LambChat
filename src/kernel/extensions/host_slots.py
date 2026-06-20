@@ -370,15 +370,11 @@ CONTROLLED_FRONTEND_REFERENCES: dict[str, frozenset[str]] = {
         }
     ),
     "message_actions.renderer": frozenset({"feedback.FeedbackButtons"}),
-    "chat_input_options.selected_renderer": frozenset(
-        {"agent_team.SelectedTeamChip"}
-    ),
+    "chat_input_options.selected_renderer": frozenset({"agent_team.SelectedTeamChip"}),
     "chat_input_panels.renderer": frozenset({"agent_team.TeamPickerModal"}),
     "mention_providers.provider": frozenset({"agent_team.searchTeams"}),
     "welcome_surfaces.renderer": frozenset({"agent_team.TeamWelcomeSurface"}),
-    "assistant_identity_resolvers.resolver": frozenset(
-        {"agent_team.TeamAssistantIdentity"}
-    ),
+    "assistant_identity_resolvers.resolver": frozenset({"agent_team.TeamAssistantIdentity"}),
     "project_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
     "session_options.renderer": frozenset({"agent_team.TeamSelectOption"}),
     "channel_options.renderer": frozenset({"agent_team.TeamSelectOption"}),

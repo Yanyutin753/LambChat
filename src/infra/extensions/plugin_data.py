@@ -98,10 +98,14 @@ class PluginDataService:
                     file_count += 1
                     total_bytes += path.stat().st_size
         backups_dir = data_dir / "backups"
-        backups = sorted(
-            (path for path in backups_dir.glob("current-config-*.json") if path.is_file()),
-            key=lambda path: path.name,
-        ) if backups_dir.exists() else []
+        backups = (
+            sorted(
+                (path for path in backups_dir.glob("current-config-*.json") if path.is_file()),
+                key=lambda path: path.name,
+            )
+            if backups_dir.exists()
+            else []
+        )
         return PluginDataSnapshot(
             plugin_id=plugin_id,
             data_dir=str(data_dir),

@@ -16,7 +16,7 @@ from src.infra.async_utils.blocking import run_blocking_io
 from src.infra.channel.channel_storage import ChannelStorage
 from src.infra.channel.pubsub import publish_channel_config_changed
 from src.infra.channel.registry import get_registry
-from src.infra.extensions import get_plugin_settings_service
+from src.infra.extensions import PluginSettingsService, get_plugin_settings_service
 from src.infra.extensions.scoped_options import (
     plugin_options_with_settings,
     sync_plugin_options_to_settings,
@@ -69,12 +69,21 @@ def _runtime_or_builtin(plugin_runtime: object) -> PluginRuntime:
     return PluginRuntime(BUILTIN_PLUGIN_MANIFESTS, core_dependencies=("skill_core",))
 
 
-def _get_plugin_settings_service(request: Request | None):
-    if request is not None:
-        service = getattr(request.app.state, "plugin_settings_service", None)
-        if service is not None:
-            return service
+def get_plugin_settings_service_dependency(request: Request) -> PluginSettingsService:
+    service = getattr(request.app.state, "plugin_settings_service", None)
+    if isinstance(service, PluginSettingsService):
+        return service
     return get_plugin_settings_service()
+
+
+def _get_plugin_settings_service(_request: Request | None = None) -> PluginSettingsService:
+    return get_plugin_settings_service()
+
+
+def _settings_service_or_default(service: object) -> PluginSettingsService:
+    if isinstance(service, PluginSettingsService):
+        return service
+    return _get_plugin_settings_service()
 
 
 def _connector_for_channel_type(
@@ -305,9 +314,11 @@ async def cancel_feishu_registration(
 )
 async def list_user_channels(
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+    plugin_settings_service: PluginSettingsService = Depends(
+        get_plugin_settings_service_dependency
+    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
 ):
     """List all configured channel instances for current user"""
     registry = get_registry()
@@ -321,7 +332,7 @@ async def list_user_channels(
 
     responses = []
     runtime = _runtime_or_builtin(plugin_runtime)
-    settings_service = _get_plugin_settings_service(request)
+    settings_service = _settings_service_or_default(plugin_settings_service)
     for config in configs:
         try:
             channel_type = ChannelType(config.get("channel_type"))
@@ -383,9 +394,11 @@ async def list_user_channels(
 async def list_channel_instances(
     channel_type: ChannelType,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+    plugin_settings_service: PluginSettingsService = Depends(
+        get_plugin_settings_service_dependency
+    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
 ):
     """List all instances of a specific channel type"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -405,7 +418,7 @@ async def list_channel_instances(
 
     metadata = channel_class.get_metadata()
     runtime = _runtime_or_builtin(plugin_runtime)
-    settings_service = _get_plugin_settings_service(request)
+    settings_service = _settings_service_or_default(plugin_settings_service)
     responses = []
     for config in configs:
         sensitive_fields = set()
@@ -459,9 +472,11 @@ async def get_channel_instance(
     channel_type: ChannelType,
     instance_id: str,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+    plugin_settings_service: PluginSettingsService = Depends(
+        get_plugin_settings_service_dependency
+    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
 ):
     """Get a specific channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -476,7 +491,7 @@ async def get_channel_instance(
 
     config["plugin_options"] = await plugin_options_with_settings(
         runtime=_runtime_or_builtin(plugin_runtime),
-        service=_get_plugin_settings_service(request),
+        service=_settings_service_or_default(plugin_settings_service),
         scope="channel",
         subject_id=instance_id,
         plugin_options=config.get("plugin_options") or {},
@@ -496,9 +511,11 @@ async def create_channel_instance(
     channel_type: ChannelType,
     data: ChannelConfigCreate,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+    plugin_settings_service: PluginSettingsService = Depends(
+        get_plugin_settings_service_dependency
+    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
 ):
     """Create a new channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -566,7 +583,7 @@ async def create_channel_instance(
         )
         await sync_plugin_options_to_settings(
             runtime=_runtime_or_builtin(plugin_runtime),
-            service=_get_plugin_settings_service(request),
+            service=_settings_service_or_default(plugin_settings_service),
             scope="channel",
             subject_id=config.get("instance_id", ""),
             plugin_options=plugin_options,
@@ -606,9 +623,11 @@ async def update_channel_instance(
     instance_id: str,
     data: ChannelConfigUpdate,
     plugin_runtime: PluginRuntime | None = Depends(get_plugin_runtime),
+    plugin_settings_service: PluginSettingsService = Depends(
+        get_plugin_settings_service_dependency
+    ),
     user: TokenPayload = Depends(get_current_user_required),
     storage: ChannelStorage = Depends(get_channel_storage),
-    request: Request = None,
 ):
     """Update a specific channel instance"""
     _ensure_channel_connector_available(channel_type, plugin_runtime)
@@ -656,7 +675,9 @@ async def update_channel_instance(
 
     plugin_options_value: dict[str, dict[str, object]] | None = ...  # type: ignore[assignment]
     if "plugin_options" in data.model_fields_set:
-        next_agent_id = data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        next_agent_id = (
+            data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        )
         legacy_payload: dict[str, Any] = {}
         if "team_id" in data.model_fields_set:
             legacy_payload["team_id"] = data.team_id
@@ -668,7 +689,9 @@ async def update_channel_instance(
             legacy_payload_keys_provided=set(legacy_payload),
         )
     elif "team_id" in data.model_fields_set:
-        next_agent_id = data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        next_agent_id = (
+            data.agent_id if "agent_id" in data.model_fields_set else existing.get("agent_id")
+        )
         plugin_options_value = _declared_channel_plugin_options_from_payload(
             plugin_runtime=plugin_runtime,
             agent_id=next_agent_id,
@@ -706,7 +729,7 @@ async def update_channel_instance(
     if plugin_options_value is not ...:
         await sync_plugin_options_to_settings(
             runtime=_runtime_or_builtin(plugin_runtime),
-            service=_get_plugin_settings_service(request),
+            service=_settings_service_or_default(plugin_settings_service),
             scope="channel",
             subject_id=instance_id,
             plugin_options=plugin_options_value,

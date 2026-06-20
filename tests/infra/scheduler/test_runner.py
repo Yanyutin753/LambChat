@@ -19,7 +19,6 @@ from src.kernel.extensions import (
     PluginRuntime,
     PluginUnavailableError,
     build_agent_team_plugin_manifest,
-    build_workflow_plugin_manifest,
 )
 from src.kernel.schemas.channel import ChannelType
 from src.kernel.schemas.scheduled_task import (
@@ -28,12 +27,6 @@ from src.kernel.schemas.scheduled_task import (
     ScheduledTask,
     ScheduledTaskStatus,
     TriggerType,
-)
-from src.kernel.extensions import (
-    PluginManifest,
-    PluginRuntime,
-    PluginUnavailableError,
-    build_agent_team_plugin_manifest,
 )
 
 
@@ -987,12 +980,14 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
         "scheduled_task_run_id": "run_1",
+        "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
     }
     assert session_manager.metadata == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
         "scheduled_task_run_id": "run_1",
+        "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
     }
 
@@ -1243,9 +1238,7 @@ async def test_execute_agent_prefers_plugin_option_team_id_for_team_agent(
         input_payload={
             "message": "Plan the launch",
             "team_id": "legacy-team",
-            "plugin_options": {
-                "agent_team": {"SELECTED_TEAM_ID": "plugin-team"}
-            },
+            "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "plugin-team"}},
         },
     )
     submitted: dict[str, Any] = {}
@@ -1491,6 +1484,7 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
         "scheduled_task_run_id": "run_1",
+        "scheduled_task_trigger_type": "interval",
         "hidden_from_conversation_list": True,
     }
     assert submitted["write_user_message_immediately"] is True

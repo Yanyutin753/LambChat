@@ -6,11 +6,17 @@ import { dirname, resolve } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+const readPanelSources = () =>
+  [
+    "../PluginRuntimePanel.tsx",
+    "../pluginRuntimePanelUtils.ts",
+    "../pluginRuntimeImpactSummary.ts",
+  ]
+    .map((relativePath) => readFileSync(resolve(__dirname, relativePath), "utf8"))
+    .join("\n");
+
 test("plugin runtime panel exposes operator-facing impact sections", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /buildPluginRuntimeImpactSummary/);
   assert.match(source, /activeEntries: plugin\.executable/);
@@ -36,10 +42,7 @@ test("plugin runtime panel exposes operator-facing impact sections", () => {
 });
 
 test("plugin runtime panel shows a first-screen ownership overview", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /PluginOwnershipOverview/);
   assert.match(source, /pluginContributionLabels/);
@@ -76,10 +79,7 @@ test("plugin runtime panel shows a first-screen ownership overview", () => {
 });
 
 test("plugin runtime impact summary includes directory-declared UI and scoped option surfaces", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /PluginContributionGroup/);
   assert.match(source, /pluginContributionGroups/);
@@ -140,10 +140,7 @@ test("first-party frontend package manifests use structured declarations instead
 });
 
 test("plugin runtime panel keeps plugin rows compact and truly collapsible", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.doesNotMatch(source, /setExpandedPluginId\(plugins\[0\]\.plugin_id\)/);
   assert.match(source, /aria-expanded=\{isExpanded\}/);
@@ -155,10 +152,7 @@ test("plugin runtime panel keeps plugin rows compact and truly collapsible", () 
 });
 
 test("plugin runtime panel exposes export import and protected uninstall controls", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /pluginRuntime\.actions\.export/);
   assert.match(source, /pluginRuntime\.actions\.import/);
@@ -170,10 +164,7 @@ test("plugin runtime panel exposes export import and protected uninstall control
 });
 
 test("plugin runtime panel surfaces plugin data templates", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
   const typeSource = readFileSync(
     resolve(__dirname, "../../../types/pluginRuntime.ts"),
     "utf8",
@@ -192,10 +183,7 @@ test("plugin runtime panel surfaces plugin data templates", () => {
 });
 
 test("plugin runtime panel exposes package manifest authority", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /manifest_authority/);
   assert.match(source, /static_fallback_used/);
@@ -205,10 +193,7 @@ test("plugin runtime panel exposes package manifest authority", () => {
 });
 
 test("plugin runtime panel exposes package data export policy", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /data export policy/);
   assert.match(source, /runtime_data_in_archive/);
@@ -218,10 +203,7 @@ test("plugin runtime panel exposes package data export policy", () => {
 });
 
 test("plugin runtime panel exposes dry-run package data policy", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /package_data_policy/);
   assert.match(source, /package folder \{dryRun\.package_data_policy\.package_folder_action/);
@@ -233,10 +215,7 @@ test("plugin runtime panel exposes dry-run package data policy", () => {
 });
 
 test("plugin runtime panel exposes archived package restore controls", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /archivedPackages/);
   assert.match(source, /Archived packages/);
@@ -258,10 +237,7 @@ test("plugin runtime imports notify contribution consumers after runtime mutatio
 });
 
 test("plugin runtime panel exposes package integrity evidence", () => {
-  const source = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const source = readPanelSources();
 
   assert.match(source, /package_sha256/);
   assert.match(source, /signature_status/);
@@ -275,10 +251,7 @@ test("plugin runtime panel exposes package integrity evidence", () => {
 });
 
 test("plugin runtime panel exposes local package hash review controls", () => {
-  const panelSource = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const panelSource = readPanelSources();
   const hookSource = readFileSync(
     resolve(__dirname, "../../../hooks/usePluginRuntime.ts"),
     "utf8",
@@ -298,10 +271,7 @@ test("plugin runtime panel exposes local package hash review controls", () => {
 });
 
 test("plugin runtime panel exposes plugin-data reset and backup evidence", () => {
-  const panelSource = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const panelSource = readPanelSources();
   const hookSource = readFileSync(
     resolve(__dirname, "../../../hooks/usePluginRuntime.ts"),
     "utf8",
@@ -320,10 +290,7 @@ test("plugin runtime panel exposes plugin-data reset and backup evidence", () =>
 });
 
 test("plugin runtime panel exposes plugin package dependencies", () => {
-  const panelSource = readFileSync(
-    resolve(__dirname, "../PluginRuntimePanel.tsx"),
-    "utf8",
-  );
+  const panelSource = readPanelSources();
   const typeSource = readFileSync(
     resolve(__dirname, "../../../types/pluginRuntime.ts"),
     "utf8",

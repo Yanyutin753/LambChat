@@ -107,6 +107,10 @@ class PluginUninstallDryRun:
 
     @classmethod
     def from_dict(cls, value: dict[str, object]) -> "PluginUninstallDryRun":
+        resources_value = value.get("resources", [])
+        warnings_value = value.get("warnings", [])
+        requires_confirmation_value = value.get("requires_confirmation", [])
+        rollback_notes_value = value.get("rollback_notes", [])
         return cls(
             plugin_id=str(value["plugin_id"]),
             created_at=_parse_datetime(str(value["created_at"])),
@@ -130,14 +134,20 @@ class PluginUninstallDryRun:
                         for key, value in dict(resource.get("metadata", {})).items()
                     },
                 )
-                for resource in value.get("resources", [])
+                for resource in resources_value
                 if isinstance(resource, dict)
-            ],
-            warnings=[str(item) for item in value.get("warnings", [])],
-            requires_confirmation=[
-                str(item) for item in value.get("requires_confirmation", [])
-            ],
-            rollback_notes=[str(item) for item in value.get("rollback_notes", [])],
+            ]
+            if isinstance(resources_value, list)
+            else [],
+            warnings=[str(item) for item in warnings_value]
+            if isinstance(warnings_value, list)
+            else [],
+            requires_confirmation=[str(item) for item in requires_confirmation_value]
+            if isinstance(requires_confirmation_value, list)
+            else [],
+            rollback_notes=[str(item) for item in rollback_notes_value]
+            if isinstance(rollback_notes_value, list)
+            else [],
         )
 
 
@@ -188,9 +198,7 @@ def build_uninstall_dry_run(
                 f"{resource.resource_type}:{resource.resource_id} requires confirmation"
             )
         if resource.irreversible:
-            warnings.append(
-                f"{resource.resource_type}:{resource.resource_id} may be irreversible"
-            )
+            warnings.append(f"{resource.resource_type}:{resource.resource_id} may be irreversible")
 
     rollback_notes.append(
         "Uninstall execution must use this dry-run snapshot and only process plugin-owned resources."
@@ -250,9 +258,7 @@ def validate_uninstall_dry_run(
         blockers.append("dry_run_resource_fingerprint_changed")
 
     cross_plugin_resources = [
-        resource
-        for resource in dry_run.resources
-        if resource.plugin_id != plugin_id
+        resource for resource in dry_run.resources if resource.plugin_id != plugin_id
     ]
     if cross_plugin_resources:
         blockers.append("dry_run_contains_other_plugin_resources")

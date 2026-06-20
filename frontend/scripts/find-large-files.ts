@@ -9,12 +9,6 @@ const FRONTEND_SRC = path.join(PROJECT_ROOT, "frontend/src");
 const BACKEND_SRC = path.join(PROJECT_ROOT, "src");
 
 const LINE_THRESHOLD = 2000;
-const ALLOWED_LARGE_FILES = new Set([
-  "frontend/src/extensions/coreContributions.ts",
-  "frontend/src/plugins/workflow/WorkflowPanel.tsx",
-  "src/plugins/workflow/executor.py",
-  "src/plugins/workflow/service.py",
-]);
 
 async function findLargeFiles(
   pattern: string,

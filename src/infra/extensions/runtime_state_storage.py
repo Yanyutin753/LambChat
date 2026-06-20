@@ -172,10 +172,10 @@ class MongoPluginRuntimeStateStorage:
     PACKAGE_REVIEW_COLLECTION = "plugin_package_reviews"
 
     def __init__(self) -> None:
-        self._overrides_collection = None
-        self._audit_collection = None
-        self._dry_run_collection = None
-        self._package_review_collection = None
+        self._overrides_collection: Any | None = None
+        self._audit_collection: Any | None = None
+        self._dry_run_collection: Any | None = None
+        self._package_review_collection: Any | None = None
         self._indexes_created = False
 
     @property

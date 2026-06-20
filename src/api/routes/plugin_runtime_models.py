@@ -109,7 +109,6 @@ class PluginRuntimePackageResponse(BaseModel):
 class PluginRuntimePluginResponse(BaseModel):
     plugin_id: str
     name: str | None
-    description: str | None
     version: str | None
     api_version: str | None
     status: str

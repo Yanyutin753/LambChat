@@ -34,10 +34,6 @@ from src.kernel.schemas.share import (
 )
 from src.kernel.schemas.user import TokenPayload
 from src.kernel.types import Permission
-from src.kernel.extensions.plugin_options import (
-    agent_uses_agent_team_options,
-    selected_agent_team_id_from_metadata,
-)
 
 router = APIRouter()
 logger = get_logger(__name__)

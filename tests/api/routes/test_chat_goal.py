@@ -25,11 +25,11 @@ from src.api.routes.chat import (
     ensure_agent_team_executable,
     ensure_plugin_agent_executable,
     resolve_goal_for_request,
-    selected_agent_team_id_from_metadata,
     session_stream,
 )
 from src.kernel.extensions import PluginManifest, PluginRuntime
 from src.kernel.extensions.builtin_plugins import build_agent_team_plugin_manifest
+from src.kernel.extensions.plugin_options import selected_agent_team_id_from_metadata
 from src.kernel.schemas.agent import AgentRequest, GoalSpec
 from src.plugins.workflow.chat_integration import workflow_result_interface
 

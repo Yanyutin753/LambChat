@@ -49,7 +49,9 @@ class PluginPackageImportService:
         self.data_root = data_root.resolve()
         self.installed_root = (self.plugin_root / "installed").resolve()
 
-    def import_folder(self, source_path: Path, *, dry_run: bool = True) -> PluginPackageImportResult:
+    def import_folder(
+        self, source_path: Path, *, dry_run: bool = True
+    ) -> PluginPackageImportResult:
         source = source_path.resolve()
         if source.is_file() and _is_supported_archive(source):
             return self._import_archive(source, dry_run=dry_run)
@@ -75,15 +77,24 @@ class PluginPackageImportService:
         if not dry_run:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(source, target, symlinks=False)
-            installed_descriptor = PluginPackageScanner(
-                plugin_root=self.plugin_root,
-                data_root=self.data_root,
-                source_dirs={"installed": "installed"},
-            ).scan().by_plugin_id().get(plugin_id)
+            installed_descriptor = (
+                PluginPackageScanner(
+                    plugin_root=self.plugin_root,
+                    data_root=self.data_root,
+                    source_dirs={"installed": "installed"},
+                )
+                .scan()
+                .by_plugin_id()
+                .get(plugin_id)
+            )
             if installed_descriptor is None or not installed_descriptor.valid:
                 if target.exists():
                     shutil.rmtree(target)
-                message = "; ".join(installed_descriptor.errors) if installed_descriptor else "installed package not found after copy"
+                message = (
+                    "; ".join(installed_descriptor.errors)
+                    if installed_descriptor
+                    else "installed package not found after copy"
+                )
                 raise ValueError(message)
             descriptor = installed_descriptor
             PluginDataService(data_root=self.data_root).ensure_for_descriptor(descriptor)
@@ -254,7 +265,11 @@ def _validate_package_tree(source: Path) -> None:
 
 
 def _find_single_plugin_folder(staging_root: Path) -> Path:
-    candidates = [path for path in staging_root.iterdir() if path.is_dir() and (path / "plugin.yaml").is_file()]
+    candidates = [
+        path
+        for path in staging_root.iterdir()
+        if path.is_dir() and (path / "plugin.yaml").is_file()
+    ]
     if len(candidates) != 1:
         raise ValueError("plugin archive must contain exactly one plugin folder with plugin.yaml")
     return candidates[0]
