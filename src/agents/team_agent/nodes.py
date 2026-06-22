@@ -627,8 +627,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     role_instructions=member.role_instructions or None,
                 )
                 role_prompt_sections = [
-                        s
-                        for s in (
+                    s
+                    for s in (
                         role_section,
                         workflow_result_section,
                         role_skill_prompts.get(member.member_id, skills_prompt),
