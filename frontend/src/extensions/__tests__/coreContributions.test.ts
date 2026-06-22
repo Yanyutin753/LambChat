@@ -828,7 +828,7 @@ test("sidebar more menu keeps legacy order and visibility requirements", () => {
   assert.equal(CORE_SIDEBAR_MORE_NAV.some((item) => item.id === "team"), false);
   const runtimeTeamItem = buildSidebarMoreNavContributions([
     enabledAgentTeamPlugin(),
-  ]).find((item) => item.id === "team");
+  ]).find((item) => item.id === "agent-team");
   assert.deepEqual(runtimeTeamItem?.requiredAnyPermissions, [Permission.TEAM_READ]);
   assert.equal(runtimeTeamItem?.pluginId, "agent_team");
   assert.equal(
@@ -846,32 +846,45 @@ test("AgentTeam sidebar route panel and nav follow plugin runtime state", () => 
   ];
 
   assert.equal(
-    buildAppRouteContributions(enabledRuntimePlugins).some((route) => route.id === "team"),
+    buildAppRouteContributions(enabledRuntimePlugins).some(
+      (route) => route.id === "agent-team" && route.path === "/agent-team",
+    ),
     true,
   );
   assert.equal(
-    buildPanelContributions(enabledRuntimePlugins).some((panel) => panel.id === "team"),
+    buildPanelContributions(enabledRuntimePlugins).some(
+      (panel) => panel.id === "agent-team",
+    ),
     true,
   );
   assert.equal(
-    buildSidebarMoreNavContributions(enabledRuntimePlugins).some((item) => item.id === "team"),
+    buildSidebarMoreNavContributions(enabledRuntimePlugins).some(
+      (item) => item.id === "agent-team",
+    ),
     true,
   );
   assert.equal(
-    buildSidebarMoreNavContributions(enabledRuntimePlugins).find((item) => item.id === "team")
-      ?.labelKey,
+    buildSidebarMoreNavContributions(enabledRuntimePlugins).find(
+      (item) => item.id === "agent-team",
+    )?.labelKey,
     "nav.team",
   );
   assert.equal(
-    buildAppRouteContributions(disabledRuntimePlugins).some((route) => route.id === "team"),
+    buildAppRouteContributions(disabledRuntimePlugins).some(
+      (route) => route.id === "agent-team",
+    ),
     false,
   );
   assert.equal(
-    buildPanelContributions(disabledRuntimePlugins).some((panel) => panel.id === "team"),
+    buildPanelContributions(disabledRuntimePlugins).some(
+      (panel) => panel.id === "agent-team",
+    ),
     false,
   );
   assert.equal(
-    buildSidebarMoreNavContributions(disabledRuntimePlugins).some((item) => item.id === "team"),
+    buildSidebarMoreNavContributions(disabledRuntimePlugins).some(
+      (item) => item.id === "agent-team",
+    ),
     false,
   );
 });
