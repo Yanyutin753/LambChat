@@ -580,9 +580,14 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert agent_team["frontend"]["routes"] == []
     assert agent_team["frontend"]["panels"] == []
     assert agent_team["frontend"]["nav_items"] == []
-    assert agent_team["frontend"]["app_tabs"][0]["path"] == "/team"
+    assert agent_team["frontend"]["app_tabs"][0]["id"] == "agent_team:agent-team-tab"
+    assert agent_team["frontend"]["app_tabs"][0]["tab"] == "agent-team"
+    assert agent_team["frontend"]["app_tabs"][0]["path"] == "/agent-team"
     assert agent_team["frontend"]["app_panels"][0]["renderer"] == "agent_team.TeamBuilderPanel"
-    assert agent_team["frontend"]["sidebar_items"][0]["path"] == "/team"
+    assert agent_team["frontend"]["app_panels"][0]["id"] == "agent_team:agent-team-panel"
+    assert agent_team["frontend"]["app_panels"][0]["tab"] == "agent-team"
+    assert agent_team["frontend"]["sidebar_items"][0]["id"] == "agent_team:agent-team-nav"
+    assert agent_team["frontend"]["sidebar_items"][0]["path"] == "/agent-team"
     assert agent_team["frontend"]["tool_renderers"] == [
         {
             "id": "agent_team:agent-team",
@@ -894,8 +899,8 @@ def test_plugin_runtime_contribution_states_include_public_safe_contributions() 
         "scope": "session",
     }
     assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["id"] == "agent_team:team-picker"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/agent-team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/agent-team"
     assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["option_binding"] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",
@@ -1021,8 +1026,8 @@ def test_extension_host_contributions_endpoint_exposes_frontend_contributions() 
         "key": "SELECTED_TEAM_ID",
         "scope": "session",
     }
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/agent-team"
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/agent-team"
     assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["option_binding"] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",

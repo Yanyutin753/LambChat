@@ -75,6 +75,19 @@ def test_agent_team_manifest_uses_agent_team_name_without_renaming_legacy_api() 
     assert _agent_team_plugin_route_prefix() == "/api/teams"
 
 
+def test_agent_team_page_uses_agent_team_route_identity() -> None:
+    manifest = next(plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID)
+
+    assert manifest.frontend.app_tabs[0].id == "agent_team:agent-team-tab"
+    assert manifest.frontend.app_tabs[0].tab == "agent-team"
+    assert manifest.frontend.app_tabs[0].path == "/agent-team"
+    assert manifest.frontend.app_tabs[0].panel == "agent_team:agent-team-panel"
+    assert manifest.frontend.app_panels[0].id == "agent_team:agent-team-panel"
+    assert manifest.frontend.app_panels[0].tab == "agent-team"
+    assert manifest.frontend.sidebar_items[0].id == "agent_team:agent-team-nav"
+    assert manifest.frontend.sidebar_items[0].path == "/agent-team"
+
+
 def test_agent_team_manifest_declares_legacy_team_agent_entry() -> None:
     manifest = next(plugin for plugin in BUILTIN_PLUGIN_MANIFESTS if plugin.id == AGENT_TEAM_PLUGIN_ID)
 
@@ -99,8 +112,8 @@ def test_agent_team_declares_chat_input_and_mention_contributions() -> None:
         "agent_team:team-picker"
     ]
     assert manifest.frontend.chat_input_panels[0].renderer == "agent_team.TeamPickerModal"
-    assert manifest.frontend.chat_input_panels[0].create_path == "/team"
-    assert manifest.frontend.chat_input_panels[0].manage_path == "/team"
+    assert manifest.frontend.chat_input_panels[0].create_path == "/agent-team"
+    assert manifest.frontend.chat_input_panels[0].manage_path == "/agent-team"
     assert [provider.id for provider in manifest.frontend.mention_providers] == [
         "agent_team:team-mentions"
     ]

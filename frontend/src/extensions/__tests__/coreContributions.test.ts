@@ -289,11 +289,11 @@ function enabledAgentTeamPlugin(): PluginRuntimeContributionState {
     frontend: {
       app_tabs: [
         {
-          id: "agent_team:team-tab",
-          tab: "team",
-          path: "/team",
+          id: "agent_team:agent-team-tab",
+          tab: "agent-team",
+          path: "/agent-team",
           label: "nav.team",
-          panel: "agent_team:team-panel",
+          panel: "agent_team:agent-team-panel",
           insert_after: "agents",
           order: 420,
           permissions: [Permission.TEAM_READ],
@@ -303,15 +303,15 @@ function enabledAgentTeamPlugin(): PluginRuntimeContributionState {
       ],
       app_panels: [
         {
-          id: "agent_team:team-panel",
-          tab: "team",
+          id: "agent_team:agent-team-panel",
+          tab: "agent-team",
           renderer: "agent_team.TeamBuilderPanel",
         },
       ],
       sidebar_items: [
         {
-          id: "agent_team:team-nav",
-          path: "/team",
+          id: "agent_team:agent-team-nav",
+          path: "/agent-team",
           label: "nav.team",
           icon: "Users",
           order: 20,
@@ -352,8 +352,8 @@ function enabledAgentTeamPlugin(): PluginRuntimeContributionState {
         {
           id: "agent_team:team-picker",
           renderer: "agent_team.TeamPickerModal",
-          create_path: "/team",
-          manage_path: "/team",
+          create_path: "/agent-team",
+          manage_path: "/agent-team",
           option_binding: {
             plugin_id: "agent_team",
             key: "SELECTED_TEAM_ID",
@@ -499,10 +499,10 @@ test("default route snapshot is core-only and plugin pages require runtime decla
   assert.deepEqual(runtimeRoutes.get("feedback")?.permissions, [
     Permission.FEEDBACK_READ,
   ]);
-  const team = runtimeRoutes.get("team");
+  const team = runtimeRoutes.get("agent-team");
   assert.equal(team?.pluginId, "agent_team");
-  assert.equal(team?.path, "/team");
-  assert.equal(team?.tab, "team");
+  assert.equal(team?.path, "/agent-team");
+  assert.equal(team?.tab, "agent-team");
   assert.equal(team?.insertAfterId, "agents");
   assert.deepEqual(team?.permissions, [Permission.TEAM_READ]);
   const usage = runtimeRoutes.get("usage");
@@ -582,11 +582,11 @@ test("structured plugin app tab and panel declarations drive runtime routes", ()
   assert.equal(findAppRouteContribution("feedback", runtimePlugins)?.path, "/feedback");
   assert.equal(panels.get("feedback")?.renderer, "feedback.FeedbackPanel");
   assert.equal(findPanelContribution("feedback", runtimePlugins)?.renderer, "feedback.FeedbackPanel");
-  assert.equal(routes.get("team")?.path, "/team");
-  assert.equal(routes.get("team")?.insertAfterId, "agents");
-  assert.equal(findAppRouteContribution("team", runtimePlugins)?.path, "/team");
-  assert.equal(panels.get("team")?.renderer, "agent_team.TeamBuilderPanel");
-  assert.equal(findPanelContribution("team", runtimePlugins)?.renderer, "agent_team.TeamBuilderPanel");
+  assert.equal(routes.get("agent-team")?.path, "/agent-team");
+  assert.equal(routes.get("agent-team")?.insertAfterId, "agents");
+  assert.equal(findAppRouteContribution("agent-team", runtimePlugins)?.path, "/agent-team");
+  assert.equal(panels.get("agent-team")?.renderer, "agent_team.TeamBuilderPanel");
+  assert.equal(findPanelContribution("agent-team", runtimePlugins)?.renderer, "agent_team.TeamBuilderPanel");
   assert.equal(routes.get("usage")?.path, "/usage");
   assert.equal(routes.get("usage")?.insertAfterId, "scheduled-tasks");
   assert.equal(findAppRouteContribution("usage", runtimePlugins)?.path, "/usage");
@@ -628,17 +628,17 @@ test("structured plugin declarations do not require legacy route panel or nav id
   );
   assert.deepEqual(
     buildAppRouteContributions(runtimePlugins)
-      .filter((route) => ["feedback", "team", "usage"].includes(route.id))
+      .filter((route) => ["feedback", "agent-team", "usage"].includes(route.id))
       .map((route) => `${route.id}:${route.path}`),
-    ["feedback:/feedback", "team:/team", "usage:/usage"],
+    ["feedback:/feedback", "agent-team:/agent-team", "usage:/usage"],
   );
   assert.deepEqual(
     buildPanelContributions(runtimePlugins)
-      .filter((panel) => ["feedback", "team", "usage"].includes(panel.id))
+      .filter((panel) => ["feedback", "agent-team", "usage"].includes(panel.id))
       .map((panel) => `${panel.id}:${panel.renderer}`),
     [
       "feedback:feedback.FeedbackPanel",
-      "team:agent_team.TeamBuilderPanel",
+      "agent-team:agent_team.TeamBuilderPanel",
       "usage:usage_reports.UsagePanel",
     ],
   );
@@ -664,8 +664,8 @@ test("legacy route panel and nav ids no longer synthesize runtime plugin UI", ()
       status: "enabled",
       frontend: {
         routes: ["agent_team:team-route"],
-        panels: ["agent_team:team-panel"],
-        nav_items: ["agent_team:team-nav"],
+        panels: ["agent_team:agent-team-panel"],
+        nav_items: ["agent_team:agent-team-nav"],
       },
     },
     {
@@ -894,7 +894,7 @@ test("AgentTeam chat input and mention contributions follow runtime state and ag
     buildChatInputPanelContributions(enabledRuntimePlugins, { agentId: "team" }).map(
       (panel) => `${panel.id}:${panel.optionBinding?.pluginId}.${panel.optionBinding?.key}:${panel.renderer}:${panel.createPath}:${panel.managePath}`,
     ),
-    ["agent_team:team-picker:agent_team.SELECTED_TEAM_ID:agent_team.TeamPickerModal:/team:/team"],
+    ["agent_team:team-picker:agent_team.SELECTED_TEAM_ID:agent_team.TeamPickerModal:/agent-team:/agent-team"],
   );
   assert.deepEqual(
     buildMentionProviderContributions(enabledRuntimePlugins, { agentId: "team" }).map(

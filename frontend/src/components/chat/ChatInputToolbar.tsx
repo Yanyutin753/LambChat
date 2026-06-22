@@ -1,4 +1,4 @@
-import { Fragment, useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState } from "react";
 import { ArrowUp, Square, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
@@ -240,11 +240,14 @@ export function ChatInputToolbar({
           const rendererId = option.selectedRenderer;
           const entry = rendererId ? CHAT_INPUT_SELECTED_RENDERERS[rendererId] : null;
           if (!entry) return null;
-          const rendered = entry.render({
-            ...selectedPluginRendererProps(option),
-            option,
-          });
-          return rendered ? <Fragment key={option.id}>{rendered}</Fragment> : null;
+          const SelectedRenderer = entry.Component;
+          return (
+            <SelectedRenderer
+              key={option.id}
+              {...selectedPluginRendererProps(option)}
+              option={option}
+            />
+          );
         })}
       </div>
 

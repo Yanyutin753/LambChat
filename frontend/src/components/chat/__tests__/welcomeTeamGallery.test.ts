@@ -27,7 +27,7 @@ test("welcome page delegates team plaza to plugin welcome surfaces", () => {
 
   assert.match(welcomeSurfaceRendererSource, /teamApi\s*\.\s*list\(0,\s*50\)/);
   assert.match(welcomeSurfaceRendererSource, /"agent_team\.TeamWelcomeSurface"/);
-  assert.match(welcomeSurfaceRendererSource, /onClick=\{\(\) => navigate\("\/team"\)\}/);
+  assert.match(welcomeSurfaceRendererSource, /onClick=\{\(\) => navigate\("\/agent-team"\)\}/);
   assert.match(
     welcomeSurfaceRendererSource,
     /onClick=\{\(\) => handleTeamClick\(team\)\}/,

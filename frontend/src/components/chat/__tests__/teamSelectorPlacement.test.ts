@@ -62,7 +62,9 @@ test("team toolbar chip only renders after a team is selected", () => {
     toolbarSource,
     /entry\?\.hasSelection\(selectedPluginRendererProps\(option\)\)/,
   );
-  assert.match(toolbarSource, /entry\.render\(/);
+  assert.match(toolbarSource, /const SelectedRenderer = entry\.Component/);
+  assert.match(toolbarSource, /<SelectedRenderer/);
+  assert.doesNotMatch(toolbarSource, /entry\.render\(/);
   assert.doesNotMatch(toolbarSource, /selectedPluginOptions\.length > 0 && !!selectedTeamId/);
   assert.doesNotMatch(toolbarSource, /onActivePanelChange\("team"\)/);
   assert.doesNotMatch(toolbarSource, /teamPluginPanelId/);
@@ -71,7 +73,8 @@ test("team toolbar chip only renders after a team is selected", () => {
   assert.doesNotMatch(toolbarSource, /text-amber-500/);
   assert.match(chatInputSelectedRenderersSource, /"agent_team\.SelectedTeamChip"/);
   assert.match(chatInputSelectedRenderersSource, /hasSelection/);
-  assert.match(chatInputSelectedRenderersSource, /render: AgentTeamSelectedChip/);
+  assert.match(chatInputSelectedRenderersSource, /Component: AgentTeamSelectedChip/);
+  assert.doesNotMatch(chatInputSelectedRenderersSource, /render: AgentTeamSelectedChip/);
   assert.match(chatInputSelectedRenderersSource, /teamApi/);
   assert.match(chatInputSelectedRenderersSource, /TeamAvatar/);
   assert.match(chatInputSelectedRenderersSource, /getTeamFallbackAvatar/);

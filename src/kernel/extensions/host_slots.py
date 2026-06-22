@@ -27,7 +27,7 @@ EXTENSION_HOST_SLOTS: tuple[ExtensionHostSlot, ...] = (
         id="app.route",
         manifest_key="app_tabs",
         area="app_route",
-        description="Top-level plugin application route such as /feedback, /team, or /usage.",
+        description="Top-level plugin application route such as /feedback, /agent-team, or /usage.",
         disabled_behavior="Route and navigation entry are omitted from executable contributions.",
         supports_visible_when=True,
     ),

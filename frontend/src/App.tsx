@@ -37,6 +37,11 @@ import {
 } from "./extensions/coreContributions";
 
 const EMPTY_RUNTIME_PLUGINS: PluginRuntimeContributionStates = [];
+const BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS = [
+  "/agent-team",
+  "/feedback",
+  "/usage",
+] as const;
 
 const SharedPage = lazy(() =>
   import("./components/share/SharedPage").then((m) => ({
@@ -239,16 +244,35 @@ function AuthPageWrapper({
 function App() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const canReadExtensionContributions = isAuthenticated && !isAuthLoading;
-  const { data: extensionContributions } = useExtensionContributions({
-    enabled: canReadExtensionContributions,
-  });
+  const {
+    data: extensionContributions,
+    isLoading: areExtensionContributionsLoading,
+    error: extensionContributionsError,
+  } = useExtensionContributions({ enabled: canReadExtensionContributions });
   const runtimePlugins = extensionContributions?.plugins ?? EMPTY_RUNTIME_PLUGINS;
   const appRouteContributions = useMemo(
     () => buildAppRouteContributions(runtimePlugins),
     [runtimePlugins],
   );
+  const pluginAppRouteLoadingPaths = useMemo(() => {
+    const declaredPluginPaths = appRouteContributions
+      .filter((route) => route.pluginId)
+      .map((route) => route.path);
+    return Array.from(
+      new Set([
+        ...BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS,
+        ...declaredPluginPaths,
+      ]),
+    );
+  }, [appRouteContributions]);
+  const shouldShowPluginRouteLoading =
+    canReadExtensionContributions &&
+    (areExtensionContributionsLoading ||
+      (!extensionContributions && !extensionContributionsError)) &&
+    pluginAppRouteLoadingPaths.includes(location.pathname);
 
   // Auto-update for desktop and mobile
   const {
@@ -404,6 +428,16 @@ function App() {
                 }
               />
             ))}
+            {shouldShowPluginRouteLoading && (
+              <Route
+                path={location.pathname}
+                element={
+                  <ProtectedRoute>
+                    <ChatPageSkeleton />
+                  </ProtectedRoute>
+                }
+              />
+            )}
             <Route path="/models" element={<Navigate to="/agents" replace />} />
             {/* OAuth callback page - handles OAuth redirect from backend */}
             <Route path="/auth/callback" element={<OAuthCallback />} />

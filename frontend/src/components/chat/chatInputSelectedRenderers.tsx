@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, useState, type ComponentType, type ReactElement } from "react";
 import type { CoreChatInputOptionContribution } from "../../extensions/coreContributions";
 import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
 import { pluginOptionFromValues } from "../../extensions/pluginOptions";
@@ -26,7 +26,7 @@ export interface ChatInputSelectedRendererProps {
 
 export interface ChatInputSelectedRendererEntry {
   hasSelection: (props: ChatInputSelectedRendererProps) => boolean;
-  render: (props: ChatInputSelectedRendererProps) => ReactElement | null;
+  Component: ComponentType<ChatInputSelectedRendererProps>;
 }
 
 function AgentTeamSelectedChip({
@@ -107,6 +107,6 @@ export const CHAT_INPUT_SELECTED_RENDERERS: Record<
           pluginSelectedTeamId,
       );
     },
-    render: AgentTeamSelectedChip,
+    Component: AgentTeamSelectedChip,
   },
 };

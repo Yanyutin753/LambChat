@@ -23,8 +23,20 @@ test("plugin-owned app routes are generated from runtime contributions only", ()
   assert.match(appSource, /path=\{route\.path\}/);
   assert.doesNotMatch(appSource, /<Route\s+path="\/feedback"/);
   assert.doesNotMatch(appSource, /<Route\s+path="\/team"/);
+  assert.doesNotMatch(appSource, /<Route\s+path="\/agent-team"/);
   assert.doesNotMatch(appSource, /<Route\s+path="\/usage"/);
   assert.doesNotMatch(appSource, /path:\s*"\/feedback"|path:\s*"\/team"|path:\s*"\/usage"/);
+});
+
+test("plugin-owned app routes show a loading route while contributions load", () => {
+  assert.match(appSource, /useLocation\(\)/);
+  assert.match(appSource, /isLoading:\s*areExtensionContributionsLoading/);
+  assert.match(appSource, /BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS/);
+  assert.match(appSource, /"\/agent-team"/);
+  assert.doesNotMatch(appSource, /"\/team"/);
+  assert.match(appSource, /shouldShowPluginRouteLoading/);
+  assert.match(appSource, /path=\{location\.pathname\}/);
+  assert.match(appSource, /<ChatPageSkeleton \/>/);
 });
 
 test("extension contribution hook uses the lightweight host endpoint and runtime update event", () => {

@@ -170,7 +170,7 @@ function AgentTeamWelcomeSurface({
         <div className="flex items-center gap-2">
           {showTeamCards && isTeamEmpty && (
             <button
-              onClick={() => navigate("/team")}
+              onClick={() => navigate("/agent-team")}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
               style={{
                 color: "var(--theme-primary)",
@@ -183,7 +183,7 @@ function AgentTeamWelcomeSurface({
           )}
           {showTeamCards && !isTeamEmpty && (
             <button
-              onClick={() => navigate("/team")}
+              onClick={() => navigate("/agent-team")}
               className="flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
               style={{
                 color: "var(--theme-text-secondary)",
