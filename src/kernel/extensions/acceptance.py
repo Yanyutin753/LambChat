@@ -212,7 +212,13 @@ def _runtime_acceptance_checks() -> dict[str, bool]:
                 "module": "plugins.feedback.routes",
             }
         ],
-        tools=[{"name": "feedback.summary", "module": "plugins.feedback.tools"}],
+        tools=[
+            {
+                "name": "feedback_summary",
+                "module": "plugins.feedback.tools",
+                "legacy_ids": ["feedback.summary"],
+            }
+        ],
         frontend={
             "sidebar_items": [
                 {

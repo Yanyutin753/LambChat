@@ -304,6 +304,22 @@ def test_plugin_manifest_declared_permissions_collects_nested_permission_strings
     ]
 
 
+def test_plugin_manifest_rejects_llm_unsafe_tool_names():
+    with pytest.raises(ValidationError, match="plugin tool name must match"):
+        PluginManifest(
+            id="feedback",
+            name="Feedback",
+            version="1.0.0",
+            api_version="v1",
+            tools=[
+                {
+                    "name": "feedback.summary",
+                    "module": "plugins.feedback.tools",
+                }
+            ],
+        )
+
+
 def test_plugin_registry_permissions_include_nested_declarations_and_respect_enabled_filter():
     registry = PluginRegistry(
         [
@@ -364,8 +380,9 @@ def test_plugin_registry_collects_route_and_tool_declarations_by_enabled_state()
                 ],
                 tools=[
                     {
-                        "name": "feedback.summary",
+                        "name": "feedback_summary",
                         "module": "plugins.feedback.tools",
+                        "legacy_ids": ["feedback.summary"],
                     }
                 ],
             ),
@@ -384,7 +401,7 @@ def test_plugin_registry_collects_route_and_tool_declarations_by_enabled_state()
                 ],
                 tools=[
                     {
-                        "name": "audio.transcribe",
+                        "name": "audio_transcribe",
                         "module": "plugins.audio.tools",
                     }
                 ],
@@ -396,16 +413,17 @@ def test_plugin_registry_collects_route_and_tool_declarations_by_enabled_state()
         ("feedback", "feedback-api", "/api/plugins/feedback")
     ]
     assert [(tool.plugin_id, tool.name, tool.module) for tool in registry.tools()] == [
-        ("feedback", "feedback.summary", "plugins.feedback.tools")
+        ("feedback", "feedback_summary", "plugins.feedback.tools")
     ]
     assert [(route.plugin_id, route.name) for route in registry.routes(enabled_only=False)] == [
         ("feedback", "feedback-api"),
         ("audio", "audio-api"),
     ]
     assert [(tool.plugin_id, tool.name) for tool in registry.tools(enabled_only=False)] == [
-        ("feedback", "feedback.summary"),
-        ("audio", "audio.transcribe"),
+        ("feedback", "feedback_summary"),
+        ("audio", "audio_transcribe"),
     ]
+    assert registry.tools()[0].legacy_ids == ["feedback.summary"]
 
 
 def test_plugin_registry_lifecycle_hooks_are_stably_ordered_by_phase_and_manifest_order():

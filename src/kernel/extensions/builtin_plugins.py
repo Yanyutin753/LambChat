@@ -99,23 +99,23 @@ def build_agent_team_plugin_manifest() -> PluginManifest:
         ],
         tools=[
             {
-                "name": "agent_team.search_persona_presets",
+                "name": "search_persona_presets",
                 "module": "src.infra.tool.team_tool",
                 "required_permissions": [
                     Permission.TEAM_READ.value,
                     Permission.PERSONA_PRESET_READ.value,
                     Permission.CHAT_WRITE.value,
                 ],
-                "legacy_ids": ["search_persona_presets"],
+                "legacy_ids": ["search_persona_presets", "agent_team.search_persona_presets"],
             },
             {
-                "name": "agent_team.create_agent_team",
+                "name": "create_agent_team",
                 "module": "src.infra.tool.team_tool",
                 "required_permissions": [
                     Permission.TEAM_WRITE.value,
                     Permission.CHAT_WRITE.value,
                 ],
-                "legacy_ids": ["create_agent_team"],
+                "legacy_ids": ["create_agent_team", "agent_team.create_agent_team"],
             },
         ],
         frontend={

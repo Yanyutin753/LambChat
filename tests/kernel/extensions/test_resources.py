@@ -37,11 +37,14 @@ def test_resource_ledger_registers_and_queries_plugin_resources() -> None:
     )
 
     assert record.plugin_id == "feedback"
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type="backend_route",
-        resource_id="feedback-api",
-    ) == record
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type="backend_route",
+            resource_id="feedback-api",
+        )
+        == record
+    )
     assert ledger.list(plugin_id="feedback") == [record]
     assert ledger.list(resource_type="backend_route") == [record]
     assert ledger.list(scope="global") == [record]
@@ -123,7 +126,7 @@ def test_resource_ledger_registers_manifest_declarations_with_cleanup_policies()
         frontend_routes=["feedback-route"],
         panels=["feedback-panel"],
         nav_items=["feedback-nav"],
-        tools=["feedback.summary"],
+        tools=["feedback_summary"],
         chat_input_options=["feedback:quick-reply"],
         chat_input_panels=["feedback:quick-reply-panel"],
         mention_providers=["feedback:mentions"],
@@ -146,76 +149,118 @@ def test_resource_ledger_registers_manifest_declarations_with_cleanup_policies()
     )
 
     assert len(records) == 22
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.PROJECT_OPTION,
-        resource_id="feedback.DEFAULT_PROJECT",
-    ).cleanup_strategy is PluginResourceCleanupStrategy.KEEP
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.SESSION_OPTION,
-        resource_id="feedback.SELECTED_SESSION",
-    ).cleanup_strategy is PluginResourceCleanupStrategy.KEEP
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.CHANNEL_OPTION,
-        resource_id="feedback.SELECTED_CHANNEL",
-    ).cleanup_strategy is PluginResourceCleanupStrategy.KEEP
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.SCHEDULED_TASK_OPTION,
-        resource_id="feedback.SELECTED_TASK",
-    ).cleanup_strategy is PluginResourceCleanupStrategy.KEEP
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.PERMISSION,
-        resource_id="feedback:read",
-    ).cleanup_strategy is PluginResourceCleanupStrategy.ARCHIVE
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.SCHEDULER_JOB,
-        resource_id="feedback-sync",
-    ).retention_policy is PluginResourceRetentionPolicy.MANUAL_REVIEW_REQUIRED
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.LISTENER,
-        resource_id="feedback-listener",
-    ).retention_policy is PluginResourceRetentionPolicy.MANUAL_REVIEW_REQUIRED
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.SETTING,
-        resource_id="feedback:settings",
-    ).scope is PluginResourceScope.GLOBAL
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.SETTING,
-        resource_id="feedback.project.DEFAULT_PROJECT",
-    ).scope is PluginResourceScope.PROJECT
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.SETTING,
-        resource_id="feedback.channel.SELECTED_CHANNEL",
-    ).scope is PluginResourceScope.CHANNEL
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.SETTING,
-        resource_id="feedback.scheduled_task.SELECTED_TASK",
-    ).scope is PluginResourceScope.SCHEDULED_TASK
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.TOOL,
-        resource_id="feedback.summary",
-    ).created_by_plugin_version == "1.0.0"
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.CHAT_INPUT_OPTION,
-        resource_id="feedback:quick-reply",
-    ) is not None
-    assert ledger.get(
-        plugin_id="feedback",
-        resource_type=PluginResourceType.MENTION_PROVIDER,
-        resource_id="feedback:mentions",
-    ) is not None
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.PROJECT_OPTION,
+            resource_id="feedback.DEFAULT_PROJECT",
+        ).cleanup_strategy
+        is PluginResourceCleanupStrategy.KEEP
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SESSION_OPTION,
+            resource_id="feedback.SELECTED_SESSION",
+        ).cleanup_strategy
+        is PluginResourceCleanupStrategy.KEEP
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.CHANNEL_OPTION,
+            resource_id="feedback.SELECTED_CHANNEL",
+        ).cleanup_strategy
+        is PluginResourceCleanupStrategy.KEEP
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SCHEDULED_TASK_OPTION,
+            resource_id="feedback.SELECTED_TASK",
+        ).cleanup_strategy
+        is PluginResourceCleanupStrategy.KEEP
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.PERMISSION,
+            resource_id="feedback:read",
+        ).cleanup_strategy
+        is PluginResourceCleanupStrategy.ARCHIVE
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SCHEDULER_JOB,
+            resource_id="feedback-sync",
+        ).retention_policy
+        is PluginResourceRetentionPolicy.MANUAL_REVIEW_REQUIRED
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.LISTENER,
+            resource_id="feedback-listener",
+        ).retention_policy
+        is PluginResourceRetentionPolicy.MANUAL_REVIEW_REQUIRED
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SETTING,
+            resource_id="feedback:settings",
+        ).scope
+        is PluginResourceScope.GLOBAL
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SETTING,
+            resource_id="feedback.project.DEFAULT_PROJECT",
+        ).scope
+        is PluginResourceScope.PROJECT
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SETTING,
+            resource_id="feedback.channel.SELECTED_CHANNEL",
+        ).scope
+        is PluginResourceScope.CHANNEL
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.SETTING,
+            resource_id="feedback.scheduled_task.SELECTED_TASK",
+        ).scope
+        is PluginResourceScope.SCHEDULED_TASK
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.TOOL,
+            resource_id="feedback_summary",
+        ).created_by_plugin_version
+        == "1.0.0"
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.CHAT_INPUT_OPTION,
+            resource_id="feedback:quick-reply",
+        )
+        is not None
+    )
+    assert (
+        ledger.get(
+            plugin_id="feedback",
+            resource_type=PluginResourceType.MENTION_PROVIDER,
+            resource_id="feedback:mentions",
+        )
+        is not None
+    )
 
 
 def test_resource_ledger_keeps_scoped_setting_resource_ids_distinct() -> None:

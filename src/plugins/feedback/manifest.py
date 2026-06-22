@@ -70,9 +70,10 @@ def build_feedback_plugin_manifest() -> PluginManifest:
         ],
         tools=[
             {
-                "name": "feedback.summary",
+                "name": "feedback_summary",
                 "module": "src.plugins.feedback.tools",
                 "required_permissions": [Permission.FEEDBACK_READ.value],
+                "legacy_ids": ["feedback.summary"],
             }
         ],
         lifespan_hooks=[
@@ -239,7 +240,7 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
                 state is not None
                 and state.status is PluginRuntimeStatus.ENABLED
                 and (FEEDBACK_PLUGIN_ID, "/api/feedback") in executable_routes
-                and (FEEDBACK_PLUGIN_ID, "feedback.summary") in executable_tools
+                and (FEEDBACK_PLUGIN_ID, "feedback_summary") in executable_tools
                 and manifest.routers[0].module == "src.plugins.feedback.routes"
                 and manifest.tools[0].module == "src.plugins.feedback.tools"
                 and manifest.lifespan_hooks[0].module
@@ -252,7 +253,7 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
                 == ["feedback:message-feedback"]
                 and manifest.lifespan_hooks[0].name == "feedback:shutdown"
             ),
-            evidence="Enabled Feedback exposes /api/feedback, feedback.summary, structured frontend tab/panel/menu, and shutdown hook through src.plugins.feedback adapters.",
+            evidence="Enabled Feedback exposes /api/feedback, feedback_summary, structured frontend tab/panel/menu, and shutdown hook through src.plugins.feedback adapters.",
         ),
         PluginMigrationGateEvidence(
             gate_id="plugin_disabled_contributions_hidden",
@@ -286,7 +287,7 @@ def assess_feedback_plugin_migration() -> PluginMigrationAssessment:
                 (PluginResourceType.APP_PANEL, "feedback:feedback-panel"),
                 (PluginResourceType.USER_MENU_ITEM, "feedback:feedback-nav"),
                 (PluginResourceType.MESSAGE_ACTION, "feedback:message-feedback"),
-                (PluginResourceType.TOOL, "feedback.summary"),
+                (PluginResourceType.TOOL, "feedback_summary"),
                 (PluginResourceType.DB_COLLECTION, "feedback"),
                 (PluginResourceType.DB_INDEX, "feedback.user_run_unique"),
             }

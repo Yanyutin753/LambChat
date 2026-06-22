@@ -138,7 +138,13 @@ async def test_internal_plugin_tool_visibility_follows_plugin_runtime(
                 version="1.0.0",
                 api_version="v1",
                 permissions=["feedback:read"],
-                tools=[{"name": "feedback.summary", "module": "tests.feedback_tool"}],
+                tools=[
+                    {
+                        "name": "feedback_summary",
+                        "module": "tests.feedback_tool",
+                        "legacy_ids": ["feedback.summary"],
+                    }
+                ],
             )
         ]
     )
@@ -148,7 +154,7 @@ async def test_internal_plugin_tool_visibility_follows_plugin_runtime(
     monkeypatch.setattr(
         internal_registry,
         "build_internal_tools",
-        lambda: [_FakeTool(name="feedback.summary"), _FakeTool(name="env_var_list")],
+        lambda: [_FakeTool(name="feedback_summary"), _FakeTool(name="env_var_list")],
     )
 
     enabled_infos = await internal_registry.get_internal_tool_infos(
@@ -157,7 +163,7 @@ async def test_internal_plugin_tool_visibility_follows_plugin_runtime(
         is_admin=False,
     )
 
-    assert [info.name for info in enabled_infos] == ["feedback.summary", "env_var_list"]
+    assert [info.name for info in enabled_infos] == ["feedback_summary", "env_var_list"]
 
     runtime.disable_plugin("feedback")
     disabled_infos = await internal_registry.get_internal_tool_infos(
@@ -293,7 +299,7 @@ async def test_internal_plugin_tool_execution_rechecks_plugin_runtime(
     calls = {"count": 0}
 
     class _FakePluginTool(BaseTool):
-        name: str = "feedback.summary"
+        name: str = "feedback_summary"
         description: str = ""
 
         def _run(self, *args, **kwargs):
@@ -315,7 +321,13 @@ async def test_internal_plugin_tool_execution_rechecks_plugin_runtime(
                 version="1.0.0",
                 api_version="v1",
                 permissions=["feedback:read"],
-                tools=[{"name": "feedback.summary", "module": "tests.feedback_tool"}],
+                tools=[
+                    {
+                        "name": "feedback_summary",
+                        "module": "tests.feedback_tool",
+                        "legacy_ids": ["feedback.summary"],
+                    }
+                ],
             )
         ]
     )
@@ -338,7 +350,7 @@ async def test_internal_plugin_tool_execution_rechecks_plugin_runtime(
     result = await tools[0]._arun()
 
     assert calls["count"] == 0
-    assert "[Plugin Tool Error] feedback.summary unavailable" in result
+    assert "[Plugin Tool Error] feedback_summary unavailable" in result
 
 
 @pytest.mark.asyncio

@@ -13,9 +13,10 @@
     ],
     "tools": [
       {
-        "name": "feedback.summary",
+        "name": "feedback_summary",
         "module": "src.plugins.feedback.tools",
-        "required_permissions": ["feedback:read"]
+        "required_permissions": ["feedback:read"],
+        "legacy_ids": ["feedback.summary"]
       }
     ],
     "lifespan_hooks": [

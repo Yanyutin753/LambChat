@@ -27,7 +27,7 @@ def test_feedback_static_plugin_boundary_adapts_legacy_implementation() -> None:
     assert routes.get_feedback_manager is legacy_routes.get_feedback_manager
     assert lifecycle.close_feedback_manager is legacy_routes.close_feedback_manager
     assert legacy_tools.get_feedback_tools is tools.get_feedback_tools
-    assert [tool.name for tool in tools.get_feedback_tools()] == ["feedback.summary"]
+    assert [tool.name for tool in tools.get_feedback_tools()] == ["feedback_summary"]
 
 
 def test_feedback_legacy_import_order_does_not_cycle() -> None:
@@ -61,8 +61,9 @@ def test_feedback_plugin_manifest_preserves_legacy_api_and_permissions() -> None
     assert manifest.routers[0].module == "src.plugins.feedback.routes"
     assert manifest.routers[0].tags == ["Feedback"]
     assert [(tool.name, tool.module) for tool in manifest.tools] == [
-        ("feedback.summary", "src.plugins.feedback.tools")
+        ("feedback_summary", "src.plugins.feedback.tools")
     ]
+    assert manifest.tools[0].legacy_ids == ["feedback.summary"]
     assert [(hook.name, hook.module, hook.phase) for hook in manifest.lifespan_hooks] == [
         (
             "feedback:shutdown",
@@ -99,8 +100,9 @@ def test_feedback_plugin_manifest_is_runtime_executable() -> None:
         (FEEDBACK_PLUGIN_ID, "feedback-api", "/api/feedback")
     ]
     assert [(tool.plugin_id, tool.name) for tool in runtime.tools()] == [
-        (FEEDBACK_PLUGIN_ID, "feedback.summary")
+        (FEEDBACK_PLUGIN_ID, "feedback_summary")
     ]
+    assert runtime.ensure_tool_available("feedback.summary").name == "feedback_summary"
     assert Permission.FEEDBACK_READ.value in runtime.permissions()
 
 
@@ -113,11 +115,14 @@ def test_feedback_plugin_disable_hides_executable_contributions_but_keeps_ledger
     assert runtime.routes() == []
     assert runtime.tools() == []
     assert runtime.lifecycle_hooks() == []
-    assert runtime.resource_ledger.get(
-        plugin_id=FEEDBACK_PLUGIN_ID,
-        resource_type=PluginResourceType.MESSAGE_ACTION,
-        resource_id="feedback:message-feedback",
-    ) is not None
+    assert (
+        runtime.resource_ledger.get(
+            plugin_id=FEEDBACK_PLUGIN_ID,
+            resource_type=PluginResourceType.MESSAGE_ACTION,
+            resource_id="feedback:message-feedback",
+        )
+        is not None
+    )
 
 
 def test_feedback_plugin_resources_enter_ledger() -> None:
@@ -136,7 +141,7 @@ def test_feedback_plugin_resources_enter_ledger() -> None:
     assert (PluginResourceType.APP_PANEL, "feedback:feedback-panel") in resource_keys
     assert (PluginResourceType.USER_MENU_ITEM, "feedback:feedback-nav") in resource_keys
     assert (PluginResourceType.MESSAGE_ACTION, "feedback:message-feedback") in resource_keys
-    assert (PluginResourceType.TOOL, "feedback.summary") in resource_keys
+    assert (PluginResourceType.TOOL, "feedback_summary") in resource_keys
     assert (PluginResourceType.PERMISSION, Permission.FEEDBACK_ADMIN.value) in resource_keys
     assert (PluginResourceType.DB_COLLECTION, "feedback") in resource_keys
     assert (PluginResourceType.DB_INDEX, "feedback.user_run_unique") in resource_keys
@@ -158,7 +163,7 @@ def test_feedback_uninstall_dry_run_keeps_user_data_and_archives_indexes() -> No
 
     assert actions_by_id["feedback"] is PluginDryRunAction.KEEP
     assert actions_by_id["feedback.user_run_unique"] is PluginDryRunAction.ARCHIVE
-    assert actions_by_id["feedback.summary"] is PluginDryRunAction.KEEP
+    assert actions_by_id["feedback_summary"] is PluginDryRunAction.KEEP
     assert actions_by_id[Permission.FEEDBACK_READ.value] is PluginDryRunAction.ARCHIVE
     assert dry_run.will_delete == []
     assert dry_run.needs_manual_review == []
@@ -177,9 +182,10 @@ def test_feedback_migration_assessment_allows_first_step_with_compatibility_note
     assert all(gate.passed for gate in assessment.gate_evidence)
     assert "message action" in evidence_by_gate["plugin_resource_ledger_present"].evidence
     assert "no delete actions" in evidence_by_gate["plugin_uninstall_dry_run_present"].evidence
-    assert "removes executable route" in evidence_by_gate[
-        "plugin_disabled_contributions_hidden"
-    ].evidence
+    assert (
+        "removes executable route"
+        in evidence_by_gate["plugin_disabled_contributions_hidden"].evidence
+    )
     assert any("/api/feedback" in note for note in assessment.compatibility_notes)
     assert any("Mongo" in risk for risk in assessment.risks)
     assert not any("core route registry" in risk for risk in assessment.risks)

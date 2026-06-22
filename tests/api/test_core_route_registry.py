@@ -379,7 +379,9 @@ def test_plugin_runtime_lifecycle_hook_failures_do_not_block_app_lifecycle_runne
     assert app.state.plugin_runtime_hook_results[0].status == "failed"
 
 
-def test_feedback_usage_reports_and_github_installer_are_registered_as_builtin_plugin_routes_not_core_routes() -> None:
+def test_feedback_usage_reports_and_github_installer_are_registered_as_builtin_plugin_routes_not_core_routes() -> (
+    None
+):
     app = FastAPI()
     runtime = register_builtin_plugin_routes(app)
     feedback_state = runtime.get_state(FEEDBACK_PLUGIN_ID)
@@ -397,10 +399,7 @@ def test_feedback_usage_reports_and_github_installer_are_registered_as_builtin_p
     assert usage_state.status is PluginRuntimeStatus.ENABLED
     assert github_state is not None
     assert github_state.status is PluginRuntimeStatus.ENABLED
-    assert {
-        (route.plugin_id, route.prefix)
-        for route in runtime.routes()
-    } >= {
+    assert {(route.plugin_id, route.prefix) for route in runtime.routes()} >= {
         (FEEDBACK_PLUGIN_ID, "/api/feedback"),
         (AGENT_TEAM_PLUGIN_ID, "/api/teams"),
         (USAGE_REPORTS_PLUGIN_ID, "/api/usage"),
@@ -473,13 +472,19 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert guard_surfaces["uninstall_guard"]["status"] == "controlled_execution"
     assert guard_surfaces["hot_install_guard"]["status"] == "blocked"
     assert guard_surfaces["package_integrity_guard"]["failure_mode"] == "unsigned_enable_blocked"
-    feedback = next(plugin for plugin in payload["plugins"] if plugin["plugin_id"] == FEEDBACK_PLUGIN_ID)
+    feedback = next(
+        plugin for plugin in payload["plugins"] if plugin["plugin_id"] == FEEDBACK_PLUGIN_ID
+    )
     assert feedback["package"]["source_type"] == "system"
     assert feedback["package"]["manifest_authority"] == "folder_package"
     assert feedback["package"]["static_fallback_used"] is False
     assert feedback["package"]["static_fallback_fields"] == []
-    assert feedback["package"]["source_path"].endswith("plugins\\system\\feedback") or feedback["package"]["source_path"].endswith("plugins/system/feedback")
-    assert feedback["package"]["data_dir"].endswith("plugin-data\\feedback") or feedback["package"]["data_dir"].endswith("plugin-data/feedback")
+    assert feedback["package"]["source_path"].endswith("plugins\\system\\feedback") or feedback[
+        "package"
+    ]["source_path"].endswith("plugins/system/feedback")
+    assert feedback["package"]["data_dir"].endswith("plugin-data\\feedback") or feedback["package"][
+        "data_dir"
+    ].endswith("plugin-data/feedback")
     assert feedback["package"]["layout"]["has_data_template"] is True
     assert feedback["package"]["layout"]["data_template"] == "plugin-data-template"
     assert feedback["package"]["data_template"]["exists"] is True
@@ -487,7 +492,9 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert "config/current.json" in feedback["package"]["data_template"]["files"]
     assert "config/defaults.json" in feedback["package"]["data_template"]["files"]
     assert "state/audit.jsonl" in feedback["package"]["data_template"]["files"]
-    agent_team = next(plugin for plugin in payload["plugins"] if plugin["plugin_id"] == AGENT_TEAM_PLUGIN_ID)
+    agent_team = next(
+        plugin for plugin in payload["plugins"] if plugin["plugin_id"] == AGENT_TEAM_PLUGIN_ID
+    )
     team_agent = next(agent for agent in agent_team["agents"] if agent["id"] == "team")
     assert team_agent["category"] == "agent_team:team-builder"
     acceptance_matrix = payload["runtime"]["acceptance_matrix"]
@@ -504,8 +511,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
         "feedback_migration",
     }
     assert any(
-        item["requirement_id"] == "feedback_first_migration_gates_pass"
-        and item["passed"] is True
+        item["requirement_id"] == "feedback_first_migration_gates_pass" and item["passed"] is True
         for item in acceptance_matrix["requirements"]
     )
     phase_progress = payload["runtime"]["phase_progress"]
@@ -529,8 +535,7 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
         for plugin in plugins_by_id.values()
     )
     assert all(
-        plugin["package"]["static_fallback_used"] is False
-        for plugin in plugins_by_id.values()
+        plugin["package"]["static_fallback_used"] is False for plugin in plugins_by_id.values()
     )
     feedback = plugins_by_id[FEEDBACK_PLUGIN_ID]
     assert feedback["plugin_id"] == FEEDBACK_PLUGIN_ID
@@ -539,10 +544,10 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
     assert feedback["routes"][0]["prefix"] == "/api/feedback"
     assert feedback["tools"] == [
         {
-            "name": "feedback.summary",
+            "name": "feedback_summary",
             "module": "src.plugins.feedback.tools",
             "required_permissions": ["feedback:read"],
-            "legacy_ids": [],
+            "legacy_ids": ["feedback.summary"],
         }
     ]
     assert feedback["frontend"]["routes"] == []
@@ -612,9 +617,18 @@ def test_plugin_runtime_routes_expose_feedback_observability() -> None:
         }
     ]
     assert {tool["name"] for tool in agent_team["tools"]} == {
-        "agent_team.search_persona_presets",
-        "agent_team.create_agent_team",
+        "search_persona_presets",
+        "create_agent_team",
     }
+    agent_team_tools_by_name = {tool["name"]: tool for tool in agent_team["tools"]}
+    assert agent_team_tools_by_name["search_persona_presets"]["legacy_ids"] == [
+        "search_persona_presets",
+        "agent_team.search_persona_presets",
+    ]
+    assert agent_team_tools_by_name["create_agent_team"]["legacy_ids"] == [
+        "create_agent_team",
+        "agent_team.create_agent_team",
+    ]
     assert agent_team["resource_types"]["backend_route"] == 1
     assert agent_team["resource_types"]["agent"] == 1
     assert agent_team["resource_types"]["tool"] == 2
@@ -768,9 +782,7 @@ def test_plugin_runtime_settings_api_exposes_plugin_owned_settings() -> None:
     assert set(settings_by_key) == {"API_KEY", "BASE_URL", "MODEL", "TIMEOUT"}
     assert settings_by_key["API_KEY"]["qualified_key"] == "image_generation.API_KEY"
     assert settings_by_key["API_KEY"]["sensitive"] is True
-    assert settings_by_key["API_KEY"]["legacy_system_setting_keys"] == [
-        "IMAGE_GENERATION_API_KEY"
-    ]
+    assert settings_by_key["API_KEY"]["legacy_system_setting_keys"] == ["IMAGE_GENERATION_API_KEY"]
     assert settings_by_key["BASE_URL"]["source"].startswith("legacy:") or settings_by_key[
         "BASE_URL"
     ]["source"] in {"env:IMAGE_GENERATION_BASE_URL", "default"}
@@ -887,33 +899,73 @@ def test_plugin_runtime_contribution_states_include_public_safe_contributions() 
     }
     assert plugins_by_id[FEEDBACK_PLUGIN_ID]["enabled"] is True
     assert plugins_by_id[FEEDBACK_PLUGIN_ID]["executable"] is True
-    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"] == "feedback:message-feedback"
-    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["renderer"] == "feedback.FeedbackButtons"
+    assert (
+        plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"]
+        == "feedback:message-feedback"
+    )
+    assert (
+        plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["renderer"]
+        == "feedback.FeedbackButtons"
+    )
     assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["app_tabs"][0]["path"] == "/feedback"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["id"] == "agent_team:select-team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["selected_renderer"] == "agent_team.SelectedTeamChip"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["shortcut"] == "mod+t"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["option_binding"] == {
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["id"]
+        == "agent_team:select-team"
+    )
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0][
+            "selected_renderer"
+        ]
+        == "agent_team.SelectedTeamChip"
+    )
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["shortcut"]
+        == "mod+t"
+    )
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0][
+        "option_binding"
+    ] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",
         "scope": "session",
     }
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["id"] == "agent_team:team-picker"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/agent-team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/agent-team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["option_binding"] == {
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["id"]
+        == "agent_team:team-picker"
+    )
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"]
+        == "/agent-team"
+    )
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"]
+        == "/agent-team"
+    )
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0][
+        "option_binding"
+    ] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",
         "scope": "session",
     }
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["id"] == "agent_team:team-welcome"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["renderer"] == "agent_team.TeamWelcomeSurface"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["mention_providers"][0]["option_binding"] == {
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["id"]
+        == "agent_team:team-welcome"
+    )
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["renderer"]
+        == "agent_team.TeamWelcomeSurface"
+    )
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["mention_providers"][0][
+        "option_binding"
+    ] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",
         "scope": "session",
     }
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["option_binding"] == {
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0][
+        "option_binding"
+    ] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",
         "scope": "session",
@@ -976,30 +1028,38 @@ def test_plugin_runtime_contributions_endpoint_aliases_frontend_contributions() 
             "renderer": "agent_team.TeamSelectOption",
             "suppresses_core_persona_selector": True,
             "legacy_payload_keys": ["team_id"],
-                "applies_to_session_key": None,
-                "visible_when": {
-                    "agent_id": None,
-                    "route": "/channels/feishu",
-                    "scope": None,
-                    "permissions": [],
-                },
+            "applies_to_session_key": None,
+            "visible_when": {
+                "agent_id": None,
+                "route": "/channels/feishu",
+                "scope": None,
+                "permissions": [],
+            },
         }
     ]
     assert (
         plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["scheduled_task_options"][0]["renderer"]
         == "agent_team.TeamSelectOption"
     )
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["scheduled_task_options"][0]["legacy_payload_keys"] == [
-        "team_id"
-    ]
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0]["visible_when"] == {
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["scheduled_task_options"][0][
+        "legacy_payload_keys"
+    ] == ["team_id"]
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["welcome_surfaces"][0][
+        "visible_when"
+    ] == {
         "agent_id": "team",
         "route": None,
         "scope": None,
         "permissions": [],
     }
-    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"] == "feedback:message-feedback"
-    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["target"] == "assistant_message"
+    assert (
+        plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"]
+        == "feedback:message-feedback"
+    )
+    assert (
+        plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["target"]
+        == "assistant_message"
+    )
 
 
 def test_extension_host_contributions_endpoint_exposes_frontend_contributions() -> None:
@@ -1020,20 +1080,36 @@ def test_extension_host_contributions_endpoint_exposes_frontend_contributions() 
 
     assert response.status_code == 200
     plugins_by_id = {plugin["plugin_id"]: plugin for plugin in response.json()["plugins"]}
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["id"] == "agent_team:select-team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["option_binding"] == {
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0]["id"]
+        == "agent_team:select-team"
+    )
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_options"][0][
+        "option_binding"
+    ] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",
         "scope": "session",
     }
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"] == "/agent-team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"] == "/agent-team"
-    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["option_binding"] == {
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["create_path"]
+        == "/agent-team"
+    )
+    assert (
+        plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0]["manage_path"]
+        == "/agent-team"
+    )
+    assert plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["chat_input_panels"][0][
+        "option_binding"
+    ] == {
         "plugin_id": AGENT_TEAM_PLUGIN_ID,
         "key": "SELECTED_TEAM_ID",
         "scope": "session",
     }
-    assert plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["renderer"] == "feedback.FeedbackButtons"
+    assert (
+        plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["renderer"]
+        == "feedback.FeedbackButtons"
+    )
 
 
 def test_extension_host_slots_endpoint_exposes_plugin_slot_contract() -> None:
@@ -1077,7 +1153,9 @@ def test_extension_host_slots_endpoint_exposes_plugin_slot_contract() -> None:
     assert slots_by_id["agent.catalog_entry"]["manifest_key"] == "backend.agents"
 
 
-def test_extension_host_contributions_endpoint_filters_disabled_plugins_and_management_fields() -> None:
+def test_extension_host_contributions_endpoint_filters_disabled_plugins_and_management_fields() -> (
+    None
+):
     app = FastAPI()
     register_core_routes(
         app,
@@ -1099,9 +1177,7 @@ def test_extension_host_contributions_endpoint_filters_disabled_plugins_and_mana
 
     assert active_response.status_code == 200
     active_payload = active_response.json()
-    active_plugins_by_id = {
-        plugin["plugin_id"]: plugin for plugin in active_payload["plugins"]
-    }
+    active_plugins_by_id = {plugin["plugin_id"]: plugin for plugin in active_payload["plugins"]}
     assert AGENT_TEAM_PLUGIN_ID not in active_plugins_by_id
     assert FEEDBACK_PLUGIN_ID not in active_plugins_by_id
     assert all(plugin["executable"] is True for plugin in active_payload["plugins"])
@@ -1127,9 +1203,15 @@ def test_extension_host_contributions_endpoint_filters_disabled_plugins_and_mana
         plugin["plugin_id"]: plugin for plugin in inactive_response.json()["plugins"]
     }
     assert inactive_plugins_by_id[AGENT_TEAM_PLUGIN_ID]["executable"] is False
-    assert inactive_plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["agent_categories"][0]["id"] == "agent_team:team-builder"
+    assert (
+        inactive_plugins_by_id[AGENT_TEAM_PLUGIN_ID]["frontend"]["agent_categories"][0]["id"]
+        == "agent_team:team-builder"
+    )
     assert inactive_plugins_by_id[FEEDBACK_PLUGIN_ID]["executable"] is False
-    assert inactive_plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"] == "feedback:message-feedback"
+    assert (
+        inactive_plugins_by_id[FEEDBACK_PLUGIN_ID]["frontend"]["message_actions"][0]["id"]
+        == "feedback:message-feedback"
+    )
 
 
 def test_extension_host_scoped_option_endpoints_follow_runtime_state() -> None:
@@ -1271,9 +1353,7 @@ def test_plugin_runtime_resource_and_dry_run_detail_routes() -> None:
     client = TestClient(app)
 
     resources = client.get(f"/api/extensions/plugins/{FEEDBACK_PLUGIN_ID}/resources")
-    dry_run = client.get(
-        f"/api/extensions/plugins/{FEEDBACK_PLUGIN_ID}/uninstall-dry-run"
-    )
+    dry_run = client.get(f"/api/extensions/plugins/{FEEDBACK_PLUGIN_ID}/uninstall-dry-run")
 
     assert resources.status_code == 200
     resource_payload = resources.json()
@@ -1297,7 +1377,7 @@ def test_plugin_runtime_resource_and_dry_run_detail_routes() -> None:
         for item in resource_payload["resources"]
     )
     assert any(
-        item["resource_id"] == "feedback.summary"
+        item["resource_id"] == "feedback_summary"
         and item["resource_type"] == "tool"
         and item["cleanup_strategy"] == "keep"
         for item in resource_payload["resources"]
@@ -1348,8 +1428,7 @@ def test_plugin_runtime_resource_and_dry_run_detail_routes() -> None:
         for item in dry_run_resources
     )
     assert any(
-        item["resource_type"] == "plugin_data_storage"
-        and item["action"] == "keep"
+        item["resource_type"] == "plugin_data_storage" and item["action"] == "keep"
         for item in dry_run_resources
     )
     assert dry_run_payload["package_data_policy"] == {
@@ -1407,11 +1486,16 @@ def test_plugin_runtime_package_and_data_routes() -> None:
 
     assert packages.status_code == 200
     assert packages.json()["total"] == 8
-    assert any(item["plugin_id"] == FEEDBACK_PLUGIN_ID and item["valid"] for item in packages.json()["packages"])
+    assert any(
+        item["plugin_id"] == FEEDBACK_PLUGIN_ID and item["valid"]
+        for item in packages.json()["packages"]
+    )
     assert scan.status_code == 200
     assert scan.json()["total"] == 8
     assert data.status_code == 200
-    assert data.json()["data_dir"].endswith("plugin-data\\feedback") or data.json()["data_dir"].endswith("plugin-data/feedback")
+    assert data.json()["data_dir"].endswith("plugin-data\\feedback") or data.json()[
+        "data_dir"
+    ].endswith("plugin-data/feedback")
     assert "config" in data.json()["subdirs"]
     assert package_export.status_code == 200
     package_payload = package_export.json()
@@ -1540,7 +1624,8 @@ def test_builtin_folder_package_is_authoritative_for_feedback_runtime() -> None:
     assert feedback["package"]["manifest_authority"] == "folder_package"
     assert feedback["package"]["static_fallback_used"] is False
     assert feedback["routes"][0]["prefix"] == "/api/feedback"
-    assert feedback["tools"][0]["name"] == "feedback.summary"
+    assert feedback["tools"][0]["name"] == "feedback_summary"
+    assert feedback["tools"][0]["legacy_ids"] == ["feedback.summary"]
     assert feedback["frontend"]["routes"] == []
     assert feedback["frontend"]["app_tabs"][0]["path"] == "/feedback"
     assert feedback["depends_on"] == []
@@ -1821,7 +1906,9 @@ settings:
     assert packages.status_code == 200
     assert any(item["plugin_id"] == "folder_plugin" for item in packages.json()["packages"])
     assert runtime_list.status_code == 200
-    runtime_plugin = next(item for item in runtime_list.json()["plugins"] if item["plugin_id"] == "folder_plugin")
+    runtime_plugin = next(
+        item for item in runtime_list.json()["plugins"] if item["plugin_id"] == "folder_plugin"
+    )
     assert runtime_plugin["status"] == "disabled"
     assert runtime_plugin["executable"] is False
     assert runtime_plugin["install_type"] == "user_installed"
@@ -1993,12 +2080,8 @@ def test_plugin_runtime_export_import_and_uninstall_controls() -> None:
     app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_admin
     client = TestClient(app)
 
-    exported = client.get(
-        f"/api/extensions/plugins/{IMAGE_GENERATION_PLUGIN_ID}/export"
-    )
-    dry_run = client.get(
-        f"/api/extensions/plugins/{IMAGE_GENERATION_PLUGIN_ID}/uninstall-dry-run"
-    )
+    exported = client.get(f"/api/extensions/plugins/{IMAGE_GENERATION_PLUGIN_ID}/export")
+    dry_run = client.get(f"/api/extensions/plugins/{IMAGE_GENERATION_PLUGIN_ID}/uninstall-dry-run")
     uninstall_without_snapshot = client.post(
         f"/api/extensions/plugins/{IMAGE_GENERATION_PLUGIN_ID}/uninstall",
         json={"snapshot_id": "missing", "confirmed": True},
@@ -2035,9 +2118,7 @@ def test_plugin_runtime_export_import_and_uninstall_controls() -> None:
     assert uninstall.json()["package_action"] == "state_only"
     assert uninstall.json()["package_archive_path"] is None
     assert uninstall.json()["plugin_data_retained"] is True
-    assert runtime.get_state(IMAGE_GENERATION_PLUGIN_ID).status is (
-        PluginRuntimeStatus.UNINSTALLED
-    )
+    assert runtime.get_state(IMAGE_GENERATION_PLUGIN_ID).status is (PluginRuntimeStatus.UNINSTALLED)
     assert storage.audit_records[-1].action == "uninstall"
     assert imported.status_code == 200
     assert imported.json()["plugin_id"] == IMAGE_GENERATION_PLUGIN_ID
@@ -2110,8 +2191,14 @@ def test_plugin_runtime_export_import_preserves_scoped_plugin_settings() -> None
         (item["scope"], item["subject_id"], item["key"]): item
         for item in exported.json()["settings"]
     }
-    assert settings_by_scope_subject[("channel", "channel-1", "SELECTED_TEAM_ID")]["value"] == "team-channel"
-    assert settings_by_scope_subject[("scheduled_task", "task-1", "SELECTED_TEAM_ID")]["value"] == "team-task"
+    assert (
+        settings_by_scope_subject[("channel", "channel-1", "SELECTED_TEAM_ID")]["value"]
+        == "team-channel"
+    )
+    assert (
+        settings_by_scope_subject[("scheduled_task", "task-1", "SELECTED_TEAM_ID")]["value"]
+        == "team-task"
+    )
     assert imported.status_code == 200
     channel_record = asyncio.run(
         import_storage.get(
@@ -2182,7 +2269,10 @@ settings: []
     enable_unsigned = client.post("/api/extensions/plugins/folder_plugin/enable")
     assert enable_unsigned.status_code == 409
     assert enable_unsigned.json()["detail"]["error"] == "plugin_package_unsigned"
-    assert enable_unsigned.json()["detail"]["package_sha256"] == installed.json()["integrity"]["package_sha256"]
+    assert (
+        enable_unsigned.json()["detail"]["package_sha256"]
+        == installed.json()["integrity"]["package_sha256"]
+    )
     installed_path = plugin_root / "installed" / "folder_plugin"
     data_path = data_root / "folder_plugin"
     (data_path / "storage" / "user.txt").write_text("keep me\n", encoding="utf-8")
@@ -2221,7 +2311,10 @@ settings: []
     assert archived_package["plugin_id"] == "folder_plugin"
     assert archived_package["valid"] is True
     assert archived_package["data_dir"] == str(data_path)
-    assert archived_package["integrity"]["package_sha256"] == payload["package_integrity"]["package_sha256"]
+    assert (
+        archived_package["integrity"]["package_sha256"]
+        == payload["package_integrity"]["package_sha256"]
+    )
 
     restored = client.post(
         f"/api/extensions/plugins/packages/archived/{archived_package['archive_id']}/restore"
@@ -2230,12 +2323,17 @@ settings: []
     restored_payload = restored.json()
     assert restored_payload["status"] == "restored"
     assert restored_payload["target_path"] == str(installed_path)
-    assert restored_payload["integrity"]["package_sha256"] == payload["package_integrity"]["package_sha256"]
+    assert (
+        restored_payload["integrity"]["package_sha256"]
+        == payload["package_integrity"]["package_sha256"]
+    )
     assert installed_path.exists()
     assert not archive_path.exists()
     assert (data_path / "storage" / "user.txt").read_text(encoding="utf-8") == "keep me\n"
     listed_after_restore = client.get("/api/extensions/plugins/").json()["plugins"]
-    restored_plugin = next(item for item in listed_after_restore if item["plugin_id"] == "folder_plugin")
+    restored_plugin = next(
+        item for item in listed_after_restore if item["plugin_id"] == "folder_plugin"
+    )
     assert restored_plugin["status"] == "disabled"
     assert storage.audit_records[-1].action == "package_restore"
     enable_restored_unsigned = client.post("/api/extensions/plugins/folder_plugin/enable")
@@ -2777,9 +2875,7 @@ def test_plugin_runtime_control_routes_expose_feishu_side_effect_failures(
     )
     client = TestClient(app)
 
-    response = client.post(
-        f"/api/extensions/plugins/{FEISHU_CONNECTOR_PLUGIN_ID}/disable"
-    )
+    response = client.post(f"/api/extensions/plugins/{FEISHU_CONNECTOR_PLUGIN_ID}/disable")
 
     assert response.status_code == 200
     payload = response.json()
@@ -2836,9 +2932,7 @@ def test_plugin_runtime_control_routes_require_admin_permission() -> None:
     register_builtin_plugin_routes(app)
     app.dependency_overrides[api_deps.get_current_user_required] = _plugin_runtime_reader
 
-    response = TestClient(app).post(
-        f"/api/extensions/plugins/{FEEDBACK_PLUGIN_ID}/disable"
-    )
+    response = TestClient(app).post(f"/api/extensions/plugins/{FEEDBACK_PLUGIN_ID}/disable")
 
     assert response.status_code == 403
 
@@ -2955,9 +3049,7 @@ def test_register_plugin_routes_records_import_errors_without_blocking_core_rout
 
     register_core_routes(
         app,
-        registrations=(
-            CoreRouteRegistration("health", core_module.__name__, prefix="/api"),
-        ),
+        registrations=(CoreRouteRegistration("health", core_module.__name__, prefix="/api"),),
     )
     register_plugin_routes(app, runtime)
 

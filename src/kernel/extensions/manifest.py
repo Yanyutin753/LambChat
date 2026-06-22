@@ -1,5 +1,6 @@
 """Pydantic manifest models for build-time extensions and plugins."""
 
+import re
 from enum import Enum
 from typing import Any, Literal
 
@@ -20,6 +21,9 @@ def _dedupe_non_blank_strings(values: list[str]) -> list[str]:
 def _is_plugin_owned_id(value: str, plugin_id: str) -> bool:
     normalized = value.strip()
     return normalized == plugin_id or normalized.startswith((f"{plugin_id}:", f"{plugin_id}."))
+
+
+_LLM_TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 class ExtensionType(str, Enum):
@@ -123,6 +127,18 @@ class PluginTool(BaseModel):
     module: str = Field(..., min_length=1)
     required_permissions: list[str] = Field(default_factory=list)
     legacy_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("name")
+    @classmethod
+    def validate_llm_tool_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("plugin tool name cannot be blank")
+        if not _LLM_TOOL_NAME_PATTERN.fullmatch(normalized):
+            raise ValueError(
+                "plugin tool name must match ^[a-zA-Z0-9_-]+$; use legacy_ids for old names"
+            )
+        return normalized
 
     @field_validator("required_permissions", "legacy_ids")
     @classmethod
