@@ -444,7 +444,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     sandbox_work_dir = None
 
     if not sandbox_active:
-        session_id = state.get("session_id", str(uuid.uuid4()))
         backend_factory = create_persistent_backend_factory(
             assistant_id=assistant_id,
             user_id=context.user_id,
@@ -628,8 +627,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     role_instructions=member.role_instructions or None,
                 )
                 role_prompt_sections = [
-                    s
-                    for s in (
+                        s
+                        for s in (
                         role_section,
                         workflow_result_section,
                         role_skill_prompts.get(member.member_id, skills_prompt),

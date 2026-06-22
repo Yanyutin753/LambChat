@@ -125,6 +125,7 @@ function normalizeImportedTeam(value: unknown): NormalizedTeamImport | null {
                   ? record.member_id
                   : undefined,
               persona_preset_id: personaPresetId,
+              agent_id: null,
               model_id:
                 typeof record.model_id === "string" && record.model_id
                   ? record.model_id

@@ -385,7 +385,7 @@ async def test_create_agent_team_ignores_member_agent_id_and_sets_team_sandbox(
 
     assert result["success"] is True
     body = manager.create_team.await_args.args[0]
-    assert not hasattr(body.members[0], "agent_id")
+    assert body.members[0].agent_id is None
     assert body.run_in_sandbox is True
     assert manager.create_team.await_args.kwargs["user"] is user
 

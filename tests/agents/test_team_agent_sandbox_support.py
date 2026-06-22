@@ -588,6 +588,48 @@ async def test_team_member_model_unavailable_is_not_silently_fallbacked(
 
 
 @pytest.mark.asyncio
+async def test_team_member_agent_mode_override_is_ignored_by_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    monkeypatch.setattr(
+        team_nodes,
+        "SectionPromptMiddleware",
+        lambda sections: {"sections": sections},
+    )
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-research",
+                persona_preset_id="preset-1",
+                role_name="Researcher",
+                enabled=True,
+            )
+        ],
+    )
+
+    subagent = fake_graph.captured_create_kwargs["subagents"][0]
+    section_middleware = next(
+        item for item in subagent["middleware"] if isinstance(item, dict) and "sections" in item
+    )
+    assert not any(
+        "virtual storage, not a real filesystem" in section
+        for section in section_middleware["sections"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_legacy_team_member_agent_id_does_not_break_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -607,6 +649,7 @@ async def test_legacy_team_member_agent_id_does_not_break_runtime(
             TeamMemberResponse(
                 member_id="m-research",
                 persona_preset_id="preset-1",
+                agent_id="deleted-agent",
                 role_name="Researcher",
                 enabled=True,
             )
