@@ -6,8 +6,8 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import channels as channels_route
-from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
 from src.infra.channel.feishu import registration as feishu_registration
+from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
 from src.kernel.extensions import (
     AGENT_TEAM_PLUGIN_ID,
     FEISHU_CONNECTOR_PLUGIN_ID,

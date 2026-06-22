@@ -1,19 +1,19 @@
 import pytest
 
+from src.kernel.extensions import PluginManifest, PluginRuntime, build_agent_team_plugin_manifest
 from src.kernel.extensions.plugin_options import (
     agent_uses_agent_team_options,
-    declared_session_options_from_project_defaults,
     declared_plugin_options_from_metadata,
+    declared_session_options_from_project_defaults,
     filter_declared_plugin_options,
-    plugin_session_options_suppress_core_persona,
-    plugin_session_option_visible_for_agent,
     plugin_id_for_agent,
     plugin_option_from_metadata,
     plugin_options_from_metadata,
+    plugin_session_option_visible_for_agent,
+    plugin_session_options_suppress_core_persona,
     selected_agent_team_id_from_metadata,
     with_plugin_option,
 )
-from src.kernel.extensions import PluginManifest, PluginRuntime, build_agent_team_plugin_manifest
 
 
 def test_plugin_options_from_metadata_returns_normalized_copy() -> None:

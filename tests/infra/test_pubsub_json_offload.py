@@ -11,7 +11,6 @@ from src.infra.memory import distributed as memory_distributed
 from src.infra.settings import pubsub as settings_pubsub
 from src.infra.settings.service import SettingsService
 from src.infra.task.constants import MODEL_CONFIG_CHANNEL, SETTINGS_CHANNEL
-from src.kernel.extensions import PluginManifest, PluginRuntime
 from src.infra.tool import cache_pubsub, mcp_global
 from src.kernel.extensions import PluginManifest, PluginRuntime
 

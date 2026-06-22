@@ -11,18 +11,13 @@ from pydantic import BaseModel
 
 from src.infra.scheduler.service import ScheduledTaskService as _RealService
 from src.infra.tool import scheduled_task_tool
-from src.kernel.extensions import (
-    PluginRuntime,
-    build_agent_team_plugin_manifest,
-    build_workflow_plugin_manifest,
-)
+from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 from src.kernel.schemas.scheduled_task import (
     ChannelDeliveryConfig,
     ScheduledTask,
     ScheduledTaskStatus,
     TriggerType,
 )
-from src.kernel.extensions import PluginRuntime, build_agent_team_plugin_manifest
 
 # ── Helpers ─────────────────────────────────────────────────────
 

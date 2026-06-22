@@ -6,7 +6,6 @@ from pathlib import Path
 from src.kernel.extensions import PluginPackageScanner
 from src.kernel.extensions.host_slots import CONTROLLED_FRONTEND_REFERENCES
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 

@@ -6,7 +6,11 @@ import pytest
 
 from src.infra.channel.base import BaseChannel, UserChannelManager
 from src.infra.channel.manager import ChannelCoordinator
-from src.kernel.extensions import PluginManifest, PluginRuntime, build_feishu_connector_plugin_manifest
+from src.kernel.extensions import (
+    PluginManifest,
+    PluginRuntime,
+    build_feishu_connector_plugin_manifest,
+)
 from src.kernel.schemas.channel import ChannelCapability, ChannelType
 
 
