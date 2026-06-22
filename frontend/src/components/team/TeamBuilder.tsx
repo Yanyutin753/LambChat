@@ -319,7 +319,6 @@ export const TeamBuilder = forwardRef<TeamBuilderHandle, TeamBuilderProps>(
           members: members.map((m, idx) => ({
             member_id: m.member_id,
             persona_preset_id: m.persona_preset_id,
-            agent_id: null,
             model_id: m.model_id ?? null,
             role_name: m.role_name,
             role_avatar: m.role_avatar ?? null,
