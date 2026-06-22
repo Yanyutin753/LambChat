@@ -52,8 +52,10 @@ frontend:
     - demo_plugin:nav
 backend:
   tools:
-    - name: demo_plugin.tool
+    - name: demo_plugin_tool
       module: plugins.demo.tool
+      legacy_ids:
+        - demo_plugin.tool
 """,
     )
 
@@ -89,7 +91,7 @@ api_version: v1
     (folder / "backend").mkdir()
     (folder / "backend" / "tools.py").write_text("", encoding="utf-8")
     (folder / "backend" / "plugin.json").write_text(
-        '{"schema":"lambchat.plugin.backend.v1","plugin_id":"demo_plugin","backend":{"tools":[{"name":"demo_plugin.tool","module":"plugins.demo.tool"}]}}',
+        '{"schema":"lambchat.plugin.backend.v1","plugin_id":"demo_plugin","backend":{"tools":[{"name":"demo_plugin_tool","module":"plugins.demo.tool","legacy_ids":["demo_plugin.tool"]}]}}',
         encoding="utf-8",
     )
     (folder / "frontend" / "dist").mkdir(parents=True)
@@ -105,7 +107,9 @@ api_version: v1
     (folder / "resources" / "resources.yaml").write_text("[]", encoding="utf-8")
     (folder / "README.md").write_text("Demo", encoding="utf-8")
 
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     assert descriptor.layout.has_backend is True
     assert descriptor.layout.has_frontend is True
@@ -163,10 +167,10 @@ api_version: v1
                     ],
                     "tools": [
                         {
-                            "name": "backend_plugin.tool",
+                            "name": "backend_plugin_tool",
                             "module": "plugins.backend_plugin.tools",
                             "required_permissions": ["backend_plugin:read"],
-                            "legacy_ids": ["backend_tool"],
+                            "legacy_ids": ["backend_tool", "backend_plugin.tool"],
                         }
                     ],
                     "lifespan_hooks": [
@@ -192,7 +196,9 @@ api_version: v1
         encoding="utf-8",
     )
 
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     assert descriptor.errors == ()
     manifest = descriptor.manifest
@@ -201,8 +207,8 @@ api_version: v1
     assert manifest.routers[0].prefix == "/api/backend-plugin"
     assert manifest.agents[0].id == "demo_agent"
     assert manifest.agents[0].module == "plugins.backend_plugin.agent.DemoAgent"
-    assert manifest.tools[0].name == "backend_plugin.tool"
-    assert manifest.tools[0].legacy_ids == ["backend_tool"]
+    assert manifest.tools[0].name == "backend_plugin_tool"
+    assert manifest.tools[0].legacy_ids == ["backend_tool", "backend_plugin.tool"]
     assert manifest.lifespan_hooks[0].name == "backend_plugin:shutdown"
     assert manifest.runtime_effects[0].action == "disable"
     assert manifest.runtime_effects[0].effect == "stop_feishu_connector"
@@ -250,7 +256,9 @@ backend:
         encoding="utf-8",
     )
 
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     assert descriptor.errors == ()
     manifest = descriptor.manifest
@@ -318,7 +326,9 @@ api_version: v1
     assert "routes and routers cannot both declare different routes" in scan.errors[0]
 
 
-def test_plugin_package_scanner_rejects_backend_plugin_file_for_wrong_plugin(tmp_path: Path) -> None:
+def test_plugin_package_scanner_rejects_backend_plugin_file_for_wrong_plugin(
+    tmp_path: Path,
+) -> None:
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
     folder = _write_plugin(
@@ -559,7 +569,9 @@ settings:
         encoding="utf-8",
     )
 
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     assert descriptor.errors == ()
     assert descriptor.manifest is not None
@@ -571,33 +583,62 @@ settings:
     assert descriptor.manifest.frontend.app_panels[0].renderer == "frontend_plugin.Panel"
     assert descriptor.manifest.frontend.sidebar_items[0].label == "frontendPlugin.nav"
     assert descriptor.manifest.frontend.user_menu_items[0].group == "system"
-    assert [item.id for item in descriptor.manifest.frontend.message_actions] == ["frontend_plugin:message-action"]
-    assert descriptor.manifest.frontend.message_actions[0].renderer == "frontend_plugin.MessageAction"
+    assert [item.id for item in descriptor.manifest.frontend.message_actions] == [
+        "frontend_plugin:message-action"
+    ]
+    assert (
+        descriptor.manifest.frontend.message_actions[0].renderer == "frontend_plugin.MessageAction"
+    )
     assert descriptor.manifest.frontend.chat_input_options[0].id == "frontend_plugin:open-panel"
-    assert descriptor.manifest.frontend.chat_input_options[0].selected_renderer == "frontend_plugin.SelectedChip"
-    assert descriptor.manifest.frontend.chat_input_options[0].suppresses_core_persona_selector is True
+    assert (
+        descriptor.manifest.frontend.chat_input_options[0].selected_renderer
+        == "frontend_plugin.SelectedChip"
+    )
+    assert (
+        descriptor.manifest.frontend.chat_input_options[0].suppresses_core_persona_selector is True
+    )
     assert descriptor.manifest.frontend.chat_input_options[0].shortcut == "mod+k"
     assert descriptor.manifest.frontend.chat_input_options[0].option_binding is not None
-    assert descriptor.manifest.frontend.chat_input_options[0].option_binding.plugin_id == "frontend_plugin"
-    assert descriptor.manifest.frontend.chat_input_options[0].option_binding.key == "SELECTED_ITEM_ID"
+    assert (
+        descriptor.manifest.frontend.chat_input_options[0].option_binding.plugin_id
+        == "frontend_plugin"
+    )
+    assert (
+        descriptor.manifest.frontend.chat_input_options[0].option_binding.key == "SELECTED_ITEM_ID"
+    )
     assert descriptor.manifest.frontend.chat_input_options[0].option_binding.scope == "session"
     assert descriptor.manifest.frontend.chat_input_options[0].visible_when is not None
     assert descriptor.manifest.frontend.chat_input_options[0].visible_when.agent_id == "team"
-    assert descriptor.manifest.frontend.chat_input_panels[0].renderer == "frontend_plugin.PanelPicker"
+    assert (
+        descriptor.manifest.frontend.chat_input_panels[0].renderer == "frontend_plugin.PanelPicker"
+    )
     assert descriptor.manifest.frontend.chat_input_panels[0].create_path == "/frontend-plugin/new"
-    assert descriptor.manifest.frontend.chat_input_panels[0].manage_path == "/frontend-plugin/manage"
+    assert (
+        descriptor.manifest.frontend.chat_input_panels[0].manage_path == "/frontend-plugin/manage"
+    )
     assert descriptor.manifest.frontend.chat_input_panels[0].option_binding is not None
-    assert descriptor.manifest.frontend.chat_input_panels[0].option_binding.plugin_id == "frontend_plugin"
-    assert descriptor.manifest.frontend.chat_input_panels[0].option_binding.key == "SELECTED_ITEM_ID"
+    assert (
+        descriptor.manifest.frontend.chat_input_panels[0].option_binding.plugin_id
+        == "frontend_plugin"
+    )
+    assert (
+        descriptor.manifest.frontend.chat_input_panels[0].option_binding.key == "SELECTED_ITEM_ID"
+    )
     assert descriptor.manifest.frontend.chat_input_panels[0].option_binding.scope == "session"
     assert descriptor.manifest.frontend.mention_providers[0].provider == "frontend_plugin.search"
-    assert descriptor.manifest.frontend.welcome_surfaces[0].renderer == "frontend_plugin.WelcomeSurface"
+    assert (
+        descriptor.manifest.frontend.welcome_surfaces[0].renderer
+        == "frontend_plugin.WelcomeSurface"
+    )
     assert descriptor.manifest.frontend.welcome_surfaces[0].visible_when is not None
     assert descriptor.manifest.frontend.welcome_surfaces[0].visible_when.agent_id == "team"
     assert descriptor.manifest.frontend.agent_categories[0].id == "frontend_plugin:agents"
     assert descriptor.manifest.frontend.agent_categories[0].label == "frontendPlugin.agents"
     assert descriptor.manifest.frontend.project_options[0].key == "DEFAULT_ITEM_ID"
-    assert descriptor.manifest.frontend.project_options[0].renderer == "frontend_plugin.DefaultItemSelect"
+    assert (
+        descriptor.manifest.frontend.project_options[0].renderer
+        == "frontend_plugin.DefaultItemSelect"
+    )
     assert descriptor.manifest.frontend.session_options[0].visible_when is not None
     assert descriptor.manifest.frontend.session_options[0].visible_when.agent_id == "team"
     assert descriptor.manifest.frontend.channel_options[0].key == "SELECTED_CHANNEL_ITEM_ID"
@@ -610,7 +651,9 @@ settings:
     assert descriptor.manifest.frontend.required_permissions == ["frontend_plugin:read"]
 
 
-def test_plugin_package_scanner_rejects_frontend_plugin_file_for_wrong_plugin(tmp_path: Path) -> None:
+def test_plugin_package_scanner_rejects_frontend_plugin_file_for_wrong_plugin(
+    tmp_path: Path,
+) -> None:
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
     folder = _write_plugin(
@@ -967,7 +1010,9 @@ api_version: v1
         encoding="utf-8",
     )
 
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     assert descriptor.errors == ()
     assert descriptor.manifest is not None
@@ -978,7 +1023,9 @@ api_version: v1
     assert bundle.assets == ["widget.js"]
 
 
-def test_plugin_package_scanner_rejects_frontend_asset_bundle_for_wrong_plugin(tmp_path: Path) -> None:
+def test_plugin_package_scanner_rejects_frontend_asset_bundle_for_wrong_plugin(
+    tmp_path: Path,
+) -> None:
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
     folder = _write_plugin(
@@ -1065,7 +1112,9 @@ resources:
         encoding="utf-8",
     )
 
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     assert descriptor.errors == ()
     manifest = descriptor.manifest
@@ -1121,14 +1170,20 @@ settings:
     )
     (folder / "plugin-data-template" / "storage").mkdir(parents=True)
     (folder / "plugin-data-template" / "storage" / "seed.txt").write_text("seed", encoding="utf-8")
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     snapshot = PluginDataService(data_root=data_root).ensure_for_descriptor(descriptor)
 
     assert snapshot.exists is True
     assert "config" in snapshot.subdirs
-    assert (data_root / "demo_plugin" / "storage" / "seed.txt").read_text(encoding="utf-8") == "seed"
-    assert '"LIMIT": 5' in (data_root / "demo_plugin" / "config" / "defaults.json").read_text(encoding="utf-8")
+    assert (data_root / "demo_plugin" / "storage" / "seed.txt").read_text(
+        encoding="utf-8"
+    ) == "seed"
+    assert '"LIMIT": 5' in (data_root / "demo_plugin" / "config" / "defaults.json").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_plugin_data_service_audits_initialization_once(tmp_path: Path) -> None:
@@ -1146,7 +1201,9 @@ api_version: v1
 settings: []
 """,
     )
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
     service = PluginDataService(data_root=data_root)
 
     service.ensure_for_descriptor(descriptor)
@@ -1175,7 +1232,9 @@ api_version: v1
 settings: []
 """,
     )
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
     service = PluginDataService(data_root=data_root)
     service.ensure_for_descriptor(descriptor)
 
@@ -1211,7 +1270,9 @@ settings: []
     )
     (folder / "seed-data" / "storage").mkdir(parents=True)
     (folder / "seed-data" / "storage" / "seed.txt").write_text("seed", encoding="utf-8")
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     snapshot = PluginDataService(data_root=data_root).ensure_for_descriptor(descriptor)
 
@@ -1222,7 +1283,9 @@ settings: []
     assert descriptor.manifest.package_data_template == "seed-data"
     assert descriptor.manifest.package_layout["data_template"] == "seed-data"
     assert snapshot.exists is True
-    assert (data_root / "demo_plugin" / "storage" / "seed.txt").read_text(encoding="utf-8") == "seed"
+    assert (data_root / "demo_plugin" / "storage" / "seed.txt").read_text(
+        encoding="utf-8"
+    ) == "seed"
 
 
 def test_plugin_data_service_writes_package_config_defaults(tmp_path: Path) -> None:
@@ -1244,11 +1307,15 @@ settings:
     )
     (folder / "config").mkdir()
     (folder / "config" / "defaults.json").write_text('{"LIMIT": 9}\n', encoding="utf-8")
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
 
     PluginDataService(data_root=data_root).ensure_for_descriptor(descriptor)
 
-    assert '"LIMIT": 9' in (data_root / "demo_plugin" / "config" / "defaults.json").read_text(encoding="utf-8")
+    assert '"LIMIT": 9' in (data_root / "demo_plugin" / "config" / "defaults.json").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_plugin_data_service_reset_current_config_creates_backup(tmp_path: Path) -> None:
@@ -1266,7 +1333,9 @@ api_version: v1
 settings: []
 """,
     )
-    descriptor = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    descriptor = (
+        PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan().descriptors[0]
+    )
     service = PluginDataService(data_root=data_root)
     service.ensure_for_descriptor(descriptor)
     current_path = data_root / "demo_plugin" / "config" / "current.json"
@@ -1352,7 +1421,9 @@ api_version: v1
     assert "Extra inputs are not permitted" in scan.errors[0]
 
 
-def test_plugin_package_scanner_rejects_bad_schema_without_blocking_other_plugins(tmp_path: Path) -> None:
+def test_plugin_package_scanner_rejects_bad_schema_without_blocking_other_plugins(
+    tmp_path: Path,
+) -> None:
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
     bad = _write_plugin(
@@ -1383,7 +1454,10 @@ api_version: v1
     scan = PluginPackageScanner(plugin_root=plugin_root, data_root=data_root).scan()
 
     assert len(scan.descriptors) == 2
-    assert any(descriptor.plugin_id == "good_plugin" and descriptor.valid for descriptor in scan.descriptors)
+    assert any(
+        descriptor.plugin_id == "good_plugin" and descriptor.valid
+        for descriptor in scan.descriptors
+    )
     assert any("bad_plugin" in error and "config/schema.json" in error for error in scan.errors)
 
 
@@ -1414,7 +1488,10 @@ def test_builtin_folder_packages_are_complete_runtime_contracts() -> None:
         assert defaults_template.is_file()
         assert audit_template.is_file()
         assert json.loads(current_template.read_text(encoding="utf-8")) == {}
-        assert json.loads(defaults_template.read_text(encoding="utf-8")) == package_manifest.package_config_defaults
+        assert (
+            json.loads(defaults_template.read_text(encoding="utf-8"))
+            == package_manifest.package_config_defaults
+        )
         if static_manifest.routers or static_manifest.tools or static_manifest.lifespan_hooks:
             assert descriptor.layout.has_backend is True
             assert "plugin.json" in descriptor.layout.backend_files
@@ -1426,7 +1503,9 @@ def test_builtin_folder_packages_are_complete_runtime_contracts() -> None:
         assert package_manifest.api_version == static_manifest.api_version
         assert package_manifest.install_type == static_manifest.install_type
         assert set(package_manifest.permissions) == set(static_manifest.permissions)
-        assert set(package_manifest.legacy_system_settings) == set(static_manifest.legacy_system_settings)
+        assert set(package_manifest.legacy_system_settings) == set(
+            static_manifest.legacy_system_settings
+        )
         assert {setting.key for setting in package_manifest.settings} == {
             setting.key for setting in static_manifest.settings
         }
@@ -1439,20 +1518,18 @@ def test_builtin_folder_packages_are_complete_runtime_contracts() -> None:
         assert {hook.name for hook in package_manifest.lifespan_hooks} == {
             hook.name for hook in static_manifest.lifespan_hooks
         }
-        assert {
-            (effect.action, effect.effect) for effect in package_manifest.runtime_effects
-        } == {
+        assert {(effect.action, effect.effect) for effect in package_manifest.runtime_effects} == {
             (effect.action, effect.effect) for effect in static_manifest.runtime_effects
         }
         assert set(package_manifest.scheduler_jobs) == set(static_manifest.scheduler_jobs)
         assert set(package_manifest.event_listeners) == set(static_manifest.event_listeners)
         assert set(package_manifest.migrations) == set(static_manifest.migrations)
-        assert {
-            (resource.type, resource.id) for resource in package_manifest.resources
-        } == {(resource.type, resource.id) for resource in static_manifest.resources}
-        assert package_manifest.frontend.model_dump(exclude_defaults=True) == static_manifest.frontend.model_dump(
+        assert {(resource.type, resource.id) for resource in package_manifest.resources} == {
+            (resource.type, resource.id) for resource in static_manifest.resources
+        }
+        assert package_manifest.frontend.model_dump(
             exclude_defaults=True
-        )
+        ) == static_manifest.frontend.model_dump(exclude_defaults=True)
 
 
 def test_migrated_system_plugins_do_not_use_legacy_frontend_route_fields() -> None:
@@ -1532,12 +1609,16 @@ api_version: v1
     assert scan.errors == ()
     manifest = scan.by_plugin_id()["upload_demo"].manifest
     assert manifest is not None
-    assert [item.id for item in manifest.frontend.upload_handlers] == ["upload_demo:markdown-import"]
+    assert [item.id for item in manifest.frontend.upload_handlers] == [
+        "upload_demo:markdown-import"
+    ]
     assert manifest.frontend.upload_handlers[0].accept == [".md", "text/markdown"]
     assert manifest.frontend.upload_handlers[0].handler == "upload_demo.markdownImport"
 
 
-def test_plugin_package_import_service_dry_run_and_installs_disabled_package_folder(tmp_path: Path) -> None:
+def test_plugin_package_import_service_dry_run_and_installs_disabled_package_folder(
+    tmp_path: Path,
+) -> None:
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
     source_root = tmp_path / "incoming"
@@ -1570,7 +1651,9 @@ settings:
     assert installed.status == "installed"
     assert (plugin_root / "installed" / "folder_plugin" / "plugin.yaml").is_file()
     assert (data_root / "folder_plugin" / "config" / "defaults.json").is_file()
-    assert '"LIMIT": 3' in (data_root / "folder_plugin" / "config" / "defaults.json").read_text(encoding="utf-8")
+    assert '"LIMIT": 3' in (data_root / "folder_plugin" / "config" / "defaults.json").read_text(
+        encoding="utf-8"
+    )
     assert installed.integrity.algorithm == "sha256:sorted-file-list-v1"
     assert len(installed.integrity.package_sha256) == 64
     assert installed.integrity.file_count >= 1
@@ -1652,7 +1735,9 @@ def test_plugin_package_import_service_rejects_zip_path_traversal(tmp_path: Path
     data_root = tmp_path / "plugin-data"
     archive_path = tmp_path / "bad.zip"
     with ZipFile(archive_path, "w") as archive:
-        archive.writestr("../escape/plugin.yaml", "id: escape\nname: Escape\nversion: 1.0.0\napi_version: v1\n")
+        archive.writestr(
+            "../escape/plugin.yaml", "id: escape\nname: Escape\nversion: 1.0.0\napi_version: v1\n"
+        )
 
     with pytest.raises(ValueError, match="unsafe path|escapes"):
         PluginPackageImportService(plugin_root=plugin_root, data_root=data_root).import_folder(
@@ -1661,7 +1746,9 @@ def test_plugin_package_import_service_rejects_zip_path_traversal(tmp_path: Path
         )
 
 
-def test_plugin_package_import_service_rejects_folder_with_too_many_files(tmp_path: Path, monkeypatch) -> None:
+def test_plugin_package_import_service_rejects_folder_with_too_many_files(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setattr(plugin_package_import, "MAX_PACKAGE_FILES", 2)
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
@@ -1689,7 +1776,9 @@ settings: []
         )
 
 
-def test_plugin_package_import_service_rejects_folder_over_size_limit(tmp_path: Path, monkeypatch) -> None:
+def test_plugin_package_import_service_rejects_folder_over_size_limit(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setattr(plugin_package_import, "MAX_PACKAGE_BYTES", 256)
     plugin_root = tmp_path / "plugins"
     data_root = tmp_path / "plugin-data"
