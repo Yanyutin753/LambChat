@@ -414,6 +414,38 @@ def _merge_missing_plugin_options(
     return merged["plugin_options"]
 
 
+def apply_existing_session_plugin_options(
+    request: AgentRequest,
+    *,
+    agent_id: str,
+    existing_metadata: dict | None,
+    plugin_runtime=None,
+) -> None:
+    """Inherit saved session plugin options when a follow-up omits them."""
+    if not existing_metadata:
+        return
+    saved_options = declared_plugin_options_from_metadata(
+        plugin_runtime,
+        existing_metadata,
+        scope="session",
+        agent_id=agent_id,
+        executable_only=True,
+    )
+    if saved_options:
+        request.plugin_options = _merge_missing_plugin_options(
+            request.plugin_options,
+            saved_options,
+        )
+    if agent_uses_agent_team_options(agent_id, runtime=plugin_runtime):
+        team_id = plugin_option_from_metadata(
+            {"plugin_options": request.plugin_options or {}},
+            plugin_id=AGENT_TEAM_PLUGIN_ID,
+            key=AGENT_TEAM_SELECTED_TEAM_OPTION,
+        )
+        if isinstance(team_id, str) and team_id.strip():
+            request.team_id = team_id.strip()
+
+
 async def apply_project_plugin_session_defaults(
     request: AgentRequest,
     *,
@@ -777,6 +809,13 @@ async def chat_stream(
         if existing_session:
             verify_session_ownership(existing_session, user)
             existing_metadata = existing_session.metadata or {}
+            apply_existing_session_plugin_options(
+                request,
+                agent_id=agent_id,
+                existing_metadata=existing_metadata,
+                plugin_runtime=plugin_runtime,
+            )
+            validate_team_agent_request(agent_id, request, plugin_runtime=plugin_runtime)
     if request.retry_user_message and not request.session_id:
         raise HTTPException(status_code=400, detail="retry_user_message requires session_id")
     if request.retry_user_message and not existing_session:
