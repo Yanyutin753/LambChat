@@ -123,10 +123,20 @@ export function usePluginChatAssistantIdentity(
     { agentId: context.currentAgent },
   );
   const allowedResolvers = new Set(runtimeResolvers.map((item) => item.resolver));
-  const resolver = CHAT_ASSISTANT_IDENTITY_RESOLVERS.find(
-    (entry) => allowedResolvers.has(entry.resolver) && entry.canResolve(context),
+  const agentTeamIdentity = useAgentTeamIdentity(context);
+  const agentTeamResolver = CHAT_ASSISTANT_IDENTITY_RESOLVERS.find(
+    (entry) => entry.resolver === "agent_team.TeamAssistantIdentity",
   );
-  return resolver?.useIdentity(context) ?? null;
+
+  if (
+    agentTeamResolver &&
+    allowedResolvers.has(agentTeamResolver.resolver) &&
+    agentTeamResolver.canResolve(context)
+  ) {
+    return agentTeamIdentity;
+  }
+
+  return null;
 }
 
 export function resolvePluginAssistantIdentitySnapshot({

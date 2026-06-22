@@ -248,6 +248,8 @@ test("assistant message header shows the selected team in team mode", () => {
   assert.match(chatAssistantIdentityRenderersSource, /contributionAgentId/);
   assert.match(chatAssistantIdentityRenderersSource, /contribution\.agentId !== currentAgent/);
   assert.match(chatAssistantIdentityRenderersSource, /agent_team\.TeamAssistantIdentity/);
+  assert.match(chatAssistantIdentityRenderersSource, /const agentTeamIdentity = useAgentTeamIdentity\(context\)/);
+  assert.doesNotMatch(chatAssistantIdentityRenderersSource, /resolver\?\.useIdentity\(context\)/);
   assert.doesNotMatch(chatAssistantIdentityRenderersSource, /selectedTeamId: string \| null/);
   assert.match(chatViewSource, /personaAvatar=\{assistantIdentity\.avatar\}/);
   assert.match(chatViewSource, /personaName=\{assistantIdentity\.name\}/);
