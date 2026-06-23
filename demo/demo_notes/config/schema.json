@@ -1,0 +1,35 @@
+{
+  "settings": [
+    {
+      "key": "NOTEBOOK_NAME",
+      "type": "string",
+      "label": "pluginSettings.demo_notes.NOTEBOOK_NAME.label",
+      "description": "pluginSettings.demo_notes.NOTEBOOK_NAME.description",
+      "default": "Inbox",
+      "scope": "system",
+      "group": "general",
+      "order": 10
+    },
+    {
+      "key": "ALLOW_MESSAGE_ACTION",
+      "type": "boolean",
+      "label": "pluginSettings.demo_notes.ALLOW_MESSAGE_ACTION.label",
+      "description": "pluginSettings.demo_notes.ALLOW_MESSAGE_ACTION.description",
+      "default": true,
+      "scope": "system",
+      "group": "behavior",
+      "order": 20
+    },
+    {
+      "key": "MAX_NOTE_LENGTH",
+      "type": "number",
+      "label": "pluginSettings.demo_notes.MAX_NOTE_LENGTH.label",
+      "description": "pluginSettings.demo_notes.MAX_NOTE_LENGTH.description",
+      "default": 2000,
+      "scope": "system",
+      "group": "limits",
+      "order": 30
+    }
+  ]
+}
+
