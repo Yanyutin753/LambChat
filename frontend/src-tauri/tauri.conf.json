@@ -5,8 +5,8 @@
   "identifier": "com.lambchat.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:3001",
+    "beforeDevCommand": "pnpm dev --host 127.0.0.1 --port 3001 --strictPort",
     "beforeBuildCommand": "pnpm packaged:build"
   },
   "app": {

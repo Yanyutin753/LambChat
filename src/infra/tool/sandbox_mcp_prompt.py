@@ -351,6 +351,10 @@ def _format_tools_list_sections(data: Any) -> tuple[tuple[str, ...], int]:
 async def _fetch_and_format(backend: Any) -> tuple[tuple[str, ...], int]:
     """Run mcporter list and format the output."""
     try:
+        if _is_client_sandbox_backend(backend):
+            logger.debug("[SandboxMCP Prompt] Skipping mcporter discovery for client sandbox")
+            return (), 0
+
         if not await _is_mcporter_available(backend):
             return (), 0
 
@@ -371,6 +375,13 @@ async def _fetch_and_format(backend: Any) -> tuple[tuple[str, ...], int]:
     except Exception as e:
         logger.warning(f"[SandboxMCP Prompt] Failed to fetch tools: {e}")
         return (), 0
+
+
+def _is_client_sandbox_backend(backend: Any) -> bool:
+    if getattr(backend, "is_client_sandbox", False):
+        return True
+    default_backend = getattr(backend, "default", None)
+    return bool(getattr(default_backend, "is_client_sandbox", False))
 
 
 async def _is_mcporter_available(backend: Any) -> bool:

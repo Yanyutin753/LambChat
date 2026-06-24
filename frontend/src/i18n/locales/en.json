@@ -731,6 +731,16 @@
       "name": "Sandbox",
       "ready": "sandbox ready"
     },
+    "clientSandbox": {
+      "bind": "Use this desktop as sandbox",
+      "bindFailed": "Failed to use this desktop as sandbox",
+      "bound": "This desktop is now the session sandbox",
+      "enable": "Enable local sandbox",
+      "enableFailed": "Failed to enable local sandbox",
+      "enabled": "Local sandbox enabled. All chats will prefer this desktop.",
+      "needSession": "Open a chat session before using the desktop sandbox",
+      "pending": "This desktop will be used after the chat starts"
+    },
     "sandboxId": "ID: {{id}}",
     "sandboxInitFailed": "Sandbox initialization failed",
     "send": "Send message",

@@ -334,6 +334,51 @@ async def test_fetch_and_format_returns_empty_when_mcporter_is_unavailable() -> 
 
 
 @pytest.mark.asyncio
+async def test_fetch_and_format_skips_client_sandbox_backend_probe() -> None:
+    class _ClientBackend:
+        is_client_sandbox = True
+
+        def __init__(self) -> None:
+            self.commands: list[tuple[str, int]] = []
+
+        async def aexecute(self, command: str, *, timeout: int | None = None):
+            self.commands.append((command, timeout or 0))
+            raise AssertionError("client sandbox prompt discovery should not execute commands")
+
+    backend = _ClientBackend()
+
+    sections, total = await _fetch_and_format(backend)
+
+    assert sections == ()
+    assert total == 0
+    assert backend.commands == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_format_skips_composite_client_sandbox_backend_probe() -> None:
+    commands: list[tuple[str, int]] = []
+
+    class _ClientBackend:
+        is_client_sandbox = True
+
+        async def aexecute(self, command: str, *, timeout: int | None = None):
+            raise AssertionError("client sandbox prompt discovery should not execute commands")
+
+    class _CompositeBackend:
+        default = _ClientBackend()
+
+        async def aexecute(self, command: str, *, timeout: int | None = None):
+            commands.append((command, timeout or 0))
+            return type("_Result", (), {"exit_code": 0, "output": "mcporter 1.0"})()
+
+    sections, total = await _fetch_and_format(_CompositeBackend())
+
+    assert sections == ()
+    assert total == 0
+    assert commands == []
+
+
+@pytest.mark.asyncio
 async def test_fetch_and_format_lists_tools_when_mcporter_is_available() -> None:
     class _Result:
         def __init__(self, exit_code: int, output: str) -> None:

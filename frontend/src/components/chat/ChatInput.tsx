@@ -18,6 +18,7 @@ import { MentionPopup } from "./MentionPopup";
 import { TeamMentionPopup } from "./TeamMentionPopup";
 import { ActiveGoalBar } from "./ActiveGoalBar";
 import { ChatInputToolbar } from "./ChatInputToolbar";
+import { ClientSandboxButton } from "./ClientSandboxButton";
 import { ChatInputSelectors } from "./ChatInputSelectors";
 import { ChatInputHelpMenu } from "./ChatInputHelpMenu";
 import { ChatInputAttachments } from "./ChatInputAttachments";
@@ -96,6 +97,7 @@ export const ChatInput = memo(function ChatInput({
   onMentionQueryChange,
   pendingInput,
   onPendingInputConsumed,
+  sessionId,
   className,
   activeGoal,
   onClearActiveGoal,
@@ -840,6 +842,7 @@ export const ChatInput = memo(function ChatInput({
             onToggleAgentOption={onToggleAgentOption}
             onStopClick={() => setStopConfirmOpen(true)}
             onNoPermissionClick={() => setContactAdminOpen(true)}
+            clientSandboxButton={<ClientSandboxButton sessionId={sessionId} />}
           />
         </div>
       </form>

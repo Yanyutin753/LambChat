@@ -383,6 +383,7 @@ export function ChatView({
 
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
+    sessionId,
     onSend: (
       content: string,
       _options?: Record<string, boolean | string | number>,

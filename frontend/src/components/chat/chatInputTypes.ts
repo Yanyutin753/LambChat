@@ -89,6 +89,7 @@ export interface ChatInputProps {
   onMentionQueryChange?: (query: string | null) => void;
   pendingInput?: string | null;
   onPendingInputConsumed?: () => void;
+  sessionId?: string | null;
   className?: string;
 
   /** Active goal — when provided, renders an embedded goal strip inside the input card. */

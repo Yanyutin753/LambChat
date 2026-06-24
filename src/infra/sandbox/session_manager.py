@@ -378,6 +378,36 @@ class SessionSandboxManager:
                 "Anonymous users cannot use sandbox features."
             )
 
+        if settings.SANDBOX_PLATFORM.lower() == "client":
+            return await self._get_or_create_client(session_id, user_id)
+
+        preferred_client_binding = await self._get_preferred_client_binding(
+            session_id,
+            user_id,
+        )
+        if preferred_client_binding is not None:
+            return await self._get_or_create_client(
+                session_id,
+                user_id,
+                binding=preferred_client_binding,
+            )
+
+        client_binding = await self._get_active_client_binding(session_id, user_id)
+        if client_binding is not None:
+            return await self._get_or_create_client(
+                session_id,
+                user_id,
+                binding=client_binding,
+            )
+
+        auto_client_binding = await self._get_auto_client_binding(session_id, user_id)
+        if auto_client_binding is not None:
+            return await self._get_or_create_client(
+                session_id,
+                user_id,
+                binding=auto_client_binding,
+            )
+
         if self._e2b_adapter:
             return await self._get_or_create_e2b(session_id, user_id)
 
@@ -718,6 +748,162 @@ class SessionSandboxManager:
         sandbox.delete()
 
     # ── E2B platform methods ──────────────────────────────────────────
+
+    async def _get_or_create_client(
+        self,
+        session_id: str,
+        user_id: str,
+        binding: Any | None = None,
+    ) -> tuple[CompositeBackend, str]:
+        from src.infra.backend.client_sandbox import ClientSandboxBackend
+        from src.infra.client_sandbox.storage import ClientSandboxStorage
+
+        storage = ClientSandboxStorage()
+        if binding is None:
+            binding = await storage.get_active_binding(user_id, session_id)
+        if binding is None:
+            binding = await self._auto_bind_single_connected_client(
+                storage,
+                session_id,
+                user_id,
+            )
+        if binding is None:
+            raise RuntimeError(
+                "No active desktop sandbox binding for this session. "
+                "Open LambChat Desktop and enable this device as the sandbox."
+            )
+
+        client_backend = ClientSandboxBackend(
+            user_id=user_id,
+            session_id=session_id,
+            storage=storage,
+        )
+        client_backend._binding = binding
+        skills_backend = create_skills_backend(user_id=user_id)
+        composite = CompositeBackend(
+            default=client_backend,
+            routes={"/skills/": skills_backend},
+        )
+        return composite, "/workspace"
+
+    async def _auto_bind_single_connected_client(
+        self,
+        storage: Any,
+        session_id: str,
+        user_id: str,
+    ) -> Any | None:
+        from src.infra.client_sandbox.models import ClientSandboxBindingCreate
+        from src.infra.client_sandbox.router import get_client_sandbox_router
+
+        connected_device_ids = await get_client_sandbox_router().list_connected_device_ids(user_id)
+        if len(connected_device_ids) != 1:
+            return None
+
+        device_id = connected_device_ids[0]
+        devices = await storage.list_devices(user_id)
+        device = next((item for item in devices if item.device_id == device_id), None)
+        if device is None:
+            return None
+
+        logger.info(
+            "[SessionSandboxManager] Auto-binding session=%s to connected desktop device=%s",
+            session_id,
+            device_id,
+        )
+        return await storage.create_or_refresh_binding(
+            user_id,
+            ClientSandboxBindingCreate(
+                session_id=session_id,
+                device_id=device_id,
+                workspace_root=device.workspace_root,
+            ),
+        )
+
+    async def _get_active_client_binding(self, session_id: str, user_id: str) -> Any | None:
+        try:
+            from src.infra.client_sandbox.storage import ClientSandboxStorage
+
+            return await ClientSandboxStorage().get_active_binding(user_id, session_id)
+        except Exception as e:
+            logger.debug(
+                "[SessionSandboxManager] Failed to check client sandbox binding "
+                "for session=%s user=%s: %s",
+                session_id,
+                user_id,
+                e,
+            )
+            return None
+
+    async def _get_preferred_client_binding(self, session_id: str, user_id: str) -> Any | None:
+        try:
+            from src.infra.client_sandbox.models import ClientSandboxBindingCreate
+            from src.infra.client_sandbox.router import get_client_sandbox_router
+            from src.infra.client_sandbox.storage import ClientSandboxStorage
+
+            storage = ClientSandboxStorage()
+            preference = await storage.get_preference(user_id)
+            if preference is None or not preference.enabled:
+                return None
+
+            connected_device_ids = await get_client_sandbox_router().list_connected_device_ids(
+                user_id
+            )
+            if preference.device_id not in connected_device_ids:
+                raise RuntimeError(
+                    "Local desktop sandbox is enabled, but the selected desktop device "
+                    "is not connected. Open LambChat Desktop and enable this device as "
+                    "the sandbox."
+                )
+
+            devices = await storage.list_devices(user_id)
+            device = next(
+                (item for item in devices if item.device_id == preference.device_id),
+                None,
+            )
+            workspace_root = (
+                device.workspace_root if device is not None else preference.workspace_root
+            )
+
+            logger.info(
+                "[SessionSandboxManager] Using preferred desktop sandbox device=%s for session=%s",
+                preference.device_id,
+                session_id,
+            )
+            return await storage.create_or_refresh_binding(
+                user_id,
+                ClientSandboxBindingCreate(
+                    session_id=session_id,
+                    device_id=preference.device_id,
+                    workspace_root=workspace_root,
+                ),
+            )
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.debug(
+                "[SessionSandboxManager] Failed to load preferred client sandbox "
+                "for session=%s user=%s: %s",
+                session_id,
+                user_id,
+                e,
+            )
+            return None
+
+    async def _get_auto_client_binding(self, session_id: str, user_id: str) -> Any | None:
+        try:
+            from src.infra.client_sandbox.storage import ClientSandboxStorage
+
+            storage = ClientSandboxStorage()
+            return await self._auto_bind_single_connected_client(storage, session_id, user_id)
+        except Exception as e:
+            logger.debug(
+                "[SessionSandboxManager] Failed to auto-bind client sandbox "
+                "for session=%s user=%s: %s",
+                session_id,
+                user_id,
+                e,
+            )
+            return None
 
     async def _get_or_create_e2b(
         self, session_id: str, user_id: str

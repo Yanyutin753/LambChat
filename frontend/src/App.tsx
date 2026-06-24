@@ -27,6 +27,7 @@ import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
 import { UpdateDialog } from "./components/update/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
+import { startClientSandboxService } from "./services/clientSandbox/ws";
 
 const SharedPage = lazy(() =>
   import("./components/share/SharedPage").then((m) => ({
@@ -377,6 +378,14 @@ function App() {
     appNotificationService.initializeNativeClickHandlers();
     return () => appNotificationService.setNavigator(null);
   }, [navigate]);
+
+  useEffect(() => {
+    void startClientSandboxService();
+    window.addEventListener("auth:login", startClientSandboxService);
+    return () => {
+      window.removeEventListener("auth:login", startClientSandboxService);
+    };
+  }, []);
 
   return (
     <ThemeProvider>

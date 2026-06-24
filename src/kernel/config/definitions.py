@@ -398,7 +398,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.SANDBOX_PLATFORM",
         "default": "daytona",
         "depends_on": "ENABLE_SANDBOX",
-        "options": ["daytona", "e2b"],
+        "options": ["daytona", "e2b", "client"],
     },
     "DAYTONA_API_KEY": {
         "type": SettingType.STRING,
@@ -440,6 +440,22 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "description": "settingDesc.SANDBOX_MCP_REBUILD_CONCURRENCY",
         "default": 4,
         "depends_on": "ENABLE_SANDBOX",
+    },
+    "CLIENT_SANDBOX_RPC_TIMEOUT": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SANDBOX,
+        "subcategory": "client",
+        "description": "settingDesc.CLIENT_SANDBOX_RPC_TIMEOUT",
+        "default": 60,
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "client"},
+    },
+    "CLIENT_SANDBOX_MAX_OUTPUT_BYTES": {
+        "type": SettingType.NUMBER,
+        "category": SettingCategory.SANDBOX,
+        "subcategory": "client",
+        "description": "settingDesc.CLIENT_SANDBOX_MAX_OUTPUT_BYTES",
+        "default": 262144,
+        "depends_on": {"key": "SANDBOX_PLATFORM", "value": "client"},
     },
     "DAYTONA_IMAGE": {
         "type": SettingType.STRING,

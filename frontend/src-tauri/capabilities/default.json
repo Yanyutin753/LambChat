@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "Default desktop capability",
   "windows": ["main"],
-  "permissions": ["core:default", "notification:default", "updater:default"]
+  "permissions": [
+    "core:default",
+    "notification:default",
+    "updater:default",
+    "allow-client-sandbox-execute",
+    "allow-client-sandbox-read-file",
+    "allow-client-sandbox-write-file",
+    "allow-client-sandbox-list"
+  ]
 }

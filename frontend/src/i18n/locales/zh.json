@@ -731,6 +731,16 @@
       "name": "沙箱",
       "ready": "沙箱已就绪"
     },
+    "clientSandbox": {
+      "bind": "用这台桌面端作为沙箱",
+      "bindFailed": "未能启用这台桌面端沙箱",
+      "bound": "这台桌面端已作为当前会话沙箱",
+      "enable": "启用本机沙箱",
+      "enableFailed": "未能启用本机沙箱",
+      "enabled": "本机沙箱已启用，所有对话会优先使用这台桌面端",
+      "needSession": "先打开一个会话再启用桌面端沙箱",
+      "pending": "开始对话后会自动使用这台桌面端"
+    },
     "sandboxId": "ID: {{id}}",
     "sandboxInitFailed": "沙箱初始化失败",
     "send": "发送消息",

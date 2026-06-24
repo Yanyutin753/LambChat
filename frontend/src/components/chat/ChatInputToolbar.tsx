@@ -1,4 +1,10 @@
-import { useRef, useCallback, useState, useEffect } from "react";
+import {
+  useRef,
+  useCallback,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react";
 import { ArrowUp, Square, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FeatureMenu, type FeaturePanel } from "../selectors/FeatureMenu";
@@ -52,6 +58,7 @@ export interface ChatInputToolbarProps {
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
   onStopClick: () => void;
   onNoPermissionClick: () => void;
+  clientSandboxButton?: ReactNode;
 }
 
 const FILE_CATEGORY_ACCEPT: Record<FileCategory, string> = {
@@ -98,6 +105,7 @@ export function ChatInputToolbar({
   onToggleAgentOption,
   onStopClick,
   onNoPermissionClick,
+  clientSandboxButton,
 }: ChatInputToolbarProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -250,6 +258,7 @@ export function ChatInputToolbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 self-end">
+        {clientSandboxButton}
         {!canSend ? (
           <button
             type="button"

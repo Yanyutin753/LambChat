@@ -1,0 +1,19 @@
+[[permission]]
+identifier = "allow-client-sandbox-execute"
+description = "Allows executing shell commands in the user-approved desktop sandbox workspace."
+commands.allow = ["client_sandbox_execute"]
+
+[[permission]]
+identifier = "allow-client-sandbox-read-file"
+description = "Allows reading files from the user-approved desktop sandbox workspace."
+commands.allow = ["client_sandbox_read_file"]
+
+[[permission]]
+identifier = "allow-client-sandbox-write-file"
+description = "Allows writing files in the user-approved desktop sandbox workspace."
+commands.allow = ["client_sandbox_write_file"]
+
+[[permission]]
+identifier = "allow-client-sandbox-list"
+description = "Allows listing files in the user-approved desktop sandbox workspace."
+commands.allow = ["client_sandbox_list"]

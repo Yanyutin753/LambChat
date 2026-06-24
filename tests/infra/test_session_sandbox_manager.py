@@ -6,6 +6,10 @@ from typing import Any
 
 import pytest
 
+from src.infra.client_sandbox.models import (
+    ClientSandboxBindingCreate,
+    ClientSandboxSessionBinding,
+)
 from src.infra.sandbox import session_manager as sandbox_module
 
 
@@ -33,6 +37,59 @@ class _FakeMongoClient:
         if name == sandbox_module.BINDING_COLLECTION:
             return self._collection
         return self
+
+
+class _FakeClientSandboxStorage:
+    def __init__(
+        self,
+        binding: ClientSandboxSessionBinding | None,
+        devices: dict[str, str] | None = None,
+        preference: Any | None = None,
+    ) -> None:
+        self.binding = binding
+        self.devices = devices or {}
+        self.preference = preference
+        self.created_bindings: list[ClientSandboxBindingCreate] = []
+
+    async def get_active_binding(
+        self,
+        user_id: str,
+        session_id: str,
+    ) -> ClientSandboxSessionBinding | None:
+        assert user_id == "user-1"
+        assert session_id == "session-1"
+        return self.binding
+
+    async def create_or_refresh_binding(
+        self,
+        user_id: str,
+        binding: ClientSandboxBindingCreate,
+    ) -> ClientSandboxSessionBinding:
+        assert user_id == "user-1"
+        self.created_bindings.append(binding)
+        self.binding = ClientSandboxSessionBinding(
+            user_id=user_id,
+            session_id=binding.session_id,
+            device_id=binding.device_id,
+            workspace_root=binding.workspace_root,
+        )
+        return self.binding
+
+    async def list_devices(self, user_id: str):
+        assert user_id == "user-1"
+
+        class _Device:
+            def __init__(self, device_id: str, workspace_root: str) -> None:
+                self.device_id = device_id
+                self.workspace_root = workspace_root
+
+        return [
+            _Device(device_id, workspace_root) for device_id, workspace_root in self.devices.items()
+        ]
+
+    async def get_preference(self, user_id: str):
+        assert user_id == "user-1"
+        return self.preference
 
 
 @pytest.mark.asyncio
@@ -156,3 +213,172 @@ async def test_bindings_reuses_inflight_index_task_across_instances(
         await task
 
     assert collection.create_index_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_active_client_binding_takes_precedence_over_global_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = ClientSandboxSessionBinding(
+        user_id="user-1",
+        session_id="session-1",
+        device_id="desktop-1",
+        workspace_root="/tmp/lambchat",
+    )
+    storage = _FakeClientSandboxStorage(binding)
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "daytona")
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.storage.ClientSandboxStorage",
+        lambda: storage,
+    )
+
+    manager = sandbox_module.SessionSandboxManager()
+
+    backend, work_dir = await manager.get_or_create("session-1", "user-1")
+
+    assert work_dir == "/workspace"
+    assert backend.default.id == "client:desktop-1"
+
+
+@pytest.mark.asyncio
+async def test_client_sandbox_auto_binds_single_connected_desktop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeClientSandboxStorage(
+        None,
+        devices={"desktop-1": "/tmp/lambchat"},
+    )
+
+    class _Router:
+        async def list_connected_device_ids(self, user_id: str) -> list[str]:
+            assert user_id == "user-1"
+            return ["desktop-1"]
+
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.storage.ClientSandboxStorage",
+        lambda: storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.router.get_client_sandbox_router",
+        lambda: _Router(),
+    )
+
+    manager = sandbox_module.SessionSandboxManager()
+
+    backend, work_dir = await manager._get_or_create_client("session-1", "user-1")
+
+    assert work_dir == "/workspace"
+    assert backend.default.id == "client:desktop-1"
+    assert storage.created_bindings[0].device_id == "desktop-1"
+
+
+@pytest.mark.asyncio
+async def test_connected_desktop_auto_binding_takes_precedence_for_any_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeClientSandboxStorage(
+        None,
+        devices={"desktop-1": "/tmp/lambchat"},
+    )
+
+    class _Router:
+        async def list_connected_device_ids(self, user_id: str) -> list[str]:
+            assert user_id == "user-1"
+            return ["desktop-1"]
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "daytona")
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.storage.ClientSandboxStorage",
+        lambda: storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.router.get_client_sandbox_router",
+        lambda: _Router(),
+    )
+
+    manager = sandbox_module.SessionSandboxManager()
+
+    backend, work_dir = await manager.get_or_create("session-1", "user-1")
+
+    assert work_dir == "/workspace"
+    assert backend.default.id == "client:desktop-1"
+    assert storage.created_bindings[0].session_id == "session-1"
+
+
+@pytest.mark.asyncio
+async def test_enabled_client_sandbox_preference_blocks_e2b_fallback_when_offline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Preference:
+        enabled = True
+        device_id = "desktop-1"
+        workspace_root = "/tmp/lambchat"
+
+    storage = _FakeClientSandboxStorage(None, preference=_Preference())
+
+    class _Router:
+        async def list_connected_device_ids(self, user_id: str) -> list[str]:
+            assert user_id == "user-1"
+            return []
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.storage.ClientSandboxStorage",
+        lambda: storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.router.get_client_sandbox_router",
+        lambda: _Router(),
+    )
+
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = _FakeE2BAdapter()
+
+    with pytest.raises(RuntimeError, match="Local desktop sandbox is enabled"):
+        await manager.get_or_create("session-1", "user-1")
+
+    assert manager._e2b_adapter.method_calls == []
+
+
+@pytest.mark.asyncio
+async def test_enabled_client_sandbox_preference_uses_selected_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Preference:
+        enabled = True
+        device_id = "desktop-2"
+        workspace_root = "/tmp/preferred"
+
+    storage = _FakeClientSandboxStorage(
+        None,
+        devices={
+            "desktop-1": "/tmp/other",
+            "desktop-2": "/tmp/lambchat",
+        },
+        preference=_Preference(),
+    )
+
+    class _Router:
+        async def list_connected_device_ids(self, user_id: str) -> list[str]:
+            assert user_id == "user-1"
+            return ["desktop-1", "desktop-2"]
+
+    monkeypatch.setattr(sandbox_module.settings, "SANDBOX_PLATFORM", "e2b")
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.storage.ClientSandboxStorage",
+        lambda: storage,
+    )
+    monkeypatch.setattr(
+        "src.infra.client_sandbox.router.get_client_sandbox_router",
+        lambda: _Router(),
+    )
+
+    manager = sandbox_module.SessionSandboxManager()
+    manager._e2b_adapter = _FakeE2BAdapter()
+
+    backend, work_dir = await manager.get_or_create("session-1", "user-1")
+
+    assert work_dir == "/workspace"
+    assert backend.default.id == "client:desktop-2"
+    assert manager._e2b_adapter.method_calls == []

@@ -24,6 +24,7 @@ from src.api.routes import (
     auth,
     channels,
     chat,
+    client_sandbox,
     envvar,
     feedback,
     github,
@@ -729,6 +730,7 @@ def create_app() -> FastAPI:
     app.include_router(usage.router, prefix="/api/usage", tags=["Usage"])
     app.include_router(notification.router, prefix="/api/notifications", tags=["Notifications"])
     app.include_router(push.router, prefix="/api/push", tags=["Push"])
+    app.include_router(client_sandbox.router, prefix="/api/client-sandbox", tags=["Client Sandbox"])
     # Generic channel configuration
     app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
     # Scheduled tasks

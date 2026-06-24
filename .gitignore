@@ -58,6 +58,7 @@ htmlcov/
 .mypy_cache/
 frontend/node_modules/
 frontend/src-tauri/icons/
+frontend/src-tauri/target/
 # tsc incremental build cache — regenerated on every build, must not be tracked
 frontend/tsconfig.tsbuildinfo
 frontend/**/*.tsbuildinfo

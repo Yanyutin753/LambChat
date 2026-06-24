@@ -24,7 +24,7 @@ SANDBOX_RUNTIME_SECTION = """## Sandbox Runtime
 
 Current sandbox work_dir: `{work_dir}`
 
-Use this absolute directory for shell-created files and absolute `upload_url_to_sandbox` paths. Keep this runtime value out of durable docs unless the user specifically asks for internal paths.
+Use this exact absolute directory for shell-created files, reads, writes, and absolute `upload_url_to_sandbox` paths. Do not invent or switch to `/home/user` or host-machine paths. When this is a desktop local sandbox, `/workspace` is a virtual path mapped to the user's selected desktop workspace; keep host paths out of replies and durable docs unless the user explicitly asks for them.
 """
 
 DEFAULT_SYSTEM_PROMPT = """## File System
