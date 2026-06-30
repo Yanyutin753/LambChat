@@ -61,8 +61,15 @@ class AgentRequest(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
     project_id: Optional[str] = Field(None, description="Project ID to assign to new session")
     team_id: Optional[str] = Field(None, description="Team ID for team agent mode")
+    plugin_options: Optional[dict[str, dict[str, Any]]] = Field(
+        None,
+        description="Plugin-scoped session options keyed by plugin id and local option key",
+    )
     goal: Optional[GoalSpec] = Field(None, description="Active goal for rubric-guided execution")
-    auto_mode: bool = Field(False, description="Auto mode: skip ask_human, autonomous execution")
+    retry_user_message: bool = Field(
+        False,
+        description="Regenerate using an existing user message without writing a duplicate user event",
+    )
 
 
 class AgentStep(BaseModel):
@@ -142,8 +149,14 @@ class ToolInfo(BaseModel):
 
     name: str = Field(..., description="Tool name")
     description: str = Field(default="", description="Tool description")
-    category: str = Field(..., description="Tool category: builtin, skill, human, mcp")
-    server: Optional[str] = Field(None, description="MCP server name for MCP tools")
+    category: str = Field(
+        ...,
+        description="Tool category: builtin, skill, human, mcp, sandbox, internal",
+    )
+    server: Optional[str] = Field(
+        None,
+        description="Server/source name for MCP or internal tools",
+    )
     parameters: list[ToolParamInfo] = Field(default_factory=list, description="Tool parameters")
     system_disabled: bool = Field(
         default=False,
@@ -203,6 +216,7 @@ class AgentConfig(BaseModel):
     enabled: bool = Field(True, description="Whether the agent is enabled globally")
     icon: Optional[str] = Field(None, description="Display icon name or emoji")
     sort_order: Optional[int] = Field(None, description="Display sort order")
+    category: Optional[str] = Field(None, description="Plugin-declared agent category")
     labels: dict[str, "AgentCatalogLocale"] = Field(
         default_factory=dict,
         description="Localized display labels keyed by locale",
@@ -225,6 +239,7 @@ class AgentCatalogConfig(BaseModel):
     enabled: bool = Field(True, description="Whether the agent is enabled globally")
     icon: str = Field("Bot", description="Display icon name or emoji")
     sort_order: int = Field(100, description="Display sort order")
+    category: Optional[str] = Field(None, description="Plugin-declared agent category")
     labels: dict[str, AgentCatalogLocale] = Field(
         default_factory=dict,
         description="Localized display labels keyed by locale",

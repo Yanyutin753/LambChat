@@ -1,0 +1,55 @@
+id: audio_transcription
+name: Audio Transcription
+version: 1.0.0
+api_version: v1
+install_type: preinstalled
+entrypoint: backend
+permissions:
+  - mcp:read
+legacy_system_settings:
+  - ENABLE_AUDIO_TRANSCRIPTION
+enabled_by_default: false
+settings:
+  - key: API_KEY
+    type: string
+    label: pluginSettings.audio_transcription.API_KEY.label
+    description: pluginSettings.audio_transcription.API_KEY.description
+    default: ""
+    sensitive: true
+    required: true
+    group: provider
+    order: 10
+    env_fallback: AUDIO_TRANSCRIPTION_API_KEY
+    legacy_system_setting_keys:
+      - AUDIO_TRANSCRIPTION_API_KEY
+  - key: BASE_URL
+    type: string
+    label: pluginSettings.audio_transcription.BASE_URL.label
+    description: pluginSettings.audio_transcription.BASE_URL.description
+    default: ""
+    group: provider
+    order: 20
+    env_fallback: AUDIO_TRANSCRIPTION_BASE_URL
+    legacy_system_setting_keys:
+      - AUDIO_TRANSCRIPTION_BASE_URL
+  - key: MODEL
+    type: string
+    label: pluginSettings.audio_transcription.MODEL.label
+    description: pluginSettings.audio_transcription.MODEL.description
+    default: gpt-4o-mini-transcribe
+    group: provider
+    order: 30
+    env_fallback: AUDIO_TRANSCRIPTION_MODEL
+    legacy_system_setting_keys:
+      - AUDIO_TRANSCRIPTION_MODEL
+  - key: MAX_DOWNLOAD_BYTES
+    type: number
+    label: pluginSettings.audio_transcription.MAX_DOWNLOAD_BYTES.label
+    description: pluginSettings.audio_transcription.MAX_DOWNLOAD_BYTES.description
+    default: 52428800
+    group: limits
+    order: 40
+    env_fallback: AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES
+    legacy_system_setting_keys:
+      - AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES
+data_template: plugin-data-template

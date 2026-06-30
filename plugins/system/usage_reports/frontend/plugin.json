@@ -1,0 +1,42 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "usage_reports",
+  "frontend": {
+    "app_tabs": [
+      {
+        "id": "usage_reports:usage-tab",
+        "tab": "usage",
+        "path": "/usage",
+        "label": "nav.usage",
+        "panel": "usage_reports:usage-panel",
+        "insert_after": "scheduled-tasks",
+        "order": 620,
+        "permissions": ["usage:read"],
+        "seo_title": "seo.usage.title",
+        "seo_description": "seo.usage.description",
+        "redirect_to": "/chat",
+        "show_no_permission_toast": true
+      }
+    ],
+    "app_panels": [
+      {
+        "id": "usage_reports:usage-panel",
+        "tab": "usage",
+        "renderer": "usage_reports.UsagePanel"
+      }
+    ],
+    "user_menu_items": [
+      {
+        "id": "usage_reports:usage-menu",
+        "path": "/usage",
+        "label": "nav.usage",
+        "icon": "BarChart3",
+        "group": "system",
+        "order": 60,
+        "permissions": ["usage:read"]
+      }
+    ],
+    "i18n_namespaces": ["usage_reports:usage"],
+    "required_permissions": ["usage:read"]
+  }
+}

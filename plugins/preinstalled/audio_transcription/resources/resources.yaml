@@ -1,0 +1,9 @@
+resources:
+  - id: AUDIO_TRANSCRIPTION_API_KEY
+    type: env_key_declaration
+    scope: system
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      setting: AUDIO_TRANSCRIPTION_API_KEY
+      secret: "true"

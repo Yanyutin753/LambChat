@@ -1,0 +1,15 @@
+{
+  "schema": "lambchat.plugin.backend.v1",
+  "plugin_id": "usage_reports",
+  "backend": {
+    "routes": [
+      {
+        "name": "usage_reports-api",
+        "prefix": "/api/usage",
+        "module": "src.api.routes.usage",
+        "required_permissions": ["usage:read", "usage:admin"],
+        "tags": ["Usage"]
+      }
+    ]
+  }
+}

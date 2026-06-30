@@ -1,0 +1,12 @@
+{
+  "schema": "lambchat.plugin.frontend.v1",
+  "plugin_id": "audio_transcription",
+  "frontend": {
+    "tool_renderers": [
+      {
+        "id": "audio_transcription:audio-transcribe",
+        "tool_names": ["audio_transcription.audio_transcribe", "audio_transcribe"]
+      }
+    ]
+  }
+}

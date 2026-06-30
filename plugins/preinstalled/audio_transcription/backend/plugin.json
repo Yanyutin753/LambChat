@@ -1,0 +1,14 @@
+{
+  "schema": "lambchat.plugin.backend.v1",
+  "plugin_id": "audio_transcription",
+  "backend": {
+    "tools": [
+      {
+        "name": "audio_transcribe",
+        "module": "src.infra.tool.audio_transcribe_tool",
+        "required_permissions": ["mcp:read"],
+        "legacy_ids": ["audio_transcribe"]
+      }
+    ]
+  }
+}

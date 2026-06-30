@@ -1,0 +1,6 @@
+{
+  "API_KEY": "",
+  "BASE_URL": "https://api.openai.com/v1",
+  "MODEL": "gpt-image-2",
+  "TIMEOUT": 120
+}

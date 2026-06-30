@@ -1,0 +1,17 @@
+resources:
+  - id: IMAGE_GENERATION_API_KEY
+    type: env_key_declaration
+    scope: system
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      setting: IMAGE_GENERATION_API_KEY
+      secret: "true"
+  - id: generated-images/{user_id}
+    type: file
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: s3_or_local
+      producer: src.infra.tool.image_generation_tool.image_generate

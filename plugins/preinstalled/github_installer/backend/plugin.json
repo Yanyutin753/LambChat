@@ -1,0 +1,15 @@
+{
+  "schema": "lambchat.plugin.backend.v1",
+  "plugin_id": "github_installer",
+  "backend": {
+    "routes": [
+      {
+        "name": "github_installer-api",
+        "prefix": "/api/github",
+        "module": "src.api.routes.github",
+        "required_permissions": ["skill:read", "skill:write"],
+        "tags": ["GitHub"]
+      }
+    ]
+  }
+}

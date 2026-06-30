@@ -270,6 +270,20 @@ class MCPToolDiscoveryResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if discovery failed")
 
 
+class MCPInternalToolInvokeRequest(BaseModel):
+    """Request to invoke a constrained internal MCP tool."""
+
+    arguments: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
+
+
+class MCPInternalToolInvokeResponse(BaseModel):
+    """Response from an internal MCP tool invocation."""
+
+    server_name: str = Field(..., description="MCP server name")
+    tool_name: str = Field(..., description="Invoked tool name")
+    result: Any = Field(None, description="Tool result payload")
+
+
 class MCPToolToggleRequest(BaseModel):
     """Request to toggle a specific tool's enabled status"""
 

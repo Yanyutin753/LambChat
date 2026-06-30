@@ -1,0 +1,14 @@
+{
+  "schema": "lambchat.plugin.backend.v1",
+  "plugin_id": "image_generation",
+  "backend": {
+    "tools": [
+      {
+        "name": "image_generate",
+        "module": "src.infra.tool.image_generation_tool",
+        "required_permissions": ["mcp:read"],
+        "legacy_ids": ["image_generate"]
+      }
+    ]
+  }
+}

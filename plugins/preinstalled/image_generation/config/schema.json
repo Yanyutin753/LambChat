@@ -1,0 +1,50 @@
+{
+  "settings": [
+    {
+      "key": "API_KEY",
+      "type": "string",
+      "label": "pluginSettings.image_generation.API_KEY.label",
+      "description": "pluginSettings.image_generation.API_KEY.description",
+      "default": "",
+      "sensitive": true,
+      "required": true,
+      "group": "provider",
+      "order": 10,
+      "env_fallback": "IMAGE_GENERATION_API_KEY",
+      "legacy_system_setting_keys": ["IMAGE_GENERATION_API_KEY"]
+    },
+    {
+      "key": "BASE_URL",
+      "type": "string",
+      "label": "pluginSettings.image_generation.BASE_URL.label",
+      "description": "pluginSettings.image_generation.BASE_URL.description",
+      "default": "https://api.openai.com/v1",
+      "group": "provider",
+      "order": 20,
+      "env_fallback": "IMAGE_GENERATION_BASE_URL",
+      "legacy_system_setting_keys": ["IMAGE_GENERATION_BASE_URL"]
+    },
+    {
+      "key": "MODEL",
+      "type": "string",
+      "label": "pluginSettings.image_generation.MODEL.label",
+      "description": "pluginSettings.image_generation.MODEL.description",
+      "default": "gpt-image-2",
+      "group": "provider",
+      "order": 30,
+      "env_fallback": "IMAGE_GENERATION_MODEL",
+      "legacy_system_setting_keys": ["IMAGE_GENERATION_MODEL"]
+    },
+    {
+      "key": "TIMEOUT",
+      "type": "number",
+      "label": "pluginSettings.image_generation.TIMEOUT.label",
+      "description": "pluginSettings.image_generation.TIMEOUT.description",
+      "default": 120,
+      "group": "provider",
+      "order": 40,
+      "env_fallback": "IMAGE_GENERATION_TIMEOUT",
+      "legacy_system_setting_keys": ["IMAGE_GENERATION_TIMEOUT"]
+    }
+  ]
+}
