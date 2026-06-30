@@ -1,0 +1,26 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "List Operator"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "pick",
+        "type": "list-operator",
+        "data": {
+          "title": "Pick first item",
+          "variable_selector": ["items"],
+          "operation": "first",
+          "output_key": "first_item"
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{first_item}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "pick" },
+      { "id": "e2", "source": "pick", "target": "answer" }
+    ]
+  }
+}

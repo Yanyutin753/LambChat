@@ -1,0 +1,61 @@
+{
+  "schema": "lambchat.plugin.backend.v1",
+  "plugin_id": "workflow",
+  "backend": {
+    "routes": [
+      {
+        "name": "workflow-api",
+        "prefix": "/api/plugins/workflow",
+        "module": "src.plugins.workflow.routes",
+        "required_permissions": ["workflow:read", "workflow:write", "workflow:run"],
+        "tags": ["workflowPlugin.nav.label"]
+      }
+    ],
+    "tools": [
+      {
+        "name": "workflow_run",
+        "module": "src.plugins.workflow.tools",
+        "required_permissions": ["workflow:run"],
+        "legacy_ids": ["workflow_run"]
+      },
+      {
+        "name": "workflow_list",
+        "module": "src.plugins.workflow.tools",
+        "required_permissions": ["workflow:read"],
+        "legacy_ids": ["workflow_list"]
+      },
+      {
+        "name": "workflow_get_schema",
+        "module": "src.plugins.workflow.tools",
+        "required_permissions": ["workflow:read"],
+        "legacy_ids": ["workflow_get_schema"]
+      },
+      {
+        "name": "workflow_get_run",
+        "module": "src.plugins.workflow.tools",
+        "required_permissions": ["workflow:read"],
+        "legacy_ids": ["workflow_get_run"]
+      },
+      {
+        "name": "workflow_resume",
+        "module": "src.plugins.workflow.tools",
+        "required_permissions": ["workflow:run"],
+        "legacy_ids": ["workflow_resume"]
+      }
+    ],
+    "lifespan_hooks": [
+      {
+        "name": "workflow:startup",
+        "module": "src.plugins.workflow.lifecycle:startup",
+        "phase": "startup",
+        "order": 50
+      },
+      {
+        "name": "workflow:shutdown",
+        "module": "src.plugins.workflow.lifecycle:shutdown",
+        "phase": "shutdown",
+        "order": 50
+      }
+    ]
+  }
+}

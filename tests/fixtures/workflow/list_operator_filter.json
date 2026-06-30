@@ -1,0 +1,51 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "List Operator Filter"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "filter",
+        "type": "list-operator",
+        "data": {
+          "title": "Filter active high-scoring items",
+          "variable_selector": ["items"],
+          "operation": "filter",
+          "logical_operator": "and",
+          "conditions": [
+            {
+              "variable_selector": ["item", "score"],
+              "operator": ">=",
+              "value": "{{min_score}}"
+            },
+            {
+              "variable_selector": ["item", "active"],
+              "operator": "is true"
+            }
+          ],
+          "output_key": "filtered_items"
+        }
+      },
+      {
+        "id": "sort",
+        "type": "list-operator",
+        "data": {
+          "title": "Sort filtered items",
+          "variable_selector": ["filtered_items"],
+          "operation": "sort",
+          "sort_by": "score",
+          "direction": "desc",
+          "output_key": "ranked_items"
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{ranked_items.0.name}}/{{ranked_items.1.name}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "filter" },
+      { "id": "e2", "source": "filter", "target": "sort" },
+      { "id": "e3", "source": "sort", "target": "answer" }
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Variable Aggregator Groups"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "aggregate",
+        "type": "variable-aggregator",
+        "data": {
+          "title": "Aggregate",
+          "output_key": "picked",
+          "variable_groups": [
+            {
+              "group_name": "primary",
+              "value": [
+                { "value_selector": ["missing"] },
+                { "selector": ["profile", "display_name"] }
+              ]
+            },
+            {
+              "group_name": "fallback",
+              "selectors": [
+                { "variable_selector": ["account", "label"] }
+              ]
+            }
+          ]
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{picked}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "aggregate" },
+      { "id": "e2", "source": "aggregate", "target": "answer" }
+    ]
+  }
+}

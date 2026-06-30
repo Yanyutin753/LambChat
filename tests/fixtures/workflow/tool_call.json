@@ -1,0 +1,25 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Tool Call"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "tool",
+        "type": "tool",
+        "data": {
+          "title": "List Workflows",
+          "tool_name": "workflow_list",
+          "arguments": { "scope": "published" }
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{tool_result}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "tool" },
+      { "id": "e2", "source": "tool", "target": "answer" }
+    ]
+  }
+}

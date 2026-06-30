@@ -1,0 +1,27 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "List Operator Pluck"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "pluck",
+        "type": "list-operator",
+        "data": {
+          "title": "Pluck names",
+          "variable_selector": ["items"],
+          "operation": "pluck",
+          "value_key": "profile.name",
+          "output_key": "names"
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{names.0}}/{{names.1}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "pluck" },
+      { "id": "e2", "source": "pluck", "target": "answer" }
+    ]
+  }
+}

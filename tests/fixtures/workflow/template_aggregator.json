@@ -1,0 +1,38 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Template Aggregator"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "template",
+        "type": "template-transform",
+        "data": {
+          "title": "Render",
+          "template": "Hello {{name}}",
+          "output_key": "rendered"
+        }
+      },
+      {
+        "id": "aggregate",
+        "type": "variable-aggregator",
+        "data": {
+          "title": "Aggregate",
+          "output_key": "picked",
+          "variables": [
+            { "variable_selector": ["missing"] },
+            { "variable_selector": ["rendered"] }
+          ]
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{picked}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "template" },
+      { "id": "e2", "source": "template", "target": "aggregate" },
+      { "id": "e3", "source": "aggregate", "target": "answer" }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Answer Text Parts"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "answer",
+          "data": {
+            "type": "answer",
+            "title": "Answer",
+            "content": [
+              { "type": "text", "text": "Hello {{name}}" },
+              " from ",
+              { "type": "markdown", "data": "{{team}}" },
+              { "type": "image", "url": "https://example.invalid/ignored.png" }
+            ]
+          }
+        }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "answer" }
+      ]
+    }
+  }
+}

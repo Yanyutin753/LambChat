@@ -1,0 +1,28 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "HTTP Request"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "http",
+        "type": "http-request",
+        "data": {
+          "title": "Fetch",
+          "method": "GET",
+          "url": "https://example.com/status",
+          "headers": {
+            "Authorization": "Bearer {{secret.api_key}}"
+          }
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{http.body}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "http" },
+      { "id": "e2", "source": "http", "target": "answer" }
+    ]
+  }
+}

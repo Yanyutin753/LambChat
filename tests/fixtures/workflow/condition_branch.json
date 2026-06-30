@@ -1,0 +1,30 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Condition Branch"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        { "id": "start", "data": { "type": "start", "title": "Start" } },
+        {
+          "id": "branch",
+          "data": {
+            "type": "if-else",
+            "title": "Message present",
+            "conditions": [
+              { "variable_selector": ["message"], "comparison_operator": "not_empty" }
+            ]
+          }
+        },
+        { "id": "yes", "data": { "type": "answer", "title": "Yes", "answer": "Message: {{message}}" } },
+        { "id": "no", "data": { "type": "answer", "title": "No", "answer": "No message" } }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "branch" },
+        { "id": "e2", "source": "branch", "target": "yes", "sourceHandle": "true" },
+        { "id": "e3", "source": "branch", "target": "no", "sourceHandle": "false" }
+      ]
+    }
+  }
+}

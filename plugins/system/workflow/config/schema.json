@@ -1,0 +1,232 @@
+{
+  "settings": [
+    {
+      "key": "DEFAULT_MODEL",
+      "type": "string",
+      "label": "pluginSettings.workflow.DEFAULT_MODEL.label",
+      "description": "pluginSettings.workflow.DEFAULT_MODEL.description",
+      "default": "",
+      "scope": "system",
+      "group": "runtime",
+      "order": 10
+    },
+    {
+      "key": "DEFAULT_TIMEOUT_SECONDS",
+      "type": "number",
+      "label": "pluginSettings.workflow.DEFAULT_TIMEOUT_SECONDS.label",
+      "description": "pluginSettings.workflow.DEFAULT_TIMEOUT_SECONDS.description",
+      "default": 120,
+      "scope": "system",
+      "group": "runtime",
+      "order": 20
+    },
+    {
+      "key": "MAX_NODES_PER_WORKFLOW",
+      "type": "number",
+      "label": "pluginSettings.workflow.MAX_NODES_PER_WORKFLOW.label",
+      "description": "pluginSettings.workflow.MAX_NODES_PER_WORKFLOW.description",
+      "default": 100,
+      "scope": "system",
+      "group": "limits",
+      "order": 30
+    },
+    {
+      "key": "MAX_RUN_SECONDS",
+      "type": "number",
+      "label": "pluginSettings.workflow.MAX_RUN_SECONDS.label",
+      "description": "pluginSettings.workflow.MAX_RUN_SECONDS.description",
+      "default": 300,
+      "scope": "system",
+      "group": "limits",
+      "order": 40
+    },
+    {
+      "key": "HTTP_NODE_POLICY",
+      "type": "string",
+      "label": "pluginSettings.workflow.HTTP_NODE_POLICY.label",
+      "description": "pluginSettings.workflow.HTTP_NODE_POLICY.description",
+      "default": "disabled",
+      "scope": "system",
+      "group": "security",
+      "order": 50
+    },
+    {
+      "key": "HTTP_ALLOWLIST",
+      "type": "json",
+      "label": "pluginSettings.workflow.HTTP_ALLOWLIST.label",
+      "description": "pluginSettings.workflow.HTTP_ALLOWLIST.description",
+      "default": [],
+      "scope": "system",
+      "group": "security",
+      "order": 60
+    },
+    {
+      "key": "CODE_NODE_POLICY",
+      "type": "string",
+      "label": "pluginSettings.workflow.CODE_NODE_POLICY.label",
+      "description": "pluginSettings.workflow.CODE_NODE_POLICY.description",
+      "default": "disabled",
+      "scope": "system",
+      "group": "security",
+      "order": 70
+    },
+    {
+      "key": "KNOWLEDGE_DATASET_MAPPINGS",
+      "type": "json",
+      "label": "pluginSettings.workflow.KNOWLEDGE_DATASET_MAPPINGS.label",
+      "description": "pluginSettings.workflow.KNOWLEDGE_DATASET_MAPPINGS.description",
+      "default": {},
+      "scope": "system",
+      "group": "runtime",
+      "order": 75
+    },
+    {
+      "key": "CREDENTIAL_REF_MAPPINGS",
+      "type": "json",
+      "label": "pluginSettings.workflow.CREDENTIAL_REF_MAPPINGS.label",
+      "description": "pluginSettings.workflow.CREDENTIAL_REF_MAPPINGS.description",
+      "default": {},
+      "scope": "system",
+      "group": "runtime",
+      "order": 76,
+      "json_schema": {
+        "type": "object",
+        "additionalProperties": {
+          "type": [
+            "string",
+            "object"
+          ],
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            },
+            "target_ref": {
+              "type": "string"
+            },
+            "credential_ref": {
+              "type": "string"
+            },
+            "credential_id": {
+              "type": "string"
+            },
+            "model_id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    {
+      "key": "MAX_EVENT_PAYLOAD_BYTES",
+      "type": "number",
+      "label": "pluginSettings.workflow.MAX_EVENT_PAYLOAD_BYTES.label",
+      "description": "pluginSettings.workflow.MAX_EVENT_PAYLOAD_BYTES.description",
+      "default": 65536,
+      "scope": "system",
+      "group": "limits",
+      "order": 80
+    },
+    {
+      "key": "RUN_LOG_RETENTION_DAYS",
+      "type": "number",
+      "label": "pluginSettings.workflow.RUN_LOG_RETENTION_DAYS.label",
+      "description": "pluginSettings.workflow.RUN_LOG_RETENTION_DAYS.description",
+      "default": 30,
+      "scope": "system",
+      "group": "retention",
+      "order": 90
+    },
+    {
+      "key": "DEFAULT_WORKFLOW_ID",
+      "type": "string",
+      "label": "workflowPlugin.project.defaultWorkflow",
+      "description": "workflowPlugin.project.defaultWorkflowDescription",
+      "default": "",
+      "scope": "project",
+      "group": "workflow",
+      "order": 10
+    },
+    {
+      "key": "DEFAULT_WORKFLOW_VERSION_ID",
+      "type": "string",
+      "label": "workflowPlugin.project.defaultWorkflowVersion",
+      "description": "workflowPlugin.project.defaultWorkflowVersionDescription",
+      "default": "",
+      "scope": "project",
+      "group": "workflow",
+      "order": 11
+    },
+    {
+      "key": "SELECTED_WORKFLOW_ID",
+      "type": "string",
+      "label": "workflowPlugin.session.selectedWorkflow",
+      "description": "workflowPlugin.session.selectedWorkflowDescription",
+      "default": "",
+      "scope": "session",
+      "group": "workflow",
+      "order": 10
+    },
+    {
+      "key": "SELECTED_WORKFLOW_VERSION_ID",
+      "type": "string",
+      "label": "workflowPlugin.session.selectedWorkflowVersion",
+      "description": "workflowPlugin.session.selectedWorkflowVersionDescription",
+      "default": "",
+      "scope": "session",
+      "group": "workflow",
+      "order": 11
+    },
+    {
+      "key": "SELECTED_WORKFLOW_INPUT_JSON",
+      "type": "json",
+      "label": "workflowPlugin.session.selectedWorkflowInput",
+      "description": "workflowPlugin.session.selectedWorkflowInputDescription",
+      "default": {},
+      "scope": "session",
+      "group": "workflow",
+      "order": 12
+    },
+    {
+      "key": "WORKFLOW_ID",
+      "type": "string",
+      "label": "workflowPlugin.scheduledTask.workflow",
+      "description": "workflowPlugin.scheduledTask.workflowDescription",
+      "default": "",
+      "scope": "scheduled_task",
+      "group": "workflow",
+      "order": 10
+    },
+    {
+      "key": "WORKFLOW_VERSION_ID",
+      "type": "string",
+      "label": "workflowPlugin.scheduledTask.workflowVersion",
+      "description": "workflowPlugin.scheduledTask.workflowVersionDescription",
+      "default": "",
+      "scope": "scheduled_task",
+      "group": "workflow",
+      "order": 11
+    },
+    {
+      "key": "WORKFLOW_INPUT_JSON",
+      "type": "json",
+      "label": "workflowPlugin.scheduledTask.workflowInput",
+      "description": "workflowPlugin.scheduledTask.workflowInputDescription",
+      "default": {},
+      "scope": "scheduled_task",
+      "group": "workflow",
+      "order": 12
+    }
+  ]
+}

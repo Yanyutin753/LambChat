@@ -1,0 +1,22 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Iteration"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "loop",
+        "type": "iteration",
+        "data": {
+          "title": "Loop Items",
+          "iterator_selector": ["items"]
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "loop" }
+    ]
+  }
+}

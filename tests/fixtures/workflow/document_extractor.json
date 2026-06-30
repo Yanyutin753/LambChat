@@ -1,0 +1,35 @@
+{
+  "version": "0.3.0",
+  "workflow": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "start",
+        "data": {
+          "title": "Start",
+          "variables": [
+            { "name": "attachment", "type": "file" }
+          ]
+        }
+      },
+      {
+        "id": "extract",
+        "type": "document-extractor",
+        "data": {
+          "title": "Extract document text",
+          "variable_selector": ["attachment"],
+          "output_key": "document_text"
+        }
+      },
+      {
+        "id": "answer",
+        "type": "answer",
+        "data": { "title": "Answer", "answer": "{{document_text}}" }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "extract" },
+      { "id": "e2", "source": "extract", "target": "answer" }
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "List Operator Predicates"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "find",
+        "type": "list-operator",
+        "data": {
+          "title": "Find first active high-scoring item",
+          "variable_selector": ["items"],
+          "operation": "find",
+          "logical_operator": "and",
+          "conditions": [
+            {
+              "variable_selector": ["item", "score"],
+              "operator": ">=",
+              "value": "{{min_score}}"
+            },
+            {
+              "variable_selector": ["item", "active"],
+              "operator": "is true"
+            }
+          ],
+          "output_key": "first_match"
+        }
+      },
+      {
+        "id": "count",
+        "type": "list-operator",
+        "data": {
+          "title": "Count active high-scoring items",
+          "variable_selector": ["items"],
+          "operation": "count_matching",
+          "logical_operator": "and",
+          "conditions": [
+            {
+              "variable_selector": ["item", "score"],
+              "operator": ">=",
+              "value": "{{min_score}}"
+            },
+            {
+              "variable_selector": ["item", "active"],
+              "operator": "is true"
+            }
+          ],
+          "output_key": "match_count"
+        }
+      },
+      {
+        "id": "answer",
+        "type": "answer",
+        "data": {
+          "title": "Answer",
+          "answer": "{{first_match.name}}/{{match_count}}"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "find" },
+      { "id": "e2", "source": "find", "target": "count" },
+      { "id": "e3", "source": "count", "target": "answer" }
+    ]
+  }
+}

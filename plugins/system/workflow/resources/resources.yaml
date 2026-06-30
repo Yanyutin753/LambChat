@@ -1,0 +1,126 @@
+resources:
+  - id: workflow_definitions
+    type: db_collection
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: mongodb
+      data_policy: Disable/uninstall keeps workflow definitions.
+  - id: workflow_versions
+    type: db_collection
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: mongodb
+      data_policy: Disable/uninstall keeps workflow versions and source snapshots.
+  - id: workflow_runs
+    type: db_collection
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: mongodb
+      data_policy: Run history is retained by default.
+  - id: workflow_run_events
+    type: db_collection
+    scope: user
+    retention_policy: keep_user_data
+    cleanup_strategy: keep
+    metadata:
+      storage: mongodb
+      data_policy: Run trace events are retained by configured retention policy.
+  - id: workflow_credentials
+    type: db_collection
+    scope: user
+    retention_policy: manual_review_required
+    cleanup_strategy: manual_review
+    metadata:
+      storage: mongodb
+      data_policy: Credential references require manual review on uninstall.
+  - id: workflow_definitions.workflow_id_unique
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_definitions
+      fields: workflow_id
+      unique: "true"
+  - id: workflow_definitions.owner_updated_at_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_definitions
+      fields: owner_user_id,updated_at:-1
+  - id: workflow_versions.version_id_unique
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_versions
+      fields: version_id
+      unique: "true"
+  - id: workflow_versions.workflow_version_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_versions
+      fields: workflow_id,version_number
+  - id: workflow_runs.run_id_unique
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_runs
+      fields: run_id
+      unique: "true"
+  - id: workflow_runs.workflow_started_at_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_runs
+      fields: workflow_id,started_at:-1
+  - id: workflow_run_events.run_sequence_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_run_events
+      fields: run_id,sequence
+  - id: workflow_credentials.credential_id_unique
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_credentials
+      fields: credential_id
+      unique: "true"
+  - id: workflow_credentials.owner_ref_unique
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_credentials
+      fields: owner_user_id,ref
+      unique: "true"
+  - id: workflow_credentials.owner_updated_at_lookup
+    type: db_index
+    scope: global
+    retention_policy: archive_metadata
+    cleanup_strategy: archive
+    metadata:
+      collection: workflow_credentials
+      fields: owner_user_id,updated_at:-1

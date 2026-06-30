@@ -1,0 +1,35 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "HTTP Request Descriptors"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "http",
+        "type": "http-request",
+        "data": {
+          "title": "Fetch",
+          "request_method": "POST",
+          "endpoint": "https://example.com/search",
+          "header_parameters": [
+            { "name": "X-Tenant", "value": "{{tenant}}" }
+          ],
+          "query_parameters": [
+            { "name": "q", "value": "{{message}}" },
+            { "name": "limit", "default": 3 }
+          ],
+          "request_body": {
+            "mode": "{{mode}}"
+          }
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{http.body}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "http" },
+      { "id": "e2", "source": "http", "target": "answer" }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "List Operator Sum"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "sum",
+        "type": "list-operator",
+        "data": {
+          "title": "Sum scores",
+          "variable_selector": ["items"],
+          "operation": "sum",
+          "value_key": "score",
+          "output_key": "total_score"
+        }
+      },
+      { "id": "answer", "type": "answer", "data": { "title": "Answer", "answer": "{{total_score}}" } }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "sum" },
+      { "id": "e2", "source": "sum", "target": "answer" }
+    ]
+  }
+}

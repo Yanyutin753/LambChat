@@ -1,0 +1,23 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Unsupported Sub Workflow"
+  },
+  "workflow": {
+    "nodes": [
+      { "id": "start", "type": "start", "data": { "title": "Start" } },
+      {
+        "id": "subflow",
+        "type": "sub-workflow",
+        "data": {
+          "title": "Call child workflow",
+          "workflow_id": "wf-child",
+          "version": "published"
+        }
+      }
+    ],
+    "edges": [
+      { "id": "e1", "source": "start", "target": "subflow" }
+    ]
+  }
+}

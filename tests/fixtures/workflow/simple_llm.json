@@ -1,0 +1,45 @@
+{
+  "version": "0.3.0",
+  "app": {
+    "name": "Simple LLM",
+    "version": "1.0.0"
+  },
+  "workflow": {
+    "graph": {
+      "nodes": [
+        {
+          "id": "start",
+          "data": {
+            "type": "start",
+            "title": "Start"
+          }
+        },
+        {
+          "id": "llm",
+          "data": {
+            "type": "llm",
+            "title": "Think",
+            "model": {
+              "provider": "openai",
+              "name": "gpt-4o-mini"
+            },
+            "provider_credential_id": "openai-main",
+            "prompt_template": "Answer {{#sys.query#}}"
+          }
+        },
+        {
+          "id": "answer",
+          "data": {
+            "type": "answer",
+            "title": "Answer",
+            "answer": "{{llm.text}}"
+          }
+        }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start", "target": "llm" },
+        { "id": "e2", "source": "llm", "target": "answer" }
+      ]
+    }
+  }
+}
