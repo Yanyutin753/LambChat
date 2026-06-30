@@ -109,21 +109,23 @@ test("Workflow run route can hydrate a run trace from the URL", () => {
   assert.match(panelSource, /\}, \[defaultText, routeSelectedRunId, selectedId, t\]\)/);
 });
 
-test("Workflow panel is route-aware across list, editor, and run trace modes", () => {
+test("Workflow panel is route-aware across list, create, import, editor, and run trace modes", () => {
   assert.match(panelSource, /import \{ Link, useNavigate, useParams, useSearchParams \} from "react-router-dom"/);
   assert.match(panelSource, /function workflowEditorPath/);
   assert.match(panelSource, /function workflowRunTracePath/);
   assert.match(panelSource, /type WorkflowPanelProps/);
   assert.match(panelSource, /export function WorkflowPanel\(\{ activeTab \}: WorkflowPanelProps = \{\}\)/);
-  assert.match(panelSource, /const workflowRouteMode = routeSelectedRunId \|\| activeTab === "workflows-run"/);
+  assert.match(panelSource, /const workflowRouteMode = createMode === "import"/);
+  assert.match(panelSource, /\? "import"/);
+  assert.match(panelSource, /createMode === "blank"/);
+  assert.match(panelSource, /\? "create"/);
+  assert.match(panelSource, /routeSelectedRunId \|\| activeTab === "workflows-run"/);
   assert.match(panelSource, /: routeSelectedWorkflowId \|\| activeTab === "workflows-editor"/);
   assert.match(panelSource, /const workflowRouteTitle = workflowRouteMode === "run"/);
   assert.match(panelSource, /const workspaceGridClass = workflowRouteMode === "run"/);
-  assert.match(panelSource, /const shouldShowWorkflowSidebar = workflowRouteMode === "list"/);
-  assert.match(panelSource, /shouldShowWorkflowSidebar \? "lg:grid-cols-\[18rem_minmax\(0,1fr\)\]" : ""/);
-  assert.match(panelSource, /\{shouldShowWorkflowSidebar && \(/);
   assert.match(panelSource, /workflowRouteMode === "list" &&/);
-  assert.match(panelSource, /workflowRouteMode !== "run" &&/);
+  assert.match(panelSource, /workflowRouteMode === "create" &&/);
+  assert.match(panelSource, /workflowRouteMode === "import" &&/);
   assert.match(panelSource, /workflowRouteMode === "run" \? "xl:order-first"/);
   assert.match(panelSource, /to=\{workflowEditorPath\(selectedWorkflow\.workflow_id\)\}/);
   assert.match(panelSource, /to=\{workflowRunTracePath\(runResult\.workflow_id, runResult\.run_id\)\}/);
