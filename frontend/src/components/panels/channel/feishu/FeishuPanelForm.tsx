@@ -12,12 +12,20 @@ import { ImageWithSkeleton } from "../../../chat/ChatMessage/ImageWithSkeleton";
 import { ChannelAgentSelect } from "../ChannelAgentSelect";
 import { ChannelModelSelect } from "../ChannelModelSelect";
 import { ChannelPersonaSelect } from "../ChannelPersonaSelect";
-import { ChannelTeamSelect } from "../ChannelTeamSelect";
+import {
+  ChannelPluginOptions,
+  type ChannelPluginOptionValues,
+} from "../ChannelPluginOptions";
+import {
+  filterPluginOptionsByVisibleWhen,
+  hasEffectiveCorePersonaSuppressingOption,
+} from "../../../../extensions/pluginOptions";
 import {
   DEFAULT_AUDIO_TRANSCRIBE_PROMPT,
   PREDEFINED_EMOJIS,
 } from "./constants";
 import type { FeishuConfigStatus } from "./types";
+import type { ExtensionScopedOption } from "../../../../types";
 
 interface FeishuPanelFormProps {
   t: TFunction;
@@ -40,7 +48,8 @@ interface FeishuPanelFormProps {
   audioTranscribePrompt: string;
   agentId: string | null;
   modelId: string | null;
-  teamId: string | null;
+  channelPluginOptions: readonly ExtensionScopedOption[];
+  channelPluginOptionValues: ChannelPluginOptionValues;
   personaPresetId: string | null;
   credentialMode: "scan" | "manual";
   registrationStatus: string;
@@ -62,7 +71,7 @@ interface FeishuPanelFormProps {
   setAudioTranscribePrompt: (value: string) => void;
   onAgentIdChange: (value: string | null) => void;
   setModelId: (value: string | null) => void;
-  setTeamId: (value: string | null) => void;
+  setChannelPluginOption: (pluginId: string, key: string, value: unknown) => void;
   setPersonaPresetId: (value: string | null) => void;
   setCredentialMode: (value: "scan" | "manual") => void;
   handleStartRegistration: () => void;
@@ -121,7 +130,8 @@ export function FeishuPanelForm({
   audioTranscribePrompt,
   agentId,
   modelId,
-  teamId,
+  channelPluginOptions,
+  channelPluginOptionValues,
   personaPresetId,
   credentialMode,
   registrationStatus,
@@ -143,12 +153,24 @@ export function FeishuPanelForm({
   setAudioTranscribePrompt,
   onAgentIdChange,
   setModelId,
-  setTeamId,
+  setChannelPluginOption,
   setPersonaPresetId,
   setCredentialMode,
   handleStartRegistration,
   handleTest,
 }: FeishuPanelFormProps) {
+  const effectiveChannelPluginOptions = filterPluginOptionsByVisibleWhen(
+    channelPluginOptions,
+    {
+      agentId,
+      route: "/channels/feishu",
+      scope: "channel",
+    },
+  );
+  const suppressesCorePersonaSelector = hasEffectiveCorePersonaSuppressingOption(
+    effectiveChannelPluginOptions,
+  );
+
   return (
     <div className="es-form">
       {/* Status Callout */}
@@ -612,9 +634,13 @@ export function FeishuPanelForm({
         <ChannelModelSelect value={modelId} onChange={setModelId} />
       </div>
       <div className="es-section">
-        {agentId === "team" ? (
-          <ChannelTeamSelect value={teamId} onChange={setTeamId} />
-        ) : (
+        <ChannelPluginOptions
+          options={effectiveChannelPluginOptions}
+          values={channelPluginOptionValues}
+          disabled={!canWrite}
+          onChange={setChannelPluginOption}
+        />
+        {!suppressesCorePersonaSelector && (
           <ChannelPersonaSelect
             value={personaPresetId}
             onChange={setPersonaPresetId}

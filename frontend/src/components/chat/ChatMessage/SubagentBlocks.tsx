@@ -68,11 +68,8 @@ import {
   shouldAutoOpenSubagentPanel,
   shouldExpandSubagentProcessByDefault,
 } from "./subagentPanelControl";
-import { formatDateTime } from "../../../utils/datetime";
-export { SandboxItem } from "./SandboxItem";
-
-const SIDEBAR_MARKDOWN_PREVIEW_LIMIT = 12_000;
-const SUBAGENT_PARTS_PREVIEW_LIMIT = 20_000;
+import { formatDateTime, formatDuration } from "../../../utils/datetime";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 
 function useSubagentPanelData(agentId: string): SubagentPanelData | undefined {
   const [, forceRender] = useState(0);
@@ -611,7 +608,8 @@ function SubagentPanelContent({ agentId }: { agentId: string }) {
                 <SidebarMarkdownContent
                   content={partsText}
                   isStreaming={data.isPending}
-                  expandable={false}
+                  isLast={index === data.parts!.length - 1}
+                  runtimePlugins={data.runtimePlugins}
                 />
                 <button
                   type="button"
@@ -772,6 +770,7 @@ export function SubagentBlock({
   completedAt,
   status,
   error,
+  runtimePlugins,
 }: {
   agent_id: string;
   agent_name: string;
@@ -785,6 +784,7 @@ export function SubagentBlock({
   completedAt?: number;
   status?: "pending" | "running" | "complete" | "error" | "cancelled";
   error?: string;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }) {
   const {
     effectiveStatus,
@@ -804,6 +804,7 @@ export function SubagentBlock({
     startedAt,
     completedAt,
     status,
+    runtimePlugins,
   });
   const { t } = useTranslation();
   const roleIconMeta = getSubagentRoleIconMeta(formattedAgentName);
@@ -827,6 +828,7 @@ export function SubagentBlock({
       startedAt,
       completedAt,
       status: effectiveStatus as SubagentPanelData["status"],
+      runtimePlugins,
     });
 
     // Auto-open only when no panel is open; multiple running subagents should not steal focus.
@@ -875,6 +877,7 @@ export function SubagentBlock({
     formattedAgentName,
     RoleIcon,
     panelKey,
+    runtimePlugins,
   ]);
 
   useEffect(() => {

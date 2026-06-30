@@ -29,6 +29,71 @@ import {
   subscribeBlockPreview,
 } from "./blockPreviewStore";
 import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import type { WorkflowPart } from "../../../../types";
+import { WorkflowItem } from "./WorkflowItem";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function objectResultFromToolResult(
+  result?: string | Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (isRecord(result)) return result;
+  if (typeof result !== "string") return null;
+  try {
+    const parsed = JSON.parse(result);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function looksLikeWorkflowRunResult(data: Record<string, unknown>): boolean {
+  if (data.plugin_id !== "workflow") return false;
+  if (!nonEmptyString(data.workflow_id)) return false;
+  return Boolean(
+    nonEmptyString(data.run_id) ||
+      nonEmptyString(data.status) ||
+      typeof data.error === "string" ||
+      isRecord(data.output) ||
+      isRecord(data.interface) ||
+      isRecord(data.next_action) ||
+      isRecord(data.output_contract),
+  );
+}
+
+function workflowPartFromToolResult(
+  result?: string | Record<string, unknown>,
+): WorkflowPart | null {
+  const data = objectResultFromToolResult(result);
+  if (!data) return null;
+  if (!looksLikeWorkflowRunResult(data)) return null;
+  const workflowId = nonEmptyString(data.workflow_id);
+  if (!workflowId) return null;
+  const runId = nonEmptyString(data.run_id);
+
+  return {
+    type: "workflow",
+    plugin_id: "workflow",
+    workflow_id: workflowId,
+    run_id: runId,
+    version_id: nonEmptyString(data.version_id),
+    status: nonEmptyString(data.status) || undefined,
+    output: isRecord(data.output) ? data.output : undefined,
+    error: typeof data.error === "string" ? data.error : null,
+    interface: isRecord(data.interface)
+      ? (data.interface as WorkflowPart["interface"])
+      : null,
+    next_action: isRecord(data.next_action) ? data.next_action : null,
+    io_contract: isRecord(data.io_contract) ? data.io_contract : null,
+    output_contract: isRecord(data.output_contract) ? data.output_contract : null,
+  };
+}
 
 function useBlockPreview() {
   const [, setCount] = useState(0);
@@ -375,6 +440,11 @@ export function ToolResultContent({
 
   if (generatedImages.length > 0) {
     return <GeneratedImageResults images={generatedImages} />;
+  }
+
+  const workflowPart = workflowPartFromToolResult(result);
+  if (workflowPart) {
+    return <WorkflowItem part={workflowPart} />;
   }
 
   // 富文本结果：dict 含 title/url/content 结构

@@ -206,7 +206,7 @@ def test_build_team_subagent_display_names_maps_internal_types_to_roles():
 def test_team_agent_does_not_silently_fallback_when_role_subagents_fail():
     from pathlib import Path
 
-    source = Path("src/agents/team_agent/nodes.py").read_text()
+    source = Path("src/agents/team_agent/nodes.py").read_text(encoding="utf-8")
 
     assert "team_subagents_unavailable" in source
     assert "falling back to single" not in source

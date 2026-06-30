@@ -33,6 +33,15 @@ async def test_heartbeat_stop_cancels_loop_and_cleans_task_after_write_failures(
         lambda: fake_redis,
     )
 
+    class _NoopConcurrencyLimiter:
+        async def refresh(self, user_id: str, run_id: str) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter",
+        lambda: _NoopConcurrencyLimiter(),
+    )
+
     first_retry = asyncio.Event()
 
     async def _sleep(_: float) -> None:

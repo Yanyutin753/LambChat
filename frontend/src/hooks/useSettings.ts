@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import i18n from "i18next";
 import { settingsApi, getAccessToken } from "../services/api";
 import type { SettingsResponse } from "../types";
+import { parseBooleanSettingValue } from "../utils/booleanSettings";
 
 export function useSettings() {
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
@@ -238,7 +239,7 @@ export function useSettings() {
   const getBooleanSetting = useCallback(
     (key: string): boolean => {
       const value = getSettingValue(key);
-      return value === true || value === "true";
+      return parseBooleanSettingValue(value);
     },
     [getSettingValue],
   );

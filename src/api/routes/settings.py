@@ -37,6 +37,12 @@ async def get_setting(
     service: SettingsService = Depends(get_settings_service),
 ):
     """Get single setting by key"""
+    plugin_owner = _plugin_owner_for_setting(key)
+    if plugin_owner:
+        raise HTTPException(
+            status_code=410,
+            detail=f"This setting is now owned by plugin {plugin_owner}",
+        )
     setting = await service._storage.get(key)
     if not setting:
         raise HTTPException(status_code=404, detail="Setting not found")
@@ -51,6 +57,12 @@ async def update_setting(
     service: SettingsService = Depends(get_settings_service),
 ):
     """Update a setting (requires settings:manage permission)"""
+    plugin_owner = _plugin_owner_for_setting(key)
+    if plugin_owner:
+        raise HTTPException(
+            status_code=410,
+            detail=f"This setting is now owned by plugin {plugin_owner}",
+        )
     try:
         setting = await service.set(key, data.value, user.sub)
         if not setting:
@@ -104,6 +116,12 @@ async def reset_setting(
     service: SettingsService = Depends(get_settings_service),
 ):
     """Reset single setting to default value"""
+    plugin_owner = _plugin_owner_for_setting(key)
+    if plugin_owner:
+        raise HTTPException(
+            status_code=410,
+            detail=f"This setting is now owned by plugin {plugin_owner}",
+        )
     count = await service.reset(key)
     if count == 0:
         raise HTTPException(status_code=404, detail="Setting not found")
@@ -111,3 +129,13 @@ async def reset_setting(
         message=f"Setting {key} reset to default",
         reset_count=count,
     )
+
+
+def _plugin_owner_for_setting(key: str) -> str | None:
+    try:
+        from src.infra.extensions import plugin_owned_system_setting_keys
+        from src.kernel.extensions.builtin_plugins import BUILTIN_PLUGIN_MANIFESTS
+
+        return plugin_owned_system_setting_keys(BUILTIN_PLUGIN_MANIFESTS).get(key)
+    except Exception:
+        return None

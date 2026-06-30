@@ -11,6 +11,8 @@ import type {
   PersonaPresetSnapshot,
 } from "../../types";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
+import type { PluginRuntimeContributionStates } from "../../extensions/coreContributions";
+import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
 
 export interface ChatInputProps {
   onSend: (
@@ -78,8 +80,13 @@ export interface ChatInputProps {
   onSelectAgent?: (id: string) => void;
   // Team picker
   selectedTeamId?: string | null;
-  onSelectTeam?: (teamId: string | null) => void;
-  onOpenTeamBuilder?: () => void;
+  pluginOptionValues?: PluginOptionsMetadata;
+  onPluginOptionChange?: (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
   attachments?: MessageAttachment[];
   onAttachmentsChange?: (
     attachments:

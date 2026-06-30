@@ -3,8 +3,8 @@ const welcomePageSource = readFileSync(
   new URL("../WelcomePage.tsx", import.meta.url),
   "utf8",
 );
-const chatSkeletonsSource = readFileSync(
-  new URL("../../skeletons/ChatSkeletons.tsx", import.meta.url),
+const welcomeSurfaceRendererSource = readFileSync(
+  new URL("../welcomeSurfaceRenderers.tsx", import.meta.url),
   "utf8",
 );
 const chatViewSource = readFileSync(
@@ -12,92 +12,113 @@ const chatViewSource = readFileSync(
   "utf8",
 );
 
-test("welcome page switches the plaza to teams when team agent is active", () => {
-  expect(welcomePageSource).toMatch(/currentAgent\?: string;/);
-  expect(welcomePageSource).toMatch(/selectedTeamId\?: string \| null;/);
-  expect(welcomePageSource).toMatch(
-    /onSelectTeam\?: \(teamId: string \| null\) => void;/,
+test("welcome page delegates team plaza to plugin welcome surfaces", () => {
+  assert.match(welcomePageSource, /currentAgent\?: string;/);
+  assert.match(welcomePageSource, /selectedTeamId\?: string \| null;/);
+  assert.doesNotMatch(welcomePageSource, /onSelectTeam\?:/);
+  assert.match(
+    welcomePageSource,
+    /buildWelcomeSurfaceContributions\(chatInputProps\.runtimePlugins/,
   );
-  expect(welcomePageSource).toMatch(/teamApi\s*\.\s*list\(0,\s*50\)/);
-  expect(welcomePageSource).toMatch(
-    /const showTeamCards =[\s\S]*currentAgent === "team"/,
-  );
-  expect(welcomePageSource).toMatch(/onClick=\{\(\) => navigate\("\/team"\)\}/);
-  expect(welcomePageSource).toMatch(
+  assert.match(welcomePageSource, /<WelcomeSurfaceRenderer/);
+  assert.doesNotMatch(welcomePageSource, /teamApi\s*\.\s*list/);
+  assert.doesNotMatch(welcomePageSource, /TeamAvatar/);
+  assert.doesNotMatch(welcomePageSource, /plugin_id === "agent_team"/);
+
+  assert.match(welcomeSurfaceRendererSource, /teamApi\s*\.\s*list\(0,\s*50\)/);
+  assert.match(welcomeSurfaceRendererSource, /"agent_team\.TeamWelcomeSurface"/);
+  assert.match(welcomeSurfaceRendererSource, /onClick=\{\(\) => navigate\("\/agent-team"\)\}/);
+  assert.match(
+    welcomeSurfaceRendererSource,
     /onClick=\{\(\) => handleTeamClick\(team\)\}/,
   );
-  expect(welcomePageSource).toMatch(
+  assert.match(
+    welcomeSurfaceRendererSource,
     /getWelcomeTeamCards\(teamCards,\s*selectedTeamId\)/,
   );
-  expect(chatViewSource).toMatch(
-    /currentAgent=\{currentAgent\}[\s\S]*selectedTeamId=\{selectedTeamId\}[\s\S]*onSelectTeam=\{onSelectTeam\}/,
-  );
+  assert.doesNotMatch(chatViewSource, /selectedAgentTeamIdFromMetadata/);
+  assert.doesNotMatch(chatViewSource, /selectedPluginTeamId/);
+  assert.match(chatViewSource, /selectedTeamId=\{selectedTeamId\}/);
+  assert.doesNotMatch(chatViewSource, /<WelcomePage[\s\S]*onSelectTeam=\{onSelectTeam\}/);
+  assert.match(chatViewSource, /chatInputProps=\{chatInputProps\}/);
 });
 
-test("welcome page only projects @ mentions to welcome cards before a role or team is selected", () => {
-  expect(welcomePageSource).toMatch(/const isAgentReady = !!currentAgent;/);
-  expect(welcomePageSource).toMatch(
-    /const shouldProjectMentionsToWelcome =\s*isAgentReady &&\s*\(currentAgent === "team"\s*\?\s*!selectedTeamId\s*:\s*!selectedPersonaPresetId\);/,
+test("welcome page projects @ mentions through the active welcome surface", () => {
+  assert.match(welcomePageSource, /const isAgentReady = !!currentAgent;/);
+  assert.match(
+    welcomePageSource,
+    /hasWelcomeSurface \? !selectedTeamId : !selectedPersonaPresetId/,
   );
   expect(welcomePageSource).toMatch(
     /onMentionQueryChange=\{\s*shouldProjectMentionsToWelcome\s*\?\s*handleMentionQueryChange\s*:\s*undefined\s*\}/,
   );
 });
 
-test("welcome page keeps change role and change team actions visible after selection", () => {
-  expect(welcomePageSource).toMatch(
-    /const canChangePersona =\s*isAgentReady &&\s*currentAgent !== "team" &&\s*!!selectedPersonaPresetId &&\s*!!onClearPersonaPreset;/,
+test("welcome page keeps persona actions core-owned and delegates team actions", () => {
+  assert.match(
+    welcomePageSource,
+    /const canChangePersona =\s*isAgentReady &&\s*!hasWelcomeSurface &&\s*!!selectedPersonaPresetId &&\s*!!onClearPersonaPreset;/,
   );
-  expect(welcomePageSource).toMatch(
-    /const canChangeTeam =\s*currentAgent === "team" && !!selectedTeamId && !!onSelectTeam;/,
+  assert.match(
+    welcomePageSource,
+    /\(showGallerySection \|\| showStarterPrompts \|\| canChangePersona\)/,
   );
-  expect(welcomePageSource).toMatch(
-    /const showSelectionActions = canChangePersona \|\| canChangeTeam;/,
+  assert.match(
+    welcomeSurfaceRendererSource,
+    /const canChangeTeam = !!selectedTeamId && !!onPluginOptionChange && !!optionBinding;/,
   );
-  expect(welcomePageSource).toMatch(
-    /\(showGallerySection\s*\|\|\s*showStarterPrompts\s*\|\|\s*showTeamStarterPrompts\s*\|\|\s*showSelectionActions\)/,
-  );
-  expect(welcomePageSource).toMatch(/onSelectTeam\?\.\(null\)/);
-  expect(welcomePageSource).toMatch(/t\("team\.change", "更换团队"\)/);
+  assert.match(welcomePageSource, /onPluginOptionChange=\{chatInputProps\.onPluginOptionChange\}/);
+  assert.match(welcomeSurfaceRendererSource, /optionBinding\.pluginId,\s*optionBinding\.key,\s*null/);
+  assert.doesNotMatch(welcomeSurfaceRendererSource, /onSelectTeam\?\.\(null\)/);
+  assert.match(welcomeSurfaceRendererSource, /optionBinding\.pluginId,\s*optionBinding\.key,\s*team\.id/);
+  assert.doesNotMatch(welcomeSurfaceRendererSource, /AGENT_TEAM_PLUGIN_ID|AGENT_TEAM_SELECTED_TEAM_OPTION/);
+  assert.doesNotMatch(welcomeSurfaceRendererSource, /onSelectTeam\?\.\(team\.id\)/);
+  assert.match(welcomeSurfaceRendererSource, /t\("team\.change"/);
 });
 
-test("welcome page uses the same skeleton count for role and team choices", () => {
-  expect(welcomePageSource).toMatch(
+test("welcome team surface uses the same skeleton count as role choices", () => {
+  assert.match(
+    welcomeSurfaceRendererSource,
     /const teamSkeletonCount = getWelcomePersonaSkeletonCount\(\s*shouldShowTeamSkeletons,\s*displayTeamCards\.length,\s*\);/,
   );
-  expect(welcomePageSource).not.toMatch(
+  assert.doesNotMatch(
+    welcomeSurfaceRendererSource,
     /getWelcomePersonaSkeletonCount\(\s*shouldShowTeamSkeletons,\s*displayTeamCards\.length,\s*6,\s*\)/,
   );
 });
 
-test("welcome team plaza renders skeleton cards while teams are loading", () => {
-  expect(welcomePageSource).toMatch(
+test("welcome team surface renders skeleton cards while teams are loading", () => {
+  assert.match(
+    welcomePageSource,
     /const personaSkeletonCount = getWelcomePersonaSkeletonCount\(\s*personaPresetsLoading,\s*displayCards\.length,\s*\);/,
   );
-  expect(welcomePageSource).toMatch(
+  assert.match(
+    welcomeSurfaceRendererSource,
     /\{showTeamCards &&\s*Array\.from\(\{ length: teamSkeletonCount \}\)/,
   );
-  expect(chatSkeletonsSource).toMatch(
-    /className="[^"]*\bwelcome-persona-card\b[^"]*\bwelcome-persona-skeleton\b/,
-  );
+  assert.match(welcomeSurfaceRendererSource, /className=\{getWelcomePersonaSkeletonClass\(\)\}/);
 });
 
-test("welcome team plaza treats the first unresolved team request as loading", () => {
-  expect(welcomePageSource).toMatch(
+test("welcome team surface treats the first unresolved team request as loading", () => {
+  assert.match(
+    welcomeSurfaceRendererSource,
     /const \[teamCardsLoaded, setTeamCardsLoaded\] = useState\(false\);/,
   );
-  expect(welcomePageSource).toMatch(/setTeamCardsLoaded\(false\);/);
-  expect(welcomePageSource).toMatch(/setTeamCardsLoaded\(true\);/);
-  expect(welcomePageSource).toMatch(
+  assert.match(welcomeSurfaceRendererSource, /setTeamCardsLoaded\(false\);/);
+  assert.match(welcomeSurfaceRendererSource, /setTeamCardsLoaded\(true\);/);
+  assert.match(
+    welcomeSurfaceRendererSource,
     /const shouldShowTeamSkeletons =\s*showTeamCards && \(teamCardsLoading \|\| !teamCardsLoaded\);/,
   );
 });
 
 test("welcome page does not treat an unresolved agent as persona mode", () => {
-  expect(welcomePageSource).toMatch(
-    /const showPersonaCards =\s*isAgentReady &&\s*currentAgent !== "team" &&/,
+  assert.match(
+    welcomePageSource,
+    /const showPersonaCards =\s*isAgentReady && !hasWelcomeSurface &&/,
   );
-  expect(welcomePageSource).toMatch(
-    /const showStarterPrompts =\s*isAgentReady &&\s*currentAgent !== "team" &&/,
+  assert.match(
+    welcomePageSource,
+    /const showStarterPrompts =\s*isAgentReady &&\s*!hasWelcomeSurface &&/,
   );
 });

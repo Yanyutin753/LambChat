@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from collections.abc import Mapping
 from typing import Any, Callable
 
 from arq.worker import Worker
@@ -11,7 +12,7 @@ from src.kernel.config import settings
 
 from .arq_payloads import TaskArqPayloadStore
 from .arq_settings import build_arq_redis_settings
-from .arq_worker import run_agent_task
+from .arq_worker import run_agent_task, run_workflow_task
 
 logger = get_logger(__name__)
 
@@ -19,8 +20,13 @@ logger = get_logger(__name__)
 class EmbeddedArqRuntime:
     """Own the lifecycle of an arq worker embedded in the FastAPI process."""
 
-    def __init__(self, worker_factory: Callable[..., Any] = Worker) -> None:
+    def __init__(
+        self,
+        worker_factory: Callable[..., Any] = Worker,
+        worker_context: Mapping[str, Any] | None = None,
+    ) -> None:
         self._worker_factory = worker_factory
+        self._worker_context = dict(worker_context or {})
         self._worker: Any | None = None
         self._task: asyncio.Future | None = None
 
@@ -28,7 +34,17 @@ class EmbeddedArqRuntime:
     def is_running(self) -> bool:
         return self._task is not None and not self._task.done()
 
-    async def start(self) -> None:
+    def _build_worker_context(
+        self,
+        worker_context: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        ctx: dict[str, Any] = {"payload_store": TaskArqPayloadStore()}
+        ctx.update({key: value for key, value in self._worker_context.items() if value is not None})
+        if worker_context:
+            ctx.update({key: value for key, value in worker_context.items() if value is not None})
+        return ctx
+
+    async def start(self, worker_context: Mapping[str, Any] | None = None) -> None:
         if self.is_running:
             return
         if getattr(settings, "TASK_BACKEND", "local") != "arq":
@@ -37,13 +53,13 @@ class EmbeddedArqRuntime:
             return
 
         self._worker = self._worker_factory(
-            [run_agent_task],
+            [run_agent_task, run_workflow_task],
             queue_name=settings.ARQ_QUEUE_NAME,
             redis_settings=build_arq_redis_settings(settings),
             handle_signals=False,
             max_jobs=settings.ARQ_WORKER_MAX_JOBS,
             job_timeout=settings.ARQ_JOB_TIMEOUT_SECONDS,
-            ctx={"payload_store": TaskArqPayloadStore()},
+            ctx=self._build_worker_context(worker_context),
             allow_abort_jobs=True,
         )
         self._task = asyncio.ensure_future(self._worker.async_run())
@@ -78,8 +94,16 @@ def get_arq_runtime() -> EmbeddedArqRuntime:
     return _runtime
 
 
-async def start_arq_runtime() -> None:
-    await get_arq_runtime().start()
+async def start_arq_runtime(
+    *,
+    plugin_runtime: object | None = None,
+    plugin_runtime_state_storage: object | None = None,
+) -> None:
+    worker_context = {
+        "plugin_runtime": plugin_runtime,
+        "plugin_runtime_state_storage": plugin_runtime_state_storage,
+    }
+    await get_arq_runtime().start(worker_context=worker_context)
 
 
 async def stop_arq_runtime() -> None:

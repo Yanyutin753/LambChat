@@ -1,4 +1,5 @@
 import type { MessagePart } from "../../../types";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 
 export interface SubagentPanelData {
   agentId: string;
@@ -12,6 +13,7 @@ export interface SubagentPanelData {
   startedAt?: number;
   completedAt?: number;
   status?: "pending" | "running" | "complete" | "error" | "cancelled";
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 type Listener = () => void;
@@ -33,6 +35,7 @@ function shallowEqual(a: SubagentPanelData, b: SubagentPanelData): boolean {
     a.startedAt === b.startedAt &&
     a.completedAt === b.completedAt &&
     a.status === b.status &&
+    a.runtimePlugins === b.runtimePlugins &&
     partsEqual
   );
 }

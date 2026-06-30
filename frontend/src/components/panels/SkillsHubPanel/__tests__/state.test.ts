@@ -1,9 +1,10 @@
 import { resolveSkillsHubTab } from "../state.ts";
 
 test("keeps the requested tab when both permissions are available", () => {
-  expect(resolveSkillsHubTab(undefined, true, true)).toBe("skills");
-  expect(resolveSkillsHubTab("skills", true, true)).toBe("skills");
-  expect(resolveSkillsHubTab("marketplace", true, true)).toBe("marketplace");
+  assert.equal(resolveSkillsHubTab(undefined, true, true), "skills");
+  assert.equal(resolveSkillsHubTab("skills", true, true), "skills");
+  assert.equal(resolveSkillsHubTab("marketplace", true, true), "marketplace");
+  assert.equal(resolveSkillsHubTab("plugins", true, true), "plugins");
 });
 
 test("resolves to local skills when only local skills are available", () => {
@@ -12,17 +13,20 @@ test("resolves to local skills when only local skills are available", () => {
 });
 
 test("resolves to marketplace when only marketplace is available", () => {
-  expect(resolveSkillsHubTab(undefined, false, true)).toBe("marketplace");
-  expect(resolveSkillsHubTab("marketplace", false, true)).toBe("marketplace");
+  assert.equal(resolveSkillsHubTab(undefined, false, true), "marketplace");
+  assert.equal(resolveSkillsHubTab("marketplace", false, true), "marketplace");
+  assert.equal(resolveSkillsHubTab("plugins", false, true), "plugins");
 });
 
 test("falls back to the accessible tab when the requested tab is inaccessible", () => {
-  expect(resolveSkillsHubTab("marketplace", true, false)).toBe("skills");
-  expect(resolveSkillsHubTab("skills", false, true)).toBe("marketplace");
+  assert.equal(resolveSkillsHubTab("marketplace", true, false), "skills");
+  assert.equal(resolveSkillsHubTab("skills", false, true), "marketplace");
+  assert.equal(resolveSkillsHubTab("plugins", true, false), "skills");
 });
 
 test("returns null when neither tab is accessible", () => {
-  expect(resolveSkillsHubTab(undefined, false, false)).toBe(null);
-  expect(resolveSkillsHubTab("skills", false, false)).toBe(null);
-  expect(resolveSkillsHubTab("marketplace", false, false)).toBe(null);
+  assert.equal(resolveSkillsHubTab(undefined, false, false), null);
+  assert.equal(resolveSkillsHubTab("skills", false, false), null);
+  assert.equal(resolveSkillsHubTab("marketplace", false, false), null);
+  assert.equal(resolveSkillsHubTab("plugins", false, false), null);
 });

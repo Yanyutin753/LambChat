@@ -105,6 +105,7 @@ def _make_cache_key(
     thinking: Optional[dict],
     profile: Optional[dict],
     max_retries: int,
+    streaming: bool,
 ) -> tuple:
     thinking_key = tuple(sorted(thinking.items())) if thinking else None
     profile_key = tuple(sorted(profile.items())) if profile else None
@@ -118,6 +119,7 @@ def _make_cache_key(
         thinking_key,
         profile_key,
         max_retries,
+        streaming,
     )
 
 
@@ -226,6 +228,7 @@ class LLMClient:
         api_base: Optional[str] = None,
         thinking: Optional[dict] = None,
         profile: Optional[dict] = None,
+        streaming: bool = True,
         **kwargs: Any,
     ) -> BaseChatModel:
         """根据 provider 创建对应的 LangChain 模型。"""
@@ -288,7 +291,7 @@ class LLMClient:
         openai_kwargs: dict[str, Any] = {
             "model": model_name,
             "temperature": temperature,
-            "streaming": True,
+            "streaming": streaming,
             "api_key": api_key or "sk-placeholder",
             "base_url": api_base or None,
             "max_retries": settings.LLM_MAX_RETRIES,
@@ -335,6 +338,7 @@ class LLMClient:
         profile: Optional[dict] = None,
         model_config: Optional[dict[str, Any] | ModelConfig] = None,
         use_model_config: bool = True,
+        streaming: bool = True,
         **kwargs: Any,
     ) -> BaseChatModel:
         """获取 LangChain 聊天模型（带 LRU 缓存）。
@@ -516,6 +520,7 @@ class LLMClient:
             thinking,
             profile,
             settings.LLM_MAX_RETRIES,
+            streaming,
         )
 
         # LRU cache hit — move to end (most recently used)
@@ -543,6 +548,7 @@ class LLMClient:
             api_base=api_base,
             thinking=thinking,
             profile=profile,
+            streaming=streaming,
             **kwargs,
         )
         LLMClient._model_cache[cache_key] = instance

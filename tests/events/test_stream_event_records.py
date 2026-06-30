@@ -15,7 +15,7 @@ NON_PRESENTER_STREAM_EVENTS = {
 
 
 def _presenter_event_names() -> set[str]:
-    tree = ast.parse(PRESENTER_PATH.read_text())
+    tree = ast.parse(PRESENTER_PATH.read_text(encoding="utf-8"))
     event_names: set[str] = set()
 
     for node in ast.walk(tree):
@@ -33,7 +33,7 @@ def _presenter_event_names() -> set[str]:
 
 
 def test_stream_event_fixture_records_current_event_names() -> None:
-    fixture = json.loads(FIXTURE_PATH.read_text())
+    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     records = fixture["stream_events"]
 
     event_names = {record["event"] for record in records}
@@ -42,7 +42,7 @@ def test_stream_event_fixture_records_current_event_names() -> None:
 
 
 def test_stream_event_fixture_records_sse_shape_for_each_event() -> None:
-    fixture = json.loads(FIXTURE_PATH.read_text())
+    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
     for record in fixture["stream_events"]:
         assert isinstance(record["event"], str)

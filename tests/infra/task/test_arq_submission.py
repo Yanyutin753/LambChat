@@ -8,6 +8,11 @@ import pytest
 
 from src.infra.task.manager import BackgroundTaskManager
 from src.infra.task.status import TaskStatus
+from src.kernel.extensions import (
+    PluginRuntime,
+    PluginUnavailableError,
+    build_agent_team_plugin_manifest,
+)
 
 
 class _FakePayloadStore:
@@ -335,28 +340,38 @@ async def test_submit_persists_user_message_before_background_task_starts(
 
 
 @pytest.mark.asyncio
-async def test_submit_passes_auto_mode_to_executor() -> None:
+async def test_submit_rejects_disabled_plugin_owned_agent_before_session_side_effects() -> None:
+    from src.agents import set_plugin_runtime
+
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    set_plugin_runtime(runtime)
     manager = BackgroundTaskManager()
     fake_executor = _FakeExecutor()
     manager._executor = fake_executor  # type: ignore[assignment]
 
     async def _executor_fn(*args, **kwargs):
+        raise AssertionError("disabled plugin-owned agent should not run")
         if False:
             yield None
 
-    await manager.submit(
-        session_id="session-1",
-        agent_id="search",
-        message="hello",
-        user_id="user-1",
-        executor=_executor_fn,
-        run_id="run-1",
-        auto_mode=True,
-    )
+    try:
+        with pytest.raises(PluginUnavailableError):
+            await manager.submit(
+                session_id="session-1",
+                agent_id="team",
+                message="hello",
+                user_id="user-1",
+                executor=_executor_fn,
+                run_id="run-1",
+            )
+    finally:
+        set_plugin_runtime(None)
 
-    await asyncio.sleep(0)
-
-    assert fake_executor.run_calls[0]["auto_mode"] is True
+    assert fake_executor.ensure_calls == []
+    assert fake_executor.status_calls == []
+    assert manager._tasks == {}
+    assert manager._run_info == {}
 
 
 @pytest.mark.asyncio
@@ -448,45 +463,34 @@ async def test_submit_arq_can_persist_user_message_before_enqueue(
 
 
 @pytest.mark.asyncio
-async def test_submit_arq_persists_scheduled_task_message_with_enabled_skills(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_submit_arq_rejects_disabled_plugin_owned_agent_before_queue_side_effects() -> None:
+    from src.agents import set_plugin_runtime
+
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    set_plugin_runtime(runtime)
     manager = BackgroundTaskManager()
     fake_executor = _FakeExecutor()
     payload_store = _FakePayloadStore()
     arq_pool = _FakeArqPool()
     manager._executor = fake_executor  # type: ignore[assignment]
-    _FakePresenter.calls = []
 
-    monkeypatch.setattr("src.infra.writer.present.Presenter", _FakePresenter)
+    try:
+        with pytest.raises(PluginUnavailableError):
+            await manager.submit_arq(
+                session_id="session-1",
+                agent_id="team",
+                message="hello",
+                user_id="user-1",
+                executor_key="agent_stream",
+                payload_store=cast(Any, payload_store),
+                arq_pool=arq_pool,
+                run_id="run-1",
+            )
+    finally:
+        set_plugin_runtime(None)
 
-    session_metadata = {
-        "source": "scheduled_task",
-        "scheduled_task_id": "task-1",
-        "hidden_from_conversation_list": True,
-    }
-
-    await manager.submit_arq(
-        session_id="session-1",
-        agent_id="search",
-        message="[scheduled] hello",
-        user_id="user-1",
-        executor_key="agent_stream",
-        payload_store=cast(Any, payload_store),
-        arq_pool=arq_pool,
-        run_id="run-1",
-        trace_id="trace-1",
-        display_message="hello",
-        enabled_skills=["planning"],
-        session_metadata=session_metadata,
-        auto_mode=True,
-        write_user_message_immediately=True,
-    )
-
-    assert _FakePresenter.calls[1:] == [
-        ("ensure_trace", "trace-1"),
-        ("emit_user_message", "hello", None, ["planning"]),
-    ]
-    assert fake_executor.ensure_calls[0][1]["session_metadata"] == session_metadata
-    assert payload_store.saved[0][1]["enabled_skills"] == ["planning"]
-    assert payload_store.saved[0][1]["auto_mode"] is True
+    assert fake_executor.ensure_calls == []
+    assert fake_executor.status_calls == []
+    assert payload_store.saved == []
+    assert arq_pool.enqueued == []

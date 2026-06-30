@@ -1,6 +1,8 @@
 import type { Message, MessageAttachment } from "../../../types";
 
 export interface CancelledRetryTarget {
+  userMessageId: string;
+  assistantMessageId: string;
   content: string;
   attachments?: MessageAttachment[];
 }
@@ -28,6 +30,8 @@ export function findCancelledRetryTarget(
     }
 
     return {
+      userMessageId: message.id,
+      assistantMessageId,
       content,
       attachments: message.attachments,
     };

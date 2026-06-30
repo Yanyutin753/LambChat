@@ -42,6 +42,18 @@ wheels/
 *.log
 logs/
 
+# Local Codex/task execution artifacts
+goal-*/
+归档/
+
+# Build/runtime generated artifacts
+static/
+*.tsbuildinfo
+plugin-data/*/state/runtime.json
+plugin-data/*/state/*.jsonl
+plugin-data/*/state/
+plugin-data/workflow/
+
 # Redis
 dump.rdb
 
@@ -90,11 +102,9 @@ docs/.vitepress/cache/
 YubbChat/
 .codex
 /scripts/*
-!/scripts/
 !/scripts/create_daytona_snapshot.py
 !/scripts/create_e2b_template.py
-!/scripts/migrate_trace_events_to_chunks.py
-!/scripts/verify_trace_event_chunks.py
+!/scripts/workflow_container_acceptance.py
 docs/docs/.vitepress/
 .gitignore
 k8s/lambchat-secret.yaml

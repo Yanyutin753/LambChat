@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from src.infra.scheduler.runtime import RuntimeScheduler, ScheduledJob
+from src.kernel.extensions import PluginManifest, PluginRuntime
 
 
 class _FakeJob:
@@ -124,6 +125,76 @@ async def test_run_job_now_skips_disabled_jobs() -> None:
 
     assert result == {"skipped": True, "reason": "disabled"}
     assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_plugin_owned_job_skips_when_plugin_runtime_is_unavailable() -> None:
+    calls = 0
+    runtime_scheduler = RuntimeScheduler()
+
+    async def handler() -> None:
+        nonlocal calls
+        calls += 1
+
+    runtime_scheduler.register_interval_job(
+        ScheduledJob.from_interval(
+            id="feedback.sync",
+            interval_seconds=60,
+            handler=handler,
+            plugin_id="feedback",
+        )
+    )
+
+    result = await runtime_scheduler.run_job_now("feedback.sync")
+
+    assert result == {
+        "skipped": True,
+        "reason": "plugin_runtime_unavailable",
+        "plugin_id": "feedback",
+    }
+    assert calls == 0
+
+
+@pytest.mark.asyncio
+async def test_plugin_owned_job_runs_only_when_plugin_scheduler_job_is_available() -> None:
+    calls = 0
+    runtime_scheduler = RuntimeScheduler()
+    plugin_runtime = PluginRuntime(
+        [
+            PluginManifest(
+                id="feedback",
+                name="Feedback",
+                version="1.0.0",
+                api_version="v1",
+                permissions=["feedback:read"],
+                scheduler_jobs=["feedback.sync"],
+            )
+        ]
+    )
+    runtime_scheduler.set_plugin_runtime(plugin_runtime)
+
+    async def handler() -> str:
+        nonlocal calls
+        calls += 1
+        return "ran"
+
+    runtime_scheduler.register_interval_job(
+        ScheduledJob.from_interval(
+            id="feedback.sync",
+            interval_seconds=60,
+            handler=handler,
+            plugin_id="feedback",
+        )
+    )
+
+    assert await runtime_scheduler.run_job_now("feedback.sync") == "ran"
+    plugin_runtime.disable_plugin("feedback")
+    result = await runtime_scheduler.run_job_now("feedback.sync")
+
+    assert result["skipped"] is True
+    assert result["reason"] == "plugin_unavailable"
+    assert result["plugin_id"] == "feedback"
+    assert calls == 1
 
 
 @pytest.mark.asyncio

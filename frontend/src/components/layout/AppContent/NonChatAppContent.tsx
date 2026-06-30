@@ -4,6 +4,7 @@ import { SessionSidebar } from "../../panels/SessionSidebar";
 import { AppShell } from "./AppShell";
 import { TabContent } from "./TabContent";
 import type { TabType } from "./types";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 
 export interface NonChatAppContentProps {
   activeTab: Exclude<TabType, "chat">;
@@ -15,6 +16,7 @@ export interface NonChatAppContentProps {
   mobileSidebarOpen: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
   onShowProfile: () => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
 export function NonChatAppContent({
@@ -27,6 +29,7 @@ export function NonChatAppContent({
   mobileSidebarOpen,
   setMobileSidebarOpen,
   onShowProfile,
+  runtimePlugins,
 }: NonChatAppContentProps) {
   const navigate = useNavigate();
 
@@ -57,6 +60,7 @@ export function NonChatAppContent({
       projectManager={{ projects: [] }}
       onNewSession={handleNewSession}
       onShowProfile={onShowProfile}
+      runtimePlugins={runtimePlugins}
       sidebar={
         <SessionSidebar
           currentSessionId={null}
@@ -67,10 +71,11 @@ export function NonChatAppContent({
           isCollapsed={sidebarCollapsed}
           onToggleCollapsed={setSidebarCollapsed}
           onShowProfile={onShowProfile}
+          runtimePlugins={runtimePlugins}
         />
       }
     >
-      <TabContent activeTab={activeTab} />
+      <TabContent activeTab={activeTab} runtimePlugins={runtimePlugins} />
     </AppShell>
   );
 }

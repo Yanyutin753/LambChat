@@ -516,3 +516,172 @@ test("reconstructMessagesFromEvents keeps late run events after cancel on the ca
     "thinking",
   ]);
 });
+
+test("reconstructMessagesFromEvents treats assistant-only run after cancel as retry", () => {
+  const cancelledRunId = "run_cancelled";
+  const retryRunId = "run_retry";
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        id: "event-user",
+        event_type: "user:message",
+        run_id: cancelledRunId,
+        timestamp: "2026-06-17T12:00:00.000Z",
+        data: {
+          content: "regenerate this",
+          message_id: `${cancelledRunId}:user`,
+          attachments: [],
+        },
+      },
+      {
+        id: "event-old-chunk",
+        event_type: "message:chunk",
+        run_id: cancelledRunId,
+        timestamp: "2026-06-17T12:00:01.000Z",
+        data: { content: "partial" },
+      },
+      {
+        id: "event-cancel",
+        event_type: "user:cancel",
+        run_id: cancelledRunId,
+        timestamp: "2026-06-17T12:00:02.000Z",
+        data: { run_id: cancelledRunId },
+      },
+      {
+        id: "event-retry-metadata",
+        event_type: "metadata",
+        run_id: retryRunId,
+        timestamp: "2026-06-17T12:00:03.000Z",
+        data: { run_id: retryRunId },
+      },
+      {
+        id: "event-retry-chunk",
+        event_type: "message:chunk",
+        run_id: retryRunId,
+        timestamp: "2026-06-17T12:00:04.000Z",
+        data: { content: "fresh answer" },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  assert.deepEqual(
+    messages.map((message) => [message.id, message.role, message.runId]),
+    [
+      [`${cancelledRunId}:user`, "user", cancelledRunId],
+      [retryRunId, "assistant", retryRunId],
+    ],
+  );
+  assert.equal(messages[1]?.content, "fresh answer");
+  assert.equal(messages[1]?.cancelled, undefined);
+});
+
+test("reconstructMessagesFromEvents preserves workflow tool result outlet from persisted events", () => {
+  const runId = "run_workflow_tool_history";
+  const workflowOutlet = {
+    plugin_id: "workflow",
+    workflow_id: "wf-chat",
+    run_id: "run-debug-1",
+    version_id: "wfv-1",
+    status: "failed",
+    error: "workflow_run_not_found",
+    interface: {
+      entry: {
+        type: "tool",
+        tool: "workflow_run",
+        argument: "input",
+        schema_tool: "workflow_get_schema",
+        schema_field: "input_schema",
+      },
+      exit: {
+        type: "object",
+        field: "output",
+        schema_tool: "workflow_get_schema",
+        schema_field: "output_schema",
+      },
+      debug: {
+        tool: "workflow_get_run",
+        workflow_id: "wf-chat",
+        run_id: "run-debug-1",
+        events_field: "events",
+      },
+    },
+    next_action: {
+      type: "handle_terminal_error",
+      field: "error",
+      reason: "workflow_run_failed",
+      tool: "workflow_get_run",
+    },
+  };
+
+  const messages = reconstructMessagesFromEvents(
+    [
+      {
+        id: "event-user",
+        event_type: "user:message",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:00.000Z",
+        data: {
+          content: "inspect failed workflow",
+          message_id: `${runId}:user`,
+          attachments: [],
+        },
+      },
+      {
+        id: "event-tool-start",
+        event_type: "tool:start",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:01.000Z",
+        data: {
+          tool: "workflow_get_run",
+          tool_call_id: "tool-call-workflow-debug",
+          args: { workflow_id: "wf-chat", run_id: "run-debug-1" },
+        },
+      },
+      {
+        id: "event-tool-result",
+        event_type: "tool:result",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:02.000Z",
+        data: {
+          tool: "workflow_get_run",
+          tool_call_id: "tool-call-workflow-debug",
+          result: workflowOutlet,
+          success: false,
+          error: "workflow_run_not_found",
+        },
+      },
+      {
+        id: "event-message",
+        event_type: "message:chunk",
+        run_id: runId,
+        timestamp: "2026-06-28T08:00:03.000Z",
+        data: { content: "Workflow debug lookup failed." },
+      },
+    ] satisfies HistoryEvent[],
+    new Set<string>(),
+    { activeSubagentStack: [] },
+  );
+
+  assert.equal(messages.length, 2);
+  const assistant = messages[1];
+  assert.equal(assistant?.role, "assistant");
+  assert.equal(assistant?.content, "Workflow debug lookup failed.");
+  const toolPart = assistant?.parts?.find((part) => part.type === "tool");
+  assert.ok(toolPart);
+  assert.equal(toolPart.type, "tool");
+  assert.equal(toolPart.name, "workflow_get_run");
+  assert.equal(toolPart.success, false);
+  assert.equal(toolPart.error, "workflow_run_not_found");
+  assert.deepEqual(toolPart.result, workflowOutlet);
+  assert.deepEqual(assistant?.toolResults?.[0]?.result, workflowOutlet);
+  assert.equal(
+    (
+      assistant?.toolResults?.[0]?.result as {
+        interface?: { debug?: { tool?: string } };
+      }
+    ).interface?.debug?.tool,
+    "workflow_get_run",
+  );
+});

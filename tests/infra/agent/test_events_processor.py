@@ -1,9 +1,9 @@
+import json
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from langchain_core.messages import ToolMessage
-from langgraph.types import Command
+from langchain_core.messages import AIMessage
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.events.buffers import TextChunkBuffer
@@ -264,6 +264,33 @@ async def test_text_chunk_key_change_flushes_previous_chunk_without_dropping_cur
     await processor.process_event({"event": "on_chat_model_end", "data": {"output": None}})
 
     assert [event["data"]["content"] for event in presenter.emitted] == ["hello", "world"]
+
+
+@pytest.mark.asyncio
+async def test_non_streaming_chat_model_end_emits_final_output_text() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(
+        {
+            "event": "on_chat_model_end",
+            "data": {"output": AIMessage(content="final answer", id="msg-1")},
+            "metadata": {},
+        }
+    )
+
+    assert processor.output_text == "final answer"
+    assert presenter.emitted == [
+        {
+            "event": "message:chunk",
+            "data": {
+                "content": "final answer",
+                "text_id": "msg-1",
+                "depth": 0,
+                "agent_id": None,
+            },
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -923,6 +950,88 @@ async def test_tool_end_offloads_result_json_parsing(monkeypatch: pytest.MonkeyP
 
     assert tool_events._parse_tool_result_json in calls
     assert presenter.emitted[0]["data"]["result"] == {"ok": True, "items": [1, 2]}
+
+
+@pytest.mark.asyncio
+async def test_failed_workflow_tool_json_result_preserves_outlet_and_failure_status() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+    workflow_result = {
+        "plugin_id": "workflow",
+        "workflow_id": "wf-chat",
+        "run_id": "run-debug-1",
+        "version_id": "wfv-1",
+        "status": "failed",
+        "output": None,
+        "error": "workflow_run_not_found",
+        "interface": {
+            "entry": {
+                "type": "tool",
+                "tool": "workflow_run",
+                "argument": "input",
+                "schema_tool": "workflow_get_schema",
+                "schema_field": "input_schema",
+            },
+            "exit": {
+                "type": "object",
+                "field": "output",
+                "schema_tool": "workflow_get_schema",
+                "schema_field": "output_schema",
+            },
+            "debug": {
+                "tool": "workflow_get_run",
+                "workflow_id": "wf-chat",
+                "run_id": "run-debug-1",
+                "events_field": "events",
+            },
+        },
+        "next_action": {
+            "type": "handle_terminal_error",
+            "field": "error",
+            "reason": "workflow_run_failed",
+            "tool": "workflow_get_run",
+        },
+        "events": [
+            {"event": "run_started", "node_id": "start"},
+            {"event": "run_failed", "node_id": "answer"},
+        ],
+    }
+
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "workflow_get_run",
+            "run_id": "tool-call-workflow-debug",
+            "data": {
+                "input": {
+                    "workflow_id": "wf-chat",
+                    "run_id": "run-debug-1",
+                }
+            },
+            "metadata": {},
+        }
+    )
+    await processor.process_event(
+        {
+            "event": "on_tool_end",
+            "name": "workflow_get_run",
+            "run_id": "tool-call-workflow-debug",
+            "data": {"output": json.dumps(workflow_result)},
+            "metadata": {},
+        }
+    )
+
+    assert [event["event"] for event in presenter.emitted] == ["tool:start", "tool:result"]
+    result_event = presenter.emitted[1]
+    assert result_event["data"]["tool"] == "workflow_get_run"
+    assert result_event["data"]["tool_call_id"] == "tool-call-workflow-debug"
+    assert result_event["data"]["success"] is False
+    assert result_event["data"]["error"] == "workflow_run_not_found"
+    assert result_event["data"]["result"]["plugin_id"] == "workflow"
+    assert result_event["data"]["result"]["status"] == "failed"
+    assert result_event["data"]["result"]["interface"]["entry"]["tool"] == "workflow_run"
+    assert result_event["data"]["result"]["interface"]["debug"]["tool"] == "workflow_get_run"
+    assert result_event["data"]["result"]["next_action"]["tool"] == "workflow_get_run"
 
 
 @pytest.mark.asyncio

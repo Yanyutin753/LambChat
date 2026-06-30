@@ -10,10 +10,15 @@ import { useTranslation } from "react-i18next";
 import { PanelHeader } from "../../common/PanelHeader";
 import { AgentSection } from "./AgentSection";
 import { ModelSection } from "./ModelSection";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
 
 export type SectionType = "agents" | "models";
 
-export function AgentModelPanel() {
+export function AgentModelPanel({
+  runtimePlugins,
+}: {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
   const { t } = useTranslation();
   const [activeSection, setActiveSection] = useState<SectionType>("agents");
 
@@ -60,7 +65,11 @@ export function AgentModelPanel() {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {activeSection === "agents" ? <AgentSection /> : <ModelSection />}
+        {activeSection === "agents" ? (
+          <AgentSection runtimePlugins={runtimePlugins} />
+        ) : (
+          <ModelSection />
+        )}
       </div>
     </div>
   );

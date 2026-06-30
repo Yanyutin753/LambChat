@@ -12,11 +12,17 @@ import { Permission } from "../../types";
 import { APP_NAME } from "../../constants";
 import { channelApi } from "../../services/api/channel";
 import { ChannelPanel } from "../panels/ChannelPanel";
-import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
 import { ChannelsGridSkeleton } from "../skeletons";
 import { SkillBaseCard } from "../common/SkillBaseCard";
 import { nameToGradient } from "../common/cardUtils";
+import {
+  findChannelConnectorContribution,
+  hasChannelConnectorContribution,
+  hasRuntimeManagedChannelConnector,
+  type PluginRuntimeContributionStates,
+} from "../../extensions/coreContributions";
+import { getChannelConnectorPanelRenderer } from "./channelConnectorPanelRenderers";
 import type {
   ChannelMetadata,
   ChannelConfigStatus,
@@ -24,6 +30,10 @@ import type {
   ChannelType,
 } from "../../types/channel";
 import { formatDate } from "../../utils/datetime";
+
+interface ChannelsPageProps {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}
 
 // Icon map for channel icons
 const CHANNEL_ICONS: Record<string, React.FC<{ className?: string }>> = {
@@ -38,7 +48,7 @@ function getChannelIcon(iconName: string, className?: string) {
   return <IconComponent className={className} />;
 }
 
-export function ChannelsPage() {
+export function ChannelsPage({ runtimePlugins }: ChannelsPageProps) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -62,7 +72,7 @@ export function ChannelsPage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [runtimePlugins]);
 
   useEffect(() => {
     // Load instances when a channel type is selected
@@ -75,10 +85,16 @@ export function ChannelsPage() {
     setIsLoading(true);
     try {
       const types = await channelApi.getTypes();
-      setChannelTypes(types);
+      const visibleTypes = types.filter((ct) => {
+        if (!hasRuntimeManagedChannelConnector(ct.channel_type, runtimePlugins)) {
+          return true;
+        }
+        return hasChannelConnectorContribution(ct.channel_type, runtimePlugins);
+      });
+      setChannelTypes(visibleTypes);
 
       // Load instances for all channel types in parallel
-      await Promise.all(types.map((ct) => loadInstances(ct.channel_type)));
+      await Promise.all(visibleTypes.map((ct) => loadInstances(ct.channel_type)));
     } catch (error) {
       console.error("Failed to load channel types:", error);
       toast.error(
@@ -143,7 +159,14 @@ export function ChannelsPage() {
     );
     if (!metadata) return null;
 
-    if (selectedChannel === "feishu") {
+    const connector = findChannelConnectorContribution(
+      selectedChannel,
+      runtimePlugins,
+    );
+    const ConnectorPanel = getChannelConnectorPanelRenderer(
+      connector?.panelRenderer,
+    );
+    if (ConnectorPanel) {
       const instance = instances[selectedChannel]?.find(
         (i) => i.instance_id === selectedInstance,
       );
@@ -152,7 +175,7 @@ export function ChannelsPage() {
           ? statuses[`${selectedChannel}:${selectedInstance}`]
           : null;
       return (
-        <FeishuPanel
+        <ConnectorPanel
           instanceId={selectedInstance}
           initialConfig={instance}
           initialStatus={status}

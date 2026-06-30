@@ -60,8 +60,8 @@ def test_team_tool_descriptions_guide_llm_team_creation() -> None:
     assert "Optional existing Team id to update" in create_fields["team_id"].description
     assert "Always provide an emoji or avatar image URL" in create_fields["avatar"].description
     assert "Do not invent persona_preset_id values" in create_fields["members"].description
-    assert "agent_id" in create_fields["members"].description
-    assert "do not use 'team'" in create_fields["members"].description
+    assert "agent_id" not in create_fields["members"].description
+    assert "sandbox backend" in create_fields["run_in_sandbox"].description
     assert "role_avatar" in create_fields["members"].description
     assert "emoji or avatar image URL" in create_fields["members"].description
     assert "Never use placeholder ids such as 'general-purpose'" in (
@@ -225,6 +225,7 @@ async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.Mon
     assert body.members[0].role_avatar == "🔎"
     assert body.default_member_id == "m-research"
     assert body.team_instructions == "Research first, then synthesize."
+    assert body.run_in_sandbox is False
     assert body.tags == ["analysis"]
     assert manager.create_team.await_args.kwargs["user"].permissions == ["chat:write"]
 
@@ -335,7 +336,7 @@ async def test_create_agent_team_passes_member_model_id_to_manager(
 
 
 @pytest.mark.asyncio
-async def test_create_agent_team_passes_member_agent_id_to_manager(
+async def test_create_agent_team_ignores_member_agent_id_and_sets_team_sandbox(
     monkeypatch: pytest.MonkeyPatch,
 ):
     from src.infra.tool import team_tool
@@ -343,12 +344,11 @@ async def test_create_agent_team_passes_member_agent_id_to_manager(
     created = TeamResponse(
         id="team-1",
         owner_user_id="user-1",
-        name="Mode Team",
+        name="Sandbox Team",
         members=[
             TeamMemberResponse(
                 member_id="m-research",
                 persona_preset_id="preset-research",
-                agent_id="search",
                 role_name="Market Research Lead",
                 enabled=True,
             )
@@ -370,6 +370,7 @@ async def test_create_agent_team_passes_member_agent_id_to_manager(
         await team_tool.create_agent_team.coroutine(
             name="Mode Team",
             avatar="mode",
+            run_in_sandbox=True,
             members=[
                 {
                     "member_id": "m-research",
@@ -384,7 +385,8 @@ async def test_create_agent_team_passes_member_agent_id_to_manager(
 
     assert result["success"] is True
     body = manager.create_team.await_args.args[0]
-    assert body.members[0].agent_id == "search"
+    assert not hasattr(body.members[0], "agent_id")
+    assert body.run_in_sandbox is True
     assert manager.create_team.await_args.kwargs["user"] is user
 
 

@@ -4,6 +4,9 @@ MCP (Model Context Protocol) API router
 Provides endpoints for managing MCP server configurations.
 """
 
+import json
+from types import SimpleNamespace
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.deps import require_permissions
@@ -13,6 +16,8 @@ from src.kernel.schemas.mcp import (
     MCPExportResponse,
     MCPImportRequest,
     MCPImportResponse,
+    MCPInternalToolInvokeRequest,
+    MCPInternalToolInvokeResponse,
     MCPServerCreate,
     MCPServerMoveRequest,
     MCPServerMoveResponse,
@@ -35,6 +40,9 @@ router = APIRouter()
 admin_router = APIRouter()
 
 MCP_IMPORT_MAX_SERVERS = 100
+INTERNAL_TOOL_INVOKE_ALLOWLIST = frozenset(
+    {"workflow_run", "workflow_list", "workflow_get_schema", "workflow_get_run"}
+)
 
 
 # Dependency to get MCPStorage
@@ -71,6 +79,20 @@ def _is_internal_server(name: str) -> bool:
     from src.infra.tool.internal_registry import INTERNAL_MCP_SERVER_NAME
 
     return name == INTERNAL_MCP_SERVER_NAME
+
+
+def _tool_runtime_for_user(user: TokenPayload) -> SimpleNamespace:
+    context = SimpleNamespace(user_id=user.sub)
+    return SimpleNamespace(config={"configurable": {"context": context}})
+
+
+def _decode_tool_result(result):
+    if not isinstance(result, str):
+        return result
+    try:
+        return json.loads(result)
+    except json.JSONDecodeError:
+        return result
 
 
 def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
@@ -586,6 +608,50 @@ async def admin_discover_server_tools(
         tools=[MCPToolInfo(**t) for t in tools],
         count=len(tools),
         error=error,
+    )
+
+
+@admin_router.post(
+    "/{name}/tools/{tool_name}/invoke",
+    response_model=MCPInternalToolInvokeResponse,
+)
+async def admin_invoke_internal_tool(
+    name: str,
+    tool_name: str,
+    data: MCPInternalToolInvokeRequest,
+    user: TokenPayload = Depends(require_permissions("mcp:admin")),
+) -> MCPInternalToolInvokeResponse:
+    """Invoke a constrained LambChat internal MCP tool for deployment acceptance."""
+    if not _is_internal_server(name):
+        raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
+    if tool_name not in INTERNAL_TOOL_INVOKE_ALLOWLIST:
+        raise HTTPException(
+            status_code=403, detail=f"Internal tool '{tool_name}' cannot be invoked via admin API"
+        )
+
+    from src.infra.tool.internal_registry import get_internal_tools_for_user
+
+    tools = await get_internal_tools_for_user(
+        user_id=user.sub,
+        user_roles=user.roles,
+        is_admin=True,
+    )
+    tool_by_name = {tool.name: tool for tool in tools}
+    tool = tool_by_name.get(tool_name)
+    if tool is None:
+        raise HTTPException(status_code=404, detail=f"Tool '{tool_name}' not found")
+
+    if not hasattr(tool, "_arun"):
+        raise HTTPException(
+            status_code=400, detail=f"Tool '{tool_name}' cannot be invoked directly"
+        )
+
+    runtime = _tool_runtime_for_user(user)
+    raw_result = await tool._arun(runtime=runtime, config={}, **data.arguments)
+    return MCPInternalToolInvokeResponse(
+        server_name=name,
+        tool_name=tool_name,
+        result=_decode_tool_result(raw_result),
     )
 
 

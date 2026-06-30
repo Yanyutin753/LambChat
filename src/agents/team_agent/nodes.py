@@ -4,6 +4,7 @@ Team Agent 节点 - 团队路由，角色分派
 基于 fast_agent/nodes.py 扩展，增加团队解析和多角色子代理。
 """
 
+import json
 import time
 import uuid
 from typing import Any, Dict
@@ -39,9 +40,6 @@ from src.agents.core.subagent_prompts import (
 from src.agents.core.thinking import build_thinking_config
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import (
-    DEFAULT_SYSTEM_PROMPT as SEARCH_DEFAULT_SYSTEM_PROMPT,
-)
-from src.agents.search_agent.prompt import (
     SANDBOX_RUNTIME_SECTION as SEARCH_SANDBOX_RUNTIME_SECTION,
 )
 from src.agents.search_agent.prompt import (
@@ -64,8 +62,9 @@ from src.infra.agent.middleware import (
     PromptCachingMiddleware,
     SandboxMCPMiddleware,
     SectionPromptMiddleware,
-    SubagentActivityMiddleware,
-    SubagentResultHandoffMiddleware,
+    SubagentExecutionPolicyMiddleware,
+    TaskDelegationEnvelopeMiddleware,
+    TeamRouterDelegationGuardMiddleware,
     ToolResultBinaryMiddleware,
     create_code_interpreter_middleware,
     create_retry_middleware,
@@ -86,9 +85,17 @@ from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
 from src.kernel.config import settings
+from src.kernel.extensions.plugin_options import plugin_result_from_agent_options
 from src.kernel.schemas.model import ModelConfig
+from src.plugins.workflow.contracts import (
+    workflow_output_contract_value,
+    workflow_output_schema_summary,
+)
 
 logger = get_logger(__name__)
+
+_WORKFLOW_PLUGIN_ID = "workflow"
+_MAX_WORKFLOW_RESULT_SECTION_CHARS = 2000
 
 
 # ============================================================================
@@ -101,6 +108,95 @@ def build_no_team_fallback_system_prompt(*, sandbox_active: bool) -> str:
     if sandbox_active:
         return SEARCH_SANDBOX_SYSTEM_PROMPT
     return FAST_SYSTEM_PROMPT
+
+
+def _bounded_workflow_section_value(value: Any) -> str:
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str, sort_keys=True)
+    except TypeError:
+        text = str(value)
+    if len(text) <= _MAX_WORKFLOW_RESULT_SECTION_CHARS:
+        return text
+    omitted = len(text) - _MAX_WORKFLOW_RESULT_SECTION_CHARS
+    return f"{text[:_MAX_WORKFLOW_RESULT_SECTION_CHARS]}... [truncated {omitted} chars]"
+
+
+def workflow_result_prompt_section(agent_options: dict[str, Any] | None) -> str:
+    """Build a compact prompt section from the structured workflow outlet."""
+    result = plugin_result_from_agent_options(
+        agent_options,
+        plugin_id=_WORKFLOW_PLUGIN_ID,
+    )
+    if not isinstance(result, dict):
+        return ""
+    raw_output = result.get("output")
+    output = raw_output if isinstance(raw_output, dict) else {}
+    raw_io_contract = result.get("io_contract")
+    io_contract = raw_io_contract if isinstance(raw_io_contract, dict) else {}
+    contract_value = workflow_output_contract_value(output, io_contract)
+    rendered_output = contract_value if contract_value not in (None, "") else output
+    lines = [
+        "## Workflow Result",
+        "A selected workflow ran before this team turn. Treat this as structured workflow output when it is relevant to the task.",
+        f"workflow_id: {result.get('workflow_id')}",
+        f"run_id: {result.get('run_id')}",
+        f"version_id: {result.get('version_id')}",
+        f"status: {result.get('status')}",
+        f"output: {_bounded_workflow_section_value(rendered_output)}",
+    ]
+    error = result.get("error")
+    if error not in (None, ""):
+        lines.append(f"error: {_bounded_workflow_section_value(error)}")
+    output_schema_summary = workflow_output_schema_summary(result.get("io_contract"))
+    if output_schema_summary:
+        lines.append(f"outputs: {output_schema_summary}")
+    output_contract = result.get("output_contract")
+    if isinstance(output_contract, dict):
+        valid = "valid" if output_contract.get("valid") else "invalid"
+        lines.append(f"output_contract: {valid}")
+        missing_required = output_contract.get("missing_required")
+        if isinstance(missing_required, list) and missing_required:
+            lines.append(
+                f"missing_required_outputs: {_bounded_workflow_section_value(missing_required)}"
+            )
+        type_mismatches = output_contract.get("type_mismatches")
+        if isinstance(type_mismatches, list) and type_mismatches:
+            lines.append(
+                f"type_mismatched_outputs: {_bounded_workflow_section_value(type_mismatches)}"
+            )
+    interface = result.get("interface")
+    if isinstance(interface, dict):
+        entry = interface.get("entry")
+        exit_ = interface.get("exit")
+        debug = interface.get("debug")
+        if isinstance(entry, dict) and isinstance(exit_, dict):
+            interface_parts = [
+                f"entry={entry.get('tool')}.{entry.get('argument')}",
+                f"schema={entry.get('schema_tool')}.{entry.get('schema_field')}",
+                f"exit={exit_.get('field')}",
+            ]
+            if exit_.get("schema_tool") and exit_.get("schema_field"):
+                interface_parts.append(
+                    f"output_schema={exit_.get('schema_tool')}.{exit_.get('schema_field')}"
+                )
+            if isinstance(debug, dict):
+                interface_parts.append(f"debug={debug.get('tool')}.{debug.get('events_field')}")
+            lines.append("interface: " + " ".join(interface_parts))
+    next_action = result.get("next_action")
+    if isinstance(next_action, dict):
+        action_type = next_action.get("type")
+        field = next_action.get("field")
+        reason = next_action.get("reason")
+        if action_type:
+            action_parts = [str(action_type)]
+            if field:
+                action_parts.append(str(field))
+            if reason:
+                action_parts.append(f"reason={reason}")
+            lines.append("next_action: " + " ".join(action_parts))
+    if result.get("run_id"):
+        lines.append("debug: use workflow_get_run with workflow_id and run_id to inspect events")
+    return "\n".join(lines)
 
 
 async def resolve_runtime_team(
@@ -194,80 +290,6 @@ def _safe_member_model_config_dict(model: ModelConfig) -> dict[str, Any]:
     return model.model_copy(update={"api_key": None}).model_dump(mode="json")
 
 
-async def resolve_team_member_agent_id(
-    member_agent_id: str | None,
-    *,
-    user_id: str | None = None,
-) -> str | None:
-    """Resolve and validate a team member agent mode override for runtime use."""
-    if not member_agent_id:
-        return None
-
-    if member_agent_id == "team":
-        raise ValueError("team_member_agent_unavailable")
-
-    from src.agents.core.base import AgentFactory
-
-    registered_agent_ids = {agent["id"] for agent in AgentFactory.list_agents()}
-    if member_agent_id not in registered_agent_ids:
-        raise ValueError("team_member_agent_unavailable")
-
-    role_ids: list[str] = []
-    role_agent_map: dict[str, list[str] | None] = {}
-    try:
-        if user_id:
-            from src.infra.agent.config_storage import get_agent_config_storage
-            from src.infra.role.manager import get_role_manager
-            from src.infra.user.storage import UserStorage
-
-            user = await UserStorage().get_by_id(user_id)
-            if not user:
-                raise ValueError("team_member_agent_not_allowed")
-
-            storage = get_agent_config_storage()
-            role_manager = get_role_manager()
-            for role_name in user.roles or []:
-                role = await role_manager.get_role_by_name(role_name)
-                if not role:
-                    continue
-                role_ids.append(role.id)
-                role_agent_map[role.id] = await storage.get_role_agents(role.id)
-
-        allowed_agents = await AgentFactory.get_filtered_agents(
-            user_roles=role_ids,
-            role_agent_map=role_agent_map,
-        )
-        allowed_agent_ids = {agent["id"] for agent in allowed_agents}
-        if member_agent_id not in allowed_agent_ids:
-            raise ValueError("team_member_agent_not_allowed")
-    except ValueError:
-        raise
-    except Exception as e:
-        logger.warning(
-            "[TeamAgent] Failed to validate member agent access %s: %s",
-            member_agent_id,
-            e,
-        )
-        raise ValueError("team_member_agent_unavailable") from e
-
-    return member_agent_id
-
-
-def _build_member_agent_mode_sections(
-    agent_id: str | None,
-    *,
-    sandbox_active: bool,
-) -> list[str]:
-    """Return mode-specific prompt sections for a team member subagent."""
-    if not agent_id:
-        return []
-    if agent_id == "fast":
-        return [FAST_SYSTEM_PROMPT]
-    if agent_id == "search":
-        return [SEARCH_SANDBOX_SYSTEM_PROMPT if sandbox_active else SEARCH_DEFAULT_SYSTEM_PROMPT]
-    return []
-
-
 async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str, Any]:
     """
     Team Router 主节点 - 团队路由，角色分派
@@ -300,6 +322,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         model_id=model_id,
         model_config=resolved_model_config,
         thinking=thinking_config,
+        streaming=False,
     )
     llm_init_time = time.time() - llm_start
     logger.debug(f"[TeamAgent] LLM init: {llm_init_time * 1000:.3f}ms")
@@ -334,6 +357,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         context=context,
         user_input=user_input,
     )
+    sandbox_requested = bool(team.run_in_sandbox) if team else bool(settings.ENABLE_SANDBOX)
+    sandbox_active = bool(settings.ENABLE_SANDBOX and sandbox_requested)
 
     # ── 系统提示 ──
     # In explicit team mode the main agent is only the router/synthesizer.
@@ -354,6 +379,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     router_skills_prompt = "" if team else skills_prompt
 
     memory_guide = get_memory_guide() if settings.ENABLE_MEMORY else ""
+    workflow_result_section = workflow_result_prompt_section(agent_options)
     role_system_prompts: dict[str, str] = {}
     role_skill_prompts: dict[str, str] = {}
     role_summaries: dict[str, str] = {}
@@ -417,7 +443,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     sandbox_backend = None
     sandbox_work_dir = None
 
-    if not settings.ENABLE_SANDBOX:
+    if not sandbox_active:
         session_id = state.get("session_id", str(uuid.uuid4()))
         backend_factory = create_persistent_backend_factory(
             assistant_id=assistant_id,
@@ -425,7 +451,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             session_id=session_id,
         )
         logger.info(
-            f"[TeamAgent] Sandbox disabled, using PersistentBackend for assistant: {assistant_id}"
+            "[TeamAgent] Sandbox inactive, using PersistentBackend for assistant: %s "
+            "team_id=%s team_requested_sandbox=%s global_sandbox_enabled=%s",
+            assistant_id,
+            getattr(team, "id", None),
+            sandbox_requested,
+            settings.ENABLE_SANDBOX,
         )
     else:
         if not context.user_id:
@@ -479,7 +510,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     # 过滤工具（懒加载 MCP 工具）
     filtered_tools = None
-    if settings.ENABLE_MCP:
+    if hasattr(context, "get_tools") and hasattr(context, "filter_tools"):
         await context.get_tools()
         filtered_tools = context.filter_tools() or None
 
@@ -516,6 +547,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir),
             SubagentActivityMiddleware(backend=backend),
         ]
+        if team:
+            mw.append(SubagentExecutionPolicyMiddleware())
         if should_convert_image_url_to_base64:
             mw.append(ImageUrlToBase64Middleware())
         if prompt_sections:
@@ -555,10 +588,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             for member in team.active_members:
                 subagent_type = build_team_member_subagent_type(member)
                 role_name = member.role_name or subagent_type
-                member_agent_id = await resolve_team_member_agent_id(
-                    member.agent_id,
-                    user_id=context.user_id,
-                )
                 member_model_config = await resolve_team_member_model_config(
                     member.model_id,
                     user_id=context.user_id,
@@ -572,6 +601,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                         model_id=member_model_config.id,
                         model_config=_safe_member_model_config_dict(member_model_config),
                         thinking=thinking_config,
+                        streaming=False,
                     )
                     member_fallback_model = await resolve_fallback_model(
                         member_model_config.id,
@@ -600,11 +630,8 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 role_prompt_sections = [
                     s
                     for s in (
-                        *_build_member_agent_mode_sections(
-                            member_agent_id,
-                            sandbox_active=bool(sandbox_backend),
-                        ),
                         role_section,
+                        workflow_result_section,
                         role_skill_prompts.get(member.member_id, skills_prompt),
                         memory_guide,
                         subagent_runtime_section,
@@ -624,14 +651,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     and (member.role_instructions or "").strip() in role_section,
                     any("## Skills System" in s for s in role_prompt_sections),
                 )
-                if member_agent_id:
-                    logger.info(
-                        "[TeamAgent] Role subagent agent mode override: type=%s role=%s agent_id=%s",
-                        subagent_type,
-                        role_name,
-                        member_agent_id,
-                    )
-
                 subagent_config: SubAgent = {
                     "name": subagent_type,
                     "description": (
@@ -657,8 +676,6 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             )
         except ValueError as e:
             if str(e) in {
-                "team_member_agent_unavailable",
-                "team_member_agent_not_allowed",
                 "team_member_model_unavailable",
                 "team_member_model_not_allowed",
             }:
@@ -673,7 +690,13 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     if not custom_subagents:
         subagent_prompt_sections = [
             s
-            for s in (*persona_sections, skills_prompt, memory_guide, subagent_runtime_section)
+            for s in (
+                *persona_sections,
+                workflow_result_section,
+                skills_prompt,
+                memory_guide,
+                subagent_runtime_section,
+            )
             if s
         ]
         custom_subagents = [
@@ -728,6 +751,9 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     user_middleware = create_retry_middleware(
         fallback_model=fallback_model_value, thinking=thinking_config
     )
+    if team:
+        user_middleware.append(TeamRouterDelegationGuardMiddleware())
+        user_middleware.append(TaskDelegationEnvelopeMiddleware())
     user_middleware.append(ToolResultBinaryMiddleware(base_url=subagent_base_url))
     user_middleware.append(ArtifactDeliveryMiddleware(workspace_path=sandbox_work_dir))
     if image_url_to_base64:
@@ -737,6 +763,7 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
         for s in (
             *MAIN_AGENT_PROMPT_SECTIONS,
             *persona_sections,
+            workflow_result_section,
             router_skills_prompt,
             memory_guide,
         )

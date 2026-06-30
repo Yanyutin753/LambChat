@@ -11,12 +11,17 @@ import { ZipUploadModal } from "./ZipUploadModal";
 import { GithubImportModal } from "./GithubImportModal";
 import { BatchActionBar } from "./BatchActionBar";
 import { PublishDialog } from "./PublishDialog";
+import {
+  hasSkillImporterContribution,
+  type PluginRuntimeContributionStates,
+} from "../../../extensions/coreContributions";
 
 interface SkillsPanelProps {
   embedded?: boolean;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
-export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
+export function SkillsPanel({ embedded = false, runtimePlugins }: SkillsPanelProps) {
   const { t } = useTranslation();
   const { enableSkills } = useSettingsContext();
   const { hasAnyPermission } = useAuth();
@@ -24,6 +29,10 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
   const canRead = hasAnyPermission([Permission.SKILL_READ]);
   const canWrite = hasAnyPermission([Permission.SKILL_WRITE]);
   const canPublish = hasAnyPermission([Permission.MARKETPLACE_PUBLISH]);
+  const githubImporterEnabled = hasSkillImporterContribution(
+    "github-import",
+    runtimePlugins,
+  );
 
   const actions = useSkillsActions();
 
@@ -94,6 +103,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         onSelectAll={actions.handleSelectAll}
         onCreate={actions.handleCreate}
         onGithubClick={actions.handleGithubClick}
+        showGithubImport={githubImporterEnabled}
         onZipClick={actions.handleZipClick}
       />
 
@@ -125,24 +135,26 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         onZipUpload={actions.handleZipUpload}
       />
 
-      <GithubImportModal
-        showGithubModal={actions.showGithubModal}
-        setShowGithubModal={actions.setShowGithubModal}
-        githubUrl={actions.githubUrl}
-        setGithubUrl={actions.setGithubUrl}
-        githubBranch={actions.githubBranch}
-        setGithubBranch={actions.setGithubBranch}
-        githubSkills={actions.githubSkills}
-        selectedGithubSkills={actions.selectedGithubSkills}
-        githubLoading={actions.githubLoading}
-        githubInstalling={actions.githubInstalling}
-        githubExporting={actions.githubExporting}
-        onGithubPreview={actions.handleGithubPreview}
-        onGithubSkillToggle={actions.handleGithubSkillToggle}
-        onGithubInstall={actions.handleGithubInstall}
-        onGithubExport={actions.handleGithubExport}
-        setSelectedGithubSkills={actions.setSelectedGithubSkills}
-      />
+      {githubImporterEnabled && (
+        <GithubImportModal
+          showGithubModal={actions.showGithubModal}
+          setShowGithubModal={actions.setShowGithubModal}
+          githubUrl={actions.githubUrl}
+          setGithubUrl={actions.setGithubUrl}
+          githubBranch={actions.githubBranch}
+          setGithubBranch={actions.setGithubBranch}
+          githubSkills={actions.githubSkills}
+          selectedGithubSkills={actions.selectedGithubSkills}
+          githubLoading={actions.githubLoading}
+          githubInstalling={actions.githubInstalling}
+          githubExporting={actions.githubExporting}
+          onGithubPreview={actions.handleGithubPreview}
+          onGithubSkillToggle={actions.handleGithubSkillToggle}
+          onGithubInstall={actions.handleGithubInstall}
+          onGithubExport={actions.handleGithubExport}
+          setSelectedGithubSkills={actions.setSelectedGithubSkills}
+        />
+      )}
 
       {actions.selectionMode && (
         <BatchActionBar

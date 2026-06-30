@@ -119,8 +119,15 @@ def detect_tool_error(out: Any, raw: Any) -> tuple[bool, str | None]:
     if tool_status == "error":
         return True, str(raw) if raw else "Tool execution failed"
 
-    if isinstance(raw, dict) and (raw.get("error") or raw.get("status") == "error"):
-        return True, raw.get("error") or raw.get("message") or str(raw)
+    if isinstance(raw, dict):
+        status = raw.get("status")
+        normalized_status = status.lower() if isinstance(status, str) else None
+        if raw.get("error") or normalized_status in {"error", "failed"}:
+            return True, (
+                raw.get("error")
+                or raw.get("message")
+                or (f"Tool returned status {normalized_status}" if normalized_status else str(raw))
+            )
 
     if isinstance(raw, str) and raw:
         first_line = raw.lstrip()[:200].lower()

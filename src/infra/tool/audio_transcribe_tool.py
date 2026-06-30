@@ -14,9 +14,10 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 from openai import AsyncOpenAI
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.extensions import PluginSettingsResolver
 from src.infra.logging import get_logger
 from src.infra.tool.backend_utils import get_base_url_from_runtime
-from src.kernel.config import settings
+from src.kernel.extensions.builtin_plugins import AUDIO_TRANSCRIPTION_PLUGIN_ID
 
 if TYPE_CHECKING:
     from langchain.tools import ToolRuntime
@@ -37,6 +38,10 @@ _SPOOL_MAX_MEMORY_BYTES = 2 * 1024 * 1024
 
 # Bound remote audio downloads before forwarding them to the transcription API.
 _MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024
+
+
+def _settings_resolver() -> PluginSettingsResolver:
+    return PluginSettingsResolver(plugin_id=AUDIO_TRANSCRIPTION_PLUGIN_ID)
 
 
 def _json(data: dict[str, Any]) -> str:
@@ -82,12 +87,13 @@ def _known_download_size(headers: Any) -> int | None:
     return size if size >= 0 else None
 
 
-def _build_client() -> AsyncOpenAI | None:
-    api_key = getattr(settings, "AUDIO_TRANSCRIPTION_API_KEY", "") or ""
+async def _build_client() -> AsyncOpenAI | None:
+    resolver = _settings_resolver()
+    api_key = await resolver.get_secret("API_KEY")
     if not api_key:
         return None
 
-    base_url = getattr(settings, "AUDIO_TRANSCRIPTION_BASE_URL", "") or None
+    base_url = await resolver.get_str("BASE_URL", "") or None
     client_kwargs: dict[str, Any] = {"api_key": api_key}
     if base_url:
         client_kwargs["base_url"] = base_url
@@ -121,27 +127,19 @@ async def audio_transcribe(
 
     resolved_url = _resolve_url(url, runtime)
 
-    client = _build_client()
+    resolver = _settings_resolver()
+    client = await _build_client()
     if client is None:
         return await _json_dumps_result({"error": "AUDIO_TRANSCRIPTION_API_KEY is not configured"})
 
-    resolved_model = (
-        model or getattr(settings, "AUDIO_TRANSCRIPTION_MODEL", "") or "gpt-4o-mini-transcribe"
-    )
+    resolved_model = model or await resolver.get_str("MODEL", "gpt-4o-mini-transcribe")
 
     try:
         try:
             filename = _guess_filename(resolved_url)
             with SpooledTemporaryFile(max_size=_SPOOL_MAX_MEMORY_BYTES, mode="w+b") as file_obj:
                 max_download_bytes = max(
-                    int(
-                        getattr(
-                            settings,
-                            "AUDIO_TRANSCRIPTION_MAX_DOWNLOAD_BYTES",
-                            _MAX_DOWNLOAD_BYTES,
-                        )
-                        or 0
-                    ),
+                    await resolver.get_int("MAX_DOWNLOAD_BYTES", _MAX_DOWNLOAD_BYTES),
                     1,
                 )
                 total_size = 0

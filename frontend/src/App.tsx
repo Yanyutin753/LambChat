@@ -1,10 +1,12 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   Routes,
   Route,
   useParams,
   useNavigate,
+  useLocation,
   Navigate,
+  matchPath,
 } from "react-router-dom";
 import { Toaster, ToastBar, toast } from "react-hot-toast";
 import { X } from "lucide-react";
@@ -16,7 +18,6 @@ import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { SelectionActionPopover } from "./components/common/SelectionActionPopover.tsx";
 import { useSEO } from "./hooks/usePageTitle";
 import { GITHUB_URL } from "./constants";
-import { Permission } from "./types";
 import { sessionApi } from "./services/api";
 import {
   getCachedSessionTitle,
@@ -27,6 +28,23 @@ import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
 import { UpdateDialog } from "./components/update/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
+import { useAuth } from "./hooks/useAuth";
+import { useExtensionContributions } from "./hooks/useExtensionContributions";
+import {
+  buildAppRouteContributions,
+  type CoreAppRouteContribution,
+  type PluginRuntimeContributionStates,
+} from "./extensions/coreContributions";
+
+const EMPTY_RUNTIME_PLUGINS: PluginRuntimeContributionStates = [];
+const BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS = [
+  "/agent-team",
+  "/feedback",
+  "/usage",
+  "/workflows",
+  "/workflows/:workflowId/editor",
+  "/workflows/:workflowId/runs/:runId",
+] as const;
 
 const SharedPage = lazy(() =>
   import("./components/share/SharedPage").then((m) => ({
@@ -153,158 +171,39 @@ function ChatPageSEO() {
 }
 
 // Chat Page Component
-function ChatPage() {
+function ChatPage({
+  runtimePlugins,
+}: {
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
   return (
     <>
       <ChatPageSEO />
-      <AppContent key="chat" activeTab="chat" />
+      <AppContent key="chat" activeTab="chat" runtimePlugins={runtimePlugins} />
     </>
   );
 }
 
-// Simple page components that set the page title and render AppContent
-function SkillsPage() {
+function CoreAppRoutePage({
+  route,
+  runtimePlugins,
+}: {
+  route: CoreAppRouteContribution;
+  runtimePlugins?: PluginRuntimeContributionStates;
+}) {
   useSEO({
-    title: "seo.skills.title",
-    description: "seo.skills.description",
-    path: "/skills",
+    title: route.seoTitle,
+    description: route.seoDescription,
+    path: route.seoPath ?? route.path,
   });
-  return <AppContent key="skills" activeTab="skills" />;
-}
 
-function MarketplacePage() {
-  useSEO({
-    title: "seo.marketplace.title",
-    description: "seo.marketplace.description",
-    path: "/marketplace",
-  });
-  return <AppContent key="marketplace" activeTab="marketplace" />;
-}
-
-function UsersPage() {
-  useSEO({
-    title: "seo.users.title",
-    description: "seo.users.description",
-    path: "/users",
-  });
-  return <AppContent key="users" activeTab="users" />;
-}
-
-function RolesPage() {
-  useSEO({
-    title: "seo.roles.title",
-    description: "seo.roles.description",
-    path: "/roles",
-  });
-  return <AppContent key="roles" activeTab="roles" />;
-}
-
-function SettingsPage() {
-  useSEO({
-    title: "seo.settings.title",
-    description: "seo.settings.description",
-    path: "/settings",
-  });
-  return <AppContent key="settings" activeTab="settings" />;
-}
-
-function MCPPage() {
-  useSEO({
-    title: "seo.mcp.title",
-    description: "seo.mcp.description",
-    path: "/mcp",
-  });
-  return <AppContent key="mcp" activeTab="mcp" />;
-}
-
-function FeedbackPage() {
-  useSEO({
-    title: "seo.feedback.title",
-    description: "seo.feedback.description",
-    path: "/feedback",
-  });
-  return <AppContent key="feedback" activeTab="feedback" />;
-}
-
-function ChannelsPage() {
-  useSEO({
-    title: "seo.channels.title",
-    description: "seo.channels.description",
-    path: "/channels",
-  });
-  return <AppContent key="channels" activeTab="channels" />;
-}
-
-function AgentsPage() {
-  useSEO({
-    title: "seo.agents.title",
-    description: "seo.agents.description",
-    path: "/agents",
-  });
-  return <AppContent key="agents" activeTab="agents" />;
-}
-
-function FilesPage() {
-  useSEO({
-    title: "seo.files.title",
-    description: "seo.files.description",
-    path: "/files",
-  });
-  return <AppContent key="files" activeTab="files" />;
-}
-
-function TeamPage() {
-  useSEO({
-    title: "seo.team.title",
-    description: "seo.team.description",
-    path: "/team",
-  });
-  return <AppContent key="team" activeTab="team" />;
-}
-
-function PersonaPage() {
-  useSEO({
-    title: "seo.persona.title",
-    description: "seo.persona.description",
-    path: "/persona",
-  });
-  return <AppContent key="persona" activeTab="persona" />;
-}
-
-function NotificationsPage() {
-  useSEO({
-    title: "seo.notifications.title",
-    description: "seo.notifications.description",
-    path: "/notifications",
-  });
-  return <AppContent key="notifications" activeTab="notifications" />;
-}
-
-function MemoryPage() {
-  useSEO({
-    title: "seo.memory.title",
-    description: "seo.memory.description",
-    path: "/memory",
-  });
-  return <AppContent key="memory" activeTab="memory" />;
-}
-
-function ScheduledTasksPage() {
-  useSEO({
-    title: "seo.scheduledTasks.title",
-    description: "seo.scheduledTasks.description",
-    path: "/scheduled-tasks",
-  });
-  return <AppContent key="scheduled-tasks" activeTab="scheduled-tasks" />;
-}
-
-function UsagePage() {
-  useSEO({
-    title: "seo.usage.title",
-    description: "seo.usage.description",
-    path: "/usage",
-  });
-  return <AppContent key="usage" activeTab="usage" />;
+  return (
+    <AppContent
+      key={route.tab}
+      activeTab={route.tab}
+      runtimePlugins={runtimePlugins}
+    />
+  );
 }
 
 function GitHubPage() {
@@ -348,6 +247,37 @@ function AuthPageWrapper({
 function App() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const canReadExtensionContributions = isAuthenticated && !isAuthLoading;
+  const {
+    data: extensionContributions,
+    isLoading: areExtensionContributionsLoading,
+    error: extensionContributionsError,
+  } = useExtensionContributions({ enabled: canReadExtensionContributions });
+  const runtimePlugins = extensionContributions?.plugins ?? EMPTY_RUNTIME_PLUGINS;
+  const appRouteContributions = useMemo(
+    () => buildAppRouteContributions(runtimePlugins),
+    [runtimePlugins],
+  );
+  const pluginAppRouteLoadingPaths = useMemo(() => {
+    const declaredPluginPaths = appRouteContributions
+      .filter((route) => route.pluginId)
+      .map((route) => route.path);
+    return Array.from(
+      new Set([
+        ...BUILTIN_PLUGIN_APP_ROUTE_LOADING_PATHS,
+        ...declaredPluginPaths,
+      ]),
+    );
+  }, [appRouteContributions]);
+  const shouldShowPluginRouteLoading =
+    canReadExtensionContributions &&
+    (areExtensionContributionsLoading ||
+      (!extensionContributions && !extensionContributionsError)) &&
+    pluginAppRouteLoadingPaths.some((path) =>
+      path === location.pathname || Boolean(matchPath({ path, end: true }, location.pathname)),
+    );
 
   // Auto-update for desktop and mobile
   const {
@@ -471,200 +401,49 @@ function App() {
               path="/chat/:sessionId?"
               element={
                 <ProtectedRoute>
-                  <ChatPage />
+                  <ChatPage runtimePlugins={runtimePlugins} />
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/skills"
-              element={
-                <ProtectedRoute
-                  permissions={[
-                    Permission.SKILL_READ,
-                    Permission.MARKETPLACE_READ,
-                  ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <SkillsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/marketplace"
-              element={
-                <ProtectedRoute
-                  permissions={[
-                    Permission.SKILL_READ,
-                    Permission.MARKETPLACE_READ,
-                  ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <MarketplacePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mcp"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.MCP_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <MCPPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/users"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.USER_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <UsersPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/roles"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.ROLE_MANAGE]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <RolesPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.SETTINGS_MANAGE]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <SettingsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/feedback"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.FEEDBACK_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <FeedbackPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/channels/:channelType?/:instanceId?"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.CHANNEL_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <ChannelsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/agents"
-              element={
-                <ProtectedRoute>
-                  <AgentsPage />
-                </ProtectedRoute>
-              }
-            />
+            {appRouteContributions.map((route) => (
+              <Route
+                key={route.id}
+                path={route.path}
+                element={
+                  <ProtectedRoute
+                    permissions={
+                      route.permissions ? [...route.permissions] : undefined
+                    }
+                    redirectTo={route.redirectTo}
+                    showToast={route.showNoPermissionToast}
+                    toastMessage={
+                      route.showNoPermissionToast
+                        ? t("errors.noPermission")
+                        : undefined
+                    }
+                    loadingComponent={
+                      route.id === "files" ? <FilesPageSkeleton /> : undefined
+                    }
+                  >
+                    <CoreAppRoutePage
+                      route={route}
+                      runtimePlugins={runtimePlugins}
+                    />
+                  </ProtectedRoute>
+                }
+              />
+            ))}
+            {shouldShowPluginRouteLoading && (
+              <Route
+                path={location.pathname}
+                element={
+                  <ProtectedRoute>
+                    <ChatPageSkeleton />
+                  </ProtectedRoute>
+                }
+              />
+            )}
             <Route path="/models" element={<Navigate to="/agents" replace />} />
-            <Route
-              path="/team"
-              element={
-                <ProtectedRoute permissions={[Permission.TEAM_READ]}>
-                  <TeamPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/persona"
-              element={
-                <ProtectedRoute>
-                  <PersonaPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/files"
-              element={
-                <ProtectedRoute loadingComponent={<FilesPageSkeleton />}>
-                  <FilesPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.NOTIFICATION_MANAGE]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <NotificationsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/memory"
-              element={
-                <ProtectedRoute>
-                  <MemoryPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/scheduled-tasks"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.SCHEDULED_TASK_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <ScheduledTasksPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usage"
-              element={
-                <ProtectedRoute
-                  permissions={[Permission.USAGE_READ]}
-                  redirectTo="/chat"
-                  showToast
-                  toastMessage={t("errors.noPermission")}
-                >
-                  <UsagePage />
-                </ProtectedRoute>
-              }
-            />
             {/* OAuth callback page - handles OAuth redirect from backend */}
             <Route path="/auth/callback" element={<OAuthCallback />} />
             {/* Password reset pages - no auth required */}

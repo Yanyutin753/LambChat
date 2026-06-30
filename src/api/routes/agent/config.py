@@ -9,7 +9,7 @@ Agent 配置路由
 
 from fastapi import APIRouter, Depends
 
-from src.agents.core.base import AgentFactory, list_registered_agents
+from src.agents.core.base import AgentFactory
 from src.api.deps import require_permissions
 from src.infra.agent.config_storage import get_agent_config_storage
 from src.infra.logging import get_logger
@@ -52,13 +52,38 @@ def _catalog_entry_from_registered(
         sort_order=saved_sort_order
         if saved_sort_order is not None
         else agent.get("sort_order", 100),
+        category=agent.get("category"),
         labels=getattr(saved, "labels", {}) if saved else {},
     )
 
 
+def _visible_registered_agents() -> list[dict]:
+    """Return agents currently exposed by core plus enabled plugin-owned agents."""
+    return AgentFactory.list_agents()
+
+
+def _visible_registered_agent_ids() -> set[str]:
+    return {agent["id"] for agent in _visible_registered_agents()}
+
+
+def _filter_visible_agent_ids(agent_ids: list[str]) -> list[str]:
+    visible_ids = _visible_registered_agent_ids()
+    return [agent_id for agent_id in agent_ids if agent_id in visible_ids]
+
+
+def _validate_visible_agent_ids(agent_ids: list[str]) -> None:
+    hidden_or_unknown = [
+        agent_id for agent_id in agent_ids if agent_id not in _visible_registered_agent_ids()
+    ]
+    if hidden_or_unknown:
+        from src.kernel.exceptions import ValidationError
+
+        raise ValidationError(f"Agent '{hidden_or_unknown[0]}' 未注册")
+
+
 async def _load_catalog_config() -> list[AgentCatalogConfig]:
     storage = get_agent_config_storage()
-    all_agents = AgentFactory.list_agents()
+    all_agents = _visible_registered_agents()
     saved_configs = await storage.get_catalog_config()
     if not saved_configs and hasattr(storage, "get_global_config"):
         global_configs = await storage.get_global_config()
@@ -73,7 +98,7 @@ async def _load_catalog_config() -> list[AgentCatalogConfig]:
         for agent in all_agents
     ]
     catalog.sort(key=lambda agent: (agent.sort_order, agent.name))
-    await storage.set_catalog_config(catalog)
+    await storage.set_catalog_config(catalog, prune_missing=False)
     return catalog
 
 
@@ -85,6 +110,7 @@ def _catalog_to_global_config(agent: AgentCatalogConfig) -> AgentConfig:
         enabled=agent.enabled,
         icon=agent.icon,
         sort_order=agent.sort_order,
+        category=agent.category,
         labels=agent.labels,
     )
 
@@ -129,14 +155,14 @@ async def update_global_agent_config(
     storage = get_agent_config_storage()
 
     # 验证 agent IDs 是否已注册
-    registered_ids = set(list_registered_agents())
+    registered_ids = _visible_registered_agent_ids()
     for agent in config_update.agents:
         if agent.id not in registered_ids:
             from src.kernel.exceptions import ValidationError
 
             raise ValidationError(f"Agent '{agent.id}' 未注册")
 
-    registered_agents = {agent["id"]: agent for agent in AgentFactory.list_agents()}
+    registered_agents = {agent["id"]: agent for agent in _visible_registered_agents()}
     catalog_agents = [
         AgentCatalogConfig(
             id=agent.id,
@@ -147,6 +173,7 @@ async def update_global_agent_config(
             sort_order=agent.sort_order
             if agent.sort_order is not None
             else registered_agents[agent.id].get("sort_order", 100),
+            category=registered_agents[agent.id].get("category"),
             labels=agent.labels,
         )
         for agent in config_update.agents
@@ -168,14 +195,14 @@ async def update_agent_catalog_config(
     """更新可配置 Agent 展示目录。"""
     storage = get_agent_config_storage()
 
-    registered_ids = set(list_registered_agents())
+    registered_ids = _visible_registered_agent_ids()
     for agent in config_update.agents:
         if agent.id not in registered_ids:
             from src.kernel.exceptions import ValidationError
 
             raise ValidationError(f"Agent '{agent.id}' 未注册")
 
-    registered_agents = {agent["id"]: agent for agent in AgentFactory.list_agents()}
+    registered_agents = {agent["id"]: agent for agent in _visible_registered_agents()}
     agents = [
         AgentCatalogConfig(
             id=agent.id,
@@ -184,6 +211,7 @@ async def update_agent_catalog_config(
             enabled=agent.enabled,
             icon=agent.icon or "Bot",
             sort_order=agent.sort_order,
+            category=registered_agents[agent.id].get("category"),
             labels=agent.labels,
         )
         for agent in config_update.agents
@@ -211,7 +239,7 @@ async def get_role_agents(
 
         raise NotFoundError(f"角色 '{role_id}' 不存在")
 
-    allowed_agents = await storage.get_role_agents(role_id) or []
+    allowed_agents = _filter_visible_agent_ids(await storage.get_role_agents(role_id) or [])
 
     return RoleAgentAssignment(
         role_id=role_id,
@@ -236,7 +264,10 @@ async def update_role_agents(
 
         raise NotFoundError(f"角色 '{role_id}' 不存在")
 
+    _validate_visible_agent_ids(assignment.allowed_agents)
+
     allowed_agents = await storage.set_role_agents(role_id, role.name, assignment.allowed_agents)
+    allowed_agents = _filter_visible_agent_ids(allowed_agents)
 
     return RoleAgentAssignmentResponse(
         role_id=role_id,

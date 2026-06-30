@@ -166,7 +166,11 @@ def register_scheduled_task_reconcile_job(
     )
 
 
-async def start_runtime_services() -> None:
+async def start_runtime_services(
+    *,
+    plugin_runtime: object | None = None,
+    plugin_runtime_state_storage: object | None = None,
+) -> None:
     """Start distributed runtime listeners needed by the current process."""
     import asyncio
 
@@ -174,7 +178,13 @@ async def start_runtime_services() -> None:
 
     task_manager = get_task_manager()
     await task_manager.start_pubsub_listener()
-    await start_arq_runtime()
+    if plugin_runtime is None and plugin_runtime_state_storage is None:
+        await start_arq_runtime()
+    else:
+        await start_arq_runtime(
+            plugin_runtime=plugin_runtime,
+            plugin_runtime_state_storage=plugin_runtime_state_storage,
+        )
 
     # Launch all pub/sub listeners concurrently to reduce startup wall-clock time.
     settings_pubsub = get_settings_pubsub()

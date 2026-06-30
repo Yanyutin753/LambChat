@@ -42,6 +42,9 @@ services:
       - PORT=8000
       - REDIS_URL=redis://redis:6379/0
       - MONGODB_URL=mongodb://mongodb:27017
+      - TASK_BACKEND=arq
+      - ARQ_EMBEDDED_WORKER=true
+      - ARQ_QUEUE_NAME=lambchat:arq
       - LLM_MODEL_CACHE_SIZE=${LLM_MODEL_CACHE_SIZE:-50}
       - SESSION_MAX_EVENTS_PER_TRACE=${SESSION_MAX_EVENTS_PER_TRACE:-10000}
       - LOG_LEVEL=INFO
@@ -49,6 +52,7 @@ services:
       - EVENT_MERGE_INTERVAL=60
     volumes:
       - lamb-data:/app/data
+      - plugin-data:/app/plugin-data
       - ./workspace:/app/workspace
       - ./uploads:/app/uploads
 
@@ -56,3 +60,4 @@ volumes:
   redis-data:
   mongodb-data:
   lamb-data:
+  plugin-data:

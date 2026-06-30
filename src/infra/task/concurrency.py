@@ -25,6 +25,9 @@ from src.infra.session.storage import SessionUpdate
 from src.infra.storage.redis import get_redis_client
 from src.infra.task.constants import HEARTBEAT_TIMEOUT
 from src.kernel.config import settings
+from src.kernel.extensions import PluginUnavailableError
+
+from .status import TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -566,7 +569,7 @@ class UserConcurrencyLimiter:
                 disabled_mcp_tools = task_ctx.get("disabled_mcp_tools")
                 team_id = task_ctx.get("team_id")
                 active_goal = task_ctx.get("active_goal")
-                auto_mode = bool(task_ctx.get("auto_mode", False))
+                plugin_options = task_ctx.get("plugin_options")
             else:
                 # Legacy fallback: context in process memory (single-worker)
                 pending = task_manager.pop_pending_task(run_id)
@@ -587,7 +590,29 @@ class UserConcurrencyLimiter:
                 disabled_mcp_tools = pending.get("disabled_mcp_tools")
                 team_id = pending.get("team_id")
                 active_goal = pending.get("active_goal")
-                auto_mode = bool(pending.get("auto_mode", False))
+                plugin_options = pending.get("plugin_options")
+
+            try:
+                from src.agents import ensure_agent_executable
+
+                ensure_agent_executable(str(agent_id))
+            except PluginUnavailableError as exc:
+                logger.warning(
+                    "Rejecting queued task for unavailable plugin-owned agent: run=%s, session=%s, agent=%s, plugin_id=%s",
+                    run_id,
+                    session_id,
+                    agent_id,
+                    exc.plugin_id,
+                )
+                executor = task_manager._ensure_executor()
+                await executor._update_session_status(
+                    session_id,
+                    TaskStatus.FAILED,
+                    str(exc) or "Plugin-owned agent is unavailable",
+                    run_id=run_id,
+                )
+                await self._release_active_slot_locked(user_id, run_id)
+                return
 
             if task_ctx and settings.TASK_BACKEND == "arq":
                 await task_manager.submit_arq(
@@ -610,24 +635,24 @@ class UserConcurrencyLimiter:
                     user_message_written=task_ctx.get("user_message_written", False),
                     team_id=team_id,
                     active_goal=active_goal,
-                    auto_mode=auto_mode,
+                    plugin_options=plugin_options,
                 )
                 await self._send_queue_processing_event(session_id, run_id)
                 return
 
             # --- Create and run the background task locally ---
             async with task_manager._lock:
-                executor = task_manager._executor
-                if executor is None:
+                queued_executor = task_manager._executor
+                if queued_executor is None:
                     logger.error("No executor available for queued task %s", run_id)
                     await self._release_active_slot_locked(user_id, run_id)
                     return
 
                 # Ensure session record exists in MongoDB before executing
-                await executor.ensure_session(session_id, agent_id, dispatch_user_id)
+                await queued_executor.ensure_session(session_id, agent_id, dispatch_user_id)
 
                 task = asyncio.create_task(
-                    executor.run_task(
+                    queued_executor.run_task(
                         session_id=session_id,
                         run_id=run_id,
                         agent_id=agent_id,
@@ -651,7 +676,7 @@ class UserConcurrencyLimiter:
                         else None,
                         team_id=team_id,
                         active_goal=active_goal,
-                        auto_mode=auto_mode,
+                        plugin_options=plugin_options,
                     )
                 )
                 task_manager._tasks[run_id] = task

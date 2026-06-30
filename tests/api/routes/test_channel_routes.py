@@ -7,6 +7,15 @@ from fastapi import HTTPException
 
 from src.api.routes import channels as channels_route
 from src.infra.channel.feishu import registration as feishu_registration
+from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
+from src.kernel.extensions import (
+    AGENT_TEAM_PLUGIN_ID,
+    FEISHU_CONNECTOR_PLUGIN_ID,
+    PluginRuntime,
+    build_agent_team_plugin_manifest,
+    build_feishu_connector_plugin_manifest,
+)
+from src.kernel.extensions.manifest import PluginManifest
 from src.kernel.schemas.channel import ChannelConfigCreate, ChannelConfigUpdate, ChannelType
 
 
@@ -17,14 +26,31 @@ class _FakeChannelClass:
 
 
 class _FakeRegistry:
-    def __init__(self, manager_class=None) -> None:
+    def __init__(self, manager_class=None, channel_type: str = "feishu") -> None:
         self._manager_class = manager_class
+        self._channel_type = channel_type
 
     def get_channel_class(self, channel_type: ChannelType):
         return _FakeChannelClass
 
     def get_manager_class(self, channel_type: ChannelType):
         return self._manager_class
+
+    def get_channel_metadata(self):
+        return [
+            {
+                "channel_type": self._channel_type,
+                "display_name": self._channel_type.title(),
+                "description": f"{self._channel_type} channel",
+                "icon": self._channel_type,
+                "capabilities": [],
+                "config_schema": {},
+                "requires_webhook": False,
+                "requires_websocket": True,
+                "setup_guide": [],
+                "config_fields": [],
+            },
+        ]
 
 
 class _FakeStorage:
@@ -54,6 +80,16 @@ class _FakeStorage:
 
     async def get_status(self, user_id: str, channel_type: ChannelType, instance_id: str):
         return SimpleNamespace(channel_type=channel_type, enabled=True, connected=False)
+
+
+class _FakeTeamPluginOptionStorage(_FakeStorage):
+    async def get_config(self, user_id: str, channel_type: ChannelType, instance_id: str):
+        return {
+            "app_id": "app-1",
+            "enabled": True,
+            "agent_id": "team",
+            "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-old"}},
+        }
 
 
 class _FakeLimitStorage(_FakeStorage):
@@ -97,6 +133,7 @@ class _FakeTypedListStorage(_FakeStorage):
                 "enabled": True,
                 "app_id": "app-1",
                 "app_secret": "secret",
+                "plugin_options": {},
             }
         ]
 
@@ -187,6 +224,122 @@ class _FakePersonaManager:
         return SimpleNamespace(id=preset_id)
 
 
+def _memory_plugin_settings(monkeypatch: pytest.MonkeyPatch) -> PluginSettingsService:
+    service = PluginSettingsService(storage=InMemoryPluginSettingsStorage())
+    monkeypatch.setattr(channels_route, "_get_plugin_settings_service", lambda _request=None: service)
+    return service
+
+
+def _disabled_feishu_runtime():
+    runtime = PluginRuntime([build_feishu_connector_plugin_manifest()])
+    runtime.disable_plugin(FEISHU_CONNECTOR_PLUGIN_ID)
+    return runtime
+
+
+def _disabled_alternate_feishu_runtime():
+    manifest = PluginManifest(
+        id="alternate_feishu_connector",
+        name="Alternate Feishu Connector",
+        version="1.0.0",
+        api_version="v1",
+        frontend={
+            "channel_connectors": [
+                {
+                    "id": "alternate_feishu_connector:feishu",
+                    "channel_type": "feishu",
+                    "panel_renderer": "alternate_feishu_connector.FeishuPanel",
+                }
+            ]
+        },
+    )
+    runtime = PluginRuntime([manifest])
+    runtime.disable_plugin("alternate_feishu_connector")
+    return runtime
+
+
+def _disabled_agent_team_runtime():
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin(AGENT_TEAM_PLUGIN_ID)
+    return runtime
+
+
+@pytest.mark.asyncio
+async def test_channel_types_hide_feishu_when_connector_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    response = await channels_route.get_channel_types(
+        plugin_runtime=_disabled_feishu_runtime()
+    )
+
+    assert [channel.channel_type.value for channel in response.types] == []
+
+
+@pytest.mark.asyncio
+async def test_channel_types_hide_any_plugin_declared_connector_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    response = await channels_route.get_channel_types(
+        plugin_runtime=_disabled_alternate_feishu_runtime()
+    )
+
+    assert [channel.channel_type.value for channel in response.types] == []
+
+
+@pytest.mark.asyncio
+async def test_feishu_channel_operations_fail_closed_when_connector_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await channels_route.list_channel_instances(
+            ChannelType.FEISHU,
+            plugin_runtime=_disabled_feishu_runtime(),
+            user=SimpleNamespace(sub="user-1"),
+            storage=storage,
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error"] == "plugin_unavailable"
+    assert exc_info.value.detail["plugin_id"] == FEISHU_CONNECTOR_PLUGIN_ID
+
+
+@pytest.mark.asyncio
+async def test_channel_operations_report_declaring_connector_plugin_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await channels_route.list_channel_instances(
+            ChannelType.FEISHU,
+            plugin_runtime=_disabled_alternate_feishu_runtime(),
+            user=SimpleNamespace(sub="user-1"),
+            storage=storage,
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error"] == "plugin_unavailable"
+    assert exc_info.value.detail["plugin_id"] == "alternate_feishu_connector"
+
+
+@pytest.mark.asyncio
+async def test_feishu_registration_fails_closed_when_connector_is_disabled() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        await channels_route.start_feishu_registration(
+            plugin_runtime=_disabled_feishu_runtime()
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error"] == "plugin_unavailable"
+
+
 @pytest.mark.asyncio
 async def test_validate_persona_preset_id_detects_admin_permission(
     monkeypatch: pytest.MonkeyPatch,
@@ -221,6 +374,40 @@ async def test_validate_agent_id_checks_single_agent_without_loading_all(
     )
 
     assert agent_storage.checked_ids == ["agent-1"]
+
+
+@pytest.mark.asyncio
+async def test_create_channel_rejects_disabled_plugin_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+    monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
+
+    from src.agents import set_plugin_runtime
+
+    set_plugin_runtime(_disabled_agent_team_runtime())
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await channels_route.create_channel_instance(
+                ChannelType.FEISHU,
+                ChannelConfigCreate(
+                    channel_type=ChannelType.FEISHU,
+                    name="Feishu",
+                    config={},
+                    agent_id="team",
+                    plugin_options={"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
+                ),
+                user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
+                storage=storage,
+            )
+    finally:
+        set_plugin_runtime(None)
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error"] == "plugin_unavailable"
+    assert exc_info.value.detail["plugin_id"] == AGENT_TEAM_PLUGIN_ID
+    assert storage.create_calls == 0
 
 
 @pytest.mark.asyncio
@@ -302,10 +489,11 @@ async def test_create_channel_persists_persona_preset_id(
 
 
 @pytest.mark.asyncio
-async def test_create_channel_persists_team_id(
+async def test_create_channel_stores_agent_team_selection_as_plugin_option(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _FakeStorage()
+    settings_service = _memory_plugin_settings(monkeypatch)
     monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
     monkeypatch.setattr(channels_route, "_validate_agent_id", _async_noop)
     monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
@@ -318,12 +506,101 @@ async def test_create_channel_persists_team_id(
             config={},
             agent_id="team",
             team_id="team-1",
+            plugin_options={"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
         ),
         user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
         storage=storage,
     )
 
-    assert storage.last_create_kwargs["team_id"] == "team-1"
+    assert "team_id" not in storage.last_create_kwargs
+    assert storage.last_create_kwargs["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
+    }
+    record = await settings_service.storage.get(
+        plugin_id="agent_team",
+        key="SELECTED_TEAM_ID",
+        scope="channel",
+        subject_id="instance-1",
+    )
+    assert record is not None
+    assert record.value == "team-1"
+
+
+@pytest.mark.asyncio
+async def test_create_channel_filters_plugin_options_by_channel_manifest_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    settings_service = _memory_plugin_settings(monkeypatch)
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+    monkeypatch.setattr(channels_route, "_validate_agent_id", _async_noop)
+    monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
+
+    await channels_route.create_channel_instance(
+        ChannelType.FEISHU,
+        ChannelConfigCreate(
+            channel_type=ChannelType.FEISHU,
+            name="Feishu",
+            config={},
+            agent_id="team",
+            plugin_options={
+                "agent_team": {
+                    "SELECTED_TEAM_ID": "team-1",
+                    "UNDECLARED": "drop-me",
+                },
+                "missing_plugin": {"ANY": "drop-me"},
+            },
+        ),
+        user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
+        storage=storage,
+    )
+
+    assert storage.last_create_kwargs["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-1"}
+    }
+    assert await settings_service.storage.get(
+        plugin_id="missing_plugin",
+        key="ANY",
+        scope="channel",
+        subject_id="instance-1",
+    ) is None
+
+
+@pytest.mark.asyncio
+async def test_create_channel_imports_legacy_team_id_to_plugin_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    settings_service = _memory_plugin_settings(monkeypatch)
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+    monkeypatch.setattr(channels_route, "_validate_agent_id", _async_noop)
+    monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
+
+    await channels_route.create_channel_instance(
+        ChannelType.FEISHU,
+        ChannelConfigCreate(
+            channel_type=ChannelType.FEISHU,
+            name="Feishu",
+            config={},
+            agent_id="team",
+            team_id="legacy-team",
+        ),
+        user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
+        storage=storage,
+    )
+
+    assert "team_id" not in storage.last_create_kwargs
+    assert storage.last_create_kwargs["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "legacy-team"}
+    }
+    record = await settings_service.storage.get(
+        plugin_id="agent_team",
+        key="SELECTED_TEAM_ID",
+        scope="channel",
+        subject_id="instance-1",
+    )
+    assert record is not None
+    assert record.value == "legacy-team"
 
 
 @pytest.mark.asyncio
@@ -365,6 +642,32 @@ async def test_list_channel_instances_filters_in_storage() -> None:
     assert storage.typed_calls == [("user-1", ChannelType.FEISHU)]
     assert storage.list_calls == 0
     assert [channel.id for channel in response.channels] == ["instance-1"]
+
+
+@pytest.mark.asyncio
+async def test_list_channel_instances_overlays_plugin_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeTypedListStorage()
+    settings_service = _memory_plugin_settings(monkeypatch)
+    await settings_service.set_setting(
+        build_agent_team_plugin_manifest(),
+        key="SELECTED_TEAM_ID",
+        value="team-from-settings",
+        scope="channel",
+        subject_id="instance-1",
+        updated_by="user-1",
+    )
+
+    response = await channels_route.list_channel_instances(
+        ChannelType.FEISHU,
+        user=SimpleNamespace(sub="user-1"),
+        storage=storage,
+    )
+
+    assert response.channels[0].plugin_options == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-from-settings"}
+    }
 
 
 @pytest.mark.asyncio
@@ -425,22 +728,89 @@ async def test_update_channel_persists_explicit_persona_preset_id(
 
 
 @pytest.mark.asyncio
-async def test_update_channel_persists_explicit_team_id(
+async def test_update_channel_stores_agent_team_selection_as_plugin_option(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _FakeStorage()
+    settings_service = _memory_plugin_settings(monkeypatch)
     monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
     monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
 
     await channels_route.update_channel_instance(
         ChannelType.FEISHU,
         "instance-1",
-        ChannelConfigUpdate(config={}, team_id="team-2"),
+        ChannelConfigUpdate(
+            config={},
+            team_id="team-2",
+            plugin_options={"agent_team": {"SELECTED_TEAM_ID": "team-2"}},
+        ),
         user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
         storage=storage,
     )
 
-    assert storage.last_update_kwargs["team_id"] == "team-2"
+    assert "team_id" not in storage.last_update_kwargs
+    assert storage.last_update_kwargs["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-2"}
+    }
+    record = await settings_service.storage.get(
+        plugin_id="agent_team",
+        key="SELECTED_TEAM_ID",
+        scope="channel",
+        subject_id="instance-1",
+    )
+    assert record is not None
+    assert record.value == "team-2"
+
+
+@pytest.mark.asyncio
+async def test_update_channel_imports_legacy_team_id_to_plugin_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    settings_service = _memory_plugin_settings(monkeypatch)
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+    monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
+
+    await channels_route.update_channel_instance(
+        ChannelType.FEISHU,
+        "instance-1",
+        ChannelConfigUpdate(config={}, team_id="legacy-team"),
+        user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
+        storage=storage,
+    )
+
+    assert "team_id" not in storage.last_update_kwargs
+    assert storage.last_update_kwargs["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "legacy-team"}
+    }
+    record = await settings_service.storage.get(
+        plugin_id="agent_team",
+        key="SELECTED_TEAM_ID",
+        scope="channel",
+        subject_id="instance-1",
+    )
+    assert record is not None
+    assert record.value == "legacy-team"
+
+
+@pytest.mark.asyncio
+async def test_update_channel_legacy_null_team_id_clears_plugin_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeTeamPluginOptionStorage()
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry())
+    monkeypatch.setattr(channels_route, "publish_channel_config_changed", _async_noop)
+
+    await channels_route.update_channel_instance(
+        ChannelType.FEISHU,
+        "instance-1",
+        ChannelConfigUpdate(config={}, team_id=None),
+        user=SimpleNamespace(sub="user-1", roles=[], permissions=[]),
+        storage=storage,
+    )
+
+    assert "team_id" not in storage.last_update_kwargs
+    assert storage.last_update_kwargs["plugin_options"] == {}
 
 
 @pytest.mark.asyncio

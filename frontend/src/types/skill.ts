@@ -134,6 +134,50 @@ export interface SkillCreate {
 // Marketplace Types (from /api/marketplace/)
 // ============================================
 
+export type ExtensionMarketplaceType =
+  | "skill"
+  | "plugin"
+  | "mcp"
+  | "agent_team"
+  | "user_agent"
+  | "agent"
+  | "theme"
+  | "workflow"
+  | "provider"
+  | "file_viewer"
+  | "notification_channel"
+  | (string & {});
+
+export type ExtensionInstallState = "builtin" | "installed" | "not_installed";
+
+export interface ExtensionMarketplaceCompatibility {
+  min_app_version?: string;
+  max_app_version?: string;
+  api_version?: string;
+}
+
+export interface ExtensionMarketplaceEntry {
+  id: string;
+  type: ExtensionMarketplaceType;
+  name: string;
+  version: string;
+  publisher: string;
+  description: string;
+  tags: string[];
+  capabilities: string[];
+  permissions: string[];
+  install_state: ExtensionInstallState;
+  enabled: boolean;
+  compatibility: ExtensionMarketplaceCompatibility;
+  legacy?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface ExtensionMarketplaceItem {
+  extension: ExtensionMarketplaceEntry;
+  skill?: MarketplaceSkillResponse;
+}
+
 // Marketplace skill response
 export interface MarketplaceSkillResponse {
   skill_name: string;
@@ -147,6 +191,9 @@ export interface MarketplaceSkillResponse {
   is_active: boolean;
   is_owner: boolean;
   file_count: number;
+  extension_type?: "skill";
+  extension_id?: string;
+  extension?: ExtensionMarketplaceEntry;
 }
 
 // Direct create in marketplace request

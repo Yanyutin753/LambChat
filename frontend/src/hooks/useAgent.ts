@@ -3,7 +3,7 @@
  * Provides agent communication, message management, and SSE streaming
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import i18n from "../i18n";
 import { uuid } from "../utils/uuid";
@@ -17,15 +17,16 @@ import type {
 import { sessionApi, type BackendSession } from "../services/api";
 import { authenticatedRequest } from "../services/api/authenticatedRequest";
 import { API_BASE } from "../services/api/config";
-import { feedbackApi } from "../services/api/feedback";
 import { useAuth } from "../hooks/useAuth";
 import { Permission } from "../types/auth";
+import { hydrateMessageActionHistory } from "../components/chat/ChatMessage/messageActionHistoryHydrators";
 import {
   type UseAgentOptions,
   type SubagentStackItem,
   type HistoryEvent,
   type UseAgentReturn,
   type ActiveGoalSpec,
+  type SendMessageOptions,
 } from "./useAgent/types";
 import {
   reconstructMessagesFromEvents,
@@ -42,12 +43,32 @@ import {
   useSSEReconnect,
   type SSEConnectionContext,
 } from "./useAgent/sseConnection";
-import { createOptimisticMessagesForSend } from "./useAgent/optimisticMessages";
+import {
+  createOptimisticMessagesForRetry,
+  createOptimisticMessagesForSend,
+} from "./useAgent/optimisticMessages";
 import { resolveRunEnabledSkills } from "./useAgent/runSkillOverrides";
-import { planGoalSubmission } from "./useAgent/goalCommands";
+import {
+  planGoalSubmission,
+  type GoalSubmissionPlan,
+} from "./useAgent/goalCommands";
 import { translateBackendError } from "../utils/backendErrors";
 import { dispatchSessionTitleUpdated } from "../utils/sessionTitleEvents";
 import { resolveAvailableAgentId } from "./useAgent/agentSelection";
+import {
+  importLegacyPayloadPluginOptions,
+  legacyPayloadKeysForPluginOption,
+  pluginOptionsFromMetadata,
+  retainPluginOptionsForDeclarations,
+  selectedAgentTeamIdFromMetadata,
+  withPluginOption,
+  type PluginOptionsMetadata,
+} from "../extensions/pluginOptions";
+import {
+  buildSessionOptionContributions,
+  buildMessageActionContributions,
+  hasAgentCatalogEntryContribution,
+} from "../extensions/coreContributions";
 
 export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   const { hasAnyPermission } = useAuth();
@@ -55,6 +76,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     Permission.FEEDBACK_READ,
     Permission.FEEDBACK_WRITE,
   ]);
+  const messageActionHistoryContributions = useMemo(
+    () =>
+      canReadFeedback
+        ? buildMessageActionContributions(options?.runtimePlugins, {
+            target: "assistant_message",
+          })
+        : [],
+    [canReadFeedback, options?.runtimePlugins],
+  );
 
   // State
   const [messages, setMessages] = useState<Message[]>([]);
@@ -74,7 +104,13 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     useState<BackendSession | null>(null);
   const [isInitializingSandbox, setIsInitializingSandbox] = useState(false);
   const [sandboxError, setSandboxError] = useState<string | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [legacyTeamId, setLegacyTeamId] = useState<string | null>(null);
+  const [sessionPluginOptions, setSessionPluginOptions] =
+    useState<PluginOptionsMetadata>({});
+  const selectedTeamId = selectedAgentTeamIdFromMetadata({
+    plugin_options: sessionPluginOptions,
+    team_id: legacyTeamId ?? undefined,
+  });
   const [activeGoal, setActiveGoal] = useState<ActiveGoalSpec | null>(null);
   const [goalsByRunId, setGoalsByRunId] = useState<
     Record<string, ActiveGoalSpec>
@@ -185,6 +221,21 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   useEffect(() => {
     currentAgentRef.current = currentAgent;
   }, [currentAgent]);
+
+  const isCurrentAgentAvailable = useCallback(
+    (agentId: string) => agents.some((agent) => agent.id === agentId),
+    [agents],
+  );
+
+  const currentSessionOptionContributions = useMemo(
+    () =>
+      isCurrentAgentAvailable(currentAgent)
+        ? buildSessionOptionContributions(options?.runtimePlugins, {
+            agentId: currentAgent,
+          })
+        : [],
+    [currentAgent, isCurrentAgentAvailable, options?.runtimePlugins],
+  );
 
   // Fetch available agents
   const fetchAgents = useCallback(async () => {
@@ -377,7 +428,21 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               (sessionData.metadata?.disabled_mcp_tools as string[]) ||
               undefined,
             team_id: (sessionData.metadata?.team_id as string) || undefined,
+            plugin_options:
+              (sessionData.metadata?.plugin_options as
+                | Record<string, Record<string, unknown>>
+                | undefined) || undefined,
           };
+          setSessionPluginOptions(
+            pluginOptionsFromMetadata({
+              plugin_options: sessionConfig.plugin_options,
+            }),
+          );
+          setLegacyTeamId(
+            typeof sessionConfig.team_id === "string" && sessionConfig.team_id.trim()
+              ? sessionConfig.team_id
+              : null,
+          );
           setGoalModeEnabled(false);
 
           // 并行发起 events、status 和 feedback 请求，减少串行等待时间
@@ -388,19 +453,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
                 return null;
               })
             : Promise.resolve(null);
-          const feedbackPromise = canReadFeedback
-            ? feedbackApi
-                .list(0, 100, undefined, undefined, targetSessionId)
-                .catch((e) => {
-                  console.warn("[loadHistory] Failed to load feedback:", e);
-                  return null;
-                })
-            : Promise.resolve(null);
-
-          const [eventsData, statusData, feedbackList] = await Promise.all([
+          const [eventsData, statusData] = await Promise.all([
             eventsPromise,
             statusPromise,
-            feedbackPromise,
           ]);
           if (isStaleHistoryLoad()) return null;
 
@@ -418,28 +473,16 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
               { options, activeSubagentStack: activeSubagentStackRef.current },
             );
 
-            // Apply feedback (already loaded in parallel)
-            if (feedbackList && feedbackList.items.length > 0) {
-              const feedbackMap = new Map(
-                feedbackList.items.map((f) => [
-                  f.run_id,
-                  { feedback: f.rating, feedbackId: f.id },
-                ]),
-              );
-              reconstructedMessages = reconstructedMessages.map((msg) => {
-                if (msg.runId) {
-                  const feedbackInfo = feedbackMap.get(msg.runId);
-                  if (feedbackInfo) {
-                    return {
-                      ...msg,
-                      feedback: feedbackInfo.feedback,
-                      feedbackId: feedbackInfo.feedbackId,
-                    };
-                  }
-                }
-                return msg;
-              });
-            }
+            reconstructedMessages = await hydrateMessageActionHistory(
+              messageActionHistoryContributions,
+              {
+                sessionId: targetSessionId,
+                messages: reconstructedMessages,
+              },
+            ).catch((e) => {
+              console.warn("[loadHistory] Failed to hydrate message actions:", e);
+              return reconstructedMessages;
+            });
 
             const lastTimestamp = getLastEventTimestamp(
               eventsData.events as HistoryEvent[],
@@ -542,7 +585,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
 
       return null;
     },
-    [options, createSSEContext, canReadFeedback],
+    [options, createSSEContext, messageActionHistoryContributions],
   );
 
   // Send message
@@ -551,12 +594,26 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       content: string,
       agentOptions?: Record<string, boolean | string | number>,
       attachments?: MessageAttachment[],
-      runOptions?: { enabledSkills?: string[] },
+      sendOptions?: SendMessageOptions,
     ) => {
       if (!content.trim()) return;
       loadHistoryRequestIdRef.current += 1;
 
-      const goalPlan = planGoalSubmission(content, goalModeEnabled);
+      const retryUserMessage = sendOptions?.retryUserMessage === true;
+      if (retryUserMessage && !sessionId) {
+        setError(i18n.t("chat.requestFailed"));
+        return;
+      }
+
+      const goalPlan: GoalSubmissionPlan = retryUserMessage
+        ? {
+            content,
+            goal: null,
+            nextGoalModeEnabled: goalModeEnabled,
+            nextActiveGoal: activeGoal,
+            handledWithoutSend: false,
+          }
+        : planGoalSubmission(content, goalModeEnabled);
       if (goalPlan.handledWithoutSend) {
         if (goalPlan.errorKey) {
           setError(i18n.t(goalPlan.errorKey, "Please enter a goal"));
@@ -590,12 +647,17 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       lastHistoryTimestampRef.current = null;
 
       const { messages: optimisticMessages, assistantMessageId } =
-        createOptimisticMessagesForSend({
-          previousMessages: messagesRef.current,
-          content,
-          attachments,
-          enabledSkills: runOptions?.enabledSkills,
-        });
+        retryUserMessage
+          ? createOptimisticMessagesForRetry({
+              previousMessages: messagesRef.current,
+              assistantMessageId: sendOptions?.retryAssistantMessageId,
+              afterUserMessageId: sendOptions?.retryAfterUserMessageId,
+            })
+          : createOptimisticMessagesForSend({
+              previousMessages: messagesRef.current,
+              content,
+              attachments,
+            });
 
       setMessages(optimisticMessages);
       setIsLoading(true);
@@ -614,7 +676,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         const enabledSkills = resolveRunEnabledSkills({
           personaPresetId,
           personaEnabledSkills: options?.getEnabledSkills?.(),
-          runEnabledSkills: runOptions?.enabledSkills,
+          runEnabledSkills: sendOptions?.enabledSkills,
         });
         const disabledMcpTools = options?.getDisabledMcpTools?.() || [];
 
@@ -623,7 +685,25 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           ...options?.getAgentOptions?.(),
           ...agentOptions,
         };
-        const requestTeamId = currentAgent === "team" ? selectedTeamId : null;
+        const sessionOptionSeed = importLegacyPayloadPluginOptions(
+          {
+            plugin_options: sessionPluginOptions,
+            team_id: legacyTeamId ?? undefined,
+          },
+          currentSessionOptionContributions,
+          sessionPluginOptions,
+        );
+        const requestPluginOptions = retainPluginOptionsForDeclarations(
+          sessionOptionSeed,
+          currentSessionOptionContributions,
+        );
+        const canUseLegacyTeamField =
+          selectedTeamId &&
+          isCurrentAgentAvailable(currentAgent) &&
+          hasAgentCatalogEntryContribution(currentAgent, options?.runtimePlugins);
+        const requestTeamId = canUseLegacyTeamField && Object.keys(requestPluginOptions).length === 0
+          ? selectedTeamId
+          : null;
         const goalForRun = goalPlan.goal;
 
         const submitData = (await sessionApi.submitChat(
@@ -638,7 +718,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           personaPresetId,
           enabledSkills,
           requestTeamId,
+          requestPluginOptions,
           goalForRun,
+          { retryUserMessage },
         )) as {
           session_id: string;
           run_id: string;
@@ -698,8 +780,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           if (projectId) {
             conversationConfig.project_id = projectId;
           }
-          if (currentAgent === "team" && selectedTeamId) {
-            conversationConfig.team_id = selectedTeamId;
+          if (Object.keys(requestPluginOptions).length > 0) {
+            conversationConfig.plugin_options = requestPluginOptions;
           }
 
           const newSession: BackendSession = {
@@ -746,8 +828,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
             persona_preset_id: personaPresetId,
             disabled_mcp_tools: disabledMcpTools,
           };
-          if (currentAgent === "team" && selectedTeamId) {
-            conversationConfig.team_id = selectedTeamId;
+          if (Object.keys(requestPluginOptions).length > 0) {
+            conversationConfig.plugin_options = requestPluginOptions;
           }
 
           setNewlyCreatedSession((prev) =>
@@ -823,10 +905,15 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       sessionId,
       currentAgent,
       createSSEContext,
+      currentSessionOptionContributions,
+      isCurrentAgentAvailable,
+      legacyTeamId,
       newlyCreatedSession?.metadata,
       options,
       selectedTeamId,
+      sessionPluginOptions,
       goalModeEnabled,
+      activeGoal,
     ],
   );
 
@@ -882,6 +969,8 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     setGoalModeEnabled(false);
     setActiveGoal(null);
     setGoalsByRunId({});
+    setLegacyTeamId(null);
+    setSessionPluginOptions({});
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -908,9 +997,31 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   }, []);
 
   // Select a team for team-mode agent
-  const selectTeam = useCallback((teamId: string | null) => {
-    setSelectedTeamId(teamId);
-  }, []);
+  const setSessionPluginOption = useCallback(
+    (pluginId: string, key: string, value: unknown) => {
+      setSessionPluginOptions((current) => {
+        const next = withPluginOption(
+          { plugin_options: current },
+          pluginId,
+          key,
+          value,
+        ).plugin_options;
+        return next ?? {};
+      });
+      if (
+        currentSessionOptionContributions.some((option) => {
+          return (
+            option.pluginId === pluginId &&
+            option.key === key &&
+            legacyPayloadKeysForPluginOption(option).includes("team_id")
+          );
+        })
+      ) {
+        setLegacyTeamId(null);
+      }
+    },
+    [currentSessionOptionContributions],
+  );
 
   // Reconnect function (managed by useSSEReconnect hook)
   const handleReconnectSSE = useSSEReconnect({
@@ -947,12 +1058,9 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
     clearMessages,
     selectAgent,
     switchAgent,
-    selectTeam,
     selectedTeamId,
-    goalModeEnabled,
-    setGoalModeEnabled,
-    autoModeEnabled,
-    setAutoModeEnabled,
+    sessionPluginOptions,
+    setSessionPluginOption,
     refreshAgents: fetchAgents,
     loadHistory,
     reconnectSSE: handleReconnectSSE,
@@ -979,4 +1087,5 @@ export type {
   UseAgentOptions,
   UseAgentReturn,
   BackendSession,
+  SendMessageOptions,
 } from "./useAgent/types";

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import collections.abc
+import json
 import time
 import uuid
 from dataclasses import dataclass
@@ -29,6 +30,14 @@ from src.infra.session.trace_storage import get_trace_storage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.config import settings
+from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS, PluginRuntime
+from src.kernel.extensions.plugin_options import (
+    agent_uses_agent_team_options,
+    declared_plugin_options_from_metadata,
+    plugin_option_from_metadata,
+    selected_agent_team_id_from_metadata,
+    with_plugin_options,
+)
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
     ScheduledTask,
@@ -53,6 +62,16 @@ _ASSISTANT_EVENT_TYPES = {
     "summary",
 }
 _ASSISTANT_ROLES = {"assistant", "ai"}
+_WORKFLOW_PLUGIN_ID = "workflow"
+_WORKFLOW_PLUGIN_LEGACY_KEYS = {
+    "workflow_id",
+    "workflow_version_id",
+    "workflow_input",
+}
+_WORKFLOW_PLUGIN_OPTION_KEYS = {
+    "SELECTED_WORKFLOW_ID",
+    "WORKFLOW_ID",
+}
 
 # Track detached monitor tasks so they can be drained on shutdown.
 _detached_monitor_tasks: set[asyncio.Task[None]] = set()
@@ -117,6 +136,19 @@ async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
 
 class ScheduledTaskRunner:
     """Execute a scheduled task: acquire lock → create record → run agent → record result."""
+
+    def __init__(self) -> None:
+        self.plugin_runtime: PluginRuntime | None = None
+
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        """Attach Plugin Runtime used to resolve manifest-declared task options."""
+        self.plugin_runtime = runtime
+
+    def _runtime(self) -> PluginRuntime:
+        return self.plugin_runtime or PluginRuntime(
+            BUILTIN_PLUGIN_MANIFESTS,
+            core_dependencies=("skill_core",),
+        )
 
     async def run(self, task_id: str, trigger_type: str = "cron") -> dict:
         """Entry point for scheduled / manual task execution.
@@ -252,6 +284,7 @@ class ScheduledTaskRunner:
                     )
 
             assert final_attempt is not None
+            await self._attach_workflow_result_if_present(task, final_attempt, run_id)
             delivery_result = await self._deliver_success_result(task, final_attempt, run_id)
             if delivery_result is not None:
                 final_attempt.result["delivery"] = delivery_result
@@ -357,9 +390,12 @@ class ScheduledTaskRunner:
         trigger_type: str | None = None,
     ) -> dict:
         """Execute the agent via BackgroundTaskManager in a dedicated session."""
+        from src.agents import ensure_agent_executable
         from src.infra.session.manager import SessionManager
         from src.infra.task.concurrency import get_registered_executor
         from src.infra.task.manager import get_task_manager
+
+        ensure_agent_executable(task.agent_id)
 
         task_manager = get_task_manager()
         use_arq_backend = settings.TASK_BACKEND == "arq"
@@ -394,9 +430,22 @@ class ScheduledTaskRunner:
         persona_preset_id = (
             persona_preset_id if isinstance(persona_preset_id, str) and persona_preset_id else None
         )
-        team_id = task.input_payload.get("team_id")
-        team_id = team_id if isinstance(team_id, str) and team_id else None
-        if task.agent_id != "team":
+        runtime = self._runtime()
+        scheduled_task_plugin_options = declared_plugin_options_from_metadata(
+            runtime,
+            task.input_payload,
+            scope="scheduled_task",
+            agent_id=task.agent_id,
+            executable_only=True,
+        )
+        team_id = plugin_option_from_metadata(
+            {"plugin_options": scheduled_task_plugin_options},
+            plugin_id="agent_team",
+            key="SELECTED_TEAM_ID",
+        )
+        if not isinstance(team_id, str) or not team_id:
+            team_id = selected_agent_team_id_from_metadata(task.input_payload)
+        if not agent_uses_agent_team_options(task.agent_id, runtime=runtime):
             team_id = None
         else:
             persona_preset_id = None
@@ -435,8 +484,11 @@ class ScheduledTaskRunner:
             session_metadata["persona_snapshot"] = persona_snapshot
             if persona_snapshot.get("avatar"):
                 session_metadata["persona_avatar"] = persona_snapshot["avatar"]
-        if team_id:
-            session_metadata["team_id"] = team_id
+        if scheduled_task_plugin_options:
+            session_metadata = with_plugin_options(
+                session_metadata,
+                scheduled_task_plugin_options,
+            )
 
         if use_arq_backend:
             _, trace_id = await task_manager.submit_arq(
@@ -457,7 +509,7 @@ class ScheduledTaskRunner:
                 display_message=display_message,
                 recommendation_input=display_message,
                 session_metadata=session_metadata,
-                auto_mode=True,
+                plugin_options=scheduled_task_plugin_options,
                 write_user_message_immediately=True,
             )
         else:
@@ -485,7 +537,7 @@ class ScheduledTaskRunner:
                 display_message=display_message,
                 recommendation_input=display_message,
                 session_metadata=session_metadata,
-                auto_mode=True,
+                plugin_options=scheduled_task_plugin_options,
                 write_user_message_immediately=True,
             )
         await SessionManager().update_session_metadata(
@@ -559,6 +611,76 @@ class ScheduledTaskRunner:
             result=result,
             error_message=f"Unexpected agent run status: {session_status or 'unknown'}",
         )
+
+    async def _attach_workflow_result_if_present(
+        self,
+        task: ScheduledTask,
+        attempt: _AttemptResult,
+        run_id: str,
+    ) -> None:
+        if not self._task_has_workflow_options(task):
+            return
+        session_id = attempt.result.get("session_id")
+        trace_id = attempt.result.get("trace_id")
+        if not isinstance(session_id, str) or not session_id or not trace_id:
+            return
+
+        try:
+            events = await get_trace_storage().get_run_events(
+                session_id,
+                run_id,
+                event_types=["workflow:run"],
+            )
+        except Exception as exc:
+            logger.warning(
+                "[Runner] failed to load workflow result for task=%s run=%s: %s",
+                task.id,
+                run_id,
+                exc,
+            )
+            return
+
+        workflow_result = self._extract_workflow_result(events)
+        if workflow_result is None:
+            return
+
+        attempt.result["workflow_result"] = workflow_result
+        plugin_results = attempt.result.get("plugin_results")
+        if not isinstance(plugin_results, dict):
+            plugin_results = {}
+        plugin_results[_WORKFLOW_PLUGIN_ID] = workflow_result
+        attempt.result["plugin_results"] = plugin_results
+
+    @staticmethod
+    def _task_has_workflow_options(task: ScheduledTask) -> bool:
+        payload = task.input_payload if isinstance(task.input_payload, dict) else {}
+        if any(payload.get(key) not in (None, "", {}, []) for key in _WORKFLOW_PLUGIN_LEGACY_KEYS):
+            return True
+        plugin_options = payload.get("plugin_options")
+        if not isinstance(plugin_options, dict):
+            return False
+        workflow_options = plugin_options.get(_WORKFLOW_PLUGIN_ID)
+        if not isinstance(workflow_options, dict):
+            return False
+        return any(
+            workflow_options.get(key) not in (None, "", {}, [])
+            for key in _WORKFLOW_PLUGIN_OPTION_KEYS
+        )
+
+    @staticmethod
+    def _extract_workflow_result(events: list[dict[str, Any]]) -> dict[str, Any] | None:
+        for event in reversed(events):
+            if not isinstance(event, dict) or event.get("event_type") != "workflow:run":
+                continue
+            data = event.get("data")
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+            if isinstance(data, dict) and data.get("plugin_id") == _WORKFLOW_PLUGIN_ID:
+                return data
+        return None
 
     async def _deliver_success_result(
         self,
@@ -634,9 +756,10 @@ class ScheduledTaskRunner:
         events: list[dict[str, Any]],
         max_content_chars: int,
     ) -> str:
-        """Extract assistant text from trace events for channel delivery."""
+        """Extract workflow output or assistant text from trace events for channel delivery."""
         parts: list[str] = []
         chunk_parts: list[str] = []
+        workflow_parts: list[str] = []
 
         def flush_chunks() -> None:
             if not chunk_parts:
@@ -649,6 +772,16 @@ class ScheduledTaskRunner:
         for event in events:
             event_type = str(event.get("event_type") or "")
             data = event.get("data")
+            if isinstance(data, str):
+                try:
+                    data = json.loads(data)
+                except json.JSONDecodeError:
+                    data = None
+            if event_type == "workflow:run":
+                workflow_text = ScheduledTaskRunner._workflow_delivery_text(data)
+                if workflow_text:
+                    workflow_parts.append(workflow_text)
+                continue
             if not isinstance(data, dict):
                 continue
             role = str(data.get("role") or "").lower()
@@ -672,10 +805,185 @@ class ScheduledTaskRunner:
                 parts.append(content.strip())
 
         flush_chunks()
-        text = "\n".join(parts).strip()
+        text = "\n".join(workflow_parts or parts).strip()
         if len(text) > max_content_chars:
             return text[:max_content_chars].rstrip()
         return text
+
+    @staticmethod
+    def _workflow_delivery_text(data: Any) -> str:
+        if not isinstance(data, dict) or data.get("plugin_id") != _WORKFLOW_PLUGIN_ID:
+            return ""
+        approval_pause = ScheduledTaskRunner._workflow_human_approval_delivery_text(data)
+        if approval_pause:
+            return approval_pause
+        contract_failure = ScheduledTaskRunner._workflow_output_contract_failure_text(data)
+        if contract_failure:
+            return contract_failure
+        output = data.get("output")
+        if not isinstance(output, dict) or not output:
+            return ""
+        for key in ScheduledTaskRunner._workflow_delivery_output_keys(data):
+            value = ScheduledTaskRunner._workflow_output_path_value(output, key)
+            if value not in (None, "", [], {}):
+                return str(value).strip()
+        try:
+            return json.dumps(output, ensure_ascii=False, default=str)
+        except TypeError:
+            return str(output)
+
+    @staticmethod
+    def _workflow_human_approval_delivery_text(data: dict[str, Any]) -> str:
+        next_action = data.get("next_action")
+        if not isinstance(next_action, dict) or next_action.get("type") != "await_human_approval":
+            return ""
+        approval = next_action.get("approval")
+        approval_payload = approval if isinstance(approval, dict) else {}
+        pending = next_action.get("pending")
+        pending_payload = pending if isinstance(pending, dict) else {}
+        resume = next_action.get("resume")
+        resume_payload = resume if isinstance(resume, dict) else {}
+
+        parts = ["Workflow paused for human approval"]
+        workflow_id = data.get("workflow_id")
+        if workflow_id:
+            parts.append(f"workflow_id={workflow_id}")
+        run_id = data.get("run_id")
+        if run_id:
+            parts.append(f"run_id={run_id}")
+        title = approval_payload.get("title") or approval_payload.get("node_id")
+        if title:
+            parts.append(f"approval={title}")
+        assignee = approval_payload.get("assignee")
+        if assignee:
+            parts.append(f"assignee={assignee}")
+        pending_path = pending_payload.get("path")
+        if pending_path:
+            parts.append(f"pending={pending_path}")
+        resume_tool = resume_payload.get("tool")
+        if resume_tool:
+            parts.append(f"tool={resume_tool}")
+        resume_path = resume_payload.get("path")
+        if resume_path:
+            parts.append(f"resume={resume_path}")
+        return "; ".join(str(part) for part in parts)
+
+    @staticmethod
+    def _workflow_output_contract_failure_text(data: dict[str, Any]) -> str:
+        output_contract = data.get("output_contract")
+        if not isinstance(output_contract, dict) or output_contract.get("valid") is not False:
+            return ""
+        parts = ["Workflow output contract failed"]
+        missing_required = output_contract.get("missing_required")
+        if isinstance(missing_required, list) and missing_required:
+            parts.append(
+                f"missing_required={ScheduledTaskRunner._workflow_delivery_compact_value(missing_required)}"
+            )
+        type_mismatches = output_contract.get("type_mismatches")
+        if isinstance(type_mismatches, list) and type_mismatches:
+            parts.append(
+                f"type_mismatches={ScheduledTaskRunner._workflow_delivery_compact_value(type_mismatches)}"
+            )
+        return "; ".join(parts)
+
+    @staticmethod
+    def _workflow_delivery_compact_value(value: Any) -> str:
+        try:
+            return json.dumps(value, ensure_ascii=False, default=str, sort_keys=True)
+        except TypeError:
+            return str(value)
+
+    @staticmethod
+    def _workflow_delivery_output_keys(data: dict[str, Any]) -> list[str]:
+        schema = ScheduledTaskRunner._workflow_output_schema(data)
+        schema_keys = ScheduledTaskRunner._workflow_output_schema_keys(schema)
+        fallback_keys = ["answer", "summary", "text", "result", "output"]
+        return [*schema_keys, *(key for key in fallback_keys if key not in schema_keys)]
+
+    @staticmethod
+    def _workflow_output_schema(data: dict[str, Any]) -> dict[str, Any] | None:
+        io_contract = data.get("io_contract")
+        if isinstance(io_contract, dict) and isinstance(io_contract.get("output_schema"), dict):
+            return io_contract["output_schema"]
+        output_schema = data.get("output_schema")
+        return output_schema if isinstance(output_schema, dict) else None
+
+    @staticmethod
+    def _workflow_output_schema_keys(schema: dict[str, Any] | None) -> list[str]:
+        if not isinstance(schema, dict):
+            return []
+
+        def field_type(schema_fragment: dict[str, Any]) -> set[str]:
+            raw_type = schema_fragment.get("type")
+            if isinstance(raw_type, list):
+                return {str(item).lower() for item in raw_type}
+            if raw_type is None and isinstance(schema_fragment.get("properties"), dict):
+                return {"object"}
+            if raw_type is None and isinstance(schema_fragment.get("items"), dict):
+                return {"array"}
+            return {str(raw_type or "string").lower()}
+
+        def is_text_like(schema_fragment: dict[str, Any]) -> bool:
+            raw_types = field_type(schema_fragment)
+            return bool(raw_types & {"string", "unknown", ""})
+
+        def ordered_paths(current_schema: dict[str, Any], prefix: str = "") -> list[str]:
+            properties = current_schema.get("properties")
+            if not isinstance(properties, dict):
+                return []
+            required = [str(item) for item in current_schema.get("required") or [] if item]
+            ordered_fields = [field for field in required if field in properties]
+            ordered_fields.extend(
+                str(field) for field in properties if str(field) not in ordered_fields
+            )
+
+            paths: list[str] = []
+            for field in ordered_fields:
+                raw_property = properties.get(field)
+                property_schema = raw_property if isinstance(raw_property, dict) else {}
+                path = f"{prefix}.{field}" if prefix else field
+                raw_types = field_type(property_schema)
+                if "array" in raw_types:
+                    items_schema = property_schema.get("items")
+                    if isinstance(items_schema, dict) and "object" in field_type(items_schema):
+                        paths.extend(ordered_paths(items_schema, f"{path}[]"))
+                    elif isinstance(items_schema, dict) and is_text_like(items_schema):
+                        paths.append(path)
+                    continue
+                if "object" in raw_types:
+                    paths.extend(ordered_paths(property_schema, path))
+                    continue
+                if is_text_like(property_schema):
+                    paths.append(path)
+            return paths
+
+        return ordered_paths(schema)
+
+    @staticmethod
+    def _workflow_output_path_value(output: dict[str, Any], path: str) -> Any:
+        def resolve(current: Any, segments: list[str]) -> Any:
+            if not segments:
+                return current
+            segment = segments[0]
+            if segment.endswith("[]"):
+                key = segment[:-2]
+                if not isinstance(current, dict):
+                    return None
+                items = current.get(key)
+                if not isinstance(items, list):
+                    return None
+                for item in items:
+                    value = resolve(item, segments[1:])
+                    if value not in (None, "", [], {}):
+                        return value
+                return None
+            if not isinstance(current, dict):
+                return None
+            return resolve(current.get(segment), segments[1:])
+
+        if not path:
+            return None
+        return resolve(output, path.split("."))
 
 
 # ── Singleton ──────────────────────────────────────

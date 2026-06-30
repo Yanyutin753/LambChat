@@ -19,6 +19,7 @@ import type {
   SummaryPart,
   RecommendQuestion,
   ArtifactPartArtifact,
+  WorkflowPart,
 } from "../../types";
 import i18n from "../../i18n";
 import { translateBackendError } from "../../utils/backendErrors";
@@ -130,6 +131,42 @@ export function processMessageEvent(
         data.error,
         data.timestamp,
       );
+      break;
+    }
+
+    // ---- Workflow events ----
+
+    case "workflow:run": {
+      const workflowPart: WorkflowPart = {
+        type: "workflow",
+        plugin_id: data.plugin_id,
+        workflow_id: data.workflow_id,
+        run_id: data.run_id,
+        version_id: data.version_id,
+        status: data.status,
+        output: data.output,
+        error: data.error,
+        interface: data.interface,
+        next_action: data.next_action,
+        io_contract: data.io_contract,
+        output_contract: data.output_contract,
+        depth,
+        agent_id: agentId,
+        timestamp: data.timestamp,
+      };
+
+      if (depth > 0) {
+        result.parts = addPartToDepth(
+          parts,
+          workflowPart,
+          depth,
+          subagentStack,
+          agentId,
+          messageId,
+        );
+      } else {
+        result.parts = [...parts, workflowPart];
+      }
       break;
     }
 
@@ -282,6 +319,14 @@ export function processMessageEvent(
           agentId,
           completedAt,
         );
+        if (depth === 0) {
+          result.toolResult = {
+            id: toolCallId,
+            name: toolName,
+            result: resultContent,
+            success: isSuccess,
+          };
+        }
       } else {
         let updated = false;
         const newParts = parts.map((p) => {

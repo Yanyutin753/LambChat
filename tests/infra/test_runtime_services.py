@@ -229,6 +229,61 @@ async def test_start_runtime_services_starts_all_distributed_listeners(
 
 
 @pytest.mark.asyncio
+async def test_start_runtime_services_forwards_plugin_runtime_to_arq_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task_manager = _FakeTaskManager()
+    settings_pubsub = _FakeAsyncService()
+    model_config_pubsub = _FakeAsyncService()
+    memory_pubsub = _FakeAsyncService()
+    websocket_manager = _FakeWebSocketManager()
+    channel_pubsub = _FakeAsyncService()
+    tool_cache_pubsub = _FakeAsyncService()
+    mcp_cache_pubsub = _FakeAsyncService()
+    scheduler = _FakeRuntimeScheduler()
+    scheduled_task_storage = _FakeScheduledTaskStorage()
+    scheduled_task_service = _FakeScheduledTaskService()
+    plugin_runtime = object()
+    plugin_runtime_state_storage = object()
+    arq_context = SimpleNamespace(plugin_runtime=None, plugin_runtime_state_storage=None)
+
+    async def _start_arq_runtime(
+        *,
+        plugin_runtime=None,
+        plugin_runtime_state_storage=None,
+    ) -> None:
+        arq_context.plugin_runtime = plugin_runtime
+        arq_context.plugin_runtime_state_storage = plugin_runtime_state_storage
+
+    _patch_runtime_service_dependencies(
+        monkeypatch,
+        enable_memory=False,
+        enable_scheduled_task=False,
+        task_manager=task_manager,
+        settings_pubsub=settings_pubsub,
+        model_config_pubsub=model_config_pubsub,
+        memory_pubsub=memory_pubsub,
+        websocket_manager=websocket_manager,
+        channel_pubsub=channel_pubsub,
+        tool_cache_pubsub=tool_cache_pubsub,
+        mcp_cache_pubsub=mcp_cache_pubsub,
+        scheduler=scheduler,
+        scheduled_task_storage=scheduled_task_storage,
+        scheduled_task_service=scheduled_task_service,
+    )
+    monkeypatch.setattr(runtime_services, "start_arq_runtime", _start_arq_runtime)
+
+    await runtime_services.start_runtime_services(
+        plugin_runtime=plugin_runtime,
+        plugin_runtime_state_storage=plugin_runtime_state_storage,
+    )
+
+    assert arq_context.plugin_runtime is plugin_runtime
+    assert arq_context.plugin_runtime_state_storage is plugin_runtime_state_storage
+    assert task_manager.start_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_start_runtime_services_registers_scheduled_task_reconcile_job(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

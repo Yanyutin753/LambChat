@@ -1,9 +1,14 @@
 import io
+import json
 import logging
 
+from src.infra.logging.config import setup_logging
 from src.infra.logging.context import TraceContext
 from src.infra.logging.filter import TraceFilter
+from src.infra.logging.formatter import build_log_formatter
 from src.kernel.config import settings
+
+DEFAULT_LOG_FORMAT = type(settings).model_fields["LOG_FORMAT"].default
 
 
 def teardown_function() -> None:
@@ -105,7 +110,7 @@ def test_trace_filter_uses_request_context_trace_id_as_fallback() -> None:
 
 
 def test_default_log_format_exposes_request_id() -> None:
-    assert "%(trace_context)s" in settings.LOG_FORMAT
+    assert "%(trace_context)s" in DEFAULT_LOG_FORMAT
 
 
 def test_default_log_format_renders_with_trace_filter() -> None:
@@ -118,7 +123,7 @@ def test_default_log_format_renders_with_trace_filter() -> None:
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     handler.addFilter(TraceFilter())
-    handler.setFormatter(logging.Formatter(settings.LOG_FORMAT))
+    handler.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT))
     logger = logging.getLogger("test.request_id_formatter")
     logger.handlers = [handler]
     logger.propagate = False
@@ -143,7 +148,7 @@ def test_default_log_format_hides_missing_trace_context() -> None:
     stream = io.StringIO()
     handler = logging.StreamHandler(stream)
     handler.addFilter(TraceFilter())
-    handler.setFormatter(logging.Formatter(settings.LOG_FORMAT))
+    handler.setFormatter(logging.Formatter(DEFAULT_LOG_FORMAT))
     logger = logging.getLogger("test.missing_context_formatter")
     logger.handlers = [handler]
     logger.propagate = False
@@ -163,3 +168,45 @@ def test_default_log_format_hides_missing_trace_context() -> None:
     assert "session_id=-" not in output
     assert "run_id=-" not in output
     assert "test.missing_context_formatter - hello" in output
+
+
+def test_json_log_format_renders_structured_trace_context() -> None:
+    TraceContext.set(trace_id="trace-1", span_id="span-1", request_id="req-1")
+    TraceContext.set_request_context(session_id="session-1", run_id="run-1", user_id="user-1")
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.addFilter(TraceFilter())
+    handler.setFormatter(build_log_formatter("json", settings.LOG_DATE_FORMAT))
+    logger = logging.getLogger("test.json_formatter")
+    logger.handlers = [handler]
+    logger.propagate = False
+    logger.setLevel(logging.INFO)
+
+    try:
+        logger.info("hello %s", "json")
+    finally:
+        logger.handlers = []
+        logger.propagate = True
+
+    payload = json.loads(stream.getvalue())
+    assert payload["level"] == "INFO"
+    assert payload["logger"] == "test.json_formatter"
+    assert payload["message"] == "hello json"
+    assert payload["request_id"] == "req-1"
+    assert payload["trace_id"] == "trace-1"
+    assert payload["span_id"] == "span-1"
+    assert payload["user_id"] == "user-1"
+    assert payload["session_id"] == "session-1"
+    assert payload["run_id"] == "run-1"
+
+
+def test_setup_logging_accepts_json_log_format(monkeypatch) -> None:
+    original_handlers = list(logging.getLogger().handlers)
+    monkeypatch.setattr(settings, "LOG_FORMAT", "json")
+    monkeypatch.setattr(settings, "LOG_LEVEL", "INFO")
+
+    try:
+        setup_logging()
+        logging.getLogger("test.setup_json_formatter").info("json startup")
+    finally:
+        logging.getLogger().handlers = original_handlers

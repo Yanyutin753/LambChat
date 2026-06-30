@@ -5,8 +5,16 @@ import logging
 from types import SimpleNamespace
 
 import pytest
+from fastapi import FastAPI
 
 from src.api import main as api_main
+from src.api.routes.registry import register_builtin_plugin_routes
+from src.infra.extensions import (
+    InMemoryPluginRuntimeStateStorage,
+    InMemoryPluginSettingsStorage,
+    PluginSettingsService,
+)
+from src.kernel.extensions import WORKFLOW_PLUGIN_ID, PluginRuntimeStatus
 
 
 @pytest.mark.asyncio
@@ -155,6 +163,100 @@ async def test_run_startup_indexes_waits_for_index_initialization(
 
 
 @pytest.mark.asyncio
+async def test_startup_helpers_apply_workflow_override_before_lifecycle_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.plugins.workflow import lifecycle as workflow_lifecycle
+
+    app = FastAPI()
+    register_builtin_plugin_routes(app)
+    state_storage = InMemoryPluginRuntimeStateStorage()
+    await state_storage.set_override(
+        plugin_id=WORKFLOW_PLUGIN_ID,
+        status=PluginRuntimeStatus.ENABLED,
+        updated_by="admin-1",
+    )
+    app.state.plugin_runtime_state_storage = state_storage
+    app.state.plugin_settings_service = PluginSettingsService(
+        storage=InMemoryPluginSettingsStorage()
+    )
+    calls: list[str] = []
+
+    class _FakeWorkflowStorage:
+        def __init__(self, **_kwargs) -> None:
+            return None
+
+        async def ensure_indexes(self) -> None:
+            calls.append("workflow.ensure_indexes")
+
+        async def fail_stale_running_runs(self) -> int:
+            calls.append("workflow.fail_stale_running_runs")
+            return 0
+
+        async def delete_terminal_run_logs_before(self, cutoff) -> int:
+            calls.append("workflow.delete_terminal_run_logs_before")
+            return 0
+
+    monkeypatch.setattr(workflow_lifecycle, "WorkflowPluginStorage", _FakeWorkflowStorage)
+    monkeypatch.setattr(
+        workflow_lifecycle,
+        "resolve_max_event_payload_bytes",
+        lambda: _async_value(65536),
+    )
+
+    await api_main._load_plugin_runtime_state_overrides(app)
+    await api_main._initialize_plugin_settings(app)
+    api_main._attach_plugin_runtime_to_runtime_guards(app)
+    await api_main._run_plugin_lifecycle_hooks(app, "startup")
+
+    state = app.state.plugin_runtime.get_state(WORKFLOW_PLUGIN_ID)
+    assert state.status is PluginRuntimeStatus.ENABLED
+    assert calls == [
+        "workflow.ensure_indexes",
+        "workflow.fail_stale_running_runs",
+        "workflow.delete_terminal_run_logs_before",
+    ]
+    assert [result.hook_name for result in app.state.plugin_runtime_hook_results] == [
+        "workflow:startup"
+    ]
+    assert app.state.plugin_runtime_hook_results[0].status == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_start_runtime_services_for_app_passes_loaded_plugin_runtime_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    register_builtin_plugin_routes(app)
+    state_storage = InMemoryPluginRuntimeStateStorage()
+    app.state.plugin_runtime_state_storage = state_storage
+    calls: list[dict[str, object | None]] = []
+
+    async def _start_runtime_services(
+        *,
+        plugin_runtime=None,
+        plugin_runtime_state_storage=None,
+    ) -> None:
+        calls.append(
+            {
+                "plugin_runtime": plugin_runtime,
+                "plugin_runtime_state_storage": plugin_runtime_state_storage,
+            }
+        )
+
+    monkeypatch.setattr(api_main, "start_runtime_services", _start_runtime_services)
+
+    await api_main._start_runtime_services_for_app(app)
+
+    assert calls == [
+        {
+            "plugin_runtime": app.state.plugin_runtime,
+            "plugin_runtime_state_storage": state_storage,
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_schedule_stale_task_cleanup_does_not_wait_for_cleanup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -274,9 +376,6 @@ async def test_close_route_dependency_singletons_closes_cached_route_managers(
 ) -> None:
     calls: list[str] = []
 
-    async def _close_feedback_manager() -> None:
-        calls.append("feedback")
-
     async def _close_notification_manager() -> None:
         calls.append("notification")
 
@@ -289,7 +388,6 @@ async def test_close_route_dependency_singletons_closes_cached_route_managers(
     async def _close_persona_preset_manager() -> None:
         calls.append("persona_preset")
 
-    monkeypatch.setattr(api_main.feedback, "close_feedback_manager", _close_feedback_manager)
     monkeypatch.setattr(
         api_main.notification,
         "close_notification_manager",
@@ -314,7 +412,24 @@ async def test_close_route_dependency_singletons_closes_cached_route_managers(
 
     await api_main._close_route_dependency_singletons()
 
-    assert calls == ["feedback", "notification", "revealed_file", "upload", "persona_preset"]
+    assert calls == ["notification", "revealed_file", "upload", "persona_preset"]
+
+
+def test_feedback_shutdown_is_owned_by_plugin_lifecycle() -> None:
+    from src.kernel.extensions import FEEDBACK_PLUGIN_ID, build_feedback_plugin_manifest
+
+    source_names = api_main._close_route_dependency_singletons.__code__.co_names
+    manifest = build_feedback_plugin_manifest()
+
+    assert "close_feedback_manager" not in source_names
+    assert manifest.id == FEEDBACK_PLUGIN_ID
+    assert manifest.lifespan_hooks[0].module == (
+        "src.plugins.feedback.lifecycle:close_feedback_manager"
+    )
+
+
+async def _async_value(value):
+    return value
 
 
 @pytest.mark.asyncio

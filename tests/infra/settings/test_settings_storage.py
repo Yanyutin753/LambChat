@@ -8,22 +8,51 @@ from src.kernel.config import SETTING_DEFINITIONS
 
 
 class _FakeCursor:
-    def __init__(self) -> None:
+    def __init__(self, docs: list[dict[str, Any]] | None = None) -> None:
+        self.docs = docs or []
         self.length = None
 
     async def to_list(self, length=None):
         self.length = length
-        return []
+        return self.docs
 
 
 class _FakeCollection:
-    def __init__(self) -> None:
-        self.cursor = _FakeCursor()
+    def __init__(self, docs: list[dict[str, Any]] | None = None) -> None:
+        self.docs_by_id = {doc["_id"]: doc for doc in docs or []}
+        self.cursor = _FakeCursor(list(self.docs_by_id.values()))
         self.find_calls = []
+        self.find_one_calls = []
+        self.delete_one_calls = []
+        self.delete_many_calls = []
+        self.update_one_calls = []
 
     def find(self, query, projection=None):
         self.find_calls.append((query, projection))
         return self.cursor
+
+    async def find_one(self, query):
+        self.find_one_calls.append(query)
+        return self.docs_by_id.get(query.get("_id"))
+
+    async def delete_one(self, query):
+        self.delete_one_calls.append(query)
+
+        class _Result:
+            deleted_count = 0
+
+        return _Result()
+
+    async def delete_many(self, query):
+        self.delete_many_calls.append(query)
+
+        class _Result:
+            deleted_count = 0
+
+        return _Result()
+
+    async def update_one(self, *args, **kwargs):
+        self.update_one_calls.append((args, kwargs))
 
 
 @pytest.mark.asyncio
@@ -59,6 +88,53 @@ async def test_settings_storage_close_clears_local_client_reference() -> None:
 
     assert storage._client is None
     assert storage._collection is None
+
+
+@pytest.mark.asyncio
+async def test_get_all_hides_plugin_owned_legacy_settings_and_raw_requires_migration_path() -> None:
+    from src.infra.settings.storage import SettingsStorage
+
+    collection = _FakeCollection(
+        [
+            {"_id": "IMAGE_GENERATION_API_KEY", "value": "sk-legacy"},
+            {"_id": "AUDIO_TRANSCRIPTION_API_KEY", "value": "sk-audio"},
+        ]
+    )
+    storage = SettingsStorage()
+    storage._collection = collection
+
+    grouped = await storage.get_all(admin_mode=True, mask_sensitive=False)
+    visible_keys = {item.key for items in grouped.values() for item in items}
+
+    assert "IMAGE_GENERATION_API_KEY" not in visible_keys
+    assert "AUDIO_TRANSCRIPTION_API_KEY" not in visible_keys
+    assert await storage.get("IMAGE_GENERATION_API_KEY") is None
+    assert await storage.get_raw("IMAGE_GENERATION_API_KEY") is None
+
+    raw = await storage.get_plugin_owned_legacy_raw("IMAGE_GENERATION_API_KEY")
+    assert raw is not None
+    assert raw.value == "sk-legacy"
+
+
+@pytest.mark.asyncio
+async def test_settings_storage_rejects_generic_plugin_owned_setting_mutations() -> None:
+    from src.infra.settings.storage import SettingsStorage
+
+    collection = _FakeCollection(
+        [{"_id": "IMAGE_GENERATION_API_KEY", "value": "sk-legacy"}]
+    )
+    storage = SettingsStorage()
+    storage._collection = collection
+
+    with pytest.raises(ValueError, match="owned by plugin image_generation"):
+        await storage.set("IMAGE_GENERATION_API_KEY", "sk-new", "admin")
+
+    assert await storage.reset("IMAGE_GENERATION_API_KEY") == 0
+
+    await storage.reset()
+    deleted_keys = collection.delete_many_calls[0]["_id"]["$in"]
+    assert "IMAGE_GENERATION_API_KEY" not in deleted_keys
+    assert "AUDIO_TRANSCRIPTION_API_KEY" not in deleted_keys
 
 
 @pytest.mark.asyncio

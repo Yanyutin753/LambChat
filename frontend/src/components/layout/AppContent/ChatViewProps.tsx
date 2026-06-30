@@ -1,8 +1,3 @@
-import { useState, useEffect } from "react";
-import { teamApi } from "../../../services/api/team";
-import { subscribeTeamsChanged } from "../../../hooks/teamEvents";
-import { getTeamFallbackAvatar } from "../../team/teamAvatarUtils";
-import type { Team } from "../../../types/team";
 import type {
   Message,
   PendingApproval,
@@ -17,73 +12,46 @@ import type {
   PersonaPreset,
   PersonaPresetSnapshot,
 } from "../../../types";
-import type { ActiveGoalSpec } from "../../../hooks/useAgent/types";
+import type {
+  ActiveGoalSpec,
+  SendMessageOptions,
+} from "../../../hooks/useAgent/types";
 import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPreviewData";
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
+import type { PluginRuntimeContributionStates } from "../../../extensions/coreContributions";
+import type { PluginOptionsMetadata } from "../../../extensions/pluginOptions";
+import { usePluginChatAssistantIdentity } from "../../chat/chatAssistantIdentityResolvers";
 
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
 
-function useCurrentTeam(currentAgent: string, selectedTeamId: string | null) {
-  const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
-
-  useEffect(() => {
-    if (currentAgent !== "team" || !selectedTeamId) {
-      setCurrentTeam(null);
-      return;
-    }
-
-    let cancelled = false;
-    const loadTeam = () => {
-      teamApi
-        .get(selectedTeamId)
-        .then((team) => {
-          if (!cancelled) setCurrentTeam(team);
-        })
-        .catch(() => {
-          if (!cancelled) setCurrentTeam(null);
-        });
-    };
-    loadTeam();
-    const unsubscribe = subscribeTeamsChanged((detail) => {
-      if (!detail.teamId || detail.teamId === selectedTeamId) {
-        loadTeam();
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [currentAgent, selectedTeamId]);
-
-  return currentTeam;
-}
+// Plugin-specific assistant identity is resolved by static plugin renderers.
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function resolveChatAssistantIdentity({
+function useChatAssistantIdentity({
   currentAgent,
   currentPersonaAvatar,
-  currentTeam,
+  pluginOptionValues,
+  runtimePlugins,
   selectedPersonaName,
 }: {
   currentAgent: string;
   currentPersonaAvatar: string | null;
-  currentTeam: Team | null;
+  pluginOptionValues: PluginOptionsMetadata;
+  runtimePlugins?: PluginRuntimeContributionStates;
   selectedPersonaName: string | null;
 }) {
-  if (currentAgent === "team") {
-    const fallbackAvatar = currentTeam
-      ? getTeamFallbackAvatar(currentTeam)
-      : null;
-    return {
-      avatar: currentTeam?.avatar ?? fallbackAvatar,
-      name: currentTeam?.name ?? null,
-    };
+  const pluginIdentity = usePluginChatAssistantIdentity({
+    currentAgent,
+    pluginOptionValues,
+    runtimePlugins,
+  });
+  if (pluginIdentity) {
+    return pluginIdentity;
   }
 
   return {
@@ -166,10 +134,14 @@ export interface ChatViewProps {
   agents: AgentInfo[];
   currentAgent: string;
   onSelectAgent: (id: string) => void;
-  // Team picker
+  // Agent Team compatibility state; new writes go through plugin options.
   selectedTeamId: string | null;
-  onSelectTeam: (teamId: string | null) => void;
-  onOpenTeamBuilder?: () => void;
+  pluginOptionValues: PluginOptionsMetadata;
+  onPluginOptionChange: (
+    pluginId: string,
+    key: string,
+    value: unknown,
+  ) => void;
   approvals: PendingApproval[];
   onRespondApproval: (
     id: string,
@@ -180,7 +152,7 @@ export interface ChatViewProps {
   onSendMessage: (
     content: string,
     attachments?: MessageAttachment[],
-    runOptions?: { enabledSkills?: string[] },
+    options?: SendMessageOptions,
   ) => void;
   onStopGeneration: () => void;
   activeGoal: ActiveGoalSpec | null;
@@ -197,11 +169,7 @@ export interface ChatViewProps {
   externalNavigationTargetRunPending?: boolean;
   externalScrollToBottom?: boolean;
   outlineToggleRef?: React.RefObject<(() => void) | null>;
-  // Run mode
-  autoModeEnabled?: boolean;
-  goalModeEnabled?: boolean;
-  onToggleAutoMode?: (enabled: boolean) => void;
-  onToggleGoalMode?: (enabled: boolean) => void;
+  runtimePlugins?: PluginRuntimeContributionStates;
 }
 
-export { useCurrentTeam, resolveChatAssistantIdentity };
+export { useChatAssistantIdentity };

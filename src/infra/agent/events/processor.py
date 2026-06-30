@@ -231,6 +231,11 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
 
         if evt_type == "on_chat_model_end":
             await self.flush()
+            metadata = event.get("metadata", {})
+            checkpoint_ns = self._get_checkpoint_ns(metadata)
+            current_agent_id, current_depth = self._get_agent_context(checkpoint_ns)
+            await self._handle_chat_model_end_output(event, current_agent_id, current_depth)
+            await self.flush()
             self._handle_token_usage(event)
             return
 
@@ -248,9 +253,8 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         if self._is_internal_stream_event(metadata):
             return
 
-        checkpoint_ns = None
-        checkpoint_ns = self._get_checkpoint_ns(metadata)
-        current_agent_id, current_depth = self._get_agent_context(checkpoint_ns)
+        context_checkpoint_ns = self._get_checkpoint_ns(metadata)
+        current_agent_id, current_depth = self._get_agent_context(context_checkpoint_ns)
 
         if current_depth and logger.isEnabledFor(logging.DEBUG):
             logger.debug(
@@ -259,7 +263,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
                 tool_name or "N/A",
                 current_agent_id,
                 current_depth,
-                checkpoint_ns[:60] if checkpoint_ns else "N/A",
+                context_checkpoint_ns[:60] if context_checkpoint_ns else "N/A",
             )
 
         match evt_type:

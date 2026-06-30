@@ -8,10 +8,18 @@
 import asyncio
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
+from src.infra.extensions import get_plugin_settings_service
+from src.infra.extensions.scoped_options import (
+    plugin_options_with_settings,
+    scoped_option_definition,
+    scoped_option_manifest,
+    scoped_plugin_is_executable,
+    validate_scoped_plugin_option_value,
+)
 from src.infra.folder.storage import get_project_storage
 from src.infra.logging import get_logger
 from src.infra.session.favorites import is_session_favorite, normalize_session_metadata
@@ -19,6 +27,12 @@ from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
 from src.kernel.config import settings
 from src.kernel.exceptions import NotFoundError, SessionError
+from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
+from src.kernel.extensions.plugin_options import (
+    plugin_options_from_metadata,
+    with_plugin_option,
+)
+from src.kernel.extensions.runtime import PluginRuntime
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 from src.kernel.schemas.user import TokenPayload
 
@@ -35,6 +49,10 @@ SESSION_RAW_TRACE_EVENTS_LIMIT_MAX = 200
 
 class MessageCheckpointCreatePayload(BaseModel):
     name: str | None = None
+
+
+class SessionPluginOptionUpdatePayload(BaseModel):
+    value: Any = None
 
 
 def _parse_event_types_filter(event_types: str | None) -> list[str] | None:
@@ -125,6 +143,49 @@ def _normalize_session(
     )
 
 
+def _get_plugin_runtime(request: Request) -> PluginRuntime:
+    runtime = getattr(request.app.state, "plugin_runtime", None)
+    if isinstance(runtime, PluginRuntime):
+        return runtime
+    return PluginRuntime(BUILTIN_PLUGIN_MANIFESTS, core_dependencies=("skill_core",))
+
+
+def _get_plugin_settings_service(request: Request):
+    return (
+        getattr(request.app.state, "plugin_settings_service", None) or get_plugin_settings_service()
+    )
+
+
+def _session_option_definition(runtime: PluginRuntime, plugin_id: str, key: str):
+    try:
+        return scoped_option_definition(
+            runtime,
+            scope="session",
+            plugin_id=plugin_id,
+            key=key,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _plugin_manifest(runtime: PluginRuntime, plugin_id: str):
+    try:
+        return scoped_option_manifest(runtime, plugin_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _validate_session_plugin_option_value(option, value: Any) -> Any:
+    try:
+        return validate_scoped_plugin_option_value(option, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _plugin_is_executable(runtime: PluginRuntime, plugin_id: str) -> bool:
+    return scoped_plugin_is_executable(runtime, plugin_id)
+
+
 @router.get("")
 async def list_sessions(
     skip: int = Query(0, ge=0, description="跳过的会话数量"),
@@ -212,6 +273,91 @@ async def create_session(
     """
     manager = SessionManager()
     return await manager.create_session(session_data, user_id=user.sub)
+
+
+@router.get("/{session_id}/plugin-options")
+async def get_session_plugin_options(
+    session_id: str,
+    request: Request,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Return plugin-scoped session options stored on this session."""
+    manager = SessionManager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    verify_session_ownership(session, user)
+    runtime = _get_plugin_runtime(request)
+    plugin_options = await plugin_options_with_settings(
+        runtime=runtime,
+        service=_get_plugin_settings_service(request),
+        scope="session",
+        subject_id=session_id,
+        plugin_options=plugin_options_from_metadata(session.metadata),
+    )
+    return {
+        "session_id": session_id,
+        "plugin_options": plugin_options,
+        "storage": "session_metadata",
+        "source": "session_metadata.plugin_options+plugin_settings",
+    }
+
+
+@router.put("/{session_id}/plugin-options/{plugin_id}/{key}")
+async def update_session_plugin_option(
+    session_id: str,
+    plugin_id: str,
+    key: str,
+    payload: SessionPluginOptionUpdatePayload,
+    request: Request,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Update one manifest-declared plugin session option without enabling the plugin."""
+    runtime = _get_plugin_runtime(request)
+    option = _session_option_definition(runtime, plugin_id, key)
+    manifest = _plugin_manifest(runtime, plugin_id)
+    value = _validate_session_plugin_option_value(option, payload.value)
+    manager = SessionManager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    verify_session_ownership(session, user)
+    try:
+        await _get_plugin_settings_service(request).set_setting(
+            manifest,
+            key=key,
+            value=value,
+            updated_by=user.sub,
+            scope="session",
+            subject_id=session_id,
+        )
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    metadata = with_plugin_option(
+        session.metadata,
+        plugin_id=plugin_id,
+        key=key,
+        value=value,
+    )
+    metadata_update = {"plugin_options": metadata.get("plugin_options", {})}
+    updated_session = await manager.update_session(
+        session_id,
+        SessionUpdate(metadata=metadata_update),
+    )
+    if not updated_session:
+        raise HTTPException(status_code=500, detail="failed to update plugin session option")
+    return {
+        "session_id": session_id,
+        "plugin_id": plugin_id,
+        "key": key,
+        "qualified_key": f"{plugin_id}.{key}",
+        "value": value,
+        "plugin_enabled": _plugin_is_executable(runtime, plugin_id),
+        "effective": _plugin_is_executable(runtime, plugin_id),
+        "plugin_options": plugin_options_from_metadata(updated_session.metadata),
+        "storage": "session_metadata",
+        "source": "session_metadata.plugin_options+plugin_settings",
+    }
 
 
 @router.get("/{session_id}", response_model=Session)

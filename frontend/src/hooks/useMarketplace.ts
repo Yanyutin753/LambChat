@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import i18n from "i18next";
 import { marketplaceApi } from "../services/api/marketplace";
+import { marketplaceSkillsToExtensionItems } from "../utils/extensionMarketplace";
 import type {
   MarketplaceSkillResponse,
   MarketplaceSkillFilesResponse,
@@ -200,6 +201,16 @@ export function useMarketplace() {
     );
   }, [skills, activeFilter]);
 
+  const extensionItems = useMemo(
+    () => marketplaceSkillsToExtensionItems(skills),
+    [skills],
+  );
+
+  const filteredExtensionItems = useMemo(
+    () => marketplaceSkillsToExtensionItems(filteredSkills),
+    [filteredSkills],
+  );
+
   // Clear filters
   const clearFilters = useCallback(() => {
     setSelectedTags([]);
@@ -350,6 +361,8 @@ export function useMarketplace() {
   return {
     skills,
     filteredSkills,
+    extensionItems,
+    filteredExtensionItems,
     tags,
     isLoading,
     error,

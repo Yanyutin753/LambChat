@@ -23,6 +23,7 @@ class _CatalogStorage:
         self.catalog = catalog or []
         self.legacy_global = legacy_global or []
         self.saved: list[AgentCatalogConfig] | None = None
+        self.prune_missing: bool | None = None
 
     async def get_catalog_config(self) -> list[AgentCatalogConfig]:
         return self.catalog
@@ -33,16 +34,23 @@ class _CatalogStorage:
     async def set_catalog_config(
         self,
         agents: list[AgentCatalogConfig],
+        *,
+        prune_missing: bool = True,
     ) -> list[AgentCatalogConfig]:
         self.saved = agents
+        self.prune_missing = prune_missing
         self.catalog = agents
         return agents
 
 
 class _RoleAssignmentStorage:
-    def __init__(self) -> None:
+    def __init__(self, role_agents: list[str] | None = None) -> None:
+        self.role_agents = role_agents or []
         self.agent_calls: list[list[str]] = []
         self.model_calls: list[list[str]] = []
+
+    async def get_role_agents(self, role_id: str) -> list[str]:
+        return self.role_agents
 
     async def set_role_agents(
         self,
@@ -95,6 +103,22 @@ def _registered_agents() -> list[dict]:
     ]
 
 
+def _registered_agents_with_team() -> list[dict]:
+    return [
+        *_registered_agents(),
+        {
+            "id": "team",
+            "name": "agents.team.name",
+            "description": "agents.team.description",
+            "version": "1.0.0",
+            "sort_order": 20,
+            "category": "agent_team:team-builder",
+            "supports_sandbox": False,
+            "options": {},
+        },
+    ]
+
+
 @pytest.mark.asyncio
 async def test_get_catalog_config_seeds_registered_agents_in_dedicated_catalog(
     monkeypatch: pytest.MonkeyPatch,
@@ -112,6 +136,48 @@ async def test_get_catalog_config_seeds_registered_agents_in_dedicated_catalog(
     assert response.agents[0].icon == "Bot"
     assert response.agents[0].sort_order == 1
     assert response.agents[0].labels == {}
+    assert storage.prune_missing is False
+
+
+@pytest.mark.asyncio
+async def test_get_catalog_config_exposes_plugin_declared_agent_category(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _CatalogStorage()
+    monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
+    monkeypatch.setattr(config_routes.AgentFactory, "list_agents", _registered_agents_with_team)
+
+    response = await config_routes.get_agent_catalog_config(_admin())
+
+    team = next(agent for agent in response.agents if agent.id == "team")
+    assert team.category == "agent_team:team-builder"
+    assert storage.saved is not None
+    saved_team = next(agent for agent in storage.saved if agent.id == "team")
+    assert saved_team.category == "agent_team:team-builder"
+
+
+@pytest.mark.asyncio
+async def test_get_catalog_config_hides_disabled_plugin_agents_without_pruning_saved_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _CatalogStorage(
+        catalog=[
+            AgentCatalogConfig(
+                id="team",
+                name="agents.team.name",
+                description="agents.team.description",
+                enabled=True,
+            )
+        ]
+    )
+    monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
+    monkeypatch.setattr(config_routes.AgentFactory, "list_agents", _registered_agents)
+
+    response = await config_routes.get_agent_catalog_config(_admin())
+
+    assert [agent.id for agent in response.agents] == ["search", "fast"]
+    assert "team" not in response.available_agents
+    assert storage.prune_missing is False
 
 
 @pytest.mark.asyncio
@@ -144,7 +210,6 @@ async def test_update_catalog_config_persists_multilingual_display_metadata(
 ) -> None:
     storage = _CatalogStorage()
     monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
-    monkeypatch.setattr(config_routes, "list_registered_agents", lambda: ["search"])
     monkeypatch.setattr(config_routes.AgentFactory, "list_agents", _registered_agents)
 
     update = AgentCatalogConfigUpdate(
@@ -179,12 +244,47 @@ async def test_update_catalog_config_persists_multilingual_display_metadata(
 
 
 @pytest.mark.asyncio
+async def test_update_catalog_config_rejects_plugin_agent_hidden_by_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _CatalogStorage()
+    monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
+    monkeypatch.setattr(config_routes.AgentFactory, "list_agents", _registered_agents)
+
+    with pytest.raises(Exception, match="team"):
+        await config_routes.update_agent_catalog_config(
+            AgentCatalogConfigUpdate(
+                agents=[
+                    AgentCatalogConfig(
+                        id="team",
+                        name="agents.team.name",
+                        description="agents.team.description",
+                        enabled=True,
+                    )
+                ]
+            ),
+            _admin(),
+        )
+
+    assert storage.saved is None
+
+
+@pytest.mark.asyncio
 async def test_update_role_agents_returns_bounded_storage_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _RoleAssignmentStorage()
     monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
     monkeypatch.setattr(config_routes, "get_role_manager", lambda: _RoleManager())
+    monkeypatch.setattr(
+        config_routes.AgentFactory,
+        "list_agents",
+        lambda: [
+            {"id": "agent-1"},
+            {"id": "agent-2"},
+            {"id": "agent-3"},
+        ],
+    )
 
     response = await config_routes.update_role_agents(
         "role-1",
@@ -194,6 +294,40 @@ async def test_update_role_agents_returns_bounded_storage_result(
 
     assert storage.agent_calls == [["agent-1", "agent-2", "agent-3"]]
     assert response.allowed_agents == ["agent-1", "agent-2"]
+
+
+@pytest.mark.asyncio
+async def test_get_role_agents_hides_plugin_agents_hidden_by_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _RoleAssignmentStorage(role_agents=["search", "team", "fast"])
+    monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
+    monkeypatch.setattr(config_routes, "get_role_manager", lambda: _RoleManager())
+    monkeypatch.setattr(config_routes.AgentFactory, "list_agents", _registered_agents)
+
+    response = await config_routes.get_role_agents("role-1", _admin())
+
+    assert response.allowed_agents == ["search", "fast"]
+    assert storage.role_agents == ["search", "team", "fast"]
+
+
+@pytest.mark.asyncio
+async def test_update_role_agents_rejects_plugin_agent_hidden_by_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _RoleAssignmentStorage()
+    monkeypatch.setattr(config_routes, "get_agent_config_storage", lambda: storage)
+    monkeypatch.setattr(config_routes, "get_role_manager", lambda: _RoleManager())
+    monkeypatch.setattr(config_routes.AgentFactory, "list_agents", _registered_agents)
+
+    with pytest.raises(Exception, match="team"):
+        await config_routes.update_role_agents(
+            "role-1",
+            RoleAgentAssignmentUpdate(allowed_agents=["search", "team"]),
+            _admin(),
+        )
+
+    assert storage.agent_calls == []
 
 
 @pytest.mark.asyncio

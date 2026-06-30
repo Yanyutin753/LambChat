@@ -11,7 +11,7 @@ import sys
 from typing import Dict
 
 from src.infra.logging.filter import TraceFilter
-from src.infra.logging.formatter import ColoredFormatter
+from src.infra.logging.formatter import build_log_formatter
 
 
 def parse_log_levels(levels_str: str) -> Dict[str, str]:
@@ -65,9 +65,9 @@ def setup_logging() -> None:
     console_handler.setLevel(getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
     # 设置彩色格式化器
-    formatter = ColoredFormatter(
-        fmt=settings.LOG_FORMAT,
-        datefmt=settings.LOG_DATE_FORMAT,
+    formatter = build_log_formatter(
+        settings.LOG_FORMAT,
+        settings.LOG_DATE_FORMAT,
     )
     console_handler.setFormatter(formatter)
 

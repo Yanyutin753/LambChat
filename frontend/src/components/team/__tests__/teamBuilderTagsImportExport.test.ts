@@ -36,13 +36,14 @@ test("team editor persists member model overrides", () => {
   );
 });
 
-test("team editor persists member agent mode overrides", () => {
-  expect(builderSource).toMatch(/agent_id:\s*null/);
-  expect(builderSource).toMatch(/agent_id:\s*m\.agent_id \?\? null/);
-  expect(builderSource).toMatch(/handleAgentChange/);
-  expect(builderSource).toMatch(/agentApi\s*\.\s*list\(\)/);
-  expect(wrapperSource).toMatch(/record\.agent_id/);
-  expect(wrapperSource).toMatch(
-    /agent_id:\s*[\s\S]*record\.agent_id[\s\S]*:\s*null/,
-  );
+test("team editor persists team sandbox selection and drops member agent modes", () => {
+  assert.match(builderSource, /run_in_sandbox:\s*runInSandbox/);
+  assert.doesNotMatch(builderSource, /agent_id:\s*null/);
+  assert.doesNotMatch(builderSource, /agent_id:\s*m\.agent_id \?\? null/);
+  assert.doesNotMatch(builderSource, /handleAgentChange/);
+  assert.doesNotMatch(builderSource, /agentApi\s*\.\s*list\(\)/);
+  assert.match(wrapperSource, /run_in_sandbox:\s*item\.run_in_sandbox === true/);
+  assert.doesNotMatch(wrapperSource, /agent_id:\s*null/);
+  assert.match(wrapperSource, /"agent_id" in record/);
+  assert.match(wrapperSource, /legacyMemberAgentIdCount/);
 });

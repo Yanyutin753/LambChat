@@ -8,8 +8,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.infra.extensions import InMemoryPluginSettingsStorage, PluginSettingsService
 from src.infra.scheduler import service as service_module
 from src.infra.scheduler.service import ScheduledTaskService
+from src.kernel.extensions import (
+    AGENT_TEAM_PLUGIN_ID,
+    PluginManifest,
+    PluginRuntime,
+    PluginUnavailableError,
+    build_agent_team_plugin_manifest,
+)
 from src.kernel.schemas.scheduled_task import (
     ScheduledTask,
     ScheduledTaskCreate,
@@ -76,8 +84,20 @@ def test_clear_managed_task_signatures_releases_scheduler_registration_cache() -
 
 @pytest.fixture
 def service() -> ScheduledTaskService:
+    from src.agents import set_plugin_runtime
+
     service_module._managed_task_signatures.clear()
-    return ScheduledTaskService()
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    set_plugin_runtime(runtime)
+    service = ScheduledTaskService()
+    service.plugin_runtime = runtime
+    service.plugin_settings_service = PluginSettingsService(
+        storage=InMemoryPluginSettingsStorage()
+    )
+    try:
+        yield service
+    finally:
+        set_plugin_runtime(None)
 
 
 @pytest.fixture
@@ -126,6 +146,127 @@ async def test_create_task_persists_and_registers(
     assert task.owner_id == "user_1"
     assert task.trigger_type == TriggerType.INTERVAL
     assert task.model_dump(by_alias=True)["_id"] == task.id
+
+
+@pytest.mark.asyncio
+async def test_create_task_syncs_declared_plugin_options_to_settings(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    assert mock_storage is not None
+    request = _make_create_request(
+        agent_id="team",
+        input_payload={
+            "message": "team task",
+            "plugin_options": {
+                "agent_team": {"SELECTED_TEAM_ID": "team-1"},
+            },
+        },
+    )
+
+    task = await service.create_task(request, owner_id="user_1")
+
+    record = await service.plugin_settings_service.storage.get(
+        plugin_id="agent_team",
+        key="SELECTED_TEAM_ID",
+        scope="scheduled_task",
+        subject_id=task.id,
+    )
+    assert record is not None
+    assert record.value == "team-1"
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_task_filters_plugin_options_by_scheduled_task_manifest_scope(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    request = _make_create_request(
+        agent_id="team",
+        input_payload={
+            "message": "team task",
+            "plugin_options": {
+                "agent_team": {
+                    "SELECTED_TEAM_ID": "team-1",
+                    "UNDECLARED": "drop-me",
+                },
+                "missing_plugin": {"ANY": "drop-me"},
+            },
+        },
+    )
+
+    task = await service.create_task(request, owner_id="user_1")
+
+    assert task.input_payload == {
+        "message": "team task",
+        "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
+    }
+    assert await service.plugin_settings_service.storage.get(
+        plugin_id="missing_plugin",
+        key="ANY",
+        scope="scheduled_task",
+        subject_id=task.id,
+    ) is None
+    mock_storage.create_task.assert_called_once()
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_task_imports_legacy_payload_keys_from_plugin_manifest(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    manifest = PluginManifest(
+        id="workflow_runner",
+        name="Workflow Runner",
+        version="1.0.0",
+        api_version="v1",
+        permissions=["workflow_runner:read"],
+        settings=[
+            {
+                "key": "SELECTED_WORKFLOW_ID",
+                "type": "string",
+                "scope": "scheduled_task",
+            }
+        ],
+        frontend={
+            "scheduled_task_options": [
+                {
+                    "key": "SELECTED_WORKFLOW_ID",
+                    "type": "string",
+                    "label": "workflow.selected",
+                    "legacy_payload_keys": ["workflow_id"],
+                }
+            ]
+        },
+    )
+    service.plugin_runtime = PluginRuntime([manifest])
+    request = _make_create_request(
+        input_payload={"message": "workflow task", "workflow_id": "workflow-1"},
+    )
+
+    task = await service.create_task(request, owner_id="user_1")
+
+    assert task.input_payload == {
+        "message": "workflow task",
+        "workflow_id": "workflow-1",
+        "plugin_options": {
+            "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"},
+        },
+    }
+    record = await service.plugin_settings_service.storage.get(
+        plugin_id="workflow_runner",
+        key="SELECTED_WORKFLOW_ID",
+        scope="scheduled_task",
+        subject_id=task.id,
+    )
+    assert record is not None
+    assert record.value == "workflow-1"
+    mock_scheduler.register_job.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -179,6 +320,30 @@ async def test_create_task_invalid_trigger_raises(
 
     with pytest.raises(Exception):
         await service.create_task(request, owner_id="user_1")
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_disabled_plugin_owned_agent(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin(AGENT_TEAM_PLUGIN_ID)
+    set_plugin_runtime(runtime)
+    request = _make_create_request(agent_id="team")
+
+    try:
+        with pytest.raises(PluginUnavailableError) as exc_info:
+            await service.create_task(request, owner_id="user_1")
+    finally:
+        set_plugin_runtime(None)
+
+    assert exc_info.value.plugin_id == AGENT_TEAM_PLUGIN_ID
+    mock_storage.create_task.assert_not_called()
+    mock_scheduler.register_job.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -399,6 +564,83 @@ async def test_update_task_refreshes_scheduler(
 
 
 @pytest.mark.asyncio
+async def test_update_task_syncs_declared_plugin_options_to_settings(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    original = _make_task()
+    updated = _make_task(
+        input_payload={
+            "message": "updated",
+            "plugin_options": {
+                "agent_team": {"SELECTED_TEAM_ID": "team-2"},
+            },
+        }
+    )
+    mock_storage.get_task = AsyncMock(side_effect=[original, updated])
+    mock_storage.update_task = AsyncMock(return_value=True)
+
+    result = await service.update_task(
+        "task_1",
+        _make_update_request(input_payload=updated.input_payload),
+    )
+
+    record = await service.plugin_settings_service.storage.get(
+        plugin_id="agent_team",
+        key="SELECTED_TEAM_ID",
+        scope="scheduled_task",
+        subject_id="task_1",
+    )
+    assert result == updated
+    assert record is not None
+    assert record.value == "team-2"
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_update_task_filters_plugin_options_by_scheduled_task_manifest_scope(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    original = _make_task()
+    sanitized_payload = {
+        "message": "updated",
+        "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-2"}},
+    }
+    updated = _make_task(input_payload=sanitized_payload)
+    mock_storage.get_task = AsyncMock(side_effect=[original, updated])
+    mock_storage.update_task = AsyncMock(return_value=True)
+
+    result = await service.update_task(
+        "task_1",
+        _make_update_request(
+            input_payload={
+                "message": "updated",
+                "plugin_options": {
+                    "agent_team": {
+                        "SELECTED_TEAM_ID": "team-2",
+                        "UNDECLARED": "drop-me",
+                    },
+                    "missing_plugin": {"ANY": "drop-me"},
+                },
+            }
+        ),
+    )
+
+    assert mock_storage.update_task.call_args.args[1]["input_payload"] == sanitized_payload
+    assert result == updated
+    assert await service.plugin_settings_service.storage.get(
+        plugin_id="missing_plugin",
+        key="ANY",
+        scope="scheduled_task",
+        subject_id="task_1",
+    ) is None
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_update_task_can_change_trigger_type(
     service: ScheduledTaskService,
     mock_storage: AsyncMock,
@@ -457,6 +699,32 @@ async def test_update_task_can_clear_description(
 
 
 @pytest.mark.asyncio
+async def test_update_task_rejects_disabled_plugin_owned_agent(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    original = _make_task(agent_id="fast")
+    mock_storage.get_task = AsyncMock(return_value=original)
+    mock_storage.update_task = AsyncMock(return_value=True)
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin(AGENT_TEAM_PLUGIN_ID)
+    set_plugin_runtime(runtime)
+
+    try:
+        with pytest.raises(PluginUnavailableError) as exc_info:
+            await service.update_task("task_1", _make_update_request(agent_id="team"))
+    finally:
+        set_plugin_runtime(None)
+
+    assert exc_info.value.plugin_id == AGENT_TEAM_PLUGIN_ID
+    mock_storage.update_task.assert_not_called()
+    mock_scheduler.register_job.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_to_response() -> None:
     task = _make_task()
     response = ScheduledTaskService.to_response(task)
@@ -495,6 +763,32 @@ async def test_list_tasks_paginated_returns_unread_counts(
 
 
 @pytest.mark.asyncio
+async def test_list_tasks_paginated_overlays_plugin_settings(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_session_storage: AsyncMock,
+) -> None:
+    task = _make_task(_id="task_1", input_payload={"message": "hello"})
+    mock_storage.list_tasks_paginated = AsyncMock(return_value=([task], 1))
+    mock_session_storage.get_unread_counts_for_scheduled_tasks = AsyncMock(return_value={})
+    await service.plugin_settings_service.set_setting(
+        build_agent_team_plugin_manifest(),
+        key="SELECTED_TEAM_ID",
+        value="team-from-settings",
+        scope="scheduled_task",
+        subject_id="task_1",
+        updated_by="user_1",
+    )
+
+    responses, total = await service.list_tasks_paginated(owner_id="user_1")
+
+    assert total == 1
+    assert responses[0].input_payload["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-from-settings"}
+    }
+
+
+@pytest.mark.asyncio
 async def test_get_task_response_returns_unread_count(
     service: ScheduledTaskService,
     mock_session_storage: AsyncMock,
@@ -507,6 +801,29 @@ async def test_get_task_response_returns_unread_count(
     response = await service.get_task_response(task)
 
     assert response.unread_count == 7
+
+
+@pytest.mark.asyncio
+async def test_get_task_response_overlays_plugin_settings(
+    service: ScheduledTaskService,
+    mock_session_storage: AsyncMock,
+) -> None:
+    task = _make_task(_id="task_1", owner_id="user_1", input_payload={})
+    mock_session_storage.get_unread_counts_for_scheduled_tasks = AsyncMock(return_value={})
+    await service.plugin_settings_service.set_setting(
+        build_agent_team_plugin_manifest(),
+        key="SELECTED_TEAM_ID",
+        value="team-detail",
+        scope="scheduled_task",
+        subject_id="task_1",
+        updated_by="user_1",
+    )
+
+    response = await service.get_task_response(task)
+
+    assert response.input_payload["plugin_options"] == {
+        "agent_team": {"SELECTED_TEAM_ID": "team-detail"}
+    }
 
 
 def test_build_trigger_interval() -> None:

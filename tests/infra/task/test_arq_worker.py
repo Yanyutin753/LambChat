@@ -5,8 +5,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.infra.extensions import InMemoryPluginRuntimeStateStorage
 from src.infra.task import arq_worker
 from src.infra.task.exceptions import TaskInterruptedError
+from src.infra.task.status import TaskStatus
+from src.kernel.extensions import (
+    PluginRuntime,
+    PluginRuntimeStatus,
+    build_agent_team_plugin_manifest,
+    build_workflow_plugin_manifest,
+)
 
 
 class _FakePayloadStore:
@@ -75,6 +83,51 @@ class _FakeLimiter:
 
     async def release(self, user_id: str, run_id: str, dequeue: bool = True) -> None:
         self.release_calls.append((user_id, run_id, dequeue))
+
+
+class _FakeWorkflowPluginStorage:
+    def __init__(self, status: str = "queued") -> None:
+        self.run = SimpleNamespace(
+            run_id="wfr-1",
+            workflow_id="wf-1",
+            version_id="wfv-1",
+            owner_user_id="user-1",
+            status=status,
+        )
+        self.events: list[dict] = []
+        self.finished: list[dict] = []
+
+    async def get_run(self, run_id: str, *, owner_user_id: str):
+        if run_id != self.run.run_id or owner_user_id != self.run.owner_user_id:
+            return None
+        return self.run
+
+    async def append_run_events(self, *, run, events: list[dict]):
+        self.events.extend(events)
+        return []
+
+    async def finish_run(self, **kwargs):
+        self.finished.append(kwargs)
+        self.run.status = kwargs["status"]
+        self.run.error = kwargs.get("error")
+        return self.run
+
+
+class _FakeWorkflowPluginService:
+    def __init__(
+        self,
+        storage: _FakeWorkflowPluginStorage,
+        calls: list[dict],
+        execute_error: Exception | None = None,
+    ) -> None:
+        self.storage = storage
+        self.calls = calls
+        self.execute_error = execute_error
+
+    async def execute_existing_run(self, **kwargs) -> None:
+        self.calls.append(kwargs)
+        if self.execute_error is not None:
+            raise self.execute_error
 
 
 @pytest.mark.asyncio
@@ -224,6 +277,60 @@ async def test_run_agent_task_cleans_up_when_executor_is_unknown(
     assert task_executor.status_calls
     assert payload_store.deleted == ["run-1"]
     assert limiter.release_calls == [("user-1", "run-1", True)]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_task_rejects_disabled_plugin_owned_agent_at_execution_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents import set_plugin_runtime
+
+    payload = {
+        "session_id": "session-1",
+        "run_id": "run-1",
+        "trace_id": "trace-1",
+        "agent_id": "team",
+        "message": "hello",
+        "display_message": "hello display",
+        "user_id": "user-1",
+        "executor_key": "agent_stream",
+        "user_message_written": True,
+    }
+    payload_store = _FakePayloadStore(payload)
+    task_executor = _FakeTaskExecutor()
+    limiter = _FakeLimiter()
+    task_manager = SimpleNamespace(
+        _run_info={},
+        _ensure_executor=lambda: task_executor,
+    )
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+
+    async def _executor_fn(*args, **kwargs):
+        raise AssertionError("disabled plugin-owned agent should not run")
+        if False:
+            yield None
+
+    monkeypatch.setattr(arq_worker, "get_task_manager", lambda: task_manager)
+    monkeypatch.setattr(arq_worker, "get_registered_executor", lambda key: _executor_fn)
+    monkeypatch.setattr(arq_worker, "get_concurrency_limiter", lambda: limiter)
+    set_plugin_runtime(runtime)
+
+    try:
+        await arq_worker.run_agent_task({"payload_store": payload_store}, "run-1")
+    finally:
+        set_plugin_runtime(None)
+
+    assert task_executor.run_calls == []
+    assert task_executor.status_calls
+    args, kwargs = task_executor.status_calls[0]
+    assert args[0] == "session-1"
+    assert args[1] is TaskStatus.FAILED
+    assert "agent_team" in args[2]
+    assert kwargs == {"run_id": "run-1"}
+    assert payload_store.deleted == ["run-1"]
+    assert limiter.release_calls == [("user-1", "run-1", True)]
+    assert task_manager._run_info == {}
 
 
 @pytest.mark.asyncio
@@ -442,3 +549,196 @@ async def test_run_agent_task_deletes_payload_after_success(
 
     assert payload_store.deleted == ["run-1"]
     assert limiter.release_calls == [("user-1", "run-1", True)]
+
+
+@pytest.mark.asyncio
+async def test_run_workflow_task_executes_persisted_workflow_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+    storage = InMemoryPluginRuntimeStateStorage()
+    await storage.set_override(
+        plugin_id="workflow",
+        status=PluginRuntimeStatus.ENABLED,
+        updated_by="admin-1",
+    )
+
+    class _FakeWorkflowService:
+        async def execute_existing_run(self, **kwargs) -> None:
+            calls.append(kwargs)
+
+    async def _fake_create_workflow_service():
+        return _FakeWorkflowService()
+
+    monkeypatch.setattr(
+        "src.plugins.workflow.service.create_workflow_service",
+        _fake_create_workflow_service,
+    )
+
+    await arq_worker.run_workflow_task(
+        {"plugin_runtime_state_storage": storage},
+        "wfr-1",
+        "user-1",
+        ["user"],
+    )
+
+    assert calls == [
+        {
+            "run_id": "wfr-1",
+            "owner_user_id": "user-1",
+            "user_roles": ["user"],
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_workflow_task_rejects_default_disabled_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+    fake_storage = _FakeWorkflowPluginStorage()
+
+    async def _fake_create_workflow_service():
+        return _FakeWorkflowPluginService(fake_storage, calls)
+
+    monkeypatch.setattr(
+        "src.plugins.workflow.service.create_workflow_service",
+        _fake_create_workflow_service,
+    )
+
+    await arq_worker.run_workflow_task(
+        {"plugin_runtime_state_storage": InMemoryPluginRuntimeStateStorage()},
+        "wfr-1",
+        "user-1",
+        ["user"],
+    )
+
+    assert calls == []
+    assert fake_storage.run.status == "failed"
+    assert fake_storage.finished == [
+        {
+            "run_id": "wfr-1",
+            "owner_user_id": "user-1",
+            "status": "failed",
+            "error": "plugin is not enabled: workflow (disabled)",
+        }
+    ]
+    assert fake_storage.events == [
+        {
+            "event_type": "run_failed",
+            "payload": {"error": "plugin is not enabled: workflow (disabled)"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_workflow_task_does_not_crash_when_disabled_failure_mark_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    async def _fake_create_workflow_service():
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("storage offline")
+
+    monkeypatch.setattr(
+        "src.plugins.workflow.service.create_workflow_service",
+        _fake_create_workflow_service,
+    )
+
+    await arq_worker.run_workflow_task(
+        {"plugin_runtime_state_storage": InMemoryPluginRuntimeStateStorage()},
+        "wfr-1",
+        "user-1",
+        ["user"],
+    )
+
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_run_workflow_task_marks_run_failed_when_worker_execution_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+    fake_storage = _FakeWorkflowPluginStorage()
+    runtime = PluginRuntime([build_workflow_plugin_manifest()])
+    runtime.enable_plugin("workflow")
+
+    async def _fake_create_workflow_service():
+        return _FakeWorkflowPluginService(
+            fake_storage,
+            calls,
+            execute_error=RuntimeError("storage write failed"),
+        )
+
+    monkeypatch.setattr(
+        "src.plugins.workflow.service.create_workflow_service",
+        _fake_create_workflow_service,
+    )
+
+    await arq_worker.run_workflow_task(
+        {"plugin_runtime": runtime},
+        "wfr-1",
+        "user-1",
+        ["user"],
+    )
+
+    assert calls == [
+        {
+            "run_id": "wfr-1",
+            "owner_user_id": "user-1",
+            "user_roles": ["user"],
+        }
+    ]
+    assert fake_storage.run.status == "failed"
+    assert fake_storage.finished == [
+        {
+            "run_id": "wfr-1",
+            "owner_user_id": "user-1",
+            "status": "failed",
+            "error": "workflow_run_worker_failed:storage write failed",
+        }
+    ]
+    assert fake_storage.events == [
+        {
+            "event_type": "run_failed",
+            "payload": {"error": "workflow_run_worker_failed:storage write failed"},
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_workflow_task_uses_injected_enabled_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+    fake_storage = _FakeWorkflowPluginStorage()
+    runtime = PluginRuntime([build_workflow_plugin_manifest()])
+    runtime.enable_plugin("workflow")
+
+    async def _fake_create_workflow_service():
+        return _FakeWorkflowPluginService(fake_storage, calls)
+
+    monkeypatch.setattr(
+        "src.plugins.workflow.service.create_workflow_service",
+        _fake_create_workflow_service,
+    )
+
+    await arq_worker.run_workflow_task(
+        {"plugin_runtime": runtime},
+        "wfr-1",
+        "user-1",
+        ["user"],
+    )
+
+    assert calls == [
+        {
+            "run_id": "wfr-1",
+            "owner_user_id": "user-1",
+            "user_roles": ["user"],
+        }
+    ]
+    assert fake_storage.events == []
+    assert fake_storage.finished == []

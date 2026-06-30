@@ -11,6 +11,11 @@ from pydantic import BaseModel
 
 from src.infra.scheduler.service import ScheduledTaskService as _RealService
 from src.infra.tool import scheduled_task_tool
+from src.kernel.extensions import (
+    PluginRuntime,
+    build_agent_team_plugin_manifest,
+    build_workflow_plugin_manifest,
+)
 from src.kernel.schemas.scheduled_task import (
     ChannelDeliveryConfig,
     ScheduledTask,
@@ -155,6 +160,7 @@ def test_create_tool_has_trigger_params() -> None:
     assert "cron_month" in fields
     assert "persona_preset_id" in fields
     assert "team_id" in fields
+    assert "plugin_options" in fields
     assert "role_query" in fields
     assert "team_query" in fields
     assert "attachments" in fields
@@ -574,7 +580,7 @@ async def test_create_task_inherits_source_session_persona_or_team_id(
     assert request.agent_id == "team"
     assert request.input_payload == {
         "message": "Write with inherited team",
-        "team_id": "team-1",
+        "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
     }
 
 
@@ -616,7 +622,7 @@ async def test_create_non_team_task_stores_only_persona_id(
 
 
 @pytest.mark.asyncio
-async def test_create_team_task_stores_only_team_id(
+async def test_create_team_task_stores_team_selection_under_plugin_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     task = _task(agent_id="team")
@@ -648,8 +654,183 @@ async def test_create_team_task_stores_only_team_id(
     assert request.agent_id == "team"
     assert request.input_payload == {
         "message": "Plan launch",
-        "team_id": "team-1",
+        "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-1"}},
     }
+
+
+@pytest.mark.asyncio
+async def test_create_team_task_rejects_disabled_agent_team_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = PluginRuntime([build_agent_team_plugin_manifest()])
+    runtime.disable_plugin("agent_team")
+    scheduled_task_tool.set_plugin_runtime(runtime)
+    create_mock = AsyncMock()
+    approval_mock = _auto_approve(monkeypatch)
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(create_task=create_mock),
+    )
+
+    try:
+        result = json.loads(
+            await _call_tool(
+                scheduled_task_tool.scheduled_task_create,
+                name="Team Launch Plan",
+                message="Plan launch",
+                trigger_type="cron",
+                cron_hour="9",
+                agent_id="team",
+                team_id="team-1",
+                runtime=_Runtime("user-1"),
+            )
+        )
+    finally:
+        scheduled_task_tool.set_plugin_runtime(None)
+
+    assert result == {
+        "error": "Agent Team plugin is disabled; scheduled team tasks cannot be created.",
+        "code": "plugin_unavailable",
+        "plugin_id": "agent_team",
+    }
+    create_mock.assert_not_called()
+    approval_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_task_accepts_generic_plugin_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _task(agent_id="fast")
+    create_mock = AsyncMock(return_value=task)
+    _auto_approve(monkeypatch)
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(create_task=create_mock),
+    )
+
+    result = json.loads(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
+            name="Workflow Task",
+            message="Run workflow",
+            trigger_type="cron",
+            cron_hour="9",
+            agent_id="fast",
+            plugin_options={
+                "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"},
+                "bad": "ignored",
+            },
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
+    assert request.agent_id == "fast"
+    assert request.input_payload == {
+        "message": "Run workflow",
+        "plugin_options": {
+            "workflow_runner": {"SELECTED_WORKFLOW_ID": "workflow-1"},
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_task_stores_workflow_plugin_options_for_pre_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _task(agent_id="fast")
+    create_mock = AsyncMock(return_value=task)
+    _auto_approve(monkeypatch)
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(create_task=create_mock),
+    )
+
+    result = json.loads(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
+            name="Workflow Task",
+            message="Run nightly workflow",
+            trigger_type="cron",
+            cron_hour="2",
+            agent_id="fast",
+            plugin_options={
+                "workflow": {
+                    "SELECTED_WORKFLOW_ID": "wf-nightly",
+                    "SELECTED_WORKFLOW_VERSION_ID": "wfv-nightly",
+                },
+                "bad": "ignored",
+            },
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
+    assert request.agent_id == "fast"
+    assert request.input_payload == {
+        "message": "Run nightly workflow",
+        "plugin_options": {
+            "workflow": {
+                "SELECTED_WORKFLOW_ID": "wf-nightly",
+                "SELECTED_WORKFLOW_VERSION_ID": "wfv-nightly",
+            }
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_task_rejects_disabled_workflow_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = PluginRuntime([build_workflow_plugin_manifest()])
+    runtime.disable_plugin("workflow")
+    scheduled_task_tool.set_plugin_runtime(runtime)
+    create_mock = AsyncMock()
+    approval_mock = _auto_approve(monkeypatch)
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(create_task=create_mock),
+    )
+
+    try:
+        result = json.loads(
+            await _call_tool(
+                scheduled_task_tool.scheduled_task_create,
+                name="Workflow Task",
+                message="Run nightly workflow",
+                trigger_type="cron",
+                cron_hour="2",
+                agent_id="fast",
+                plugin_options={
+                    "workflow": {
+                        "SELECTED_WORKFLOW_ID": "wf-nightly",
+                        "SELECTED_WORKFLOW_VERSION_ID": "wfv-nightly",
+                    }
+                },
+                runtime=_Runtime("user-1"),
+            )
+        )
+    finally:
+        scheduled_task_tool.set_plugin_runtime(None)
+
+    assert result == {
+        "error": "Workflow plugin is disabled; scheduled workflow tasks cannot be created.",
+        "code": "plugin_unavailable",
+        "plugin_id": "workflow",
+    }
+    create_mock.assert_not_called()
+    approval_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -746,7 +927,7 @@ async def test_create_task_searches_team_by_query_and_uses_team_agent(
     assert request.agent_id == "team"
     assert request.input_payload == {
         "message": "Research market",
-        "team_id": "team-research",
+        "plugin_options": {"agent_team": {"SELECTED_TEAM_ID": "team-research"}},
     }
 
 

@@ -189,6 +189,33 @@
 .dark .tmb-stat--configured {
   background: color-mix(in srgb, #10b981 12%, var(--theme-bg-card));
 }
+.team-sandbox-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 70%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--theme-bg-card) 88%, var(--theme-bg));
+  padding: 0.75rem 0.875rem;
+}
+.team-sandbox-option__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.team-sandbox-option__title {
+  color: var(--theme-text);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.team-sandbox-option__desc {
+  color: var(--theme-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
 .team-form-search {
   position: relative;
 }

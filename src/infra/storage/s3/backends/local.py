@@ -208,7 +208,7 @@ class LocalStorageBackend(S3StorageBackend):
                 for fname in sorted(files):
                     full_path = Path(root) / fname
                     rel = full_path.relative_to(self._base_path)
-                    objects.append(str(rel))
+                    objects.append(rel.as_posix())
                     if len(objects) >= LIST_OBJECTS_LIMIT:
                         return objects
             return objects

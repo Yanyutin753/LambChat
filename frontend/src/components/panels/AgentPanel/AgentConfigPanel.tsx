@@ -14,6 +14,8 @@ import { AgentIcon } from "../../agent/AgentIcon";
 import { AgentPanelSkeleton } from "../../skeletons";
 import { agentConfigApi, roleApi, agentApi } from "../../../services/api";
 import { useAuth } from "../../../hooks/useAuth";
+import { useExtensionContributions } from "../../../hooks/useExtensionContributions";
+import { buildAgentCategoryContributions } from "../../../extensions";
 import { Permission } from "../../../types";
 import type { AgentConfig, Role, AgentInfo } from "../../../types";
 import {
@@ -21,6 +23,7 @@ import {
   resolveAgentDisplayName,
 } from "../../agent/agentCatalog";
 import { ConfigPanelErrorCallout } from "../ConfigPanelErrorCallout";
+import { groupAgentsByPluginCategory } from "./agentCategoryGroups";
 
 import { GlobalAgentTab, RolesAgentTab } from "./tabs";
 
@@ -33,6 +36,8 @@ export function AgentConfigPanel() {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const canManageAgents = hasPermission(Permission.AGENT_ADMIN);
+  const { plugins: runtimePlugins } = useExtensionContributions();
+  const agentCategories = buildAgentCategoryContributions(runtimePlugins);
   const [activeTab, setActiveTab] = useState<AgentTabType>("global");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -73,6 +78,7 @@ export function AgentConfigPanel() {
                 version: "",
                 icon: a.icon,
                 sort_order: a.sort_order,
+                category: a.category,
                 labels: a.labels,
               }))
           : agentList.agents || [],
@@ -91,6 +97,7 @@ export function AgentConfigPanel() {
             enabled: true,
             icon: a.icon,
             sort_order: a.sort_order,
+            category: a.category,
             labels: a.labels,
           })),
         );
@@ -153,6 +160,7 @@ export function AgentConfigPanel() {
             version: "",
             icon: agent.icon,
             sort_order: agent.sort_order,
+            category: agent.category,
             labels: agent.labels,
           })),
       );
@@ -256,6 +264,7 @@ export function AgentConfigPanel() {
               onUpdate={handleUpdateGlobalConfig}
               isLoading={isLoading}
               isSaving={isSaving}
+              agentCategories={agentCategories}
             />
           ) : (
             <RolesAgentTab
@@ -264,6 +273,7 @@ export function AgentConfigPanel() {
               availableAgents={availableAgents}
               onUpdate={handleUpdateRoleAgents}
               isLoading={isLoading}
+              agentCategories={agentCategories}
             />
           )
         ) : (
@@ -272,8 +282,15 @@ export function AgentConfigPanel() {
             <p className="text-sm text-stone-500 dark:text-stone-400 px-1 leading-relaxed">
               {t("agentConfig.availableAgents")}
             </p>
-            <div className="grid gap-3">
-              {availableAgents.map((agent) => {
+            <div className="grid gap-4">
+              {groupAgentsByPluginCategory(availableAgents, agentCategories).map((group) => (
+                <section key={group.id} className="space-y-2">
+                  <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-theme-text-tertiary">
+                    <AgentIcon icon={group.icon} size={14} />
+                    <span>{t(group.label, group.label)}</span>
+                  </div>
+                  <div className="grid gap-3">
+                    {group.agents.map((agent) => {
                 const displayName = resolveAgentDisplayName(
                   agent,
                   i18n.language,
@@ -306,7 +323,10 @@ export function AgentConfigPanel() {
                     </div>
                   </div>
                 );
-              })}
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
           </div>
         )}

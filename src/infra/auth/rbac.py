@@ -176,6 +176,11 @@ class RBACManager:
                     Permission.SCHEDULED_TASK_READ.value,
                     Permission.SCHEDULED_TASK_WRITE.value,
                     Permission.SCHEDULED_TASK_DELETE.value,
+                    # Workflow
+                    Permission.WORKFLOW_READ.value,
+                    Permission.WORKFLOW_WRITE.value,
+                    Permission.WORKFLOW_RUN.value,
+                    Permission.WORKFLOW_PUBLISH.value,
                     # Usage
                     Permission.USAGE_READ.value,
                 ],

@@ -347,6 +347,44 @@ def extract_tool_parameters(tool) -> list[ToolParamInfo]:
     return parameters
 
 
+def _is_admin_user(user: TokenPayload) -> bool:
+    permissions = set(user.permissions or [])
+    roles = {str(role).lower() for role in (user.roles or [])}
+    return "admin" in roles or "mcp:admin" in permissions
+
+
+async def _internal_tool_infos_for_agent_tools(user: TokenPayload) -> list[ToolInfo]:
+    try:
+        from src.infra.mcp.quota import resolve_user_mcp_access
+        from src.infra.tool.internal_registry import (
+            INTERNAL_MCP_SERVER_NAME,
+            get_internal_tool_infos,
+        )
+
+        user_roles, is_admin = await resolve_user_mcp_access(user.sub)
+        is_admin = bool(is_admin or _is_admin_user(user))
+        internal_tools = await get_internal_tool_infos(
+            user_id=user.sub,
+            user_roles=user_roles,
+            is_admin=is_admin,
+        )
+        return [
+            ToolInfo(
+                name=tool.name,
+                description=tool.description,
+                category="internal",
+                server=INTERNAL_MCP_SERVER_NAME,
+                parameters=[ToolParamInfo(**param) for param in tool.parameters],
+                system_disabled=tool.system_disabled,
+                user_disabled=tool.user_disabled,
+            )
+            for tool in internal_tools
+        ]
+    except Exception as e:
+        logger.warning(f"[Tools API] Failed to get internal tools: {e}")
+        return []
+
+
 @router.get("/agents")
 async def list_agents(
     optional_user: Optional[TokenPayload] = Depends(get_current_user_optional),
@@ -559,6 +597,7 @@ async def list_tools(
             )
 
     tools: list[ToolInfo] = []
+    tools.extend(await _internal_tool_infos_for_agent_tools(user))
 
     # 1. MCP 工具 - 使用全局单例（分布式优化）
     if settings.ENABLE_MCP:

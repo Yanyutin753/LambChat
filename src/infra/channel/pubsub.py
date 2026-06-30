@@ -7,10 +7,12 @@ import uuid
 from typing import Any, Optional
 
 from src.infra.async_utils import run_blocking_io
+from src.infra.channel.plugin_connectors import ensure_channel_connector_available_for_type
 from src.infra.channel.registry import get_registry
 from src.infra.logging import get_logger
 from src.infra.pubsub_hub import get_pubsub_hub
 from src.infra.storage.redis import get_redis_client
+from src.kernel.extensions import PluginRuntime
 from src.kernel.schemas.channel import ChannelType
 
 logger = get_logger(__name__)
@@ -25,10 +27,14 @@ class ChannelConfigPubSub:
         self._subscription_token: Optional[str] = None
         self._running = False
         self._instance_id = uuid.uuid4().hex[:8]
+        self._plugin_runtime: PluginRuntime | None = None
 
     @property
     def instance_id(self) -> str:
         return self._instance_id
+
+    def set_plugin_runtime(self, runtime: PluginRuntime | None) -> None:
+        self._plugin_runtime = runtime
 
     async def start_listener(self) -> None:
         if self._running:
@@ -68,6 +74,32 @@ class ChannelConfigPubSub:
                 channel_type = ChannelType(channel_type_value)
             except ValueError:
                 logger.warning("Unknown channel type from pub/sub event: %s", channel_type_value)
+                return
+
+            available, connector_id, exc = ensure_channel_connector_available_for_type(
+                channel_type,
+                self._plugin_runtime,
+            )
+            if not available and self._plugin_runtime is None:
+                logger.info(
+                    "Applying %s channel config reload without Plugin Runtime for connector %s",
+                    channel_type.value,
+                    connector_id,
+                )
+                available = True
+            if not available:
+                if exc is None:
+                    logger.info(
+                        "Skipped %s channel config reload because Plugin Runtime is unavailable for connector %s",
+                        channel_type.value,
+                        connector_id,
+                    )
+                else:
+                    logger.info(
+                        "Skipped %s channel config reload by Plugin Runtime: %s",
+                        channel_type.value,
+                        exc,
+                    )
                 return
 
             manager_class = get_registry().get_manager_class(channel_type)

@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from src.api.deps import get_current_user_required
+from src.api.routes.plugin_guard import plugin_route_guard
 from src.infra.logging import get_logger
 from src.infra.usage.storage import get_usage_storage
 from src.kernel.schemas.usage import (
@@ -21,7 +22,9 @@ from src.kernel.schemas.usage import (
 )
 from src.kernel.schemas.user import TokenPayload
 
-router = APIRouter()
+USAGE_REPORTS_PLUGIN_ID = "usage_reports"
+
+router = APIRouter(dependencies=[Depends(plugin_route_guard(USAGE_REPORTS_PLUGIN_ID))])
 logger = get_logger(__name__)
 
 

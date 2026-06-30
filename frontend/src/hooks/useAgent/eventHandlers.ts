@@ -279,6 +279,7 @@ export function handleStreamEvent(
   const MESSAGE_EVENTS = new Set([
     "agent:call",
     "agent:result",
+    "workflow:run",
     "thinking",
     "message:chunk",
     "tool:start",

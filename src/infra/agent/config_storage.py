@@ -163,6 +163,8 @@ class AgentConfigStorage:
     async def set_catalog_config(
         self,
         agents: list[AgentCatalogConfig],
+        *,
+        prune_missing: bool = True,
     ) -> list[AgentCatalogConfig]:
         """设置可配置 Agent 展示目录。"""
         now = utc_now_iso()
@@ -184,7 +186,7 @@ class AgentConfigStorage:
             )
 
         registered_ids = [agent.id for agent in agents]
-        if registered_ids:
+        if prune_missing and registered_ids:
             await collection.delete_many({"agent_id": {"$nin": registered_ids}})
 
         return agents

@@ -4,16 +4,80 @@
 所有项目操作都需要认证，用户只能访问自己的项目。
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
+from src.infra.extensions import get_plugin_settings_service
+from src.infra.extensions.scoped_options import (
+    plugin_options_with_settings,
+    scoped_option_definition,
+    scoped_option_manifest,
+    scoped_plugin_is_executable,
+    validate_scoped_plugin_option_value,
+)
 from src.infra.folder.storage import get_project_storage
 from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
+from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS
+from src.kernel.extensions.plugin_options import (
+    filter_declared_plugin_options,
+    with_plugin_option,
+)
+from src.kernel.extensions.runtime import PluginRuntime
 from src.kernel.schemas.project import Project, ProjectCreate, ProjectUpdate
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
+
+
+class ProjectPluginOptionUpdatePayload(BaseModel):
+    value: Any = None
+
+
+def _get_plugin_runtime(request: Request) -> PluginRuntime:
+    runtime = getattr(request.app.state, "plugin_runtime", None)
+    if isinstance(runtime, PluginRuntime):
+        return runtime
+    return PluginRuntime(BUILTIN_PLUGIN_MANIFESTS, core_dependencies=("skill_core",))
+
+
+def _get_plugin_settings_service(request: Request):
+    return (
+        getattr(request.app.state, "plugin_settings_service", None) or get_plugin_settings_service()
+    )
+
+
+def _project_option_definition(runtime: PluginRuntime, plugin_id: str, key: str):
+    try:
+        return scoped_option_definition(
+            runtime,
+            scope="project",
+            plugin_id=plugin_id,
+            key=key,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _plugin_manifest(runtime: PluginRuntime, plugin_id: str):
+    try:
+        return scoped_option_manifest(runtime, plugin_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def _validate_project_plugin_option_value(option, value: Any) -> Any:
+    try:
+        return validate_scoped_plugin_option_value(option, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _plugin_is_executable(runtime: PluginRuntime, plugin_id: str) -> bool:
+    return scoped_plugin_is_executable(runtime, plugin_id)
 
 
 async def _delete_session_with_related_records(
@@ -73,6 +137,103 @@ async def create_project(
 
     project = await storage.create(project_data, user.sub)
     return project
+
+
+@router.get("/{project_id}/plugin-options")
+async def get_project_plugin_options(
+    project_id: str,
+    request: Request,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Return plugin-scoped project options stored on this project."""
+    storage = get_project_storage()
+    project = await storage.get_by_id(project_id, user.sub)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+    runtime = _get_plugin_runtime(request)
+    declared_plugin_options = filter_declared_plugin_options(
+        runtime,
+        project.metadata,
+        scope="project",
+    )
+    plugin_options = await plugin_options_with_settings(
+        runtime=runtime,
+        service=_get_plugin_settings_service(request),
+        scope="project",
+        subject_id=project_id,
+        plugin_options=declared_plugin_options,
+    )
+    return {
+        "project_id": project_id,
+        "plugin_options": plugin_options,
+    }
+
+
+@router.put("/{project_id}/plugin-options/{plugin_id}/{key}")
+async def update_project_plugin_option(
+    project_id: str,
+    plugin_id: str,
+    key: str,
+    payload: ProjectPluginOptionUpdatePayload,
+    request: Request,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Update one manifest-declared plugin project option without enabling the plugin."""
+    runtime = _get_plugin_runtime(request)
+    option = _project_option_definition(runtime, plugin_id, key)
+    manifest = _plugin_manifest(runtime, plugin_id)
+    value = _validate_project_plugin_option_value(option, payload.value)
+    storage = get_project_storage()
+    project = await storage.get_by_id(project_id, user.sub)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="project not found")
+    try:
+        await _get_plugin_settings_service(request).set_setting(
+            manifest,
+            key=key,
+            value=value,
+            updated_by=user.sub,
+            scope="project",
+            subject_id=project_id,
+        )
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    declared_plugin_options = filter_declared_plugin_options(
+        runtime,
+        project.metadata,
+        scope="project",
+    )
+    metadata = with_plugin_option(
+        {"plugin_options": declared_plugin_options},
+        plugin_id=plugin_id,
+        key=key,
+        value=value,
+    )
+    updated_project = await storage.update(
+        project_id,
+        user.sub,
+        ProjectUpdate(metadata={"plugin_options": metadata.get("plugin_options", {})}),
+    )
+    if not updated_project:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="failed to update plugin project option",
+        )
+    plugin_enabled = _plugin_is_executable(runtime, plugin_id)
+    return {
+        "project_id": project_id,
+        "plugin_id": plugin_id,
+        "key": key,
+        "qualified_key": f"{plugin_id}.{key}",
+        "value": value,
+        "plugin_enabled": plugin_enabled,
+        "effective": plugin_enabled,
+        "plugin_options": filter_declared_plugin_options(
+            runtime,
+            updated_project.metadata,
+            scope="project",
+        ),
+    }
 
 
 @router.patch("/{project_id}", response_model=Project)

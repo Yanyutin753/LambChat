@@ -10,6 +10,15 @@ from langchain_core.tools import InjectedToolArg
 from src.infra.scheduler.service import ScheduledTaskService
 from src.infra.tool.backend_utils import get_attachments_from_runtime, get_user_id_from_runtime
 from src.infra.utils.datetime import ensure_utc, to_iso, utc_now
+from src.kernel.extensions import WORKFLOW_PLUGIN_ID
+from src.kernel.extensions.plugin_options import (
+    AGENT_TEAM_PLUGIN_ID,
+    AGENT_TEAM_SELECTED_TEAM_OPTION,
+    agent_uses_agent_team_options,
+    first_plugin_agent_id,
+    with_plugin_option,
+    with_plugin_options,
+)
 from src.kernel.schemas.scheduled_task import ScheduledTaskCreate, TriggerType
 from src.kernel.types import Permission
 
@@ -45,6 +54,66 @@ def _parse_run_at_iso(value: str, timezone_name: str) -> datetime:
     if run_date.tzinfo is None:
         run_date = run_date.replace(tzinfo=ZoneInfo(timezone_name))
     return ensure_utc(run_date)
+
+
+def _normalized_plugin_options(value: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, dict[str, Any]] = {}
+    for plugin_id, options in value.items():
+        if not isinstance(plugin_id, str) or not plugin_id.strip():
+            continue
+        if not isinstance(options, dict):
+            continue
+        plugin_values = {
+            key: option_value
+            for key, option_value in options.items()
+            if isinstance(key, str) and key.strip()
+        }
+        if plugin_values:
+            normalized[plugin_id.strip()] = plugin_values
+    return normalized
+
+
+_plugin_runtime: Any | None = None
+
+
+def set_plugin_runtime(runtime: Any | None) -> None:
+    """Attach Plugin Runtime used to resolve manifest-owned scheduled task agents."""
+    global _plugin_runtime
+    _plugin_runtime = runtime
+
+
+def _runtime() -> Any | None:
+    return _plugin_runtime
+
+
+def _agent_team_agent_id() -> str:
+    return first_plugin_agent_id(AGENT_TEAM_PLUGIN_ID, runtime=_runtime()) or "team"
+
+
+def _uses_agent_team_options(agent_id: str | None) -> bool:
+    return agent_uses_agent_team_options(agent_id, runtime=_runtime())
+
+
+def _plugin_unavailable(plugin_id: str) -> bool:
+    runtime = _runtime()
+    if runtime is None:
+        return False
+    is_enabled = getattr(runtime, "is_enabled", None)
+    return callable(is_enabled) and not is_enabled(plugin_id)
+
+
+def _agent_team_plugin_unavailable() -> bool:
+    return _plugin_unavailable(AGENT_TEAM_PLUGIN_ID)
+
+
+def _workflow_plugin_unavailable() -> bool:
+    return _plugin_unavailable(WORKFLOW_PLUGIN_ID)
+
+
+def _has_workflow_options(plugin_options: dict[str, dict[str, Any]]) -> bool:
+    return bool(plugin_options.get(WORKFLOW_PLUGIN_ID))
 
 
 @tool
@@ -132,6 +201,12 @@ async def scheduled_task_create(
         "names a team but you do not know team_id. Providing this selects the team agent "
         "unless agent_id='team' was already explicit.",
     ] = None,
+    plugin_options: Annotated[
+        dict[str, dict[str, Any]] | None,
+        "Plugin-scoped scheduled task options keyed by plugin id and local option key. "
+        "Use only manifest-declared scheduled task options; legacy fields such as team_id "
+        "remain supported for compatibility.",
+    ] = None,
     model_id: Annotated[
         str | None,
         "LLM model ID to use. If omitted, use the current conversation's model.",
@@ -188,6 +263,15 @@ async def scheduled_task_create(
         session_team_id,
     ) = await _get_current_session_defaults()
     effective_timezone = schedule_timezone or session_user_timezone or "UTC"
+    normalized_plugin_options = _normalized_plugin_options(plugin_options)
+    if _has_workflow_options(normalized_plugin_options) and _workflow_plugin_unavailable():
+        return _json(
+            {
+                "error": "Workflow plugin is disabled; scheduled workflow tasks cannot be created.",
+                "code": "plugin_unavailable",
+                "plugin_id": WORKFLOW_PLUGIN_ID,
+            }
+        )
 
     # Build trigger_config from structured params
     try:
@@ -247,27 +331,27 @@ async def scheduled_task_create(
             trigger_config["minute"] = "0"
 
     user = await _resolve_user(user_id)
-    effective_attachments = _normalize_attachments(
-        attachments if attachments is not None else get_attachments_from_runtime(runtime)
-    )
+    agent_team_agent_id = _agent_team_agent_id()
+    requested_agent_uses_team = _uses_agent_team_options(agent_id)
+    session_agent_uses_team = _uses_agent_team_options(session_agent_id)
     if team_query:
-        effective_agent_id = "team"
+        effective_agent_id = agent_team_agent_id
     elif role_query:
         effective_agent_id = (
             agent_id
-            if agent_id and agent_id != "team"
+            if agent_id and not requested_agent_uses_team
             else session_agent_id
-            if session_agent_id and session_agent_id != "team"
+            if session_agent_id and not session_agent_uses_team
             else "fast"
         )
-    elif agent_id == "team" or (team_id and (not agent_id or session_agent_id == "team")):
-        effective_agent_id = "team"
+    elif requested_agent_uses_team or (team_id and (not agent_id or session_agent_uses_team)):
+        effective_agent_id = agent_team_agent_id
     elif persona_preset_id:
         effective_agent_id = (
             agent_id
-            if agent_id and agent_id != "team"
+            if agent_id and not requested_agent_uses_team
             else session_agent_id
-            if session_agent_id and session_agent_id != "team"
+            if session_agent_id and not session_agent_uses_team
             else "fast"
         )
     else:
@@ -281,7 +365,15 @@ async def scheduled_task_create(
     effective_team_id = None
     resolved_role_match = None
     resolved_team_match = None
-    if effective_agent_id == "team":
+    if _uses_agent_team_options(effective_agent_id):
+        if _agent_team_plugin_unavailable():
+            return _json(
+                {
+                    "error": "Agent Team plugin is disabled; scheduled team tasks cannot be created.",
+                    "code": "plugin_unavailable",
+                    "plugin_id": AGENT_TEAM_PLUGIN_ID,
+                }
+            )
         effective_team_id = team_id
         if not effective_team_id:
             (
@@ -357,8 +449,18 @@ async def scheduled_task_create(
                 if effective_persona_preset_id
                 else {}
             ),
-            **({"team_id": effective_team_id} if effective_team_id else {}),
         }
+        input_payload = with_plugin_options(
+            input_payload,
+            normalized_plugin_options,
+        )
+        if effective_team_id:
+            input_payload = with_plugin_option(
+                input_payload,
+                plugin_id=AGENT_TEAM_PLUGIN_ID,
+                key=AGENT_TEAM_SELECTED_TEAM_OPTION,
+                value=effective_team_id,
+            )
         task = await service.create_task(
             request=ScheduledTaskCreate(
                 name=name,

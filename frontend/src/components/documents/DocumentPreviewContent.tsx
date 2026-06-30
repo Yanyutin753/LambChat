@@ -58,6 +58,7 @@ type ContentProps = Pick<
   | "resolvedPdfFile"
   | "resolvedBinaryFile"
   | "unsupportedPreviewFile"
+  | "advancedFileViewersEnabled"
   | "resolvedUrl"
   | "signedUrl"
   | "setShowImageViewer"
@@ -103,6 +104,7 @@ export default function DocumentPreviewContent({
   resolvedPdfFile,
   resolvedBinaryFile,
   unsupportedPreviewFile,
+  advancedFileViewersEnabled,
   resolvedUrl,
   signedUrl,
   setShowImageViewer,
@@ -175,6 +177,31 @@ export default function DocumentPreviewContent({
   }
 
   if (unsupportedPreviewFile) {
+    return (
+      <Suspense fallback={suspenseFallback}>
+        <FileFallbackPanel
+          icon={Icon}
+          iconBg={fileInfo.bg}
+          iconColor={fileInfo.color}
+          title={t("documents.unsupportedFilePreview", "暂不支持预览此文件")}
+          description={t(
+            "documents.unsupportedFileHint",
+            "此文件类型暂不支持在线预览，请下载后查看。",
+          )}
+          downloadUrl={resolvedUrl || signedUrl}
+          fileName={fileName}
+          downloadLabel={t("documents.downloadFile")}
+        />
+      </Suspense>
+    );
+  }
+
+  if (
+    !advancedFileViewersEnabled &&
+    !resolvedImageFile &&
+    !resolvedVideoFile &&
+    !resolvedAudioFile
+  ) {
     return (
       <Suspense fallback={suspenseFallback}>
         <FileFallbackPanel

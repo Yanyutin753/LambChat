@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -39,7 +40,10 @@ class _FakeEventProcessor:
 
 
 def _patch_common(monkeypatch: pytest.MonkeyPatch, module, fake_graph: _FakeDeepAgent) -> None:
+    module._test_get_model_calls = []
+
     async def fake_get_model(**_kwargs):
+        module._test_get_model_calls.append(dict(_kwargs))
         return object()
 
     async def fake_resolve_fallback_model(*_args, **_kwargs):
@@ -101,6 +105,7 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
 
     from src.agents.team_agent import nodes as team_nodes
     from src.agents.team_agent.context import TeamAgentContext
+    from src.kernel.schemas.team import TeamResponse
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
@@ -124,6 +129,16 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
         lambda sandbox_backend, assistant_id, user_id=None: sandbox_factory,
     )
     monkeypatch.setattr(team_nodes, "get_session_sandbox_manager", lambda: sandbox_manager)
+
+    async def fake_resolve_runtime_team(**_kwargs):
+        return TeamResponse(
+            id="team-1",
+            owner_user_id="user-1",
+            name="Sandbox Team",
+            run_in_sandbox=True,
+        )
+
+    monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
 
     emitted: list[tuple[str, tuple, dict]] = []
 
@@ -166,6 +181,7 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
             "presenter": _Presenter(),
             "base_url": "",
             "agent_options": {},
+            "team_id": "team-1",
         }
     }
 
@@ -179,6 +195,67 @@ async def test_team_agent_node_uses_sandbox_backend_when_enabled(
     assert "Storage Architecture (CRITICAL)" in fake_graph.captured_create_kwargs["system_prompt"]
     assert emitted[0][0] == "starting"
     assert emitted[1][0] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_team_agent_node_uses_persistent_backend_when_team_sandbox_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.agents.team_agent.context import TeamAgentContext
+    from src.kernel.schemas.team import TeamResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", True)
+
+    persistent_backend = object()
+
+    def persistent_factory(_runtime):
+        return persistent_backend
+
+    monkeypatch.setattr(
+        team_nodes,
+        "create_persistent_backend_factory",
+        lambda **_kwargs: persistent_factory,
+    )
+    monkeypatch.setattr(
+        team_nodes,
+        "get_session_sandbox_manager",
+        lambda: (_ for _ in ()).throw(AssertionError("sandbox manager should not be used")),
+    )
+
+    async def fake_resolve_runtime_team(**_kwargs):
+        return TeamResponse(
+            id="team-1",
+            owner_user_id="user-1",
+            name="Persistent Team",
+            run_in_sandbox=False,
+        )
+
+    monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
+
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
+    config = {
+        "configurable": {
+            "context": context,
+            "presenter": object(),
+            "base_url": "",
+            "agent_options": {},
+            "team_id": "team-1",
+        }
+    }
+
+    await team_nodes.team_router_node(
+        {"input": "hello", "session_id": "session-1", "attachments": []},
+        config,
+    )
+
+    assert fake_graph.captured_create_kwargs is not None
+    assert fake_graph.captured_create_kwargs["backend"] is persistent_backend
 
 
 @pytest.mark.asyncio
@@ -365,6 +442,7 @@ async def test_team_member_without_model_override_uses_main_model(
     subagent = fake_graph.captured_create_kwargs["subagents"][0]
     assert "model" not in subagent
     assert len(get_model_calls) == 1
+    assert get_model_calls[0]["streaming"] is False
 
 
 @pytest.mark.asyncio
@@ -419,6 +497,7 @@ async def test_team_member_model_override_sets_subagent_model_and_profile_middle
     assert subagent["model"] == "member-llm"
     assert "image-b64" in subagent["middleware"]
     assert [call.get("model_id") for call in get_model_calls] == [None, "model-member"]
+    assert [call.get("streaming") for call in get_model_calls] == [False, False]
 
 
 @pytest.mark.asyncio
@@ -509,7 +588,7 @@ async def test_team_member_model_unavailable_is_not_silently_fallbacked(
 
 
 @pytest.mark.asyncio
-async def test_team_member_agent_mode_override_injects_search_prompt(
+async def test_legacy_team_member_agent_id_does_not_break_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_deepagents_shims(monkeypatch)
@@ -519,17 +598,6 @@ async def test_team_member_agent_mode_override_injects_search_prompt(
 
     fake_graph = _FakeDeepAgent()
     _patch_common(monkeypatch, team_nodes, fake_graph)
-
-    async def fake_member_agent(member_agent_id, **_kwargs):
-        assert member_agent_id == "search"
-        return "search"
-
-    monkeypatch.setattr(team_nodes, "resolve_team_member_agent_id", fake_member_agent)
-    monkeypatch.setattr(
-        team_nodes,
-        "SectionPromptMiddleware",
-        lambda sections: {"sections": sections},
-    )
 
     await _run_team_node_with_members(
         monkeypatch,
@@ -539,55 +607,20 @@ async def test_team_member_agent_mode_override_injects_search_prompt(
             TeamMemberResponse(
                 member_id="m-research",
                 persona_preset_id="preset-1",
-                agent_id="search",
                 role_name="Researcher",
                 enabled=True,
             )
         ],
     )
 
-    subagent = fake_graph.captured_create_kwargs["subagents"][0]
-    section_middleware = next(
-        item for item in subagent["middleware"] if isinstance(item, dict) and "sections" in item
-    )
-    assert any(
-        "virtual storage, not a real filesystem" in section
-        for section in section_middleware["sections"]
-    )
+    assert fake_graph.captured_create_kwargs is not None
 
 
-@pytest.mark.asyncio
-async def test_team_member_agent_unavailable_is_not_silently_fallbacked(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _install_deepagents_shims(monkeypatch)
+def test_team_agent_runtime_no_longer_resolves_member_agent_modes() -> None:
+    source = Path("src/agents/team_agent/nodes.py").read_text(encoding="utf-8")
 
-    from src.agents.team_agent import nodes as team_nodes
-    from src.kernel.schemas.team import TeamMemberResponse
-
-    fake_graph = _FakeDeepAgent()
-    _patch_common(monkeypatch, team_nodes, fake_graph)
-
-    async def fake_member_agent(*_args, **_kwargs):
-        raise ValueError("team_member_agent_unavailable")
-
-    monkeypatch.setattr(team_nodes, "resolve_team_member_agent_id", fake_member_agent)
-
-    with pytest.raises(ValueError, match="team_member_agent_unavailable"):
-        await _run_team_node_with_members(
-            monkeypatch,
-            team_nodes,
-            fake_graph,
-            [
-                TeamMemberResponse(
-                    member_id="m-research",
-                    persona_preset_id="preset-1",
-                    agent_id="deleted-agent",
-                    role_name="Researcher",
-                    enabled=True,
-                )
-            ],
-        )
+    assert "resolve_team_member_agent_id" not in source
+    assert "_build_member_agent_mode_sections" not in source
 
 
 @pytest.mark.asyncio
@@ -672,3 +705,72 @@ def test_team_agent_declares_sandbox_support() -> None:
     from src.agents.team_agent.graph import TeamAgent
 
     assert TeamAgent._supports_sandbox is True
+
+
+@pytest.mark.asyncio
+async def test_team_agent_node_passes_workflow_tools_from_real_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.agents.team_agent.context import TeamAgentContext
+    from src.infra.tool import internal_registry
+    from src.kernel.extensions import (
+        WORKFLOW_PLUGIN_ID,
+        PluginRuntime,
+        build_workflow_plugin_manifest,
+    )
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    async def no_internal_tool_policies():
+        return {}
+
+    async def workflow_permissions(_user_roles):
+        return {"workflow:read", "workflow:run"}
+
+    async def workflow_mcp_access(_user_id):
+        return ["user"], False
+
+    async def fake_resolve_runtime_team(**_kwargs):
+        return None
+
+    runtime = PluginRuntime([build_workflow_plugin_manifest()])
+    runtime.enable_plugin(WORKFLOW_PLUGIN_ID)
+
+    monkeypatch.setattr(internal_registry, "get_internal_tool_policies", no_internal_tool_policies)
+    monkeypatch.setattr(internal_registry, "_resolve_permissions_for_roles", workflow_permissions)
+    monkeypatch.setattr(internal_registry, "_plugin_runtime", runtime)
+    monkeypatch.setattr("src.infra.mcp.quota.resolve_user_mcp_access", workflow_mcp_access)
+    monkeypatch.setattr("src.agents.fast_agent.context.settings.ENABLE_AUDIO_TRANSCRIPTION", False)
+    monkeypatch.setattr("src.agents.fast_agent.context.settings.ENABLE_MEMORY", False)
+    monkeypatch.setattr("src.agents.fast_agent.context.settings.ENABLE_SANDBOX", False)
+    monkeypatch.setattr("src.agents.fast_agent.context.settings.ENABLE_SKILLS", False)
+    monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
+    monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
+    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
+    await context.setup()
+    config = {
+        "configurable": {
+            "context": context,
+            "presenter": object(),
+            "base_url": "",
+            "agent_options": {},
+        }
+    }
+
+    await team_nodes.team_router_node(
+        {"input": "run the workflow if useful", "session_id": "session-1", "attachments": []},
+        config,
+    )
+
+    assert fake_graph.captured_create_kwargs is not None
+    tool_names = {
+        getattr(tool, "name", "")
+        for tool in fake_graph.captured_create_kwargs["tools"]
+    }
+    assert {"workflow_run", "workflow_get_schema", "workflow_get_run", "workflow_list"} <= tool_names

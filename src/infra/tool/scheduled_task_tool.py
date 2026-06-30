@@ -1,72 +1,120 @@
-"""Compatibility exports for scheduled task tools.
+"""Backward-compatible facade for scheduled task tools.
 
-The implementations live in ``src.infra.tool.scheduled_task``. This module keeps
-the historical import path and test monkeypatch points working.
+The scheduled task tools now live in the ``scheduled_task`` package. This module
+keeps the legacy import path working for tests and extensions that still patch
+helpers on ``src.infra.tool.scheduled_task_tool``.
 """
 
+from __future__ import annotations
+
 import sys
-import types
+from types import ModuleType
 from typing import Any
 
-from src.api.routes.human import create_approval, wait_for_response
-from src.infra.persona_preset.manager import PersonaPresetManager
-from src.infra.scheduler.service import ScheduledTaskService
-from src.infra.team.manager import TeamManager
-from src.infra.tool.scheduled_task import approval as _approval_mod
-from src.infra.tool.scheduled_task import create as _create_mod
-from src.infra.tool.scheduled_task import delete as _delete_mod
-from src.infra.tool.scheduled_task import get_scheduled_task_tools
-from src.infra.tool.scheduled_task import helpers as _helpers_mod
-from src.infra.tool.scheduled_task import read as _read_mod
-from src.infra.tool.scheduled_task import update as _update_mod
-from src.infra.tool.scheduled_task.approval import (
-    _confirm_scheduled_task_creation,
-    _format_approval_message,
-    _resolve_persona_preset_id_from_query,
-    _resolve_team_id_from_query,
-    _send_scheduled_task_approval_event,
-)
-from src.infra.tool.scheduled_task.create import _parse_run_at_iso, scheduled_task_create
-from src.infra.tool.scheduled_task.delete import scheduled_task_delete, scheduled_task_run
-from src.infra.tool.scheduled_task.helpers import (
-    _build_task_preview,
-    _coerce_channel_delivery,
-    _format_trigger_preview,
-    _get_current_session_defaults,
-    _json,
-    _permission_error,
-    _resolve_user,
-    _strip_resolved_agent_options,
-)
-from src.infra.tool.scheduled_task.read import scheduled_task_get, scheduled_task_list
-from src.infra.tool.scheduled_task.update import (
+from src.infra.tool.scheduled_task import approval as _approval
+from src.infra.tool.scheduled_task import create as _create
+from src.infra.tool.scheduled_task import delete as _delete
+from src.infra.tool.scheduled_task import (
+    get_scheduled_task_tools,
+    scheduled_task_create,
+    scheduled_task_delete,
+    scheduled_task_get,
+    scheduled_task_list,
     scheduled_task_pause,
     scheduled_task_resume,
+    scheduled_task_run,
     scheduled_task_update,
 )
+from src.infra.tool.scheduled_task import helpers as _helpers
+from src.infra.tool.scheduled_task import read as _read
+from src.infra.tool.scheduled_task import update as _update
 from src.infra.utils.datetime import utc_now
 
+ScheduledTaskService = _create.ScheduledTaskService
+PersonaPresetManager = _approval.PersonaPresetManager
+TeamManager = _approval.TeamManager
+_build_task_preview = _helpers._build_task_preview
+_confirm_scheduled_task_creation = _approval._confirm_scheduled_task_creation
+_get_current_session_defaults = _helpers._get_current_session_defaults
+_json = _helpers._json
+_permission_error = _helpers._permission_error
+_resolve_persona_preset_id_from_query = _approval._resolve_persona_preset_id_from_query
+_resolve_team_id_from_query = _approval._resolve_team_id_from_query
+_resolve_user = _helpers._resolve_user
+_normalized_plugin_options = _create._normalized_plugin_options
+set_plugin_runtime = _create.set_plugin_runtime
+_send_scheduled_task_approval_event = _approval._send_scheduled_task_approval_event
+create_approval = _approval.create_approval
+wait_for_response = _approval.wait_for_response
+
+_PATCH_TARGETS: dict[str, list[tuple[ModuleType, str]]] = {
+    "ScheduledTaskService": [
+        (_create, "ScheduledTaskService"),
+        (_read, "ScheduledTaskService"),
+        (_update, "ScheduledTaskService"),
+        (_delete, "ScheduledTaskService"),
+    ],
+    "PersonaPresetManager": [(_approval, "PersonaPresetManager")],
+    "TeamManager": [(_approval, "TeamManager")],
+    "utc_now": [(_create, "utc_now")],
+    "_build_task_preview": [
+        (_helpers, "_build_task_preview"),
+        (_create, "_build_task_preview"),
+    ],
+    "_confirm_scheduled_task_creation": [
+        (_approval, "_confirm_scheduled_task_creation"),
+        (_create, "_confirm_scheduled_task_creation"),
+    ],
+    "_get_current_session_defaults": [
+        (_helpers, "_get_current_session_defaults"),
+        (_create, "_get_current_session_defaults"),
+    ],
+    "_json": [
+        (_helpers, "_json"),
+        (_create, "_json"),
+        (_read, "_json"),
+        (_update, "_json"),
+        (_delete, "_json"),
+    ],
+    "_permission_error": [
+        (_helpers, "_permission_error"),
+        (_create, "_permission_error"),
+        (_read, "_permission_error"),
+        (_update, "_permission_error"),
+        (_delete, "_permission_error"),
+    ],
+    "_resolve_persona_preset_id_from_query": [
+        (_approval, "_resolve_persona_preset_id_from_query"),
+        (_create, "_resolve_persona_preset_id_from_query"),
+    ],
+    "_resolve_team_id_from_query": [
+        (_approval, "_resolve_team_id_from_query"),
+        (_create, "_resolve_team_id_from_query"),
+    ],
+    "_resolve_user": [
+        (_helpers, "_resolve_user"),
+        (_create, "_resolve_user"),
+    ],
+    "_normalized_plugin_options": [(_create, "_normalized_plugin_options")],
+    "set_plugin_runtime": [(_create, "set_plugin_runtime")],
+    "_send_scheduled_task_approval_event": [
+        (_approval, "_send_scheduled_task_approval_event"),
+    ],
+    "create_approval": [(_approval, "create_approval")],
+    "wait_for_response": [(_approval, "wait_for_response")],
+}
+
+
+class _ScheduledTaskToolModule(ModuleType):
+    def __setattr__(self, name: str, value: Any) -> None:
+        super().__setattr__(name, value)
+        for module, attr in _PATCH_TARGETS.get(name, []):
+            setattr(module, attr, value)
+
+
+sys.modules[__name__].__class__ = _ScheduledTaskToolModule
+
 __all__ = [
-    "ScheduledTaskService",
-    "PersonaPresetManager",
-    "TeamManager",
-    "create_approval",
-    "wait_for_response",
-    "utc_now",
-    "_json",
-    "_strip_resolved_agent_options",
-    "_resolve_user",
-    "_get_current_session_defaults",
-    "_coerce_channel_delivery",
-    "_permission_error",
-    "_format_trigger_preview",
-    "_build_task_preview",
-    "_format_approval_message",
-    "_resolve_persona_preset_id_from_query",
-    "_resolve_team_id_from_query",
-    "_send_scheduled_task_approval_event",
-    "_confirm_scheduled_task_creation",
-    "_parse_run_at_iso",
     "scheduled_task_create",
     "scheduled_task_list",
     "scheduled_task_get",
@@ -76,28 +124,21 @@ __all__ = [
     "scheduled_task_delete",
     "scheduled_task_run",
     "get_scheduled_task_tools",
+    "ScheduledTaskService",
+    "PersonaPresetManager",
+    "TeamManager",
+    "utc_now",
+    "_build_task_preview",
+    "_confirm_scheduled_task_creation",
+    "_get_current_session_defaults",
+    "_json",
+    "_permission_error",
+    "_resolve_persona_preset_id_from_query",
+    "_resolve_team_id_from_query",
+    "_resolve_user",
+    "_normalized_plugin_options",
+    "set_plugin_runtime",
+    "_send_scheduled_task_approval_event",
+    "create_approval",
+    "wait_for_response",
 ]
-
-_PATCH_TARGETS = {
-    "ScheduledTaskService": (_create_mod, _read_mod, _update_mod, _delete_mod),
-    "utc_now": (_create_mod,),
-    "_get_current_session_defaults": (_create_mod, _helpers_mod),
-    "_permission_error": (_create_mod, _read_mod, _update_mod, _delete_mod, _helpers_mod),
-    "_resolve_user": (_helpers_mod,),
-    "PersonaPresetManager": (_approval_mod,),
-    "TeamManager": (_approval_mod,),
-    "create_approval": (_approval_mod,),
-    "wait_for_response": (_approval_mod,),
-    "_send_scheduled_task_approval_event": (_approval_mod,),
-    "_confirm_scheduled_task_creation": (_create_mod, _approval_mod),
-}
-
-
-class _ScheduledTaskToolCompatModule(types.ModuleType):
-    def __setattr__(self, name: str, value: Any) -> None:
-        super().__setattr__(name, value)
-        for module in _PATCH_TARGETS.get(name, ()):
-            setattr(module, name, value)
-
-
-sys.modules[__name__].__class__ = _ScheduledTaskToolCompatModule

@@ -507,13 +507,21 @@ test("mcp tool expanded settings expose inline function policy toggle", () => {
 test("core admin crud panels use shared panel controls for generic actions", () => {
   const sources = [
     readSource("../../panels/NotificationPanel.tsx"),
+    readSource("../../../plugins/feedback/FeedbackPanel.tsx"),
     readSource("../../panels/UsersPanel.tsx"),
     readSource("../../panels/RolesPanel.tsx"),
   ].join("\n");
+  const feedbackCompatibility = readSource("../../panels/FeedbackPanel.tsx");
 
-  expect(sources).toMatch(/PanelFooterActions/);
-  expect(sources).toMatch(/<Button[\s>]/);
-  expect(sources).not.toMatch(
+  assert.match(sources, /PanelFilterSelect/);
+  assert.match(sources, /PanelFooterActions/);
+  assert.match(sources, /<Button[\s>]/);
+  assert.match(
+    feedbackCompatibility,
+    /export \{ FeedbackPanel \} from "\.\.\/\.\.\/plugins\/feedback\/FeedbackPanel"/,
+  );
+  assert.doesNotMatch(
+    sources,
     /className="btn-(primary|secondary|danger|icon)[^"]*"/,
   );
   expect(sources).not.toMatch(/<GlassSelect/);

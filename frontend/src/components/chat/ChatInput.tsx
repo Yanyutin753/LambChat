@@ -8,14 +8,12 @@ import { ContactAdminDialog } from "../common/ContactAdminDialog";
 import { useFileUpload } from "../../hooks/useFileUpload";
 import { useMentionState } from "../../hooks/useMentionState";
 import { useMentionSearch } from "../../hooks/useMentionSearch";
-import { useTeamMentionSearch } from "../../hooks/useTeamMentionSearch";
 import { useInputHistory } from "../../hooks/useInputHistory";
 import { useTextareaResize } from "../../hooks/useTextareaResize";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
 import { useChatInputKeyboard } from "../../hooks/useChatInputKeyboard";
 import { useAuth } from "../../hooks/useAuth";
 import { MentionPopup } from "./MentionPopup";
-import { TeamMentionPopup } from "./TeamMentionPopup";
 import { ActiveGoalBar } from "./ActiveGoalBar";
 import { ChatInputToolbar } from "./ChatInputToolbar";
 import { ChatInputSelectors } from "./ChatInputSelectors";
@@ -43,7 +41,16 @@ import {
 import type { ChatInputProps } from "./chatInputTypes";
 import type { FeaturePanel } from "../selectors/FeatureMenu";
 import type { MessageAttachment, PersonaPreset } from "../../types";
-import type { Team } from "../../types/team";
+import {
+  buildChatInputOptionContributions,
+  buildChatInputPanelContributions,
+  buildMentionProviderContributions,
+} from "../../extensions/coreContributions";
+import {
+  isPluginMentionProviderSupported,
+  usePluginMentionProviderRuntime,
+} from "./chatMentionProviderRenderers";
+import type { PluginOptionsMetadata } from "../../extensions/pluginOptions";
 
 export type { ChatInputProps } from "./chatInputTypes";
 
@@ -92,8 +99,9 @@ export const ChatInput = memo(function ChatInput({
   currentAgent,
   onSelectAgent,
   selectedTeamId,
-  onSelectTeam,
-  onOpenTeamBuilder,
+  pluginOptionValues: providedPluginOptionValues,
+  onPluginOptionChange,
+  runtimePlugins,
   attachments: externalAttachments,
   onAttachmentsChange: externalOnAttachmentsChange,
   onMentionQueryChange,
@@ -178,9 +186,44 @@ export const ChatInput = memo(function ChatInput({
     scheduleTextareaResize,
   });
 
-  const mentionMode = currentAgent === "team" ? "team" : "persona";
+  const pluginContributionContext = useMemo(
+    () => ({ agentId: currentAgent ?? null }),
+    [currentAgent],
+  );
+  const chatInputOptions = useMemo(
+    () => buildChatInputOptionContributions(runtimePlugins, pluginContributionContext),
+    [runtimePlugins, pluginContributionContext],
+  );
+  const chatInputPanels = useMemo(
+    () => buildChatInputPanelContributions(runtimePlugins, pluginContributionContext),
+    [runtimePlugins, pluginContributionContext],
+  );
+  const pluginOptionValues = useMemo<PluginOptionsMetadata>(() => {
+    return providedPluginOptionValues ?? {};
+  }, [providedPluginOptionValues]);
+  const handlePluginOptionChange = useCallback(
+    (pluginId: string, key: string, value: unknown) => {
+      onPluginOptionChange?.(pluginId, key, value);
+    },
+    [onPluginOptionChange],
+  );
+  const mentionProviders = useMemo(
+    () => buildMentionProviderContributions(runtimePlugins, pluginContributionContext),
+    [runtimePlugins, pluginContributionContext],
+  );
+  const activePluginMentionProvider = mentionProviders.find((provider) =>
+    isPluginMentionProviderSupported(provider, {
+      onPluginOptionChange: handlePluginOptionChange,
+    }),
+  );
+  const pluginShortcutPanelIds = new Set(chatInputPanels.map((panel) => panel.id));
+  const pluginShortcutOptions = chatInputOptions.filter(
+    (option) => option.shortcut && option.panel && pluginShortcutPanelIds.has(option.panel),
+  );
+  const mentionMode: "team" | "persona" =
+    activePluginMentionProvider?.mode === "team" ? "team" : "persona";
   const mentionEnabled =
-    mentionMode === "team" ? !!onSelectTeam : !!onUsePersonaPreset;
+    activePluginMentionProvider ? true : !!onUsePersonaPreset;
 
   const {
     mention,
@@ -195,24 +238,49 @@ export const ChatInput = memo(function ChatInput({
     mention.query,
     mention.isActive && mentionMode === "persona",
   );
-  const teamMentionSearch = useTeamMentionSearch(
-    mention.query,
-    mention.isActive && mentionMode === "team",
-  );
+
+  const clearActiveMention = useCallback(() => {
+    if (!mention.isActive) return;
+    const before = input.substring(0, mention.atIndex);
+    const after = input.substring(mention.atIndex + mention.query.length + 1);
+    setInput(before + after);
+    setCursorPosition(before.length || 0);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        textarea.selectionStart = textarea.selectionEnd = before.length;
+        textarea.focus();
+        scheduleTextareaResize();
+      }
+    });
+    resetMention();
+  }, [input, mention, resetMention, scheduleTextareaResize]);
+
+  const pluginMentionRuntime = usePluginMentionProviderRuntime({
+    provider: activePluginMentionProvider ?? null,
+    query: mention.query,
+    isActive: mention.isActive,
+    highlightedIndex: mention.highlightedIndex,
+    selectedTeamId,
+    onPluginOptionChange: handlePluginOptionChange,
+    onBeforeSelect: clearActiveMention,
+    onHover: setMentionHighlight,
+    onClose: dismissMention,
+    placement: mentionPopupPlacement ?? undefined,
+  });
 
   useEffect(() => {
     if (mention.isActive) {
       setMentionResultCount(
-        mentionMode === "team"
-          ? teamMentionSearch.teams.length
+        pluginMentionRuntime
+          ? pluginMentionRuntime.resultCount
           : mentionSearch.presets.length,
       );
     }
   }, [
     mention.isActive,
-    mentionMode,
     mentionSearch.presets.length,
-    teamMentionSearch.teams.length,
+    pluginMentionRuntime,
     setMentionResultCount,
   ]);
 
@@ -224,37 +292,13 @@ export const ChatInput = memo(function ChatInput({
   useEffect(() => {
     if (!onMentionQueryChange || !selectedPersonaPresetId || !mention.isActive)
       return;
-    const before = input.substring(0, mention.atIndex);
-    const after = input.substring(mention.atIndex + mention.query.length + 1);
-    setInput(before + after);
-    setCursorPosition(before.length || 0);
-    requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.selectionStart = textarea.selectionEnd = before.length;
-        textarea.focus();
-        scheduleTextareaResize();
-      }
-    });
-    resetMention();
+    clearActiveMention();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on preset selection
   }, [selectedPersonaPresetId]);
 
   useEffect(() => {
     if (!onMentionQueryChange || !selectedTeamId || !mention.isActive) return;
-    const before = input.substring(0, mention.atIndex);
-    const after = input.substring(mention.atIndex + mention.query.length + 1);
-    setInput(before + after);
-    setCursorPosition(before.length || 0);
-    requestAnimationFrame(() => {
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.selectionStart = textarea.selectionEnd = before.length;
-        textarea.focus();
-        scheduleTextareaResize();
-      }
-    });
-    resetMention();
+    clearActiveMention();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires only on team selection
   }, [selectedTeamId]);
 
@@ -293,23 +337,20 @@ export const ChatInput = memo(function ChatInput({
     };
   }, [scheduleTextareaResize]);
 
-  // Ctrl+T / Cmd+T -> open team picker
+  // Plugin-declared shortcuts open their matching chat input panels.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac =
-        typeof navigator !== "undefined" &&
-        navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-      const modifier = isMac ? e.metaKey : e.ctrlKey;
-      if (modifier && e.key === "t") {
-        e.preventDefault();
-        if (currentAgent === "team" && onSelectTeam) {
-          setActivePanel((prev) => (prev === "team" ? null : "team"));
-        }
-      }
+      const matchingOption = pluginShortcutOptions.find((option) =>
+        matchesPluginShortcut(option.shortcut, e),
+      );
+      const panelId = matchingOption?.panel;
+      if (!panelId) return;
+      e.preventDefault();
+      setActivePanel((prev) => (prev === panelId ? null : panelId));
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [currentAgent, onSelectTeam]);
+  }, [pluginShortcutOptions]);
 
   useEffect(() => {
     if (!mention.isActive) {
@@ -447,45 +488,10 @@ export const ChatInput = memo(function ChatInput({
   const applyMentionSelection = useCallback(
     (preset: PersonaPreset) => {
       if (!mention.isActive) return;
-      const before = input.substring(0, mention.atIndex);
-      const after = input.substring(mention.atIndex + mention.query.length + 1);
-      const newInput = before + after;
-      setInput(newInput);
-      setCursorPosition(before.length || 0);
-      requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          textarea.selectionStart = textarea.selectionEnd = before.length;
-          textarea.focus();
-          scheduleTextareaResize();
-        }
-      });
+      clearActiveMention();
       onUsePersonaPreset?.(preset);
-      resetMention();
     },
-    [input, mention, onUsePersonaPreset, resetMention, scheduleTextareaResize],
-  );
-
-  const applyTeamMentionSelection = useCallback(
-    (team: Team) => {
-      if (!mention.isActive) return;
-      const before = input.substring(0, mention.atIndex);
-      const after = input.substring(mention.atIndex + mention.query.length + 1);
-      const newInput = before + after;
-      setInput(newInput);
-      setCursorPosition(before.length || 0);
-      requestAnimationFrame(() => {
-        const textarea = textareaRef.current;
-        if (textarea) {
-          textarea.selectionStart = textarea.selectionEnd = before.length;
-          textarea.focus();
-          scheduleTextareaResize();
-        }
-      });
-      onSelectTeam?.(team.id);
-      resetMention();
-    },
-    [input, mention, onSelectTeam, resetMention, scheduleTextareaResize],
+    [clearActiveMention, mention.isActive, onUsePersonaPreset],
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -522,9 +528,10 @@ export const ChatInput = memo(function ChatInput({
       mode: mentionMode,
       highlightedIndex: mention.highlightedIndex,
       moveHighlight: moveMentionHighlight,
-      teamItems: teamMentionSearch.teams,
+      selectHighlighted: pluginMentionRuntime?.selectHighlighted,
+      teamItems: [],
       personaItems: mentionSearch.presets,
-      onTeamSelect: applyTeamMentionSelection,
+      onTeamSelect: () => undefined,
       onPersonaSelect: applyMentionSelection,
       reset: resetMention,
     },
@@ -675,18 +682,7 @@ export const ChatInput = memo(function ChatInput({
             )}
           {mention.isActive &&
             !onMentionQueryChange &&
-            mentionMode === "team" && (
-              <TeamMentionPopup
-                teams={teamMentionSearch.teams}
-                highlightedIndex={mention.highlightedIndex}
-                selectedTeamId={selectedTeamId}
-                isLoading={teamMentionSearch.isLoading}
-                onSelect={applyTeamMentionSelection}
-                onHover={setMentionHighlight}
-                onClose={dismissMention}
-                placement={mentionPopupPlacement ?? undefined}
-              />
-            )}
+            pluginMentionRuntime?.popup}
 
           <ChatInputAttachments
             attachments={attachments}
@@ -776,8 +772,8 @@ export const ChatInput = memo(function ChatInput({
                 onPaste={handlePaste}
                 placeholder={
                   canSend
-                    ? mentionMode === "team"
-                      ? t("chat.teamPlaceholder")
+                    ? pluginMentionRuntime?.placeholderKey
+                      ? t(pluginMentionRuntime.placeholderKey)
                       : t("chat.placeholder")
                     : t("chat.noPermission")
                 }
@@ -828,13 +824,15 @@ export const ChatInput = memo(function ChatInput({
             thinkingLabel={thinkingLabel}
             thinkingLevel={thinkingLevel}
             uploadCategories={uploadCategories}
+            uploadLimits={uploadLimits}
             uploadFiles={uploadFiles}
             selectedPersonaName={selectedPersonaName}
             personaAvatar={personaAvatar}
             onClearPersonaPreset={onClearPersonaPreset}
             currentAgent={currentAgent}
-            selectedTeamId={selectedTeamId}
-            onSelectTeam={onSelectTeam}
+            pluginOptionValues={pluginOptionValues}
+            onPluginOptionChange={handlePluginOptionChange}
+            chatInputOptions={chatInputOptions}
             agentOptions={agentOptions}
             agentOptionValues={agentOptionValues}
             onToggleAgentOption={onToggleAgentOption}
@@ -884,9 +882,9 @@ export const ChatInput = memo(function ChatInput({
         agents={agents}
         currentAgent={currentAgent}
         onSelectAgent={onSelectAgent}
-        selectedTeamId={selectedTeamId}
-        onSelectTeam={onSelectTeam}
-        onOpenTeamBuilder={onOpenTeamBuilder}
+        pluginOptionValues={pluginOptionValues}
+        onPluginOptionChange={handlePluginOptionChange}
+        chatInputPanels={chatInputPanels}
         agentOptions={agentOptions}
         agentOptionValues={agentOptionValues}
         onToggleAgentOption={onToggleAgentOption}
@@ -979,3 +977,18 @@ export const ChatInput = memo(function ChatInput({
     </div>
   );
 });
+
+function matchesPluginShortcut(
+  shortcut: string | null | undefined,
+  event: KeyboardEvent,
+): boolean {
+  if (!shortcut) return false;
+  const normalized = shortcut.trim().toLowerCase();
+  const match = normalized.match(/^mod\+([a-z])$/);
+  if (!match) return false;
+  const isMac =
+    typeof navigator !== "undefined" &&
+    navigator.platform.toUpperCase().includes("MAC");
+  const modifier = isMac ? event.metaKey : event.ctrlKey;
+  return modifier && event.key.toLowerCase() === match[1];
+}

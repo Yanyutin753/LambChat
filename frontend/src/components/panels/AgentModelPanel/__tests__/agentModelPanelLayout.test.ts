@@ -12,12 +12,23 @@ const rolesModelTabSource = readFileSync(
   "utf8",
 );
 
-test("agent model panel uses a glass-shell layout with a section switcher", () => {
-  expect(panelSource).toMatch(/glass-shell/);
-  expect(panelSource).toMatch(/agent-model-section-switcher/);
-  expect(agentSectionSource).toMatch(/glass-card/);
+test("agent model panel uses a compact console layout", () => {
+  assert.match(panelSource, /glass-shell flex h-full flex-col min-h-0/);
+  assert.match(panelSource, /agent-model-section-switcher/);
+  assert.match(agentSectionSource, /animate-glass-enter/);
 });
 
-test("roles model tab uses a compact scan-friendly config list", () => {
-  expect(rolesModelTabSource).toMatch(/agent-config-list/);
+test("agent and model assignment rows use compact scan-friendly lists", () => {
+  assert.match(globalAgentTabSource, /groupAgentsByPluginCategory\(localAgents, agentCategories\)/);
+  assert.match(rolesAgentTabSource, /groupAgentsByPluginCategory/);
+  assert.match(rolesModelTabSource, /agent-config-list/);
+});
+
+test("combined agent model panel preserves plugin-owned agent category boundaries", () => {
+  assert.match(panelSource, /runtimePlugins\?: PluginRuntimeContributionStates/);
+  assert.match(panelSource, /<AgentSection runtimePlugins=\{runtimePlugins\}/);
+  assert.match(agentSectionSource, /buildAgentCategoryContributions\(runtimePlugins\)/);
+  assert.match(agentSectionSource, /agentCategories=\{agentCategories\}/);
+  assert.match(agentSectionSource, /groupAgentsByPluginCategory\(availableAgents, agentCategories\)/);
+  assert.match(agentSectionSource, /category: a\.category/);
 });

@@ -19,38 +19,12 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from src.api.middleware.auth import AuthMiddleware
 from src.api.middleware.tracing import TracingMiddleware
 from src.api.middleware.user_context import UserContextMiddleware
-from src.api.routes import (
-    agent,
-    auth,
-    channels,
-    chat,
-    envvar,
-    feedback,
-    github,
-    health,
-    human,
-    mcp,
-    memory,
-    notification,
-    persona_preset,
-    project,
-    push,
-    revealed_file,
-    role,
-    scheduled_task,
-    session,
-    share,
-    skill,
-    team,
-    upload,
-    usage,
-    user,
-    version,
-    websocket,
+from src.api.plugin_lifecycle import (
+    PLUGIN_LIFECYCLE_HOOK_TIMEOUT_SECONDS,
+    run_plugin_lifecycle_hooks,
 )
-from src.api.routes import settings as settings_router
-from src.api.routes.agent import config as agent_config
-from src.api.routes.agent import model as agent_model
+from src.api.routes import notification, share, upload
+from src.api.routes.registry import register_builtin_plugin_routes, register_core_routes
 from src.frontend_resolution import resolve_frontend_target
 from src.infra.async_utils import run_blocking_io
 from src.infra.distributed_validation import validate_distributed_runtime_settings
@@ -67,6 +41,8 @@ from src.infra.share.seo import (
 )
 from src.infra.task.constants import HEARTBEAT_TIMEOUT
 from src.kernel.config import initialize_settings, settings
+from src.kernel.extensions import PluginRuntime
+from src.kernel.extensions.registry import LifecyclePhase
 
 # Suppress SyntaxWarning from oss2 SDK (invalid escape sequence in their source)
 warnings.filterwarnings("ignore", message=".*invalid escape sequence.*", category=SyntaxWarning)
@@ -81,6 +57,7 @@ STATIC_CACHE_CONTROL_BY_PREFIX = {
 MANIFEST_CACHE_CONTROL = "public, max-age=86400"
 SERVICE_WORKER_CACHE_CONTROL = "no-cache"
 OFFLINE_PAGE_CACHE_CONTROL = "no-cache"
+INDEX_HTML_CACHE_CONTROL = "no-cache"
 INDEX_HTML_CACHE_MAX_ENTRIES = 4
 INDEX_HTML_MAX_BYTES = 2 * 1024 * 1024
 _INDEX_HTML_CACHE: OrderedDict[Path, tuple[int, int, str]] = OrderedDict()
@@ -186,6 +163,8 @@ def _cache_control_for_static_path(path: str) -> str | None:
         return SERVICE_WORKER_CACHE_CONTROL
     if normalized_path == "offline.html":
         return OFFLINE_PAGE_CACHE_CONTROL
+    if normalized_path == "index.html":
+        return INDEX_HTML_CACHE_CONTROL
     return None
 
 
@@ -301,7 +280,6 @@ async def _close_route_dependency_singletons() -> None:
     from src.infra.persona_preset.manager import close_persona_preset_manager
     from src.infra.revealed_file.storage import close_revealed_file_storage
 
-    await feedback.close_feedback_manager()
     await notification.close_notification_manager()
     from src.infra.push.manager import close_push_manager
 
@@ -429,6 +407,152 @@ async def _run_startup_indexes(app: FastAPI) -> None:
     logger.info("Startup storage indexes initialized")
 
 
+async def _load_plugin_runtime_state_overrides(app: FastAPI) -> None:
+    runtime = getattr(app.state, "plugin_runtime", None)
+    if runtime is None:
+        return
+    try:
+        storage = getattr(app.state, "plugin_runtime_state_storage", None)
+        if storage is None:
+            from src.infra.extensions import get_plugin_runtime_state_storage
+
+            storage = get_plugin_runtime_state_storage()
+            app.state.plugin_runtime_state_storage = storage
+        for override in await storage.list_overrides():
+            try:
+                runtime.apply_stored_status(
+                    override.plugin_id,
+                    override.status,
+                    updated_at=override.updated_at,
+                    updated_by=override.updated_by,
+                )
+            except Exception as exc:  # noqa: BLE001 - invalid stored state is non-fatal
+                logger.warning(
+                    "Failed to apply plugin runtime state override for %s: %s",
+                    override.plugin_id,
+                    exc,
+                )
+        logger.info("Plugin runtime state overrides loaded")
+    except Exception as exc:  # noqa: BLE001 - storage outage must not break core startup
+        logger.warning("Failed to load plugin runtime state overrides: %s", exc)
+
+
+async def _initialize_plugin_settings(app: FastAPI) -> None:
+    runtime = getattr(app.state, "plugin_runtime", None)
+    if runtime is None:
+        return
+    try:
+        from src.infra.extensions import get_plugin_settings_service
+
+        service = get_plugin_settings_service()
+        app.state.plugin_settings_service = service
+        await service.storage.ensure_indexes()
+        for state in runtime.states():
+            if state.manifest and state.manifest.settings:
+                await service.import_legacy(state.manifest)
+        logger.info("Plugin settings initialized")
+    except Exception as exc:  # noqa: BLE001 - plugin settings must not block core startup
+        logger.warning("Failed to initialize plugin settings: %s", exc)
+
+
+def _attach_plugin_runtime_to_runtime_guards(app: FastAPI) -> None:
+    runtime = getattr(app.state, "plugin_runtime", None)
+    try:
+        from src.infra.scheduler.runner import get_scheduled_task_runner
+        from src.infra.scheduler.runtime import get_runtime_scheduler
+
+        get_runtime_scheduler().set_plugin_runtime(runtime)
+        get_scheduled_task_runner().set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to scheduler guards")
+    except Exception as exc:  # noqa: BLE001 - scheduler guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to scheduler guards: %s", exc)
+    try:
+        from src.infra.tool.internal_registry import set_plugin_runtime
+
+        set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to internal tool guards")
+    except Exception as exc:  # noqa: BLE001 - tool guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to internal tool guards: %s", exc)
+    try:
+        from src.infra.tool.scheduled_task.create import set_plugin_runtime
+
+        set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to scheduled task create guards")
+    except Exception as exc:  # noqa: BLE001 - scheduled task guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to scheduled task create guards: %s", exc)
+    try:
+        from src.agents import set_plugin_runtime as set_agent_plugin_runtime
+
+        set_agent_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to agent guards")
+    except Exception as exc:  # noqa: BLE001 - agent guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to agent guards: %s", exc)
+    try:
+        from src.infra.pubsub_hub import get_pubsub_hub
+
+        get_pubsub_hub().set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to pub/sub listener guards")
+    except Exception as exc:  # noqa: BLE001 - listener guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to pub/sub listener guards: %s", exc)
+    try:
+        from src.infra.channel.pubsub import get_channel_config_pubsub
+
+        get_channel_config_pubsub().set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to channel config guards")
+    except Exception as exc:  # noqa: BLE001 - channel guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to channel config guards: %s", exc)
+    try:
+        from src.infra.channel.manager import get_channel_coordinator
+
+        get_channel_coordinator().set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to channel coordinator guards")
+    except Exception as exc:  # noqa: BLE001 - channel coordinator guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to channel coordinator guards: %s", exc)
+    try:
+        from src.infra.channel.feishu import get_feishu_channel_manager
+
+        get_feishu_channel_manager().set_plugin_runtime(runtime)
+        logger.info("Plugin runtime attached to Feishu channel guards")
+    except Exception as exc:  # noqa: BLE001 - Feishu guard attachment is non-fatal
+        logger.warning("Failed to attach plugin runtime to Feishu channel guards: %s", exc)
+
+
+def _attach_plugin_runtime_to_scheduler(app: FastAPI) -> None:
+    _attach_plugin_runtime_to_runtime_guards(app)
+
+
+async def _run_plugin_lifecycle_hooks(app: FastAPI, phase: LifecyclePhase) -> None:
+    runtime = getattr(app.state, "plugin_runtime", None)
+    if not isinstance(runtime, PluginRuntime):
+        return
+    results = await run_plugin_lifecycle_hooks(
+        runtime,
+        phase=phase,
+        timeout_seconds=PLUGIN_LIFECYCLE_HOOK_TIMEOUT_SECONDS,
+    )
+    if not results:
+        return
+    previous_results = getattr(app.state, "plugin_runtime_hook_results", [])
+    app.state.plugin_runtime_hook_results = [*previous_results, *results]
+    for result in results:
+        log_method = logger.info if result.status == "succeeded" else logger.warning
+        log_method(
+            "Plugin lifecycle hook %s/%s %s in %.1fms%s",
+            result.plugin_id,
+            result.hook_name,
+            result.status,
+            result.elapsed_ms,
+            f": {result.error}" if result.error else "",
+        )
+
+
+async def _start_runtime_services_for_app(app: FastAPI) -> None:
+    await start_runtime_services(
+        plugin_runtime=getattr(app.state, "plugin_runtime", None),
+        plugin_runtime_state_storage=getattr(app.state, "plugin_runtime_state_storage", None),
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
@@ -452,7 +576,7 @@ async def lifespan(app: FastAPI):
     import logging
 
     from src.infra.logging.filter import TraceFilter
-    from src.infra.logging.formatter import ColoredFormatter
+    from src.infra.logging.formatter import build_log_formatter
 
     access_logger = logging.getLogger("uvicorn.access")
     access_logger.setLevel(logging.INFO)
@@ -460,9 +584,9 @@ async def lifespan(app: FastAPI):
     access_handler = logging.StreamHandler()
     # 使用项目相同的格式和 ColoredFormatter
     access_handler.setFormatter(
-        ColoredFormatter(
-            fmt=settings.LOG_FORMAT,
-            datefmt=settings.LOG_DATE_FORMAT,
+        build_log_formatter(
+            settings.LOG_FORMAT,
+            settings.LOG_DATE_FORMAT,
         )
     )
     # 添加 TraceFilter 以支持 trace_info
@@ -488,8 +612,16 @@ async def lifespan(app: FastAPI):
 
     await _run_startup_indexes(app)
 
+    await _load_plugin_runtime_state_overrides(app)
+
+    await _initialize_plugin_settings(app)
+
+    _attach_plugin_runtime_to_runtime_guards(app)
+
+    await _run_plugin_lifecycle_hooks(app, "startup")
+
     # 启动分布式运行时监听器（任务/设置/模型/记忆/WebSocket）
-    await start_runtime_services()
+    await _start_runtime_services_for_app(app)
     logger.info("Runtime distributed listeners started")
 
     # 后台恢复/清理残留任务；恢复逻辑自身有分布式锁与 heartbeat 判断。
@@ -522,11 +654,32 @@ async def lifespan(app: FastAPI):
     # Start Feishu channels in background (don't block app startup)
     async def _start_feishu():
         try:
+            from src.infra.channel.plugin_connectors import (
+                ensure_channel_connector_available_for_type,
+            )
+            from src.kernel.schemas.channel import ChannelType
+
+            runtime = getattr(app.state, "plugin_runtime", None)
+            available, connector_id, exc = ensure_channel_connector_available_for_type(
+                ChannelType.FEISHU,
+                runtime,
+            )
+            if not available:
+                if exc is None:
+                    logger.info(
+                        "Feishu connector startup skipped because Plugin Runtime is unavailable for connector %s",
+                        connector_id,
+                    )
+                else:
+                    logger.info("Feishu connector startup skipped by Plugin Runtime: %s", exc)
+                return
+
             from src.infra.channel.feishu.handler import setup_feishu_handler
 
             await setup_feishu_handler(
                 default_agent=settings.DEFAULT_AGENT,
                 show_tools=True,
+                plugin_runtime=runtime,
             )
         except Exception as e:
             logger.warning(f"Failed to start Feishu channels: {e}")
@@ -555,6 +708,8 @@ async def lifespan(app: FastAPI):
         # 关闭时清理
         from src.agents import AgentFactory
         from src.infra.sandbox import SandboxFactory
+
+        await _run_plugin_lifecycle_hooks(app, "shutdown")
 
         # 先关闭飞书长连接并释放 lease，避免快速重启时旧锁阻止新实例启动。
         await _stop_feishu_channels_for_shutdown(app)
@@ -686,57 +841,8 @@ def create_app() -> FastAPI:
     app.add_middleware(TracingMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware)
 
-    # 注册路由
-    app.include_router(health.router, tags=["Health"])
-    app.include_router(version.router, prefix="/api", tags=["Version"])
-    # Chat 路由: /api/chat/stream 后台执行, /api/chat/sessions/{id}/stream SSE
-    app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
-    # Agent 路由: /api/agents 列表, /api/{agent_id}/stream 和 /api/{agent_id}/chat
-    app.include_router(agent.router, prefix="/api", tags=["Agents"])
-    # Agent 配置路由: /api/agent/config 全局配置和用户偏好
-    app.include_router(agent_config.router, prefix="/api/agent/config", tags=["Agent Config"])
-    # Model 配置路由: /api/agent/models CRUD
-    app.include_router(agent_model.router, prefix="/api/agent/models", tags=["Models"])
-    app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
-    app.include_router(user.router, prefix="/api/users", tags=["Users"])
-    app.include_router(role.router, prefix="/api/roles", tags=["Roles"])
-    app.include_router(
-        persona_preset.router,
-        prefix="/api/persona-presets",
-        tags=["Persona Presets"],
-    )
-    app.include_router(team.router, prefix="/api/teams", tags=["Teams"])
-    app.include_router(session.router, prefix="/api/sessions", tags=["Sessions"])
-    app.include_router(project.router, prefix="/api/projects", tags=["Projects"])
-    app.include_router(share.router, prefix="/api/share", tags=["Share"])
-    app.include_router(skill.router, prefix="/api/skills", tags=["Skills"])
-    app.include_router(github.router, prefix="/api/github", tags=["GitHub"])
-
-    # User marketplace API
-    from src.api.routes.marketplace import router as marketplace_router
-
-    app.include_router(marketplace_router, prefix="/api/marketplace", tags=["Marketplace"])
-
-    app.include_router(settings_router.router, prefix="/api/settings", tags=["Settings"])
-    app.include_router(memory.router, prefix="/api/memory", tags=["Memory"])
-    app.include_router(mcp.router, prefix="/api/mcp", tags=["MCP"])
-    app.include_router(mcp.admin_router, prefix="/api/admin/mcp", tags=["MCP Admin"])
-    app.include_router(envvar.router, prefix="/api/env-vars", tags=["Environment Variables"])
-    app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
-    app.include_router(revealed_file.router, prefix="/api/files", tags=["Files"])
-    app.include_router(human.router, prefix="/human", tags=["Human"])
-    app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
-    app.include_router(usage.router, prefix="/api/usage", tags=["Usage"])
-    app.include_router(notification.router, prefix="/api/notifications", tags=["Notifications"])
-    app.include_router(push.router, prefix="/api/push", tags=["Push"])
-    # Generic channel configuration
-    app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
-    # Scheduled tasks
-    app.include_router(
-        scheduled_task.router, prefix="/api/scheduled-tasks", tags=["Scheduled Tasks"]
-    )
-    # WebSocket 路由: /ws 用于实时通知
-    app.include_router(websocket.router, tags=["WebSocket"])
+    register_core_routes(app)
+    register_builtin_plugin_routes(app)
 
     # Serve frontend static files
     project_root = Path(__file__).parent.parent.parent
@@ -787,7 +893,11 @@ def create_app() -> FastAPI:
                     reason=reason,
                 )
                 rendered = inject_share_seo_into_html(html_doc, seo)
-                return HTMLResponse(content=rendered, status_code=exc.status_code)
+                return HTMLResponse(
+                    content=rendered,
+                    status_code=exc.status_code,
+                    headers={"Cache-Control": INDEX_HTML_CACHE_CONTROL},
+                )
 
             seo = build_shared_page_seo(
                 base_url=base_url,
@@ -799,7 +909,10 @@ def create_app() -> FastAPI:
                 indexable=False,
             )
             rendered = inject_share_seo_into_html(html_doc, seo)
-            return HTMLResponse(content=rendered)
+            return HTMLResponse(
+                content=rendered,
+                headers={"Cache-Control": INDEX_HTML_CACHE_CONTROL},
+            )
 
         # SPA fallback - serve index.html for all unmatched routes
         @app.get("/{full_path:path}")
@@ -819,7 +932,10 @@ def create_app() -> FastAPI:
                 seo = build_public_route_seo(base_url=base_url, path=path)
                 html_doc = await run_blocking_io(_read_index_html, index_file)
                 rendered = inject_public_route_seo_into_html(html_doc, seo)
-                return HTMLResponse(content=rendered)
+                return HTMLResponse(
+                    content=rendered,
+                    headers={"Cache-Control": INDEX_HTML_CACHE_CONTROL},
+                )
             return {"error": "Frontend not built. Run 'npm run build' in frontend directory."}
 
     elif frontend_target and frontend_target[0] == "redirect":

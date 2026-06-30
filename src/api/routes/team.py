@@ -1,10 +1,12 @@
-"""Team CRUD routes."""
+"""Agent Team plugin-owned CRUD routes."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.deps import get_current_user_required
+from src.api.routes.plugin_guard import plugin_route_guard
 from src.infra.team.manager import TeamManager
 from src.kernel.exceptions import NotFoundError
+from src.kernel.extensions.plugin_options import AGENT_TEAM_PLUGIN_ID
 from src.kernel.schemas.team import (
     TeamCreate,
     TeamListResponse,
@@ -14,7 +16,10 @@ from src.kernel.schemas.team import (
 )
 from src.kernel.schemas.user import TokenPayload
 
-router = APIRouter(redirect_slashes=False)
+router = APIRouter(
+    redirect_slashes=False,
+    dependencies=[Depends(plugin_route_guard(AGENT_TEAM_PLUGIN_ID))],
+)
 
 
 def _get_manager() -> TeamManager:

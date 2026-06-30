@@ -17,12 +17,22 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from src.infra.extensions import get_plugin_settings_service
+from src.infra.extensions.scoped_options import (
+    plugin_options_with_settings,
+    sync_plugin_options_to_settings,
+)
 from src.infra.logging import get_logger
 from src.infra.scheduler.runner import get_scheduled_task_runner
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import ensure_utc, utc_now
+from src.kernel.extensions import BUILTIN_PLUGIN_MANIFESTS, PluginRuntime
+from src.kernel.extensions.plugin_options import (
+    declared_plugin_options_from_metadata,
+    plugin_options_from_metadata,
+)
 from src.kernel.schemas.scheduled_task import (
     CronTriggerConfig,
     DateTriggerConfig,
@@ -39,6 +49,12 @@ from src.kernel.schemas.scheduled_task import (
 logger = get_logger(__name__)
 
 _managed_task_signatures: dict[str, str] = {}
+
+
+def _ensure_agent_executable(agent_id: str) -> None:
+    from src.agents import ensure_agent_executable
+
+    ensure_agent_executable(agent_id)
 
 
 def _coerce_timezone(timezone_name: str | None) -> ZoneInfo:
@@ -66,6 +82,33 @@ class ScheduledTaskService:
     def __init__(self) -> None:
         self._active_tasks_marker: int | None = None
         self._active_task_count = 0
+        self.plugin_runtime: PluginRuntime | None = None
+        self.plugin_settings_service = get_plugin_settings_service()
+
+    def _runtime(self) -> PluginRuntime:
+        return self.plugin_runtime or PluginRuntime(
+            BUILTIN_PLUGIN_MANIFESTS,
+            core_dependencies=("skill_core",),
+        )
+
+    def _declared_scheduled_task_input_payload(
+        self,
+        input_payload: dict,
+        *,
+        agent_id: str | None = None,
+    ) -> dict:
+        payload = dict(input_payload or {})
+        plugin_options = declared_plugin_options_from_metadata(
+            self._runtime(),
+            payload,
+            scope="scheduled_task",
+            agent_id=agent_id,
+        )
+        if plugin_options:
+            payload["plugin_options"] = plugin_options
+        else:
+            payload.pop("plugin_options", None)
+        return payload
 
     # ── CRUD ───────────────────────────────────────
 
@@ -77,9 +120,14 @@ class ScheduledTaskService:
         """Validate, persist, and register a new scheduled task."""
         # Validate trigger config
         self._build_trigger(request.trigger_type, request.trigger_config, request.timezone)
+        _ensure_agent_executable(request.agent_id)
 
         now = utc_now()
         task_id = str(uuid4())
+        input_payload = self._declared_scheduled_task_input_payload(
+            request.input_payload,
+            agent_id=request.agent_id,
+        )
         task = ScheduledTask.model_validate(
             {
                 "_id": task_id,
@@ -89,7 +137,7 @@ class ScheduledTaskService:
                 "trigger_type": request.trigger_type,
                 "trigger_config": request.trigger_config,
                 "timezone": request.timezone,
-                "input_payload": request.input_payload,
+                "input_payload": input_payload,
                 "status": ScheduledTaskStatus.ACTIVE,
                 "enabled": request.enabled,
                 "run_on_start": False
@@ -109,6 +157,7 @@ class ScheduledTaskService:
 
         storage = get_scheduled_task_storage()
         await storage.create_task(task)
+        await self._sync_scheduled_task_plugin_options(task, updated_by=owner_id)
         self._register_to_scheduler(task, honor_run_on_start=True)
 
         logger.info(
@@ -130,6 +179,16 @@ class ScheduledTaskService:
 
         updates: dict[str, Any] = request.model_dump(exclude_unset=True)
 
+        if "agent_id" in updates:
+            _ensure_agent_executable(updates["agent_id"])
+
+        if "input_payload" in updates:
+            agent_id = updates.get("agent_id", task.agent_id)
+            updates["input_payload"] = self._declared_scheduled_task_input_payload(
+                updates["input_payload"],
+                agent_id=agent_id,
+            )
+
         # Validate trigger changes as one atomic pair. This also supports changing
         # trigger_type and trigger_config in a single update request.
         if "trigger_type" in updates or "trigger_config" in updates or "timezone" in updates:
@@ -147,6 +206,11 @@ class ScheduledTaskService:
         updated_task = await storage.get_task(task_id)
         if updated_task is None:
             return None
+        if "input_payload" in updates:
+            await self._sync_scheduled_task_plugin_options(
+                updated_task,
+                updated_by=updated_task.owner_id,
+            )
 
         # Refresh scheduler registration
         if updated_task.enabled and updated_task.status == ScheduledTaskStatus.ACTIVE:
@@ -222,7 +286,13 @@ class ScheduledTaskService:
             user_id=owner_id,
             scheduled_task_ids=[task.id for task in tasks],
         )
-        responses = [self.to_response(t, unread_count=unread_counts.get(t.id, 0)) for t in tasks]
+        responses = [
+            await self.to_response_with_plugin_settings(
+                task,
+                unread_count=unread_counts.get(task.id, 0),
+            )
+            for task in tasks
+        ]
         return responses, total
 
     async def get_task_response(self, task: ScheduledTask) -> ScheduledTaskResponse:
@@ -231,7 +301,10 @@ class ScheduledTaskService:
             user_id=task.owner_id,
             scheduled_task_ids=[task.id],
         )
-        return self.to_response(task, unread_count=unread_counts.get(task.id, 0))
+        return await self.to_response_with_plugin_settings(
+            task,
+            unread_count=unread_counts.get(task.id, 0),
+        )
 
     # ── Execution ──────────────────────────────────
 
@@ -336,6 +409,41 @@ class ScheduledTaskService:
             unread_count=unread_count,
             created_at=task.created_at,
             updated_at=task.updated_at,
+        )
+
+    async def to_response_with_plugin_settings(
+        self,
+        task: ScheduledTask,
+        unread_count: int = 0,
+    ) -> ScheduledTaskResponse:
+        response = self.to_response(task, unread_count=unread_count)
+        plugin_options = await plugin_options_with_settings(
+            runtime=self._runtime(),
+            service=self.plugin_settings_service,
+            scope="scheduled_task",
+            subject_id=task.id,
+            plugin_options=plugin_options_from_metadata(task.input_payload),
+        )
+        if plugin_options:
+            response.input_payload = {
+                **response.input_payload,
+                "plugin_options": plugin_options,
+            }
+        return response
+
+    async def _sync_scheduled_task_plugin_options(
+        self,
+        task: ScheduledTask,
+        *,
+        updated_by: str | None,
+    ) -> None:
+        await sync_plugin_options_to_settings(
+            runtime=self._runtime(),
+            service=self.plugin_settings_service,
+            scope="scheduled_task",
+            subject_id=task.id,
+            plugin_options=plugin_options_from_metadata(task.input_payload),
+            updated_by=updated_by,
         )
 
     # ── Internal ───────────────────────────────────

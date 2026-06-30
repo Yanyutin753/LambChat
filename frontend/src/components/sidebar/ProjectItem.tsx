@@ -51,6 +51,7 @@ interface ProjectItemProps {
   onRenameProject: (projectId: string, name: string) => void;
   onDeleteProject: (projectId: string) => void;
   onUpdateIcon?: (projectId: string, icon: string) => void;
+  onOpenPluginOptions?: (project: Project) => void;
   scrollRoot?: Element | null;
   draggingSessionId?: string | null;
   onNewSessionInProject?: (projectId: string) => void;
@@ -84,6 +85,7 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
       onConsumeAutoExpand,
       unreadBySession = new Map(),
       onUpdateIcon,
+      onOpenPluginOptions,
       scrollRoot,
       favoritesOnly = false,
       onMarkAllRead,
@@ -467,6 +469,9 @@ export const ProjectItem = forwardRef<ProjectItemHandle, ProjectItemProps>(
             onClose={() => setIsMenuOpen(false)}
             onRename={handleStartEdit}
             onDelete={() => onDeleteProject(project.id)}
+            onPluginOptions={
+              onOpenPluginOptions ? () => onOpenPluginOptions(project) : undefined
+            }
             onNewSessionInProject={
               onNewSessionInProject
                 ? () => onNewSessionInProject(project.id)
